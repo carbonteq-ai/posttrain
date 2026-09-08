@@ -1,0 +1,65 @@
+type: task
+name: posttrain-gdpo-trl-gemma-r12-j
+
+image: registry.carbonteq.com/carbonteq/posttrain/nanbeige-vllm@sha256:bfbeee151fb59c687f7e27d5e5e287716a7c1c6dd58ebf0a4ffe99b13702a3aa
+shell: /bin/bash
+commands:
+  - >-
+    /opt/posttrain/uv pip install --no-deps --reinstall
+    --python /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/r12-artifacts/automationbench_v1-0.3.0-py3-none-any.whl
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/r12-artifacts/posttrain_train-0.0.0-py3-none-any.whl
+  - >-
+    PYTHONDONTWRITEBYTECODE=1
+    PYTHONPATH=/opt/posttrain/qualification
+    HF_HUB_CACHE=/root/.cache/huggingface/hub
+    OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/automationbench_native_judges.py
+    --backend trl
+    --algorithm gdpo
+    --judge-profile gemma12b
+    --judge-code-revision d241defa1914d167bd4f10f6458e358ece8233f3
+    --environment-wheel-sha256 ef95f95a11ca9b1ab64ed5d951837660caf3468989d3595afd2171b42563dd02
+    --output /opt/posttrain/evidence/training-gdpo-trl-gemma-j
+  - >-
+    PYTHONDONTWRITEBYTECODE=1
+    HF_HUB_CACHE=/root/.cache/huggingface/hub
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/audit_structured_toy.py
+    /opt/posttrain/evidence/training-gdpo-trl-gemma-j
+    --mechanics
+    --reload-export
+
+files:
+  - ./automationbench_native_judges.py:/opt/posttrain/qualification/automationbench_native_judges.py
+  - ./automationbench_structured_toy.py:/opt/posttrain/qualification/automationbench_structured_toy.py
+  - ./audit_structured_toy.py:/opt/posttrain/qualification/audit_structured_toy.py
+
+volumes:
+  - /home/carbonteq-ai-workstation/.local/bin/uv:/opt/posttrain/uv
+  - /var/lib/posttrain/cache/huggingface:/root/.cache/huggingface
+  - /var/lib/posttrain/qualifications/nanbeige-r12-20260906:/opt/posttrain/evidence
+  - /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl:/home/carbonteq-ai-workstation/posttrain-qualification.2iyErl
+  - /home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu:/home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu
+
+resources:
+  cpu: 8..
+  memory: 48GB..
+  gpu:
+    vendor: nvidia
+    count: 1
+    memory: 96GB..
+
+fleets:
+  - local-gpu-workers
+max_duration: 3h
+stop_duration: 5m
+retry: false
+tags:
+  purpose: automationbench-managed-training
+  algorithm: gdpo
+  backend: trl
+  judge: gemma4-12b-thinking
+  steps: "5"
+  bounded: "true"

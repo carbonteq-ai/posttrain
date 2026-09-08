@@ -233,6 +233,21 @@ secrets.
 
 ## Layers of ownership
 
+For GDPO/CAPO, `posttrain.train` owns backend-neutral structured reward
+transport, group admission, normalization, and token-credit validation.
+Environment/project code owns outcome checks, rubric, and critique meaning.
+Runtime composition binds judge inference without introducing imports between
+train, eval, and serve. Critiques and annotations remain derived native-trace
+evidence with immutable references; there is no additional trajectory store.
+
+Custom Verifiers judge/scoring plugins own rubric preparation, assessment parsing
+and task-specific extraction. They use injected inference clients; they do not
+allocate GPUs, launch engines or import capability packages. One plugin may do
+both judging and extraction. Composition owns inference lifecycle; training owns
+validated turn-to-original-token mapping and algorithm credit. Generic native
+record compatibility belongs in `posttrain.environment`, without concrete
+Verifiers types in its public contracts.
+
 | Layer | Developer writes / publishes | Example |
 | --- | --- | --- |
 | Framework core (`common` + contracts) | Rarely; extend carefully | Run status, artifact reference types |

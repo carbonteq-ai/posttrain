@@ -52,7 +52,7 @@ def _candidate_manifest_for_runtime_image_tests(monkeypatch: pytest.MonkeyPatch)
         "posttrain_cli.commands.runtime",
         "posttrain_cli.runtime_image_builds",
     ):
-        monkeypatch.setattr(f"{module}.load_manifest", lambda: manifest)
+        monkeypatch.setattr(f"{module}.load_manifest", lambda **_: manifest)
 
 
 def _manifest():

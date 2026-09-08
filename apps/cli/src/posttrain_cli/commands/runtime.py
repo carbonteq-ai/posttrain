@@ -23,9 +23,12 @@ from ..output import emit
 from ..runtime_images import verify_registry
 
 
-def _registry(state: CliState):
+def _registry(state: CliState, *, verify_published_locks: bool = True):
     layout = state.layout()
-    configuration = load_local_execution_config(layout)
+    configuration = load_local_execution_config(
+        layout,
+        verify_published_locks=verify_published_locks,
+    )
     if configuration.registry is None:
         raise ContractError(
             "no registry is configured: set "
@@ -204,7 +207,7 @@ def register(app: typer.Typer) -> None:
         from ..runtime_image_builds import build_runtime_images, check_runtime_images
 
         state: CliState = ctx.obj
-        registry = _registry(state)
+        registry = _registry(state, verify_published_locks=False)
         selected = sorted(set(variant)) if variant else list(RUNTIME_VARIANTS)
 
         if not push:

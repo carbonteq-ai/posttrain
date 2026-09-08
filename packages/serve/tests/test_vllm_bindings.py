@@ -4,10 +4,11 @@ from dataclasses import replace
 
 import pytest
 from posttrain.common import InferenceBinding, Workload
+from posttrain.common.variants import NANBEIGE_42_3B
 from posttrain.serve import ServeBenchmarkRequest
 from posttrain.serve.backends.vllm.bindings import benchmark_config, engine_config, frontend_args
 from posttrain.serve.benchmarks import CORE_INFERENCE_V1
-from posttrain.serve.profiles import VllmEngineConfig
+from posttrain.serve.profiles import VllmEngineConfig, VllmSpeculativeConfig
 
 
 def test_qwen_screen_binding_captures_tested_8gb_constraints(qwen_screen_binding: InferenceBinding) -> None:
@@ -104,3 +105,135 @@ def test_workload_concurrency_becomes_one_ordered_sweep(
     config = benchmark_config(ServeBenchmarkRequest(qwen_screen_binding, workload))
 
     assert tuple(cell.concurrency for cell in config.cells) == (1, 2, 4)
+
+
+def test_dspark_binding_retains_immutable_draft_identity_and_uses_actual_variant(
+    qwen_screen_binding: InferenceBinding,
+    representative_workload: Workload,
+) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        model=NANBEIGE_42_3B,
+        backend="vllm@62f6de733d7ae63b759329993bc209e67afdf431",
+        renderer=NANBEIGE_42_3B.renderer_contract,
+        engine={
+            **qwen_screen_binding.engine,
+            "speculative_config": {
+                "method": "dspark",
+                "num_speculative_tokens": 7,
+                "draft_model": {
+                    "repo_id": "Nanbeige/Nanbeige4.2-3B-DSpark",
+                    "revision": "a" * 40,
+                    "path": "/models/nanbeige4.2-3b-dspark",
+                },
+            },
+        },
+    )
+
+    config = benchmark_config(ServeBenchmarkRequest(binding, representative_workload))
+
+    assert config.engine.speculative is not None
+    assert config.engine.speculative.draft_model is not None
+    assert config.engine.speculative.draft_model.revision == "a" * 40
+    assert config.engine.speculative.as_vllm() == {
+        "method": "dspark",
+        "num_speculative_tokens": 7,
+        "model": "/models/nanbeige4.2-3b-dspark",
+    }
+    assert all(cell.required_variant == "dspark" for cell in config.cells)
+
+
+def test_dspark_and_turboquant_are_rejected_for_pinned_nanbeige_runtime(
+    qwen_screen_binding: InferenceBinding,
+    representative_workload: Workload,
+) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        model=NANBEIGE_42_3B,
+        backend="vllm@62f6de733d7ae63b759329993bc209e67afdf431",
+        renderer=NANBEIGE_42_3B.renderer_contract,
+        engine={
+            **qwen_screen_binding.engine,
+            "kv_cache_dtype": "turboquant_k8v4",
+            "speculative_config": {
+                "method": "dspark",
+                "num_speculative_tokens": 7,
+                "draft_model": {
+                    "repo_id": "Nanbeige/Nanbeige4.2-3B-DSpark",
+                    "revision": "5f12c792dabbfcdc4a0cf504e75f7216706d9590",
+                },
+            },
+        },
+    )
+
+    with pytest.raises(ValueError, match="non-causal draft attention"):
+        benchmark_config(ServeBenchmarkRequest(binding, representative_workload))
+
+
+def test_dspark_turboquant_limit_does_not_prejudge_future_runtime(
+    qwen_screen_binding: InferenceBinding,
+    representative_workload: Workload,
+) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        model=NANBEIGE_42_3B,
+        backend=f"vllm@{'b' * 40}",
+        renderer=NANBEIGE_42_3B.renderer_contract,
+        engine={
+            **qwen_screen_binding.engine,
+            "kv_cache_dtype": "turboquant_k8v4",
+            "speculative_config": {
+                "method": "dspark",
+                "num_speculative_tokens": 7,
+                "draft_model": {
+                    "repo_id": "Nanbeige/Nanbeige4.2-3B-DSpark",
+                    "revision": "5f12c792dabbfcdc4a0cf504e75f7216706d9590",
+                },
+            },
+        },
+    )
+
+    config = benchmark_config(ServeBenchmarkRequest(binding, representative_workload))
+
+    assert all(cell.required_variant == "dspark-turboquant" for cell in config.cells)
+
+
+def test_speculative_and_kv_cache_variants_are_composed_without_relabeling(
+    qwen_screen_binding: InferenceBinding,
+    representative_workload: Workload,
+) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        engine={
+            **qwen_screen_binding.engine,
+            "kv_cache_dtype": "turboquant_k8v4",
+            "speculative_config": {"method": "mtp", "num_speculative_tokens": 1},
+        },
+    )
+
+    config = benchmark_config(ServeBenchmarkRequest(binding, representative_workload))
+
+    assert all(cell.required_variant == "mtp-turboquant" for cell in config.cells)
+
+
+def test_dspark_requires_a_host_materialized_immutable_draft() -> None:
+    with pytest.raises(ValueError, match="immutable draft model"):
+        VllmSpeculativeConfig(method="dspark", num_speculative_tokens=7)
+
+
+def test_nanbeige_renderer_drives_its_vllm_parsers(qwen_screen_binding: InferenceBinding) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        model=NANBEIGE_42_3B,
+        renderer=NANBEIGE_42_3B.renderer.id,
+        capabilities=("tool-calling",),
+        engine={**qwen_screen_binding.engine, "reasoning_parser": "nanbeige"},
+    )
+
+    assert frontend_args(binding) == (
+        "--enable-auto-tool-choice",
+        "--tool-call-parser",
+        "nanbeige",
+        "--reasoning-parser",
+        "nanbeige",
+    )

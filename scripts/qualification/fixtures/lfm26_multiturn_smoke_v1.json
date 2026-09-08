@@ -1,0 +1,9 @@
+{
+  "id": "lfm26-multiturn-smoke-v1",
+  "selection_method": "One deterministic read-then-write task that requires at least two policy tool turns.",
+  "domains": ["simple"],
+  "training": [
+    {"name": "simple.sheets_update_status", "assertions": 1, "tools": 2}
+  ],
+  "evaluation": []
+}

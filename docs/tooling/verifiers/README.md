@@ -7,21 +7,63 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 
 ## Install / pin
 
+The selected independently maintained CarbonTeq distribution is
+`carbonteq-ai/verifiers@90055c11896954fac429bb9120245caa6dc1dd59`, based on
+upstream main commit `e3bcbcbe5c55297a07a5d1038e37c2408b4a3dbd` (71 commits
+after v0.3.1). It adds
+optional host-client injection through native serving/interception. The fork
+ledger is `CARBONTEQ_FORK.md`; three real local harness lifecycle cases and the
+complete upstream v1 suite pass.
+Framework modern integration now runs AutomationBench tools, retains original
+policy tokens, carries distinct explicit SAMPO turn rewards, and publishes
+native Episode replay artifacts. A real loopback HTTP evaluation integration
+also passes native nested-config activation, episode accounting and trace-view
+synchronization. The failed R10 cloud attempt proved that the old upstream pin
+cannot inject the already-loaded policy; runtime-image publication and the
+corrected cloud retry remain open.
+
+CarbonTeq Verifiers is not maintained as a temporary patch awaiting upstream
+acceptance. It is the supported environment, harness, episode, trace and scorer
+runtime for Posttrain. Prime Intellect Verifiers remains an upstream source to
+review and synchronize deliberately; upstreaming a CarbonTeq capability is
+optional and is never a release gate. Every synchronization must preserve a
+reviewed delta ledger, pass fork and consumer compatibility suites, publish an
+immutable CarbonTeq revision, and update Posttrain pins only after qualification.
+
+The published external environment revision is
+`carbonteq-ai/verifiers-environments@12ff5e1abfab369b8dec4df3ce83c5984f55ad34`
+(development branch `codex/verifiers-latest-support`). It migrates
+`Task.toolsets(config)` and `Toolset.register` and includes
+an optional native AutomationBench turn-judge plugin. The plugin uses a supplied
+hosted endpoint, retains bounded attempts and scorer identity, and emits generic
+turn annotations without adding quality to the benchmark's scalar reward.
+Twenty-seven AutomationBench tests and its clean Pyright/Ruff checks pass on the
+latest Verifiers contract. The real framework tool integration also passes.
+Multiple-judge composition, mixed-version replay, and installed GPU runtime
+release gates remain open.
+
 - Via **`packages/eval` `verifiers` extra**:
   `uv sync --package eval --extra verifiers --python 3.12`
 - Also pulls **`prime`** CLI (Environments Hub: `prime env install` / `prime eval run`)
-- Workspace pins upstream `main` at commit
-  `284a868d6a9022109b749710672a0460e8a996d4` (2026-07-19), not the older `0.2.0`
-  release — API under `verifiers.v1` (legacy env API still present but not our
-  contract)
+- Workspace pins the maintained fork commit above; its API remains under
+  `verifiers.v1` and defaults to upstream client resolution when no host factory
+  is supplied.
 
-When advancing Verifiers: pin a reviewed commit, refresh `uv.lock`, run a
-taskset smoke eval, record the new SHA here. No unpinned moving branch.
+Latest Verifiers moves harness ownership beneath `agent` in `EnvConfig`
+(`agent.harness`, `agent.runtime`, `agent.timeout`, and `agent.max_turns`) and
+uses MCP 2. Posttrain catalogs and Observatory's MCP host have been migrated to
+those contracts. Native replay serialization explicitly disables the library's
+four-decimal display rounding so retained policy log probabilities remain exact.
+
+When advancing Verifiers: review upstream and CarbonTeq divergence by behavior,
+pin a reviewed CarbonTeq commit, refresh `uv.lock`, run taskset and Posttrain
+train/eval integration smokes, and record the new SHA here. No unpinned moving
+branch and no assumption that upstream is the product authority.
 
 CarbonTeq's maintained Verifiers v1 environment packs live in the separate
 framework-neutral [verifiers-environments repository](https://github.com/carbonteq-ai/verifiers-environments).
 The current framework integration uses published commit
-`b7bcb591facfcd2b073802f6d7496b24ab9c479e` and keeps each package independently
+`12ff5e1abfab369b8dec4df3ce83c5984f55ad34` and keeps each package independently
 installable:
 
 | Package | Taskset | Source data / generator revision |
@@ -190,6 +232,46 @@ in [05 · APIs](../../post-training/05-apis.md#environmentbinding) and
 [06 · observation and lineage](../../post-training/06-observation-and-lineage.md#eval-metrics).
 
 ## Practice notes
+
+### Native hosted judges (unpublished migration candidate)
+
+`posttrain.jobs.bind_native_judges(context, environment, requests)` binds a
+mapping of existing native judge names to `ServeLaunchRequest` selections. The
+context manager starts endpoints and closes every started endpoint on normal
+exit, training failure, or later endpoint startup failure. It does not interpret
+rubrics, aggregate scores or load a model inside an environment plugin.
+
+The declarative native location is `taskset.task.judges`. Each managed entry has
+a unique `name` (or plugin `id`), a model identity and the exact sampling mapping
+from its inference selection. Mismatches fail before serving. Explicit distinct
+ports and capacity are supplied by the composition host. Authentication is passed
+through a temporary environment-variable reference, never a stored key value.
+The environment's recovery identity retains model/renderer, engine, sampling and
+target selections; changing a judge behind an unchanged environment package
+revision cannot silently resume a checkpoint.
+
+For standard job composition, `structured_rl_definition("gdpo",
+judge_inference_seats={"quality": ("judge_inference", 8123)})` adds a required
+inference seat without rubric-specific fields. `sampo_definition(turn_rewards=True,
+judge_inference_seats=...)` also requires an explicit `reward_projection` with
+`turn_reward_key` and a declaration of terminal-outcome inclusion. Existing
+sparse SAMPO definitions retain their selection contract.
+
+The external AutomationBench example plugin emits named turn scores and error
+turn IDs. `prefix` assessment sees context only through the rated turn;
+`retrospective` sees the full trajectory. Both are versioned scorer settings.
+Missing, invalid, timed-out, abstained and inapplicable assessments are not zero
+rewards. The example deliberately has no mutable score cache: reassessment uses
+a new annotation namespace/trace, while checkpoints use immutable reward-contract
+validation. Native Episode JSONL is the replay authority; derived trace JSONL
+keeps exact sampled tokens/logprobs and excludes observation tokens from credit.
+
+The live migration exposed nested native-validator mutation; activation now
+passes a detached JSON tree so the saved selection remains serializable and
+stable across repeated activation. The five-step installed-package runner is
+`scripts/qualification/automationbench_native_judges.py`. See the active plan
+for failed attempts, candidate provenance, calibration and publication gates;
+this section does not declare the new runtime release-qualified.
 
 - Prefer the same versioned taskset for held-out eval and online RL when
   semantics match

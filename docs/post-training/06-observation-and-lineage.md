@@ -270,6 +270,15 @@ selected SAMPO semantics, not a second environment reward definition.
 
 ### Train metrics (on-policy distillation)
 
+GDPO/CAPO evidence additionally preserves explicit prompt-group and rollout
+identities, component statuses and values, scorer/rubric/projection revisions,
+original token alignment, resolved error spans, normalization population,
+advantage summaries, and admission failures/retries. Raw critiques remain
+derived native-trace records referenced immutably. Checkpoint compatibility
+includes algorithm, reward schema, scorer, and normalization identity. Judge
+sampling attempts and token costs remain individually attributable.
+
+
 Includes the common `train/*` step series plus:
 
 | Metric | Notes |
@@ -409,6 +418,14 @@ Rules:
    `VerifiersTrace` unless a versioned derived projection is explicit.
 7. Task `@reward` / `@metric` meanings stay in the env package; Observatory reads
    them from traces.
+
+Migrated runtimes retain the native Episode envelope, including task and trace,
+as replay authority. Readers detect format explicitly; legacy artifacts remain
+readable during migration. Derived views must not discard the retained envelope
+or retokenize policy text. Keep original token IDs, masks and unrounded numerical
+streams. Turn assessments retain scorer identity, context scope and raw output
+references separately from algorithm advantages. Actual structured learning
+signals and native task success are separate; judge failures are not zeros.
 
 Prototype note: current `posttrain.eval.evaluate` already follows this pattern
 (factory → `EnvConfig` → `EvalConfig` → `run_eval` → sync + artifact). Baseline

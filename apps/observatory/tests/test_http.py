@@ -188,5 +188,4 @@ async def test_serving_capacity_http_export_and_mcp_use_the_same_projection() ->
     )
 
     assert exported == http_view
-    assert isinstance(mcp_result, tuple)
-    assert mcp_result[1] == http_view
+    assert mcp_result.structured_content == http_view

@@ -27,7 +27,15 @@ from .backends.common import BackendTrainingResult
 from .backends.trl import run_dpo, run_sft
 from .bindings import FullParameterUpdate, LoRAUpdate, QLoRAUpdate, parameter_update_digest
 from .online_rl import EnvironmentRolloutBridge, EnvironmentRolloutEvidence
-from .requests import DPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest, SFTRequest
+from .requests import (
+    CAPORequest,
+    DPORequest,
+    GDPORequest,
+    GRPORequest,
+    OnPolicyDistillationRequest,
+    SAMPORequest,
+    SFTRequest,
+)
 from .results import TeacherScoringSummary, TrainingResult
 
 type TrainingContext = RunContext
@@ -112,7 +120,13 @@ def _digest(path: Path) -> str:
 
 
 def _prepare_interruption_recovery[
-    RequestT: SFTRequest | DPORequest | GRPORequest | SAMPORequest | OnPolicyDistillationRequest
+    RequestT: SFTRequest
+    | DPORequest
+    | GRPORequest
+    | SAMPORequest
+    | GDPORequest
+    | CAPORequest
+    | OnPolicyDistillationRequest
 ](
     context: TrainingContext,
     request: RequestT,
@@ -172,8 +186,14 @@ def _prepare_interruption_recovery[
 
 def _finish(
     context: TrainingContext,
-    request: SFTRequest | DPORequest | GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
-    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    request: SFTRequest
+    | DPORequest
+    | GRPORequest
+    | SAMPORequest
+    | GDPORequest
+    | CAPORequest
+    | OnPolicyDistillationRequest,
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "gdpo", "capo", "distill"],
     backend: BackendTrainingResult,
     dataset: SupervisedDataset | PreferenceDataset | None = None,
     validation_dataset: SupervisedDataset | None = None,
@@ -182,7 +202,7 @@ def _finish(
     model = _source_model(request)
     resolved_dataset = (
         request.bridge.dataset
-        if isinstance(request, GRPORequest | SAMPORequest | OnPolicyDistillationRequest)
+        if isinstance(request, GRPORequest | SAMPORequest | GDPORequest | CAPORequest | OnPolicyDistillationRequest)
         else dataset
     )
     if resolved_dataset is None:
@@ -448,6 +468,65 @@ def sampo(
     return _finish(context, request, "sampo", backend)
 
 
+type StructuredRLBackend = Callable[[TrainingContext, GDPORequest | CAPORequest, Path], BackendTrainingResult]
+
+
+def gdpo(
+    context: TrainingContext,
+    request: GDPORequest,
+    *,
+    runner: StructuredRLBackend | None = None,
+) -> TrainingResult:
+    return _structured_rl(context, request, runner=runner)
+
+
+def capo(
+    context: TrainingContext,
+    request: CAPORequest,
+    *,
+    runner: StructuredRLBackend | None = None,
+) -> TrainingResult:
+    return _structured_rl(context, request, runner=runner)
+
+
+def _structured_rl(
+    context: TrainingContext,
+    request: GDPORequest | CAPORequest,
+    *,
+    runner: StructuredRLBackend | None,
+) -> TrainingResult:
+    technique = "gdpo" if isinstance(request, GDPORequest) else "capo"
+    if runner is None:
+        backend_name = request.training.backend.split("@", 1)[0]
+        if backend_name == "trl":
+            from .backends.trl.policy_optimization import run_structured_rl
+        elif backend_name == "verl":
+            from .backends.verl.launcher import run_structured_rl
+        else:
+            raise ValueError(f"unsupported {technique} training backend {request.training.backend!r}")
+        runner = run_structured_rl
+    selected_runner = runner
+    context.event(
+        "training_started",
+        {
+            "technique": technique,
+            "model_variant_id": request.policy.id,
+            "training_settings_id": request.settings.id,
+            "training_settings_revision": request.settings.revision,
+            **_seat_attributes(request),
+        },
+    )
+    output_dir = context.workspace / "training" / technique / "trainer"
+    request = _prepare_interruption_recovery(context, request, output_dir)
+    backend = _run_environment_backend(
+        context,
+        request.bridge,
+        lambda active: selected_runner(active, request, output_dir),
+        replay_exclusions=_rollout_replay_exclusions(request.training.backend),
+    )
+    return _finish(context, request, technique, backend)
+
+
 def _rollout_replay_exclusions(training_backend: str) -> frozenset[str]:
     """Avoid duplicate population metrics only when the backend emits them live."""
 
@@ -613,9 +692,15 @@ def _validate_materialization(expected: DatasetDescriptor, actual: DatasetDescri
 
 
 def _source_model(
-    request: SFTRequest | DPORequest | GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
+    request: SFTRequest
+    | DPORequest
+    | GRPORequest
+    | SAMPORequest
+    | GDPORequest
+    | CAPORequest
+    | OnPolicyDistillationRequest,
 ) -> ModelVariant:
-    if isinstance(request, GRPORequest | SAMPORequest):
+    if isinstance(request, GRPORequest | SAMPORequest | GDPORequest | CAPORequest):
         return request.policy
     if isinstance(request, OnPolicyDistillationRequest):
         return request.student
@@ -623,7 +708,13 @@ def _source_model(
 
 
 def _seat_attributes(
-    request: SFTRequest | DPORequest | GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
+    request: SFTRequest
+    | DPORequest
+    | GRPORequest
+    | SAMPORequest
+    | GDPORequest
+    | CAPORequest
+    | OnPolicyDistillationRequest,
 ) -> dict[str, JsonValue]:
     update = request.training.update
     attributes: dict[str, JsonValue] = {

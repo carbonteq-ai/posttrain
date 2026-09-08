@@ -16,6 +16,10 @@ def validate_verifiers_record(record: dict[str, Any]) -> dict[str, Any]:
     """Validate a record against the schema at the pinned Verifiers revision."""
 
     try:
+        if "traces" in record:
+            from verifiers.v1.episode import WireEpisode  # pyright: ignore[reportAttributeAccessIssue]
+
+            return WireEpisode.model_validate(record).to_record()
         from verifiers.v1.trace import WireTrace  # pyright: ignore[reportMissingImports]
     except ImportError as error:
         raise RuntimeError("install posttrain-eval with the verifiers extra") from error

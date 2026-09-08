@@ -131,7 +131,7 @@ class VerlTraining(VerlContract):
 
 
 class VerlAlgorithm(VerlContract):
-    advantage_estimator: Literal["grpo", "sampo"] = "grpo"
+    advantage_estimator: Literal["grpo", "sampo", "gdpo", "capo"] = "grpo"
     num_prompts_per_step: int = Field(gt=0)
     num_generations: int = Field(gt=0)
     max_prompt_length: int = Field(gt=0)
@@ -141,7 +141,7 @@ class VerlAlgorithm(VerlContract):
     use_policy_gradient: bool | None = None
     use_task_rewards: bool | None = None
     temperature: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    online_rl_algorithm: Literal["grpo", "dapo", "sampo"] | None = None
+    online_rl_algorithm: Literal["grpo", "dapo", "sampo", "gdpo", "capo"] | None = None
     shuffle_prompts: bool | None = None
     clip_epsilon_low: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     clip_epsilon_high: float | None = Field(default=None, gt=0, allow_inf_nan=False)
@@ -153,6 +153,14 @@ class VerlAlgorithm(VerlContract):
     discount_gamma: float | None = Field(default=None, gt=0, le=1, allow_inf_nan=False)
     step_advantage_weight: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     advantage_normalization: Literal["mean", "mean_std"] | None = None
+    component_names: tuple[str, ...] | None = None
+    component_weights: tuple[float, ...] | None = None
+    normalization_epsilon: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    max_admission_attempts: int | None = Field(default=None, gt=0)
+    reward_contract_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    outcome_component: str | None = None
+    outcome_weight: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    process_weight: float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
 
 class VerlPayload(VerlContract):
@@ -172,7 +180,7 @@ class VerlLaunchManifest(VerlContract):
     """Complete, validated input to one isolated veRL worker process."""
 
     schema_version: Literal[4] = 4
-    operation: Literal["grpo", "sampo", "distill"]
+    operation: Literal["grpo", "sampo", "gdpo", "capo", "distill"]
     backend: str
     backend_source_revision: str = Field(pattern=r"^[0-9a-f]{40}$")
     python_executable: Path
@@ -200,7 +208,7 @@ class VerlLaunchManifest(VerlContract):
             raise ValueError("veRL result_file must remain inside output_directory")
         if not payload.environment.bridge_snapshot.is_relative_to(self.output_directory):
             raise ValueError("veRL bridge_snapshot must remain inside output_directory")
-        if self.operation in {"grpo", "sampo"}:
+        if self.operation in {"grpo", "sampo", "gdpo", "capo"}:
             if payload.policy is None or payload.student is not None or payload.teacher is not None:
                 raise ValueError("online-RL manifest requires policy and forbids student and teacher")
             if payload.teacher_scoring is not None:
@@ -208,6 +216,18 @@ class VerlLaunchManifest(VerlContract):
             if payload.algorithm.beta is None:
                 raise ValueError("online-RL manifest requires algorithm.beta")
             algorithm = payload.algorithm
+            if self.operation in {"gdpo", "capo"}:
+                if algorithm.advantage_estimator != self.operation or algorithm.online_rl_algorithm != self.operation:
+                    raise ValueError("structured algorithm identity must match operation")
+                if algorithm.normalization_epsilon is None or algorithm.dynamic_sampling is not False:
+                    raise ValueError("structured algorithms require epsilon and disabled scalar filtering")
+                if self.operation == "gdpo" and (
+                    not algorithm.component_names
+                    or not algorithm.component_weights
+                    or len(set(algorithm.component_names)) != len(algorithm.component_names)
+                    or len(algorithm.component_names) != len(algorithm.component_weights)
+                ):
+                    raise ValueError("GDPO requires aligned unique component settings")
             if (
                 algorithm.online_rl_algorithm is None
                 or algorithm.clip_epsilon_low is None

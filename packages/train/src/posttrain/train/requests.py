@@ -10,7 +10,16 @@ from posttrain.data import PreferenceDataSource, SupervisedDataSource
 
 from .bindings import QuantizationAwareUpdate, QuantizationPlan, TrainingBinding, validate_parameter_update
 from .online_rl import EnvironmentRolloutBridge
-from .profiles import DPOSettings, GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings, SFTSettings, TrainingLoop
+from .profiles import (
+    CAPOSettings,
+    DPOSettings,
+    GDPOSettings,
+    GRPOSettings,
+    OnPolicyDistillationSettings,
+    SAMPOSettings,
+    SFTSettings,
+    TrainingLoop,
+)
 
 
 class EnvironmentSelection(Protocol):
@@ -98,11 +107,47 @@ class SAMPORequest:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class GDPORequest:
+    policy: ModelVariant
+    bridge: EnvironmentRolloutBridge
+    settings: GDPOSettings
+    environment: EnvironmentSelection
+    training: TrainingBinding
+    inference: InferenceBinding
+    quantization: QuantizationPlan | None = None
+    reference: ModelVariant | None = None
+    resume_from: LocalArtifactRef | None = None
+
+    def __post_init__(self) -> None:
+        _validate_online_rl(
+            "GDPO", self.policy, self.bridge, self.settings, self.training, self.inference, self.quantization
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class CAPORequest:
+    policy: ModelVariant
+    bridge: EnvironmentRolloutBridge
+    settings: CAPOSettings
+    environment: EnvironmentSelection
+    training: TrainingBinding
+    inference: InferenceBinding
+    quantization: QuantizationPlan | None = None
+    reference: ModelVariant | None = None
+    resume_from: LocalArtifactRef | None = None
+
+    def __post_init__(self) -> None:
+        _validate_online_rl(
+            "CAPO", self.policy, self.bridge, self.settings, self.training, self.inference, self.quantization
+        )
+
+
 def _validate_online_rl(
     technique: str,
     policy: ModelVariant,
     bridge: EnvironmentRolloutBridge,
-    settings: GRPOSettings | SAMPOSettings,
+    settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
     training: TrainingBinding,
     inference: InferenceBinding,
     quantization: QuantizationPlan | None,
@@ -123,6 +168,17 @@ def _validate_online_rl(
         raise ValueError("rollout model length must cover prompt and completion limits")
     _validate_rollout_max_tokens(inference, settings.max_completion_length)
     expected_batch = settings.num_prompts_per_step * settings.num_generations
+    if isinstance(settings, GDPOSettings | CAPOSettings) and training.backend.split("@", 1)[0] == "trl":
+        world_size = training.target.placement.get("world_size", 1)
+        if type(world_size) is not int or world_size < 1:
+            raise ValueError("structured TRL requires an explicit positive world size")
+        if (
+            settings.loop.per_device_batch_size * settings.loop.gradient_accumulation_steps * world_size
+            != expected_batch
+        ):
+            raise ValueError("structured TRL global accumulation batch must equal prompt groups times generations")
+        if training.parallelism.tensor_parallel_size != 1 or inference.engine.get("tensor_parallel_size", 1) != 1:
+            raise ValueError("structured TRL admission currently requires tensor-parallel size 1")
     global_batch = training.runtime.global_batch_size
     if isinstance(global_batch, int) and global_batch != expected_batch:
         raise ValueError("training global batch must equal prompt groups times generations")

@@ -18,7 +18,7 @@ from posttrain.train.backends.trl.common import (
     trainable_model_factory,
     vllm_rollout_options,
 )
-from posttrain.train.backends.trl.grpo import _configure_torch_compile
+from posttrain.train.backends.trl.policy_config import _configure_torch_compile
 
 
 class CausalFactory:
@@ -27,6 +27,26 @@ class CausalFactory:
 
 class MultimodalFactory:
     pass
+
+
+def test_runtime_observation_does_not_require_unused_quantization_package(monkeypatch):
+    from importlib.metadata import PackageNotFoundError
+
+    from posttrain.train.backends.trl.common import emit_runtime_versions
+
+    def version(name):
+        if name == "bitsandbytes":
+            raise PackageNotFoundError(name)
+        return "test-version"
+
+    events = []
+    monkeypatch.setattr("posttrain.train.backends.trl.common.version", version)
+    emit_runtime_versions(
+        cast(Any, SimpleNamespace(event=lambda name, fields: events.append((name, fields)))),
+        {"torch": SimpleNamespace(version=SimpleNamespace(cuda="13.0"))},
+    )
+    assert events[0][1]["bitsandbytes"] is None
+    assert events[0][1]["trl"] == "test-version"
 
 
 IMPORTS = {

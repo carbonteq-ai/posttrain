@@ -10,12 +10,13 @@ from typing import Any
 from posttrain.common import InferenceBinding, JsonValue, ModelVariant
 
 from ...benchmarks import BenchmarkCell
-from ...profiles import VllmEngineConfig, VllmSamplingConfig, VllmSpeculativeConfig
+from ...profiles import VllmDraftModel, VllmEngineConfig, VllmSamplingConfig, VllmSpeculativeConfig
 from ...prompts import PromptCorpus, load_prompt_corpus
 from ...requests import ServeBenchmarkRequest
 
 _TOOL_PARSER_BY_PROTOCOL = {
     "lfm2_pythonic": "lfm2",
+    "nanbeige_xml": "nanbeige",
     "qwen3_xml": "qwen3_xml",
 }
 
@@ -38,11 +39,12 @@ def benchmark_config(request: ServeBenchmarkRequest) -> VllmBenchmarkConfig:
         raise ValueError(f"unsupported serve.benchmark backend: {binding.backend!r}")
     engine = engine_config(binding)
     sampling = sampling_config(binding)
-    variant = "standard"
+    variants: list[str] = []
     if engine.speculative is not None:
-        variant = "mtp"
-    elif engine.kv_cache_dtype != "auto":
-        variant = "turboquant"
+        variants.append(engine.speculative.method)
+    if engine.kv_cache_dtype != "auto":
+        variants.append("turboquant")
+    variant = "-".join(variants) or "standard"
     workload = request.workload
     values: Mapping[str, JsonValue] = workload.requests
     cohort = _optional_string(values, "cohort", "controlled")
@@ -96,8 +98,31 @@ def engine_config(binding: InferenceBinding) -> VllmEngineConfig:
     values.pop("tool_call_parser", None)
     values.pop("reasoning_parser", None)
     if isinstance(speculative, Mapping):
-        values["speculative"] = VllmSpeculativeConfig(**dict(speculative))
-    return VllmEngineConfig(**values)
+        speculative_values = dict(speculative)
+        draft_model = speculative_values.get("draft_model")
+        if isinstance(draft_model, Mapping):
+            speculative_values["draft_model"] = VllmDraftModel(**dict(draft_model))
+        values["speculative"] = VllmSpeculativeConfig(**speculative_values)
+    engine = VllmEngineConfig(**values)
+    _validate_runtime_compatibility(binding, engine)
+    return engine
+
+
+def _validate_runtime_compatibility(
+    binding: InferenceBinding,
+    engine: VllmEngineConfig,
+) -> None:
+    if (
+        binding.backend == "vllm@62f6de733d7ae63b759329993bc209e67afdf431"
+        and binding.model.family == "nanbeige4.2"
+        and engine.kv_cache_dtype == "turboquant_k8v4"
+        and engine.speculative is not None
+        and engine.speculative.method == "dspark"
+    ):
+        raise ValueError(
+            "DSpark cannot be composed with TurboQuant in Nanbeige vLLM 62f6de733: "
+            "its non-causal draft attention is not supported by the TurboQuant backend"
+        )
 
 
 def sampling_config(binding: InferenceBinding) -> VllmSamplingConfig:

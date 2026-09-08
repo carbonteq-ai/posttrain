@@ -1,0 +1,68 @@
+type: task
+name: posttrain-lfm26-grpo-preflight-a
+image: registry.carbonteq.com/carbonteq/posttrain/nanbeige-vllm@sha256:bfbeee151fb59c687f7e27d5e5e287716a7c1c6dd58ebf0a4ffe99b13702a3aa
+shell: /bin/bash
+commands:
+  - >-
+    /opt/posttrain/uv pip install --no-deps --reinstall
+    --python /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/candidate/posttrain_common-0.0.0-py3-none-any.whl
+    /opt/posttrain/candidate/posttrain_catalog-0.0.0-py3-none-any.whl
+  - >-
+    cp /opt/posttrain/candidate/judge.py
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/lib/python3.13/site-packages/automationbench_v1/judge.py
+    && cp /opt/posttrain/candidate/episode_prompt.py
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/lib/python3.13/site-packages/automationbench_v1/episode_prompt.py
+    && cp /opt/posttrain/candidate/limited_tools.py
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/lib/python3.13/site-packages/automationbench_v1/limited_tools.py
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    HF_HUB_CACHE=/root/.cache/huggingface/hub OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/automationbench_native_judges.py
+    --backend trl --algorithm grpo --policy-profile lfm26b --max-steps 1
+    --judge-profile gemma12b
+    --judge-vllm-executable vllm --judge-vllm-version 0.26.1rc1.dev1235+g62f6de733
+    --judge-code-revision 78da68e3572e16b7fdacce0d730b48c7c4e016cb
+    --environment-wheel-sha256 b5f10539e399c8ff931c3d133258b2e3826ef9c5fc2c0e81916db4b142d62675
+    --output /opt/posttrain/evidence/lfm26-grpo-preflight-a
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 HF_HUB_CACHE=/root/.cache/huggingface/hub
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/reload_deterministic_export.py
+    /opt/posttrain/evidence/lfm26-grpo-preflight-a --device cuda --allow-zero-update
+files:
+  - ../../artifacts/qualification/lfm26-comparison/posttrain_common-0.0.0-py3-none-any.whl:/opt/posttrain/candidate/posttrain_common-0.0.0-py3-none-any.whl
+  - ../../artifacts/qualification/lfm26-comparison/posttrain_catalog-0.0.0-py3-none-any.whl:/opt/posttrain/candidate/posttrain_catalog-0.0.0-py3-none-any.whl
+  - ./automationbench_native_judges.py:/opt/posttrain/qualification/automationbench_native_judges.py
+  - ./automationbench_structured_toy.py:/opt/posttrain/qualification/automationbench_structured_toy.py
+  - ./episode_reward_profile.py:/opt/posttrain/qualification/episode_reward_profile.py
+  - ./reload_deterministic_export.py:/opt/posttrain/qualification/reload_deterministic_export.py
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/judge.py:/opt/posttrain/candidate/judge.py
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/episode_prompt.py:/opt/posttrain/candidate/episode_prompt.py
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/limited_tools.py:/opt/posttrain/candidate/limited_tools.py
+volumes:
+  - /home/carbonteq-ai-workstation/.local/bin/uv:/opt/posttrain/uv
+  - /var/lib/posttrain/cache/huggingface:/root/.cache/huggingface
+  - /var/lib/posttrain/qualifications/nanbeige-r12-20260906:/opt/posttrain/evidence
+  - /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl:/home/carbonteq-ai-workstation/posttrain-qualification.2iyErl
+  - /home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu:/home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu
+resources:
+  cpu: 8..
+  memory: 48GB..
+  gpu:
+    vendor: nvidia
+    count: 1
+    memory: 96GB..
+fleets:
+  - local-gpu-workers
+max_duration: 2h
+stop_duration: 5m
+retry:
+  on_events: [no-capacity]
+  duration: 1h
+tags:
+  purpose: lfm26-grpo-preflight
+  policy: lfm2.5-2.6b
+  algorithm: grpo
+  steps: "1"

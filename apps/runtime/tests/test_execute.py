@@ -96,9 +96,13 @@ def test_qualification_loads_each_verifiers_taskset_offline(monkeypatch: pytest.
     env = ModuleType("verifiers.v1.env")
     env.__dict__["EnvConfig"] = EnvConfig
     env.__dict__["Environment"] = Environment
+    loaders = ModuleType("verifiers.v1.utils.loaders")
+    loaders.__dict__["resolve_env_config"] = EnvConfig.model_validate
+    loaders.__dict__["load_environment"] = Environment
     monkeypatch.setitem(sys.modules, "verifiers", verifiers)
     monkeypatch.setitem(sys.modules, "verifiers.v1", v1)
     monkeypatch.setitem(sys.modules, "verifiers.v1.env", env)
+    monkeypatch.setitem(sys.modules, "verifiers.v1.utils.loaders", loaders)
     config = cast(Mapping[str, JsonValue], {"taskset": {"id": "offline"}})
     lock = EnvironmentActivationLock(
         environment_id="offline",

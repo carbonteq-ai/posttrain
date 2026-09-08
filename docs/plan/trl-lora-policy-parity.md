@@ -136,7 +136,7 @@ Local implementation, focused validation, the one-step parity canary, the fresh-
 
 `/home/hammad/projects/trl/trl/trainer/grpo_trainer.py` receives sampling log probabilities from vLLM and recomputes the same token log probabilities with the actor. It already logs their absolute difference and builds an importance-sampling ratio. The parity gate belongs immediately after this comparison and before `_generate_and_score_completions` returns data to the optimizer.
 
-`packages/train/src/posttrain/train/backends/trl/grpo.py` translates a backend-neutral inference binding into `GRPOConfig`. Ambient Agent's `.posttrain/catalog/inference.yaml` owns the Qwen3.5 rollout-engine namespace setting. The fork's `CARBONTEQ_FORK.md` owns generic implementation provenance; `docs/tooling/trl/README.md` owns consumer configuration and qualification evidence.
+`packages/train/src/posttrain/train/backends/trl/policy_optimization.py` translates a backend-neutral inference binding into `GRPOConfig`. Ambient Agent's `.posttrain/catalog/inference.yaml` owns the Qwen3.5 rollout-engine namespace setting. The fork's `CARBONTEQ_FORK.md` owns generic implementation provenance; `docs/tooling/trl/README.md` owns consumer configuration and qualification evidence.
 
 ## Plan of Work
 
@@ -167,8 +167,8 @@ Then work from `/home/hammad/projects/rl`:
 
     uv run pytest packages/train/tests/test_trl_online_rl.py packages/train/tests/test_trl_vllm_compat.py -q
     uv run pytest packages/train/tests/test_api.py packages/train/tests/test_retention.py -q
-    uv run ruff check packages/train/src/posttrain/train/backends/trl/grpo.py packages/train/tests/test_trl_online_rl.py packages/train/tests/test_trl_vllm_compat.py
-    uv run pyright packages/train/src/posttrain/train/backends/trl/grpo.py
+    uv run ruff check packages/train/src/posttrain/train/backends/trl/policy_optimization.py packages/train/tests/test_trl_online_rl.py packages/train/tests/test_trl_vllm_compat.py
+    uv run pyright packages/train/src/posttrain/train/backends/trl/policy_optimization.py
     uv run lint-imports
     git diff --check
 

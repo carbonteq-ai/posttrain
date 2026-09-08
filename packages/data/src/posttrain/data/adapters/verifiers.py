@@ -54,11 +54,16 @@ def supervised_from_verifiers(
     selection: TraceSelection | None = None,
     metadata: Mapping[str, JsonValue] | None = None,
 ) -> SupervisedDataset:
-    """Create one SFT example per retained trace branch without owning native traces."""
+    """Project native traces or episodes, retaining episode and branch lineage.
+
+    Legacy trace objects remain accepted during migration. Episode failures and
+    non-policy agents are excluded by default rather than becoming SFT targets.
+    The source artifact is never changed or reconstructed from these examples.
+    """
 
     policy = selection or TraceSelection()
     examples: list[SupervisedExample] = []
-    for trace in traces:
+    for episode_id, trace in _selected_traces(traces, policy):
         if policy.drop_errors and (getattr(trace, "stop_condition", None) == "error" or trace.has_error):
             continue
         if policy.drop_truncated and trace.is_truncated:
@@ -78,12 +83,16 @@ def supervised_from_verifiers(
             branch_index = int(getattr(branch, "index", fallback_index))
             examples.append(
                 SupervisedExample(
-                    id=f"traces/{str(trace.id).lower()}/branches/{branch_index}",
+                    id=(
+                        (f"episodes/{episode_id}/" if episode_id is not None else "")
+                        + f"traces/{str(trace.id).lower()}/branches/{branch_index}"
+                    ),
                     messages=messages,
                     trainable_message_indices=trainable,
                     tools=tools,
                     metadata={
-                        "source_format": "verifiers-trace-v2",
+                        "source_format": "verifiers-episode" if episode_id is not None else "verifiers-trace-v2",
+                        **({"episode_id": episode_id} if episode_id is not None else {}),
                         "trace_id": str(trace.id),
                         "branch_index": branch_index,
                         "reward": reward,
@@ -93,6 +102,25 @@ def supervised_from_verifiers(
                 )
             )
     return SupervisedDataset(dataset_id, revision, tuple(examples), metadata=metadata or {})
+
+
+def _selected_traces(records: Iterable[Any], policy: TraceSelection) -> Iterable[tuple[str | None, Any]]:
+    for record in records:
+        if not hasattr(record, "traces"):
+            if getattr(getattr(record, "agent", None), "trainable", True) is not False:
+                yield None, record
+            continue
+        # Episode.ok is execution standing, not semantic task reward. A finished
+        # but incorrectly solved attempt may still be selected by min_reward.
+        if policy.drop_errors and (not record.ok or record.errors):
+            continue
+        episode_id = str(record.id)
+        if not episode_id:
+            raise ValueError("native episode requires a non-empty identity")
+        for trace in record.traces:
+            if getattr(getattr(trace, "agent", None), "trainable", True) is False:
+                continue
+            yield episode_id, trace
 
 
 def supervised_from_verifiers_jsonl(
@@ -109,13 +137,30 @@ def supervised_from_verifiers_jsonl(
         from verifiers.v1 import WireTrace  # pyright: ignore[reportMissingImports]
     except ImportError as error:
         raise RuntimeError("install posttrain-data with the verifiers extra") from error
-    traces = (
-        WireTrace.model_validate(json.loads(line))
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    )
+
+    def records() -> Iterable[Any]:
+        with path.open(encoding="utf-8") as stream:
+            for line_number, line in enumerate(stream, 1):
+                if not line.strip():
+                    continue
+                record = json.loads(line)
+                if not isinstance(record, dict):
+                    raise ValueError(f"native record at line {line_number} must be an object")
+                if "traces" in record:
+                    try:
+                        from verifiers.v1.episode import (
+                            WireEpisode,  # pyright: ignore[reportMissingImports, reportAttributeAccessIssue]
+                        )
+                    except ImportError as error:
+                        raise RuntimeError("native episode artifacts require Verifiers v0.3.1 or compatible") from error
+                    if "nodes" in record or not isinstance(record.get("task"), dict):
+                        raise ValueError(f"ambiguous or incomplete native episode at line {line_number}")
+                    yield WireEpisode.model_validate(record)
+                else:
+                    yield WireTrace.model_validate(record)
+
     return supervised_from_verifiers(
-        traces,
+        records(),
         dataset_id=dataset_id,
         revision=revision,
         selection=selection,

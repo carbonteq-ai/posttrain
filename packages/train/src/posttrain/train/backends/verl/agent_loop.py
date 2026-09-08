@@ -11,8 +11,9 @@ from uuid import uuid4
 
 from ...integrations.verifiers import load_verifiers_bridge_snapshot
 from ...online_rl import EnvironmentRollout, PolicyTurnRequest, PolicyTurnResult, RolloutBatch
+from ...policy_messages import parsed_policy_message
 from ...profiles import shape_soft_overlong_reward
-from .reward_fields import streaming_reward_extra_info, training_response_mask
+from .reward_fields import streaming_reward_extra_info, structured_reward_metadata, training_response_mask
 
 try:
     from verl.experimental.agent_loop.agent_loop import (  # pyright: ignore[reportMissingImports]
@@ -33,6 +34,7 @@ class VerlPolicyGenerator:
         except ImportError as error:  # pragma: no cover - isolated runtime dependency
             raise RuntimeError("the veRL environment requires renderers with Qwen 3.5 support") from error
         self._server_manager = server_manager
+        self._tokenizer = tokenizer
         self._renderer = create_renderer(tokenizer, Qwen35RendererConfig(enable_thinking=enable_thinking))
 
     async def generate(self, request: PolicyTurnRequest) -> PolicyTurnResult:
@@ -53,7 +55,7 @@ class VerlPolicyGenerator:
         output = await self._server_manager.generate(
             request_id=request.session_id or uuid4().hex,
             prompt_ids=list(rendered.token_ids),
-            sampling_params={
+            sampling_params={key: value for key, value in {
                 "max_tokens": request.sampling.max_tokens,
                 "temperature": request.sampling.temperature,
                 "top_p": request.sampling.top_p,
@@ -62,7 +64,7 @@ class VerlPolicyGenerator:
                 "repetition_penalty": request.sampling.repetition_penalty,
                 "presence_penalty": request.sampling.presence_penalty,
                 "logprobs": True,
-            },
+            }.items() if value is not None},
         )
         token_ids = tuple(int(value) for value in output.token_ids)
         if not token_ids:
@@ -71,26 +73,11 @@ class VerlPolicyGenerator:
         if len(logprobs) != len(token_ids):
             raise RuntimeError("veRL rollout log probabilities are not aligned with completion token ids")
         parsed = self._renderer.parse_response(list(token_ids), tools=renderer_tools)
-        tool_calls = [
-            {
-                "id": item.id or f"call_{index}",
-                "name": item.name,
-                "arguments": item.arguments
-                if isinstance(item.arguments, str)
-                else json.dumps(item.arguments or {}, separators=(",", ":")),
-            }
-            for index, item in enumerate(parsed.tool_calls)
-            if item.name is not None and item.status.value == "ok"
-        ]
-        message: dict[str, Any] = {"role": "assistant", "content": parsed.content or None}
-        if parsed.reasoning_content is not None:
-            message["reasoning_content"] = parsed.reasoning_content
-        if tool_calls:
-            message["tool_calls"] = tool_calls
+        message = parsed_policy_message(parsed, token_ids, self._tokenizer)
         finish_reason = _finish_reason(
             token_ids,
             frozenset(self._renderer.get_stop_token_ids()),
-            bool(tool_calls),
+            bool(message.get("tool_calls")),
             request.sampling.max_tokens,
         )
         return PolicyTurnResult(
@@ -129,6 +116,8 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         overlong_buffer_tokens: int | None = None,
         overlong_penalty_factor: float | None = None,
         emit_sampo_metadata: bool = False,
+        structured_algorithm: str | None = None,
+        reward_component_names: list[str] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -143,6 +132,8 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         self._overlong_buffer_tokens = overlong_buffer_tokens
         self._overlong_penalty_factor = overlong_penalty_factor
         self._emit_sampo_metadata = emit_sampo_metadata
+        self._structured_algorithm = structured_algorithm
+        self._reward_component_names = tuple(reward_component_names or ())
 
     async def run(self, sampling_params: dict[str, Any], **kwargs: Any) -> Any:
         del sampling_params
@@ -150,8 +141,16 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         step = int(kwargs.get("global_steps", 0))
         model_id = str(kwargs["model_id"])
         started = perf_counter()
+        groups: tuple[str, ...] = ()
+        identities: tuple[str, ...] = ()
+        if self._structured_algorithm is not None:
+            if "uid" not in kwargs or "session_id" not in kwargs:
+                raise ValueError("structured veRL rollouts require native prompt-occurrence and session identities")
+            groups = (f"{self._bridge.run_id}/{step}/{kwargs['uid']}",)
+            identities = (f"{groups[0]}/{kwargs['session_id']}",)
         rollouts = await self._bridge.run(
-            RolloutBatch(example_ids=(example_id,), step=step, model_id=model_id),
+            RolloutBatch(example_ids=(example_id,), step=step, model_id=model_id,
+                         prompt_group_ids=groups, rollout_ids=identities),
             self._generator,
         )
         if len(rollouts) != 1:
@@ -199,6 +198,11 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         }
         if self._emit_sampo_metadata:
             extra_fields.update(_sampo_metadata(rollout))
+        if self._structured_algorithm is not None:
+            extra_fields["structured_rewards"] = structured_reward_metadata(
+                rollout, component_names=self._reward_component_names,
+                require_process=self._structured_algorithm == "capo",
+            )
         _append_rollout_reward_record(
             trace_id=rollout.trace.external_id,
             step=step,

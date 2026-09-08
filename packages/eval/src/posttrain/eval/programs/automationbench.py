@@ -15,7 +15,7 @@ from ..requests import (
 # The native Verifiers v1 port is maintained in the framework-neutral
 # environment library. The benchmark fork remains a dependency of that package
 # and is not itself the environment source.
-AUTOMATIONBENCH_REVISION = "b7bcb591facfcd2b073802f6d7496b24ab9c479e"
+AUTOMATIONBENCH_REVISION = "12ff5e1abfab369b8dec4df3ce83c5984f55ad34"
 AUTOMATIONBENCH_REPOSITORY = "https://github.com/carbonteq-ai/verifiers-environments"
 AUTOMATIONBENCH_SUBDIRECTORY = "environments/automationbench_v1"
 
@@ -27,9 +27,12 @@ def _activation(*domains: str) -> VerifiersV1ConfigActivation:
             "domains": list(domains),
             "task": {"search_top_k": 20},
         },
-        "harness": {"id": "null", "runtime": {"type": "subprocess"}},
-        "timeout": {"setup": 600, "rollout": 900, "finalize": 120, "scoring": 300},
-        "max_turns": 50,
+        "agent": {
+            "harness": {"id": "null"},
+            "runtime": {"type": "subprocess"},
+            "timeout": {"setup": 600, "rollout": 900, "finalize": 120, "scoring": 300},
+            "max_turns": 50,
+        },
     }
     return VerifiersV1ConfigActivation(config)
 

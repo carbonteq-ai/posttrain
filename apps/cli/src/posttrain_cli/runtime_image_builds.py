@@ -136,7 +136,9 @@ def build_runtime_images(
     builder: BuildKitRuntimeBuilder | None = None,
 ) -> tuple[RuntimeImageBuild, ...]:
     """Rebuild and publish each variant, reporting divergence from the release."""
-    manifest = load_manifest()
+    # Rebuilding is precisely the recovery path for changed shipped locks. Read
+    # the old release identity without accepting it for ordinary job planning.
+    manifest = load_manifest(verify_locks=False)
     root = cached_definition_root()
     source_digest = _source_digest(root)
     resolved = builder or BuildKitRuntimeBuilder(receipt_root=_receipt_root(registry))

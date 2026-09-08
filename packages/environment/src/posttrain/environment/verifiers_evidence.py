@@ -9,7 +9,7 @@ from typing import Protocol
 
 from posttrain.common import JsonValue, SignalSource, TraceFactSet, TraceRewardComponent
 
-VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v3"
+VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v4"
 QWEN35_THINKING_END_TOKEN_ID = 248069
 
 _TRUNCATED_STOP_CONDITIONS = frozenset(
@@ -120,8 +120,10 @@ def verifiers_trace_attributes(record: Mapping[str, object]) -> dict[str, JsonVa
 
 
 def verifiers_trace_has_error(record: Mapping[str, object]) -> bool:
+    # Modern traces expose execution standing even when no exception was saved.
+    # Missing `ok` is the legacy schema, not an implicit unsuccessful episode.
     errors = record.get("errors")
-    return isinstance(errors, list) and bool(errors)
+    return record.get("ok") is False or (isinstance(errors, list) and bool(errors))
 
 
 def verifiers_trace_is_truncated(record: Mapping[str, object]) -> bool:

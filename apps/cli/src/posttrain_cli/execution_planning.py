@@ -178,27 +178,30 @@ class PlannedJobPackage:
             raise ContractError("source bytes changed after planning; run job plan again")
 
         cache_root = cache_path(self.layout, "pack", "cache")
+        runtime_variant = self.pack_plan.spec.runtime_variant
+        binding = registry.constraint_profiles[runtime_variant]
         constraints = {
-            profile: KindDependencyConstraints(
-                profile,
+            runtime_variant: KindDependencyConstraints(
+                runtime_variant,
                 binding.path.read_text(encoding="utf-8"),
                 binding.provided_packages,
             )
-            for profile, binding in registry.constraint_profiles.items()
         }
-        backend_constraints = {
-            profile: KindDependencyConstraints(
-                profile,
-                binding.backend_path.read_text(encoding="utf-8"),
-                binding.backend_provided_packages,
-                role="backend",
-                python_version="3.13.12",
-                python_executable="/opt/posttrain-verl/bin/python",
-                requirements_filename="runtime.backend.requirements.txt",
-            )
-            for profile, binding in registry.constraint_profiles.items()
-            if binding.backend_path is not None
-        }
+        backend_constraints = (
+            {}
+            if binding.backend_path is None
+            else {
+                runtime_variant: KindDependencyConstraints(
+                    runtime_variant,
+                    binding.backend_path.read_text(encoding="utf-8"),
+                    binding.backend_provided_packages,
+                    role="backend",
+                    python_version="3.13.12",
+                    python_executable="/opt/posttrain-verl/bin/python",
+                    requirements_filename="runtime.backend.requirements.txt",
+                )
+            }
+        )
         for profile, selected in constraints.items():
             binding = registry.constraint_profiles[profile]
             if selected.constraints_sha256 != binding.contents_digest or selected.digest != binding.digest:
@@ -860,7 +863,15 @@ def _plan_job_package_from_intent(
 ) -> PlannedJobPackage:
     layout = intent.layout
     local_config = _with_registry_override(
-        load_local_execution_config(layout, env_file=env_file),
+        # Candidate work can republish one selected runtime while unrelated
+        # variants still carry the previous release locks. The selected image
+        # and lock are verified below and again before packaging; unrelated
+        # stale variants must not block this recovery path.
+        load_local_execution_config(
+            layout,
+            env_file=env_file,
+            verify_published_locks=False,
+        ),
         registry_prefix,
         project_id=layout.project_id,
     )
@@ -1297,7 +1308,7 @@ def _runtime_profile_for_job_kind(
 
 
 def _kind_profile(job_kind: str | None) -> str:
-    if job_kind in {"train.grpo", "train.sampo", "train.distill"}:
+    if job_kind in {"train.grpo", "train.sampo", "train.gdpo", "train.capo", "train.distill"}:
         return "online-rl"
     if job_kind in {"eval.general", "eval.domain"}:
         return "eval"

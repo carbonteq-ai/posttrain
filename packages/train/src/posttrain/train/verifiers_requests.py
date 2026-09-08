@@ -14,8 +14,50 @@ from .integrations.verifiers import (
     create_verifiers_training_bridge,
 )
 from .online_rl import PolicySampling, policy_sampling_from_binding, policy_sampling_from_environment
-from .profiles import GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings
-from .requests import GRPORequest, OnPolicyDistillationRequest, SAMPORequest
+from .profiles import CAPOSettings, GDPOSettings, GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings
+from .requests import CAPORequest, GDPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest
+from .reward_projection import RewardProjection
+
+
+def build_verifiers_structured_request(
+    *,
+    policy: ModelVariant,
+    environment: VerifiersEnvironmentSelection,
+    settings: GDPOSettings | CAPOSettings,
+    reward_projection: RewardProjection,
+    training: TrainingBinding,
+    inference: InferenceBinding,
+    trace_path: Path,
+    run_id: str,
+    tasks: Mapping[int, Any] | None = None,
+    quantization: QuantizationPlan | None = None,
+    reference: ModelVariant | None = None,
+) -> GDPORequest | CAPORequest:
+    """Compose explicit evidence projection without moving reward meaning into a backend."""
+    names = {component.name for component in reward_projection.components}
+    required = settings.component_names if isinstance(settings, GDPOSettings) else (settings.outcome_component,)
+    if not set(required).issubset(names):
+        raise ValueError("reward projection does not supply the algorithm's required components")
+    if (
+        isinstance(settings, CAPOSettings)
+        and reward_projection.process_info_key is None
+        and reward_projection.turn_error_key is None
+    ):
+        raise ValueError("CAPO requires an explicit retained-process-evidence projection")
+    sampling = validate_verifiers_policy_sampling(environment, inference, settings.max_completion_length)
+    bridge = create_verifiers_training_bridge(
+        environment,
+        trace_path,
+        run_id,
+        sampling=sampling,
+        purpose="gdpo" if isinstance(settings, GDPOSettings) else "capo",
+        tasks=tasks,
+        model_identity=policy.trace_identity(),
+        reward_projection=reward_projection,
+    )
+    if isinstance(settings, GDPOSettings):
+        return GDPORequest(policy, bridge, settings, environment, training, inference, quantization, reference)
+    return CAPORequest(policy, bridge, settings, environment, training, inference, quantization, reference)
 
 
 def build_verifiers_grpo_request(
@@ -111,6 +153,7 @@ def build_verifiers_sampo_request(
     tasks: Mapping[int, Any] | None = None,
     quantization: QuantizationPlan | None = None,
     reference: ModelVariant | None = None,
+    reward_projection: RewardProjection | None = None,
 ) -> SAMPORequest:
     """Build a SAMPO request from a multi-turn Verifiers environment."""
 
@@ -123,6 +166,7 @@ def build_verifiers_sampo_request(
         purpose="sampo",
         tasks=tasks,
         model_identity=policy.trace_identity(),
+        reward_projection=reward_projection,
     )
     return SAMPORequest(
         policy=policy,
@@ -158,6 +202,7 @@ def validate_verifiers_policy_sampling(
 
 
 __all__ = [
+    "build_verifiers_structured_request",
     "build_verifiers_distillation_request",
     "build_verifiers_grpo_request",
     "build_verifiers_sampo_request",

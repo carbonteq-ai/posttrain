@@ -231,6 +231,7 @@ def load_local_execution_config(
     *,
     path: Path | None = None,
     env_file: Path | None = None,
+    verify_published_locks: bool = True,
 ) -> LocalExecutionConfig:
     """Resolve machine defaults plus one project's protected runtime values."""
 
@@ -259,6 +260,7 @@ def load_local_execution_config(
             configured,
             environ=runtime_values,
             project_id=layout.project_id,
+            verify_published_locks=verify_published_locks,
         )
         return LocalExecutionConfig(
             path=machine.path,
@@ -266,7 +268,12 @@ def load_local_execution_config(
             environment_file=runtime_environment.path,
             local=machine.local,
             dstack=machine.dstack,
-            registry=project_registry or derived_registry(environ=runtime_values, project_id=layout.project_id),
+            registry=project_registry
+            or derived_registry(
+                environ=runtime_values,
+                project_id=layout.project_id,
+                verify_published_locks=verify_published_locks,
+            ),
             machine=machine,
         )
     if not configured.exists():
@@ -276,7 +283,11 @@ def load_local_execution_config(
         return LocalExecutionConfig(
             configured,
             environment_file=runtime_environment.path,
-            registry=derived_registry(environ=runtime_environment.for_execution(), project_id=layout.project_id),
+            registry=derived_registry(
+                environ=runtime_environment.for_execution(),
+                project_id=layout.project_id,
+                verify_published_locks=verify_published_locks,
+            ),
         )
     if not configured.is_file():
         raise ContractError(f"execution configuration is not a file: {configured}")
@@ -346,8 +357,13 @@ def load_local_execution_config(
         base=configured.parent,
         environ=runtime_values,
         project_id=layout.project_id,
+        verify_published_locks=verify_published_locks,
     )
-    registry = parsed_registry or derived_registry(environ=runtime_values, project_id=layout.project_id)
+    registry = parsed_registry or derived_registry(
+        environ=runtime_values,
+        project_id=layout.project_id,
+        verify_published_locks=verify_published_locks,
+    )
     return LocalExecutionConfig(
         path=configured,
         defaults=defaults,
@@ -363,6 +379,7 @@ def _load_project_registry_override(
     *,
     environ: Mapping[str, str],
     project_id: str,
+    verify_published_locks: bool = True,
 ) -> RegistryBinding | None:
     """Load only a project-scoped immutable runtime selection under a machine.
 
@@ -389,6 +406,7 @@ def _load_project_registry_override(
         base=configured.parent,
         environ=environ,
         project_id=project_id,
+        verify_published_locks=verify_published_locks,
     )
 
 
@@ -1017,11 +1035,18 @@ def derived_registry(
     environ: Mapping[str, str] | None = None,
     *,
     project_id: str | None = None,
+    verify_published_locks: bool = True,
 ) -> RegistryBinding | None:
     """Build a registry binding with no execution configuration file at all."""
     if configured_registry_prefix(environ) is None:
         return None
-    return _parse_registry({}, base=Path.cwd(), environ=environ, project_id=project_id)
+    return _parse_registry(
+        {},
+        base=Path.cwd(),
+        environ=environ,
+        project_id=project_id,
+        verify_published_locks=verify_published_locks,
+    )
 
 
 def derived_local_registry() -> RegistryBinding:
@@ -1042,6 +1067,7 @@ def _parse_registry(
     base: Path,
     environ: Mapping[str, str] | None = None,
     project_id: str | None = None,
+    verify_published_locks: bool = True,
 ) -> RegistryBinding | None:
     if value is None:
         return None
@@ -1068,7 +1094,10 @@ def _parse_registry(
         payload.get("mirror_prefix"),
         "registry.mirror_prefix",
     )
-    manifest = _published_manifest()
+    try:
+        manifest = load_manifest(verify_locks=verify_published_locks)
+    except ManifestError as error:
+        raise ContractError(f"installed runtime image manifest is unusable: {error}") from error
 
     # Explicit declarations win per variant; everything else comes from the
     # installed manifest. This is what removes the hand transcription: a

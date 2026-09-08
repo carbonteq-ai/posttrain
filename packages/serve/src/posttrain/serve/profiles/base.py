@@ -3,28 +3,58 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 type KvCacheDtype = Literal["auto", "turboquant_k8v4"]
 
 
 @dataclass(frozen=True, slots=True)
+class VllmDraftModel:
+    """An immutable draft checkpoint, optionally pre-materialized by the host."""
+
+    repo_id: str
+    revision: str
+    path: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.repo_id.strip() or "/" not in self.repo_id:
+            raise ValueError("draft model repo_id must be a non-empty Hub repository id")
+        if re.fullmatch(r"[0-9a-f]{40}", self.revision) is None:
+            raise ValueError("draft model revision must be an immutable 40-character commit SHA")
+        if self.path is not None and not Path(self.path).is_absolute():
+            raise ValueError("draft model path must be absolute inside the serving runtime")
+
+    def as_vllm(self) -> dict[str, str]:
+        if self.path is not None:
+            return {"model": self.path}
+        return {"model": self.repo_id, "revision": self.revision}
+
+
+@dataclass(frozen=True, slots=True)
 class VllmSpeculativeConfig:
     method: str
     num_speculative_tokens: int
+    draft_model: VllmDraftModel | None = None
 
     def __post_init__(self) -> None:
-        if not self.method:
-            raise ValueError("speculative method cannot be empty")
+        if not self.method or re.fullmatch(r"[a-z0-9][a-z0-9._-]*", self.method) is None:
+            raise ValueError("speculative method must be a lowercase stable identifier")
         if self.num_speculative_tokens < 1:
             raise ValueError("num_speculative_tokens must be positive")
+        if self.method == "dspark" and self.draft_model is None:
+            raise ValueError("DSpark speculative decoding requires an immutable draft model")
 
     def as_vllm(self) -> dict[str, str | int]:
-        return {
+        values: dict[str, str | int] = {
             "method": self.method,
             "num_speculative_tokens": self.num_speculative_tokens,
         }
+        if self.draft_model is not None:
+            values.update(self.draft_model.as_vllm())
+        return values
 
 
 @dataclass(frozen=True, slots=True)

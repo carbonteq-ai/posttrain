@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-VERIFIERS_REVISION = "284a868d6a9022109b749710672a0460e8a996d4"
+VERIFIERS_REVISION = "90055c11896954fac429bb9120245caa6dc1dd59"
 type AutomationBenchDomain = Literal["simple", "sales", "marketing", "operations", "support", "finance", "hr"]
 
 
@@ -27,25 +27,30 @@ class AutomationBenchTrainingParameters(BaseModel):
 def automationbench_training_environment() -> Any:
     """Catalog factory for the default Zapier AutomationBench training environment."""
 
-    try:
-        from verifiers.v1.env import EnvConfig, Environment
-    except ImportError as error:
-        raise RuntimeError("install the AutomationBench v1 environment package") from error
+    from posttrain.environment.verifiers_runtime import (
+        materialize_verifiers_environment,
+        verifiers_environment_types,
+    )
+
+    EnvConfig, _ = verifiers_environment_types()
     config = EnvConfig.model_validate(
         {
             "taskset": {"id": "automationbench-v1"},
-            "harness": {"id": "null", "runtime": {"type": "subprocess"}},
-            "timeout": {
-                "setup": 120,
-                "rollout": 1800,
-                "finalize": 60,
-                "scoring": 120,
+            "agent": {
+                "harness": {"id": "null"},
+                "runtime": {"type": "subprocess"},
+                "timeout": {
+                    "setup": 120,
+                    "rollout": 1800,
+                    "finalize": 60,
+                    "scoring": 120,
+                },
+                "max_turns": 50,
+                "max_total_tokens": 8192,
             },
-            "max_turns": 50,
-            "max_total_tokens": 8192,
         }
     )
-    return Environment(config)
+    return materialize_verifiers_environment(config)
 
 
 __all__ = [

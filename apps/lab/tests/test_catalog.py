@@ -12,6 +12,7 @@ from posttrain.common import CatalogRef, ContractError, ExecutionTarget, Inferen
 from posttrain.environment import VerifiersV1ConfigActivation
 from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
 from posttrain.train import (
+    ActiveGroupSampling,
     DynamicGroupSampling,
     GRPOSettings,
     LoRAUpdate,
@@ -155,7 +156,7 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert isinstance(environment.source, EnvironmentSource)
     assert environment.source.package == "automationbench-v1"
     assert environment.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-    assert environment.source.revision == "b7bcb591facfcd2b073802f6d7496b24ab9c479e"
+    assert environment.source.revision == "12ff5e1abfab369b8dec4df3ce83c5984f55ad34"
     assert environment.source.subdirectory == "environments/automationbench_v1"
     assert environment.parameters["domains"] == ["simple"]
     assert environment.parameters["sampling_seed"] == 17
@@ -182,6 +183,51 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert rollout.capabilities == ("tool-calling",)
     assert rollout.model.conversation.tool_calls is not None
     assert rollout.model.conversation.tool_calls.id == "qwen3_xml"
+
+
+def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> None:
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    scalar = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-v2")).value
+    judged = catalog.resolve(
+        CatalogRef("environment", "automationbench-lfm26-train-mix-episode-judged-v2")
+    ).value
+    fixture = WORKSPACE / "scripts/qualification/fixtures/lfm26_automationbench_mix_v2.json"
+    fixture_digest = hashlib.sha256(fixture.read_bytes()).hexdigest()
+
+    assert isinstance(scalar, EnvironmentBinding)
+    assert isinstance(judged, EnvironmentBinding)
+    for environment in (scalar, judged):
+        assert environment.num_tasks == 160
+        assert environment.num_rollouts == 4
+        assert environment.parameters["sampling_seed"] == 172846
+        assert environment.parameters["task_mix_id"] == "lfm26-automationbench-mix-v2"
+        assert environment.parameters["task_mix_sha256"] == fixture_digest
+        assert environment.activation.config["taskset"].get("task_names") is None
+    assert scalar.max_concurrent == 32
+    assert judged.max_concurrent == 32
+
+    local_grpo = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-grpo-20-local-v1")
+    ).value
+    local_olmo = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-20-local-v1")
+    ).value
+    local_rollout = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32@1")
+    ).value
+
+    assert isinstance(local_grpo, GRPOSettings)
+    assert local_grpo.loop.max_steps == 20
+    assert local_grpo.num_prompts_per_step == 8
+    assert local_grpo.num_generations == 4
+    assert local_grpo.max_admission_attempts == 2
+    assert isinstance(local_olmo, GRPOSettings)
+    assert local_olmo.loop.max_steps == 20
+    assert local_olmo.algorithm == "olmo3"
+    assert local_olmo.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
+    assert isinstance(local_rollout, InferenceBinding)
+    assert local_rollout.engine["max_num_seqs"] == 32
+    assert local_rollout.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
 
 
 def test_qwen4b_automationbench_eval_binding_declares_tool_protocol() -> None:
@@ -222,7 +268,7 @@ def test_general_capability_catalog_and_library_qualification_are_pinned() -> No
     for item in plan.environments:
         assert isinstance(item.source, EnvironmentSource)
         assert item.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-        assert item.source.revision == "b7bcb591facfcd2b073802f6d7496b24ab9c479e"
+        assert item.source.revision == "12ff5e1abfab369b8dec4df3ce83c5984f55ad34"
 
 
 def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:

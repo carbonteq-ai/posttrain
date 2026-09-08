@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import json
 import math
+import os
 import pickle
+import shlex
 import statistics
 import threading
 from collections import Counter
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from random import Random
 from typing import Any, Literal, Protocol
@@ -38,46 +41,66 @@ from ..online_rl import (
     EnvironmentRollout,
     EnvironmentRolloutEvidence,
     EnvironmentSampling,
+    PartialRolloutBatchError,
     PolicyGenerator,
     PolicySampling,
     PolicyTurnRequest,
     RolloutBatch,
 )
+from ..reward_projection import RewardProjection
+from ..turn_rewards import native_turn_map
 
-type OnlineRLTechnique = Literal["grpo", "dapo", "olmo3", "sampo", "distill"]
+type OnlineRLTechnique = Literal["grpo", "dapo", "olmo3", "sampo", "gdpo", "capo", "distill"]
 
 
-class VerifiersRolloutFailure(RuntimeError):
+class VerifiersRolloutFailure(PartialRolloutBatchError):
     """A terminal environment trace that cannot safely become a training sample."""
 
 
-_NULL_HARNESS_UNBOUNDED_MCP = '"mcp"'
-_NULL_HARNESS_MCP_V1 = '"mcp>=1.24.0,<2"'
+_VERIFIERS_UV_ORIGINAL: str | None = None
+
+
+def _native_record(value: Any) -> dict[str, Any]:
+    """Serialize replay authority without reducing policy-float precision.
+
+    Newer Verifiers releases round JSON record floats by default for storage
+    efficiency. Posttrain replays these records for training/evidence audits, so
+    it opts out when the runtime exposes that setting while remaining readable
+    against the older v0.3.1 contract during the pin migration.
+    """
+
+    to_record = value.to_record
+    if "float_decimals" in inspect.signature(to_record).parameters:
+        return to_record(float_decimals=None)
+    return to_record()
 
 
 def _apply_verifiers_runtime_compatibility() -> None:
-    """Keep the pinned Verifiers null harness on its compatible MCP major."""
+    """Apply bounded compatibility fixes for the pinned Verifiers runtime."""
 
+    uv_executable = os.environ.get("POSTTRAIN_UV_EXECUTABLE")
+    if uv_executable is None:
+        return
+    uv_path = Path(uv_executable)
+    if not uv_path.is_absolute() or not uv_path.is_file() or not os.access(uv_path, os.X_OK):
+        raise RuntimeError("POSTTRAIN_UV_EXECUTABLE must name an absolute executable file")
     try:
-        from verifiers.v1.harnesses.null import harness as null_harness  # pyright: ignore[reportMissingImports]
+        from verifiers.v1.runtimes import base as runtime_base  # pyright: ignore[reportMissingImports]
     except ImportError as error:
         raise RuntimeError("install the Verifiers integration dependencies") from error
-    source = null_harness.PROGRAM_SOURCE
-    if _NULL_HARNESS_MCP_V1 in source:
-        return
-    if _NULL_HARNESS_UNBOUNDED_MCP not in source:
-        raise RuntimeError(
-            "the pinned Verifiers null harness dependency declaration changed; update the Posttrain compatibility guard"
-        )
-    null_harness.PROGRAM_SOURCE = source.replace(
-        _NULL_HARNESS_UNBOUNDED_MCP,
-        _NULL_HARNESS_MCP_V1,
-        1,
+    global _VERIFIERS_UV_ORIGINAL
+    if _VERIFIERS_UV_ORIGINAL is None:
+        _VERIFIERS_UV_ORIGINAL = runtime_base._ENSURE_UV
+    uv_directory = shlex.quote(str(uv_path.parent))
+    runtime_base._ENSURE_UV = (
+        f'export PATH={uv_directory}:"$HOME/.local/bin:$PATH" '
+        'UV_INSTALL_DIR="$HOME/.local/bin"; '
+        f"command -v uv >/dev/null 2>&1 || {{ {_VERIFIERS_UV_ORIGINAL}; }}"
     )
 
 
 class TraceEnricher(Protocol):
-    def __call__(self, trace: Any) -> None: ...
+    def __call__(self, trace: Any) -> None | Awaitable[None]: ...
 
 
 type EnvironmentFactory = Callable[[], Any]
@@ -135,6 +158,10 @@ class NativeVerifiersEnvironmentFactory:
 
     def __call__(self) -> Any:
         EnvConfig, Environment = _environment_imports()
+        if not hasattr(Environment, "episode"):
+            from verifiers.v1.utils.loaders import load_environment, resolve_env_config
+
+            return load_environment(resolve_env_config(dict(self.config)))
         return Environment(EnvConfig.model_validate(dict(self.config)))
 
 
@@ -156,6 +183,7 @@ class VerifiersBridgeSnapshot:
     task_facet_fields: tuple[str, ...] = ()
     model_identity: Mapping[str, JsonValue] = field(default_factory=dict)
     reward_component_sources: Mapping[str, SignalSource] = field(default_factory=dict)
+    reward_projection: RewardProjection | None = None
 
     def create(self) -> VerifiersEnvironmentRolloutBridge:
         return VerifiersEnvironmentRolloutBridge(
@@ -173,6 +201,7 @@ class VerifiersBridgeSnapshot:
             task_facet_fields=self.task_facet_fields,
             model_identity=self.model_identity,
             reward_component_sources=self.reward_component_sources,
+            reward_projection=self.reward_projection,
         )
 
 
@@ -207,11 +236,9 @@ def _imports() -> tuple[Any, ...]:
 
 def _environment_imports() -> tuple[type[Any], type[Any]]:
     _apply_verifiers_runtime_compatibility()
-    try:
-        from verifiers.v1.env import EnvConfig, Environment  # pyright: ignore[reportMissingImports]
-    except ImportError as error:
-        raise RuntimeError("install the Verifiers integration dependencies") from error
-    return EnvConfig, Environment
+    from posttrain.environment.verifiers_runtime import verifiers_environment_types
+
+    return verifiers_environment_types()
 
 
 def preflight_verifiers_environment(environment: VerifiersEnvironmentSelection) -> Mapping[str, Any]:
@@ -225,8 +252,8 @@ def preflight_verifiers_environment(environment: VerifiersEnvironmentSelection) 
         raise TypeError("Verifiers environment factories must return verifiers.v1.EnvConfig")
     payload = base.model_dump(mode="python")
     _apply_training_parameters(environment, payload)
-    config = EnvConfig.model_validate(payload)
-    Environment(config)
+    config = type(base).model_validate(payload)
+    NativeVerifiersEnvironmentFactory(config.model_dump(mode="python"))()
     return config.model_dump(mode="python")
 
 
@@ -239,6 +266,7 @@ def create_verifiers_training_bridge(
     purpose: OnlineRLTechnique = "grpo",
     tasks: Mapping[int, Any] | None = None,
     model_identity: Mapping[str, JsonValue] | None = None,
+    reward_projection: RewardProjection | None = None,
 ) -> VerifiersEnvironmentRolloutBridge:
     """Build the existing native bridge from a public environment selection."""
 
@@ -269,6 +297,7 @@ def create_verifiers_training_bridge(
         task_facet_fields=_task_facet_fields(environment),
         model_identity=dict(model_identity or {}),
         reward_component_sources=dict(environment.reward_component_sources),
+        reward_projection=reward_projection,
     )
 
 
@@ -277,13 +306,16 @@ def _apply_training_parameters(
     payload: dict[str, Any],
 ) -> None:
     parameters = environment.parameters
+    limits = payload.get("agent", payload)
+    if not isinstance(limits, dict):
+        raise TypeError("Verifiers agent configuration must be an object")
     for key in ("max_turns", "max_total_tokens"):
         value = parameters.get(key)
         if isinstance(value, int) and not isinstance(value, bool):
-            payload[key] = value
+            limits[key] = value
     rollout_timeout = parameters.get("rollout_timeout_seconds")
     if isinstance(rollout_timeout, int | float) and not isinstance(rollout_timeout, bool):
-        timeout = payload.setdefault("timeout", {})
+        timeout = limits.setdefault("timeout", {})
         if isinstance(timeout, dict):
             timeout["rollout"] = float(rollout_timeout)
     if environment.source.package != "automationbench-v1":
@@ -420,18 +452,28 @@ class _PolicyClient:
         self,
         dialect: Any,
         body: dict[str, Any],
-        model: str,
-        sampling_args: Any,
+        model: Any,
+        sampling_args: Any = None,
         session_id: str | None = None,
         turn: Any | None = None,
         headers: Mapping[str, str] | None = None,
     ) -> Any:
         del headers
+        if sampling_args is None:
+            sampling_args = model
+            model = body.get("model")
+            if not isinstance(model, str) or not model:
+                raise ValueError("native policy request requires the resolved model identity")
         AssistantMessage, _, _, Response, _, _, TurnTokens, Usage, ChatDialect, parse_tools = _imports()
         if not isinstance(dialect, ChatDialect):
             raise NotImplementedError("the online-RL policy bridge currently supports chat-completions dialects")
         if turn is None:
-            messages, tools = dialect.parse_request(body)
+            parsed = dialect.parse_request(body)
+            if hasattr(parsed, "messages"):
+                messages = parsed.messages
+                tools = parsed.tools
+            else:
+                messages, tools = parsed
             anchor = None
             tail_start = 0
         else:
@@ -448,10 +490,10 @@ class _PolicyClient:
                 max_tokens=int(sampling_args.max_tokens),
                 temperature=1.0 if sampling_args.temperature is None else float(sampling_args.temperature),
                 top_p=1.0 if sampling_args.top_p is None else float(sampling_args.top_p),
-                top_k=int(getattr(sampling_args, "top_k", 0)),
+                top_k=int(getattr(sampling_args, "top_k", None) or 0),
                 min_p=None if min_p is None else float(min_p),
-                repetition_penalty=float(getattr(sampling_args, "repetition_penalty", 1.0)),
-                presence_penalty=float(getattr(sampling_args, "presence_penalty", 0.0)),
+                repetition_penalty=float(getattr(sampling_args, "repetition_penalty", None) or 1.0),
+                presence_penalty=float(getattr(sampling_args, "presence_penalty", None) or 0.0),
             ),
             tools=tuple(_record(tool) for tool in tools or []),
             session_id=session_id,
@@ -508,6 +550,7 @@ class VerifiersEnvironmentRolloutBridge:
     task_facet_fields: tuple[str, ...] = ()
     model_identity: Mapping[str, JsonValue] = field(default_factory=dict)
     reward_component_sources: Mapping[str, SignalSource] = field(default_factory=dict)
+    reward_projection: RewardProjection | None = None
     _write_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _trace_count: int = field(default=0, init=False)
     _live_observed_trace_ids: set[str] = field(default_factory=set, init=False, repr=False)
@@ -555,11 +598,22 @@ class VerifiersEnvironmentRolloutBridge:
     ) -> Sequence[EnvironmentRollout]:
         with self._write_lock:
             self._requested_by_step[batch.step] = self._requested_by_step.get(batch.step, 0) + len(batch.example_ids)
+        if self.reward_projection is not None and self.technique != "sampo" and not batch.prompt_group_ids:
+            raise ValueError("structured RL requires explicit prompt-group and rollout identities")
         _, _, ModelContext, _, Sampling, TrainRunInfo, _, _, _, _ = _imports()
         client = _PolicyClient(generator)
+        modern = hasattr(self._environment, "run_episode")
+        context_client = client
+        if modern:
+            from verifiers.v1.configs.client import EvalClientConfig
+
+            context_client = EvalClientConfig(
+                base_url="http://posttrain-policy.invalid/v1",
+                api_key_var="POSTTRAIN_INPROCESS_POLICY",
+            )
         context = ModelContext(
             model=batch.model_id,
-            client=client,
+            client=context_client,
             sampling=Sampling(
                 max_tokens=self.sampling.max_tokens,
                 temperature=self.sampling.temperature,
@@ -591,30 +645,84 @@ class VerifiersEnvironmentRolloutBridge:
         fatal_error: BaseException | None = None
         fatal_lock = asyncio.Lock()
         results: dict[int, EnvironmentRollout] = {}
+        failures: dict[int, str] = {}
 
         async def run_example(rollout_ordinal: int, example_id: str) -> tuple[int, EnvironmentRollout]:
             try:
                 task_index, task = self._tasks_by_example_id[example_id]
             except KeyError as error:
                 raise ValueError(f"unknown rollout example {example_id!r}") from error
-            traces = await self._environment.episode(task, context, n=1).run()
+            episode = None
+            if modern:
+                from verifiers.v1.episode import GroupInfo  # pyright: ignore[reportAttributeAccessIssue]
+
+                episode = await self._environment.run_episode(task, context)
+                episode.record_run(TrainRunInfo(id=self.run_id, work={"type": "train", "step": batch.step}))
+                episode.env.name = self.environment_id
+                if batch.prompt_group_ids:
+                    episode.group = GroupInfo(id=batch.prompt_group_ids[rollout_ordinal])
+                for native_trace in episode.traces:
+                    native_trace.info.update(
+                        posttrain_episode_id=episode.id,
+                        posttrain_run={"type": "train", "id": self.run_id, "step": batch.step},
+                        environment_id=self.environment_id,
+                        task_index=task_index,
+                        example_id=example_id,
+                        task_facets=_task_facet_values(task, self.task_facet_fields),
+                    )
+                    if batch.prompt_group_ids:
+                        native_trace.info.update(
+                            posttrain_prompt_group_id=batch.prompt_group_ids[rollout_ordinal],
+                            posttrain_rollout_id=batch.rollout_ids[rollout_ordinal],
+                        )
+                traces = [trace for trace in episode.traces if trace.agent.trainable]
+                if not episode.ok or len(traces) != 1:
+                    reason = (
+                        "native episode is not trainable "
+                        f"(ok={episode.ok}, total_traces={len(episode.traces)}, trainable_traces={len(traces)})"
+                    )
+                    for native_trace in episode.traces:
+                        native_trace.info.update(posttrain_admission_error=reason)
+                    self._preserve_episode(episode)
+                    raise VerifiersRolloutFailure(reason)
+            else:
+                traces = await self._environment.episode(task, context, n=1).run()
             if len(traces) != 1:
                 raise ValueError(
                     f"Verifiers episode returned {len(traces)} traces for one scheduled branch; expected exactly one"
                 )
             trace = traces[0]
-            trace.stamp(
-                run=TrainRunInfo(id=self.run_id, step=batch.step),
-                environment_id=self.environment_id,
-                task_index=task_index,
-                example_id=example_id,
-            )
-            for enrich in self.enrichers:
-                enrich(trace)
+            if not modern:
+                trace.info.update(
+                    posttrain_run={"type": "train", "id": self.run_id, "step": batch.step},
+                    environment_id=self.environment_id,
+                    task_index=task_index,
+                    example_id=example_id,
+                )
+            if batch.prompt_group_ids:
+                trace.info.update(
+                    posttrain_prompt_group_id=batch.prompt_group_ids[rollout_ordinal],
+                    posttrain_rollout_id=batch.rollout_ids[rollout_ordinal],
+                )
+            enrichment_error: Exception | asyncio.CancelledError | None = None
+            try:
+                for enrich in self.enrichers:
+                    pending = enrich(trace)
+                    if pending is not None:
+                        await pending
+            except (Exception, asyncio.CancelledError) as error:
+                # Preserve the terminal native evidence even when derived
+                # annotation fails; a missing critique is never successful credit.
+                enrichment_error = error
+                trace.info.update(posttrain_enrichment_error=type(error).__name__)
             record, observation = self._terminal_observation(trace, example_id, task_index, rollout_ordinal)
+            if episode is not None:
+                self._preserve_episode(episode)
             # Native JSONL is the replay authority.  This happens before any
             # trainable projection, including branch/token/reward validation.
             self._preserve(record)
+            if isinstance(enrichment_error, asyncio.CancelledError):
+                raise enrichment_error
             if on_completed is not None:
                 try:
                     await on_completed(observation)
@@ -624,6 +732,8 @@ class VerifiersEnvironmentRolloutBridge:
                     pass
                 else:
                     self.mark_live_observed(observation.external_id)
+            if enrichment_error is not None:
+                raise VerifiersRolloutFailure("native trace retained after enrichment failure") from enrichment_error
             return rollout_ordinal, self._project(trace, observation)
 
         occurrences = [example_id for example_id in batch.example_ids]
@@ -638,6 +748,9 @@ class VerifiersEnvironmentRolloutBridge:
                     next_ordinal += 1
                 try:
                     result_ordinal, rollout = await run_example(ordinal, occurrences[ordinal])
+                except VerifiersRolloutFailure as error:
+                    failures[ordinal] = str(error)
+                    continue
                 except BaseException as error:
                     async with fatal_lock:
                         if fatal_error is None:
@@ -645,12 +758,29 @@ class VerifiersEnvironmentRolloutBridge:
                     return
                 results[result_ordinal] = rollout
 
-        async with self._environment.serving():
+        def policy_client_factory(config: Any) -> Any:
+            if config == context_client:
+                return _PolicyClient(generator)
+            from verifiers.v1.clients import resolve_client
+
+            return resolve_client(config)
+
+        serving = (
+            self._environment.serving(client_factory=policy_client_factory) if modern else self._environment.serving()
+        )
+        async with serving:
             await asyncio.gather(*(worker() for _ in range(worker_count)))
         if fatal_error is not None:
-            if isinstance(fatal_error, VerifiersRolloutFailure):
+            if isinstance(fatal_error, asyncio.CancelledError):
                 raise fatal_error
             raise VerifiersRolloutFailure(f"Verifiers rollout failed: {fatal_error}") from fatal_error
+        if failures:
+            raise VerifiersRolloutFailure(
+                f"{len(failures)} of {len(occurrences)} Verifiers rollouts failed: "
+                f"{sorted(set(failures.values()))}",
+                completed=results,
+                failures=failures,
+            )
         return [results[ordinal] for ordinal in range(len(occurrences))]
 
     def _terminal_observation(
@@ -660,7 +790,12 @@ class VerifiersEnvironmentRolloutBridge:
         task_index: int,
         rollout_ordinal: int,
     ) -> tuple[dict[str, Any], TraceObservation]:
-        record = trace.to_record()
+        record = _native_record(trace)
+        trace_info = getattr(trace, "info", {})
+        if isinstance(trace_info.get("posttrain_run"), Mapping):
+            # Versioned derived trace view for existing observation consumers;
+            # the untouched native episode is retained alongside this view.
+            record["run"] = dict(trace_info["posttrain_run"])
         task_facets = _task_facet_values(self.tasks[task_index], self.task_facet_fields)
         info = record.setdefault("info", {})
         if not isinstance(info, dict):
@@ -714,7 +849,7 @@ class VerifiersEnvironmentRolloutBridge:
             raise VerifiersRolloutFailure("Verifiers trace terminated with a harness or environment error")
         branches = trace.branches
         if len(branches) != 1:
-            error = trace.error
+            error = getattr(trace, "error", None) or getattr(trace, "last_error", None)
             detail = f"; trace error={error.type}: {error.message}" if error is not None else ""
             raise VerifiersRolloutFailure(f"online-RL requires one trainable trace branch, got {len(branches)}{detail}")
         branch = branches[0]
@@ -736,6 +871,18 @@ class VerifiersEnvironmentRolloutBridge:
             raise VerifiersRolloutFailure("Verifiers trace has a non-finite scalar reward")
         is_truncated = bool(observation.attributes["is_truncated"])
         turns = _agentic_turns(branch, first_sampled) if self.technique == "sampo" else ()
+        native_turns = (
+            native_turn_map(branch)
+            if self.reward_projection is not None and self.reward_projection.turns_info_key is not None
+            else ()
+        )
+        turn_ids = tuple(turn.id for turn in native_turns)
+        if turns and self.reward_projection is not None:
+            local_rewards = self.reward_projection.project_turn_rewards(observation, turn_ids)
+            if local_rewards is not None:
+                turns = tuple(
+                    replace(turn, step_reward=reward) for turn, reward in zip(turns, local_rewards, strict=True)
+                )
         attributes = dict(observation.attributes)
         attributes.update(
             completion_token_count=len(completion_ids),
@@ -758,6 +905,16 @@ class VerifiersEnvironmentRolloutBridge:
             is_truncated=is_truncated,
             trace=observation,
             turns=turns,
+            reward_evidence=(
+                self.reward_projection.project(
+                    observation,
+                    scalar_reward=float(trace.reward),
+                    turn_ids=turn_ids,
+                    native_turns=native_turns,
+                )
+                if self.reward_projection is not None and self.technique != "sampo"
+                else None
+            ),
         )
 
     def mark_live_observed(self, external_id: str) -> None:
@@ -766,16 +923,26 @@ class VerifiersEnvironmentRolloutBridge:
         with self._write_lock:
             self._live_observed_trace_ids.add(external_id)
 
+    def _preserve_episode(self, episode: Any) -> None:
+        path = self.trace_path.with_name("episodes.jsonl")
+        self._append_record(path, _native_record(episode))
+
     def trace_observation(self, record: Mapping[str, Any]) -> TraceObservation:
         """Reconstruct one terminal native record in a host-side observer."""
 
         return self._observation_from_record(record)
 
     def _preserve(self, record: dict[str, Any]) -> None:
+        self._append_record(self.trace_path, record)
+        with self._write_lock:
+            self._trace_count += 1
+
+    def _append_record(self, path: Path, record: dict[str, Any]) -> None:
+        """Keep native and derived JSONL intact across concurrent rollout workers."""
         encoded = json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
         with self._write_lock:
-            self.trace_path.parent.mkdir(parents=True, exist_ok=True)
-            with self.trace_path.open("a", encoding="utf-8") as stream:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as stream:
                 try:
                     import fcntl
                 except ImportError:  # pragma: no cover - Windows is not a qualified veRL target
@@ -788,7 +955,6 @@ class VerifiersEnvironmentRolloutBridge:
                 finally:
                     if fcntl is not None:
                         fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
-            self._trace_count += 1
 
     def write_portable_snapshot(self, path: Path) -> None:
         """Serialize trusted reconstruction state for an isolated veRL/Ray runtime."""
@@ -808,14 +974,38 @@ class VerifiersEnvironmentRolloutBridge:
             task_facet_fields=self.task_facet_fields,
             model_identity=self.model_identity,
             reward_component_sources=self.reward_component_sources,
+            reward_projection=self.reward_projection,
         )
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("wb") as stream:
             pickle.dump(snapshot, stream, protocol=pickle.HIGHEST_PROTOCOL)
 
     def finalize(self) -> tuple[ProducedArtifact, ...]:
+        episodes_path = self.trace_path.with_name("episodes.jsonl")
+        artifacts: list[ProducedArtifact] = []
+        if episodes_path.is_file():
+            with episodes_path.open("r", encoding="utf-8") as stream:
+                episode_count = sum(1 for line in stream if line.strip())
+            artifacts.append(
+                ProducedArtifact(
+                    name=f"training/rollouts/{self.dataset.id}/verifiers-episodes",
+                    kind="evaluation-traces",
+                    reference=LocalArtifactRef(
+                        episodes_path.resolve(), hashlib.sha256(episodes_path.read_bytes()).hexdigest()
+                    ),
+                    metadata={
+                        "technique": self.technique,
+                        "environment_id": self.environment_id,
+                        "dataset_id": self.dataset.id,
+                        "dataset_revision": self.dataset.revision,
+                        "episode_count": episode_count,
+                        "replay_authority": True,
+                        "format": "verifiers-native-episodes",
+                    },
+                )
+            )
         if not self.trace_path.is_file():
-            return ()
+            return tuple(artifacts)
         with self.trace_path.open("r", encoding="utf-8") as stream:
             preserved_trace_count = sum(1 for line in stream if line.strip())
         digest = hashlib.sha256(self.trace_path.read_bytes()).hexdigest()
@@ -830,9 +1020,10 @@ class VerifiersEnvironmentRolloutBridge:
                 "dataset_revision": self.dataset.revision,
                 "trace_count": preserved_trace_count,
                 "schema_version": 2,
+                "replay_authority": not episodes_path.is_file(),
             },
         )
-        return (artifact,)
+        return (*artifacts, artifact)
 
     def evidence(self) -> EnvironmentRolloutEvidence:
         """Replay native trace records and trace-derived metrics in the host process."""
@@ -885,16 +1076,8 @@ def _trace_model(record: Mapping[str, Any]) -> str:
 
 
 def _trace_reward(record: Mapping[str, Any]) -> float | None:
-    if _trace_has_error(record):
-        return None
-    rewards = record.get("rewards")
-    if not isinstance(rewards, Mapping):
-        return None
-    values = [
-        float(value) for value in rewards.values() if isinstance(value, int | float) and not isinstance(value, bool)
-    ]
-    total = sum(values) if values else None
-    return total if total is not None and math.isfinite(total) else None
+    reward = project_verifiers_trace_facts(record).measures["task_reward"]
+    return float(reward) if reward is not None else None
 
 
 def _trace_has_error(record: Mapping[str, Any]) -> bool:

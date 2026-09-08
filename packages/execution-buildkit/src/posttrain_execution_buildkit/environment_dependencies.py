@@ -50,6 +50,19 @@ _LOCK_FILENAME = "environment-dependencies.lock.txt"
 _INDEX_ENVIRONMENT_NAMES = ("UV_INDEX_PASSWORD", "UV_INDEX_URL", "UV_INDEX_USERNAME")
 
 
+def _safe_resolver_detail(value: str, *, limit: int = 4_000) -> str:
+    """Retain actionable resolver diagnostics without echoing URL credentials."""
+
+    detail = _URL_USERINFO.sub("https://[REDACTED]@", value.strip())
+    detail = re.sub(
+        r"([?&](?:access[_-]?token|api[_-]?key|auth|credential|password|secret|token)=)[^&\s]+",
+        r"\1[REDACTED]",
+        detail,
+        flags=re.IGNORECASE,
+    )
+    return "..." + detail[-(limit - 3) :] if len(detail) > limit else detail
+
+
 class DependencyResolutionError(ContractError):
     """The complete environment set cannot produce a safe immutable lock."""
 
@@ -160,7 +173,11 @@ class UvDependencyCompileCli:
             check=False,
         )
         if result.returncode != 0:
-            raise DependencyResolutionError(f"uv dependency resolution failed with exit code {result.returncode}")
+            detail = _safe_resolver_detail(result.stderr or result.stdout)
+            suffix = f":\n{detail}" if detail else ""
+            raise DependencyResolutionError(
+                f"uv dependency resolution failed with exit code {result.returncode}{suffix}"
+            )
 
 
 @dataclass(frozen=True, slots=True)

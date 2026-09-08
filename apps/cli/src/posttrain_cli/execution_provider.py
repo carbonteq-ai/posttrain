@@ -99,7 +99,10 @@ def provider_source_for_project(
 ) -> ExecutionProviderSource:
     """Freeze secret-free adapter identity while leaving credentials rotatable."""
 
-    local = local_config or load_local_execution_config(layout)
+    local = local_config or load_local_execution_config(
+        layout,
+        verify_published_locks=False,
+    )
     profile_id = local.machine.name if local.machine is not None else f"project:{layout.project_id}"
     fingerprint = provider_binding_fingerprint(local, provider_name)
     if provider_name == "local-docker":
@@ -137,7 +140,7 @@ def _configuration_for_provider_source(
     owner: ProjectLayout,
     source: ExecutionProviderSource,
 ) -> LocalExecutionConfig:
-    current = load_local_execution_config(owner)
+    current = load_local_execution_config(owner, verify_published_locks=False)
     if source.provider == "local-docker":
         return replace(
             current,
@@ -181,7 +184,7 @@ def execution_service_for_run(
     local = (
         _configuration_for_provider_source(layout, submission.provider_source)
         if submission.provider_source_recorded and submission.provider_source is not None
-        else load_local_execution_config(layout)
+        else load_local_execution_config(layout, verify_published_locks=False)
     )
     settings = resolve_execution_settings(
         layout.execution,
@@ -214,7 +217,7 @@ def execution_admission_service(
             provider_override = configured[provider_name]
         except KeyError as error:
             raise RuntimeError(f"execution admission uses unsupported provider {provider_name!r}") from error
-        local = load_local_execution_config(layout)
+        local = load_local_execution_config(layout, verify_published_locks=False)
         settings = resolve_execution_settings(
             layout.execution,
             local=local.defaults,
@@ -257,7 +260,7 @@ def execution_admission_service(
         local = (
             _configuration_for_provider_source(owner, entry.provider_source)
             if entry.provider_source is not None
-            else load_local_execution_config(owner)
+            else load_local_execution_config(owner, verify_published_locks=False)
         )
         settings = resolve_execution_settings(
             owner.execution,
@@ -277,21 +280,21 @@ def execution_admission_service(
 
     def provider_binding_factory(provider_name: str) -> str:
         return provider_binding_fingerprint(
-            load_local_execution_config(layout),
+            load_local_execution_config(layout, verify_published_locks=False),
             provider_name,
         )
 
     def entry_provider_binding_factory(entry: AdmissionEntry) -> str:
         owner, _locator = owner_layout(entry)
         return provider_binding_fingerprint(
-            load_local_execution_config(owner),
+            load_local_execution_config(owner, verify_published_locks=False),
             entry.plan.provider,
         )
 
     def physical_host_factory(plan: ExecutionPlan) -> str | None:
         if plan.provider != "local-docker":
             return None
-        local = load_local_execution_config(layout).local
+        local = load_local_execution_config(layout, verify_published_locks=False).local
         return local.canonical_hostname if local is not None else None
 
     return ExecutionAdmissionService(

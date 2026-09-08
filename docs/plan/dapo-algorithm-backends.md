@@ -119,7 +119,7 @@ also remains a release gate.
 
 `packages/train/src/posttrain/train/profiles.py` owns backend-neutral algorithm
 settings. `catalog_schema.py` decodes catalog YAML into those values.
-`backends/trl/grpo.py` creates TRL `GRPOConfig` arguments.
+`backends/trl/policy_optimization.py` creates TRL `GRPOConfig` arguments.
 `backends/verl/launcher.py`, `contracts.py`, and `worker.py` create and execute
 the isolated veRL manifest. The official veRL DAPO retained-group trainer is in
 the separately pinned `/home/hammad/projects/verl-recipe` checkout.

@@ -49,6 +49,22 @@ target:
         - A100
       max_price: 2.5
       disk_gb: 100
+  targets/runpod-a100-80gb-secure-ondemand-qualification:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 80
+    placement:
+      world_size: 1
+      fleets:
+        - runpod-secure-ondemand-workers
+      spot_policy: on-demand
+      managed_run_storage: true
+      gpu_names:
+        - A100
+      gpu_memory_min_gb: 80
+      gpu_memory_max_gb: 80
+      max_price: 1.75
+      disk_gb: 100
   targets/runpod-rtx-pro-6000-spot-qualification:
     revision: "2"
     device_class: nvidia-cuda

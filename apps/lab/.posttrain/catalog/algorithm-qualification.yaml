@@ -3,8 +3,8 @@ environment:
     category: math-reasoning
     source:
       package: gsm8k-v1
-      repository: https://github.com/PrimeIntellect-ai/verifiers
-      revision: 284a868d6a9022109b749710672a0460e8a996d4
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
@@ -42,8 +42,8 @@ environment:
     qualification: deferred
     source:
       package: gsm8k-v1
-      repository: https://github.com/PrimeIntellect-ai/verifiers
-      revision: 284a868d6a9022109b749710672a0460e8a996d4
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
@@ -83,7 +83,7 @@ environment:
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
@@ -122,7 +122,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -168,7 +168,7 @@ environment:
     source:
       package: mmlu-pro-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/mmlu_pro_v1
     activation:
       kind: verifiers-config
@@ -213,7 +213,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -254,7 +254,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -296,7 +296,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -338,7 +338,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -382,7 +382,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -426,7 +426,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -471,7 +471,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -515,7 +515,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -564,7 +564,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -614,7 +614,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -664,7 +664,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -710,7 +710,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -762,7 +762,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -815,7 +815,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -861,7 +861,7 @@ environment:
     source:
       package: math-python-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/math_python_v1
     activation:
       kind: verifiers-config
@@ -907,7 +907,7 @@ environment:
     source:
       package: math-python-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3e1582ef3cce8e6d355be3747be0427f700ef865
+      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
       subdirectory: environments/math_python_v1
     activation:
       kind: verifiers-config
@@ -956,15 +956,15 @@ environment:
     category: instruction-following
     qualification: deferred
     source:
-      package: reverse-text-v1
-      repository: https://github.com/PrimeIntellect-ai/verifiers
-      revision: 284a868d6a9022109b749710672a0460e8a996d4
-      subdirectory: environments/reverse_text_v1
+      package: reverse-text
+      repository: https://github.com/carbonteq-ai/verifiers
+      revision: 8e8f3042481c0996a58c3de0f86d55406725b6c1
+      subdirectory: environments/reverse_text
     activation:
       kind: verifiers-config
       config:
         taskset:
-          id: reverse-text-v1
+          id: reverse-text
           dataset_name: PrimeIntellect/Reverse-Text-RL
           dataset_split: train
         harness:

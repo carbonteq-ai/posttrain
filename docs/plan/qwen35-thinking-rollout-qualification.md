@@ -463,7 +463,7 @@ rate.
 controls into native Verifiers episodes and projects individual turns back to
 the trainer. TRL generation is adapted in
 `packages/train/src/posttrain/train/backends/trl/online_rl.py`, while its
-trainer arguments are built in `packages/train/src/posttrain/train/backends/trl/grpo.py`.
+trainer arguments are built in `packages/train/src/posttrain/train/backends/trl/policy_optimization.py`.
 The equivalent veRL turn bridge is
 `packages/train/src/posttrain/train/backends/verl/agent_loop.py`.
 

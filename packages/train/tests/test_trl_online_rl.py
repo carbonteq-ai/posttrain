@@ -6,10 +6,11 @@ import asyncio
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from posttrain.common import ExecutionTarget
-from posttrain.common.variants import QWEN_35_2B
+from posttrain.common.variants import LFM_25_26B, QWEN_35_2B
 from posttrain.train import (
     QWEN35_GRPO_SMOKE,
     QWEN35_RENDERER,
@@ -45,6 +46,9 @@ class FakeRenderer:
 
     def get_stop_token_ids(self):
         return [4]
+
+    def bridge_to_next_turn(self, previous_prompt_ids, previous_completion_ids, new_messages, *, tools):
+        return None
 
 
 class FakeTrainer:
@@ -128,6 +132,106 @@ def test_trl_policy_generator_reuses_loaded_trainer_and_preserves_exact_tokens(m
         "created": 0,
         "choices": [{"index": 0, "message": result.message, "finish_reason": "stop"}],
     }
+
+
+def test_trl_lfm_tool_cycle_keeps_sampled_prefix_and_appends_only_new_tool_messages(monkeypatch) -> None:
+    from renderers import RenderedTokens
+
+    class LfmRenderer:
+        def bridge_to_next_turn(self, previous_prompt_ids, previous_completion_ids, new_messages, *, tools):
+            return None
+
+        def render(self, messages, *, tools, add_generation_prompt):
+            assert messages == [{"role": "tool", "content": "created", "tool_call_id": "call_0"}]
+            assert tools is None
+            assert add_generation_prompt is True
+            return RenderedTokens(
+                token_ids=[99, 20, 21],
+                message_indices=[-1, 0, -1],
+                message_roles=["tool"],
+                message_tool_names=[None],
+            )
+
+        def parse_response(self, token_ids, *, tools):
+            return SimpleNamespace(content="answer", reasoning_content="reason", tool_calls=[])
+
+        def get_stop_token_ids(self):
+            return [4]
+
+    class LfmTrainer(FakeTrainer):
+        def _generate_single_turn(self, prompt_ids, generation_config, extra):
+            assert prompt_ids == [[1, 2, 3, 4, 10, 20, 21]]
+            assert generation_config is None
+            assert extra == {}
+            return [[3, 4]], [[-0.1, -0.2]]
+
+    renderer = LfmRenderer()
+    monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: renderer)
+    tokenizer = SimpleNamespace(bos_token_id=99, encode=lambda text, **kwargs: [10])
+    generator = TrlPolicyGenerator(
+        LfmTrainer(),
+        tokenizer,
+        LFM_25_26B,
+        replace(QWEN35_GRPO_SMOKE, max_completion_length=2),
+        replace(_training(), renderer=replace(_training().renderer, model_family="lfm2.5", implementation="default")),
+    )
+
+    result = asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=(
+                    {"role": "user", "content": "create"},
+                    {"role": "assistant", "content": None, "tool_calls": []},
+                    {"role": "tool", "content": "created", "tool_call_id": "call_0"},
+                ),
+                sampling=PolicySampling(max_tokens=2, temperature=0.7, top_p=0.9),
+                previous_prompt_ids=(1, 2),
+                previous_completion_ids=(3, 4),
+                tail_start=2,
+            )
+        )
+    )
+
+    assert result.prompt_ids == (1, 2, 3, 4, 10, 20, 21)
+    assert result.prompt_message_spans == (None, None, (5, 6))
+
+
+def test_trl_policy_generator_preserves_rejected_call_in_native_message(monkeypatch) -> None:
+    renderer = FakeRenderer()
+    renderer.parse_response = lambda *args, **kwargs: SimpleNamespace(
+        content="",
+        reasoning_content="Check the task.",
+        tool_calls=[
+            SimpleNamespace(name="asana_get_task", status=SimpleNamespace(value="invalid_json"), token_span=(0, 1)),
+        ],
+    )
+    monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: renderer)
+    tokenizer = SimpleNamespace(decode=lambda ids, **kwargs: "<tool_call>invalid attempt</tool_call>")
+    generator = TrlPolicyGenerator(
+        FakeTrainer(),
+        tokenizer,
+        QWEN_35_2B,
+        replace(QWEN35_GRPO_SMOKE, max_completion_length=2),
+        _training(),
+    )
+    result = asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=({"role": "user", "content": "hello"},),
+                sampling=PolicySampling(max_tokens=2, temperature=0.7, top_p=0.9),
+            )
+        )
+    )
+    assert result.message["content"] == "<tool_call>invalid attempt</tool_call>"
+    assert result.message["reasoning_content"] == "Check the task."
+    assert "tool_calls" not in result.message
+    provider_state = cast(list[dict[str, Any]], result.message["provider_state"])
+    assert provider_state[0]["status"] == "invalid_json"
+    raw_response = cast(dict[str, Any], result.raw_response)
+    choices = cast(list[dict[str, Any]], raw_response["choices"])
+    assert choices[0]["message"] == result.message
+    assert result.completion_ids == (3, 4)
+    assert result.completion_logprobs == (-0.1, -0.2)
 
 
 def test_trl_policy_generator_rejects_environment_sampling_drift(monkeypatch) -> None:

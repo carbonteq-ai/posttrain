@@ -57,6 +57,8 @@ _KIND_PROFILES: Mapping[str, JobKindProfile] = {
     "train.dpo": "supervised",
     "train.grpo": "online-rl",
     "train.sampo": "online-rl",
+    "train.gdpo": "online-rl",
+    "train.capo": "online-rl",
     "train.distill": "online-rl",
     "eval.general": "eval",
     "eval.domain": "eval",

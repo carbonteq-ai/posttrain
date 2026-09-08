@@ -1,0 +1,58 @@
+type: task
+name: posttrain-general-episode-prompt-r12-u
+image: registry.carbonteq.com/carbonteq/posttrain/nanbeige-vllm@sha256:bfbeee151fb59c687f7e27d5e5e287716a7c1c6dd58ebf0a4ffe99b13702a3aa
+shell: /bin/bash
+commands:
+  - >-
+    cp /opt/posttrain/candidate/judge.py
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/lib/python3.13/site-packages/automationbench_v1/judge.py
+    && cp /opt/posttrain/candidate/episode_prompt.py
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/lib/python3.13/site-packages/automationbench_v1/episode_prompt.py
+    && cp /opt/posttrain/candidate/limited_tools.py
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/lib/python3.13/site-packages/automationbench_v1/limited_tools.py
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    HF_HUB_CACHE=/root/.cache/huggingface/hub OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/automationbench_native_judges.py
+    --backend trl --algorithm gdpo --episode-rewards --calibrate-only
+    --calibration-fixture /opt/posttrain/qualification/general_episode_judge_candidate_v1.json
+    --judge-profile gemma12b
+    --judge-vllm-executable vllm --judge-vllm-version 0.26.1rc1.dev1235+g62f6de733
+    --judge-code-revision 78da68e3572e16b7fdacce0d730b48c7c4e016cb
+    --environment-wheel-sha256 7c40184a39f7b059a6ef125a540fed7791fc598f6af2021570c9db4d77502a14
+    --output /opt/posttrain/evidence/general-episode-calibration-gemma-u
+files:
+  - ./automationbench_native_judges.py:/opt/posttrain/qualification/automationbench_native_judges.py
+  - ./automationbench_structured_toy.py:/opt/posttrain/qualification/automationbench_structured_toy.py
+  - ./episode_reward_profile.py:/opt/posttrain/qualification/episode_reward_profile.py
+  - ./calibrate_general_episode_prompt.py:/opt/posttrain/qualification/calibrate_general_episode_prompt.py
+  - ./fixtures/general_episode_judge_candidate_v1.json:/opt/posttrain/qualification/general_episode_judge_candidate_v1.json
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/judge.py:/opt/posttrain/candidate/judge.py
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/episode_prompt.py:/opt/posttrain/candidate/episode_prompt.py
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/limited_tools.py:/opt/posttrain/candidate/limited_tools.py
+volumes:
+  - /home/carbonteq-ai-workstation/.local/bin/uv:/opt/posttrain/uv
+  - /var/lib/posttrain/cache/huggingface:/root/.cache/huggingface
+  - /var/lib/posttrain/qualifications/nanbeige-r12-20260906:/opt/posttrain/evidence
+  - /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl:/home/carbonteq-ai-workstation/posttrain-qualification.2iyErl
+  - /home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu:/home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu
+resources:
+  cpu: 8..
+  memory: 48GB..
+  gpu:
+    vendor: nvidia
+    count: 1
+    memory: 96GB..
+fleets:
+  - local-gpu-workers
+max_duration: 2h
+stop_duration: 5m
+retry:
+  on_events: [no-capacity]
+  duration: 1h
+tags:
+  purpose: general-episode-prompt-calibration
+  judge_profiles: gemma12b
+  cases: "5"
+  training: "false"

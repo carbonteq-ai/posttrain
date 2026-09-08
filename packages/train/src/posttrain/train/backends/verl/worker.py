@@ -133,7 +133,7 @@ def build_hydra_overrides(
     engine = payload.rollout.engine
     runtime_options = training.runtime
     backend_options = training.backend_options
-    model = payload.policy if manifest.operation in {"grpo", "sampo"} else payload.student
+    model = payload.policy if manifest.operation in {"grpo", "sampo", "gdpo", "capo"} else payload.student
     assert model is not None
     model_path = _model_path(model)
     world_size = training.target.world_size
@@ -177,7 +177,7 @@ def build_hydra_overrides(
         "actor_rollout_ref.actor.strategy=fsdp2",
         f"actor_rollout_ref.actor.use_kl_loss={str((algorithm.beta or 0.0) > 0).lower()}",
         f"actor_rollout_ref.actor.kl_loss_coef={algorithm.beta or 0.0}",
-        "actor_rollout_ref.actor.kl_loss_type=low_var_kl",
+        f"actor_rollout_ref.actor.kl_loss_type={'k3_unclipped' if manifest.operation in {'gdpo', 'capo'} else 'low_var_kl'}",
         "actor_rollout_ref.actor.use_torch_compile=False",
         f"actor_rollout_ref.actor.fsdp_config.offload_policy={str(parameter_offload or optimizer_offload).lower()}",
         f"actor_rollout_ref.actor.fsdp_config.param_offload={str(parameter_offload).lower()}",
@@ -224,7 +224,7 @@ def build_hydra_overrides(
         "trainer.test_freq=-1",
         "trainer.val_before_train=False",
     ]
-    if manifest.operation in {"grpo", "sampo"}:
+    if manifest.operation in {"grpo", "sampo", "gdpo", "capo"}:
         loss_agg_mode = "token-mean" if algorithm.online_rl_algorithm == "dapo" else "seq-mean-token-mean"
         overrides.extend(
             [
@@ -233,7 +233,35 @@ def build_hydra_overrides(
                 f"actor_rollout_ref.actor.clip_ratio_high={algorithm.clip_epsilon_high}",
             ]
         )
+        if manifest.operation in {"gdpo", "capo"}:
+            structured = {
+                "reward_contract_digest": algorithm.reward_contract_digest,
+                "group_size": algorithm.num_generations,
+                "epsilon": algorithm.normalization_epsilon,
+                "component_names": algorithm.component_names,
+                "component_weights": algorithm.component_weights,
+                "outcome_component": algorithm.outcome_component,
+                "outcome_weight": algorithm.outcome_weight,
+                "process_weight": algorithm.process_weight,
+                "max_admission_attempts": algorithm.max_admission_attempts,
+            }
+            overrides.extend(
+                f"+algorithm.structured_rewards.{key}={json.dumps(value)}"
+                for key, value in structured.items()
+                if value is not None
+            )
+            overrides.extend(
+                [
+                    "actor_rollout_ref.actor.policy_loss.loss_mode=token_clip",
+                    "algorithm.filter_groups.enable=false",
+                    "trainer.v1.sampler.sync_refill_failed_groups=True",
+                ]
+            )
         if manifest.operation == "sampo":
+            if algorithm.reward_contract_digest is not None:
+                overrides.append(
+                    f"+algorithm.structured_rewards.reward_contract_digest={algorithm.reward_contract_digest}"
+                )
             overrides.extend(
                 [
                     "actor_rollout_ref.actor.policy_loss.loss_mode=gspo",
@@ -397,8 +425,15 @@ def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
         "actor_rollout_ref.actor.clip_ratio_low=",
         "actor_rollout_ref.actor.clip_ratio_high=",
         "actor_rollout_ref.actor.policy_loss.loss_mode=",
+        "actor_rollout_ref.actor.use_kl_loss=",
+        "actor_rollout_ref.actor.kl_loss_type=",
+        "actor_rollout_ref.actor.kl_loss_coef=",
+        "algorithm.use_kl_in_reward=",
+        "algorithm=",
+        "algorithm.structured_rewards=",
         "algorithm.adv_estimator=",
         "algorithm.sampo.",
+        "algorithm.structured_rewards.",
         "data.gen_batch_size=",
         "algorithm.filter_groups.",
         "actor_rollout_ref.rollout.agent.agent_loop_config_path=",
@@ -409,7 +444,8 @@ def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
         "trainer.resume_mode=",
         "trainer.resume_from_path=",
     )
-    if any(value.startswith(protected) for value in raw):
+    # Hydra's +/++/~ forms must not bypass ownership of selected contracts.
+    if any(value.lstrip("+~").startswith(protected) for value in raw):
         raise ValueError(
             "veRL backend overrides cannot replace selected data, model, algorithm, checkpoint, or artifact policy"
         )
@@ -457,6 +493,16 @@ def _write_agent_config(payload: VerlPayload, path: Path) -> None:
             "overlong_buffer_tokens": algorithm.overlong_buffer_tokens,
             "overlong_penalty_factor": algorithm.overlong_penalty_factor,
             "emit_sampo_metadata": algorithm.advantage_estimator == "sampo",
+            "structured_algorithm": (
+                algorithm.advantage_estimator if algorithm.advantage_estimator in {"gdpo", "capo"} else None
+            ),
+            "reward_component_names": (
+                list(algorithm.component_names or ())
+                if algorithm.advantage_estimator == "gdpo"
+                else [algorithm.outcome_component]
+                if algorithm.advantage_estimator == "capo"
+                else None
+            ),
         }
     ]
     path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")

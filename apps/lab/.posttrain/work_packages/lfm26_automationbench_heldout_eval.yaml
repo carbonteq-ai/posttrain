@@ -1,0 +1,31 @@
+project_id: posttrain-lab
+work_package_id: eval/lfm2.5-2.6b/automationbench-heldout-comparison
+stage: qualify
+description: Shared deterministic held-out AutomationBench evaluation for the base and three trained arms.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-heldout-comparison@1
+  revision: "1"
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: evaluate
+      kind: eval.general
+      definition: eval/verifiers-managed-general@1
+  expected_artifacts: [native evaluation result]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  evaluation_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-eval@1}
+  target: {type: ref, family: target, id: targets/runpod-rtx-pro-6000-spot-qualification}
+  evaluation_plan: {type: ref, family: evaluation, id: lfm26-automationbench-heldout-v1}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-heldout-mix-v1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-automationbench-50-v1
+  task_mix: lfm26-automationbench-mix-v1-heldout
+  labels: [qualification, evaluation, automationbench, lfm2.5]

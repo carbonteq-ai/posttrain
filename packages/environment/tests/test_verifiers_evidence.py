@@ -10,7 +10,34 @@ from posttrain.environment import (
     ThinkingTokenContext,
     ThinkingTokenResult,
     project_verifiers_trace_facts,
+    verifiers_trace_has_error,
 )
+
+
+@pytest.mark.parametrize(
+    ("record", "failed"),
+    [
+        ({}, False),
+        ({"ok": True}, False),
+        ({"ok": False, "errors": []}, True),
+        ({"ok": True, "errors": [{"type": "timeout"}]}, True),
+    ],
+)
+def test_modern_execution_standing_does_not_turn_missing_legacy_ok_into_failure(record, failed):
+    assert verifiers_trace_has_error(record) is failed
+
+
+def test_unsuccessful_modern_trace_does_not_publish_a_semantic_zero():
+    facts = project_verifiers_trace_facts(
+        {
+            "id": "unfinished",
+            "ok": False,
+            "errors": [],
+            "rewards": {"outcome": {"score": 0.0, "weight": 1.0}},
+        }
+    )
+    assert facts.dimensions["has_error"] is True
+    assert facts.measures.get("task_reward") is None
 
 
 def test_provider_usage_and_structured_calls_are_projected_without_model_rules() -> None:

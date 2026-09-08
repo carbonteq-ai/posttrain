@@ -271,7 +271,13 @@ def create_http_app(
             payload.append((await service.get_run_view_response(_locator(key))).model_dump(mode="json"))
         return JSONResponse(content={"format": request.format, "runs": payload})
 
-    app.mount("/mcp", create_mcp(service).streamable_http_app(), name="mcp")
+    app.mount(
+        "/mcp",
+        create_mcp(service).streamable_http_app(
+            streamable_http_path="/", json_response=True, stateless_http=True
+        ),
+        name="mcp",
+    )
 
     frontend = Path(settings.frontend_dir) if settings.frontend_dir else Path(__file__).parents[2] / "frontend" / "dist"
     if frontend.exists():

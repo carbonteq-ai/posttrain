@@ -1,6 +1,24 @@
 # Post-training docs (canonical baseline)
 
 **Status: FROZEN — 2026-07-21** (implementation checkpoint)
+**Amendment — native turn rewards and episodes (2026-09-06):** optional
+turn-addressed reward evidence preserves original policy-token provenance.
+Rubrics remain custom Verifiers judge/scoring-plugin concerns; composition
+supplies inference and algorithms own credit assignment. Migrated runtimes retain
+native episodes (task plus trace) as replay authority while reading legacy
+artifacts during migration. No new scorer primitive or parallel store is added.
+This accepts the contract, not qualification; see
+[ADR 0018](../decisions/0018-structured-reward-projection-and-admission.md).
+
+**Amendment — GDPO and CAPO (2026-09-06):** the approved dual-backend plan
+adds separate `train.gdpo` and `train.capo` operations. Training owns component
+normalization and sampled-token credit; custom Verifiers judge/scoring plugins
+own task-specific reward meaning and critique evidence. Initial support is synchronous,
+text-only, parameter-efficient training, qualified separately for TRL and veRL.
+Implementation and qualification status live in the
+[GDPO/CAPO plan](../plan/gdpo-capo-dual-backend-support.md); this amendment does
+not itself certify a backend. Details: [02](./02-primitives.md),
+[04](./04-framework.md), [05](./05-apis.md), [06](./06-observation-and-lineage.md).
 **Amendment — training decoupling:** `TrainingBinding`, `ParameterUpdatePlan`,
 `QuantizationPlan`; algorithm settings must not own rollout engines or mandatory
 QLoRA; train≠rollout targets allowed; async RL deferred. Details:

@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-VERIFIERS_REVISION = "284a868d6a9022109b749710672a0460e8a996d4"
+VERIFIERS_REVISION = "90055c11896954fac429bb9120245caa6dc1dd59"
 _FINAL_ANSWER = re.compile(r"(?m)^####\s*[+-]?(?:\d[\d,]*)(?:\.\d+)?\s*$")
 _SHAPING_WEIGHT = 0.1
 

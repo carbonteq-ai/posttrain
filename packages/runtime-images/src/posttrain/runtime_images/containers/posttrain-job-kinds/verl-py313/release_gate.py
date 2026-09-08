@@ -17,12 +17,15 @@ FULL_REVISION = re.compile(r"^[0-9a-f]{40}$")
 FORBIDDEN_PACKAGES = frozenset(
     {
         "alphabet-sort-v1",
+        "alphabet-sort",
         "automation-bench",
         "automationbench",
         "automationbench-v1",
         "code-golf-v1",
+        "code-golf",
         "gsm8k-v1",
         "reverse-text-v1",
+        "reverse-text",
     }
 )
 REQUIRED_PROFILE = "online-rl-verl-py313"

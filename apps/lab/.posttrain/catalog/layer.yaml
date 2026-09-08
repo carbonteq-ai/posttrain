@@ -6,6 +6,7 @@ files:
   - execution-targets.yaml
   - gemma4-qualification.yaml
   - iwopd-sampling-qualification.yaml
+  - lfm26-automationbench-comparison.yaml
   - serving-capacity.yaml
   - transform-qualification.yaml
   - verl-capsule-qualification.yaml

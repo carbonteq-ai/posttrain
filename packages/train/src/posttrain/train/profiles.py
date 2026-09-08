@@ -145,6 +145,7 @@ class GRPOSettings:
     mask_truncated_completions: bool = False
     overlong_buffer_tokens: int | None = None
     overlong_penalty_factor: float = 1.0
+    max_admission_attempts: int = 3
 
     def __post_init__(self) -> None:
         _validate_settings(self.id, self.revision)
@@ -205,6 +206,8 @@ class GRPOSettings:
                 raise ValueError("DAPO overlong buffer must be positive and smaller than the completion limit")
         if not math.isfinite(self.overlong_penalty_factor) or self.overlong_penalty_factor <= 0:
             raise ValueError("DAPO overlong penalty factor must be a finite positive number")
+        if self.max_admission_attempts < 1:
+            raise ValueError("GRPO group admission attempts must be positive")
 
     @property
     def resolved_clip_epsilon_high(self) -> float:
@@ -263,6 +266,107 @@ class SAMPOSettings:
             raise ValueError("SAMPO step-advantage weight cannot be negative")
         if self.clip_epsilon_low <= 0 or self.clip_epsilon_high <= 0:
             raise ValueError("SAMPO clip epsilons must be positive")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class _StructuredRLSettings:
+    id: str
+    loop: TrainingLoop
+    num_prompts_per_step: int = 1
+    num_generations: int = 2
+    max_prompt_length: int = 256
+    max_completion_length: int = 128
+    beta: float = 0.0
+    clip_epsilon_low: float = 0.2
+    clip_epsilon_high: float = 0.2
+    max_admission_attempts: int = 3
+    revision: str = "1"
+
+    @property
+    def dynamic_sampling(self) -> None:
+        return None
+
+    @property
+    def mask_truncated_completions(self) -> bool:
+        return False
+
+    def __post_init__(self) -> None:
+        _validate_settings(self.id, self.revision)
+        counts = (
+            self.num_prompts_per_step,
+            self.num_generations,
+            self.max_prompt_length,
+            self.max_completion_length,
+            self.max_admission_attempts,
+        )
+        if any(type(value) is not int or value < 1 for value in counts) or self.num_generations < 2:
+            raise ValueError("structured RL requires positive integer limits and at least two generations")
+        local_batch = self.loop.per_device_batch_size * self.loop.gradient_accumulation_steps
+        if (self.num_prompts_per_step * self.num_generations) % local_batch:
+            raise ValueError("structured RL logical batch must be divisible by the per-device accumulation batch")
+        if self.max_prompt_length + self.max_completion_length > self.loop.max_length:
+            raise ValueError("structured RL loop must cover prompt and completion limits")
+        if not math.isfinite(self.beta) or self.beta < 0:
+            raise ValueError("KL coefficient must be finite and nonnegative")
+        if (
+            not 0 < self.clip_epsilon_low < 1
+            or not math.isfinite(self.clip_epsilon_high)
+            or self.clip_epsilon_high <= 0
+        ):
+            raise ValueError("invalid token-ratio clipping bounds")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class GDPOSettings(_StructuredRLSettings):
+    """Component-wise group normalization followed by rollout-wise normalization."""
+
+    component_names: tuple[str, ...]
+    component_weights: tuple[float, ...]
+    epsilon: float = 1e-4
+    normalization_population: Literal["rollout"] = "rollout"
+    numerical_profile: Literal["gdpo-rollout-sample-std@1"] = "gdpo-rollout-sample-std@1"
+
+    def __post_init__(self) -> None:
+        _StructuredRLSettings.__post_init__(self)
+        if not self.component_names or len(set(self.component_names)) != len(self.component_names):
+            raise ValueError("GDPO requires unique ordered components")
+        if any(not name.strip() for name in self.component_names):
+            raise ValueError("GDPO component names cannot be empty")
+        if (
+            len(self.component_names) != len(self.component_weights)
+            or not all(math.isfinite(weight) and weight >= 0 for weight in self.component_weights)
+            or not any(self.component_weights)
+        ):
+            raise ValueError("GDPO requires aligned nonnegative component weights with a positive weight")
+        if (
+            not math.isfinite(self.epsilon)
+            or self.epsilon <= 0
+            or self.normalization_population != "rollout"
+            or self.numerical_profile != "gdpo-rollout-sample-std@1"
+        ):
+            raise ValueError("GDPO requires positive epsilon and rollout normalization")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class CAPOSettings(_StructuredRLSettings):
+    """Paper-profile direct token-credit optimization with binary outcomes."""
+
+    outcome_component: str = "outcome"
+    outcome_weight: float = 2.0
+    process_weight: float = 1.0
+    epsilon: float = 1e-6
+    numerical_profile: Literal["capo-paper-sample-std@1"] = "capo-paper-sample-std@1"
+
+    def __post_init__(self) -> None:
+        _StructuredRLSettings.__post_init__(self)
+        if not self.outcome_component.strip():
+            raise ValueError("CAPO requires an outcome component")
+        if not all(math.isfinite(value) for value in (self.outcome_weight, self.process_weight, self.epsilon)):
+            raise ValueError("CAPO numerical settings must be finite")
+        if not self.outcome_weight > self.process_weight >= 0 or self.epsilon <= 0:
+            raise ValueError("CAPO requires outcome-dominant weights and positive epsilon")
+        if self.numerical_profile != "capo-paper-sample-std@1":
+            raise ValueError("unsupported CAPO numerical profile")
 
 
 def shape_online_reward(settings: GRPOSettings, reward: float, completion_tokens: int) -> float:

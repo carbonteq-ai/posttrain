@@ -758,6 +758,20 @@ def _verifiers_trace() -> dict:
     }
 
 
+def test_trackio_writer_accepts_verifiers_v1_weighted_rewards(trackio_dir: Path) -> None:
+    backend = TrackioBackend(TrackioSettings(project="trackio-v1-rewards"))
+    tracked = backend.start_run(_spec("00000000-0000-4000-8000-000000000120"))
+    record = _verifiers_trace()
+    record["rewards"] = {
+        "partial_credit": {"score": 0.75, "weight": 0.8},
+        "task_completed": {"score": 1.0, "weight": 0.2},
+    }
+
+    tracked.trace(TraceObservation("verifiers", "rollout-1", record))
+
+    tracked.finish(RunOutcome("succeeded", STARTED, STARTED + timedelta(seconds=1)))
+
+
 @pytest.mark.asyncio
 async def test_trackio_round_trips_timing_only_inference_trace(trackio_dir: Path) -> None:
     backend = TrackioBackend(TrackioSettings(project="trackio-inference-timing"))

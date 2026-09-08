@@ -469,6 +469,33 @@ online RL) inference binding. Train target and rollout target **may differ**.
 
 Async GRPO policies are **out of MVP scope**.
 
+`GDPOSettings` and `GDPORequest` belong to `train.gdpo`; `CAPOSettings` and
+`CAPORequest` belong to `train.capo`. Each request binds policy, environment,
+algorithm settings, training binding, and rollout inference. Scorer selection
+is serializable and versioned independently of settings. GDPO declares ordered
+component names and weights, normalization epsilon and population, group size,
+token clipping, KL policy, and loop. CAPO declares outcome/process weights,
+normalization epsilon, group size, token clipping, KL policy, and loop.
+
+Structured reward evidence is additive to the existing scalar rollout reward.
+It identifies the prompt group, rollout, native trace/branch, and source
+projection. Values distinguish valid, inapplicable, abstained, and failed.
+Critique error spans address original completion-token coordinates and may
+affect only sampled policy positions. Overlapping spans form a union. Adapters
+validate complete logical populations before advantage construction, preserving
+alignment through padding, sharding, buffering, and gradient accumulation.
+Unsupported configurations fail before launch; operation registration alone
+does not establish backend qualification.
+
+Optional turn reward evidence addresses native episode/trace/branch and turn
+identities, a generic reward name, value/status and scorer/assessment provenance.
+No rubric dimension names are built in. Required turn coverage must be complete
+and unambiguous before admission; missing evidence is not zero. SAMPO retains its
+explicit-turn and all-absent sparse-terminal paths. CAPO's `assistant-turns@1`
+error projection maps to eligible original policy positions; GDPO reduces turn
+scores to trajectory components under explicit selection before normalization.
+Neither projection changes the algorithm loss. Semantic segmentation is deferred.
+
 ### `EvaluationPlan`
 
 | Field | Role |

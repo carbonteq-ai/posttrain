@@ -608,6 +608,39 @@ def test_local_and_dstack_providers_do_not_share_host_placements(
     assert len(providers["dstack"].submitted) == 1
 
 
+def test_local_provider_rejects_target_for_different_hostname(
+    request_factory,
+    tmp_path,
+) -> None:
+    provider = FakeProvider("local-docker")
+    admission = _admission(
+        tmp_path,
+        {"local-docker": provider},
+        physical_host_factory=lambda _plan: "pop-os.lan",
+    )
+    plan = ExecutionPlan(
+        "local-docker",
+        replace(
+            request_factory("wrong-local-host"),
+            target=ExecutionTarget(
+                "targets/remote-workstation",
+                "1",
+                "cuda",
+                96,
+                placement={"instances": [{"hostname": "carbonteq-ai-workstation.lan"}]},
+            ),
+        ),
+    )
+
+    with pytest.raises(
+        ContractError,
+        match="select a scheduler-backed provider for a different host",
+    ):
+        admission.enqueue(plan, evidence_source=None)
+
+    assert provider.submitted == []
+
+
 def test_shared_admission_root_serializes_two_project_factories(
     request_factory,
     tmp_path,

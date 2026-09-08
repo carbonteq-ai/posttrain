@@ -29,6 +29,24 @@ LFM25_RENDERER_CONTRACT = RendererContract(
     ),
 )
 
+LFM25_26B_RENDERER_CONTRACT = RendererContract(
+    id="lfm2.5-tools-thinking@2",
+    model_family="lfm2.5",
+    conversation=ConversationProfile(
+        chat_template=ChatTemplate("package", "lfm25_26b_tool_chat.jinja"),
+        roles=("system", "user", "assistant", "tool"),
+        reasoning_modes=(ReasoningMode("native", (("preserve_thinking", False),)),),
+        default_reasoning_mode="native",
+        tool_calls=ToolCallProtocol(
+            id="lfm2_pythonic",
+            assistant_format="Python call list",
+            start_token="<|tool_call_start|>",
+            end_token="<|tool_call_end|>",
+        ),
+        strips_past_reasoning=True,
+    ),
+)
+
 LFM_25_12B_THINKING = ModelVariant(
     id="lfm2.5-1.2b-thinking",
     artifact=HubModelRef(
@@ -46,4 +64,24 @@ LFM_25_12B_THINKING = ModelVariant(
         repo_id="LiquidAI/LFM2.5-1.2B-Thinking",
         revision="95053d21d8e0b7ca99421a2127ae39c64f685ff3",
     ),
+)
+
+LFM_25_26B = ModelVariant(
+    id="lfm2.5-2.6b",
+    artifact=HubModelRef(
+        repo_id="LiquidAI/LFM2.5-2.6B",
+        revision="654f9463ce32b05d0429d76fe1f580b27d4c1ac0",
+    ),
+    form="foundation",
+    weight_precision="bf16",
+    family="lfm2.5",
+    parameters=2_690_000_000,
+    instruction_tuned=True,
+    capabilities=ModelCapabilities(modalities=("text",), native_context_window=131_072),
+    renderer=LFM25_26B_RENDERER_CONTRACT,
+    base=HubModelRef(
+        repo_id="LiquidAI/LFM2.5-2.6B",
+        revision="654f9463ce32b05d0429d76fe1f580b27d4c1ac0",
+    ),
+    provenance={"license": "lfm1.0", "upstream_model_type": "lfm2"},
 )

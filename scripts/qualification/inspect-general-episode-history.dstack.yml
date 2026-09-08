@@ -1,0 +1,24 @@
+type: task
+name: inspect-general-episode-history-w
+image: registry.carbonteq.com/carbonteq/posttrain/nanbeige-vllm@sha256:bfbeee151fb59c687f7e27d5e5e287716a7c1c6dd58ebf0a4ffe99b13702a3aa
+shell: /bin/bash
+commands:
+  - >-
+    python3 -c 'import json;
+    root="/opt/posttrain/evidence/general-episode-history-gemma-v5-retry-a/replay";
+    manifest=json.load(open(root+"/manifest.json"));
+    results=[json.loads(x) for x in open(root+"/judge-results.jsonl") if x.strip()];
+    rows=[];
+    [rows.append({"trace_id":r["trace_id"],"error_type":r.get("error_type"),"error":r.get("error"),"scores":{k:v["score"] for k,v in r.get("verdict",{}).get("assessments",{}).items()},"violations":[c["outcome"] for c in r.get("verdict",{}).get("requirement_checks",[]) if c["outcome"].startswith("violated_")],"usage":r.get("usage")}) for r in results];
+    print(json.dumps({"manifest":manifest,"rows":rows},indent=2))'
+volumes:
+  - /var/lib/posttrain/qualifications/nanbeige-r12-20260906:/opt/posttrain/evidence
+resources:
+  cpu: 1..
+  memory: 1GB..
+fleets:
+  - local-gpu-workers
+max_duration: 10m
+retry: false
+tags:
+  purpose: inspect-general-episode-history

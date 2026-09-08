@@ -23,8 +23,10 @@ from .bindings import (
 )
 from .profiles import (
     ActiveGroupSampling,
+    CAPOSettings,
     DPOSettings,
     DynamicGroupSampling,
+    GDPOSettings,
     GRPOSettings,
     OnPolicyDistillationSettings,
     SAMPOSettings,
@@ -33,6 +35,7 @@ from .profiles import (
     TrainingLoop,
     TrainingRenderer,
 )
+from .reward_projection import RewardComponentProjection, RewardProjection
 
 
 class TrainCatalogSchema(BaseModel):
@@ -184,6 +187,7 @@ class GRPOSettingsSchema(TrainCatalogSchema):
     mask_truncated_completions: bool = False
     overlong_buffer_tokens: int | None = Field(default=None, gt=0)
     overlong_penalty_factor: float = Field(default=1.0, gt=0, allow_inf_nan=False)
+    max_admission_attempts: int = Field(default=3, gt=0)
 
 
 class OnPolicyDistillationSettingsSchema(TrainCatalogSchema):
@@ -219,13 +223,61 @@ class SAMPOSettingsSchema(TrainCatalogSchema):
     mask_truncated_completions: bool = False
 
 
+class StructuredRLSettingsSchema(TrainCatalogSchema):
+    id: str
+    revision: str = "1"
+    loop: TrainingLoopSchema
+    num_prompts_per_step: int = Field(default=1, gt=0)
+    num_generations: int = Field(default=2, ge=2)
+    max_prompt_length: int = Field(default=256, gt=0)
+    max_completion_length: int = Field(default=128, gt=0)
+    beta: float = Field(default=0.0, ge=0, allow_inf_nan=False)
+    clip_epsilon_low: float = Field(default=0.2, gt=0, lt=1, allow_inf_nan=False)
+    clip_epsilon_high: float = Field(default=0.2, gt=0, allow_inf_nan=False)
+    max_admission_attempts: int = Field(default=3, gt=0)
+
+
+class GDPOSettingsSchema(StructuredRLSettingsSchema):
+    selection_type: Literal["gdpo-settings"]
+    component_names: tuple[str, ...]
+    component_weights: tuple[float, ...]
+    epsilon: float = Field(default=1e-4, gt=0, allow_inf_nan=False)
+    normalization_population: Literal["rollout"] = "rollout"
+    numerical_profile: Literal["gdpo-rollout-sample-std@1"] = "gdpo-rollout-sample-std@1"
+
+
+class CAPOSettingsSchema(StructuredRLSettingsSchema):
+    selection_type: Literal["capo-settings"]
+    outcome_component: str = "outcome"
+    outcome_weight: float = Field(default=2.0, gt=0, allow_inf_nan=False)
+    process_weight: float = Field(default=1.0, ge=0, allow_inf_nan=False)
+    epsilon: float = Field(default=1e-6, gt=0, allow_inf_nan=False)
+    numerical_profile: Literal["capo-paper-sample-std@1"] = "capo-paper-sample-std@1"
+
+
+class RewardProjectionSchema(TrainCatalogSchema):
+    selection_type: Literal["reward-projection"]
+    id: str
+    revision: str
+    components: tuple[RewardComponentProjection, ...]
+    process_info_key: str | None = None
+    scorer_digest: str | None = None
+    turns_info_key: str | None = None
+    turn_reward_key: str | None = None
+    turn_error_key: str | None = None
+    turn_reward_includes_terminal_outcome: bool | None = None
+
+
 type TrainingSelectionSchema = Annotated[
     TrainingBindingSchema
     | SFTSettingsSchema
     | DPOSettingsSchema
     | GRPOSettingsSchema
     | SAMPOSettingsSchema
-    | OnPolicyDistillationSettingsSchema,
+    | GDPOSettingsSchema
+    | CAPOSettingsSchema
+    | OnPolicyDistillationSettingsSchema
+    | RewardProjectionSchema,
     Field(discriminator="selection_type"),
 ]
 
@@ -263,6 +315,24 @@ def decode_training_selection(
     known: Mapping[CatalogRef, Selection],
 ) -> Selection:
     payload = TypeAdapter(TrainingSelectionSchema).validate_python(data)
+    if isinstance(payload, RewardProjectionSchema):
+        return RewardProjection(
+            payload.id,
+            payload.revision,
+            payload.components,
+            payload.process_info_key,
+            payload.scorer_digest,
+            payload.turns_info_key,
+            payload.turn_reward_key,
+            payload.turn_error_key,
+            payload.turn_reward_includes_terminal_outcome,
+        )
+    if isinstance(payload, GDPOSettingsSchema | CAPOSettingsSchema):
+        settings_type = GDPOSettings if isinstance(payload, GDPOSettingsSchema) else CAPOSettings
+        return settings_type(
+            **payload.model_dump(exclude={"selection_type", "loop"}),
+            loop=TrainingLoop(**payload.loop.model_dump()),
+        )
     if isinstance(payload, SFTSettingsSchema):
         validation = (
             SFTValidationSettings(**payload.validation.model_dump()) if payload.validation is not None else None

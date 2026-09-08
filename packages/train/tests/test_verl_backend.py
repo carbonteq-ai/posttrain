@@ -297,6 +297,19 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
         "presence_penalty": 1.5,
         "logprobs": True,
     }
+    asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=({"role": "user", "content": "hello"},),
+                sampling=replace(sampling, min_p=None, presence_penalty=0.0),
+            )
+        )
+    )
+    parameters = server.request["sampling_params"]
+    assert isinstance(parameters, dict)
+    assert "min_p" not in parameters
+    assert parameters["repetition_penalty"] == 1.1
+    assert parameters["presence_penalty"] == 0.0
     sys.modules.pop(module_name, None)
 
 
@@ -423,6 +436,59 @@ def test_verl_checkpoint_steps_zero_keeps_only_terminal_model_save(
     assert f"trainer.save_freq={request.settings.loop.max_steps + 1}" in overrides
 
 
+@pytest.mark.parametrize("algorithm", ["gdpo", "capo"])
+def test_structured_algorithms_select_explicit_native_loss_and_evidence_contract(monkeypatch, tmp_path, algorithm):
+    from posttrain.train import CAPORequest, CAPOSettings, GDPORequest, GDPOSettings
+    from posttrain.train.backends.verl.launcher import build_structured_launch_plan
+
+    base = _sampo_request()
+    from posttrain.train import RewardComponentProjection, RewardProjection
+
+    monkeypatch.setattr(
+        FakeBridge,
+        "reward_projection",
+        RewardProjection(
+            "fixture",
+            "1",
+            (RewardComponentProjection("outcome", "scalar"), RewardComponentProjection("quality", "metric", "quality")),
+            "resolved_credit",
+        ),
+        raising=False,
+    )
+    loop = base.settings.loop
+    settings = (
+        GDPOSettings(id="gdpo", loop=loop, component_names=("outcome", "quality"), component_weights=(1.0, 2.0))
+        if algorithm == "gdpo"
+        else CAPOSettings(id="capo", loop=loop)
+    )
+    request = (
+        GDPORequest(base.policy, base.bridge, settings, base.environment, base.training, base.inference)
+        if isinstance(settings, GDPOSettings)
+        else CAPORequest(base.policy, base.bridge, settings, base.environment, base.training, base.inference)
+    )
+    from posttrain.train.backends.trl.policy_config import _online_rl_arguments
+
+    trl_arguments = _online_rl_arguments(request, tmp_path / "trl", {})
+    assert trl_arguments["vllm_importance_sampling_mode"] == "token_truncate"
+    assert trl_arguments["vllm_importance_sampling_clip_min"] is None
+    assert trl_arguments["vllm_importance_sampling_clip_max"] == 3.0
+    plan = build_structured_launch_plan(request, tmp_path)
+    from posttrain.train.backends.verl.launcher import _grpo_runtime_attributes
+
+    assert _grpo_runtime_attributes(request, plan)["online_rl_algorithm"] == algorithm
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    overrides = build_hydra_overrides(plan, tmp_path / "data", tmp_path / "agent", tmp_path / "checkpoints")
+    assert f"algorithm.adv_estimator={algorithm}" in overrides
+    assert "actor_rollout_ref.actor.policy_loss.loss_mode=token_clip" in overrides
+    assert "actor_rollout_ref.actor.kl_loss_type=k3_unclipped" in overrides
+    assert "algorithm.filter_groups.enable=false" in overrides
+    assert "+algorithm.structured_rewards.max_admission_attempts=3" in overrides
+    config_path = tmp_path / "agent.json"
+    _write_agent_config(plan.payload, config_path)
+    config = json.loads(config_path.read_text())
+    assert config[0]["structured_algorithm"] == algorithm
+
+
 def test_verl_sampo_maps_hierarchical_advantages_gspo_and_dynamic_sampling(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -454,6 +520,31 @@ def test_verl_sampo_maps_hierarchical_advantages_gspo_and_dynamic_sampling(
     assert "algorithm.filter_groups.enable=true" in overrides
     assert "algorithm.filter_groups.max_num_gen_batches=3" in overrides
     assert agent_config[0]["emit_sampo_metadata"] is True
+
+
+def test_sampo_explicit_turn_selection_is_in_recovery_contract(monkeypatch, tmp_path):
+    from posttrain.train.reward_projection import RewardComponentProjection, RewardProjection
+    from posttrain.train.reward_recovery import reward_contract_digest
+
+    projection = RewardProjection(
+        "turns",
+        "1",
+        (RewardComponentProjection("outcome", "scalar"),),
+        scorer_digest="a" * 64,
+        turns_info_key="ratings",
+        turn_reward_key="quality",
+        turn_reward_includes_terminal_outcome=False,
+    )
+    monkeypatch.setattr(FakeBridge, "reward_projection", projection, raising=False)
+    request = _sampo_request()
+    first = reward_contract_digest(request)
+    plan = build_sampo_launch_plan(request, tmp_path)
+    assert plan.payload.algorithm.reward_contract_digest == first
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    overrides = build_hydra_overrides(plan, tmp_path / "data", tmp_path / "agent", tmp_path / "checkpoints")
+    assert f"+algorithm.structured_rewards.reward_contract_digest={first}" in overrides
+    monkeypatch.setattr(FakeBridge, "reward_projection", replace(projection, turn_reward_key="other"))
+    assert reward_contract_digest(request) != first
 
 
 def test_verl_dapo_uses_core_trainer_and_maps_all_dynamic_sampling_controls(

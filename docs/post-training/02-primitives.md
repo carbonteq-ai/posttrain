@@ -493,6 +493,43 @@ bindings / quant plans.
 
 ### Required selections by job kind
 
+GDPO and CAPO have separate kind-specific settings and requests. GDPO requires
+ordered named reward components with explicit weights; CAPO requires a verified
+binary outcome and resolved critique evidence aligned to the original sampled
+tokens. A versioned scorer selection identifies rubric, projection, judge,
+sampling, and bounded failure policy separately from algorithm settings. Judge
+inference is an execution binding and may use a different target.
+
+Scorer configuration selects custom Verifiers judge/scoring plugins, not a new
+product primitive. Rubric dimensions and their interpretation remain task-owned.
+Plugins may emit optional turn-addressed rewards using one or multiple injected
+judge clients. A turn is one assistant response, including sampled reasoning,
+content and tool calls; observations are context only. Prefix-only versus
+retrospective assessment is part of scorer identity. Training explicitly selects
+reductions to trajectory components; a turn rating is not an advantage or a
+calibrated success probability.
+
+Migrated integrations retain native episodes (task plus trace) as replay
+authority. Legacy bare-trace artifacts remain readable during migration;
+they are never rewritten in place or given fabricated task state.
+
+Prompt-group identity identifies one task occurrence in one generation batch;
+rollout identity identifies one response within it. Both survive sharding and
+reordering. Required evidence must be valid for every admitted response; failed,
+abstained, or inapplicable evidence never becomes a numeric zero. Initial
+GDPO/CAPO profiles disable scalar-variance filtering and replace incomplete
+groups only under a bounded admission policy.
+
+GDPO normalizes each component within each complete prompt group using sample
+standard deviation plus epsilon, applies component weights, then normalizes
+once over all admitted rollouts in the logical batch. Each rollout counts once
+in that final population. CAPO builds outcome-weighted minus error-weighted
+token rewards, then normalizes over all eligible tokens in each complete prompt
+group. Both use token probability ratios and per-response token-mean policy
+loss, averaged over responses. Tools and padding are excluded. KL is separate
+from reward normalization. These contracts do not imply asynchronous,
+multimodal, or arbitrary-model qualification.
+
 | Job kind | Required selections |
 | --- | --- |
 | `train.sft` | Starting model, supervised data, `SFTSettings`, update plan, training binding/target |

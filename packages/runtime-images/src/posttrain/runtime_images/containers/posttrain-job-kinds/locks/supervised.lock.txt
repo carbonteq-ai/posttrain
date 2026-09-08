@@ -72,6 +72,7 @@ anyio==4.14.2 \
     # via
     #   anthropic
     #   httpx
+    #   httpx2
     #   mcp
     #   openai
     #   sse-starlette
@@ -119,7 +120,7 @@ brotli==1.2.0 \
     --hash=sha256:e310f77e41941c13340a95976fe66a8a95b01e783d430eeaf7a2f87e0a57dd0a
     # via carbonteq-trackio
 
-carbonteq-trackio @ https://pypi.lan/carbonteq/stable/+f/e92/436100adc6579/carbonteq_trackio-0.31.5.post14.dev19-py3-none-any.whl#sha256=e92436100adc657993f7fc1e51008a4c5f6a63786c97afb2899962c872c8d5ea
+carbonteq-trackio @ https://pypi.lan/carbonteq/stable/+f/60b/502993e421a02/carbonteq_trackio-0.31.5.post14.dev20-py3-none-any.whl#sha256=60b502993e421a029f8b9e075c68ce0e5cff3a8a89fd72f6af8f138adede1fd6
     # via posttrain-tracking-trackio
 
 certifi==2026.6.17 \
@@ -128,6 +129,7 @@ certifi==2026.6.17 \
     # via
     #   httpcore
     #   httpx
+    #   prime-sandboxes
     #   requests
     #   sentry-sdk
 
@@ -187,7 +189,6 @@ datasets==4.6.1 \
     #   posttrain-data
     #   posttrain-train
     #   trl
-    #   verifiers
 
 dill==0.4.0 \
     --hash=sha256:0633f1d2df477324f53a895b02c901fb961bdbf65a17122586ea7019292cbcf0 \
@@ -200,9 +201,7 @@ dill==0.4.0 \
 distro==1.9.0 \
     --hash=sha256:2fa77c6fd8940f116ee1d6b94a2f90b13b5ea8d019b98bc8bafdcabcdd9bdbed \
     --hash=sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2
-    # via
-    #   anthropic
-    #   openai
+    # via openai
 
 filelock==3.31.0 \
     --hash=sha256:739b73e580fe88bb78d830aeddbc492519ece3d97ac8368de13a2032c61010c1 \
@@ -271,7 +270,9 @@ h11==0.16.0 \
     --hash=sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
     # via
     #   httpcore
+    #   httpcore2
     #   uvicorn
+    #   verifiers
 
 hf-xet==1.5.2 ; platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64' \
     --hash=sha256:045f84440c55cdeb659cf1a1dd48c77bcd0d2e93632e2fea8f2c3bdee79f38ed \
@@ -305,13 +306,11 @@ httpx==0.28.1 \
     --hash=sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc \
     --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
     # via
-    #   anthropic
     #   datasets
     #   fastapi
     #   fastapi-cloud-cli
     #   gradio-client
     #   huggingface-hub
-    #   mcp
     #   model-hosting-container-standards
     #   openai
     #   posttrain-execution-job-builder
@@ -344,6 +343,7 @@ idna==3.18 \
     #   anyio
     #   email-validator
     #   httpx
+    #   httpx2
     #   requests
     #   yarl
 
@@ -385,9 +385,9 @@ jmespath==1.1.0 \
     #   botocore
     #   model-hosting-container-standards
 
-liger-kernel==0.8.0 \
-    --hash=sha256:e1f03eeb4ba6a6a413d585dacf92c4c15d164bab5844fa4ead2fede6bcac469c \
-    --hash=sha256:f98b94faf018814a0757e7b72bb8ebaaf12a78782cd09b157732acca2791e72c
+liger-kernel==0.8.2 \
+    --hash=sha256:387673ed6bf64fc8150cc8315fed578d2fc717ec3450f53489f480880223c1b8 \
+    --hash=sha256:84c0a7bc9bf4d4cf8ea5ba89ff84d28686afc94215b220851d9f57dc87852741
     # via posttrain-train
 
 markdown-it-py==4.2.0 \
@@ -633,11 +633,10 @@ nvidia-nvtx==13.0.85 ; sys_platform == 'linux' \
     --hash=sha256:cb7780edb6b14107373c835bf8b72e7a178bac7367e23da7acb108f973f157a6
     # via cuda-toolkit
 
-openai==2.46.0 \
-    --hash=sha256:0421e0735ac41451cad894af4cddf0435bfbf8cbc538ac0e15b3c062f2ddc06a \
-    --hash=sha256:672381db55efb3a1e2610f29304c130cccdd0b319bace4d492b2443cb64c1e7c
+openai==2.54.0 \
+    --hash=sha256:89089789197ccdb87f173a03145ed1598d00795220c93e96cf712b1cbf5e5f2b \
+    --hash=sha256:e3e6f8bc1ba30ddf381ace1a14340eed381cb984a1a59bd0f34b5be3b5d49cfa
     # via
-    #   openai-agents
     #   renderers
     #   verifiers
     #   vllm
@@ -737,12 +736,13 @@ pillow==12.3.0 \
     # via
     #   carbonteq-trackio
     #   mistral-common
+    #   renderers
     #   torchvision
     #   vllm
 
-prime-pydantic-config==0.4.0.dev87 \
-    --hash=sha256:09155b08deaa2c13998e36f6996bdc7f6ba29b1c6d546d7ca8f6163991fd10b1 \
-    --hash=sha256:87f82f76c1329d5e3b209d7ee4a508275fa1765bf5fe4cfe3e151fe9ce8852a5
+prime-pydantic-config==0.4.3 \
+    --hash=sha256:13e8a0c39d0f88c3f75eb1df74a56198d1e907670e63e4918558a2e852b4e015 \
+    --hash=sha256:1f0a6bd78c69e21da389bbd0e1177ca5440888488708a625e355d98712d4374d
     # via
     #   renderers
     #   verifiers
@@ -798,7 +798,6 @@ protobuf==7.35.1 \
     --hash=sha256:b73f9489a4b8b1c9cb1f8ed951c736392592edb24b9d6819f36d2e10b171d5b4 \
     --hash=sha256:ce115a26fe0c39a2c29973d914d327e516a6455464489fe3cd1e51a1b354f81a
     # via
-    #   connect-python
     #   googleapis-common-protos
     #   opentelemetry-proto
     #   posttrain-train
@@ -849,10 +848,10 @@ pydantic==2.13.4 \
     #   fastapi-cloud-cli
     #   lm-format-enforcer
     #   mcp
+    #   mcp-types
     #   mistral-common
     #   model-hosting-container-standards
     #   openai
-    #   openai-agents
     #   openai-harmony
     #   posttrain-common
     #   posttrain-environment
@@ -1002,9 +1001,9 @@ regex==2026.7.19 \
     #   transformers
     #   vllm
 
-renderers==0.1.8 \
-    --hash=sha256:40e6b2c766e23feb12f73b1fbdfef4dea51921479454756ac796612e3bef8397 \
-    --hash=sha256:7a50b59cc64593da504c054bf3e2f0f147af5c1770bad7107de7b18887377280
+renderers==0.1.12.dev3 \
+    --hash=sha256:0d4d41dfe668328b75d2d9e6331ac27f6a39686e316c109cf392b7a4d8632026 \
+    --hash=sha256:d058702c83446e7d4c4887cf740fc42851aae65ae4e1c5011d1177d34ac6d9f4
     # via
     #   posttrain-train
     #   verifiers
@@ -1016,10 +1015,8 @@ requests==2.34.2 \
     #   datasets
     #   flashinfer-python
     #   mistral-common
-    #   openai-agents
     #   opentelemetry-exporter-otlp-proto-http
     #   tiktoken
-    #   verifiers
     #   vllm
     #   wandb
 
@@ -1236,7 +1233,7 @@ triton==3.6.0 \
     #   torch
     #   xgrammar
 
-trl @ https://pypi.lan/carbonteq/stable/+f/ae9/5f7787936f7e9/trl-1.9.2.post11-py3-none-any.whl#sha256=ae95f7787936f7e944766611c5545048b7710bf34e7404bb1e1a027698aa604a
+trl @ https://pypi.lan/carbonteq/dev/+f/1f4/2571c28e178bb/trl-1.12.0.post5-py3-none-any.whl#sha256=1f42571c28e178bb292eb7b904940f0d0e4b0ccdf936b23b8bec9704190b6ecb
     # via posttrain-train
 
 typer==0.25.1 \
@@ -1263,11 +1260,11 @@ typing-extensions==4.16.0 \
     #   grpcio
     #   huggingface-hub
     #   mcp
+    #   mcp-types
     #   mistral-common
     #   nvidia-cutlass-dsl-libs-base
     #   nvidia-cutlass-dsl-libs-cu13
     #   openai
-    #   openai-agents
     #   opentelemetry-api
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
@@ -1282,6 +1279,7 @@ typing-extensions==4.16.0 \
     #   tilelang
     #   torch
     #   typing-inspection
+    #   verifiers
     #   vllm
     #   wandb
     #   xgrammar
@@ -1303,9 +1301,9 @@ urllib3==2.7.0 \
     #   requests
     #   sentry-sdk
 
-uvicorn==0.51.0 \
-    --hash=sha256:5d38af6cd620f2ae3849fb44fd4879e0890aa1febe8d47eb355fb45d93fe6a5b \
-    --hash=sha256:f6f4b69b657c312f516dd2d268ab9ae6f254b11e4bac504f37b2ab58b24dd0b0
+uvicorn==0.52.4 \
+    --hash=sha256:73acfee47a0b133c5de13d219492d62d8a31e935f4fe6e41a232451a15379f86 \
+    --hash=sha256:f86e41a149d7d05a9969337e3946a9c171c06a5d42680896daaba624aeac8da1
     # via
     #   carbonteq-trackio
     #   fastapi
@@ -1314,6 +1312,7 @@ uvicorn==0.51.0 \
     #   mcp
     #   posttrain-job-builder
     #   posttrain-observatory
+    #   verifiers
 
 uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32' \
     --hash=sha256:0530a5fbad9c9e4ee3f2b33b148c6a64d47bbad8000ea63704fa8260f4cf728e \
@@ -1323,9 +1322,7 @@ uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'c
     --hash=sha256:6c84bae345b9147082b17371e3dd5d42775bddce91f885499017f4607fdaf39f \
     --hash=sha256:6e2ea3d6190a2968f4a14a23019d3b16870dd2190cd69c8180f7c632d21de68d \
     --hash=sha256:bc5ef13bbc10b5335792360623cc378d52d7e62c2de64660616478c32cd0598e
-    # via
-    #   uvicorn
-    #   verifiers
+    # via uvicorn
 
 watchfiles==1.2.0 \
     --hash=sha256:01859b11fd9fbca670f4d5da00fbac282cfea9bd67a2125d8b2833a3b5617ea9 \
@@ -1378,9 +1375,7 @@ websockets==16.1.1 \
     --hash=sha256:e09f753a169951eb4f28c2c774f71069304f66e7277e0f5a2892423599cfa854 \
     --hash=sha256:ed5bb271084b46530ee2ddc0410537a9961152c5ccba2fc98c5276d992ccba87 \
     --hash=sha256:f5d497865f05bb222cab7016c6034542e84e5f29f49c6fd3f4939cda7197b5b8
-    # via
-    #   openai-agents
-    #   uvicorn
+    # via uvicorn
 
 xxhash==3.8.1 \
     --hash=sha256:00de40f3b42240db23a82a5c682b55d7263d84a26a953240c1aee463409660e3 \

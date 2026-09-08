@@ -295,7 +295,7 @@ The current public train surface is in
 `packages/train/src/posttrain/train/api.py`, `requests.py`, `profiles.py`, and
 `catalog_schema.py`. `online_rl.py` contains the reusable policy-generation and
 rollout types. `integrations/verifiers.py` implements the Verifiers bridge.
-`backends/trl/grpo.py` and `backends/trl/online_rl.py` show how the fork's GRPO
+`backends/trl/policy_optimization.py` and `backends/trl/online_rl.py` show how the fork's GRPO
 rollout hook is wired. Tests live in `packages/train/tests`.
 
 The concrete host is under `apps/lab/src/posttrain_lab`. Work-package job

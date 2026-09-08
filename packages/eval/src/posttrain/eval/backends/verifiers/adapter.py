@@ -9,6 +9,10 @@ from typing import Any, Protocol, cast
 
 from posttrain.common import JsonValue, RunContext, TraceObservation
 from posttrain.environment import project_verifiers_trace_facts, verifiers_trace_attributes
+from posttrain.environment.verifiers_runtime import (
+    materialize_verifiers_environment,
+    verifiers_environment_types,
+)
 
 from ...requests import EvaluateRequest, RemotePolicy
 from ...results import EvaluationPopulation
@@ -36,11 +40,15 @@ def _imports() -> tuple[type[Any], type[Any], Any]:
 
         configure_preinstalled_runtime()
         from verifiers.v1.cli.eval.runner import run_eval  # pyright: ignore[reportMissingImports]
-        from verifiers.v1.configs.eval import EvalConfig  # pyright: ignore[reportMissingImports]
-        from verifiers.v1.env import EnvConfig, Environment  # pyright: ignore[reportMissingImports]
+
+        try:
+            from verifiers.v1.configs.eval import EvalConfig  # pyright: ignore[reportMissingImports]
+        except ImportError:
+            from verifiers.v1.configs.cli.eval import EvalConfig
+        EnvConfig, _ = verifiers_environment_types()
     except ImportError as error:
         raise RuntimeError("install posttrain-eval with the verifiers extra") from error
-    return EvalConfig, Environment, (EnvConfig, run_eval)
+    return EvalConfig, materialize_verifiers_environment, (EnvConfig, run_eval)
 
 
 def _native_sampling(request: EvaluateRequest) -> dict[str, JsonValue]:
@@ -85,6 +93,29 @@ def _build_native(request: EvaluateRequest, output_dir: Path) -> tuple[Any, Any,
     if service is not None and service.headers:
         client["headers"] = dict(service.headers)
     raw = base.model_dump(mode="python")
+    if "env" in EvalConfig.model_fields:
+        agent = raw.get("agent")
+        if not isinstance(agent, dict):
+            raise ValueError("evaluation context limits currently require a single-agent environment")
+        agent["max_total_tokens"] = min(request.context_window, agent.get("max_total_tokens") or request.context_window)
+        config = EvalConfig.model_validate(
+            {
+                "env": raw,
+                "model": endpoint.served_model,
+                "client": client,
+                "sampling": _native_sampling(request),
+                "num_tasks": num_tasks,
+                "num_rollouts": num_rollouts,
+                "max_concurrent": max_concurrent,
+                "shuffle": request.resolved_shuffle,
+                "output_dir": output_dir,
+                "run": {"name": "posttrain", "dir": "."},
+                "push": False,
+                "rich": None,
+                "serve": None,
+            }
+        )
+        return Environment(config.env), config, run_eval
     raw.update(
         {
             "model": endpoint.served_model,
@@ -142,9 +173,25 @@ def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: l
             }
         )
     reward_component_sources = request.plan.environment(request.environment_id).reward_component_sources
+    expanded: list[tuple[dict[str, Any], dict[str, JsonValue]]] = []
     for record in records:
+        if "traces" in record:
+            for trace in record["traces"]:
+                expanded.append(
+                    (
+                        trace,
+                        {
+                            "episode_id": record["id"],
+                            "episode_ok": record["ok"],
+                            "projection": "verifiers-episode-traces@1",
+                        },
+                    )
+                )
+        else:
+            expanded.append((record, {}))
+    for record, episode_attributes in expanded:
         observed = _observed_model(record)
-        trace_attributes = {**attributes, **verifiers_trace_attributes(record)}
+        trace_attributes = {**attributes, **verifiers_trace_attributes(record), **episode_attributes}
         if observed is not None:
             trace_attributes["observed_model"] = observed
         facts = project_verifiers_trace_facts(
@@ -176,7 +223,8 @@ async def _run(context: EvaluationContext, request: EvaluateRequest, output_dir:
         trace_path,
         lambda records: _emit_batch(context, request, records),
     )
-    task = asyncio.create_task(native_run(environment, config))
+    modern = hasattr(config, "env")
+    task = asyncio.create_task(native_run(config) if modern else native_run(environment, config))
     try:
         while not task.done():
             context.cancellation.raise_if_cancelled()
@@ -196,13 +244,18 @@ async def _run(context: EvaluationContext, request: EvaluateRequest, output_dir:
     attempted = len(traces)
     population = EvaluationPopulation(
         attempted=attempted,
-        complete=sum(bool(trace.is_completed) for trace in traces),
-        failed=sum(bool(trace.has_error) for trace in traces),
-        truncated=sum(bool(trace.is_truncated) for trace in traces),
+        complete=sum(bool(trace.ok) if modern else bool(trace.is_completed) for trace in traces),
+        failed=sum(not trace.ok if modern else bool(trace.has_error) for trace in traces),
+        truncated=sum(
+            any(child.is_truncated for child in trace.traces) if modern else bool(trace.is_truncated)
+            for trace in traces
+        ),
         coverage_missing=max(expected - attempted, 0),
     )
     return VerifiersRunResult(
-        tuple(trace.id for trace in traces),
+        tuple(child.id for episode in traces for child in episode.traces)
+        if modern
+        else tuple(trace.id for trace in traces),
         stats,
         population,
     )

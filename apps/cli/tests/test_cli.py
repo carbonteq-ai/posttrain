@@ -60,7 +60,7 @@ def _candidate_manifest_for_cli_unit_tests(monkeypatch: pytest.MonkeyPatch) -> N
     """
 
     manifest = _load_manifest(verify_locks=False)
-    monkeypatch.setattr("posttrain_cli.execution_config.load_manifest", lambda: manifest)
+    monkeypatch.setattr("posttrain_cli.execution_config.load_manifest", lambda **_: manifest)
 
 
 def _candidate_manifest():
@@ -891,12 +891,12 @@ def test_init_grpo_template_declares_environment_and_selected_extras(
     pyproject = (project / "pyproject.toml").read_text(encoding="utf-8")
     work_package = (project / ".posttrain" / "work_packages" / "grpo.yaml").read_text(encoding="utf-8")
     assert '"posttrain[observatory,trackio,trl,verifiers]' in pyproject
-    assert "PrimeIntellect-ai/verifiers.git@284a868d" in pyproject
-    assert "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@b7bcb591" in pyproject
+    assert "carbonteq-ai/verifiers.git@90055c11" in pyproject
+    assert "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@12ff5e1a" in pyproject
     environment = (project / ".posttrain" / "catalog" / "environments.yaml").read_text(encoding="utf-8")
     assert "starter-gsm8k-train" in work_package
     assert "package: gsm8k-v1" in environment
-    assert "revision: b7bcb591facfcd2b073802f6d7496b24ab9c479e" in environment
+    assert "revision: 12ff5e1abfab369b8dec4df3ce83c5984f55ad34" in environment
     from posttrain.catalog import load_project_layout
     from posttrain.project import load_project_pack_config
 

@@ -1,0 +1,94 @@
+type: task
+name: posttrain-lfm26-budget-speed-r4
+image: registry.carbonteq.com/carbonteq/posttrain/nanbeige-vllm@sha256:bfbeee151fb59c687f7e27d5e5e287716a7c1c6dd58ebf0a4ffe99b13702a3aa
+shell: /bin/bash
+commands:
+  - >-
+    /opt/posttrain/uv pip install --no-deps --reinstall
+    --python /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/candidate/posttrain_common-0.0.0-py3-none-any.whl
+    /opt/posttrain/candidate/posttrain_catalog-0.0.0-py3-none-any.whl
+    /opt/posttrain/candidate/posttrain_train-0.0.0-py3-none-any.whl
+  - >-
+    cp /opt/posttrain/environment-overlay/episode_prompt.py
+    /opt/posttrain/environment-overlay/judge.py
+    /opt/posttrain/environment-overlay/limited_tools.py
+    /opt/posttrain/environment-overlay/taskset.py
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/lib/python3.13/site-packages/automationbench_v1/
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    HF_HUB_CACHE=/root/.cache/huggingface/hub OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/evaluate_automationbench_adapter.py
+    --task-mix /opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
+    --rollouts-per-task 1 --context-window 12288 --max-concurrent 64 --port 8130
+    --output /opt/posttrain/evidence/lfm26-budget-base-preflight-r4
+  - >-
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/validate_context_preflight.py
+    /opt/posttrain/evidence/lfm26-budget-base-preflight-r4/summary.json
+    --max-context-truncations 1
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    HF_HUB_CACHE=/root/.cache/huggingface/hub OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/automationbench_native_judges.py
+    --backend trl --algorithm gdpo --episode-rewards --policy-profile lfm26b --max-steps 1
+    --policy-context-window 12288 --rollout-concurrency 64 --judge-concurrency 32
+    --judge-speculative-tokens 2 --judge-timeout-seconds 900
+    --prompts-per-step 16 --generations-per-prompt 4
+    --train-micro-batch-size 2 --checkpoint-steps 1
+    --task-mix /opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
+    --judge-code-revision 78da68e3572e16b7fdacce0d730b48c7c4e016cb
+    --environment-wheel-sha256 1e62968347bed34b53161596bb89f505ed1b8844e36f07dcdd7549224d81573a
+    --judge-profile gemma12b --judge-vllm-executable vllm
+    --judge-vllm-version 0.26.1rc1.dev1235+g62f6de733
+    --output /opt/posttrain/evidence/lfm26-budget-gdpo-preflight-r4
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 HF_HUB_CACHE=/root/.cache/huggingface/hub
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/audit_structured_toy.py
+    /opt/posttrain/evidence/lfm26-budget-gdpo-preflight-r4 --mechanics --reload-export
+files:
+  - ../../artifacts/qualification/lfm26-comparison/posttrain_common-0.0.0-py3-none-any.whl:/opt/posttrain/candidate/posttrain_common-0.0.0-py3-none-any.whl
+  - ../../artifacts/qualification/lfm26-comparison/posttrain_catalog-0.0.0-py3-none-any.whl:/opt/posttrain/candidate/posttrain_catalog-0.0.0-py3-none-any.whl
+  - ../../artifacts/qualification/lfm26-comparison/posttrain_train-0.0.0-py3-none-any.whl:/opt/posttrain/candidate/posttrain_train-0.0.0-py3-none-any.whl
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/episode_prompt.py:/opt/posttrain/environment-overlay/episode_prompt.py
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/judge.py:/opt/posttrain/environment-overlay/judge.py
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/limited_tools.py:/opt/posttrain/environment-overlay/limited_tools.py
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/taskset.py:/opt/posttrain/environment-overlay/taskset.py
+  - ./automationbench_native_judges.py:/opt/posttrain/qualification/automationbench_native_judges.py
+  - ./automationbench_structured_toy.py:/opt/posttrain/qualification/automationbench_structured_toy.py
+  - ./episode_reward_profile.py:/opt/posttrain/qualification/episode_reward_profile.py
+  - ./evaluate_automationbench_adapter.py:/opt/posttrain/qualification/evaluate_automationbench_adapter.py
+  - ./validate_context_preflight.py:/opt/posttrain/qualification/validate_context_preflight.py
+  - ./audit_structured_toy.py:/opt/posttrain/qualification/audit_structured_toy.py
+  - ./fixtures/lfm26_automationbench_mix_v1.json:/opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
+volumes:
+  - /home/carbonteq-ai-workstation/.local/bin/uv:/opt/posttrain/uv
+  - /var/lib/posttrain/cache/huggingface:/root/.cache/huggingface
+  - /var/lib/posttrain/qualifications/nanbeige-r12-20260906:/opt/posttrain/evidence
+  - /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl:/home/carbonteq-ai-workstation/posttrain-qualification.2iyErl
+  - /home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu:/home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu
+resources:
+  cpu: 8..
+  memory: 48GB..
+  gpu:
+    vendor: nvidia
+    count: 1
+    memory: 96GB..
+fleets:
+  - local-gpu-workers
+max_duration: 2h
+stop_duration: 5m
+retry:
+  on_events: [no-capacity]
+  duration: 2h
+tags:
+  purpose: lfm26-context-throughput-preflight
+  context_window: "12288"
+  eval_concurrency: "64"
+  train_concurrency: "64"
+  judge_concurrency: "32"
+  prompt_groups_per_update: "16"
+  generations_per_prompt: "4"

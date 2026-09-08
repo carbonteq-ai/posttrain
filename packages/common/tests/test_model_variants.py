@@ -6,6 +6,8 @@ from posttrain.common.variants import (
     GEMMA_4_E2B_IT,
     GEMMA_4_E4B_IT,
     LFM_25_12B_THINKING,
+    LFM_25_26B,
+    NANBEIGE_42_3B,
     QWEN35_THINKING_RENDERER_CONTRACT,
     QWEN_35_08B,
     QWEN_35_2B,
@@ -16,12 +18,21 @@ def test_foundation_variants_publish_explicit_model_and_renderer_contracts() -> 
     assert LFM_25_12B_THINKING.family == "lfm2.5"
     assert LFM_25_12B_THINKING.capabilities.native_context_window == 32_768
     assert LFM_25_12B_THINKING.renderer.id == "lfm2.5-tools@1"
+    assert LFM_25_26B.base.repo_id == "LiquidAI/LFM2.5-2.6B"
+    assert LFM_25_26B.base.revision == "654f9463ce32b05d0429d76fe1f580b27d4c1ac0"
+    assert LFM_25_26B.parameters == 2_690_000_000
+    assert LFM_25_26B.capabilities.native_context_window == 131_072
+    assert LFM_25_26B.renderer.id == "lfm2.5-tools-thinking@2"
     assert QWEN_35_2B.capabilities.native_context_window == 262_144
     assert QWEN_35_2B.renderer.model_family == QWEN_35_2B.family
     assert QWEN_35_2B.renderer.id == "qwen3.5-tools@1"
     assert QWEN_35_08B.parameters == 800_000_000
     assert QWEN_35_08B.base.revision == "2fc06364715b967f1860aea9cf38778875588b17"
     assert QWEN_35_08B.capabilities.mtp is True
+    assert NANBEIGE_42_3B.base.revision == "3384e426066d1a49c3aea90a7190b81260a6533f"
+    assert NANBEIGE_42_3B.renderer.id == "nanbeige4.2-tools-thinking@1"
+    assert NANBEIGE_42_3B.default_reasoning_mode == "thinking"
+    assert NANBEIGE_42_3B.capabilities.mtp is False
     assert GEMMA_4_12B_IT.family == "gemma4"
     assert GEMMA_4_12B_IT.parameters == 11_959_730_224
     assert GEMMA_4_12B_IT.base.revision == "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7"

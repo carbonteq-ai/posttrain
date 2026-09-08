@@ -1,6 +1,81 @@
 # TRL
 
+## GDPO/CAPO follow-on qualification
+
+`scripts/qualification/structured_trl_lifecycle.py` exercises installed TRL
+1.12.0.post2 on an immutable tiny Qwen fixture with masked precomputed GDPO/CAPO
+advantages and beta=0.1. Both complete two finite nonzero-gradient CUDA updates,
+resume checkpoint 1 to matching uninterrupted weights, and generate from the
+export. This is deterministic full-parameter fixture evidence, not live Verifiers,
+judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
+
+Latest candidate: `1.12.0.post5`, commit
+`b9f3a09369d9cfa21950feef3e110e1fdf779c54`. It consumes retained source-row
+identities before reward calculation, validates complete groups, and keeps
+single-process GRPO accumulation normalized over admitted samples. OLMo active
+sampling accepts partial and empty candidate rounds within its existing bound.
+Padding exists only in trainer tensors after scoring; no synthetic rewards or
+episodes are created. Partial distributed, multimodal, fixed alternate-loss,
+fused-loss, entropy-bonus and auxiliary-loss cases remain unqualified/rejected.
+43 focused fork checks pass, including actual tiny-model updates in both paths
+and retained-gradient equivalence across microbatch sizes. Wheel SHA-256:
+`1f42571c28e178bb292eb7b904940f0d0e4b0ccdf936b23b8bec9704190b6ecb`;
+sdist: `ceb581cc5a3d7a4a8a34cbc1b7fbc64e7aba9e3c55a6508b4a14ce257d341bc9`.
+Live RTX PRO qualification remains pending. Harness optimization is deferred.
+
+Previous candidate: `1.12.0.post4`, commit
+`19e6c89a18617f1bd6e6385212705a67f5434962`, supersedes post3 below without
+overwriting its immutable assets. Post4 initializes the bounded diagnostic
+configuration on the trainer and includes the post3 change that bounds the one-time actor/vLLM raw
+policy-parity probe to selected rows and a 4,096-token prompt-plus-completion
+window without changing rollout or optimizer-update sequences. Its retained
+wheel SHA-256 is `53214b7a6a58114d542ba319df519fb7942ef4a1e906727c6a866ee06244ecf8`;
+sdist SHA-256 is `27d8849a72e6c3aae4612630e469645e0aa6450817c04e6a0afd33ef23a7dd5b`.
+Development publication workflow `34220248742` passed exact-byte readback and
+clean installation. Live GRPO/OLMo GPU qualification remains open.
+
+Post2 repairs IW-OPD checkpoint skipping
+losing Accelerate device placement and batch repetition. The installed wheel
+passes native CUDA two-update training, matching checkpoint resume, and
+exported-model generation with accumulation 1 and 2. The clean framework
+candidate contains reproducible `scripts/qualification/trl_retained_fork_lifecycle.py`
+and JSON receipts. Development publisher: `34007394648`; vLLM/runtime-image
+qualification and stable/main adoption remain open.
+
 TRL is the execution library behind `packages/train`.
+
+## 2026-09-06 upstream audit: candidate, not a pin update
+
+The user subsequently prioritized the full upgrade. The retained fork is now
+integrated on v1.12.0, committed and pushed as
+`6a5532e2f51e4e1cdc8a891582514a50f68a775a`, and released as candidate
+`carbonteq-v1.12.0.post1`. Its wheel SHA-256 is
+`cf242fafdfe476b7b8a250b300d6cbd52f502410a4053f4a9bac3366287727c5`;
+sdist SHA-256 is `1e7bae5ee846972be7763e66dbd0b1149d99fb44c51125e2499adf4773d2e127`.
+Validation: 140 focused source checks, 45 installed-wheel checks, and 26
+framework adapter checks pass. Upstream Liger >=0.8.2 normalization replaces
+the older compatibility adaptation; full-weight wake restores the trained
+actor. Posttrain Actions `34006220244` publishes the retained bytes to dev.
+Stable consumer adoption remains gated on runtime-image/GPU qualification.
+
+The selected source remains `69cf80a7319079ec5523841553467e119ebc1cec`
+(`1.9.2.post11`). Upstream v1.12.0 is available, but is an accidental duplicate
+of v1.11.0 according to its release notes. The full vLLM lifecycle/API migration
+must retain our exact-token IW-OPD, bounded admission, precomputed advantages,
+raw actor/sampler parity, LoRA synchronization, and memory-bounded projection
+before a version change is admitted.
+
+An isolated `/home/hammad/projects/trl-gdpo-capo` candidate fixes Liger's
+microbatch versus generation-window token normalization using the retained
+Liger 0.8.0 API. Nineteen CPU tests pass, including native Liger loss/gradients,
+positive-beta KL, and two-rank Gloo parity. The first 18 tests produce 14
+failures against the installed pin; the unchanged GRPO cases pass. This is
+source regression evidence, not a GPU optimizer or release qualification.
+The fork ledger records the adaptation and upstream replacement procedure.
+
+The framework explicitly preserves `use_bias_correction_kl=False`; adopting
+the newer upstream default would change KL gradients, not just configuration.
+See `docs/plan/gdpo-capo-dual-backend-support.md` for the inventory and gates.
 
 The rebuilt `train` package will expose reusable SFT, DPO, and RL operations.
 TRL is an internal adapter selected by a typed TRL config, not the object other

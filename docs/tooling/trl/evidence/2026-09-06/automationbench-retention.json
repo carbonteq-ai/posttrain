@@ -1,0 +1,35 @@
+{
+  "scope": "Local retained toy artifacts; not remotely published or release-qualified",
+  "artifacts": [
+    {
+      "algorithm": "gdpo",
+      "path": "/home/hammad/projects/rl/outputs/qualification/automationbench-2026-09-06/gdpo-native-b.tar.gz",
+      "sha256": "ba4e13349498ba85b246372242ea61b24c99ca2825c0ff16b6ac2464c3f7a5bd",
+      "scope": "Five-step native-Episode TRL prototype, audited and export reloaded"
+    },
+    {
+      "algorithm": "capo",
+      "path": "/home/hammad/projects/rl/outputs/qualification/automationbench-2026-09-06/capo-native-a.tar.gz",
+      "sha256": "ed458b095ad1d387b24e13f43dcafb8065b576582f5cd51cbc7891eaef76b181",
+      "scope": "Five-step native-Episode TRL prototype, audited and export reloaded"
+    },
+    {
+      "algorithm": "gdpo",
+      "path": "/home/hammad/projects/rl/outputs/qualification/automationbench-2026-09-06/retained-managed-r10.tar.gz",
+      "sha256": "97260da4c7cc4864b26adcb75c2c31435a5811b6a6453e289cfdea5523e38d79",
+      "scope": "Failed managed-judge attempts and calibration; NOT a successful five-step run"
+    },
+    {
+      "algorithm": "capo",
+      "path": "/home/hammad/projects/rl/outputs/qualification/automationbench-2026-09-06/capo-toy-b.tar.gz",
+      "sha256": "7c10fcd52b37459be43f71d10d54f0dafe6725c377dc084ecf8973df071dfb5c",
+      "audit": "capo-automationbench-toy.json"
+    },
+    {
+      "algorithm": "gdpo",
+      "path": "/home/hammad/projects/rl/outputs/qualification/automationbench-2026-09-06/gdpo-toy-e.tar.gz",
+      "sha256": "9f13fd72dc3083d2b8f66eb1afb9199d6f75883b7cb77c910e1d4030def0b729",
+      "audit": "gdpo-automationbench-toy.json"
+    }
+  ]
+}

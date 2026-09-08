@@ -1089,16 +1089,17 @@ def _qualify_activation(lock: object, root: Path) -> None:
         native = PythonFactoryActivation(reference).activate()
     else:
         raise ContractError("environment activation kind is unsupported")
+    from posttrain.environment.verifiers_runtime import (
+        materialize_verifiers_environment,
+        verifiers_environment_types,
+    )
+
+    EnvConfig, _ = verifiers_environment_types()
     try:
-        from verifiers.v1.env import EnvConfig, Environment  # pyright: ignore[reportMissingImports]
-    except ImportError as error:
-        raise RuntimeError("install the Verifiers integration dependencies") from error
-    if isinstance(native, Environment):
-        environment = native
-    elif isinstance(native, EnvConfig):
-        environment = Environment(native)
-    else:
-        raise ContractError("environment activation did not produce a Verifiers EnvConfig")
+        environment = materialize_verifiers_environment(native)
+    except TypeError as error:
+        raise ContractError("environment activation did not produce a Verifiers EnvConfig") from error
+
     if not isinstance(getattr(environment, "config", native), EnvConfig):
         raise ContractError("environment activation did not produce a Verifiers EnvConfig")
     taskset = getattr(environment, "taskset", None)

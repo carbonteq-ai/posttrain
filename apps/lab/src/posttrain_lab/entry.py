@@ -6,7 +6,7 @@ import os
 import subprocess
 from dataclasses import replace
 
-from posttrain.jobs import build_job_runtime
+from posttrain.jobs import build_job_runtime, sampo_definition, structured_rl_definition
 from posttrain.work import JobRuntime, ProjectExecutionRequest
 
 from .source import resolve_git_source
@@ -26,7 +26,26 @@ def _source_metadata(request: ProjectExecutionRequest) -> dict[str, str | bool]:
 def configure(request: ProjectExecutionRequest) -> JobRuntime:
     """Build the standard job runtime and attach lab qualification source metadata."""
 
-    runtime = build_job_runtime(request)
+    runtime = build_job_runtime(
+        request,
+        extra_definitions={
+            "train/sampo-turn-judged@1": sampo_definition(
+                definition_id="train/sampo-turn-judged@1",
+                turn_rewards=True,
+                judge_inference_seats={"quality": ("judge_inference", 8123)},
+            ),
+            "train/gdpo-episode-judged@1": structured_rl_definition(
+                "gdpo",
+                definition_id="train/gdpo-episode-judged@1",
+                judge_inference_seats={"quality": ("judge_inference", 8123)},
+            ),
+            "train/capo-turn-judged@1": structured_rl_definition(
+                "capo",
+                definition_id="train/capo-turn-judged@1",
+                judge_inference_seats={"quality": ("judge_inference", 8123)},
+            ),
+        },
+    )
     metadata = dict(runtime.source_metadata)
     metadata.update(_source_metadata(request))
     return replace(runtime, source_metadata=metadata)

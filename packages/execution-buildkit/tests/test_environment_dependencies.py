@@ -483,7 +483,7 @@ def test_uv_gateway_rejects_unsupported_or_secret_bearing_index_bindings(
         UvDependencyCompileCli(index_environment=index_environment)
 
 
-def test_uv_gateway_reports_conflict_without_echoing_resolver_output(
+def test_uv_gateway_reports_sanitized_conflict_without_echoing_fallback_stdout(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -511,4 +511,6 @@ def test_uv_gateway_reports_conflict_without_echoing_resolver_output(
         )
 
     assert "password" not in str(caught.value)
+    assert "[REDACTED]" in str(caught.value)
+    assert "conflict" in str(caught.value)
     assert "/private/path" not in str(caught.value)

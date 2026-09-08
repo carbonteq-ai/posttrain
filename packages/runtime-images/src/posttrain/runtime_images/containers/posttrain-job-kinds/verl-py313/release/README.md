@@ -6,9 +6,9 @@ the dormant `online-rl-verl-py313` kind image.
 Current inputs:
 
 1. `pyproject.toml` selects CarbonTeq veRL
-   `808923d487aa2c524fda02cf5289110541b4221f` (`0.9.0.dev2`), CarbonTeq vLLM
+   `cec7e74c361bb973b641db8dfbb75a5544c33139` (`0.9.0.post1` candidate), CarbonTeq vLLM
    `7817d845727af570352622dc8d58f2d43c76d89d`, and Verifiers core
-   `284a868d6a9022109b749710672a0460e8a996d4` with no concrete environment
+   `90055c11896954fac429bb9120245caa6dc1dd59` with no concrete environment
    packages and no editable or path sources.
 2. `uv.lock` is generated for exact Python `3.13.12`.
 3. `backend-constraints.txt` is the exact, hash-bound export of that lock used

@@ -1,0 +1,307 @@
+# Asynchronous rollout requests, continuous batching, and environment workers
+
+Revision 4 — 2026-09-08. Status: rollout-only architecture revised after source review; implementation and GPU qualification not started. Repository: `/home/hammad/projects/rl`.
+
+## Purpose / Big Picture
+
+Keep inference supplied with ready work while independent agent environments execute tools, render their next requests, and score completed episodes on multiple CPU processes. A short model request must return to its environment without waiting for an unrelated long request. This is asynchronous execution **inside a synchronous, fixed-policy training round**, not asynchronous RL with stale policies.
+
+This plan extends [the GDPO/CAPO implementation and qualification plan](gdpo-capo-dual-backend-support.md). It changes execution, not algorithms, reward rubrics, task selection, or credit assignment. Both TRL and veRL are required implementation workstreams. They share execution semantics and validation, not a universal process manager. It must not introduce GRPO-specific environment execution that other algorithms cannot reuse.
+
+The user explicitly excludes new instrumentation. Use existing native traces, logs, resource inspection, optimizer records, and checkpoint artifacts for qualification. Do not add a telemetry subsystem, new timing spans, or a performance dashboard. This document authorizes no changes to currently running jobs.
+
+Actor forward/backward optimization is explicitly out of scope: no changes to actor kernels, training micro-batches, gradient accumulation, optimizer settings, or distributed training layout for performance. Existing optimizer steps remain integration correctness gates only. Rollout completion time and valid-episode throughput are the performance outcomes. Releasing rollout/judge resources at the existing training boundary is in scope because it is rollout lifecycle correctness, not actor optimization.
+
+## Progress
+
+- [x] (2026-09-08) Inspect the current bridge, TRL request batching, native Verifiers process pool and training client, and canonical ownership contracts.
+- [x] (2026-09-08) Select native environment worker processes, native token-preserving clients, a single asynchronous inference owner, and fixed-policy collection barriers.
+- [x] (2026-09-08) Revise the design for veRL-native Ray workers, explicit component interfaces, and backend-specific lifecycle ownership; reject nested environment pools on veRL.
+- [x] (2026-09-08) Verify canonical Verifiers checkouts after worktree cleanup and record branch/commit preflight safeguards below.
+- [x] (2026-09-08) Resolve the runtime veRL source pin and specify two-stage admission, sampling precedence, global judge admission, and failure classification. Exclude actor compute optimization.
+- [ ] Prove the pinned TRL asynchronous engine lifecycle before implementing worker transport.
+- [ ] Implement and test the native-client wire compatibility and exact-token contract.
+- [ ] Implement the TRL asynchronous generation lifecycle against the selected runtime.
+- [ ] Integrate bounded environment workers and coordinator admission/cancellation.
+- [ ] Implement veRL worker budgets, model-independent rendering, typed episode failures, and pre-advantage group admission.
+- [ ] Qualify failure handling, numerical equivalence, and real GPU optimizer updates.
+- [ ] Publish fork revisions, update consumer locks and documentation, and qualify the immutable runtime image before promoting the mode.
+
+## Context and source authority
+
+Read `docs/post-training/README.md`, `04-framework.md`, `05-apis.md`, and `06-observation-and-lineage.md` before implementation. Their package boundaries and native-trace authority override historical code. Read `docs/tooling/forks.md` before any fork publication. This plan does not change the frozen product baseline: engine settings remain inference settings, training still consumes complete admitted groups, and stale-policy async RL remains deferred. If implementation requires a new public primitive or different product meaning, stop and amend the baseline explicitly before implementing it.
+
+The inspected source baseline is:
+
+| Repository | Source baseline and role |
+| --- | --- |
+| `/home/hammad/projects/rl` | Branch `codex/pre-rollout-optimization-baseline`, created to commit the accumulated pre-optimization work; current consumer selects TRL `1.12.0.post5`. This is a development baseline, not a qualified release. |
+| `/tmp/trl-parity-probe.WIQjjv` | Branch `codex/trl-parity-probe-bound`; published post5 source `b9f3a09369d9cfa21950feef3e110e1fdf779c54`; inspected HEAD `68f7eb246db73aac926a437da1f043b4660265a1` includes subsequent ledger documentation. Temporary checkout location is not a deployment dependency. |
+| `/home/hammad/projects/verifiers` | Canonical checkout; branch `codex/carbonteq-verifiers-latest`, commit `90055c11896954fac429bb9120245caa6dc1dd59`; upstream base `e3bcbcbe5c55297a07a5d1038e37c2408b4a3dbd`. Clean after consolidation. |
+| `/home/hammad/projects/verifiers-environments` | Canonical checkout; branch `codex/verifiers-latest-support`, commit `12ff5e1abfab369b8dec4df3ce83c5984f55ad34`. Clean after consolidation. Task semantics remain here; no changes required initially. |
+| `/home/hammad/projects/verl-upstream` | Historical work preserved on `codex/verl-pre-rollout-optimization-baseline`, based on `a35908ca3c9632859c58d6a2855d858918ae21dc`; do not use this snapshot as the runtime implementation base. The executable runtime profile pins `cec7e74c361bb973b641db8dfbb75a5544c33139`, release `carbonteq-v0.9.0.post1`. Before implementation, establish and record branch `codex/verl-rollout-execution` from that exact runtime commit in a verified clean checkout. Review any needed historical fixes explicitly rather than implicitly merging the snapshot. |
+
+Resolve branches, dirty state, manifests, and lockfiles again when implementation starts. These are inspection anchors, not permission to overwrite later changes.
+
+### Mandatory checkout preflight
+
+The two canonical Verifiers directories above are the only active worktrees for their repositories following cleanup. Do not recreate or work in `verifiers-carbonteq-latest`, `verifiers-environments-latest`, `verifiers-environments-turns`, or `verifiers-gdpo-capo`. Those directories were moved to Trash; the last had a broken Git link to a missing temporary repository. Historical references elsewhere describe past evidence, not current edit targets.
+
+Before changing any repository, run the following with its exact absolute path from the table:
+
+    git -C /absolute/repository/path rev-parse --show-toplevel
+    git -C /absolute/repository/path branch --show-current
+    git -C /absolute/repository/path rev-parse HEAD
+    git -C /absolute/repository/path status --short
+    git -C /absolute/repository/path worktree list --porcelain
+
+Compare all results with the table. A different branch, detached HEAD where a branch is expected, missing path, or unexpected commit requires reconciliation before edits; do not silently use another similarly named checkout or reset it to this historical SHA. Legitimate new commits should update this table and the relevant fork ledger. Establish and record the selected veRL implementation branch from its runtime pin before its first edit; if that branch already exists, inspect it rather than recreating or resetting it. The TRL temporary worktree is the currently verified edit location; if absent, recover its recorded branch in a deliberate worktree and update this table, never substitute sibling `trl` without checking its state.
+
+Cleanup preserved older local changes in named stashes: `pre-worktree-cleanup-2026-09-08-fork-docs` in Verifiers and `pre-worktree-cleanup-2026-09-08-schema-index` in verifiers-environments. Do not pop or drop these as implementation setup; inspect them only if the task requires their contents. Branches and commits were retained. Restore trashed directories only for deliberate recovery, not as active parallel development targets.
+
+## Surprises & Discoveries
+
+`packages/train/src/posttrain/train/backends/trl/online_rl.py` already collects pending requests, but its `_flush_pending` calls synchronous trainer generation on the environment event loop. A controlled blocking-generation reproduction established event-loop blocking; it did not establish what fraction of a production update is spent there. `policy_rollouts.py` enters collection using `asyncio.run`, making loop ownership part of the integration problem.
+
+The TRL fork's `trl/generation/vllm_generation.py` uses blocking colocated generation waves. vLLM already schedules continuously internally; the missing behavior is incremental request submission and independent completion across the outer harness. Renaming a batch method `async`, or putting the same whole-batch call in a thread, does not remove the wave barrier.
+
+The current `packages/train/src/posttrain/train/integrations/verifiers.py` uses an injected in-process policy client and direct `environment.run_episode` calls. Native Verifiers already provides `verifiers/v1/serve/pool.py::EnvServerPool` and serializable `RunRequest`/`RunResponse` messages. Its default elastic pool and `multiplex=128` do not imply four active workers for 32 episodes. Also, multiplex is a scaling parameter, not proof of a hard per-worker admission limit.
+
+Native `verifiers/v1/clients/train.py::TrainClient` already performs worker-local rendering, exact-token continuation bridging, and calls `/inference/v1/generate` through `renderers.client.generate`. `TrainClientConfig` is serializable. Reusing that contract is preferable to creating a second custom policy RPC protocol. Its renderer/template behavior still needs equivalence tests against the current Posttrain renderer before migration.
+
+Environment workers already launch isolated tool/agent subprocesses through `verifiers/v1/runtimes/subprocess.py`. Adding worker processes must not remove episode-world isolation or replicate policy/judge models. Additional CPU workers cannot by themselves accelerate GPU actor forward/backward computation.
+
+veRL already implements the relevant scheduling layers: `verl/experimental/agent_loop/agent_loop.py` creates Ray `AgentLoopWorker` processes, divides the collection across them, and gathers their results. Each worker runs concurrent episode tasks. Posttrain's `backends/verl/agent_loop.py::VerlPolicyGenerator.generate` already awaits its server manager. The remaining gaps differ from TRL: rendering explicitly constructs `Qwen35RendererConfig`, bridge calls run one row at a time, and a missing trajectory raises an exception. A semaphore local to each bridge call cannot enforce a collection-wide budget, and an unhandled episode exception can escape the worker gather. These are source findings, not a measured veRL performance diagnosis.
+
+## Decision Log
+
+1. Use native asynchronous per-request engine generation with continuous scheduling. Do not implement another token scheduler or a new static-wave batching layer.
+2. Reuse the native Verifiers process pool and training client. Extend their generic cancellation, admission, or metadata seams only where contract tests demonstrate a gap.
+3. Start with four fixed environment worker processes, up to eight active episodes per worker, and a global cap of 32. This is an initial configuration, not a claim that four is optimal. Fixed startup avoids the current elastic threshold hiding parallelism.
+4. Retain eight prompt groups with four generations each for the selected comparison: 32 logical trajectories per update. Worker count and inference concurrency do not multiply the algorithm batch.
+5. Keep one policy inference engine and one lifecycle authority. Engine-internal processes are allowed; there must not be an engine or model copy per environment worker.
+6. Maintain a fixed policy version throughout each collection round. Drain all model requests before optimizer work, then acknowledge weight synchronization before opening the next round.
+7. Keep judge endpoint ownership with composition and rubric ownership with the scorer. Worker processes are clients of the same judge service; they do not launch four judges.
+8. Do not change sampling budgets, kernels, precision, KV-cache allocation, reward weights, timeouts, or active-sampling semantics as incidental optimizations.
+9. (2026-09-08) On veRL use its existing Ray agent-loop workers as the environment processes. Do not spawn `EnvServerPool` inside each Ray worker. Existing veRL rollout replicas retain model ownership; the single-engine rule applies to the initial single-replica profile, not a prohibition on supported distributed veRL topologies.
+10. (2026-09-08) Share immutable collection identities, terminal episode outcomes, and pure admission/config validation. Keep engine sessions, HTTP transport, Ray orchestration, and tensor packing backend-private. This avoids forcing TRL lifecycle methods onto veRL's trainer.
+11. (2026-09-08) Use consolidated canonical Verifiers paths and mandatory Git preflight. Directory suffixes such as `latest` are not version authority; the verified branch, commit, and consumer pin are.
+12. (2026-09-08) Optimize rollout execution only. Prove engine lifecycle first; preserve actor computation and use optimizer execution only as an integration gate.
+13. (2026-09-08) Base veRL changes on runtime source `cec7e74c361bb973b641db8dfbb75a5544c33139`. Its worker-side packing requires two-stage collection, not merely a manager hook after packed results arrive.
+14. (2026-09-08) Enforce judge concurrency at one composition-owned admission proxy shared by all environment workers. Classify episode-local failures separately from invalid global execution state.
+
+## Target architecture and ownership
+
+The process diagram and HTTP/session implementation below describe TRL. The following veRL section is equally required and overrides those transport/process choices for veRL. The fixed-policy collection, token provenance, failure classification, and evidence rules apply to both.
+
+The job runtime owns the complete process tree. The trainer-side coordinator owns collection identities, group admission, and the transition between generation and optimization. A dedicated asynchronous inference frontend owns request submission and completion on its own long-lived event loop; its underlying vLLM engine may use the runtime's native engine subprocess. Environment workers contain CPU environment state, renderer/tokenizer instances, and async clients, never a trainer or CUDA model.
+
+```text
+Job runtime / trainer coordinator
+  ├─ one inference owner → one vLLM engine, continuous request scheduling
+  └─ native Verifiers broker, bounded admission
+       ├─ environment worker 1: up to 8 episodes, CPU rendering/tools/scoring
+       ├─ environment worker 2: up to 8 episodes, CPU rendering/tools/scoring
+       ├─ environment worker 3: up to 8 episodes, CPU rendering/tools/scoring
+       └─ environment worker 4: up to 8 episodes, CPU rendering/tools/scoring
+Each worker → token-preserving inference endpoint; optional shared judge endpoint
+```
+
+The environment worker returns each finished episode immediately. Inside an episode, a completed turn resumes its own tools and next request immediately. There is no barrier requiring all 32 first turns to finish before any second turn starts. The collection barrier remains at the training boundary because group-relative rewards and optimizer inputs require the admitted round's results.
+
+`posttrain.train` owns its private Verifiers integration, backend-neutral reward/group validation, and TRL adapter. `posttrain.environment` owns reusable neutral environment delivery and native-evidence projection, without exposing concrete Verifiers types publicly. Generic engine lifecycle work belongs in TRL; generic pool/client behavior belongs in Verifiers. Neither fork imports Posttrain. Train must not import serve, eval, or Lab to start an endpoint. Composition supplies judge connections through existing ownership seams.
+
+### Generation API and exact token provenance
+
+Implement a job-private loopback HTTP frontend compatible with the pinned `renderers.client.generate` wire contract used by native `TrainClient`. Before writing it, inspect the selected renderer dependency's actual request/response schema and record its immutable version. Do not infer compatibility from the endpoint name or substitute ordinary chat completion strings.
+
+Preserve prompt token IDs, completion token IDs, sampled-token log-probabilities, finish reason, and required attribution metadata. Native `TurnTokens` and episode traces remain replay authority. Responses must round-trip through native `response_from_generate` without losing continuation provenance. Worker-local renderer configuration must be pinned to the selected base model and match the Posttrain renderer fingerprint; a LoRA adapter name is not a tokenizer identity.
+
+Reuse native request/session identifiers. Add the smallest versioned transport metadata extension needed to carry collection ID, policy version, request ID, logical occurrence identity, and deadline. Do not put training identities into task prompts. If native request headers cannot propagate these fields per episode, extend the generic native request context rather than patching AutomationBench. The server validates the active collection/version before admitting work and echoes enough identity to reject stale or misrouted completions.
+
+Keep `PolicyGenerator` / `PolicyTurnRequest` as the existing neutral direct-generation seam. Add a private token-level adapter below it for native worker clients; both paths converge on the same backend session and sampling validation. Do not make Verifiers serialize Posttrain dataclasses. Do not reconstruct generated tokens by re-tokenizing parsed text.
+
+The frontend binds only within the job network namespace, uses an ephemeral job-scoped bearer token passed through protected process environment, validates payload sizes and model identity, and is not a public inference deployment. Never persist credentials in traces, configs, or image layers. Local and cloud jobs use the same packaged frontend and native worker entrypoints, with no workstation paths or downloaded-code mounts.
+
+### Engine session and policy lifecycle
+
+Add a reusable TRL generation session with proposed operations `open_policy(version)`, `generate(request)`, `abort(request_id)`, `drain()`, `suspend_for_update()`, `synchronize_policy(version)`, and `close()`. These are planned internal contracts, not existing public APIs. Validate actual asynchronous engine weight-update, LoRA, sleep/wake, and log-probability capabilities against the pinned runtime before committing to an implementation.
+
+All engine mutations execute through its owning loop. The trainer may wait synchronously at round boundaries, but must not synchronously execute generation on an environment loop. Do not call a non-thread-safe engine from arbitrary worker threads. Teacher-forced parity probes and other engine consumers use the same lifecycle lock and explicit phase; they cannot race generation or weight synchronization.
+
+The legal phase sequence is: synchronize policy version N; open collection; generate and score its episodes; close admission; drain or acknowledge all aborts; assemble admitted groups; suspend inference as required for colocated memory; perform optimizer update; synchronize version N+1; reopen admission. Any failure to drain or synchronize prevents the optimizer/next collection transition. Flush or invalidate caches as required by the engine's documented weight/adapter semantics; never reuse stale-policy KV state merely because request text matches.
+
+A global engine concurrency ceiling of 32 limits active model requests, not total conversations forever. vLLM owns its token/KV scheduling underneath. The coordinator must not wait to accumulate a full batch before submitting an available request. Continuous batching does not require streaming partial assistant messages into tools: return a turn when that individual generation finishes.
+
+### Environment pool and bounded execution
+
+Use `spawn`, declarative environment activation, and native `EnvServerPool`/`RunRequest`. Do not pickle the current injected policy-client closure or inherit CUDA through `fork`. Prestart four workers with `elastic=False`; explicitly enforce the eight-episode worker limit rather than assuming native multiplex provides it. Least-active routing must respect available capacity.
+
+Acquire global episode admission before dispatch. Hold it for the episode lifecycle, including tool waits and scoring, then release it exactly once. Judge concurrency is a separate global service budget; a per-worker semaphore of 16 would accidentally permit 64 requests and is not acceptable. Enforce it at the single composition-owned judge admission proxy specified below, preserving the configured global limit.
+
+Bound outstanding episode requests, inference requests, and transport bytes. The existing pool's unbounded socket high-water marks are not a sufficient memory policy. Prefer application-level admission and bounded send/receive queues; prove that backpressure cannot prevent cancellation/control messages from being serviced. Size payload limits from supported prompt/output budgets and serialized native evidence, and reject oversize requests explicitly rather than truncating traces.
+
+Workers reuse renderer/tokenizer and interpreter resources that are safe to share, but create isolated episode state. Preserve tool subprocess process-group cleanup. Start native BLAS/tokenizer thread limits conservatively at one per environment worker, then qualify under effective CPU affinity/cgroup limits. Reject or explicitly reduce an impossible worker configuration; do not infer physical CPU capacity from the host-wide count alone. No persistent mutable tool-world pooling in this change.
+
+### Scheduling correctness, failures, and cancellation
+
+Assign group, occurrence, seed, and collection identities before dispatch. Reassemble results in logical source order, not arrival order. Completion order must not alter reward alignment, group membership, or optimizer normalization. Seed identity remains stable across worker placement; bitwise GPU sampling equality is not promised when engine scheduling changes.
+
+Keep existing algorithm-specific group admission. An invalid member excludes the appropriate complete group, not all otherwise-valid groups. No fastest-first replacement, generic automatic retry, or hidden resampling is added. OLMo active sampling remains an explicit algorithm policy. An all-invalid batch follows its existing typed empty-admission behavior and never produces a fabricated optimizer update.
+
+Cancellation propagates from collection to episode, active model request, and owned tool subprocess group. HTTP disconnect alone is not proof of engine abortion: implement and test explicit abort or reliable disconnect-to-abort handling, with acknowledgment. An episode deadline includes queueing and execution; transport hops must not reset its remaining budget. All processes are local to the same job host initially, allowing a consistent monotonic deadline domain; multi-host workers are out of scope.
+
+A worker death terminalizes its assigned episodes, preserves available native error evidence, and lets unaffected groups finish only when its owned subprocesses/requests have been cancelled or fenced and admission accounting is trustworthy. Do not replay partially executed tool actions automatically. A replacement worker may serve future work only after the failed worker is reaped and capacity accounting is repaired. If native pool behavior cannot isolate worker death, add that generic fork seam and its regression tests before enabling the mode. Inability to establish safe isolation escalates to collection failure.
+
+Classify malformed policy output, an episode deadline, and an isolated tool/worker failure as episode-local terminal outcomes, subject to whole-group admission. Classify policy engine loss, broker corruption, provenance mismatch, failed abort/drain, failed weight synchronization, and shared judge-service failure as `CollectionExecutionError`. A malformed individual judge assessment is invalid reward evidence for that episode; an unavailable shared judge is not a batch of zero scores. Explicit job cancellation stops the collection and must not optimize a conveniently finished subset. Never catch every exception and convert it into an excluded group: only declared recoverable error classes take that path, and unexpected errors fail visibly.
+
+### Judge admission and resource handoff
+
+Composition owns one `JudgeAdmissionProxy` for the selected judge provider, using the existing managed-judge composition path as its integration point. Workers receive only this proxy's compatible endpoint. It forwards rubric requests unchanged to the existing provider and owns a global bounded admission gate plus active-request registry. Its contract is `start(provider, limit)`, `stop_admission()`, `drain(deadline)`, and `aclose()`. Reuse an existing proxy component if equivalent; do not implement the gate independently in each worker or scorer. Bind it in the job host without importing serve/eval into train or either fork. For multi-node veRL, use an authenticated job-private reachable endpoint, not worker-local loopback.
+
+The proxy preserves request deadline, cancellation, provider errors, and raw assessment evidence; it does not reinterpret rubrics, average rewards, add retries, or launch a model. A request queued at the proxy counts against its end-to-end deadline. Verify 32 callers across four workers never exceed the configured judge limit and cancellation releases capacity exactly once.
+
+At collection completion, all required assessments must be terminal. Composition drains the proxy before the existing optimizer boundary. For a colocated managed judge, its provider lifecycle must acknowledge release of GPU residency through a qualified sleep/unload operation before training proceeds; for a remote judge, only request drainage is required. If the selected managed provider cannot release residency safely, reject that colocation profile during admission rather than silently changing actor settings or killing an unrelated server. Resume the provider and acknowledge readiness before the next collection. The rubric plugin and Verifiers know nothing about GPU release.
+
+On job shutdown, stop admission, cancel queued/active work, drain acknowledgments, close native clients and broker, join workers, and terminate remaining owned subprocess groups after the existing shutdown grace. Never kill unrelated host processes. Late completions are ignored by identity fencing; every logical episode is persisted at most once through the existing evidence sink. Return native `WireEpisode` data without adding a parallel trajectory database.
+
+## Configuration and developer experience
+
+Keep engine execution selection in `InferenceBinding.engine`; propose `request_mode: async` as an adapter-validated option. It means per-request asynchronous submission, not an algorithm change. Keep worker deployment in a validated private `TrainingBinding.backend_options.rollout_execution` mapping for this first train-only implementation: proposed keys are `env_workers: 4`, `episodes_per_worker: 8`, and `worker_native_threads: 1`. `EnvironmentBinding.max_concurrent: 32` remains the global episode cap. Validate these together; never multiply global concurrency by worker count.
+
+These names are proposed implementation surfaces, not currently accepted configuration. Add typed private parsing and detached validation before enabling them in a catalog. Native options such as `elastic=False` are derived adapter details, not new algorithm fields. Preserve a direct execution mode for controlled regression comparison. Unsupported backend/mode combinations fail before scheduling, not by silently falling back. A future eval consumer can extract a shared neutral execution value when it has demonstrated requirements; do not add a public cross-capability abstraction speculatively.
+
+On veRL, map `env_workers` to `actor_rollout_ref.rollout.agent.num_workers`, and retain native `actor_rollout_ref.rollout.mode=async` as the engine execution setting. `episodes_per_worker` must become an enforced worker bound, not a second batch-size setting. Reject conflicting native overrides. A common selection can express the same 4-worker/8-episode intent, while its adapters emit different native configuration. Allocate Ray CPU resources explicitly and account for renderer threads and tool subprocesses in the job CPU reservation; a Ray CPU reservation is scheduling accounting, not an operating-system CPU isolation guarantee.
+
+## Concrete components and interfaces
+
+All names in this section are selected implementation targets unless explicitly identified as existing. New files are private modules under `packages/train/src/posttrain/train`; they are not new public framework primitives. Reuse an equivalent existing type rather than creating a duplicate, recording the resolved name here. Do not create a generic `HarnessManager` with backend-name conditionals.
+
+### Shared values and validation, without shared process ownership
+
+Create `rollout_execution.py` with frozen, serializable values `CollectionKey(run_id, collection_id, policy_version)`, `EpisodeKey(collection, group_id, occurrence_id, seed)`, and `RolloutExecutionConfig(env_workers, episodes_per_worker, worker_native_threads)`. Logical occurrence identity is assigned before scheduling; a model request additionally has a unique turn request ID. Keep the existing native episode identity as evidence provenance rather than replacing it with these scheduling identities.
+
+Define `EpisodeOutcome(key, status, rollout, error)` with statuses `completed`, `invalid`, `cancelled`, and `failed`. A completed outcome contains an existing validated rollout value; other statuses contain a typed reason and optional native evidence reference, never a fabricated zero reward. A separate `CollectionExecutionError` represents an unusable engine, corrupt transport, or failed synchronization: it stops the round instead of pretending every such failure is ordinary bad model output.
+
+Expose pure functions `validate_execution_config(config, global_limit, effective_cpus)` and `validate_outcome_identity(expected, outcome)`. Reuse the existing algorithm group-admission implementation through a narrow adapter accepting ordered outcomes; do not reimplement advantage estimation in this module. Return retained row indices and excluded-group reasons. Use those indices before backend advantage estimation and all tensor packing; the same indices select rewards, masks, prompts, old log-probabilities, and metadata. Preserve each algorithm's existing incomplete/empty-group policy.
+
+No shared `start_workers()`, `update_weights()`, or `sleep_engine()` protocol is introduced. The two backends own those operations differently. Shared tests assert observable outcomes rather than requiring identical native call sequences.
+
+### TRL components
+
+`backends/trl/policy_endpoint.py::TrlPolicyEndpoint` owns the loopback HTTP server and its request registry, with `start(session)`, `stop_admission(collection)`, and `aclose()`. The registry maps a native request ID to its collection and active generation task. Endpoint handlers validate token requests, await generation, and abort on explicit cancellation. They do not score rewards or launch workers.
+
+`integrations/verifiers_workers.py::VerifiersWorkerPool` owns native `EnvServerPool` startup, health, dispatch, and shutdown. Its selected interface is `async start(activation, client_config, execution_config)`, `async run_episode(key, task, deadline) -> EpisodeOutcome`, `async cancel(key)`, and `async aclose()`. Native Verifiers owns environment execution; this adapter translates task/outcome contracts and capacity. It must not inspect algorithm names.
+
+`backends/trl/policy_rollouts.py::TrlCollectionRunner` composes that pool with the endpoint and TRL session. Its `async collect(collection, scheduled_episodes) -> tuple[EpisodeOutcome, ...]` returns terminal outcomes in scheduled order. It owns the global episode gate and closes the collection only when every scheduled occurrence is terminal. The trainer callback invokes existing reward/group admission after collection and owns optimizer execution. Verifiers is never asked to understand policy optimization.
+
+`trl/generation/async_vllm_session.py::AsyncVllmSession` in the TRL fork implements the previously specified engine lifecycle operations. `generate` takes token-level engine input, not Posttrain or Verifiers objects. This is the only new engine lifecycle authority on TRL. Keep completion-logprob probes and LoRA synchronization inside this authority.
+
+### veRL components and control flow
+
+Preserve `backends/verl/agent_loop.py::PosttrainVerifiersAgentLoop` as the thin native entrypoint. Each invocation runs one Verifiers episode within an existing Ray agent-loop worker. Extract CPU renderer construction into `backends/verl/rendering.py::create_policy_renderer(model_contract, tokenizer)`, resolving the selected model's declared renderer rather than hard-coding Qwen. This helper owns no processes or model weights. Reuse renderer selection already available elsewhere through a neutral helper only if it introduces no backend import dependency.
+
+Keep `VerlPolicyGenerator` as the adapter to the native server manager. Assign distinct per-turn request IDs while retaining stable episode identity separately; validate cancellation and routing against the pinned server-manager contract. It returns exact sampled IDs/log-probabilities through existing `PolicyTurnResult`. It does not create a TRL-style HTTP endpoint or instantiate an engine.
+
+Add `backends/verl/collection.py` to translate shared outcome/group decisions to veRL source rows and `DataProto` fields. It must not become another collection scheduler. `worker.py` and `launcher.py` pass validated worker settings and selected renderer information to the native runtime. No renderer or CPU capacity settings belong in GRPO/GDPO algorithm settings.
+
+In the veRL fork, extend the existing `AgentLoopWorker.generate_sequences` with a worker-wide bounded episode gate shared across all row invocations, and terminal per-row result handling. Use the manager's existing chunk allocation to assign worker budgets whose sum is at most the global limit (32 for the initial profile). Do not independently grant every worker the global allowance. Simultaneous training and evaluation collections must be serialized by the existing lifecycle unless a later explicit design supplies a shared global gate.
+
+The pinned veRL worker currently runs `asyncio.gather` and then `_postprocess` locally before returning `DataProto`. Introduce an opt-in two-stage native path: `collect_episode_outcomes(batch)` returns terminal per-row envelopes containing successful native episode output or a typed failure; the manager gathers those envelopes and invokes global group admission; `pack_retained_outcomes(outcomes, source_rows)` then runs existing postprocessing only on retained successes. Keep the legacy `generate_sequences` return contract for callers not selecting this path. Separate any necessary per-episode CPU/reward preparation from batch tensor packing; do not transfer CUDA tensors or giant unbounded Python object lists through the new envelope path.
+
+The collection manager owns the pre-packing admission hook, supplied by Posttrain's `collection.py` adapter. Four siblings can reside on different workers, so no worker independently drops or normalizes a partial group. Returned source-row identities must join exactly with the trainer's input batch before unioning results. Preserve distributed batch balancing and divisibility requirements using the existing backend-supported mechanism; do not silently drop extra valid groups to make shapes fit. Test the 28-retained-row case against the actual selected training layout.
+
+This hook returns retained source indices before failed rows are packed into training tensors. It does not manufacture `AgentLoopOutput` token arrays for a failed episode. Empty admission uses the algorithm's existing explicit behavior; infrastructure failure remains fatal. Confirm every downstream field and distributed batch divisibility requirement after filtering, preserving the established retained-group correctness fixes.
+
+### Sampling precedence and request identity
+
+Remove `del sampling_params` from `PosttrainVerifiersAgentLoop.run`. Resolve one effective sampling value per occurrence: inference binding defaults first, explicit native trainer phase/per-row overrides second, then validate against environment and model hard limits. Environment episode limits bound remaining output but do not silently replace trainer temperature/top-p overrides. Algorithm-required sampling overrides remain authoritative and conflicting explicit settings fail validation. Validation/greedy requests must support temperature zero at the generation boundary; do not broaden training exploration rules accidentally when adjusting the current positive-temperature `PolicySampling` validation.
+
+Pass effective sampling through `VerlPolicyGenerator` and the native TRL client unchanged except for documented engine sentinel conversion (for example, disabled top-k). Derive stable per-occurrence/per-turn seeds from the run seed and logical identity where the backend supports explicit request seeds; do not call process-global RNG reseeding from concurrent tasks. Test training defaults, greedy validation, per-row overrides, max-token remainder, distinct turn IDs, and exact log-probability semantics. Claim deterministic identity/seed assignment, not bitwise scheduling-independent GPU output.
+
+veRL's existing rollout manager and checkpoint/weight synchronization machinery owns the phase transition. The Posttrain adapter waits for its terminal collection output, then existing reward/advantage and optimizer code proceeds. On cancellation, the manager cancels native worker tasks and in-flight server-manager requests before sleeping replicas or starting an update. Add generic abort plumbing to the fork if required; do not assume cancelling a Ray object reference cancels GPU generation. For multi-node operation, transport remaining deadline durations rather than comparing monotonic timestamps from different hosts.
+
+### Deliberate non-abstractions
+
+Do not merge Ray and native Verifiers pools behind a fake common worker executor. Do not share TRL's engine session class with veRL. Do not move rubric/judge code into worker orchestration, add an environment service to `common`, or change the public `PolicyGenerator` into a deployment API. Share value contracts and correctness checks; let native runtimes schedule and own resources.
+
+## Plan of Work
+
+### Milestone 0: verify source and engine feasibility
+
+Read `packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/verl-py313/profile.toml` and resolve `fork_revision` (`cec7e74c361bb973b641db8dfbb75a5544c33139` at this revision). Inspect that commit's agent-loop and trainer code, establish the selected clean implementation branch, and update the checkout table. Do not develop against detached historical HEAD and port later by assumption.
+
+Before implementing HTTP or process-pool integration, run a bounded TRL GPU lifecycle proof on the pinned vLLM runtime: initialize one async engine, complete independent overlapping requests, abort one request, drain, release residency, synchronize changed LoRA weights, wake, and generate again. Verify sampled log-probability parity through the existing gate and that the second round uses updated weights. Record exact runtime versions and commands. Failure blocks the proposed async mode; it does not authorize changing precision, actor settings, or parity tolerances. The proof is small test code, not new instrumentation or a full training run.
+
+### Milestone 1: prove the native wire and rendering seam
+
+In RL, add focused tests beside `packages/train/tests` and `packages/environment/tests` for native `TrainClient` requests and native episode projection. Cover LFM reasoning, content, tool calls, multi-turn exact-prefix bridging, sampling settings, and log-probability arrays. Compare with the current `TrlPolicyGenerator` path using controlled token fixtures. A renderer mismatch blocks migration; fix the generic renderer seam rather than introducing task-specific string surgery.
+
+Inspect `verifiers/v1/configs/client.py`, `clients/train.py`, `serve/types.py`, and the pinned renderer client. Extend native metadata/cancellation only as demonstrated necessary. Add tests under the fork's existing test layout. Record the actual protocol and dependency version in this plan before implementing the frontend.
+
+### Milestone 2: implement a single asynchronous engine owner
+
+In the TRL fork, extend `trl/generation/vllm_generation.py` with a separately testable session implementation, proposed file `trl/generation/async_vllm_session.py`. Reuse existing model load, LoRA synchronization, sleep/wake, and sampling conversion behavior. Do not maintain a second independently initialized rollout model.
+
+In RL, add a private frontend, proposed `packages/train/src/posttrain/train/backends/trl/policy_endpoint.py`, adapting the native wire format to that session. Update `online_rl.py` and `policy_rollouts.py` to manage a long-lived session rather than create an engine-facing event loop per callback. Keep existing direct generation working until the new path passes parity tests.
+
+### Milestone 3: integrate native workers and coordinator lifecycle
+
+Split process/client lifecycle out of `integrations/verifiers.py` into a private proposed `integrations/verifiers_workers.py`; retain reward projection and group admission at their existing ownership boundary. Use native pool dispatch, not a new multiprocessing executor around `run_episode`. Add capacity, deadline, cancellation, and late-result fencing tests. Modify the native pool only for proven hard-limit, cancellation, or worker-death gaps.
+
+Add private config validation and catalog compatibility checks in the train adapter and its existing schema tests. Update selected comparison bindings only after the complete path is qualified. Package worker entrypoints, pinned renderer dependencies, and runtime-native async engine requirements into `packages/runtime-images`; no local checkout imports may enter the actual-job image.
+
+### Milestone 4: implement veRL-native execution
+
+Use the runtime-pin branch established in milestone 0. In `backends/verl/agent_loop.py`, `worker.py`, and `launcher.py`, implement renderer selection, explicit sampling precedence, execution-config translation, unique turn IDs, and typed episode outcomes. Add `rendering.py` and `collection.py`. In the veRL fork's `verl/experimental/agent_loop/agent_loop.py`, implement bounded worker admission and the two-stage collect/admit/pack path; integrate the admitted source-row join at the existing trainer boundary in `verl/trainer/ppo/ray_trainer.py`. Generic fork code must never import Posttrain.
+
+Add proposed consumer tests `packages/train/tests/test_rollout_execution.py` and `packages/train/tests/test_verl_collection_execution.py`, plus native fork tests for concurrent worker budgets and recoverable row failures. A controlled 8-by-4 collection with one failed sibling must exclude exactly its complete group, retain the other seven groups in source order, and avoid batch-wide failure. Verify correct algorithm normalization with the retained 28 trajectories rather than assuming original batch size 32. Separately prove infrastructure failure stops optimization. Acceptance includes model renderer selection for Qwen and LFM using exact-token fixtures, not a claim of real LFM GPU compatibility yet.
+
+### Milestone 5: validate correctness and useful concurrency
+
+Run deterministic tests proving that short request B completes while long request A remains active, and request C can enter before A finishes. Repeat against the real selected vLLM runtime. A fake async wrapper around a blocking wave fails this acceptance test. Verify four distinct environment worker PIDs, hard global/per-worker limits, isolated task state, bounded overload, cancellation during tool/model waits, worker death, and cleanup without orphan model/tool processes.
+
+Verify reordered completions produce the same controlled reward vectors, token masks, admitted source groups, and loss normalization on both adapters. Cover GRPO, OLMo-recipe GRPO, GDPO, CAPO, and other existing consumers where each is supported; do not claim GPU qualification for every algorithm from a shared unit test. Explicitly list unsupported algorithm/backend combinations in the qualification result rather than silently routing them to another algorithm.
+
+Run real five-optimizer-step GRPO and OLMo canaries with the selected LFM model, eight groups by four generations, and global concurrency 32. Then run the intended 20-step comparison profiles. Check finite losses, actual parameter updates, checkpoint/resume, and exported-model inference using existing evidence. Keep the current actor/rollout log-probability parity gate; scheduling changes do not justify relaxing its tolerance or bypassing any unresolved numerical defect.
+
+These GPU gates apply separately to TRL and veRL for supported recipes. First establish that the pinned veRL runtime actually supports the selected LFM model, precision, and adapter configuration; replacing the hard-coded renderer alone is insufficient. If that model runtime fails, report the LFM/veRL cell blocked with evidence. A supported Qwen canary may independently qualify the veRL harness, but cannot satisfy the requested LFM comparison. On both backends verify no optimizer update begins while any episode/model request remains nonterminal. On veRL verify the intended four Ray environment workers and absence of nested Verifiers pools.
+
+Compare the current direct mode and new mode using identical task selection, model/reward settings, resource allocation, and budgets. Use existing logs/native timings and external wall-clock duration to compare complete rollout collection time and valid-episode throughput, not GPU utilization alone. Optimizer records establish safe handoff and correctness, not an actor-speed improvement claim. Report nondeterministic sampling and tool latency as limitations. Require demonstrated independent request progress and no correctness regression; measure speedup rather than promising a fixed multiplier.
+
+## Concrete validation commands
+
+From `/home/hammad/projects/rl`, first run `uv run pytest packages/train/tests packages/environment/tests` with the newly added test names selected during development. Before consumer promotion run:
+
+```bash
+uv sync --all-packages --locked --python 3.13
+uv run ruff check .
+uv run pyright
+uv run lint-imports
+uv run pytest
+git diff --check
+```
+
+In each affected fork, run its native focused tests and supported lint/type checks from that fork's root, recording exact commands and outputs here as the new test paths exist. Before the GPU gate, record the immutable image digest and explicit canary submission/status/checkpoint commands from the current project CLI. Do not invent executable job IDs or describe a proposed command as a completed run. GPU/network tests must use existing markers and explicit missing-resource skips; a skip cannot satisfy the release gate.
+
+## Publication, rollout, and recovery
+
+The dependency order is native protocol/pool changes, TRL and veRL fork changes, then consumer integration and immutable runtime qualification. Local multi-repository integration tests may use explicit development sources, documented as unreleased. Commit and push each changed fork, update its `CARBONTEQ_FORK.md`, publish its required distribution, and only then update RL immutable dependency pins, runtime constraints, and `uv.lock` as applicable. Update `docs/tooling/verifiers/README.md`, `docs/tooling/trl/README.md`, and `docs/tooling/verl/README.md` in the same logical consumer change, including qualification scope and remaining release gates. Do not describe the veRL checkout SHA as published until its remote and immutable artifact are verified.
+
+Start opt-in, with a new inference/training binding revision. Existing jobs retain their resolved selections. Promote the async mode only after all gates above; remove compatibility code in a later explicit migration, not during qualification. If qualification fails, stop the candidate job through its normal lifecycle and use the prior immutable binding for a new run. Do not overwrite prior evidence or resume a partially collected round with a different policy/renderer configuration. Recovery starts from a complete supported checkpoint, never serialized live worker state.
+
+## Outcomes & Retrospective
+
+Planning outcome: both backends now have concrete components, selected interfaces, ownership, config translation, failure handling, and separate qualification gates. TRL uses a native Verifiers pool and asynchronous engine session; veRL reuses Ray workers and native rollout lifecycle. Shared values and admission validation preserve algorithm semantics without a universal process manager. Implementation, protocol compatibility, engine lifecycle parity, and GPU speedup remain unproven. No runtime code, dependency pins, active jobs, or instrumentation were changed by this planning revision.
+
+Revision 4 review outcome: the runtime source mismatch is resolved in the plan; veRL's worker-side packing is explicitly addressed rather than deferred to a late hook. Engine feasibility precedes transport implementation. Sampling overrides, a single judge admission owner, and recoverable versus fatal failures have selected rules. Actor compute optimization is excluded. These are design decisions awaiting implementation and qualification, not completed runtime fixes.
+
+Revision note: created 2026-09-08 following the user's request for a detailed plan without new instrumentation; separated execution optimization from algorithm correctness and stale-policy async RL.
+
+Revision 2 note: updated 2026-09-08 to make veRL mandatory and replace vague shared-harness language with named components, method contracts, selected ownership boundaries, and pre-advantage failure admission. Native worker orchestration is backend-specific; verifier task semantics remain independent of optimization.
+
+Revision 3 note: updated 2026-09-08 after worktree cleanup with canonical paths, exact active branches/commits, detached veRL warning, stash recovery notes, and mandatory checkout preflight. Older path references must not direct new implementation work.
+
+Revision 4 note: updated 2026-09-08 following review and the user's explicit rollout-only scope. Added an engine feasibility gate, pinned veRL implementation base, two-stage collection, sampling precedence, global judge admission/resource handoff, and explicit error classification; no actor forward/backward optimization is included.
+
+Baseline checkpoint note (2026-09-08): the user requested commits preserving previous work. Framework changes are captured on `codex/pre-rollout-optimization-baseline`; historical veRL changes are separately preserved on `codex/verl-pre-rollout-optimization-baseline`. No fork pin is changed by these snapshots. Focused framework reward-admission, reward-advantage, and policy-message tests passed (32 tests); full release/GPU qualification is not implied. The two cleanup stashes remain separate and untouched.

@@ -53,7 +53,7 @@ def _candidate_manifest_for_configuration_tests(monkeypatch: pytest.MonkeyPatch)
     """
 
     manifest = _load_manifest(verify_locks=False)
-    monkeypatch.setattr("posttrain_cli.execution_config.load_manifest", lambda: manifest)
+    monkeypatch.setattr("posttrain_cli.execution_config.load_manifest", lambda **_: manifest)
 
 
 def _candidate_manifest():

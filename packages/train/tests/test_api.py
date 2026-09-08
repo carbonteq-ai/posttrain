@@ -78,15 +78,23 @@ from posttrain.train.backends.trl.distillation import (
 from posttrain.train.backends.trl.distillation import (
     _rollout_function as _distillation_rollout_function,
 )
-from posttrain.train.backends.trl.grpo import (
-    _actor_update_callback_type,
-    _actor_update_trainer_type,
-    _ActorUpdateTelemetry,
+from posttrain.train.backends.trl.policy_config import (
     _configure_liger_loss,
     _grpo_arguments,
     _grpo_runtime_attributes,
-    _normalize_live_grpo_metrics,
-    _rollout_function,
+)
+from posttrain.train.backends.trl.policy_rollouts import rollout_function as _rollout_function
+from posttrain.train.backends.trl.policy_telemetry import (
+    ActorUpdateTelemetry as _ActorUpdateTelemetry,
+)
+from posttrain.train.backends.trl.policy_telemetry import (
+    actor_update_callback_type as _actor_update_callback_type,
+)
+from posttrain.train.backends.trl.policy_telemetry import (
+    actor_update_trainer_type as _actor_update_trainer_type,
+)
+from posttrain.train.backends.trl.policy_telemetry import (
+    normalize_live_metrics as _normalize_live_grpo_metrics,
 )
 from posttrain.train.catalog_schema import TrainingRuntimeSchema, decode_training_selection
 from posttrain.train.results import TrainingSummary
@@ -1317,7 +1325,7 @@ def test_grpo_actor_update_phase_starts_after_retained_rollouts_and_ends_at_opti
         lambda *args: object(),
     )
     monotonic = iter((10.0, 12.0, 15.0, 18.5))
-    monkeypatch.setattr("posttrain.train.backends.trl.grpo.time.perf_counter", lambda: next(monotonic))
+    monkeypatch.setattr("posttrain.train.backends.trl.policy_telemetry.time.perf_counter", lambda: next(monotonic))
     actor_update = _ActorUpdateTelemetry(context)
     rollout = _rollout_function(context, request, object())
 
@@ -1424,7 +1432,7 @@ def test_grpo_actor_throughput_aggregates_updates_between_log_records(
         run_id="runs/grpo-actor-update-throughput",
     )
     monotonic = iter((10.0, 12.0, 20.0, 23.0))
-    monkeypatch.setattr("posttrain.train.backends.trl.grpo.time.perf_counter", lambda: next(monotonic))
+    monkeypatch.setattr("posttrain.train.backends.trl.policy_telemetry.time.perf_counter", lambda: next(monotonic))
     actor_update = _ActorUpdateTelemetry(context)
     actor_update.start(1)
     actor_update.complete(1)
@@ -1613,6 +1621,7 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
             "liger_loss_compiled": False,
             "logits_chunk_size": 128,
             "vllm_policy_parity_max_mean_logp_delta": 0.075,
+            "vllm_policy_parity_max_sequence_tokens": 4096,
         },
     )
     optimized_request = replace(request, training=optimized_training)
@@ -1624,11 +1633,13 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert optimized_arguments["use_liger_kernel"] is True
     assert optimized_arguments["logits_chunk_size"] == 128
     assert optimized_arguments["vllm_policy_parity_max_mean_logp_delta"] == 0.075
+    assert optimized_arguments["vllm_policy_parity_max_sequence_tokens"] == 4096
     trainer = SimpleNamespace(liger_loss=SimpleNamespace(compiled=True))
     _configure_liger_loss(trainer, optimized_request)
     assert trainer.liger_loss.compiled is False
     assert _grpo_runtime_attributes(optimized_request)["liger_loss_compiled"] is False
     assert _grpo_runtime_attributes(optimized_request)["vllm_policy_parity_max_mean_logp_delta"] == 0.075
+    assert _grpo_runtime_attributes(optimized_request)["vllm_policy_parity_max_sequence_tokens"] == 4096
     invalid_liger_request = replace(
         request,
         training=replace(
@@ -1645,6 +1656,13 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     )
     with pytest.raises(ValueError, match="policy parity limit must be a finite positive number"):
         _grpo_arguments(invalid_parity_request, tmp_path, {"enable_thinking": False})
+
+    invalid_parity_sequence_request = replace(
+        request,
+        training=replace(_training(), backend_options={"vllm_policy_parity_max_sequence_tokens": 1}),
+    )
+    with pytest.raises(ValueError, match="policy parity sequence limit must be an integer greater than one"):
+        _grpo_arguments(invalid_parity_sequence_request, tmp_path, {"enable_thinking": False})
 
     mtp_request = GRPORequest(
         model,
@@ -1783,6 +1801,8 @@ def test_grpo_runtime_event_attributes_describe_selected_acceleration_without_cl
     assert attributes["speculative_method"] == "mtp"
     assert attributes["num_speculative_tokens"] == 1
     assert attributes["kv_cache_dtype"] == "turboquant_k8v4"
+    assert attributes["rollout_sleep_during_optimization"] is True
+    assert attributes["rollout_gpu_memory_utilization"] == 0.2
     assert attributes["rollout_reasoning_mode"] == "off"
     assert attributes["rollout_temperature"] == 0.8
     assert attributes["rollout_top_p"] == 1.0

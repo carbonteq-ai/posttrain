@@ -237,11 +237,11 @@ typing-extensions==4.16.0 \
     #   grpcio
     #   huggingface-hub
     #   mcp
+    #   mcp-types
     #   mistral-common
     #   nvidia-cutlass-dsl-libs-base
     #   nvidia-cutlass-dsl-libs-cu13
     #   openai
-    #   openai-agents
     #   opentelemetry-api
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
@@ -256,6 +256,7 @@ typing-extensions==4.16.0 \
     #   tilelang
     #   torch
     #   typing-inspection
+    #   verifiers
     #   vllm
     #   wandb
     #   xgrammar

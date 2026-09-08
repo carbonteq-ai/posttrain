@@ -3,14 +3,15 @@
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
 `import trackio` API. The current framework dependency is
-`carbonteq-trackio==0.31.5.post14.dev19`, built from immutable fork commit
-`b0f2ceb042dc741b458634efb5981604ead97702`. Its wheel
-(`e92436100adc657993f7fc1e51008a4c5f6a63786c97afb2899962c872c8d5ea`) and
-sdist (`b310e9ed1220ce1327229bf8370b90efb6cbee578c42866435cb8c10c7c99501`)
-were released manually as `carbonteq-v0.31.5.post14.dev19`, published
-unchanged to `carbonteq/dev` by Posttrain workflow `32739171972`, then promoted
-byte-for-byte to `carbonteq/stable` by workflow `32739265154` after real-Doris
-read, write, and artifact-finalization qualification. The development suffix is
+`carbonteq-trackio==0.31.5.post14.dev20`, built from immutable fork commit
+`1f7ceba9f5728259de6cb8801a7fd8a5dcd49752`. Its wheel
+(`60b502993e421a029f8b9e075c68ce0e5cff3a8a89fd72f6af8f138adede1fd6`) and
+sdist (`e48098a985673e4a6848a83879c797d767afa2b07f29790579f207993f2e6e44`)
+were released manually as `carbonteq-v0.31.5.post14.dev20`, published
+unchanged to `carbonteq/dev` by Posttrain workflow `34138466438`, then promoted
+byte-for-byte to `carbonteq/stable` by workflow `34138583808`. This revision
+also accepts Verifiers v1 weighted reward records in the query summary while
+retaining their native structure unchanged. The development suffix is
 part of the immutable version; it does not make the stable-index publication mutable.
 This release adds generic typed trace facts: Posttrain supplies the versioned
 scalar projection from native Verifiers records, Trackio persists facts on the

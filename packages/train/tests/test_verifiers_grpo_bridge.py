@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from itertools import count, islice
@@ -38,10 +39,12 @@ from posttrain.train.integrations.verifiers import (
     _trace_metrics,
     load_verifiers_bridge_snapshot,
 )
+from posttrain.train.reward_projection import RewardComponentProjection, RewardProjection
 
 pytest.importorskip("verifiers")
 
 from verifiers.v1 import (
+    AgentConfig,
     AgentInfo,
     AssistantMessage,
     MessageNode,
@@ -62,18 +65,33 @@ class FacetedTaskData(TaskData):
     problem_type: str
 
 
-def test_verifiers_runtime_compatibility_pins_null_harness_mcp_v1(monkeypatch) -> None:
-    from verifiers.v1.harnesses.null import harness as null_harness
+def test_verifiers_runtime_compatibility_prefers_selected_uv(monkeypatch, tmp_path) -> None:
+    from verifiers.v1.runtimes import base as runtime_base
 
+    uv = tmp_path / "bin with space" / "uv"
+    uv.parent.mkdir()
+    uv.write_text("#!/bin/sh\n")
+    uv.chmod(0o755)
+    monkeypatch.setenv("POSTTRAIN_UV_EXECUTABLE", str(uv))
+    monkeypatch.setattr(runtime_base, "_ENSURE_UV", "download-uv")
     monkeypatch.setattr(
-        null_harness,
-        "PROGRAM_SOURCE",
-        '# dependencies = ["openai", "mcp", "httpx", "tenacity"]',
+        "posttrain.train.integrations.verifiers._VERIFIERS_UV_ORIGINAL",
+        None,
     )
 
     _apply_verifiers_runtime_compatibility()
 
-    assert '"mcp>=1.24.0,<2"' in null_harness.PROGRAM_SOURCE
+    assert f"PATH='{uv.parent}'" in runtime_base._ENSURE_UV
+    assert "command -v uv >/dev/null 2>&1 || { download-uv; }" in runtime_base._ENSURE_UV
+
+
+def test_verifiers_runtime_compatibility_rejects_invalid_selected_uv(monkeypatch, tmp_path) -> None:
+    uv = tmp_path / "uv"
+    uv.write_text("not executable")
+    monkeypatch.setenv("POSTTRAIN_UV_EXECUTABLE", str(uv))
+
+    with pytest.raises(RuntimeError, match="absolute executable file"):
+        _apply_verifiers_runtime_compatibility()
 
 
 class FakeGenerator:
@@ -98,7 +116,12 @@ def _trace(task: Any, suffix: int) -> Trace:
     trace = Trace(
         id=f"trace-{suffix}",
         task=TraceTask(type=type(task).__name__, data=task.data),
-        agent=AgentInfo(model="model-profile-v1", sampling=Sampling(temperature=1.0, max_tokens=32)),
+        agent=AgentInfo(
+            config=AgentConfig(
+                model="model-profile-v1",
+                sampling=Sampling(temperature=1.0, max_tokens=32),
+            )
+        ),
         nodes=[
             MessageNode(
                 message=UserMessage(content=str(task.data.prompt)),
@@ -129,6 +152,7 @@ def _trace(task: Any, suffix: int) -> Trace:
             ),
         ],
         is_completed=True,
+        ok=True,
         stop_condition="agent_completed",
     )
     trace.record_reward("native", 1.0)
@@ -211,22 +235,13 @@ class FailedTerminalTrace:
     error = SimpleNamespace(type="HarnessError", message="generator unavailable")
 
     def __init__(self) -> None:
-        self._run: dict[str, object] = {}
-        self._info: dict[str, object] = {}
-
-    def stamp(self, *, run, environment_id, task_index, example_id) -> None:
-        self._run = {"type": "train", "id": run.id, "step": run.step}
-        self._info = {
-            "environment_id": environment_id,
-            "task_index": task_index,
-            "example_id": example_id,
-        }
+        self.info: dict[str, object] = {}
 
     def to_record(self) -> dict[str, object]:
         return {
             "id": self.id,
-            "run": self._run,
-            "info": self._info,
+            "run": self.info.get("posttrain_run", {}),
+            "info": self.info,
             "errors": [{"type": "HarnessError", "message": "generator unavailable"}],
             "is_completed": False,
             "stop_condition": None,
@@ -404,7 +419,41 @@ def test_trace_truncation_uses_native_stop_and_finish_semantics(record, expected
     assert _trace_is_truncated(record) is expected
 
 
-@pytest.mark.parametrize("technique", ["grpo", "sampo", "distill"])
+@pytest.mark.parametrize("failure", ["error", "cancel", "none"])
+def test_async_annotation_retains_native_trace_on_failure(tmp_path, failure):
+    async def enrich(trace):
+        await asyncio.sleep(0)
+        trace.info.update(annotation_started=True)
+        if failure == "error":
+            raise ValueError("judge unavailable")
+        if failure == "cancel":
+            raise asyncio.CancelledError()
+        add_shaping(trace)
+
+    bridge = VerifiersEnvironmentRolloutBridge(
+        dataset_id="custom/train-v1",
+        revision="revision",
+        tasks={7: SimpleNamespace(data=TaskData(idx=7, prompt="Prompt"))},
+        environment_factory=FakeEnvironment,
+        trace_path=tmp_path / "traces.jsonl",
+        environment_id="custom-v1",
+        run_id="run-1",
+        sampling=PolicySampling(max_tokens=32),
+        enrichers=(enrich,),
+    )
+    run = bridge.run(RolloutBatch(example_ids=("train/000007",), step=1, model_id="model-profile-v1"), FakeGenerator())
+    if failure == "none":
+        assert asyncio.run(run)[0].reward == 1.05
+    else:
+        expected = asyncio.CancelledError if failure == "cancel" else VerifiersRolloutFailure
+        with pytest.raises(expected):
+            asyncio.run(run)
+    records = [json.loads(line) for line in (tmp_path / "traces.jsonl").read_text().splitlines()]
+    assert len(records) == 1
+    assert records[0]["info"]["annotation_started"] is True
+
+
+@pytest.mark.parametrize("technique", ["grpo", "sampo", "gdpo", "capo", "distill"])
 def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_path, technique) -> None:
     task = SimpleNamespace(data=TaskData(idx=7, prompt="Arbitrary environment prompt"))
     bridge = VerifiersEnvironmentRolloutBridge(
@@ -418,6 +467,18 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
         sampling=PolicySampling(max_tokens=32),
         technique=technique,
         enrichers=(add_shaping,),
+        reward_projection=(
+            RewardProjection(
+                "verifiers-reward-contributions",
+                "1",
+                (
+                    RewardComponentProjection("native", "contribution", "native"),
+                    RewardComponentProjection("shape", "contribution", "shape"),
+                ),
+            )
+            if technique in {"gdpo", "capo"}
+            else None
+        ),
     )
 
     rollouts = asyncio.run(
@@ -426,6 +487,8 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
                 example_ids=("train/000007", "train/000007"),
                 step=3,
                 model_id="model-profile-v1",
+                prompt_group_ids=("step3/occurrence0",) * 2 if technique in {"gdpo", "capo"} else (),
+                rollout_ids=("step3/response0", "step3/response1") if technique in {"gdpo", "capo"} else (),
             ),
             FakeGenerator(),
         )
@@ -451,6 +514,16 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
     assert rollouts[0].trace.payload["run"] == {"type": "train", "id": "run-1", "step": 3}
     info = cast(dict[str, object], rollouts[0].trace.payload["info"])
     assert info["example_id"] == "train/000007"
+    if technique in {"gdpo", "capo"}:
+        structured = rollouts[0].reward_evidence
+        assert structured is not None
+        assert structured.prompt_group_id == "step3/occurrence0"
+        assert structured.rollout_id == "step3/response0"
+        assert structured.trace_id == rollouts[0].trace.external_id
+        assert len(structured.components) >= 2
+        assert all(value.status == "valid" for value in structured.components)
+        assert structured.projection_id == "verifiers-reward-contributions@1"
+        assert structured.require_components(("native", "shape")) == (1.0, 0.05)
     assert len(artifacts) == 1
     assert artifacts[0].metadata["trace_count"] == 2
     assert artifacts[0].metadata["technique"] == technique
@@ -764,6 +837,7 @@ def test_native_bridge_portable_snapshot_reconstructs_without_live_environment_s
 
 
 def test_catalog_environment_builds_public_grpo_and_distillation_requests(tmp_path) -> None:
+    pytest.importorskip("gsm8k_v1")
     catalog = open_catalog(scope="bridge-test")
 
     def selection(family, selection_id, expected: type[T]) -> T:
