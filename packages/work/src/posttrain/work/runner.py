@@ -55,6 +55,7 @@ from .validation import JobValidationReport, ValidationCheck
 
 type RunExecutor = Callable[[RunSpec, Callable[[RunContext], object]], object]
 type SeatResolver = Callable[[ResolvedSeat], Selection]
+type ReadinessProbe = Callable[[ResolvedSeats], tuple[ValidationCheck, ...]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +108,7 @@ class WorkPackageContext:
     source_metadata: Mapping[str, JsonValue] = field(default_factory=dict)
     executor: RunExecutor = execute_run
     seat_resolver: SeatResolver | None = None
+    readiness_probe: ReadinessProbe | None = None
 
     def __post_init__(self) -> None:
         if len(self.definitions) != len(set(self.definitions)):
@@ -315,6 +317,7 @@ def prepare_work_package_job(
     job_id: str,
     *,
     run_id: str | None = None,
+    skip_preflight: bool = False,
 ) -> PreparedWorkPackageJob:
     """Resolve and statically validate one job without activating its runtime."""
 
@@ -356,6 +359,7 @@ def prepare_work_package_job(
         evidence_retention=package.evidence_retention,
     )
     issues, checks = _configuration_findings(seats)
+    readiness = _readiness_checks(context, seats, skip_preflight=skip_preflight)
     errors = [issue for issue in issues if issue.severity == "error"]
     if errors:
         detail = "; ".join(f"{issue.path}: {issue.message}" for issue in errors)
@@ -367,9 +371,37 @@ def prepare_work_package_job(
         checks=(
             ValidationCheck("static-configuration", "passed", "resolved seats and static validators passed"),
             *checks,
+            *readiness,
         ),
     )
     return PreparedWorkPackageJob(resolved, job, definition, seats, spec, validation)
+
+
+def _readiness_checks(
+    context: WorkPackageContext,
+    seats: ResolvedSeats,
+    *,
+    skip_preflight: bool,
+) -> tuple[ValidationCheck, ...]:
+    """Run only host-provided optional readiness checks after static validity."""
+
+    if context.readiness_probe is None:
+        return (
+            ValidationCheck(
+                "runtime-readiness",
+                "not_applicable",
+                "no optional runtime readiness probe is configured for this planning host",
+            ),
+        )
+    if skip_preflight:
+        return (
+            ValidationCheck(
+                "runtime-readiness",
+                "skipped",
+                "optional host readiness probe was skipped; static and runtime guards remain required",
+            ),
+        )
+    return context.readiness_probe(seats)
 
 
 def _setting_origins(seats: ResolvedSeats) -> tuple[SettingOrigin, ...]:

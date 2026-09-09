@@ -21,6 +21,13 @@ with 27 parameter tensors changed. `--skip-preflight`, live serving identity
 verification, and full backend/model-family GPU qualification remain release
 gates rather than being represented as no-op flags.
 
+Revision 6 — 2026-09-09. M4 is complete. `--skip-preflight` now flows through
+the provider-free project/job planning seam. Static validation always runs; a
+host may supply only optional bounded readiness checks, which are recorded as
+passed or skipped in the digest-bound report. Hosts with no readiness probe
+record `not_applicable`, so the flag cannot falsely claim that an unperformed
+check passed or weaken runtime guards.
+
 Revision 3 — 2026-09-09. Implementation started. M0 added the canonical API amendment and `docs/model-settings.md` inventory, now expanded to job-type and algorithm settings. Defaults, hard validity, and efficiency advice remain separate at each layer. Hardware-aware recommendations cover architecture, residency, MTP, and TurboQuant independently of full-weight/LoRA/QLoRA selection. No new LoRA-rank default is introduced.
 
 ## Purpose / Big Picture
@@ -43,7 +50,7 @@ The outcome is an inspectable model-configuration resolution and validation path
 - [x] M1: implement effective-setting resolution and provenance without changing existing selections.
 - [x] M2: implement uniform static validation and error reporting across model roles and entry points; dynamic readiness remains M3.
 - [ ] M3: align native adapter translation, generation settings, rendering, and runtime verification (serving translation is complete; live identity verification remains).
-- [ ] M4: expose explainable CLI/Python behavior and the bounded preflight bypass (`--explain` complete; bypass awaits a real optional readiness probe).
+- [x] M4: expose explainable CLI/Python behavior and the bounded preflight bypass.
 - [ ] M5: migrate versioned catalog defaults and qualify supported model/backend paths (hardware profiles and one bounded local training qualification complete; serving/model-family gates remain).
 
 ## Scope and explicit exclusions

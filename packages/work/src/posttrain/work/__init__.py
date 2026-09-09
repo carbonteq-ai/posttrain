@@ -43,6 +43,7 @@ from .project_brief import (
 )
 from .runner import (
     PreparedWorkPackageJob,
+    ReadinessProbe,
     ResolvedSeat,
     ResolvedWorkPackage,
     RunExecutor,
@@ -80,6 +81,7 @@ __all__ = [
     "ProjectBrief",
     "ProjectExecutionRequest",
     "PreparedWorkPackageJob",
+    "ReadinessProbe",
     "ResolvedSeat",
     "ResolvedSeats",
     "ResolvedWorkPackage",

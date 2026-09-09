@@ -133,6 +133,7 @@ def plan_work_package_cmd(
     source_includes: tuple[str, ...] | None = None,
     builder: str | None = None,
     explain: bool = False,
+    skip_preflight: bool = False,
 ) -> JobIntent:
     """Render job meaning, with optional metadata-only builder selection."""
 
@@ -148,7 +149,7 @@ def plan_work_package_cmd(
             "execution, packaging, or scheduling settings"
         )
     project = Project.open(state.project_root) if state.project_root is not None else Project.discover(Path.cwd())
-    intent = project.jobs.plan(path, job=job, host=host, entry=entry)
+    intent = project.jobs.plan(path, job=job, host=host, entry=entry, skip_preflight=skip_preflight)
     payload = _job_intent_payload(intent)
     lines = [
         f"Job intent: {intent.prepared.spec.work_package_id}/{intent.job_id}",
@@ -758,6 +759,10 @@ def register(app: typer.Typer) -> None:
             bool,
             typer.Option("--explain", help="include resolved model-setting origins and validation findings"),
         ] = False,
+        skip_preflight: Annotated[
+            bool,
+            typer.Option("--skip-preflight", help="skip only an optional host readiness probe"),
+        ] = False,
         host: Annotated[
             str | None,
             typer.Option(
@@ -794,6 +799,7 @@ def register(app: typer.Typer) -> None:
             host=host,
             entry=entry,
             explain=explain,
+            skip_preflight=skip_preflight,
         )
 
     @work_package_app.command(

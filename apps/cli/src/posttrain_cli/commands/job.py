@@ -64,6 +64,10 @@ def register(app: typer.Typer) -> None:
             bool,
             typer.Option("--explain", help="include resolved model-setting origins and validation findings"),
         ] = False,
+        skip_preflight: Annotated[
+            bool,
+            typer.Option("--skip-preflight", help="skip only an optional host readiness probe"),
+        ] = False,
         provider: Annotated[
             _ProviderChoice | None,
             typer.Option(
@@ -172,6 +176,7 @@ def register(app: typer.Typer) -> None:
             source_includes=(tuple(source_includes) if source_includes is not None else None),
             builder=(builder.value if builder is not None else None),
             explain=explain,
+            skip_preflight=skip_preflight,
         )
 
     @job_app.command(
