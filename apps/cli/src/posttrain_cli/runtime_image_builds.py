@@ -22,9 +22,11 @@ from posttrain.runtime_images import (
     BASE_DEFINITION,
     KIND_BAKE_FILE,
     KIND_DEFINITION,
+    backend_runtime_identity,
     cached_definition_root,
     constraint_lock,
     lock_digest,
+    runtime_cache_lineage,
 )
 from posttrain.runtime_images.manifest import load_manifest
 from posttrain_execution_buildkit import (
@@ -77,6 +79,22 @@ def _request(
     root: Path,
     source_digest: str,
 ) -> RuntimeBuildRequest:
+    variables = {"POSTTRAIN_BASE_IMAGE": registry.universal_image.value}
+    backend = backend_runtime_identity(variant)
+    lineage = runtime_cache_lineage(variant)
+    if backend is not None:
+        if lineage is None:
+            raise ContractError(f"runtime variant {variant!r} has backend identity but no cache lineage")
+        variables.update(
+            {
+                "CREATED": lineage.created,
+                "DEPENDENCY_LOCK_SHA256": backend.dependency_lock_digest,
+                "FORK_REVISION": backend.source_revision,
+                "SOURCE_REVISION": lineage.source_revision,
+                "SOURCE_REPOSITORY": backend.source_repository,
+                "VERSION": lineage.version,
+            }
+        )
     return RuntimeBuildRequest(
         profile=variant,
         bake_file=(root / KIND_BAKE_FILE).resolve(),
@@ -91,7 +109,8 @@ def _request(
         # POSTTRAIN_BASE_IMAGE is what the shipped kind Bake file declares.
         # RuntimeBuildRequest also emits BASE_IMAGE, which that file does not
         # declare and Bake silently ignores, leaving FROM blank.
-        variables={"POSTTRAIN_BASE_IMAGE": registry.universal_image.value},
+        variables=variables,
+        source_date_epoch=(lineage.source_date_epoch if lineage is not None else None),
     )
 
 

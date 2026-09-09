@@ -1,8 +1,4 @@
 # Python 3.13 TRL/Verifiers online-RL dependency profile.
 -r supervised.txt
-nvidia-cuda-cccl==13.0.85
-nvidia-cuda-crt==13.0.88
-nvidia-cuda-nvcc==13.0.88
-nvidia-nvvm==13.0.88
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@36eac9d5e04ef29b584b6fa4f027af00cd76ea19
-vllm==0.25.1
+-r vllm-common.txt
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@1f6793f7d46e8a650a54b2a585193b4010578fa6

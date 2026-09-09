@@ -126,6 +126,7 @@ Actor forward/backward optimization is explicitly out of scope: no changes to ac
 - [x] (2026-09-08) Implement the additive TRL asynchronous generation lifecycle against the selected runtime. Trainer ownership and changed-weight parity remain open.
 - [x] (2026-09-09) Integrate bounded environment workers and coordinator admission/cancellation.
 - [x] (2026-09-09) Implement veRL worker budgets, model-independent rendering, typed episode failures, and pre-advantage group admission.
+- [x] (2026-09-10) Repair candidate runtime construction and cache the veRL backend's checksum-pinned binary wheels across rebuilds. The real dependency layer fell from about 544 seconds to 43 seconds, the steady-state identical build completed in 0.60 seconds, and the published candidate imported the exact veRL, Verifiers, Torch, and vLLM versions. Updating `cuda-pathfinder` in the monolithic universal base is deferred until the base Torch layer is split, because republishing a multi-gigabyte layer to remove about 6.3 MiB of duplication is not a sound release trade.
 - [ ] Qualify failure handling, numerical equivalence, and real GPU optimizer updates (changed-weight parity, deterministic failure semantics, and one controlled small-model optimizer update pass; live failure injection, real environment serving, and a 2B learner update remain).
 - [ ] Publish fork revisions, update consumer locks and documentation, and qualify the immutable runtime image before promoting the mode. TRL `1.12.0.post6` and veRL `0.9.0.post2` are immutable GitHub prereleases published byte-for-byte to `carbonteq/dev`; Verifiers `36eac9d5` is pushed and selected by Git revision; Trackio dev20 metadata drift is repaired. Root and runtime locks are regenerated, and all seven v0.4 runtime images are published and recorded in `published.toml`. GPU qualification remains, so the milestone stays open.
 
@@ -138,9 +139,9 @@ The inspected source baseline is:
 | Repository | Source baseline and role |
 | --- | --- |
 | `/home/hammad/projects/rl-local-async` | Active Posttrain v0.4 worktree on `codex/local-async-source-env`; it selects the development fork closure below. This is not a stable release until OCI and GPU gates pass. |
-| `/home/hammad/projects/trl-async-training` | Canonical async-training worktree on `codex/posttrain-v04-dev`. Release source `526e284922a0e4d92d7920916398d8be8d36aa85` is tagged `carbonteq-v1.12.0.post6`; ledger follow-up `3ab670f3611f381b373b7e97267879a4afde37ff` is pushed. Posttrain workflow `34334889582` published and clean-installed the exact retained bytes from `carbonteq/dev`. The sibling `/home/hammad/projects/trl` checkout remains historical and is not the edit target. |
-| `/home/hammad/projects/verifiers` | Canonical checkout on `codex/carbonteq-verifiers-latest`. Selected pushed commit `5304495a246e174683f5932377703e9a0a4a6926` merges upstream main `27bbd216df0af719a43705866b2cf6139bcc95de`; the complete v1 suite passes with credential-dependent Prime tests skipped. Verifiers is selected by immutable Git revision rather than a private-index wheel. |
-| `/home/hammad/projects/verifiers-environments` | Canonical checkout on `codex/verifiers-latest-support`. Commit `d994073b9632e73c96a57865683133d7a6ebc4bf` aligns all six independent environment packages on Verifiers `36eac9d5`; every package suite and a combined clean-wheel installation pass. Task semantics remain owned by this repository. |
+| `/home/hammad/projects/trl-async-training` | Canonical async-training worktree on `codex/posttrain-v04-dev`. Candidate source `6dfc69db939144d270cbcbbed17294262b5ac6f4` is tagged `carbonteq-v1.12.0.post8`; retained-asset workflow `34393365885` published and clean-installed the exact wheel and sdist from `carbonteq/dev`. The sibling `/home/hammad/projects/trl` checkout remains historical and is not the edit target. |
+| `/home/hammad/projects/verifiers` | Canonical checkout on `codex/carbonteq-verifiers-latest`. Selected pushed commit `1f6793f7d46e8a650a54b2a585193b4010578fa6` is based on upstream main `27bbd216df0af719a43705866b2cf6139bcc95de`; the complete v1 suite passes with credential-dependent Prime tests skipped. Verifiers is selected by immutable Git revision rather than a private-index wheel. |
+| `/home/hammad/projects/verifiers-environments` | Canonical checkout on `codex/verifiers-latest-support`. Commit `c7e88d7b302e6177041ac0849863d0466be77d8b` aligns all six independent environment packages on Verifiers `1f6793f7`; all 59 available tests pass with two data-dependent skips. Task semantics remain owned by this repository. |
 | `/home/hammad/projects/verl-upstream` | Active branch `codex/verl-rollout-execution`. Release source `98742d3e9507318ba0b5d4944034deb7db1ec84b` is tagged `carbonteq-v0.9.0.post2`; ledger follow-up `4050fbeb3528d80492880b7c0eb16f0b3e81322d` is pushed. Posttrain workflow `34335257738` published and clean-installed the exact retained bytes from `carbonteq/dev`. The development profile selects post2; immutable OCI and GPU qualification remain. |
 
 Resolve branches, dirty state, manifests, and lockfiles again when implementation starts. These are inspection anchors, not permission to overwrite later changes.
@@ -638,3 +639,26 @@ Posttrain train suite passes with 411 tests and 5 skips; Ruff, all eight import
 contracts, and the fork's focused tests pass. A changed-weight GPU run using an
 actual job capsule remains the next gate; the RTX PRO is currently occupied by
 the pre-existing 20-step GRPO comparison and must not be oversubscribed.
+The environment package closure is published at
+`c7e88d7b302e6177041ac0849863d0466be77d8b`; its six package suites pass with
+59 tests and two data-dependent skips against Verifiers `1f6793f7`.
+
+Revision 27 runtime-cache checkpoint: local runtime recovery previously omitted
+veRL's backend identity and reproducible cache-lineage variables, so the shipped
+Dockerfile could not be rebuilt through the ordinary project CLI. That request
+now carries the immutable backend revision, dependency-lock digest, repository,
+version, source revision, and source-date epoch, with a focused regression test.
+The veRL image already shares 16 exact-version heavyweight distributions from
+the parent control environment, including Torch, Triton, cuBLAS, cuDNN, NCCL,
+and CUDA runtime libraries. Backend-only JIT/compiler packages remain isolated.
+Explicit vLLM, CUTLASS, and DLPack wheels now come from the trusted LAN mirror,
+are retained in a SHA-256-addressed BuildKit cache, are atomically populated and
+verified before use, and are exposed to both the initial uv sync and ordered
+repair install under valid wheel filenames. The real dependency layer improved
+from approximately 544 seconds to 43 seconds; an identical rebuild returned the
+same digest in 0.60 seconds. Candidate image
+`sha256:d33c0e40ed3d9d01667cd06c20989014b0b87d8bf18959f05e085063241cdbd6`
+imports Torch `2.11.0+cu130`, Verifiers `0.3.2.dev79`, and vLLM
+`0.25.2.dev2+g7817d8457.precompiled`. This is local development publication
+evidence; the clean-checkout release manifest and changed-weight GPU canary are
+still open.

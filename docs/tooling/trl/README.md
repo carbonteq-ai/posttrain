@@ -9,26 +9,28 @@ resume checkpoint 1 to matching uninterrupted weights, and generate from the
 export. This is deterministic full-parameter fixture evidence, not live Verifiers,
 judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
 
-Latest candidate: `1.12.0.post7`, release commit
-`69012155b4a3fb2d8296692d0962a821273e650a`, tag
-`carbonteq-v1.12.0.post7`. It includes the post6 async lifecycle and post5 complete-group admission
-behavior and consumes retained source-row
+Latest candidate: `1.12.0.post8`, release commit
+`6dfc69db939144d270cbcbbed17294262b5ac6f4`, tag
+`carbonteq-v1.12.0.post8`. It publishes the continuous-batched colocated vLLM
+request path, session-owned LoRA refresh, and async parity-probe routing on top
+of the post6 async lifecycle and post5 complete-group admission behavior. It
+consumes retained source-row
 identities before reward calculation, validates complete groups, and keeps
 single-process GRPO accumulation normalized over admitted samples. OLMo active
 sampling accepts partial and empty candidate rounds within its existing bound.
 Padding exists only in trainer tensors after scoring; no synthetic rewards or
 episodes are created. Partial distributed, multimodal, fixed alternate-loss,
 fused-loss, entropy-bonus and auxiliary-loss cases remain unqualified/rejected.
-The post7 rollout/async slice passes 139 focused tests with 36 capability
-skips; its clean installed wheel imports the async GRPO, asynchronous vLLM
+The post8 async-vLLM slice passes 26 focused tests with one runtime capability
+skip; its clean installed wheel imports the async GRPO, asynchronous vLLM
 session, IW-OPD, and OLMo3 surfaces. Wheel SHA-256:
-`6ba30192638c3d30cdd933558aa1684f5946684d1f5d843e88ead39fbf9a1efd`;
-sdist: `6cae6e84014d45e458e48966ec121efede6173ef29b34cf8dd8e66f55d804b52`.
-Posttrain retained-asset workflow `34361897003` published and read back those
+`aabf5a52b9f8a20db32e9da5847fd2584e18ba8cfb12f2e79ec7db146db8ffa4`;
+sdist: `74ff559792ee20df94b2576a09c8962508ee66e2571e7b353ec516b9320ac721`.
+Posttrain retained-asset workflow `34393365885` published and read back those
 exact bytes from `carbonteq/dev`.
 Live RTX PRO qualification remains pending. Harness optimization is deferred.
 
-An unpublished follow-on candidate connects `GRPOConfig.vllm_request_mode`
+The post8 candidate connects `GRPOConfig.vllm_request_mode`
 to a lazily owned colocated `AsyncLLM`. Posttrain selects it only together with
 an explicit bounded `rollout_execution` topology; `batch` remains the legacy
 default. During each synchronous GRPO/OLMo collection round, native Verifiers
@@ -36,8 +38,7 @@ workers may submit independent model turns to vLLM's continuous scheduler.
 Posttrain then closes admission, drains all requests, suspends inference, and
 only then returns control for the optimizer update. The initial supported
 shape is single-process LoRA/QLoRA. Deterministic TRL and Posttrain tests pass;
-the fork must be committed, published as a new development candidate, pinned,
-and pass a changed-weight GPU update before it is release evidence.
+a changed-weight GPU update remains required before stable promotion.
 
 The async rollout lifecycle is published in post6 from consolidated fork branch
 `codex/posttrain-v04-dev`; ledger follow-up commit

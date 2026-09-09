@@ -91,6 +91,24 @@ def test_eval_kind_installs_one_locked_runtime_and_marks_it_preinstalled() -> No
     assert 'POSTTRAIN_VERIFIERS_PREINSTALLED="1"' in dockerfile
 
 
+def test_compatible_vllm_kinds_share_one_locked_parent_layer() -> None:
+    with definition_root() as root:
+        dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile").read_text()
+        vllm_lock = root / "containers/posttrain-job-kinds/locks/vllm-common.lock.txt"
+        vllm_profile = root / "containers/posttrain-job-kinds/profiles/vllm-common.txt"
+
+    shared_start = dockerfile.index("FROM kind-common AS vllm-kind-common")
+    first_variant = dockerfile.index("FROM kind-common AS supervised-dependencies", shared_start)
+    shared_stage = dockerfile[shared_start:first_variant]
+    assert "vllm-common.lock.txt" in shared_stage
+    assert "profiles/vllm-common.txt" in shared_stage
+    assert "--requirement /opt/posttrain/profiles/vllm-common.txt" in shared_stage
+    assert vllm_lock.is_file()
+    assert "vllm==0.25.1" in vllm_profile.read_text(encoding="utf-8")
+    for stage in ("online-rl-trl-py312-dependencies", "eval-dependencies", "serve-dependencies"):
+        assert f"FROM vllm-kind-common AS {stage}" in dockerfile
+
+
 def test_base_accepts_a_build_secret_ca_bundle_without_disabling_tls() -> None:
     with definition_root() as root:
         dockerfile = (root / "containers/posttrain-base/Dockerfile").read_text()

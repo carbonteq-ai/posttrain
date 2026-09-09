@@ -2643,7 +2643,7 @@ The current isolated fork worktree is `/home/hammad/projects/verifiers`, branch
 `5304495a246e174683f5932377703e9a0a4a6926`. The current environments worktree
 is `/home/hammad/projects/verifiers-environments`, branch
 `codex/verifiers-latest-support`, published at
-`d994073b9632e73c96a57865683133d7a6ebc4bf`. This environment revision aligns
+`c7e88d7b302e6177041ac0849863d0466be77d8b`. This environment revision aligns
 all six standalone packages on the selected Verifiers fork and passes a
 combined wheel activation gate. Neither development branch is a release tag;
 package artifacts and the complete release-readiness receipt remain explicit

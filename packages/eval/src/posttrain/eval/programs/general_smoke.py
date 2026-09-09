@@ -14,7 +14,7 @@ from ..requests import (
 
 VERIFIERS_REVISION = "1f6793f7d46e8a650a54b2a585193b4010578fa6"
 VERIFIERS_REPOSITORY = "https://github.com/carbonteq-ai/verifiers"
-ENVIRONMENTS_REVISION = "d994073b9632e73c96a57865683133d7a6ebc4bf"
+ENVIRONMENTS_REVISION = "c7e88d7b302e6177041ac0849863d0466be77d8b"
 ENVIRONMENTS_REPOSITORY = "https://github.com/carbonteq-ai/verifiers-environments"
 
 

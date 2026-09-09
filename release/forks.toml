@@ -17,7 +17,7 @@ required = true
 id = "trl"
 scope = "direct-package"
 repository = "https://github.com/carbonteq-ai/trl"
-release_tag = "carbonteq-v1.12.0.post6"
+release_tag = "carbonteq-v1.12.0.post8"
 required = true
 
 [[fork]]

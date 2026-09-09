@@ -157,7 +157,7 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert isinstance(environment.source, EnvironmentSource)
     assert environment.source.package == "automationbench-v1"
     assert environment.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-    assert environment.source.revision == "d994073b9632e73c96a57865683133d7a6ebc4bf"
+    assert environment.source.revision == "c7e88d7b302e6177041ac0849863d0466be77d8b"
     assert environment.source.subdirectory == "environments/automationbench_v1"
     assert environment.parameters["domains"] == ["simple"]
     assert environment.parameters["sampling_seed"] == 17
@@ -252,7 +252,7 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
         (WORKSPACE / "packages/catalog/src/posttrain/catalog/base/locks.toml").read_text(encoding="utf-8")
     )
     current_trl_lock = lock_document["locks"]["trl-fork@current"]
-    assert remote_training.backend == "trl@1.12.0.post7"
+    assert remote_training.backend == "trl@1.12.0.post8"
     assert remote_training.backend_options["dependency_lock"] == "trl-fork@current"
     assert remote_training.backend_options["source_revision"] == current_trl_lock["source_revision"]
     assert remote_training.backend_options["dependency_lock_sha256"] == current_trl_lock["dependency_lock_sha256"]
@@ -331,7 +331,7 @@ def test_general_capability_catalog_and_library_qualification_are_pinned() -> No
     for item in plan.environments:
         assert isinstance(item.source, EnvironmentSource)
         assert item.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-        assert item.source.revision == "d994073b9632e73c96a57865683133d7a6ebc4bf"
+        assert item.source.revision == "c7e88d7b302e6177041ac0849863d0466be77d8b"
 
 
 def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:

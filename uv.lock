@@ -3154,7 +3154,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'trl'", specifier = ">=2.11,<2.12", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", marker = "extra == 'trl'", specifier = ">=0.26,<0.27", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'trl'", specifier = ">=5.14,<5.15" },
-    { name = "trl", marker = "extra == 'trl'", specifier = "==1.12.0.post7", index = "https://pypi.lan/carbonteq/dev/+simple/" },
+    { name = "trl", marker = "extra == 'trl'", specifier = "==1.12.0.post8", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=1f6793f7d46e8a650a54b2a585193b4010578fa6" },
     { name = "vllm", marker = "extra == 'trl-vllm'", specifier = "==0.25.1" },
 ]
@@ -4563,7 +4563,7 @@ wheels = [
 
 [[package]]
 name = "trl"
-version = "1.12.0.post7"
+version = "1.12.0.post8"
 source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
 dependencies = [
     { name = "accelerate" },
@@ -4572,9 +4572,9 @@ dependencies = [
     { name = "packaging" },
     { name = "transformers" },
 ]
-sdist = { url = "https://pypi.lan/carbonteq/dev/+f/6ca/e6e84014d45e4/trl-1.12.0.post7.tar.gz", hash = "sha256:6cae6e84014d45e458e48966ec121efede6173ef29b34cf8dd8e66f55d804b52" }
+sdist = { url = "https://pypi.lan/carbonteq/dev/+f/74f/f559792ee20df/trl-1.12.0.post8.tar.gz", hash = "sha256:74ff559792ee20df94b2576a09c8962508ee66e2571e7b353ec516b9320ac721" }
 wheels = [
-    { url = "https://pypi.lan/carbonteq/dev/+f/6ba/30192638c3d30/trl-1.12.0.post7-py3-none-any.whl", hash = "sha256:6ba30192638c3d30cdd933558aa1684f5946684d1f5d843e88ead39fbf9a1efd" },
+    { url = "https://pypi.lan/carbonteq/dev/+f/aab/f5a52b9f8a20d/trl-1.12.0.post8-py3-none-any.whl", hash = "sha256:aabf5a52b9f8a20db32e9da5847fd2584e18ba8cfb12f2e79ec7db146db8ffa4" },
 ]
 
 [[package]]
@@ -4688,7 +4688,7 @@ wheels = [
 
 [[package]]
 name = "verifiers"
-version = "0.3.2.dev77"
+version = "0.3.2.dev79"
 source = { git = "https://github.com/carbonteq-ai/verifiers.git?rev=1f6793f7d46e8a650a54b2a585193b4010578fa6#1f6793f7d46e8a650a54b2a585193b4010578fa6" }
 dependencies = [
     { name = "aiohttp" },

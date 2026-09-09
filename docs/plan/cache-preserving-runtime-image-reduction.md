@@ -30,7 +30,9 @@ This work does not introduce stronger compression, forced recompression, a new l
 - [x] (2026-08-30) Ran the actual-job projection and source-build regression gates. The published canary passed offline runtime qualification and produced `registry.lan/carbonteq-qualification/posttrain-job@sha256:b832ca17f8beeaf8848b774c174c7f4670708db5e6fbdb3f5362ef21124595af` with 24 inherited layers and an 1,704,638-byte compressed job suffix.
 - [x] (2026-08-30) Qualified and published the optimized veRL runtime at `registry.lan/carbonteq/posttrain-kind-online-rl-verl-py313@sha256:fea65ed6037f52f44f5f901fb1b95c5888fe6d47c8799e0dbcdc6f1318add28d`. Its exact ten-layer base prefix is unchanged, a repeat pull transferred no layers, FlashInfer compiled its sampling extension, CUDA matmul and single-rank NCCL passed, and vLLM loaded Qwen3.5-0.8B and generated one token on the Pop!_OS RTX 3070 Ti with 8 GiB VRAM.
 - [x] (2026-08-30) Published and qualified the additive cloud-compatible successor `sha256:9bf4ff554416e34fdd0a484102c243bd470054212111ab65a0864015a860df38`. It retains the exact complete `sha256:fea65ed...` layer sequence, appends only NVIDIA's pinned 104,195,781-byte CUDA 13 compatibility payload, and does not globally set `LD_LIBRARY_PATH`. Local CUDA passed with the host driver, while explicit compatibility activation passed on a RunPod A100 80 GB PCIe Secure Cloud spot Pod whose driver exposes CUDA 12.8.
-- [ ] Prototype a shared vLLM parent for serve, eval, and TRL; retain all packages and prove the new layer topology before considering removals.
+- [ ] Share the vLLM parent across serve, eval, and TRL. The source topology,
+  explicit `vllm-common` profile/lock, and lock-regeneration tests are complete;
+  disposable OCI descriptor measurement and per-kind GPU qualification remain.
 - [x] (2026-08-29) Scoped out hardware-specific variants, Trackio dependency changes, bytecode removal, and toolchain removal. Retain one hardware-portable lineage, mandatory `pyturso`, precompiled bytecode, and the current runtime tools.
 - [x] (2026-08-30) Recorded the accepted digest, local GPU evidence, exact compressed-size reduction, cache behavior, and publication decision. A separate dstack cloud pull remains part of the registry-routing plan rather than this image-composition gate.
 
@@ -108,6 +110,16 @@ This work does not introduce stronger compression, forced recompression, a new l
 - Observation: serve's complete non-base distribution set is an exact subset of both eval and TRL. The shared set accounts for 4,926,723,714 distribution-attributed bytes. Excluding installation-specific metadata, all three images contain the same 50,011 payload paths, 4,727,855,275 bytes, and aggregate SHA-256 `d1d7f23ce71f88182b024a9c0edb3f1e28c9ee80fa6f81a1f8840e529e740da1`.
   Evidence: each digest-pinned image was hashed independently inside a disposable container. Eval adds about 229.7 MB unpacked beyond serve; TRL adds about 423.0 MB.
 
+- Observation: the compatible vLLM closure is now generated once as
+  `vllm-common.lock.txt` and installed in the `vllm-kind-common` stage inherited
+  by serve, eval, and TRL. Supervised and transform remain direct children of
+  the universal base, while veRL retains its isolated fork-qualified vLLM
+  environment.
+  Evidence: runtime-lock regeneration is idempotent and 117 affected
+  release/runtime/catalog tests pass. Real OCI descriptor and GPU gates remain
+  open, so this is source-level evidence rather than an accepted published
+  topology.
+
 - Observation: making the current serve dependency layer the parent of thin eval and TRL deltas is estimated to remove about 2,544,923,302 compressed bytes, or 2.37 GiB, from the three-kind registry union without removing a package.
   Evidence: the estimate is the current three-kind after-base union minus serve's after-base bytes and the observed eval-minus-serve and TRL-minus-serve descriptor totals. It is a planning estimate; only a rebuilt disposable candidate can establish actual descriptors.
 
@@ -175,6 +187,14 @@ This work does not introduce stronger compression, forced recompression, a new l
 - Decision: the shared serve/eval/TRL vLLM parent is the only additional normal-kind image optimization in scope.
   Rationale: it removes duplicate physical storage and transfer across related images while preserving hardware compatibility, final dependency inventories, runtime behavior, and the number of public job-kind lineages.
   Date/Author: 2026-08-29 / Codex and user.
+
+- Decision: keep vLLM out of the universal Torch/CUDA base and give compatible
+  vLLM consumers one locked intermediate parent.
+  Rationale: supervised and transform jobs do not require vLLM, so placing it
+  in the universal base would expand those images and invalidate all kind
+  ancestry. The scoped parent shares the expensive closure across serve, eval,
+  and TRL without pretending veRL's fork-qualified runtime is compatible.
+  Date/Author: 2026-09-10 / Codex and user.
 
 - Decision: do not use uv symlink link mode or retain uv's cache as runtime package storage.
   Rationale: uv documents that symlink mode is cache-coupled and can be broken by cache cleanup. The digest-pinned base environment is already the stable immutable store and needs only a plain fallback path.
@@ -366,3 +386,7 @@ Revision note (2026-08-29): completed Milestone 1 with a standard-library sharin
 Revision note (2026-08-29): superseded the file-linking implementation after user review. The retained implementation now uses uv's documented partial-sync omissions and one lower-precedence `.pth` fallback; custom code is validation-only. Recorded the independent vLLM runtime metadata mismatch exposed by the real smoke.
 
 Revision note (2026-08-29): retained precompiled bytecode and made the entire candidate reproducible. Recorded the overlapping CUTLASS wheel race, exact base-then-CUDA-13 normalization, uv metadata cleanup, byte-identical uncached OCI proof, and final compressed measurements.
+
+Revision note (2026-09-10): implemented the source-level shared vLLM parent
+with an explicit generated lock, retained the universal-base and veRL
+boundaries, and recorded the remaining OCI descriptor and GPU gates.

@@ -212,7 +212,10 @@ class ImmutableGitSourcePacker:
             ]
         ).strip()
         if status:
-            raise ContractError("Git source cache entry contains dirty filesystem drift")
+            changed = status.splitlines()[0]
+            raise ContractError(
+                f"Git source cache entry {root.name} contains dirty filesystem drift: {changed}"
+            )
         _tree_digest(root)
 
     def _lock_source(

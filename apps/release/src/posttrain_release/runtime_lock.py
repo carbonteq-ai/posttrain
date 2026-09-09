@@ -71,6 +71,7 @@ class RuntimeWorkspaceLockExport:
 
 _NARROW_LOCK_INPUTS: dict[str, tuple[Path, ...]] = {
     "base": (_BASE_REQUIREMENTS,),
+    "vllm-common": (_PROFILES / "vllm-common.txt",),
     "supervised": (_PROFILES / "common.txt", _PROFILES / "supervised.txt"),
     "online-rl-trl-py312": (
         _PROFILES / "common.txt",

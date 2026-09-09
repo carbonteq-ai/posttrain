@@ -13,6 +13,13 @@ FROM kind-common AS vllm-kind-common
 RUN apt-get update && \
     apt-get install --yes --no-install-recommends g++ && \
     rm -rf /var/lib/apt/lists/*
+COPY containers/posttrain-job-kinds/locks/vllm-common.lock.txt /opt/posttrain/locks/vllm-common.lock.txt
+COPY containers/posttrain-job-kinds/profiles/vllm-common.txt /opt/posttrain/profiles/vllm-common.txt
+RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
+    SKIP_FRONTEND_BUILD=1 uv pip install --python "${VIRTUAL_ENV}" \
+      --index-strategy unsafe-best-match \
+      --constraint /opt/posttrain/locks/vllm-common.lock.txt \
+      --requirement /opt/posttrain/profiles/vllm-common.txt
 
 FROM kind-common AS supervised-dependencies
 COPY containers/posttrain-job-kinds/locks/supervised.lock.txt /opt/posttrain/locks/supervised.lock.txt

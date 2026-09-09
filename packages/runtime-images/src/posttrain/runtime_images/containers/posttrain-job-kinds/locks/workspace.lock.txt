@@ -2159,7 +2159,7 @@ triton==3.6.0 \
     #   liger-kernel
     #   torch
     #   xgrammar
-trl @ https://pypi.lan/carbonteq/dev/+f/6ba/30192638c3d30/trl-1.12.0.post7-py3-none-any.whl#sha256=6ba30192638c3d30cdd933558aa1684f5946684d1f5d843e88ead39fbf9a1efd
+trl @ https://pypi.lan/carbonteq/dev/+f/aab/f5a52b9f8a20d/trl-1.12.0.post8-py3-none-any.whl#sha256=aabf5a52b9f8a20db32e9da5847fd2584e18ba8cfb12f2e79ec7db146db8ffa4
     # via posttrain-train
 truststore==0.10.4 ; sys_platform != 'emscripten' \
     --hash=sha256:9d91bd436463ad5e4ee4aba766628dd6cd7010cf3e2461756b3303710eebc301 \
@@ -2257,7 +2257,7 @@ uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'c
     --hash=sha256:6e2ea3d6190a2968f4a14a23019d3b16870dd2190cd69c8180f7c632d21de68d \
     --hash=sha256:bc5ef13bbc10b5335792360623cc378d52d7e62c2de64660616478c32cd0598e
     # via uvicorn
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@36eac9d5e04ef29b584b6fa4f027af00cd76ea19
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@1f6793f7d46e8a650a54b2a585193b4010578fa6
     # via
     #   posttrain-data
     #   posttrain-eval
