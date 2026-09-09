@@ -17,6 +17,19 @@ TurboQuant remains an explicit unqualified recommendation. A generic derived
 KV-capacity recommendation still needs a model-memory contract and is not
 silently approximated by a hardware-only heuristic.
 
+The optimized R9 jobs were packaged locally from the successful exact
+Posttrain 0.4.0 candidate wheelhouse and passed offline environment smoke
+qualification before dstack submission. GRPO run
+`lfm26-ab-grpo20-dev-v040-r9-capacity` is provider job
+`pt-2b821d61e66ff2bccbf0f290`, using actual-job image
+`sha256:1cf8ee203417b09b704cc6e3dfff6ee1ebcf4cf522184f3a89158185a2c159bd`.
+OLMo3 run `lfm26-ab-olmo3-20-dev-v040-r9-capacity` is provider job
+`pt-c845d0da6e8eaa55c8c175a8`, using actual-job image
+`sha256:870168d2aae50e1b1a2da10c3a46cc4dbdd451f1bd2f01abfae221c70d734f75`.
+At submission, both were waiting for the single named RTX PRO 6000 behind
+unrelated occupancy-evaluation job `pt-3ad781ed40bcccfa703ca622`; this is
+capacity waiting, not optimizer progress or failure. Do not preempt that job.
+
 Revision 27 — 2026-09-09. Live inspection of release-candidate run
 `34340433050` established that GPU scheduling was not the delay: the protected
 8-vCPU release runner was concurrently rebuilding the TRL and veRL runtime
