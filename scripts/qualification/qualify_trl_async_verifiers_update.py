@@ -1,9 +1,10 @@
 #!/usr/bin/env python
-"""Qualify one real TRL optimizer update from Posttrain's async group producer.
+"""Qualify real TRL optimizer updates from Posttrain's async group producer.
 
 This local gate deliberately controls environment outputs and weight transfer so
-one GPU can exercise the learner. Native Verifiers process transport and real
-vLLM weight publication are separate qualification gates.
+one GPU can exercise the learner for a bounded number of steps. Native Verifiers
+process transport and real vLLM weight publication are separate qualification
+gates.
 """
 
 from __future__ import annotations
@@ -129,11 +130,14 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="trl-internal-testing/small-Qwen2ForCausalLM-2.5")
     parser.add_argument("--output-dir", default="outputs/local-async-verifiers-update")
+    parser.add_argument("--steps", type=int, default=1)
     return parser.parse_args()
 
 
 def main() -> None:
     args = _parse_args()
+    if args.steps < 1:
+        raise ValueError("--steps must be at least 1")
     tokenizer = AutoTokenizer.from_pretrained(args.model)
     prompt = [{"role": "user", "content": "Choose A or B."}]
     prompt_ids = tokenizer.apply_chat_template(
@@ -151,7 +155,7 @@ def main() -> None:
 
     settings = GRPOSettings(
         id="local-async-verifiers-update",
-        loop=TrainingLoop(max_steps=1, per_device_batch_size=2),
+        loop=TrainingLoop(max_steps=args.steps, per_device_batch_size=2),
         num_prompts_per_step=1,
         num_generations=2,
     )
@@ -185,7 +189,7 @@ def main() -> None:
         learning_rate=0.1,
         per_device_train_batch_size=2,
         num_generations=2,
-        max_steps=1,
+        max_steps=args.steps,
         max_completion_length=8,
         # Fixed-count batching makes this recovery gate consume exactly one
         # complete two-sibling group in its single optimizer update.
@@ -209,9 +213,12 @@ def main() -> None:
         not torch.equal(before[name], parameter.detach().cpu())
         for name, parameter in trainer.model.named_parameters()
     )
-    if result.global_step != 1 or changed == 0:
-        raise RuntimeError("async qualification did not perform one parameter-changing optimizer update")
-    if producer.consumed_group_ids != [0, 0]:
+    if result.global_step != args.steps or changed == 0:
+        raise RuntimeError(
+            f"async qualification did not perform {args.steps} parameter-changing optimizer updates"
+        )
+    expected_group_ids = [group_id for group_id in range(args.steps) for _ in range(2)]
+    if producer.consumed_group_ids != expected_group_ids:
         raise RuntimeError(f"learner consumption acknowledgement was incorrect: {producer.consumed_group_ids}")
     print(
         json.dumps(

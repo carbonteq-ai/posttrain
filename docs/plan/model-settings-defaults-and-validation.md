@@ -38,6 +38,15 @@ create any KV-cache blocks. M5 remains open only for the local OCI-packaging
 gate: it correctly rejects the stale shipped runtime-image lock manifest,
 before image build or provider submission.
 
+Revision 8 — 2026-09-09. The source-composed local qualification is now
+parameterized by an explicit positive step count. A five-step GPU run completed
+five optimizer updates, changed all 27 model parameter tensors, and acknowledged
+each two-sibling rollout group exactly once (`[0, 0]` through `[4, 4]`). Policy
+publication advanced from version 1 through 6. The bounded asynchronous queue
+observed rollout staleness up to depth 3 without sample loss; staleness policy
+qualification remains owned by the async-rollout plan rather than being
+reclassified as a model-setting concern.
+
 Revision 3 — 2026-09-09. Implementation started. M0 added the canonical API amendment and `docs/model-settings.md` inventory, now expanded to job-type and algorithm settings. Defaults, hard validity, and efficiency advice remain separate at each layer. Hardware-aware recommendations cover architecture, residency, MTP, and TurboQuant independently of full-weight/LoRA/QLoRA selection. No new LoRA-rank default is introduced.
 
 ## Purpose / Big Picture
@@ -62,6 +71,7 @@ The outcome is an inspectable model-configuration resolution and validation path
 - [x] M3: aligned serving translation with resolved settings and qualified live model/template/parser identity for the changed Qwen path.
 - [x] M4: expose explainable CLI/Python behavior and the bounded preflight bypass.
 - [ ] M5: migrate versioned catalog defaults and qualify supported model/backend paths (no default migration was justified; fixture, training, and live Qwen serving gates are complete; only the independently stale local OCI runtime-image release gate remains).
+- [x] (2026-09-09) Re-ran source-local qualification for five updates and the focused configuration/rendering/async regression suite (77 passed, 4 skipped).
 
 ## Scope and explicit exclusions
 
@@ -474,6 +484,15 @@ The same manifest also reports a stale `eval` lock during verified loading.
 Do not bypass or rewrite those identities from this model-settings change;
 regenerate/publish the runtime-image release in its owning workstream, then
 rerun M5 local packaging and launch qualification.
+
+Revision 8 qualification outcome: `scripts/qualification/qualify_trl_async_verifiers_update.py`
+accepts `--steps` while retaining the one-step default. The exact five-step
+command used `--steps 5 --output-dir /tmp/posttrain-source-local-qualification-5-step`.
+It reported `global_step=5`, 27 changed parameter tensors, consumed group IDs
+`[0,0,1,1,2,2,3,3,4,4]`, and orderly policy activation through version 6. The
+follow-up focused suite covering model settings, Qwen/LFM/Gemma rendering,
+vLLM translation, async rollout acknowledgement, work validation, project
+planning, and CLI behavior passed 77 tests with four dependency/cache skips.
 
 
 Revision 1 delivers the implementation plan and its separate policy decisions only. No model default, adapter behavior, canonical baseline, dependency pin, runtime, or active run has been changed by this plan. Implementation begins with M0; release requires all applicable acceptance gates, not just creation of schemas or new CLI flags.
