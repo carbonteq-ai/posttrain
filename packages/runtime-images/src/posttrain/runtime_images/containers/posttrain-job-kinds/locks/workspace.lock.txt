@@ -580,6 +580,7 @@ huggingface-hub==1.24.0 \
     #   carbonteq-trackio
     #   datasets
     #   gradio-client
+    #   kernels
     #   peft
     #   posttrain-train
     #   tokenizers
@@ -663,6 +664,28 @@ jsonschema-specifications==2025.9.1 \
     --hash=sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe \
     --hash=sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d
     # via jsonschema
+kernels==0.15.2 \
+    --hash=sha256:2a66497d94152896b74c841089e3ee685708b8ddc21d4f4751a0505a0b693c91 \
+    --hash=sha256:5af4fab4a2d4eb67f01522dffabfdc3a4bcfc167ce68f7549c0d2828a73cbc19
+    # via posttrain-train
+kernels-data==0.16.1 \
+    --hash=sha256:04d3899b24eb9e28634705ec2b576f84bc318602357abaf314fb8b866dc1b529 \
+    --hash=sha256:09f3fe1b03b6260adb6c87d98b3d2c2c1e346856aedb6f3ddb6ad619889f6c1c \
+    --hash=sha256:181563543d01cab600a67ea7568a8152688b6b5f6be04084384d475ec3e7a8a1 \
+    --hash=sha256:1da3e03adf9507cadb35efae16c1d8f2320f0879114bafa30aa561acb7ccc18e \
+    --hash=sha256:2b4a9a56bde8eaf552a7f8cbf7042ed1cbf00206cc3cb8847a45a7df6a49599f \
+    --hash=sha256:4e2b77105af19cdca3138988719bcc9132cb8f7c25ee3ce59c88d26c03f916fd \
+    --hash=sha256:504efd49c72bc8c96b881020c835c593ab34639310361f14ce4a514e24daaa97 \
+    --hash=sha256:52a49825a108dae9c9f313fc79b29c130e192e0c0fb9e1cdd111093e8d79fbe5 \
+    --hash=sha256:7d8627c4572bf501b4b6f1cbef4d89a9aca5821fd206a1388ea383a197892dac \
+    --hash=sha256:7dc804a5f5f2b8903a2f07d96f6c8c428a539d5da26c7f91e9687a38e19b3f12 \
+    --hash=sha256:86513df740800cf9bd67fcfc5d34914dd519260c5213bf20dc5dbc51c729329b \
+    --hash=sha256:90f17937ecb3cf1d4d6f9aec0468d7ddaf3e8f2eba33454f71ceac31be90912a \
+    --hash=sha256:a6a177a8af486c82352bdcd9594e0df15704f51b60f35f6a4819f22e2f7ea893 \
+    --hash=sha256:c77f6d4070ff7abf3001fcd257afbb1ff6f4a24ac3be4e57af29462cfed44f7a \
+    --hash=sha256:c7fbcff639a1fbd7dbc8d72fdd7a098ddffcda365248f6da1b8ae3a00162f63f \
+    --hash=sha256:cfe4264b634ff8fe5cbf73f0adbafdbb561c0df0d2045d0598afa39b6289a6b4
+    # via kernels
 lark==1.2.2 \
     --hash=sha256:c2276486b02f0f1b90be155f2c8ba4a8e194d42775786db622faccd652d8e80c \
     --hash=sha256:ca807d0162cd16cef15a8feecb862d7319e7a09bdb13aef927968e45040fed80
@@ -1229,6 +1252,7 @@ packaging==26.2 \
     #   flashinfer-python
     #   gradio-client
     #   huggingface-hub
+    #   kernels
     #   lm-format-enforcer
     #   peft
     #   transformers
@@ -1646,6 +1670,7 @@ pyyaml==6.0.3 \
     #   accelerate
     #   datasets
     #   huggingface-hub
+    #   kernels
     #   lm-format-enforcer
     #   peft
     #   posttrain-catalog
@@ -2033,6 +2058,10 @@ tomli-w==1.2.0 \
     --hash=sha256:188306098d013b691fcadc011abd66727d3c414c571bb01b1a174ba8c983cf90 \
     --hash=sha256:2dd14fac5a47c27be9cd4c976af5a12d87fb1f0b4512f81d69cce3b35ae25021
     # via verifiers
+tomlkit==0.15.1 \
+    --hash=sha256:177a05aece5a8ca5266fd3c448abb47b8d352f09d477d3ca8332db4d89b24304 \
+    --hash=sha256:e25bbf38843005246210a12982776f27f99cb9be67160e14434d0c0d21ee1e97
+    # via kernels
 torch==2.11.0+cu130 \
     --hash=sha256:21d2734fd02af45d19bb88c0ff2e86b238ce73f7bde6003ade7f1454ae299198 \
     --hash=sha256:339801f2163698a53c7fb3c91883e7f44331d22c34d45acfbce4eff71f2332fa \

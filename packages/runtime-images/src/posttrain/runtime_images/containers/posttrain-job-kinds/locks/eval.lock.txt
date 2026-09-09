@@ -612,6 +612,7 @@ huggingface-hub==1.24.0 \
     #   carbonteq-trackio
     #   datasets
     #   gradio-client
+    #   kernels
     #   peft
     #   posttrain-train
     #   tokenizers
@@ -1316,6 +1317,7 @@ packaging==26.2 \
     #   flashinfer-python
     #   gradio-client
     #   huggingface-hub
+    #   kernels
     #   lm-format-enforcer
     #   peft
     #   transformers
@@ -1740,6 +1742,7 @@ pyyaml==6.0.3 \
     #   accelerate
     #   datasets
     #   huggingface-hub
+    #   kernels
     #   lm-format-enforcer
     #   peft
     #   posttrain-catalog
