@@ -19,7 +19,11 @@ class AutomationBenchTrainingParameters(BaseModel):
     sampling_seed: int = Field(default=0, ge=0)
     search_top_k: int = Field(default=20, gt=0)
     max_turns: int = Field(default=50, gt=0)
-    max_total_tokens: int = Field(default=8192, gt=0)
+    # ``max_total_tokens`` remains accepted for older catalog selections. New
+    # agentic jobs should prefer the output-only limit so replayed history does
+    # not consume the generation allowance on every turn.
+    max_output_tokens: int | None = Field(default=None, gt=0)
+    max_total_tokens: int | None = Field(default=None, gt=0)
     rollout_timeout_seconds: float = Field(default=1800, gt=0)
     toolset: Literal["zapier", "limited_zapier", "api"] = "zapier"
 
@@ -46,7 +50,7 @@ def automationbench_training_environment() -> Any:
                     "scoring": 120,
                 },
                 "max_turns": 50,
-                "max_total_tokens": 8192,
+                "max_output_tokens": 8192,
             },
         }
     )

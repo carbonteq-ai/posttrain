@@ -311,7 +311,18 @@ def _apply_training_parameters(
     limits = payload.get("agent", payload)
     if not isinstance(limits, dict):
         raise TypeError("Verifiers agent configuration must be an object")
-    for key in ("max_turns", "max_total_tokens"):
+    selected_token_limits = {
+        key
+        for key in ("max_input_tokens", "max_output_tokens", "max_total_tokens")
+        if isinstance(parameters.get(key), int) and not isinstance(parameters.get(key), bool)
+    }
+    if "max_output_tokens" in selected_token_limits and "max_total_tokens" in selected_token_limits:
+        raise ValueError("Verifiers training parameters must select output-token or total-token limits, not both")
+    if "max_output_tokens" in selected_token_limits:
+        limits.pop("max_total_tokens", None)
+    elif "max_total_tokens" in selected_token_limits:
+        limits.pop("max_output_tokens", None)
+    for key in ("max_turns", "max_input_tokens", "max_output_tokens", "max_total_tokens"):
         value = parameters.get(key)
         if isinstance(value, int) and not isinstance(value, bool):
             limits[key] = value

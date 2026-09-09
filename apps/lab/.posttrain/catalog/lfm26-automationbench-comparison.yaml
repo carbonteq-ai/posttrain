@@ -96,9 +96,9 @@ environment:
           runtime: {type: subprocess}
           timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
           max_turns: 12
-          max_total_tokens: 8192
+          max_output_tokens: 8192
     sampling: &policy_sampling
-      max_tokens: 2048
+      max_tokens: 3072
       temperature: 0.8
       top_p: 0.95
     num_tasks: 160
@@ -111,7 +111,7 @@ environment:
       sampling_seed: 172846
       toolset: limited_zapier
       max_turns: 12
-      max_total_tokens: 8192
+      max_output_tokens: 8192
     reward_components: [partial_credit]
     required_inference_capabilities: [tool-calling]
     observation:
@@ -159,7 +159,7 @@ environment:
           runtime: {type: subprocess}
           timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
           max_turns: 12
-          max_total_tokens: 8192
+          max_output_tokens: 8192
     sampling: *policy_sampling
     num_tasks: 160
     num_rollouts: 4
@@ -171,7 +171,7 @@ environment:
       sampling_seed: 172846
       toolset: limited_zapier
       max_turns: 12
-      max_total_tokens: 8192
+      max_output_tokens: 8192
       judge_input_budget_tokens: 8192
       judge_output_budget_tokens: 16384
       judge_context_window: 24576
@@ -222,7 +222,7 @@ environment:
           runtime: {type: subprocess}
           timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
           max_turns: 12
-          max_total_tokens: 8192
+          max_output_tokens: 8192
     sampling: *policy_sampling
     num_tasks: 160
     num_rollouts: 4
@@ -234,7 +234,7 @@ environment:
       sampling_seed: 172846
       toolset: limited_zapier
       max_turns: 12
-      max_total_tokens: 8192
+      max_output_tokens: 8192
       judge_input_budget_tokens: 8192
       judge_output_budget_tokens: 16384
       judge_context_window: 24576
@@ -291,7 +291,7 @@ environment:
           runtime: {type: subprocess}
           timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 300}
           max_turns: 12
-          max_total_tokens: 8192
+          max_output_tokens: 8192
     sampling:
       max_tokens: 2048
       temperature: 0.0
@@ -305,7 +305,7 @@ environment:
       sampling_seed: 43
       toolset: limited_zapier
       max_turns: 12
-      max_total_tokens: 8192
+      max_output_tokens: 8192
     reward_components: [partial_credit]
     required_inference_capabilities: [tool-calling]
     observation:
@@ -367,7 +367,7 @@ training:
     revision: "1"
     loop: &comparison_loop
       max_steps: 50
-      max_length: 12288
+      max_length: 13312
       per_device_batch_size: 1
       gradient_accumulation_steps: 64
       learning_rate: 0.00001
@@ -377,7 +377,7 @@ training:
     num_prompts_per_step: 16
     num_generations: 4
     max_prompt_length: 10240
-    max_completion_length: 2048
+    max_completion_length: 3072
     shuffle_prompts: true
     mask_truncated_completions: false
 
@@ -388,7 +388,7 @@ training:
     num_prompts_per_step: 16
     num_generations: 4
     max_prompt_length: 10240
-    max_completion_length: 2048
+    max_completion_length: 3072
     algorithm: olmo3
     beta: 0.0
     advantage_scaling: none
@@ -406,7 +406,7 @@ training:
     revision: "1"
     loop: &comparison_local_20_loop
       max_steps: 20
-      max_length: 12288
+      max_length: 13312
       per_device_batch_size: 1
       gradient_accumulation_steps: 32
       learning_rate: 0.00001
@@ -416,7 +416,7 @@ training:
     num_prompts_per_step: 8
     num_generations: 4
     max_prompt_length: 10240
-    max_completion_length: 2048
+    max_completion_length: 3072
     shuffle_prompts: true
     mask_truncated_completions: false
     max_admission_attempts: 1
@@ -428,7 +428,7 @@ training:
     num_prompts_per_step: 8
     num_generations: 4
     max_prompt_length: 10240
-    max_completion_length: 2048
+    max_completion_length: 3072
     algorithm: olmo3
     beta: 0.0
     advantage_scaling: none
@@ -449,7 +449,7 @@ training:
     num_prompts_per_step: 16
     num_generations: 4
     max_prompt_length: 10240
-    max_completion_length: 2048
+    max_completion_length: 3072
     component_names:
       - partial_credit
       - problem_understanding_planning
@@ -642,7 +642,7 @@ inference:
       sleep_during_optimization: true
       gpu_memory_utilization: 0.20
       tensor_parallel_size: 1
-      max_model_len: 12288
+      max_model_len: 13312
       max_num_seqs: 32
       # Four GiB gives this eight-attention-layer GQA model roughly 262K KV
       # token slots: enough for about 8K resident tokens at concurrency 32.
@@ -671,7 +671,7 @@ inference:
       sleep_during_optimization: true
       gpu_memory_utilization: 0.20
       tensor_parallel_size: 1
-      max_model_len: 12288
+      max_model_len: 13312
       max_num_seqs: 32
       # Keep local qualification identical to the matched remote rollout
       # profile so algorithm comparisons do not change serving capacity.

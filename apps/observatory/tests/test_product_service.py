@@ -602,6 +602,39 @@ def test_trace_summary_projects_bounded_provider_scalars() -> None:
     assert detail.summary.latency_ms == 48617.406
 
 
+def test_trace_summary_projects_native_verifiers_reward_objects() -> None:
+    detail = project_trace(
+        TraceRecord(
+            trace_type="verifiers",
+            external_id="trace-native-rewards",
+            payload={
+                "rewards": {
+                    "partial_credit": {"score": 0.25, "weight": 1.0},
+                    "quality_bonus": {"score": 0.5, "weight": 0.2},
+                },
+                "stop_condition": "agent_completed",
+                "nodes": [],
+                "calls": [],
+            },
+        ),
+        RedactionPolicy(),
+    )
+
+    assert detail.summary.reward == pytest.approx(0.35)
+    assert detail.summary.reward_components == {
+        "partial_credit": 0.25,
+        "quality_bonus": pytest.approx(0.1),
+    }
+    assert detail.summary.metrics == {
+        "partial_credit": 0.25,
+        "quality_bonus": pytest.approx(0.1),
+    }
+    assert [(component.name, component.value) for component in detail.reward_components] == [
+        ("partial_credit", 0.25),
+        ("quality_bonus", pytest.approx(0.1)),
+    ]
+
+
 def test_ifeval_task_metadata_uses_instruction_families_not_numeric_key() -> None:
     record = TraceRecord(
         trace_type="verifiers",

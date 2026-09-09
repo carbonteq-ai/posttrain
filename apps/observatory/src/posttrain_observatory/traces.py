@@ -95,9 +95,23 @@ def _wire_reward(payload: Mapping[str, JsonValue]) -> float | None:
     components = payload.get("rewards")
     if not isinstance(components, Mapping):
         return None
-    values = [_number(value) for value in components.values()]
+    values = [_wire_reward_component(value) for value in components.values()]
     numbers = [value for value in values if value is not None]
     return sum(numbers) if numbers else None
+
+
+def _wire_reward_component(value: object) -> float | None:
+    """Project legacy scalars and native Verifiers ``Reward`` objects alike."""
+
+    number = _number(value)
+    if number is not None or not isinstance(value, Mapping):
+        return number
+    contribution = _number(value.get("contribution"))
+    if contribution is not None:
+        return contribution
+    score = _number(value.get("score"))
+    weight = _number(value.get("weight"))
+    return score * (weight if weight is not None else 1.0) if score is not None else None
 
 
 def _wire_success(payload: Mapping[str, JsonValue]) -> bool | None:
@@ -213,7 +227,7 @@ def _wire_metrics(payload: Mapping[str, JsonValue]) -> dict[str, float]:
         if not isinstance(container, Mapping):
             continue
         for name, value in container.items():
-            number = _number(value)
+            number = _wire_reward_component(value) if container_name == "rewards" else _number(value)
             if number is not None:
                 values[str(name)] = number
     return values
@@ -223,7 +237,8 @@ def _wire_numeric_container(payload: Mapping[str, JsonValue], name: str) -> dict
     container = payload.get(name)
     if not isinstance(container, Mapping):
         return {}
-    return {str(key): number for key, value in container.items() if (number := _number(value)) is not None}
+    project = _wire_reward_component if name in {"rewards", "reward_components"} else _number
+    return {str(key): number for key, value in container.items() if (number := project(value)) is not None}
 
 
 def _messages(payload: Mapping[str, JsonValue]) -> tuple[Mapping[str, JsonValue], ...]:
@@ -866,7 +881,7 @@ def project_trace(record: TraceRecord, redaction: RedactionPolicy) -> TraceDetai
     raw_components = payload.get("reward_components") or payload.get("rewards")
     if isinstance(raw_components, Mapping):
         for name, value in sorted(raw_components.items()):
-            number = _number(value)
+            number = _wire_reward_component(value)
             if number is not None:
                 components.append(RewardComponent(name=str(name), value=number))
     transcript_value = payload.get("messages") or payload.get("transcript") or payload.get("nodes")

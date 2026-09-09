@@ -1,5 +1,23 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 29 — 2026-09-10. Live inspection of the first shared-vLLM GRPO
+updates found that most truncated trajectories were stopped by the configured
+`max_total_tokens: 8192`, whose Verifiers meaning is cumulative model input and
+output across turns, rather than the intended generated-token episode budget.
+The comparison environments now select `max_output_tokens: 8192`; generic
+training activation carries input-, output-, or total-token controls and rejects
+an ambiguous output-plus-total selection. The per-turn generation allowance is
+raised modestly from 2,048 to 3,072 tokens, with training and vLLM context
+ceilings raised together from 12,288 to 13,312 so detached planning still proves
+`10,240 + 3,072` fits. These selections affect future submissions, not the
+already-running immutable job. Chrome inspection also exposed an Observatory
+projection defect: native Verifiers reward objects (`score` plus `weight`) were
+stored intact but interpreted only as legacy numeric scalars, hiding the reward
+column and selected-rollout reward panel. The generic projector now reports the
+weighted contribution for both encodings. Focused tests pass, and a real retained
+trajectory projects `partial_credit: 1.0` and primary reward `1.0` through the
+corrected code.
+
 Revision 28 — 2026-09-10. The shared-vLLM development runtime is now under a
 20-update AutomationBench comparison on the single RTX PRO 6000 worker. GRPO
 run `lfm26-grpo20-post8-vllm-shared-20260910-r1` (provider

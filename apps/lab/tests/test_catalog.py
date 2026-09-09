@@ -202,9 +202,15 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
         assert environment.parameters["sampling_seed"] == 172846
         assert environment.parameters["task_mix_id"] == "lfm26-automationbench-mix-v2"
         assert environment.parameters["task_mix_sha256"] == fixture_digest
+        assert environment.parameters["max_output_tokens"] == 8192
+        assert "max_total_tokens" not in environment.parameters
         taskset = environment.activation.config["taskset"]
         assert isinstance(taskset, Mapping)
         assert taskset.get("task_names") is None
+        agent = environment.activation.config["agent"]
+        assert isinstance(agent, Mapping)
+        assert agent["max_output_tokens"] == 8192
+        assert "max_total_tokens" not in agent
     assert scalar.max_concurrent == 32
     assert judged.max_concurrent == 32
 
@@ -221,6 +227,8 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_grpo.loop.max_steps == 20
     assert local_grpo.num_prompts_per_step == 8
     assert local_grpo.num_generations == 4
+    assert local_grpo.loop.max_length == 13_312
+    assert local_grpo.max_completion_length == 3_072
     assert local_grpo.max_admission_attempts == 1
     assert isinstance(local_olmo, GRPOSettings)
     assert local_olmo.loop.max_steps == 20
@@ -229,6 +237,8 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert isinstance(local_rollout, InferenceBinding)
     assert isinstance(local_training, TrainingBinding)
     assert local_rollout.engine["max_num_seqs"] == 32
+    assert local_rollout.engine["max_model_len"] == 13_312
+    assert local_rollout.sampling["max_tokens"] == 3_072
     assert local_rollout.engine["max_num_batched_tokens"] == 32_768
     assert local_rollout.engine["kv_cache_memory_bytes"] == 4 * 1024**3
     assert "weight_name_prefix" not in local_rollout.engine

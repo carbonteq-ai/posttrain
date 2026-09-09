@@ -32,6 +32,7 @@ from posttrain.train.integrations import (
 )
 from posttrain.train.integrations.verifiers import (
     VerifiersRolloutFailure,
+    _apply_training_parameters,
     _apply_verifiers_runtime_compatibility,
     _load_selected_tasks,
     _PolicyClient,
@@ -63,6 +64,28 @@ T = TypeVar("T")
 class FacetedTaskData(TaskData):
     level: str
     problem_type: str
+
+
+def test_training_parameters_replace_total_token_limit_with_output_budget() -> None:
+    environment = SimpleNamespace(
+        parameters={"max_turns": 12, "max_output_tokens": 8192},
+        source=SimpleNamespace(package="custom-environment"),
+    )
+    payload = {"agent": {"max_turns": 4, "max_total_tokens": 8192}}
+
+    _apply_training_parameters(environment, payload)
+
+    assert payload["agent"] == {"max_turns": 12, "max_output_tokens": 8192}
+
+
+def test_training_parameters_reject_ambiguous_token_budgets() -> None:
+    environment = SimpleNamespace(
+        parameters={"max_output_tokens": 8192, "max_total_tokens": 12288},
+        source=SimpleNamespace(package="custom-environment"),
+    )
+
+    with pytest.raises(ValueError, match="output-token or total-token limits"):
+        _apply_training_parameters(environment, {"agent": {}})
 
 
 def test_verifiers_runtime_compatibility_prefers_selected_uv(monkeypatch, tmp_path) -> None:
