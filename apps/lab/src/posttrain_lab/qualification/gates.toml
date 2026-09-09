@@ -662,6 +662,32 @@ job_kind = "data.prepare"
 acceptance = "dataset-canonicalization"
 
 [[gates]]
+id = "lfm26-automationbench-grpo-20-local"
+work_package = ".posttrain/work_packages/lfm26_automationbench_grpo_20_local.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.grpo"
+acceptance = "twenty-update-local-comparison-arm"
+experiment_family = "lfm26-automationbench-20-local-v1"
+hypothesis = "A bounded local vanilla-GRPO run can provide a fast RTX PRO smoke signal without changing the matched AutomationBench task mix."
+owner = "posttrain-training"
+replacement_condition = "Retire after the local GRPO and OLMo3 arms are either promoted into a retained comparison or superseded by the 50-update comparison family."
+
+[[gates]]
+id = "lfm26-automationbench-olmo3-20-local"
+work_package = ".posttrain/work_packages/lfm26_automationbench_olmo3_20_local.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.grpo"
+acceptance = "twenty-update-local-comparison-arm"
+experiment_family = "lfm26-automationbench-20-local-v1"
+hypothesis = "A bounded local OLMo3/OlmoRL run can provide a fast RTX PRO smoke signal with native active sampling on the matched AutomationBench task mix."
+owner = "posttrain-training"
+replacement_condition = "Retire after the local GRPO and OLMo3 arms are either promoted into a retained comparison or superseded by the 50-update comparison family."
+
+[[gates]]
 id = "lfm26-automationbench-grpo-50"
 work_package = ".posttrain/work_packages/lfm26_automationbench_grpo_50.yaml"
 job_id = "train"

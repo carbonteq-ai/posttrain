@@ -35,7 +35,10 @@ def _candidate_manifest_for_nested_packing_tests(monkeypatch: pytest.MonkeyPatch
     """
 
     manifest = _load_manifest(verify_locks=False)
-    monkeypatch.setattr("posttrain_cli.execution_config.load_manifest", lambda: manifest)
+    # The planner forwards its candidate-verification switches to the loader;
+    # keep this test double compatible with that call boundary while still
+    # returning the deliberately relaxed candidate manifest.
+    monkeypatch.setattr("posttrain_cli.execution_config.load_manifest", lambda **_kwargs: manifest)
 
 
 def _nested_lab_project(tmp_path: Path, work_package: str) -> Path:

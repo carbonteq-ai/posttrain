@@ -6,6 +6,17 @@ import pytest
 from posttrain.train.backends.trl.policy_endpoint import TrlPolicyEndpoint
 from posttrain.train.rollout_execution import CollectionKey
 
+# The endpoint implements vLLM's token-in/token-out wire contract and is
+# intentionally hosted behind the optional ``trl-vllm`` extra.  Keep the
+# package's default (backend-neutral) test environment hermetic: the full
+# contract suite runs when that extra is selected, while a base workspace run
+# reports a clear skip instead of turning an absent optional backend into an
+# endpoint 500/fatal-error assertion.
+pytest.importorskip(
+    "vllm.entrypoints.scale_out.token_in_token_out.protocol",
+    reason="policy endpoint contract tests require the optional trl-vllm extra",
+)
+
 
 def _output(request_id, prompt_ids=(1, 2), completion_ids=(3, 4), logprobs=(-0.25, -0.5)):
     steps = [

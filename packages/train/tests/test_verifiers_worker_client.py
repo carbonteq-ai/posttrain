@@ -8,14 +8,30 @@ from posttrain.train.integrations.verifiers_workers import create_verifiers_trai
 from posttrain.train.profiles import LFM25_RENDERER
 from posttrain.train.rendering import create_renderer
 from posttrain.train.rollout_execution import CollectionKey
-from transformers import AutoTokenizer
+
+# Native worker tests exercise the optional Verifiers client and renderer
+# stack, not the backend-neutral train package.  Do not make the default
+# workspace suite depend on that integration extra being installed.
+pytest.importorskip(
+    "verifiers.v1.clients.train",
+    reason="native worker client tests require the optional Verifiers integration",
+)
+AutoTokenizer = pytest.importorskip("transformers").AutoTokenizer
+pytest.importorskip("renderers")
 
 
 def test_native_worker_uses_exact_lfm_template_and_tokens(monkeypatch):
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
     model_name = LFM_25_12B_THINKING.base.repo_id
     revision = LFM_25_12B_THINKING.base.revision
-    direct_tokenizer = AutoTokenizer.from_pretrained(model_name, revision=revision, local_files_only=True)
+    try:
+        direct_tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            revision=revision,
+            local_files_only=True,
+        )
+    except OSError as error:
+        pytest.skip(f"native worker parity requires the selected LFM tokenizer in the local cache: {error}")
     direct = create_renderer(direct_tokenizer, LFM_25_12B_THINKING, LFM25_RENDERER)
     config = create_verifiers_train_client_config(
         base_url="http://127.0.0.1:8123/v1",
@@ -25,7 +41,11 @@ def test_native_worker_uses_exact_lfm_template_and_tokens(monkeypatch):
         multiplex=8,
     )
 
-    worker_tokenizer = AutoTokenizer.from_pretrained(model_name, revision=revision, local_files_only=True)
+    worker_tokenizer = AutoTokenizer.from_pretrained(
+        model_name,
+        revision=revision,
+        local_files_only=True,
+    )
     worker_tokenizer.chat_template = config.chat_template
     from renderers import create_renderer as create_native_renderer
 
@@ -77,11 +97,14 @@ async def test_native_train_client_round_trips_exact_lfm_tokens_over_loopback(mo
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
     model = LFM_25_12B_THINKING
     model_name = model.base.repo_id
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_name,
-        revision=model.base.revision,
-        local_files_only=True,
-    )
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            revision=model.base.revision,
+            local_files_only=True,
+        )
+    except OSError as error:
+        pytest.skip(f"native worker round-trip requires the selected LFM tokenizer in the local cache: {error}")
     completion_ids = tokenizer.encode("Done.", add_special_tokens=False)
 
     class Session:
