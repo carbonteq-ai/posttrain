@@ -37,12 +37,16 @@ def test_shipped_dockerfile_input_paths_resolve_against_the_definition_root() ->
     """
     copied = re.compile(r"^COPY\s+(containers/\S+)", re.MULTILINE)
     with definition_root() as root:
-        for level in ("posttrain-base", "posttrain-job-kinds"):
-            dockerfile = root / "containers" / level / "Dockerfile"
+        dockerfiles = (
+            root / "containers/posttrain-base/Dockerfile",
+            root / "containers/posttrain-job-kinds/Dockerfile",
+            root / "containers/posttrain-job-kinds/Dockerfile.vllm",
+        )
+        for dockerfile in dockerfiles:
             referenced = copied.findall(dockerfile.read_text())
-            assert referenced, f"expected context inputs in {level}/Dockerfile"
+            assert referenced, f"expected context inputs in {dockerfile}"
             for path in referenced:
-                assert (root / path).exists(), f"{level}/Dockerfile copies missing {path}"
+                assert (root / path).exists(), f"{dockerfile} copies missing {path}"
 
 
 def test_actual_job_from_arguments_are_declared_in_global_scope() -> None:
@@ -84,7 +88,7 @@ def test_actual_job_can_apply_only_a_digest_bound_backend_development_source() -
 
 def test_eval_kind_installs_one_locked_runtime_and_marks_it_preinstalled() -> None:
     with definition_root() as root:
-        dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile").read_text()
+        dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile.vllm").read_text()
     assert "null_harness_warmup.py" not in dockerfile
     assert "uv sync --script" not in dockerfile
     assert "--constraint /opt/posttrain/locks/eval.lock.txt" in dockerfile
@@ -93,12 +97,12 @@ def test_eval_kind_installs_one_locked_runtime_and_marks_it_preinstalled() -> No
 
 def test_compatible_vllm_kinds_share_one_locked_parent_layer() -> None:
     with definition_root() as root:
-        dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile").read_text()
+        dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile.vllm").read_text()
         vllm_lock = root / "containers/posttrain-job-kinds/locks/vllm-common.lock.txt"
         vllm_profile = root / "containers/posttrain-job-kinds/profiles/vllm-common.txt"
 
     shared_start = dockerfile.index("FROM kind-common AS vllm-kind-common")
-    first_variant = dockerfile.index("FROM kind-common AS supervised-dependencies", shared_start)
+    first_variant = dockerfile.index("FROM vllm-kind-common AS online-rl-trl-py312-dependencies", shared_start)
     shared_stage = dockerfile[shared_start:first_variant]
     assert "vllm-common.lock.txt" in shared_stage
     assert "profiles/vllm-common.txt" in shared_stage

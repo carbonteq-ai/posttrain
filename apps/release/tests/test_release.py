@@ -1518,6 +1518,16 @@ def test_kind_source_selection_is_variant_local() -> None:
     assert Path("containers/posttrain-job-kinds/profiles/supervised.txt") in supervised
     assert Path("containers/posttrain-job-kinds/profiles/serve.txt") not in supervised
     assert Path("containers/posttrain-job-kinds/profiles/serve.txt") in serve
+    assert Path("containers/posttrain-job-kinds/Dockerfile.vllm") in serve
+    assert Path("containers/posttrain-job-kinds/Dockerfile.vllm") not in supervised
+    assert Path("containers/posttrain-job-kinds/locks/vllm-common.lock.txt") in serve
+    assert Path("containers/posttrain-job-kinds/profiles/vllm-common.txt") in serve
+    assert Path("containers/posttrain-job-kinds/profiles/supervised.txt") in set(
+        publish._kind_source_paths("online-rl-trl-py312")
+    )
+    assert Path("containers/posttrain-job-kinds/profiles/serve.txt") in set(
+        publish._kind_source_paths("eval")
+    )
     assert Path("containers/posttrain-job-kinds/verl-py313") in verl
     assert Path("containers/posttrain-job-kinds/Dockerfile") not in verl
     assert Path("containers/posttrain-job-kinds/docker-bake.hcl") not in verl

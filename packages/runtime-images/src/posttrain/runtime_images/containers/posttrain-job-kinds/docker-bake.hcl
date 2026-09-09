@@ -75,8 +75,32 @@ target "_published" {
   ]
 }
 
+target "_vllm_common" {
+  context = "."
+  dockerfile = "containers/posttrain-job-kinds/Dockerfile.vllm"
+  args = {
+    CREATED = CREATED
+    LOCK_DIGEST = LOCK_DIGEST
+    POSTTRAIN_BASE_IMAGE = POSTTRAIN_BASE_IMAGE
+    SOURCE_REVISION = SOURCE_REVISION
+    VERSION = VERSION
+  }
+}
+
+target "_vllm_published" {
+  inherits = ["_vllm_common"]
+  output = [
+    "type=image,push=true,compression=zstd,compression-level=1,force-compression=false,oci-mediatypes=true"
+  ]
+}
+
 target "_smoke" {
   inherits = ["_common"]
+  output = ["type=cacheonly"]
+}
+
+target "_vllm_smoke" {
+  inherits = ["_vllm_common"]
   output = ["type=cacheonly"]
 }
 
@@ -87,7 +111,7 @@ target "posttrain-kind-supervised" {
 }
 
 target "posttrain-kind-online-rl-trl-py312" {
-  inherits = ["_published"]
+  inherits = ["_vllm_published"]
   target = "online-rl-trl-py312"
   tags = ["${REGISTRY}/posttrain-kind-online-rl-trl-py312:${VERSION}"]
 }
@@ -113,13 +137,13 @@ target "posttrain-kind-online-rl-verl-py313" {
 }
 
 target "posttrain-kind-eval" {
-  inherits = ["_published"]
+  inherits = ["_vllm_published"]
   target = "eval"
   tags = ["${REGISTRY}/posttrain-kind-eval:${VERSION}"]
 }
 
 target "posttrain-kind-serve" {
-  inherits = ["_published"]
+  inherits = ["_vllm_published"]
   target = "serve"
   tags = ["${REGISTRY}/posttrain-kind-serve:${VERSION}"]
 }
@@ -136,7 +160,7 @@ target "posttrain-kind-supervised-smoke" {
 }
 
 target "posttrain-kind-online-rl-trl-py312-smoke" {
-  inherits = ["_smoke"]
+  inherits = ["_vllm_smoke"]
   target = "online-rl-trl-py312-smoke"
 }
 
@@ -158,12 +182,12 @@ target "posttrain-kind-online-rl-verl-py313-smoke" {
 }
 
 target "posttrain-kind-eval-smoke" {
-  inherits = ["_smoke"]
+  inherits = ["_vllm_smoke"]
   target = "eval-smoke"
 }
 
 target "posttrain-kind-serve-smoke" {
-  inherits = ["_smoke"]
+  inherits = ["_vllm_smoke"]
   target = "serve-smoke"
 }
 
