@@ -96,6 +96,10 @@ def test_two_update_gdpo_resolves_self_hosted_gemma_on_the_local_server() -> Non
     assert settings.num_prompts_per_step == 16
     assert settings.num_generations == 4
 
+    projection = resolved.seats["reward_projection"].value
+    assert projection.id == "reward/automationbench-episode-gdpo-gemma4-12b@1"
+    assert projection.scorer_digest == "a77785fcea65e962c6da9fb3cff999f71511e3e62ecbd7811366081e243983d5"
+
     judge = resolved.seats["judge_inference"].value
     assert isinstance(judge, InferenceBinding)
     assert judge.model.artifact.repo_id == "google/gemma-4-12B-it"
