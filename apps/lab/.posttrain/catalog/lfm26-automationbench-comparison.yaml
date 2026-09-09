@@ -19,7 +19,10 @@ environment:
         agent:
           harness: {id: "null"}
           runtime: {type: subprocess}
-          timeout: {setup: 120, rollout: 300, finalize: 60, scoring: 120}
+          # The first subprocess prepares the shared PEP 723 chat environment;
+          # later rollouts reuse it. This is a cold-start budget, not a rollout
+          # retry allowance.
+          timeout: {setup: 600, rollout: 300, finalize: 60, scoring: 120}
           max_turns: 4
           max_total_tokens: 1024
     sampling: {max_tokens: 512, temperature: 0.8, top_p: 0.95}
