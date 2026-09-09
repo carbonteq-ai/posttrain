@@ -80,6 +80,9 @@ provenance, and an exported adapter.
 - [x] (2026-09-09 12:25Z) Add local machine credential selection and remote execution secret
   forwarding without putting a secret in catalog, packages, images, logs, or
   run snapshots.
+- [x] (2026-09-09 12:25Z) Add the service-neutral episode replay harness and
+  prove its managed-versus-external request mapping with unit tests. Retain the
+  real fixture and historical-corpus executions as qualification work below.
 - [ ] Replace the one-off comparison scripts with a service-neutral local
   replay harness and qualify DeepSeek against the reviewed fixture and the
   retained multi-run corpus.
@@ -137,6 +140,14 @@ provenance, and an exported adapter.
   opt-in and retains request metadata by default. This plan permits endpoints
   that retain or train on data and does not require ZDR, but it does not mutate
   account privacy or observability settings as a side effect of job submission.
+
+- Observation: the current workstation has no configured OpenRouter credential
+  source and the submitting shell has no `OPENROUTER_API_KEY`.
+  Evidence: the read-only job plan reports
+  `runtime_credentials.OPENROUTER_API_KEY=unavailable`; the opt-in live contract
+  test skips before opening a paid request. The implementation and offline
+  tests can proceed, but fixture replay and five-update qualification require
+  the operator to populate the protected machine credential source.
 
 ## Decision Log
 
@@ -440,7 +451,7 @@ to the appropriate base catalog YAML. The intended initial selections are:
     hosted-inference/deepseek-v4-flash-openrouter-judge@1
       model: hosted-models/deepseek-v4-flash-0731@1
       service: external-services/openrouter@1
-      provider: open-inference
+      provider: open-inference/fp8
       purpose: [judge]
       route: {freeze_provider_per_run: true, allow_fallbacks: false,
               require_parameters: true}
@@ -560,7 +571,7 @@ Add a planning/preflight command that performs no paid completion and confirm a
 missing credential fails before job submission. Then run the one paid readiness
 probe only when `OPENROUTER_API_KEY` is available:
 
-    uv run pytest -m external packages/jobs/tests/test_openrouter_live.py -q
+    uv run pytest -m network packages/jobs/tests/test_openrouter_live.py -q
 
 The expected live evidence names the exact requested model, one provider slug,
 `allow_fallbacks=false`, structured-output support, token usage, and no secret.
@@ -569,8 +580,8 @@ Run the local frozen-corpus comparison with the final CLI exposed by the
 harness. The implementation must update this command to its exact catalog ids:
 
     uv run python scripts/qualification/compare_episode_judges.py \
-      --input scripts/qualification/fixtures/general_episode_judge_candidate_v1.json \
-      --judge hosted-inference/deepseek-v4-flash-openrouter-judge@1 \
+      --work-package apps/lab/.posttrain/work_packages/lfm26_automationbench_gdpo_episode_50.yaml \
+      --fixture scripts/qualification/fixtures/general_episode_judge_candidate_v1.json \
       --output artifacts/judge-comparison/openrouter-deepseek-v4-flash-0731
 
 If a Gemma endpoint is available, run the same materialized input manifest with
@@ -679,7 +690,7 @@ The default service policy is:
     base URL: https://openrouter.ai/api/v1
     model: deepseek/deepseek-v4-flash-0731
     credential variable: OPENROUTER_API_KEY
-    provider route: explicit open-inference selection, validate once, pin for the run, no cross-provider fallback
+    provider route: explicit open-inference/fp8 endpoint selection, validate once, pin for the run, no cross-provider fallback
     required parameters: true
     zero-data-retention requirement: false
     provider retention/training restriction: none

@@ -28,7 +28,7 @@ hosted-inference:
     revision: "1"
     model: hosted-models/deepseek-v4-flash-0731@1
     service: external-services/openrouter@1
-    provider: open-inference
+    provider: open-inference/fp8
     purpose: [judge]
     sampling:
       temperature: 0.0

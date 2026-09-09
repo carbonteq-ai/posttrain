@@ -14,6 +14,7 @@ from posttrain.common import (
     ConfigurationIssue,
     ContractError,
     ExecutionTarget,
+    HostedInferenceBinding,
     HubModelRef,
     InferenceBinding,
     JsonValue,
@@ -962,6 +963,19 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "target_id": value.target.id,
             "purpose": list(value.purpose),
             "startup_timeout_seconds": value.startup_timeout_seconds,
+        }
+    if isinstance(value, HostedInferenceBinding):
+        return {
+            "hosted_model_id": value.model.id,
+            "api_model": value.model.model,
+            "model_revision": value.model.revision,
+            "external_service_id": value.service.id,
+            "external_service_revision": value.service.revision,
+            "service_origin": value.service.origin,
+            "provider": value.provider,
+            "sampling": dict(value.sampling),
+            "purpose": list(value.purpose),
+            "credential_variable": value.service.api_key_var,
         }
     if isinstance(value, TrainingBinding):
         return {

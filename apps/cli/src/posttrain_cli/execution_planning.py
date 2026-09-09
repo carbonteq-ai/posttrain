@@ -10,6 +10,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
+from typing import Literal
 
 import yaml
 from posttrain.catalog import FamilyRegistryLock, ProjectLayout
@@ -510,6 +511,7 @@ class PlannedJobExecution:
         return self.launch.mounts
 
     def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobExecution:
+        _require_runtime_credentials(self.package)
         publisher_supports_daemon = self.settings.provider == "local" and hasattr(
             self.package._publisher(), "publish_local_daemon"
         )
@@ -781,7 +783,7 @@ def plan_job_launch(
             package.layout,
             job_kind=package.prepared.recipe_job.kind,
             runtime_variant=package.pack_plan.spec.runtime_variant,
-            required_runtime_variables=_required_runtime_variables(package.prepared.seats),
+            required_runtime_variables=required_runtime_variables(package.prepared.seats),
         ),
     )
     sources = dict(base.sources)
@@ -916,7 +918,7 @@ def _plan_job_package_from_intent(
             layout,
             job_kind=prepared.recipe_job.kind,
             runtime_variant=inferred_variant,
-            required_runtime_variables=_required_runtime_variables(prepared.seats),
+            required_runtime_variables=required_runtime_variables(prepared.seats),
         ),
     )
     if settings.target is not None:
@@ -1357,7 +1359,7 @@ def _job_defaults(
     )
 
 
-def _required_runtime_variables(seats: Mapping[str, object]) -> tuple[str, ...]:
+def required_runtime_variables(seats: Mapping[str, object]) -> tuple[str, ...]:
     """Return secret names required by resolved external services, never values."""
 
     return tuple(
@@ -1367,6 +1369,34 @@ def _required_runtime_variables(seats: Mapping[str, object]) -> tuple[str, ...]:
             if isinstance(selection, HostedInferenceBinding)
         )
     )
+
+
+def runtime_credential_status(package: PlannedJobPackage) -> dict[str, Literal["configured", "unavailable"]]:
+    """Report required external-service credential presence without values."""
+
+    return runtime_credential_status_for_seats(package.local_config, package.prepared.seats)
+
+
+def runtime_credential_status_for_seats(
+    local_config: LocalExecutionConfig,
+    seats: Mapping[str, object],
+) -> dict[str, Literal["configured", "unavailable"]]:
+    required = required_runtime_variables(seats)
+    environment = load_execution_environment(
+        local_config,
+        runtime_variable_names=required,
+    )
+    return {name: "configured" if bool(environment.get(name)) else "unavailable" for name in required}
+
+
+def _require_runtime_credentials(package: PlannedJobPackage) -> None:
+    unavailable = [name for name, status in runtime_credential_status(package).items() if status == "unavailable"]
+    if unavailable:
+        raise ContractError(
+            "required runtime credentials are unavailable: "
+            + ", ".join(unavailable)
+            + "; configure the named machine credential source before packing"
+        )
 
 
 def _runtime_profile_for_job_kind(

@@ -15,7 +15,13 @@ from posttrain.project import JobIntent, Project
 from posttrain.work import resolve_work_package, run_work_package_job, validate_work_package
 
 from ..context import CliState
-from ..execution_config import ExecutionOverrides, PackageOverrides, load_machine_config, resolve_job_builder
+from ..execution_config import (
+    ExecutionOverrides,
+    PackageOverrides,
+    load_local_execution_config,
+    load_machine_config,
+    resolve_job_builder,
+)
 from ..execution_planning import (
     LocalPackedJobPackage,
     PackedJobExecution,
@@ -24,6 +30,8 @@ from ..execution_planning import (
     PlannedJobPackage,
     plan_job_execution,
     plan_job_package,
+    runtime_credential_status,
+    runtime_credential_status_for_seats,
     with_model_checkpoint,
     with_recovery_checkpoint,
 )
@@ -156,6 +164,13 @@ def plan_work_package_cmd(
         f"Job kind: {intent.prepared.recipe_job.kind}",
         f"Definition: {intent.prepared.definition.id}",
     ]
+    credential_status = runtime_credential_status_for_seats(
+        load_local_execution_config(intent.layout, verify_published_locks=False),
+        intent.prepared.seats,
+    )
+    if credential_status:
+        payload["runtime_credentials"] = credential_status
+        lines.extend(f"Runtime credential {name}: {status}" for name, status in credential_status.items())
     if builder is not None:
         if builder not in {"local", "remote"}:
             raise ContractError("job builder must be 'local' or 'remote'")
@@ -606,6 +621,7 @@ def _execution_plan_payload(planned: PlannedJobExecution) -> dict[str, object]:
             "timeout_seconds": settings.timeout_seconds,
             "timeout_source": settings.sources["timeout_seconds"],
             "environment_names": settings.environment_names,
+            "runtime_credentials": runtime_credential_status(planned.package),
             "setting_sources": settings.sources,
             "mounts": [
                 {

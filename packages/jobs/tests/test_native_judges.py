@@ -230,6 +230,6 @@ def test_external_judge_injects_the_explicit_provider_route_without_a_model_arti
         config = cast(Any, bound.activation).config["taskset"]["task"]["judges"][0]
         assert config["sampling"]["extra_body"]["provider"] == route
         identity = cast(Any, bound.parameters)["inference_services"]["judge/quality"]
-        assert identity["requested_provider"] == "open-inference"
+        assert identity["requested_provider"] == "open-inference/fp8"
         assert "artifact_digest" not in identity
         assert "external-secret" not in json.dumps(bound.activation.to_payload())

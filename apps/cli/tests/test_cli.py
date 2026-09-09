@@ -760,7 +760,7 @@ def test_machine_init_creates_shared_defaults_and_scoped_credentials(
 
 
 def test_hosted_inference_declares_only_its_credential_name_as_a_runtime_requirement() -> None:
-    from posttrain_cli.execution_planning import _required_runtime_variables
+    from posttrain_cli.execution_planning import required_runtime_variables
 
     binding = HostedInferenceBinding(
         "hosted-inference/test@1",
@@ -776,7 +776,7 @@ def test_hosted_inference_declares_only_its_credential_name_as_a_runtime_require
         {"max_tokens": 128},
     )
 
-    assert _required_runtime_variables({"judge": binding}) == ("ROUTER_API_KEY",)
+    assert required_runtime_variables({"judge": binding}) == ("ROUTER_API_KEY",)
 
 
 def test_machine_init_omits_redundant_hostname_by_default(tmp_path: Path, capsys) -> None:

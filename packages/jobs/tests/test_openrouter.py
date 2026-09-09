@@ -42,7 +42,7 @@ def _binding() -> HostedInferenceBinding:
                 "data_collection": "allow",
             },
         ),
-        "open-inference",
+        "open-inference/fp8",
         {"temperature": 0.0, "max_tokens": 16_384},
     )
 
@@ -105,7 +105,7 @@ def test_resolver_freezes_explicit_provider_route_and_retains_no_secret(tmp_path
             return httpx.Response(200, json=_inventory())
         payload = __import__("json").loads(request.content)
         assert payload["provider"] == {
-            "order": ["open-inference"],
+            "order": ["open-inference/fp8"],
             "allow_fallbacks": False,
             "require_parameters": True,
             "zdr": False,
@@ -133,6 +133,7 @@ def test_resolver_freezes_explicit_provider_route_and_retains_no_secret(tmp_path
     with resolver(_context(tmp_path), "judge/quality", ExternalInferenceServiceRequest(binding)) as resolved:
         identity = resolved.trace_identity()
         assert resolved.provider["provider_slug"] == "open-inference"
+        assert resolved.provider["requested_provider"] == "open-inference/fp8"
         assert resolved.provider["pricing"] == {
             "prompt": "0.00000005",
             "completion": "0.00000016",
@@ -171,6 +172,29 @@ def test_resolver_rejects_provider_drift(tmp_path, monkeypatch):
     with pytest.raises(OpenRouterResolutionError, match="outside the frozen route"):
         with resolver(_context(tmp_path), "judge/quality", ExternalInferenceServiceRequest(_binding())):
             pytest.fail("provider drift admitted")
+
+
+def test_resolver_rejects_a_probe_that_ignores_the_structured_output_contract(tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_OPENROUTER_API_KEY", "secret-value")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=_inventory())
+        return httpx.Response(
+            200,
+            json={
+                "id": "gen-invalid",
+                "model": "deepseek/deepseek-v4-flash-0731",
+                "provider": "OpenInference",
+                "choices": [{"message": {"content": "ready"}, "finish_reason": "stop"}],
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    resolver = OpenRouterResolver(client_factory=lambda **kwargs: httpx.Client(transport=transport, **kwargs))
+    with pytest.raises(OpenRouterResolutionError, match="invalid structured output"):
+        with resolver(_context(tmp_path), "judge/quality", ExternalInferenceServiceRequest(_binding())):
+            pytest.fail("invalid capability probe admitted")
 
 
 def test_resolver_rejects_endpoint_without_required_parameters(tmp_path, monkeypatch):

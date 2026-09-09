@@ -57,7 +57,12 @@ def test_default_judged_gdpo_resolves_openrouter_without_a_gpu_judge_target() ->
     judge = resolved.seats["judge_inference"].value
     assert isinstance(judge, HostedInferenceBinding)
     assert judge.model.model == "deepseek/deepseek-v4-flash-0731"
+    assert judge.provider == "open-inference/fp8"
     assert judge.service.origin == "https://openrouter.ai"
+    judge_snapshot = cast(dict[str, object], resolved.snapshot["judge_inference"])
+    details = cast(dict[str, object], judge_snapshot["resolved"])
+    assert details["api_model"] == "deepseek/deepseek-v4-flash-0731"
+    assert details["provider"] == "open-inference/fp8"
     assert "secret-value" not in str(resolved.snapshot)
     targets = resolved.snapshot["execution_targets"]
     assert isinstance(targets, dict)

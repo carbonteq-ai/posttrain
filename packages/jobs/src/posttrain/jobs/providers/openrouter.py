@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -65,11 +67,13 @@ class OpenRouterResolver:
             "Content-Type": "application/json",
             **dict(service.headers),
         }
+        started = time.monotonic()
         with self._client_factory(headers=headers, timeout=self._timeout_seconds) as client:
             inventory = _inventory(client, service.base_url, binding.model.model)
             selected = _select_endpoint(inventory, binding)
-            provider_slug = binding.provider
-            route = _route_policy(service.provider_policy, provider_slug)
+            requested_provider = binding.provider
+            provider_slug = _provider_slug(selected)
+            route = _route_policy(service.provider_policy, requested_provider)
             probe_evidence = (
                 _probe_capabilities(client, service.base_url, binding.model.model, route)
                 if self._capability_probe
@@ -88,8 +92,10 @@ class OpenRouterResolver:
             endpoint = Endpoint(service.base_url, binding.model.model, api_key)
             provider: dict[str, JsonValue] = {
                 "resolved_at": datetime.now(UTC).isoformat(),
+                "resolution_latency_seconds": time.monotonic() - started,
                 "provider_name": str(selected.get("provider_name", "")),
                 "provider_slug": provider_slug,
+                "requested_provider": requested_provider,
                 "endpoint_tag": str(selected.get("tag", "")),
                 "quantization": str(selected.get("quantization", "unknown")),
                 "context_length": _optional_int(selected.get("context_length")),
@@ -99,7 +105,12 @@ class OpenRouterResolver:
                 "route": route,
                 "capability_probe": probe_evidence,
             }
-            readiness = ProbeResult(True, True, 0.0, (binding.model.model,))
+            readiness = ProbeResult(
+                True,
+                True,
+                cast(float, provider["resolution_latency_seconds"]),
+                (binding.model.model,),
+            )
             yield ResolvedInferenceService(
                 name,
                 binding,
@@ -114,6 +125,7 @@ class OpenRouterResolver:
                 {
                     "service_name": name,
                     "provider_slug": provider_slug,
+                    "requested_provider": requested_provider,
                     "model": binding.model.model,
                 },
             )
@@ -125,7 +137,7 @@ def _inventory(client: httpx.Client, base_url: str, model: str) -> Mapping[str, 
         raise OpenRouterResolutionError("OpenRouter model identifier must be author/slug")
     response = client.get(f"{base_url.rstrip('/')}/models/{author}/{slug}/endpoints")
     _raise_for_status(response, "endpoint inventory")
-    payload = response.json()
+    payload = _response_json(response, "endpoint inventory")
     data = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(data, dict) or data.get("id") != model:
         raise OpenRouterResolutionError("OpenRouter endpoint inventory did not match the requested model")
@@ -248,9 +260,21 @@ def _probe_capabilities(
         },
     )
     _raise_for_status(response, "capability probe")
-    payload = response.json()
-    if not isinstance(payload, dict) or not payload.get("choices"):
+    payload = _response_json(response, "capability probe")
+    choices = payload.get("choices") if isinstance(payload, dict) else None
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
         raise OpenRouterResolutionError("OpenRouter capability probe returned no completion")
+    first = choices[0]
+    if first.get("finish_reason") not in {None, "stop"}:
+        raise OpenRouterResolutionError("OpenRouter capability probe did not finish normally")
+    message = first.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    try:
+        structured = json.loads(content) if isinstance(content, str) else None
+    except json.JSONDecodeError as error:
+        raise OpenRouterResolutionError("OpenRouter capability probe returned invalid structured output") from error
+    if structured != {"ready": True}:
+        raise OpenRouterResolutionError("OpenRouter capability probe did not satisfy its structured-output contract")
     usage = payload.get("usage")
     return {
         "request_id": str(payload.get("id", "")),
@@ -273,6 +297,13 @@ def _raise_for_status(response: httpx.Response, operation: str) -> None:
             else "configuration"
         )
         raise OpenRouterResolutionError(f"OpenRouter {operation} failed ({category}, HTTP {status})") from error
+
+
+def _response_json(response: httpx.Response, operation: str) -> Any:
+    try:
+        return response.json()
+    except ValueError as error:
+        raise OpenRouterResolutionError(f"OpenRouter {operation} returned invalid JSON") from error
 
 
 def _provider_matches(reported: str, selected: Mapping[str, Any]) -> bool:
