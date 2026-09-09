@@ -10,7 +10,7 @@ from typing import cast
 
 import pytest
 from posttrain.catalog import open_catalog as open_framework_catalog
-from posttrain.common import Catalog, CatalogRef, ContractError, HostedInferenceBinding
+from posttrain.common import Catalog, CatalogRef, ContractError, HostedInferenceBinding, InferenceBinding
 from posttrain.common.variants import QWEN_35_2B
 from posttrain.eval import EnvironmentBinding, EvaluateRequest, EvaluationBudget, EvaluationEndpoint
 from posttrain.serve import ServeBenchmarkRequest
@@ -72,6 +72,37 @@ def test_default_judged_gdpo_resolves_openrouter_without_a_gpu_judge_target() ->
         for role in cast(list[str], target["roles"])
     }
     assert "judge_inference" not in roles
+
+
+def test_two_update_gdpo_resolves_self_hosted_gemma_on_the_local_server() -> None:
+    package = load_work_package(WORK_PACKAGES / "lfm26_automationbench_gdpo_episode_2_gemma_local.yaml")
+    catalog = open_framework_catalog(
+        scope=package.project_id,
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    resolved = resolve_work_package(catalog, package)
+
+    settings = resolved.seats["settings"].value
+    assert settings.loop.max_steps == 2
+    assert settings.num_prompts_per_step == 16
+    assert settings.num_generations == 4
+
+    judge = resolved.seats["judge_inference"].value
+    assert isinstance(judge, InferenceBinding)
+    assert judge.model.artifact.repo_id == "google/gemma-4-12B-it"
+    assert judge.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
+    assert judge.engine["speculative_config"]["num_speculative_tokens"] == 2  # type: ignore[index]
+
+    targets = resolved.snapshot["execution_targets"]
+    assert isinstance(targets, dict)
+    resolved_targets = cast(list[dict[str, object]], targets["targets"])
+    assert len(resolved_targets) == 1
+    assert resolved_targets[0]["selection_id"] == "targets/carbonteq-rtx-pro-6000-96gb"
+    assert set(cast(list[str], resolved_targets[0]["roles"])) == {
+        "judge_inference",
+        "rollout_inference",
+        "training",
+    }
 
 
 def test_reference_yaml_runs_screen_and_skips_optional_eval() -> None:

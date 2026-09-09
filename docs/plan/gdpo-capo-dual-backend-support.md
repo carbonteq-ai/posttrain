@@ -125,6 +125,20 @@ objective. This plan does not claim benchmark reproduction or superiority.
 
 ## Progress
 
+- [ ] (2026-09-10) Run the bounded self-hosted Gemma qualification before the
+  remote two-machine topology. The exact work package is
+  `apps/lab/.posttrain/work_packages/lfm26_automationbench_gdpo_episode_2_gemma_local.yaml`:
+  two GDPO optimizer updates, 16 prompt groups by four trajectories, LFM2.5
+  2.6B LoRA policy, and the pinned Gemma 4 12B thinking judge with MTP-2. All
+  three compute roles resolve to the free CarbonTeq RTX PRO 6000 96 GB server;
+  the judge is a managed local vLLM service and no OpenRouter/OpenAI credential
+  or request path is permitted. Acceptance requires 128 admitted trajectories,
+  two finite optimizer updates, non-uniform retained eight-component reward
+  evidence, changed-weight collection for update two, both checkpoints, and
+  complete summary/model/trace artifact publication. This is a colocated
+  development qualification, not evidence for the still-pending independently
+  provisioned production judge topology.
+
 - [x] (2026-09-08) Consolidate Verifiers worktrees. Current edit targets are
   `/home/hammad/projects/verifiers` on `codex/carbonteq-verifiers-latest` and
   `/home/hammad/projects/verifiers-environments` on `codex/verifiers-latest-support`.

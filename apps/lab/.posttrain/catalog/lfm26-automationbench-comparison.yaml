@@ -462,6 +462,37 @@ training:
     component_weights: [0.50, 0.05, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
     max_admission_attempts: 3
 
+  lfm2.5-2.6b/automationbench-gdpo-episode-2-local-v1:
+    selection_type: gdpo-settings
+    revision: "1"
+    loop:
+      # Two collections prove the second rollout uses the adapter produced by
+      # the first optimizer update. Checkpointing each update also exercises
+      # bounded artifact finalization in this development qualification.
+      max_steps: 2
+      max_length: 13312
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 64
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 1
+      checkpoint_limit: 2
+    num_prompts_per_step: 16
+    num_generations: 4
+    max_prompt_length: 10240
+    max_completion_length: 3072
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - evidence_state_grounding
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.50, 0.05, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 3
+
   training/lfm2.5-2.6b-trl-lora-automationbench@1:
     selection_type: training-binding
     revision: "1"
@@ -519,6 +550,33 @@ training:
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
       dependency_lock_sha256: 0b7c8a431411a625cbfdb9623d0bac75798bffacdd77268d076cb31a30fb3d1d
+
+  training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post8
+    renderer:
+      id: lfm2.5-tools-thinking@2
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update:
+      kind: lora
+      rank: 4
+      alpha: 8
+      target_modules: all-linear
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 64
+      devices_per_node: 1
+      timeout_seconds: 43200
+    backend_options:
+      rollout_execution: {env_workers: 4, episodes_per_worker: 8, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      vllm_policy_parity_max_sequence_tokens: 4096
+      dependency_lock: trl-fork@current
 
   training/lfm2.5-2.6b-trl-lora-changed-weight-canary@1:
     selection_type: training-binding
@@ -738,6 +796,34 @@ inference:
           revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
     sampling: *judge_sampling
     target: targets/runpod-rtx-pro-6000-96gb-secure-ondemand
+    purpose: [eval]
+
+  inference/gemma4-12b-vllm-automationbench-judge-mtp2-local@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      gpu_memory_utilization: 0.35
+      dtype: bfloat16
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 16
+      max_num_batched_tokens: 24576
+      enforce_eager: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: gemma4
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 2
+        draft_model:
+          repo_id: google/gemma-4-12B-it-assistant
+          revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
+    sampling: *judge_sampling
+    target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [eval]
 
 evaluation:

@@ -3,7 +3,7 @@ name = "posttrain-awq-runtime"
 version = "0.1.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "carbonteq-trackio==0.31.5.post14.dev21",
+    "carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/1d3/3039c083d6455/carbonteq_trackio-0.31.5.post14.dev21-py3-none-any.whl#sha256=1d33039c083d6455ccc26251b1b375bd79abf6d47072158b37b277e9029dbbbc",
     "datasets>=4.8.4,<5",
     "llmcompressor @ git+https://github.com/vllm-project/llm-compressor.git@655b83d1240c37920a603b747bbfb6c218f66383",
     "pydantic==2.13.4",
@@ -16,7 +16,6 @@ dependencies = [
 system-certs = true
 
 [tool.uv.sources]
-carbonteq-trackio = { index = "carbonteq-dev" }
 torch = { index = "pytorch-cu130" }
 
 [[tool.uv.index]]
