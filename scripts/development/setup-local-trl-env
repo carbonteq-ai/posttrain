@@ -2,11 +2,11 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 TRL_CHECKOUT" >&2
+  echo "usage: $0 TRL_CHECKOUT [VERIFIERS_CHECKOUT AUTOMATIONBENCH_CHECKOUT]" >&2
   exit 2
 }
 
-[[ $# -eq 1 ]] || usage
+[[ $# -eq 1 || $# -eq 3 ]] || usage
 repository_root="$(git rev-parse --show-toplevel)"
 trl_checkout="$(cd "$1" && pwd)"
 
@@ -17,13 +17,16 @@ trl_checkout="$(cd "$1" && pwd)"
 
 cd "$repository_root"
 
-# The lock remains the baseline dependency closure. The final editable install
-# replaces only TRL itself and resolves no dependencies, so candidate work
-# cannot silently perturb Torch, vLLM, Transformers, or the framework lock.
+# Install every workspace package from this worktree so the environment is also
+# suitable for cross-package development and tests. The lock remains the
+# baseline dependency closure. The final editable installs replace only the
+# selected candidate sources and resolve no dependencies, so they cannot
+# silently perturb Torch, vLLM, Transformers, or the framework lock.
 uv sync \
-  --package posttrain-train \
+  --all-packages \
   --extra trl \
   --extra trl-vllm \
+  --extra verifiers \
   --group dev \
   --frozen \
   --python 3.13
@@ -32,22 +35,71 @@ uv pip install \
   --no-deps \
   --editable "$trl_checkout"
 
-"${repository_root}/.venv/bin/python" - "$repository_root" "$trl_checkout" <<'PY'
+if [[ $# -eq 3 ]]; then
+  verifiers_checkout="$(cd "$2" && pwd)"
+  automationbench_checkout="$(cd "$3" && pwd)"
+  [[ -f "${verifiers_checkout}/pyproject.toml" && -d "${verifiers_checkout}/verifiers" ]] || {
+    echo "VERIFIERS_CHECKOUT must be a Verifiers repository root: ${verifiers_checkout}" >&2
+    exit 1
+  }
+  [[ -f "${automationbench_checkout}/pyproject.toml" ]] || {
+    echo "AUTOMATIONBENCH_CHECKOUT must be the AutomationBench environment package: ${automationbench_checkout}" >&2
+    exit 1
+  }
+  uv pip install \
+    --python "${repository_root}/.venv/bin/python" \
+    --no-deps \
+    --editable "$verifiers_checkout" \
+    --editable "$automationbench_checkout"
+fi
+
+"${repository_root}/.venv/bin/python" - "$repository_root" "$trl_checkout" "${verifiers_checkout:-}" "${automationbench_checkout:-}" <<'PY'
 import sys
+from importlib import import_module
 from pathlib import Path
 
-import posttrain.train
 import trl
 
 repository_root = Path(sys.argv[1]).resolve()
 trl_checkout = Path(sys.argv[2]).resolve()
-posttrain_source = Path(posttrain.train.__file__).resolve()
+posttrain_modules = (
+    "posttrain.catalog",
+    "posttrain.common",
+    "posttrain.jobs",
+    "posttrain.project",
+    "posttrain.serve",
+    "posttrain.train",
+    "posttrain.work",
+)
+posttrain_sources = {
+    module_name: Path(import_module(module_name).__file__).resolve()
+    for module_name in posttrain_modules
+}
 trl_source = Path(trl.__file__).resolve()
-if not posttrain_source.is_relative_to(repository_root):
-    raise SystemExit(f"Posttrain did not resolve from this worktree: {posttrain_source}")
+for module_name, module_source in posttrain_sources.items():
+    if not module_source.is_relative_to(repository_root):
+        raise SystemExit(f"{module_name} did not resolve from this worktree: {module_source}")
 if not trl_source.is_relative_to(trl_checkout):
     raise SystemExit(f"TRL did not resolve from the candidate checkout: {trl_source}")
-print(f"Posttrain source: {posttrain_source}")
+for module_name, module_source in posttrain_sources.items():
+    print(f"{module_name} source: {module_source}")
 print(f"TRL source: {trl_source}")
 print(f"TRL version: {trl.__version__}")
+
+if sys.argv[3]:
+    import automationbench_v1
+    import verifiers
+
+    verifiers_checkout = Path(sys.argv[3]).resolve()
+    automationbench_checkout = Path(sys.argv[4]).resolve()
+    verifiers_source = Path(verifiers.__file__).resolve()
+    automationbench_source = Path(automationbench_v1.__file__).resolve()
+    if not verifiers_source.is_relative_to(verifiers_checkout):
+        raise SystemExit(f"Verifiers did not resolve from the candidate checkout: {verifiers_source}")
+    if not automationbench_source.is_relative_to(automationbench_checkout):
+        raise SystemExit(
+            f"AutomationBench did not resolve from the candidate checkout: {automationbench_source}"
+        )
+    print(f"Verifiers source: {verifiers_source}")
+    print(f"AutomationBench source: {automationbench_source}")
 PY

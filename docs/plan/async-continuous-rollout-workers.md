@@ -1,5 +1,24 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 26 — 2026-09-09. The source-composed local gate now overlays the
+selected TRL, Verifiers, and AutomationBench environment checkouts and verifies
+every import origin. Local TRL commit
+`278af512459b6be6d9510029ad9bbfd7d7faff03` carries the corrected
+learner-acknowledgement and standalone-worker behavior; it is committed but not
+yet pushed or packaged. A real Posttrain Verifiers producer fed native TRL samples
+through `AsyncGRPOTrainer` for one parameter-changing GPU optimizer update.
+This exposed dataloader-prefetch corruption in the recovery seam: collation
+acknowledged a later group before the learner consumed it. Group IDs now travel
+in the batch and are acknowledged only in `training_step`; the one-step
+regression proves only the trained group's siblings advance. The native
+`AsyncRolloutWorker` independently completed 16 groups × 4 trajectories with
+Qwen3.5-2B and 64/64 successful tool calls. Concurrency 32 took 18.7395 seconds
+versus 46.7045 seconds at concurrency one, a 2.49x speedup. Its first run also
+found and fixed trainer-dependent lifecycle logging and false failure reporting
+for normal shutdown cancellation. These results qualify local rollout
+concurrency and one small-model learner update, not 2B training,
+checkpoint/resume, immutable publication, or public activation.
+
 Revision 25 — 2026-09-09. Fast source qualification now uses a dedicated
 Posttrain worktree and a worktree-local Python environment. The setup command
 first installs the repository's frozen TRL/vLLM dependency closure, then
@@ -73,7 +92,7 @@ Actor forward/backward optimization is explicitly out of scope: no changes to ac
 - [x] (2026-09-08) Milestone A: implement exact-token, complete-group sample projection and test it against the installed native TRL sample and queue consumer. Public activation remains disabled.
 - [x] (2026-09-09) Milestone B: implement a bounded Verifiers producer satisfying the native worker protocol, including concrete GRPO group production, stable prompt scheduling, independent group completion, exact group-relative advantages, bounded typed rejection, run-scoped admission, sibling cancellation, lifecycle cleanup, learner-consumption acknowledgement, and checkpoint-aware replay of only unconsumed groups. Runtime selection and live resume proof remain Milestone D.
 - [ ] Milestone C: qualify served policy-version evidence across tool waits and live weight transfers (completed: backend-neutral episode spans, veRL native span propagation and deterministic prefix-resume proof, TRL's acknowledged request drain/two-phase publication gate, a run-scoped native-token admission gateway, native-episode span persistence, missing/mismatched evidence rejection, shared-upstream failure classification, and real external-server changed-weight actor/sampler parity; remaining: live failure-path qualification before activation).
-- [ ] Milestone D: amend the deferred-async baseline, activate validated backend-specific settings, and qualify real asynchronous updates, checkpoint/resume, and publication. Separately qualify episode-level GDPO; do not imply CAPO/SAMPO/OLMo parity.
+- [ ] Milestone D: amend the deferred-async baseline, activate validated backend-specific settings, and qualify checkpoint/resume and publication. One real parameter-changing asynchronous update now passes through the Posttrain Verifiers producer and native TRL learner; public activation and a 2B learner run remain open. Separately qualify episode-level GDPO; do not imply CAPO/SAMPO/OLMo parity.
 - [x] (2026-09-08) Inspect the current bridge, TRL request batching, native Verifiers process pool and training client, and canonical ownership contracts.
 - [x] (2026-09-08) Select native environment worker processes, native token-preserving clients, a single asynchronous inference owner, and fixed-policy collection barriers.
 - [x] (2026-09-08) Revise the design for veRL-native Ray workers, explicit component interfaces, and backend-specific lifecycle ownership; reject nested environment pools on veRL.
@@ -98,7 +117,7 @@ Actor forward/backward optimization is explicitly out of scope: no changes to ac
 - [x] (2026-09-08) Implement the additive TRL asynchronous generation lifecycle against the selected runtime. Trainer ownership and changed-weight parity remain open.
 - [x] (2026-09-09) Integrate bounded environment workers and coordinator admission/cancellation.
 - [x] (2026-09-09) Implement veRL worker budgets, model-independent rendering, typed episode failures, and pre-advantage group admission.
-- [ ] Qualify failure handling, numerical equivalence, and real GPU optimizer updates (changed-weight parity and deterministic failure semantics pass; live failure injection and optimizer updates remain).
+- [ ] Qualify failure handling, numerical equivalence, and real GPU optimizer updates (changed-weight parity, deterministic failure semantics, and one controlled small-model optimizer update pass; live failure injection, real environment serving, and a 2B learner update remain).
 - [ ] Publish fork revisions, update consumer locks and documentation, and qualify the immutable runtime image before promoting the mode.
 
 ## Context and source authority
@@ -110,7 +129,7 @@ The inspected source baseline is:
 | Repository | Source baseline and role |
 | --- | --- |
 | `/home/hammad/projects/rl` | Branch `codex/pre-rollout-optimization-baseline`, created to commit the accumulated pre-optimization work; current consumer selects TRL `1.12.0.post5`. This is a development baseline, not a qualified release. |
-| `/home/hammad/projects/trl-async-training` | Canonical async-training worktree; branch `codex/trl-parity-probe-bound`, pushed evidence tip `b6c1206a4e7207d2243055728c4824853edab325`, including request drain, custom-worker learner acknowledgements, scheduling-state checkpoint hooks, fail-closed weight-transfer coverage, and the external-server changed-weight parity gate. The passing run used implementation SHA `2308ab41aeedc082e154734f33cfe44809b1fdea`; published post5 source remains `b9f3a09369d9cfa21950feef3e110e1fdf779c54`. The async candidate is not packaged or selected. The sibling `/home/hammad/projects/trl` checkout remains on `codex/bounded-vllm-waves` and is not the edit target. |
+| `/home/hammad/projects/trl-async-training` | Canonical async-training worktree; branch `codex/trl-parity-probe-bound`, local committed tip `278af512459b6be6d9510029ad9bbfd7d7faff03` and pushed ancestor `213bc267445c8787e2ccbc7c2021360a9f6e840c`. The local tip corrects learner acknowledgement after dataloader prefetch and qualifies the standalone native agent worker; it is not yet pushed or packaged. The passing changed-weight run used implementation SHA `2308ab41aeedc082e154734f33cfe44809b1fdea`; published post5 source remains `b9f3a09369d9cfa21950feef3e110e1fdf779c54`. The async candidate is not selected. The sibling `/home/hammad/projects/trl` checkout remains on `codex/bounded-vllm-waves` and is not the edit target. |
 | `/home/hammad/projects/verifiers` | Canonical checkout; branch `codex/carbonteq-verifiers-latest`. Local synchronization candidate `36eac9d5e04ef29b584b6fa4f027af00cd76ea19` merges upstream main `27bbd216df0af719a43705866b2cf6139bcc95de` and updates `CARBONTEQ_FORK.md`; the complete upstream v1 suite passes, with credential-dependent Prime tests skipped. This candidate is not yet pushed or selected. Framework manifests, catalog references, and candidate control-runtime inputs still select published commit `c6c0097ad21da845c62e4b19aba80ef6633e4d9f`, based on `e3bcbcbe5c55297a07a5d1038e37c2408b4a3dbd`. The last published veRL backend profile deliberately retains its prior closure until replacement image publication. |
 | `/home/hammad/projects/verifiers-environments` | Canonical checkout; branch `codex/verifiers-latest-support`, commit `12ff5e1abfab369b8dec4df3ce83c5984f55ad34`. Clean after consolidation. Task semantics remain here; no changes required initially. |
 | `/home/hammad/projects/verl-upstream` | Historical work is preserved on `codex/verl-pre-rollout-optimization-baseline`, based on `a35908ca3c9632859c58d6a2855d858918ae21dc`; do not use this snapshot as the runtime implementation base. Active implementation branch `codex/verl-rollout-execution` is pushed at `9694a6242e3590acaf58a779c1151b370f313b51`, based on executable runtime pin `cec7e74c361bb973b641db8dfbb75a5544c33139` (`carbonteq-v0.9.0.post1`). This fork commit is not yet a published runtime artifact or stable framework pin. |
@@ -136,6 +155,23 @@ Cleanup preserved older local changes in named stashes: `pre-worktree-cleanup-20
 ## Surprises & Discoveries
 
 TRL's released v1.12.0 documentation already describes a producer/queue/learner system, separate inference GPUs, weight transfer and stale-sample rejection. Exact fork `684696a2` exposes `RolloutWorkerProtocol` (`start`, `stop`, `update_model_version`, `check_health`, `rollout_buffer`, `metrics_queue`) and native `RolloutSample`. Its learner accepts a scalar precomputed advantage, not a reward vector or token-wise advantages. Its queue rejects samples individually by age; complete-group scoring does not mean atomic optimizer consumption of all siblings.
+
+The real local optimizer gate found that “collated” is not equivalent to
+“learner-consumed.” The Trainer dataloader prefetches the next planned
+microbatch, so a callback in `DataCollatorForRollout` advanced recovery state
+for work that never reached a one-step learner. The generic seam now carries
+group IDs through dispatch and acknowledges them from `training_step` on the
+main process. The same local composition required the `kernels` package because
+the current async trainer explicitly selects Transformers' Hub-hosted
+FlashAttention kernel. Online resolution succeeds, but its unpinned Hub kernel
+revision remains an immutable/offline-runtime packaging gap.
+
+The native tool-agent comparison also shows why “async” must mean independent
+request admission rather than merely an async function. Qwen3.5-2B produced
+the same 64 successful tool calls with zero tool failures at concurrency one
+and 32, while concurrency 32 reduced wall time from 46.7045 to 18.7395 seconds.
+The 2.49x rather than 32x gain is expected here: each trajectory's second model
+turn depends on its tool result, and all generations share one GPU.
 
 Milestone A's native-consumer test exposed that `RolloutQueueDataset` logs through Accelerate even when tested outside a trainer; the test substitutes only that logger and exercises the real stale-filtering iterator. Six tests pass. The implemented adapter constructs the full native sequence directly from retained token IDs, masks prompt and environment tokens, zero-pads behavior logprobs only at untrained positions, and rejects an entire group before returning anything when size, occurrence, truncation, advantage, task, logprob, or served-version evidence is invalid.
 

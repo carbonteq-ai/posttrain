@@ -31,6 +31,8 @@ trl = [
     "sentencepiece>=0.2,<0.3",
     "protobuf>=7.35,<8",
     "huggingface-hub>=1.24,<1.25",
+    # AsyncGRPO uses Transformers' Hub-hosted FlashAttention kernel directly.
+    "kernels>=0.15.2,<0.16",
 ]
 trl-vllm = [
     "aiohttp>=3.13,<4",

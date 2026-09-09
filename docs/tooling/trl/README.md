@@ -26,7 +26,10 @@ Live RTX PRO qualification remains pending. Harness optimization is deferred.
 The async rollout lifecycle is under development on fork branch
 `codex/trl-parity-probe-bound`. Its latest pushed candidate is
 `213bc267445c8787e2ccbc7c2021360a9f6e840c`; it is not part of the published
-post5 package or framework pin. Against the selected vLLM 0.25.1 runtime, its
+post5 package or framework pin. Local committed tip
+`278af512459b6be6d9510029ad9bbfd7d7faff03` adds the corrected
+learner-consumption acknowledgement and native-agent qualification, but is not
+yet pushed or packaged. Against the selected vLLM 0.25.1 runtime, its
 bounded Qwen 0.5B gate passes independent request completion, explicit abort,
 sampled-token logprobs, drain, staged weights/KV-cache wake, sleep, and clean
 shutdown on the local RTX 3070 Ti. The first attempt found that restoring only
@@ -44,9 +47,10 @@ transfer it was exactly `0.0`, while the server value moved by
 the server keeps version 0 authoritative with unchanged selected-token
 log-probability. It is a single-rank control-path result only; repeated NCCL
 group initialization on a long-lived vLLM server remains an unqualified
-distributed failure-propagation case. A real asynchronous
-Verifiers-to-learner optimizer update, an immutable candidate package,
-checkpoint/resume, and throughput qualification remain open. See
+distributed failure-propagation case. A controlled asynchronous
+Verifiers-to-learner optimizer update now passes locally; real environment
+serving, a 2B learner update, an immutable candidate package, and
+checkpoint/resume remain open. See
 `docs/plan/async-continuous-rollout-workers.md` for the exact command and gates.
 
 The local candidate also adds an acknowledged model-request drain to native
@@ -73,13 +77,24 @@ with FlashInfer remains a separate benchmark, not a reason to invalidate the
 correctness gate.
 
 The same candidate adds optional recovery hooks for custom rollout workers.
-TRL acknowledges one group identity per sample when its collator admits that
-sample into a learner microbatch, and it saves or restores worker-declared JSON
-scheduling metadata with the trainer checkpoint. It does not serialize live
-queues, environments, requests, or processes. Posttrain uses this seam to keep
-generated/enqueued work distinct from learner-consumed work and fails closed
-on a partially consumed relative-reward group. Whole-group batching and a real
-resume must still be qualified before the mode can be selected.
+TRL's collator transports one group identity per sample, but acknowledgement
+occurs only when `training_step` receives that batch. This distinction matters
+because dataloader prefetch can collate a later group that the learner never
+uses. TRL saves or restores worker-declared JSON scheduling metadata with the
+trainer checkpoint; it does not serialize live queues, environments, requests,
+or processes. Posttrain uses this seam to keep generated/enqueued work distinct
+from learner-consumed work and fails closed on a partially consumed
+relative-reward group. Whole-group batching and a real resume must still be
+qualified before the mode can be selected.
+
+The original native `AsyncRolloutWorker` also passed a local tool-calling
+throughput gate with Qwen3.5-2B on one RTX 3070 Ti. Sixteen groups of four
+produced 64/64 successful tool calls and zero tool failures. Holding the
+workload and sampling controls constant, concurrency 32 completed in 18.7395
+seconds (3.4152 samples/s), compared with 46.7045 seconds (1.3703 samples/s)
+at concurrency one, a 2.49x speedup. The gate found and fixed standalone
+Accelerate-logger coupling and a false failure on normal Python 3.13 task
+cancellation. It is rollout evidence, not a 2B optimizer-update qualification.
 
 Posttrain now has an unselected run-scoped token gateway for this candidate.
 It forwards native Verifiers requests to the trainer-owned vLLM server while
