@@ -610,7 +610,69 @@ def _configuration_findings(
                     "Enable TurboQuant only after selecting a qualified model/backend/operation combination.",
                 )
             )
+    issues.extend(_colocated_trl_weight_floor_findings(seats))
     return tuple(issues), tuple(checks)
+
+
+def _colocated_trl_weight_floor_findings(seats: ResolvedSeats) -> tuple[ConfigurationIssue, ...]:
+    """Reject only policy/rollout weight floors that provably exceed one device.
+
+    TRL's colocated vLLM sleep mode releases rollout allocations during the
+    optimizer phase. It does not offload the actor while vLLM is awake, so a
+    rollout phase still needs one actor copy and one vLLM copy of the policy.
+    This check deliberately excludes KV cache, activations, adapters, optimizer
+    state, and runtime workspaces: fitting this floor is necessary, not proof
+    that the complete workload will fit.
+    """
+
+    training_roles = [
+        (role, value)
+        for role, value in seats.items()
+        if isinstance(value, TrainingBinding) and value.backend.partition("@")[0] == "trl"
+    ]
+    rollout_roles = [
+        (role, value)
+        for role, value in seats.items()
+        if isinstance(value, InferenceBinding) and "rollout" in value.purpose and value.engine.get("mode") == "colocate"
+    ]
+    findings: list[ConfigurationIssue] = []
+    bytes_per_parameter = {"bf16": 2, "bfloat16": 2, "fp16": 2, "float16": 2, "fp32": 4, "float32": 4}
+    gib = 1024**3
+    for training_role, training in training_roles:
+        if training.update.kind == "qlora":
+            # The actor and native TRL vLLM path both derive their bitsandbytes
+            # loading mode from the QLoRA actor. A dense-precision floor would
+            # therefore be a false rejection.
+            continue
+        for rollout_role, rollout in rollout_roles:
+            if training.target != rollout.target or rollout.target.memory_gb is None:
+                continue
+            parameter_bytes = bytes_per_parameter.get(rollout.model.weight_precision.lower())
+            if parameter_bytes is None:
+                continue
+            required_gib = 2 * rollout.model.parameters * parameter_bytes / gib
+            if required_gib <= rollout.target.memory_gb:
+                continue
+            findings.append(
+                ConfigurationIssue(
+                    "COLOCATED_TRL_WEIGHT_FLOOR_EXCEEDS_TARGET",
+                    "error",
+                    "static",
+                    rollout_role,
+                    f"{rollout_role}.target.memory_gb",
+                    (
+                        f"TRL colocated rollout needs at least {required_gib:.2f} GiB for simultaneous actor and "
+                        f"vLLM {rollout.model.weight_precision} policy weights, but target {rollout.target.id} "
+                        f"declares {rollout.target.memory_gb:g} GiB"
+                    ),
+                    (
+                        "Select a larger target, a smaller or qualified weight-quantized model, or a backend with "
+                        "qualified actor offload. vLLM sleep releases rollout memory during optimization only."
+                    ),
+                    (f"{training_role}.target", f"{rollout_role}.engine.mode"),
+                )
+            )
+    return tuple(findings)
 
 
 def override_job_execution_target(

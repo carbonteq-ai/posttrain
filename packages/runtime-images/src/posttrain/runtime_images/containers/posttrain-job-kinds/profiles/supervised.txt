@@ -8,4 +8,4 @@ protobuf==7.35.1
 renderers==0.1.12.dev3
 sentencepiece==0.2.2
 transformers==5.14.1
-trl==1.12.0.post6
+trl==1.12.0.post7

@@ -353,6 +353,7 @@ httpx==0.28.1 \
     #   model-hosting-container-standards
     #   openai
     #   posttrain-execution-job-builder
+    #   posttrain-jobs
     #   posttrain-observatory
     #   posttrain-serve
     #   posttrain-train

@@ -9,9 +9,9 @@ resume checkpoint 1 to matching uninterrupted weights, and generate from the
 export. This is deterministic full-parameter fixture evidence, not live Verifiers,
 judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
 
-Latest candidate: `1.12.0.post6`, release commit
-`526e284922a0e4d92d7920916398d8be8d36aa85`, tag
-`carbonteq-v1.12.0.post6`. It includes the post5 complete-group admission
+Latest candidate: `1.12.0.post7`, release commit
+`69012155b4a3fb2d8296692d0962a821273e650a`, tag
+`carbonteq-v1.12.0.post7`. It includes the post6 async lifecycle and post5 complete-group admission
 behavior and consumes retained source-row
 identities before reward calculation, validates complete groups, and keeps
 single-process GRPO accumulation normalized over admitted samples. OLMo active
@@ -19,19 +19,23 @@ sampling accepts partial and empty candidate rounds within its existing bound.
 Padding exists only in trainer tensors after scoring; no synthetic rewards or
 episodes are created. Partial distributed, multimodal, fixed alternate-loss,
 fused-loss, entropy-bonus and auxiliary-loss cases remain unqualified/rejected.
-The post6 rollout/async slice passes 139 focused tests with 36 capability
+The post7 rollout/async slice passes 139 focused tests with 36 capability
 skips; its clean installed wheel imports the async GRPO, asynchronous vLLM
 session, IW-OPD, and OLMo3 surfaces. Wheel SHA-256:
-`57aef51b31fa6e0bfbcd942bddd62bf995f5c2f82e3107bb91cdba7436a1366c`;
-sdist: `68365d87107b1df3b2fe8227ab64afaceb37a9ce5fd3a8b3c5b6894d5e49d13e`.
-Posttrain retained-asset workflow `34334889582` published and read back those
+`6ba30192638c3d30cdd933558aa1684f5946684d1f5d843e88ead39fbf9a1efd`;
+sdist: `6cae6e84014d45e458e48966ec121efede6173ef29b34cf8dd8e66f55d804b52`.
+Posttrain retained-asset workflow `34361897003` published and read back those
 exact bytes from `carbonteq/dev`.
 Live RTX PRO qualification remains pending. Harness optimization is deferred.
 
 The async rollout lifecycle is published in post6 from consolidated fork branch
 `codex/posttrain-v04-dev`; ledger follow-up commit
 `3ab670f3611f381b373b7e97267879a4afde37ff` records its development
-publication. It includes corrected
+publication. The current pushed development head is
+`1deb8d0191b8a2a70be615f2348d16936bb33dc3`; functional commit
+`e3f49dc796d1013ff735bc383103ca552be51a34` adds the unpadded
+hybrid-model parity correction described below and is not yet a published
+distribution. It includes corrected
 learner-consumption acknowledgement and native-agent qualification. Against
 the selected vLLM 0.25.1 runtime, its
 bounded Qwen 0.5B gate passes independent request completion, explicit abort,
@@ -99,6 +103,16 @@ seconds (3.4152 samples/s), compared with 46.7045 seconds (1.3703 samples/s)
 at concurrency one, a 2.49x speedup. The gate found and fixed standalone
 Accelerate-logger coupling and a false failure on normal Python 3.13 task
 cancellation. It is rollout evidence, not a 2B optimizer-update qualification.
+
+A composed 2.6B LFM canary on the local 8 GiB target is intentionally rejected.
+TRL sleep mode releases vLLM during optimization, but actor and vLLM weights
+coexist during rollout; two BF16 policy copies have a 10.02 GiB weight-only
+floor before KV cache, activations, adapter state, and workspaces. Run
+`lfm26-local-lifecycle-unpadded-20260909` confirmed this at startup when the
+loaded actor left only 1.66/7.63 GiB free. Posttrain now rejects that provable
+cross-seat conflict before packaging. The composed changed-weight gate selects
+the 96 GiB RTX PRO target; 8 GiB lifecycle qualification must use a smaller
+policy rather than a startup-only offload workaround.
 
 Posttrain now has an unselected run-scoped token gateway for this candidate.
 It forwards native Verifiers requests to the trainer-owned vLLM server while
@@ -255,6 +269,23 @@ candidate now teacher-forces a bounded prompt/completion probe through vLLM
 prompt-logprob collection and compares it with raw actor values at temperature
 one. Processed sampled log probabilities remain the independent TIS signal.
 The candidate also records raw parity mean, maximum, and token count.
+
+The LFM2.5 AutomationBench R9 qualification then exposed a second false-parity
+path. The bounded vLLM rows were unpadded, while actor probe prompts and
+completions were padded independently across heterogeneous tasks. That made the
+actor input nearly twice the configured per-row bound and injected thousands of
+leading pad tokens into LFM's recurrent/convolutional stack. Exact retained
+trace replay measured `0.00658` mean selected-token delta without padding and
+`0.06207` with 2,700 leading pad tokens. The fork now scores the one-time actor
+probe row by row without padding. The LFM rollout bindings also omit
+`weight_name_prefix`: native LFM vLLM modules use `model.layers...`, unlike the
+Qwen3.5 composite `language_model.model.layers...` namespace.
+The corrected native LFM adapter was also exercised with 166 deliberately
+nonzero LoRA-B tensors: vLLM showed a `0.00910` mean selected-token adapter
+effect and remained within `0.00894` mean actor/vLLM delta. A separate local
+AsyncLLM probe completed two policy rounds around cancellation, drain, sleep,
+and wake. These are source-level component gates; one composed optimizer update
+and post-update rollout remain required before immutable release qualification.
 
 This repair is in immutable `trl==1.9.2.post11` bytes, tagged at
 `carbonteq-v1.9.2.post11`. Posttrain's candidate consumes it from

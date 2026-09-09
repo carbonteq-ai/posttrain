@@ -57,6 +57,15 @@ not fit the declared target. MTP and TurboQuant eligibility remains visible as
 non-mutating advice; no rank, batch, algorithm, numerical format, or engine
 setting is silently changed.
 
+Revision 10 — 2026-09-09. A failed local LFM qualification exposed a missing
+shared-residency error: TRL colocated sleep releases vLLM during optimization,
+but the actor and vLLM policy copies coexist during rollout. Static planning
+now rejects only when the two known dense-precision weight copies alone exceed
+the selected device memory. The estimate excludes cache, activations, adapter
+state, and workspaces, so passing it is explicitly not a fit claim; QLoRA and
+unknown precision paths remain deferred rather than receiving a false dense
+estimate.
+
 Revision 3 — 2026-09-09. Implementation started. M0 added the canonical API amendment and `docs/model-settings.md` inventory, now expanded to job-type and algorithm settings. Defaults, hard validity, and efficiency advice remain separate at each layer. Hardware-aware recommendations cover architecture, residency, MTP, and TurboQuant independently of full-weight/LoRA/QLoRA selection. No new LoRA-rank default is introduced.
 
 ## Purpose / Big Picture

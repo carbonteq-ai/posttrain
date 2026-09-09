@@ -14,7 +14,8 @@ from posttrain.common import (
     ModelVariant,
     SettingOrigin,
 )
-from posttrain.train import TrainingBinding, TrainingParallelism, TrainingRuntime
+from posttrain.common.variants import LFM_25_26B
+from posttrain.train import LFM25_RENDERER, LoRAUpdate, TrainingBinding, TrainingParallelism, TrainingRuntime
 from posttrain.work import JobValidationReport, ValidationCheck, WorkPackageContext
 from posttrain.work.runner import ResolvedSeat, _configuration_findings, _execution_target_snapshot, _readiness_checks
 
@@ -123,3 +124,60 @@ def test_execution_target_snapshot_retains_exact_accelerator_model() -> None:
     entry = cast(dict[str, JsonValue], snapshot[0])
     hardware = cast(dict[str, JsonValue], entry["hardware"])
     assert hardware["accelerator_model"] == "RTXPRO4500"
+
+
+def test_colocated_trl_rejects_policy_weight_floor_above_target_memory() -> None:
+    target = ExecutionTarget("targets/local-8gb", "1", "nvidia-cuda", 8)
+    training = TrainingBinding(
+        "training/lfm-local@1",
+        "1",
+        "trl@1.12.0",
+        LFM25_RENDERER,
+        LoRAUpdate(rank=4, alpha=8),
+        target,
+    )
+    rollout = InferenceBinding(
+        "inference/lfm-local@1",
+        "1",
+        LFM_25_26B,
+        "vllm@0.25.1",
+        LFM_25_26B.renderer.id,
+        {"mode": "colocate", "sleep_during_optimization": True},
+        {"max_tokens": 512},
+        target,
+        ("rollout",),
+    )
+
+    issues, _ = _configuration_findings({"training": training, "rollout_inference": rollout})
+
+    issue = next(issue for issue in issues if issue.code == "COLOCATED_TRL_WEIGHT_FLOOR_EXCEEDS_TARGET")
+    assert issue.severity == "error"
+    assert "10.02 GiB" in issue.message
+    assert "during optimization only" in (issue.hint or "")
+
+
+def test_colocated_trl_weight_floor_is_not_a_fit_claim() -> None:
+    target = ExecutionTarget("targets/local-12gb", "1", "nvidia-cuda", 12)
+    training = TrainingBinding(
+        "training/lfm-local@1",
+        "1",
+        "trl@1.12.0",
+        LFM25_RENDERER,
+        LoRAUpdate(rank=4, alpha=8),
+        target,
+    )
+    rollout = InferenceBinding(
+        "inference/lfm-local@1",
+        "1",
+        LFM_25_26B,
+        "vllm@0.25.1",
+        LFM_25_26B.renderer.id,
+        {"mode": "colocate", "sleep_during_optimization": True},
+        {"max_tokens": 512},
+        target,
+        ("rollout",),
+    )
+
+    issues, _ = _configuration_findings({"training": training, "rollout_inference": rollout})
+
+    assert "COLOCATED_TRL_WEIGHT_FLOOR_EXCEEDS_TARGET" not in {issue.code for issue in issues}

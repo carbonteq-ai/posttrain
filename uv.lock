@@ -3154,7 +3154,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'trl'", specifier = ">=2.11,<2.12", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", marker = "extra == 'trl'", specifier = ">=0.26,<0.27", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'trl'", specifier = ">=5.14,<5.15" },
-    { name = "trl", marker = "extra == 'trl'", specifier = "==1.12.0.post6", index = "https://pypi.lan/carbonteq/dev/+simple/" },
+    { name = "trl", marker = "extra == 'trl'", specifier = "==1.12.0.post7", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=36eac9d5e04ef29b584b6fa4f027af00cd76ea19" },
     { name = "vllm", marker = "extra == 'trl-vllm'", specifier = "==0.25.1" },
 ]
@@ -4563,7 +4563,7 @@ wheels = [
 
 [[package]]
 name = "trl"
-version = "1.12.0.post6"
+version = "1.12.0.post7"
 source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
 dependencies = [
     { name = "accelerate" },
@@ -4572,9 +4572,9 @@ dependencies = [
     { name = "packaging" },
     { name = "transformers" },
 ]
-sdist = { url = "https://pypi.lan/carbonteq/dev/+f/683/65d87107b1df3/trl-1.12.0.post6.tar.gz", hash = "sha256:68365d87107b1df3b2fe8227ab64afaceb37a9ce5fd3a8b3c5b6894d5e49d13e" }
+sdist = { url = "https://pypi.lan/carbonteq/dev/+f/6ca/e6e84014d45e4/trl-1.12.0.post7.tar.gz", hash = "sha256:6cae6e84014d45e458e48966ec121efede6173ef29b34cf8dd8e66f55d804b52" }
 wheels = [
-    { url = "https://pypi.lan/carbonteq/dev/+f/57a/ef51b31fa6e0b/trl-1.12.0.post6-py3-none-any.whl", hash = "sha256:57aef51b31fa6e0bfbcd942bddd62bf995f5c2f82e3107bb91cdba7436a1366c" },
+    { url = "https://pypi.lan/carbonteq/dev/+f/6ba/30192638c3d30/trl-1.12.0.post7-py3-none-any.whl", hash = "sha256:6ba30192638c3d30cdd933558aa1684f5946684d1f5d843e88ead39fbf9a1efd" },
 ]
 
 [[package]]

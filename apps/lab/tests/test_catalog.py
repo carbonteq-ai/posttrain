@@ -231,6 +231,7 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_rollout.engine["max_num_seqs"] == 32
     assert local_rollout.engine["max_num_batched_tokens"] == 32_768
     assert local_rollout.engine["kv_cache_memory_bytes"] == 4 * 1024**3
+    assert "weight_name_prefix" not in local_rollout.engine
     assert local_rollout.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
 
     remote_training = catalog.resolve(CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench@1")).value
@@ -244,13 +245,14 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
 
     assert isinstance(remote_training, TrainingBinding)
     assert isinstance(remote_rollout, InferenceBinding)
+    assert "weight_name_prefix" not in remote_rollout.engine
     assert isinstance(heldout_inference, InferenceBinding)
     assert isinstance(judge, InferenceBinding)
     lock_document = tomllib.loads(
         (WORKSPACE / "packages/catalog/src/posttrain/catalog/base/locks.toml").read_text(encoding="utf-8")
     )
     current_trl_lock = lock_document["locks"]["trl-fork@current"]
-    assert remote_training.backend == "trl@1.12.0.post6"
+    assert remote_training.backend == "trl@1.12.0.post7"
     assert remote_training.backend_options["dependency_lock"] == "trl-fork@current"
     assert remote_training.backend_options["source_revision"] == current_trl_lock["source_revision"]
     assert remote_training.backend_options["dependency_lock_sha256"] == current_trl_lock["dependency_lock_sha256"]
@@ -277,6 +279,18 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert heldout_hardware is not None
     assert remote_hardware.accelerator_model == "RTXPRO6000"
     assert heldout_hardware.accelerator_model == "RTXPRO4500"
+
+    changed_weight_training = catalog.resolve(
+        CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-changed-weight-canary@1")
+    ).value
+    changed_weight_rollout = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-changed-weight-canary@1")
+    ).value
+    assert isinstance(changed_weight_training, TrainingBinding)
+    assert isinstance(changed_weight_rollout, InferenceBinding)
+    assert changed_weight_training.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
+    assert changed_weight_rollout.target == changed_weight_training.target
+    assert "weight_name_prefix" not in changed_weight_rollout.engine
 
 
 def test_qwen4b_automationbench_eval_binding_declares_tool_protocol() -> None:
