@@ -1,5 +1,22 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 28 — 2026-09-09. Before submitting the matched local scalar
+comparison, re-audit LFM rollout capacity rather than treating a valid engine
+configuration as an efficient one. The previous explicit 512 MiB KV-cache cap
+held only about 32K attention KV tokens for LFM2.5-2.6B, or roughly 1K resident
+tokens per request at concurrency 32. Both GRPO and OLMo3 now share a 4 GiB
+cache cap (roughly 262K KV tokens) and a 32,768-token aggregate continuous-
+batching budget while preserving the 12,288-token sequence ceiling, 2,048-token
+per-turn generation budget, 8,192-token episode budget, 8x4 population, and
+microbatch one. Exact pinned-TRL inspection confirms ordinary GRPO normalizes
+by each sequence's selected-token mask and OLMo3 normalizes by global active
+tokens, so multi-turn completions are not divided by the per-turn generation
+cap. LFM has no native MTP head. Its separate DSpark drafter is currently a
+documented SGLang path and remains outside this matched vLLM qualification;
+TurboQuant remains an explicit unqualified recommendation. A generic derived
+KV-capacity recommendation still needs a model-memory contract and is not
+silently approximated by a hardware-only heuristic.
+
 Revision 27 — 2026-09-09. Live inspection of release-candidate run
 `34340433050` established that GPU scheduling was not the delay: the protected
 8-vCPU release runner was concurrently rebuilding the TRL and veRL runtime

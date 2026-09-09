@@ -360,8 +360,11 @@ inference:
       tensor_parallel_size: 1
       max_model_len: 12288
       max_num_seqs: 32
-      max_num_batched_tokens: 12288
-      kv_cache_memory_bytes: 536870912
+      # Four GiB gives this eight-attention-layer GQA model roughly 262K KV
+      # token slots: enough for about 8K resident tokens at concurrency 32.
+      # Chunked prefill keeps the larger aggregate scheduler budget bounded.
+      max_num_batched_tokens: 32768
+      kv_cache_memory_bytes: 4294967296
       weight_sync_mode: lora
       weight_name_prefix: language_model.
       enforce_eager: true
@@ -386,8 +389,10 @@ inference:
       tensor_parallel_size: 1
       max_model_len: 12288
       max_num_seqs: 32
-      max_num_batched_tokens: 12288
-      kv_cache_memory_bytes: 536870912
+      # Keep local qualification identical to the matched remote rollout
+      # profile so algorithm comparisons do not change serving capacity.
+      max_num_batched_tokens: 32768
+      kv_cache_memory_bytes: 4294967296
       weight_sync_mode: lora
       weight_name_prefix: language_model.
       enforce_eager: true

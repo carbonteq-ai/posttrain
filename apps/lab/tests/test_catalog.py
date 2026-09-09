@@ -229,6 +229,8 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert isinstance(local_rollout, InferenceBinding)
     assert isinstance(local_training, TrainingBinding)
     assert local_rollout.engine["max_num_seqs"] == 32
+    assert local_rollout.engine["max_num_batched_tokens"] == 32_768
+    assert local_rollout.engine["kv_cache_memory_bytes"] == 4 * 1024**3
     assert local_rollout.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
 
     remote_training = catalog.resolve(CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench@1")).value
