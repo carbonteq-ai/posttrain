@@ -24,7 +24,7 @@ bindings:
   model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
   environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-episode-judged-v2}
   settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-gdpo-episode-50-v1}
-  reward_projection: {type: ref, family: training, id: reward/automationbench-episode-gdpo-gemma4-12b@1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-episode-gdpo@1}
   training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench@1}
   rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout@1}
   judge_inference: {type: ref, family: inference, id: inference/gemma4-12b-vllm-automationbench-judge-mtp2@1}

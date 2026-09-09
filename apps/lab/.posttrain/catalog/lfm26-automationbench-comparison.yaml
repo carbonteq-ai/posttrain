@@ -625,23 +625,6 @@ training:
   reward/automationbench-episode-gdpo@1:
     selection_type: reward-projection
     revision: "1"
-    scorer_digest: 155acad270dafc853f04241c3309fa52ce0daa42972e1f34f78c67d6149a5968
-    components:
-      - {name: partial_credit, source: scalar}
-      - {name: problem_understanding_planning, source: annotation, key: episode_reward/problem_understanding_planning}
-      - {name: logical_correctness, source: annotation, key: episode_reward/logical_correctness}
-      - {name: evidence_state_grounding, source: annotation, key: episode_reward/evidence_state_grounding}
-      - {name: verification_self_correction, source: annotation, key: episode_reward/verification_self_correction}
-      - {name: progress_efficiency, source: annotation, key: episode_reward/progress_efficiency}
-      - {name: action_quality, source: annotation, key: episode_reward/action_quality}
-      - {name: answer_quality, source: annotation, key: episode_reward/answer_quality}
-
-  reward/automationbench-episode-gdpo-gemma4-12b@1:
-    selection_type: reward-projection
-    revision: "1"
-    # AutomationBench episode scorer identity for the pinned Gemma 4 12B
-    # model, MTP-compatible thinking request, rubric, schema, and budgets.
-    scorer_digest: a77785fcea65e962c6da9fb3cff999f71511e3e62ecbd7811366081e243983d5
     components:
       - {name: partial_credit, source: scalar}
       - {name: problem_understanding_planning, source: annotation, key: episode_reward/problem_understanding_planning}
