@@ -228,7 +228,7 @@ async def test_native_collector_preserves_batch_identity_and_partial_failures():
 
     class NativeRunner:
         def __init__(self):
-            self.scheduled = ()
+            self.scheduled: tuple[ScheduledEpisode, ...] = ()
 
         async def collect(self, collection, scheduled):
             self.scheduled = scheduled

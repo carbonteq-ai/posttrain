@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, cast
@@ -34,7 +35,7 @@ class _NativeEnvConfig(Protocol):
     def model_dump(self, *, mode: str) -> dict[str, Any]: ...
 
 
-def _imports() -> tuple[type[Any], type[Any], Any]:
+def _imports() -> tuple[type[Any], Callable[[object], Any], tuple[type[Any], Any]]:
     try:
         from .runtime import configure_preinstalled_runtime
 

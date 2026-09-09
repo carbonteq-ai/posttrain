@@ -47,7 +47,7 @@ def rollout(key, reward, policy_end=None):
 
 class PolicyAdmission:
     base_url = "http://127.0.0.1:8000/v1"
-    fatal_error = None
+    fatal_error: BaseException | None = None
 
     def __init__(self):
         self.events = []

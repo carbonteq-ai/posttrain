@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pytest
 from fastapi.testclient import TestClient
 from posttrain_observatory import FixtureRunDataSource, FixtureSemanticSummaryProvider, ObservatoryService
@@ -188,4 +190,4 @@ async def test_serving_capacity_http_export_and_mcp_use_the_same_projection() ->
     )
 
     assert exported == http_view
-    assert mcp_result.structured_content == http_view
+    assert cast(Any, mcp_result).structured_content == http_view

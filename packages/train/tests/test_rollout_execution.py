@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from posttrain.train.rollout_execution import (
@@ -38,14 +39,14 @@ def test_completed_outcome_requires_scheduled_identity():
     completed = EpisodeOutcome(
         key=scheduled,
         status=EpisodeStatus.COMPLETED,
-        rollout=SimpleNamespace(example_id="task-1", reward_evidence=None),
+        rollout=cast(Any, SimpleNamespace(example_id="task-1", reward_evidence=None)),
     )
     validate_outcome_identity(scheduled, completed)
 
     mismatched = EpisodeOutcome(
         key=scheduled,
         status=EpisodeStatus.COMPLETED,
-        rollout=SimpleNamespace(example_id="task-2", reward_evidence=None),
+        rollout=cast(Any, SimpleNamespace(example_id="task-2", reward_evidence=None)),
     )
     with pytest.raises(CollectionExecutionError, match="example id"):
         validate_outcome_identity(scheduled, mismatched)
@@ -58,6 +59,6 @@ def test_terminal_outcomes_do_not_fabricate_rollouts():
         EpisodeOutcome(
             key=key(),
             status=EpisodeStatus.FAILED,
-            rollout=SimpleNamespace(example_id="task-1"),
+            rollout=cast(Any, SimpleNamespace(example_id="task-1")),
             error="tool failed",
         )

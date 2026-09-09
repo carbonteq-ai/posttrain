@@ -1,10 +1,13 @@
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from posttrain.train.backends.trl.policy_config import _rollout_execution_config
 
 
-def request(*, options=None, max_concurrent=32, backend="vllm@0.25.1", mode="colocate", sleep=True):
+def request(
+    *, options=None, max_concurrent=32, backend="vllm@0.25.1", mode="colocate", sleep=True
+) -> Any:
     return SimpleNamespace(
         training=SimpleNamespace(backend_options=options or {}),
         inference=SimpleNamespace(
