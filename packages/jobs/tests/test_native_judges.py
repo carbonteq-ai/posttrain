@@ -20,28 +20,44 @@ def _ready(_context, endpoint):
 
 @pytest.fixture
 def selections(tmp_path):
-    model = cast(ModelVariant, open_catalog(scope="judge-test").resolve(
-        CatalogRef("model", "models/qwen3.5-2b@bf16")
-    ).value)
+    model = cast(
+        ModelVariant, open_catalog(scope="judge-test").resolve(CatalogRef("model", "models/qwen3.5-2b@bf16")).value
+    )
     inference = InferenceBinding(
-        "inference/judge@1", "1", model, "vllm@0.25.1", model.renderer_contract,
-        {"max_model_len": 4096}, {"max_tokens": 128, "temperature": 0.0},
-        ExecutionTarget("targets/judge", "1", "nvidia-cuda"), ("eval",),
+        "inference/judge@1",
+        "1",
+        model,
+        "vllm@0.25.1",
+        model.renderer_contract,
+        {"max_model_len": 4096},
+        {"max_tokens": 128, "temperature": 0.0},
+        ExecutionTarget("targets/judge", "1", "nvidia-cuda"),
+        ("eval",),
     )
     request = ServeLaunchRequest(inference, port=8123)
     judge = {
-        "id": "project-judge", "name": "quality", "model": request.endpoint.model,
-        "model_revision": model.revision, "sampling": dict(inference.sampling),
+        "id": "project-judge",
+        "name": "quality",
+        "model": request.endpoint.model,
+        "model_revision": model.revision,
+        "sampling": dict(inference.sampling),
     }
     environment = EnvironmentBinding(
-        "environments/judged", "tool-use", EnvironmentSource("test", "https://example.test/env", "a" * 40),
+        "environments/judged",
+        "tool-use",
+        EnvironmentSource("test", "https://example.test/env", "a" * 40),
         VerifiersV1ConfigActivation({"taskset": {"task": {"judges": [judge]}}}),
-        SamplingPolicy(max_tokens=128), num_tasks=1,
+        SamplingPolicy(max_tokens=128),
+        num_tasks=1,
     )
     context = RunContext(
-        project_id="judge-test", work_package_id="train/judged", run_id="run",
-        job_kind="train.gdpo", job_definition_version="train/gdpo-judged@1",
-        workspace=tmp_path.resolve(), observer=NullObserver(),
+        project_id="judge-test",
+        work_package_id="train/judged",
+        run_id="run",
+        job_kind="train.gdpo",
+        job_definition_version="train/gdpo-judged@1",
+        workspace=tmp_path.resolve(),
+        observer=NullObserver(),
     )
     return context, environment, request
 
@@ -79,11 +95,14 @@ def test_managed_judge_freezes_inference_without_mutating_plugin_or_retaining_se
     assert events == ["start", "stop"]
 
 
-@pytest.mark.parametrize("change,match", [
-    ({"sampling": {"temperature": 1.0}}, "sampling differs"),
-    ({"model_revision": "b" * 40}, "revision differs"),
-    ({"model": "wrong"}, "model differs"),
-])
+@pytest.mark.parametrize(
+    "change,match",
+    [
+        ({"sampling": {"temperature": 1.0}}, "sampling differs"),
+        ({"model_revision": "b" * 40}, "revision differs"),
+        ({"model": "wrong"}, "model differs"),
+    ],
+)
 def test_invalid_selection_fails_before_loading_any_model(selections, change, match):
     context, environment, request = selections
     raw = json.loads(json.dumps(dict(environment.activation.config)))
@@ -117,9 +136,16 @@ def test_second_endpoint_startup_failure_closes_first_and_restores_credentials(s
             closed.append(selected.port)
 
     with pytest.raises(RuntimeError, match="startup failed"):
-        with bind_native_judges(context, environment, {
-            "quality": request, "outcome": replace(request, port=8124),
-        }, launcher=launcher, readiness_probe=_ready):
+        with bind_native_judges(
+            context,
+            environment,
+            {
+                "quality": request,
+                "outcome": replace(request, port=8124),
+            },
+            launcher=launcher,
+            readiness_probe=_ready,
+        ):
             pytest.fail("failed startup admitted")
     assert closed == [8123]
     assert dict(os.environ) == before
@@ -134,9 +160,7 @@ def test_unmanaged_composition_is_identity_preserving(selections):
 def test_multiple_native_judges_can_share_one_resolved_service(selections):
     _, environment, request = selections
     raw = json.loads(json.dumps(dict(environment.activation.config)))
-    raw["taskset"]["task"]["judges"].append(
-        {**raw["taskset"]["task"]["judges"][0], "name": "efficiency"}
-    )
+    raw["taskset"]["task"]["judges"].append({**raw["taskset"]["task"]["judges"][0], "name": "efficiency"})
     environment = replace(environment, activation=VerifiersV1ConfigActivation(raw))
     endpoint = replace(request.endpoint, api_key="shared-secret")
     service = ResolvedInferenceService(

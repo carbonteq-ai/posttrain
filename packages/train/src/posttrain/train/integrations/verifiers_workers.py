@@ -27,9 +27,7 @@ from ..rollout_execution import (
 )
 
 type EpisodeProjector = Callable[..., Any | Awaitable[Any]]
-type EpisodePolicySpanProvider = Callable[
-    [EpisodeKey, Any], BehaviorPolicySpan | Awaitable[BehaviorPolicySpan]
-]
+type EpisodePolicySpanProvider = Callable[[EpisodeKey, Any], BehaviorPolicySpan | Awaitable[BehaviorPolicySpan]]
 
 
 class _EpisodeDeadline(RuntimeError):
@@ -177,9 +175,7 @@ class VerifiersWorkerPool:
         try:
             done, _ = await asyncio.wait({startup, pool_task}, return_when=asyncio.FIRST_COMPLETED)
             if pool_task in done:
-                error = self._fatal_error or RuntimeError(
-                    "native Verifiers worker broker stopped during startup"
-                )
+                error = self._fatal_error or RuntimeError("native Verifiers worker broker stopped during startup")
                 raise CollectionExecutionError(str(error)) from error
             await startup
         except BaseException:
@@ -237,9 +233,7 @@ class VerifiersWorkerPool:
             exact_collection = self._collection == key.collection
             async_run = self._run_id == key.collection.run_id
             if not exact_collection and not async_run:
-                raise CollectionExecutionError(
-                    "episode collection or run does not match native worker admission"
-                )
+                raise CollectionExecutionError("episode collection or run does not match native worker admission")
             if key in self._requests:
                 raise CollectionExecutionError("duplicate native worker episode identity")
             native_request_id = self._native_request_id(key)
@@ -295,9 +289,7 @@ class VerifiersWorkerPool:
                 projected = self._project_episode(key, episode)
             else:
                 pending_span = self._behavior_policy_for_episode(key, episode)
-                behavior_policy = (
-                    await pending_span if inspect.isawaitable(pending_span) else pending_span
-                )
+                behavior_policy = await pending_span if inspect.isawaitable(pending_span) else pending_span
                 projected = self._project_episode(
                     key,
                     episode,
@@ -453,16 +445,12 @@ class VerifiersWorkerPool:
             async with asyncio.timeout(self._cancel_timeout):
                 return bool(await client.cancel(request_id))
         except TimeoutError as error:
-            failure = CollectionExecutionError(
-                f"native Verifiers cancellation was not acknowledged for {request_id}"
-            )
+            failure = CollectionExecutionError(f"native Verifiers cancellation was not acknowledged for {request_id}")
             if self._fatal_error is None:
                 self._fatal_error = failure
             raise failure from error
         except RuntimeError as error:
-            failure = CollectionExecutionError(
-                f"native Verifiers cancellation failed for {request_id}: {error}"
-            )
+            failure = CollectionExecutionError(f"native Verifiers cancellation failed for {request_id}: {error}")
             if self._fatal_error is None:
                 self._fatal_error = failure
             raise failure from error

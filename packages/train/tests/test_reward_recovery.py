@@ -1,4 +1,3 @@
-
 from dataclasses import dataclass, replace
 from types import SimpleNamespace
 from typing import Any
@@ -33,20 +32,24 @@ def test_changed_native_judge_config_invalidates_resume_even_with_same_package_r
         loop: Loop
 
     environment = EnvironmentBinding(
-        "environments/turns", "tool-use", EnvironmentSource("test", "https://example.test/env", "a" * 40),
+        "environments/turns",
+        "tool-use",
+        EnvironmentSource("test", "https://example.test/env", "a" * 40),
         VerifiersV1ConfigActivation({"taskset": {"task": {"judges": [{"rubric": "first"}]}}}),
-        SamplingPolicy(max_tokens=128), num_tasks=1,
+        SamplingPolicy(max_tokens=128),
+        num_tasks=1,
     )
     projection = RewardProjection("test", "1", (RewardComponentProjection("outcome", "scalar"),))
-    request: Any = SimpleNamespace(settings=Settings(Loop()), environment=environment,
-                              bridge=SimpleNamespace(reward_projection=projection))
+    request: Any = SimpleNamespace(
+        settings=Settings(Loop()), environment=environment, bridge=SimpleNamespace(reward_projection=projection)
+    )
     digest = reward_contract_digest(request)
     retain_reward_contract(tmp_path, digest)
     request.settings.loop.max_steps = 10
     assert reward_contract_digest(request) == digest
-    request.environment = replace(environment, activation=VerifiersV1ConfigActivation(
-        {"taskset": {"task": {"judges": [{"rubric": "second"}]}}}
-    ))
+    request.environment = replace(
+        environment, activation=VerifiersV1ConfigActivation({"taskset": {"task": {"judges": [{"rubric": "second"}]}}})
+    )
     assert request.environment.revision == environment.revision
     with pytest.raises(ValueError, match="differs"):
         validate_reward_recovery(tmp_path, reward_contract_digest(request))

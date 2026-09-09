@@ -38,22 +38,33 @@ class DeterministicTurnFixture:
         turns = native_turn_map(trace.branches[0])
         case = hashlib.sha256(rollout_id.encode()).digest()[0] % 4
         scores = FIXTURE["scores"][case]
-        errors = [turn.id for index, turn in enumerate(turns)
-                  if (case == 1 and index % 2 == 0) or case == 2
-                  or (case == 3 and index == len(turns) - 1)]
+        errors = [
+            turn.id
+            for index, turn in enumerate(turns)
+            if (case == 1 and index % 2 == 0) or case == 2 or (case == 3 and index == len(turns) - 1)
+        ]
         evidence_ref = f"{trace.id}/info/{ANNOTATION_KEY}"
         trace.info.setdefault("posttrain_scorer_digests", {})[ANNOTATION_KEY] = SCORER_DIGEST
         trace.info[ANNOTATION_KEY] = {
-            "trace_id": trace.id, "branch_id": "0", "projection_id": TURN_PROJECTION,
-            "scorer_digest": SCORER_DIGEST, "synthetic": True,
-            "fixture": FIXTURE, "source_sha256": SOURCE_SHA256,
-            "rollout_id": rollout_id, "case": case,
+            "trace_id": trace.id,
+            "branch_id": "0",
+            "projection_id": TURN_PROJECTION,
+            "scorer_digest": SCORER_DIGEST,
+            "synthetic": True,
+            "fixture": FIXTURE,
+            "source_sha256": SOURCE_SHA256,
+            "rollout_id": rollout_id,
+            "case": case,
             "erroneous_turn_ids": errors,
-            "assessments": [{
-                "turn_id": turn.id, "evidence_ref": evidence_ref,
-                "components": [
-                    {"name": "fixture_a", "status": "valid", "value": scores[index % 2]},
-                    {"name": "fixture_b", "status": "valid", "value": scores[(index + 1) % 2]},
-                ],
-            } for index, turn in enumerate(turns)],
+            "assessments": [
+                {
+                    "turn_id": turn.id,
+                    "evidence_ref": evidence_ref,
+                    "components": [
+                        {"name": "fixture_a", "status": "valid", "value": scores[index % 2]},
+                        {"name": "fixture_b", "status": "valid", "value": scores[(index + 1) % 2]},
+                    ],
+                }
+                for index, turn in enumerate(turns)
+            ],
         }

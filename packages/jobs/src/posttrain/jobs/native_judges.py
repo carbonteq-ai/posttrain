@@ -39,9 +39,7 @@ def bind_native_judges(
     if not requests:
         yield environment
         return
-    service_requests = {
-        name: ManagedInferenceService(request) for name, request in requests.items()
-    }
+    service_requests = {name: ManagedInferenceService(request) for name, request in requests.items()}
     with bind_managed_native_judge_services(
         context,
         environment,
@@ -109,9 +107,7 @@ def bind_native_judge_services(
     for judge_name, service_name in judge_services.items():
         _validate_judge_selection(judge_name, judges[judge_name], services[service_name])
 
-    identities: dict[str, JsonValue] = {
-        name: service.trace_identity() for name, service in services.items()
-    }
+    identities: dict[str, JsonValue] = {name: service.trace_identity() for name, service in services.items()}
     with ExitStack() as stack:
         credential_vars: dict[str, str] = {}
         for service_name in dict.fromkeys(judge_services.values()):
@@ -142,8 +138,7 @@ def bind_native_judge_services(
                 # Compatibility evidence for existing readers. Remove after
                 # callers migrate to the named service fields above.
                 "managed_judge_inference": {
-                    judge_name: identities[service_name]
-                    for judge_name, service_name in judge_services.items()
+                    judge_name: identities[service_name] for judge_name, service_name in judge_services.items()
                 },
             },
         )

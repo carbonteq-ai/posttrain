@@ -622,9 +622,7 @@ class JobPackageManifest:
                 kind_image=RuntimeImageRef(str(payload["kind_image"])),
                 runtime_variant=str(payload["runtime_variant"]),
                 backend_source_digest=(
-                    str(payload["backend_source_digest"])
-                    if payload.get("backend_source_digest") is not None
-                    else None
+                    str(payload["backend_source_digest"]) if payload.get("backend_source_digest") is not None else None
                 ),
                 runtime_dependency_locks=tuple(_runtime_dependency_lock(item) for item in runtime_dependency_locks),
                 backend_runtime=_backend_runtime_lock(payload.get("backend_runtime")),

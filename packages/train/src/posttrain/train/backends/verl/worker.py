@@ -454,8 +454,7 @@ def _rollout_execution_hydra_overrides(manifest: VerlLaunchManifest) -> list[str
         f"actor_rollout_ref.rollout.agent.num_workers={execution.env_workers}",
         f"actor_rollout_ref.rollout.agent.num_cpus_per_worker={execution.worker_native_threads}",
         f"actor_rollout_ref.rollout.agent.max_concurrent_episodes={global_limit}",
-        "actor_rollout_ref.rollout.agent.max_concurrent_episodes_per_worker="
-        f"{execution.episodes_per_worker}",
+        f"actor_rollout_ref.rollout.agent.max_concurrent_episodes_per_worker={execution.episodes_per_worker}",
         "trainer.v1.sampler.refill_all_failed_groups=True",
     ]
 

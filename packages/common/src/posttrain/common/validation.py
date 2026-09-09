@@ -33,7 +33,13 @@ class SettingOrigin:
             raise ValueError("setting origin revision cannot be empty")
 
     def as_dict(self) -> dict[str, JsonValue]:
-        return {"path": self.path, "value": self.value, "kind": self.kind, "source": self.source, "revision": self.revision}
+        return {
+            "path": self.path,
+            "value": self.value,
+            "kind": self.kind,
+            "source": self.source,
+            "revision": self.revision,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,4 +81,11 @@ class ConfigurationIssue:
         }
 
 
-__all__ = ["CheckOutcome", "ConfigurationIssue", "ConfigurationSeverity", "SettingOrigin", "SettingOriginKind", "ValidationStage"]
+__all__ = [
+    "CheckOutcome",
+    "ConfigurationIssue",
+    "ConfigurationSeverity",
+    "SettingOrigin",
+    "SettingOriginKind",
+    "ValidationStage",
+]

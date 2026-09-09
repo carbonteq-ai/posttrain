@@ -96,9 +96,7 @@ async def execute(cases: list[dict[str, Any]], args: argparse.Namespace) -> list
     return await execute_with_judge(cases, judge)
 
 
-async def execute_with_judge(
-    cases: list[dict[str, Any]], judge: AutomationBenchTurnJudge
-) -> list[dict[str, Any]]:
+async def execute_with_judge(cases: list[dict[str, Any]], judge: AutomationBenchTurnJudge) -> list[dict[str, Any]]:
     rows = []
     for case in cases:
         response = None
@@ -110,9 +108,7 @@ async def execute_with_judge(
             ]
             response = await judge.complete(messages, schema=EpisodeVerdict)
             verdict = EpisodeVerdict.model_validate_json(response.text)
-            validate_episode_verdict(
-                verdict, {message["message_id"] for message in case["trajectory"]}
-            )
+            validate_episode_verdict(verdict, {message["message_id"] for message in case["trajectory"]})
             failures = assess_expectations(case, verdict)
             row = {
                 "case": case["id"],
@@ -130,11 +126,7 @@ async def execute_with_judge(
                 "input_digest": case["input_digest"],
                 "error_type": type(error).__name__,
                 "raw_response": response.text if response is not None else None,
-                "usage": (
-                    response.usage.model_dump(mode="json")
-                    if response is not None and response.usage
-                    else None
-                ),
+                "usage": (response.usage.model_dump(mode="json") if response is not None and response.usage else None),
             }
         rows.append(row)
         print(json.dumps({"case": row["case"], "passed": row["passed"]}), flush=True)
@@ -150,13 +142,9 @@ async def run_with_judge(
     fixture, cases = load_cases(fixture_path)
     output.mkdir(parents=True, exist_ok=False)
     (output / "fixture.json").write_text(json.dumps(fixture, indent=2))
-    (output / "judge-inputs.jsonl").write_text(
-        "".join(json.dumps(case, ensure_ascii=False) + "\n" for case in cases)
-    )
+    (output / "judge-inputs.jsonl").write_text("".join(json.dumps(case, ensure_ascii=False) + "\n" for case in cases))
     results = await execute_with_judge(cases, judge)
-    (output / "results.jsonl").write_text(
-        "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in results)
-    )
+    (output / "results.jsonl").write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in results))
     summary = {
         "mode": "execute",
         "fixture_sha256": cases[0]["fixture_sha256"],

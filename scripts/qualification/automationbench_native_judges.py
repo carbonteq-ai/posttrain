@@ -415,6 +415,7 @@ def main():
         output,
         FileObserver(output / "observations.jsonl"),
     )
+
     def build_request(active_environment):
         if scalar_grpo:
             return build_verifiers_grpo_request(
@@ -472,19 +473,11 @@ def main():
                 if args.replay_inputs is not None:
                     from replay_episode_judge import run_materialized_with_judge
 
-                    asyncio.run(
-                        run_materialized_with_judge(
-                            args.replay_inputs, output / "replay", connected
-                        )
-                    )
+                    asyncio.run(run_materialized_with_judge(args.replay_inputs, output / "replay", connected))
                 else:
                     from calibrate_general_episode_prompt import run_with_judge
 
-                    asyncio.run(
-                        run_with_judge(
-                            args.calibration_fixture, output / "calibration", connected
-                        )
-                    )
+                    asyncio.run(run_with_judge(args.calibration_fixture, output / "calibration", connected))
             else:
                 from calibrate_automationbench_judge import run
 

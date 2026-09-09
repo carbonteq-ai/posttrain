@@ -188,9 +188,7 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
 def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> None:
     catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
     scalar = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-v2")).value
-    judged = catalog.resolve(
-        CatalogRef("environment", "automationbench-lfm26-train-mix-episode-judged-v2")
-    ).value
+    judged = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-episode-judged-v2")).value
     fixture = WORKSPACE / "scripts/qualification/fixtures/lfm26_automationbench_mix_v2.json"
     fixture_digest = hashlib.sha256(fixture.read_bytes()).hexdigest()
 
@@ -209,12 +207,8 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert scalar.max_concurrent == 32
     assert judged.max_concurrent == 32
 
-    local_grpo = catalog.resolve(
-        CatalogRef("training", "lfm2.5-2.6b/automationbench-grpo-20-local-v1")
-    ).value
-    local_olmo = catalog.resolve(
-        CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-20-local-v1")
-    ).value
+    local_grpo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-grpo-20-local-v1")).value
+    local_olmo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-20-local-v1")).value
     local_rollout = catalog.resolve(
         CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32@1")
     ).value
@@ -232,18 +226,14 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_rollout.engine["max_num_seqs"] == 32
     assert local_rollout.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
 
-    remote_training = catalog.resolve(
-        CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench@1")
-    ).value
+    remote_training = catalog.resolve(CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench@1")).value
     remote_rollout = catalog.resolve(
         CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout@1")
     ).value
     heldout_inference = catalog.resolve(
         CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-eval@1")
     ).value
-    judge = catalog.resolve(
-        CatalogRef("inference", "inference/gemma4-12b-vllm-automationbench-judge-mtp2@1")
-    ).value
+    judge = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-vllm-automationbench-judge-mtp2@1")).value
 
     assert isinstance(remote_training, TrainingBinding)
     assert isinstance(remote_rollout, InferenceBinding)

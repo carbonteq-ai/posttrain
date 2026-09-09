@@ -86,6 +86,7 @@ def admit_rollout_groups(
                 rollout_ids=tuple(f"{batch.rollout_ids[i]}/attempt/{attempt}" for i in positions),
             )
             attempted += len(positions)
+
             def admit_rows(
                 rows: Sequence[tuple[int, EnvironmentRollout]],
                 *,
@@ -107,9 +108,7 @@ def admit_rollout_groups(
                             or evidence.rollout_id != current_batch.rollout_ids[ordinal]
                         )
                     if identity_mismatch:
-                        round_failures.append(
-                            (current_batch.prompt_group_ids[ordinal], "rollout_identity_mismatch")
-                        )
+                        round_failures.append((current_batch.prompt_group_ids[ordinal], "rollout_identity_mismatch"))
                         continue
                     if isinstance(settings, GRPOSettings):
                         admitted[position] = row

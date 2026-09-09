@@ -149,9 +149,7 @@ async def execute(inputs: list[dict[str, Any]], args: argparse.Namespace) -> lis
     return await execute_with_judge(inputs, judge)
 
 
-async def execute_with_judge(
-    inputs: list[dict[str, Any]], judge: AutomationBenchTurnJudge
-) -> list[dict[str, Any]]:
+async def execute_with_judge(inputs: list[dict[str, Any]], judge: AutomationBenchTurnJudge) -> list[dict[str, Any]]:
     results = []
     for item in inputs:
         response = None
@@ -163,10 +161,7 @@ async def execute_with_judge(
             ]
             response = await judge.complete(messages, schema=EpisodeVerdict)
             verdict = EpisodeVerdict.model_validate_json(response.text)
-            known = {
-                message["message_id"]
-                for message in item["assessment_request"]["trajectory"]
-            }
+            known = {message["message_id"] for message in item["assessment_request"]["trajectory"]}
             validate_episode_verdict(verdict, known)
             result = {
                 "trace_id": item["trace_id"],
@@ -183,11 +178,7 @@ async def execute_with_judge(
                 "error_type": type(error).__name__,
                 "error": str(error),
                 "raw_response": response.text if response is not None else None,
-                "usage": (
-                    response.usage.model_dump(mode="json")
-                    if response is not None and response.usage
-                    else None
-                ),
+                "usage": (response.usage.model_dump(mode="json") if response is not None and response.usage else None),
             }
         results.append(result)
         print(json.dumps({"trace_id": item["trace_id"], "valid": "verdict" in result}), flush=True)
@@ -295,8 +286,7 @@ def main() -> None:
         "retained_unique_episodes": len(retained),
         "source_files": [str(path.resolve()) for path in args.traces],
         "strata": {
-            "|".join(key): count
-            for key, count in sorted(Counter(_stratum(record) for record in selected).items())
+            "|".join(key): count for key, count in sorted(Counter(_stratum(record) for record in selected).items())
         },
         "contract": inputs[0]["assessment_request"]["contract"],
         "input_digests": [item["input_digest"] for item in inputs],

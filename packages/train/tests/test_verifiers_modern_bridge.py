@@ -16,13 +16,25 @@ def test_native_judge_resolution_does_not_mutate_recoverable_selection():
     pytest.importorskip("automationbench_v1")
     from posttrain.environment import VerifiersV1ConfigActivation
 
-    activation = VerifiersV1ConfigActivation({
-        "taskset": {"id": "automationbench-v1", "task": {"judges": [{
-            "id": "automationbench-v1", "code_revision": "a" * 40,
-            "model_revision": "b" * 40, "model": "judge", "input_budget_tokens": 12_288,
-        }]}},
-        "agent": {"harness": {"id": "null"}, "runtime": {"type": "subprocess"}},
-    })
+    activation = VerifiersV1ConfigActivation(
+        {
+            "taskset": {
+                "id": "automationbench-v1",
+                "task": {
+                    "judges": [
+                        {
+                            "id": "automationbench-v1",
+                            "code_revision": "a" * 40,
+                            "model_revision": "b" * 40,
+                            "model": "judge",
+                            "input_budget_tokens": 12_288,
+                        }
+                    ]
+                },
+            },
+            "agent": {"harness": {"id": "null"}, "runtime": {"type": "subprocess"}},
+        }
+    )
     before = json.dumps(activation.to_payload(), sort_keys=True)
     digest = activation.digest
     activation.activate()
@@ -63,13 +75,16 @@ async def test_modern_native_episode_retains_exact_policy_tokens(tmp_path, failu
                 completion_logprobs=(-0.123456789123, -0.223456789123),
                 finish_reason="stop",
                 prompt_message_spans=tuple((i, i + 1) for i in range(len(prompt))),
-                raw_response=cast(dict[str, JsonValue], {
-                    "id": "policy",
-                    "object": "chat.completion",
-                    "created": 0,
-                    "model": "policy",
-                    "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
-                }),
+                raw_response=cast(
+                    dict[str, JsonValue],
+                    {
+                        "id": "policy",
+                        "object": "chat.completion",
+                        "created": 0,
+                        "model": "policy",
+                        "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
+                    },
+                ),
             )
 
     bridge = VerifiersEnvironmentRolloutBridge(
@@ -271,13 +286,16 @@ async def test_modern_automationbench_executes_tool_and_retains_turn_credit(tmp_
                 completion_logprobs=(-0.1, -0.2),
                 finish_reason=finish,
                 prompt_message_spans=spans,
-                raw_response=cast(dict[str, JsonValue], {
-                    "id": "policy",
-                    "object": "chat.completion",
-                    "created": 0,
-                    "model": "policy",
-                    "choices": [{"index": 0, "message": message, "finish_reason": finish}],
-                }),
+                raw_response=cast(
+                    dict[str, JsonValue],
+                    {
+                        "id": "policy",
+                        "object": "chat.completion",
+                        "created": 0,
+                        "model": "policy",
+                        "choices": [{"index": 0, "message": message, "finish_reason": finish}],
+                    },
+                ),
             )
 
     def score_turns(trace):

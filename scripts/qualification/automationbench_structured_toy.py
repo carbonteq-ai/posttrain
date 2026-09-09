@@ -225,14 +225,20 @@ class LocalJudge:
                         posttrain_quality=sum(verdict.turn_quality.values()) / len(steps),
                         posttrain_process_credit=plain(credit),
                         posttrain_turn_rewards={
-                            "trace_id": trace.id, "branch_id": "0", "projection_id": TURN_PROJECTION,
+                            "trace_id": trace.id,
+                            "branch_id": "0",
+                            "projection_id": TURN_PROJECTION,
                             "scorer_digest": SCORER_DIGEST,
-                            "assessments": [{
-                                "turn_id": step.id,
-                                "components": [{"name": "quality", "status": "valid",
-                                                "value": verdict.turn_quality[step.id]}],
-                                "evidence_ref": f"{trace.id}/info/posttrain_judge_panel",
-                            } for step in steps],
+                            "assessments": [
+                                {
+                                    "turn_id": step.id,
+                                    "components": [
+                                        {"name": "quality", "status": "valid", "value": verdict.turn_quality[step.id]}
+                                    ],
+                                    "evidence_ref": f"{trace.id}/info/posttrain_judge_panel",
+                                }
+                                for step in steps
+                            ],
                         },
                     )
                     print("judge", trace.id, verdict.model_dump(), flush=True)
@@ -271,8 +277,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--algorithm", choices=["gdpo", "capo"], required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--native-episodes", action="store_true",
-                        help="Probe the unpublished v0.3.1 source overlays; not a final packaged qualification.")
+    parser.add_argument(
+        "--native-episodes",
+        action="store_true",
+        help="Probe the unpublished v0.3.1 source overlays; not a final packaged qualification.",
+    )
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -282,14 +291,21 @@ def main():
     policy = catalog.resolve(CatalogRef("model", "models/qwen3.5-0.8b@bf16")).value
     native = catalog.resolve(CatalogRef("environment", "automationbench-zapier-simple-grpo")).value
     if args.native_episodes:
-        native = dataclasses.replace(native, activation=VerifiersV1ConfigActivation({
-            "taskset": {"id": "automationbench-v1"},
-            "agent": {
-                "harness": {"id": "null"}, "runtime": {"type": "subprocess"},
-                "timeout": {"setup": 120, "rollout": 1800, "finalize": 60, "scoring": 120},
-                "max_turns": 12, "max_total_tokens": 8192,
-            },
-        }))
+        native = dataclasses.replace(
+            native,
+            activation=VerifiersV1ConfigActivation(
+                {
+                    "taskset": {"id": "automationbench-v1"},
+                    "agent": {
+                        "harness": {"id": "null"},
+                        "runtime": {"type": "subprocess"},
+                        "timeout": {"setup": 120, "rollout": 1800, "finalize": 60, "scoring": 120},
+                        "max_turns": 12,
+                        "max_total_tokens": 8192,
+                    },
+                }
+            ),
+        )
     sampling = {"max_tokens": 768, "temperature": 0.8, "top_p": 0.95}
     environment = dataclasses.replace(
         native,
@@ -359,8 +375,13 @@ def main():
     request.bridge.enrichers = (LocalJudge(),)
     (output / "selection.json").write_text(
         json.dumps(
-            {"policy": plain(policy), "scorer": SCORER, "settings": plain(settings), "environment": plain(environment),
-             "development_native_source_overlay": args.native_episodes},
+            {
+                "policy": plain(policy),
+                "scorer": SCORER,
+                "settings": plain(settings),
+                "environment": plain(environment),
+                "development_native_source_overlay": args.native_episodes,
+            },
             default=str,
             indent=2,
         )

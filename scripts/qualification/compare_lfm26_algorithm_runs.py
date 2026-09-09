@@ -48,8 +48,7 @@ def main() -> None:
     deltas = {
         name: {
             "partial_credit_mean": summary["partial_credit_mean"] - base["partial_credit_mean"],
-            "exact_task_completion_rate": summary["exact_task_completion_rate"]
-            - base["exact_task_completion_rate"],
+            "exact_task_completion_rate": summary["exact_task_completion_rate"] - base["exact_task_completion_rate"],
         }
         for name, summary in summaries.items()
         if name != "base"

@@ -16,10 +16,10 @@ def trace(rollout_id):
         SimpleNamespace(message={"role": "tool"}, sampled=False, token_ids=[5], mask=[False]),
         SimpleNamespace(message={"role": "assistant"}, sampled=True, token_ids=[6], mask=[True]),
     ]
-    branch = SimpleNamespace(nodes=nodes, sampled_mask=[False, True, False, True, False, True],
-                             token_ids=[1, 2, 3, 4, 5, 6])
-    return SimpleNamespace(id="trace", branches=[branch], reward=0.75,
-                           info={"posttrain_rollout_id": rollout_id})
+    branch = SimpleNamespace(
+        nodes=nodes, sampled_mask=[False, True, False, True, False, True], token_ids=[1, 2, 3, 4, 5, 6]
+    )
+    return SimpleNamespace(id="trace", branches=[branch], reward=0.75, info={"posttrain_rollout_id": rollout_id})
 
 
 def test_repeatable_complete_evidence_without_mutating_native_rewards_or_tokens():
@@ -58,13 +58,19 @@ def test_fixture_projection_never_credits_observation_or_template_holes():
     item.info["posttrain_prompt_group_id"] = "group"
     DeterministicTurnFixture()(item)
     projection = RewardProjection(
-        "fixture", "1", (RewardComponentProjection("score", "turn_mean", "fixture_a"),),
-        scorer_digest=SCORER_DIGEST, turns_info_key=ANNOTATION_KEY, turn_error_key="erroneous_turn_ids",
+        "fixture",
+        "1",
+        (RewardComponentProjection("score", "turn_mean", "fixture_a"),),
+        scorer_digest=SCORER_DIGEST,
+        turns_info_key=ANNOTATION_KEY,
+        turn_error_key="erroneous_turn_ids",
     )
     turns = native_turn_map(item.branches[0])
     result = projection.project(
         TraceObservation(trace_type="verifiers", external_id=item.id, payload={"info": item.info}),
-        scalar_reward=item.reward, turn_ids=tuple(turn.id for turn in turns), native_turns=turns,
+        scalar_reward=item.reward,
+        turn_ids=tuple(turn.id for turn in turns),
+        native_turns=turns,
     )
     assert result.process is not None
     mask = result.process.error_mask((True, False, True, False, True))

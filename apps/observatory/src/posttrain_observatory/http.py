@@ -273,9 +273,7 @@ def create_http_app(
 
     app.mount(
         "/mcp",
-        create_mcp(service).streamable_http_app(
-            streamable_http_path="/", json_response=True, stateless_http=True
-        ),
+        create_mcp(service).streamable_http_app(streamable_http_path="/", json_response=True, stateless_http=True),
         name="mcp",
     )
 

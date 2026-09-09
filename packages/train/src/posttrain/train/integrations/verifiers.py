@@ -769,8 +769,7 @@ class VerifiersEnvironmentRolloutBridge:
             raise VerifiersRolloutFailure(f"Verifiers rollout failed: {fatal_error}") from fatal_error
         if failures:
             raise VerifiersRolloutFailure(
-                f"{len(failures)} of {len(occurrences)} Verifiers rollouts failed: "
-                f"{sorted(set(failures.values()))}",
+                f"{len(failures)} of {len(occurrences)} Verifiers rollouts failed: {sorted(set(failures.values()))}",
                 completed=results,
                 failures=failures,
             )
@@ -825,9 +824,7 @@ class VerifiersEnvironmentRolloutBridge:
 
         *_, TrainRunInfo, _, _, _, _ = _imports()
         policy_record = (
-            None
-            if behavior_policy is None
-            else {"start": behavior_policy.start, "end": behavior_policy.end}
+            None if behavior_policy is None else {"start": behavior_policy.start, "end": behavior_policy.end}
         )
         episode.record_run(
             TrainRunInfo(

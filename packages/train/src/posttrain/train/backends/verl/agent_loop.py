@@ -186,16 +186,20 @@ class VerlPolicyGenerator:
         output = await self._server_manager.generate(
             request_id=request.session_id or uuid4().hex,
             prompt_ids=list(rendered.token_ids),
-            sampling_params={key: value for key, value in {
-                "max_tokens": sampling["max_tokens"],
-                "temperature": sampling["temperature"],
-                "top_p": sampling["top_p"],
-                "top_k": sampling["top_k"],
-                "min_p": sampling["min_p"],
-                "repetition_penalty": sampling["repetition_penalty"],
-                "presence_penalty": sampling["presence_penalty"],
-                "logprobs": True,
-            }.items() if value is not None},
+            sampling_params={
+                key: value
+                for key, value in {
+                    "max_tokens": sampling["max_tokens"],
+                    "temperature": sampling["temperature"],
+                    "top_p": sampling["top_p"],
+                    "top_k": sampling["top_k"],
+                    "min_p": sampling["min_p"],
+                    "repetition_penalty": sampling["repetition_penalty"],
+                    "presence_penalty": sampling["presence_penalty"],
+                    "logprobs": True,
+                }.items()
+                if value is not None
+            },
         )
         token_ids = tuple(int(value) for value in output.token_ids)
         if not token_ids:
@@ -206,9 +210,7 @@ class VerlPolicyGenerator:
         behavior_policy = _behavior_policy_span(output)
         if behavior_policy is not None:
             self._behavior_policy = (
-                behavior_policy
-                if self._behavior_policy is None
-                else self._behavior_policy.merge(behavior_policy)
+                behavior_policy if self._behavior_policy is None else self._behavior_policy.merge(behavior_policy)
             )
         parsed = self._renderer.parse_response(list(token_ids), tools=renderer_tools)
         message = parsed_policy_message(parsed, token_ids, self._tokenizer)
@@ -293,8 +295,9 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             groups = (f"{self._bridge.run_id}/{step}/{kwargs['uid']}",)
             identities = (f"{groups[0]}/{kwargs['session_id']}",)
         rollouts = await self._bridge.run(
-            RolloutBatch(example_ids=(example_id,), step=step, model_id=model_id,
-                         prompt_group_ids=groups, rollout_ids=identities),
+            RolloutBatch(
+                example_ids=(example_id,), step=step, model_id=model_id, prompt_group_ids=groups, rollout_ids=identities
+            ),
             self._generator,
         )
         if len(rollouts) != 1:
@@ -302,9 +305,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         behavior_policy = self._generator.behavior_policy
         if behavior_policy is None:
             if self._trainer_mode in {"colocate_async", "separate_async"}:
-                raise RuntimeError(
-                    f"veRL {self._trainer_mode} rollouts require native min/max policy-version evidence"
-                )
+                raise RuntimeError(f"veRL {self._trainer_mode} rollouts require native min/max policy-version evidence")
             behavior_policy = BehaviorPolicySpan(step, step)
         rollout = replace(rollouts[0], behavior_policy=behavior_policy)
         trace_calls = rollout.trace.payload.get("calls", [])
@@ -351,7 +352,8 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             extra_fields.update(_sampo_metadata(rollout))
         if self._structured_algorithm is not None:
             extra_fields["structured_rewards"] = structured_reward_metadata(
-                rollout, component_names=self._reward_component_names,
+                rollout,
+                component_names=self._reward_component_names,
                 require_process=self._structured_algorithm == "capo",
             )
         _append_rollout_reward_record(
@@ -385,12 +387,7 @@ def _behavior_policy_span(output: Any) -> BehaviorPolicySpan | None:
     end = fields.get("max_global_steps", fallback)
     if start is None and end is None:
         return None
-    if (
-        isinstance(start, bool)
-        or not isinstance(start, int)
-        or isinstance(end, bool)
-        or not isinstance(end, int)
-    ):
+    if isinstance(start, bool) or not isinstance(start, int) or isinstance(end, bool) or not isinstance(end, int):
         raise RuntimeError("veRL rollout policy versions must be integers")
     try:
         return BehaviorPolicySpan(start, end)

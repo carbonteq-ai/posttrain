@@ -50,9 +50,7 @@ class AttachedInferenceService:
             try:
                 api_key = os.environ[self.api_key_var]
             except KeyError as error:
-                raise ValueError(
-                    f"attached service credential variable {self.api_key_var!r} is not set"
-                ) from error
+                raise ValueError(f"attached service credential variable {self.api_key_var!r} is not set") from error
         return Endpoint(self.base_url, self.model, api_key)
 
 
@@ -101,9 +99,7 @@ class ResolvedInferenceService:
         }
 
 
-type ServiceProvisioner = Callable[
-    [RunContext, ServeLaunchRequest], AbstractContextManager[Endpoint]
-]
+type ServiceProvisioner = Callable[[RunContext, ServeLaunchRequest], AbstractContextManager[Endpoint]]
 type ReadinessProbe = Callable[[RunContext, Endpoint], ProbeResult]
 
 
@@ -148,14 +144,10 @@ def bind_inference_services(
                     _service_attributes(name, service.inference, owned=False),
                 )
             if endpoint.base_url != expected.base_url or endpoint.model != expected.model:
-                raise ValueError(
-                    f"inference service {name!r} endpoint differs from its selected address or model"
-                )
+                raise ValueError(f"inference service {name!r} endpoint differs from its selected address or model")
             readiness = readiness_probe(context, endpoint)
             if not readiness.healthy or not readiness.model_available:
-                raise RuntimeError(
-                    f"inference service {name!r} did not expose selected model {endpoint.model!r}"
-                )
+                raise RuntimeError(f"inference service {name!r} did not expose selected model {endpoint.model!r}")
             connection = ResolvedInferenceService(
                 name=name,
                 inference=service.inference,
@@ -192,9 +184,7 @@ def _validate_service_requests(services: Mapping[str, InferenceServiceRequest]) 
             address = (service.request.host, service.request.port)
             previous = managed_addresses.get(address)
             if previous is not None:
-                raise ValueError(
-                    f"managed inference services {previous!r} and {name!r} use the same bind address"
-                )
+                raise ValueError(f"managed inference services {previous!r} and {name!r} use the same bind address")
             managed_addresses[address] = name
 
 

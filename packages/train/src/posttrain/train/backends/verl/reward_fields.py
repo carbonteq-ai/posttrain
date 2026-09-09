@@ -29,8 +29,11 @@ def structured_reward_metadata(
         if evidence.process is None:
             raise InvalidRewardEvidence("CAPO requires retained process evidence")
         errors = evidence.process.error_mask(rollout.env_mask)
-        result["process_error_mask"] = [value for value, sampled in zip(errors, rollout.env_mask, strict=True) if sampled]
+        result["process_error_mask"] = [
+            value for value, sampled in zip(errors, rollout.env_mask, strict=True) if sampled
+        ]
     return result
+
 
 def training_response_mask(
     env_mask: tuple[bool, ...],

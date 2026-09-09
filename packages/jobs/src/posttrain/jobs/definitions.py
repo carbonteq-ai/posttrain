@@ -366,8 +366,8 @@ def sampo_definition(
             return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
 
     return JobDefinition(
-        definition_id or ("train/sampo-turns@1" if turn_rewards else
-                          "train/sampo-judged@1" if judge_seats else "train/trl-sampo@1"),
+        definition_id
+        or ("train/sampo-turns@1" if turn_rewards else "train/sampo-judged@1" if judge_seats else "train/trl-sampo@1"),
         "train.sampo",
         {
             "model": ModelVariant,
@@ -397,7 +397,9 @@ def _judge_seats(selections: Mapping[str, tuple[str, int]] | None) -> dict[str, 
 
 
 def _judge_requests(
-    context: RunContext, seats: ResolvedSeats, selected: Mapping[str, tuple[str, int]],
+    context: RunContext,
+    seats: ResolvedSeats,
+    selected: Mapping[str, tuple[str, int]],
 ) -> dict[str, ManagedInferenceService]:
     managed = {}
     for service_name, (seat, port) in selected.items():
@@ -541,8 +543,10 @@ def _materialize_selected_model_variant(
 
     adapter_name = "model_adapter" if role == "model" else f"{role}_adapter"
     weights_name = "model_weights" if role == "model" else f"{role}_weights"
-    input_name = adapter_name if adapter_name in context.input_artifacts else (
-        weights_name if weights_name in context.input_artifacts else None
+    input_name = (
+        adapter_name
+        if adapter_name in context.input_artifacts
+        else (weights_name if weights_name in context.input_artifacts else None)
     )
     if input_name is None:
         if model.form not in {"adapter", "peft-adapter"} or not isinstance(

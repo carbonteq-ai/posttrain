@@ -15,9 +15,12 @@ from verifiers.v1.trace import WireTrace
 def audit(root):
     selection = json.loads((root / "selection.json").read_text())
     source_sha = hashlib.sha256((root / "fixture-source.py").read_bytes()).hexdigest()
-    expected_digest = hashlib.sha256(json.dumps(
-        {"fixture": selection["fixture"], "source_sha256": source_sha}, sort_keys=True,
-    ).encode()).hexdigest()
+    expected_digest = hashlib.sha256(
+        json.dumps(
+            {"fixture": selection["fixture"], "source_sha256": source_sha},
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()
     assert selection["projection"]["scorer_digest"] == expected_digest
     episodes = [json.loads(line) for line in (root / "episodes.jsonl").read_text().splitlines()]
     native = {trace["id"]: trace for episode in episodes for trace in episode["traces"]}
@@ -66,9 +69,14 @@ def audit(root):
         cases.add(case)
         turns_count += len(policy_nodes)
     assert checked > 0, "no synthetic inputs were exercised"
-    return {"scope": "input-and-native-provenance-only", "backend_qualified": False,
-            "traces_checked": checked, "turns_checked": turns_count,
-            "unsampled_context_tokens": observation_tokens, "cases_observed": sorted(cases)}
+    return {
+        "scope": "input-and-native-provenance-only",
+        "backend_qualified": False,
+        "traces_checked": checked,
+        "turns_checked": turns_count,
+        "unsampled_context_tokens": observation_tokens,
+        "cases_observed": sorted(cases),
+    }
 
 
 if __name__ == "__main__":

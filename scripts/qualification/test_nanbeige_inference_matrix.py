@@ -7,10 +7,7 @@ from nanbeige_inference_matrix import DRAFT_REVISION, PROFILES, TARGET_REVISION,
 
 
 def test_matrix_has_four_orthogonal_profiles() -> None:
-    assert [
-        (profile.name, profile.turboquant, profile.dspark, profile.supported)
-        for profile in PROFILES
-    ] == [
+    assert [(profile.name, profile.turboquant, profile.dspark, profile.supported) for profile in PROFILES] == [
         ("standard", False, False, True),
         ("turboquant", True, False, True),
         ("dspark", False, True, True),

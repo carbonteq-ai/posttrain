@@ -261,7 +261,9 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
     renderer_configs: list[object] = []
     renderers.__dict__["Qwen35RendererConfig"] = lambda *, enable_thinking: {"enable_thinking": enable_thinking}
     renderers.__dict__["DefaultRendererConfig"] = lambda: {"default": True}
-    renderers.__dict__["create_renderer"] = lambda tokenizer, config: (renderer_configs.append(config), FakeRenderer())[1]
+    renderers.__dict__["create_renderer"] = lambda tokenizer, config: (renderer_configs.append(config), FakeRenderer())[
+        1
+    ]
     monkeypatch.setitem(sys.modules, "renderers", renderers)
 
     class ServerManager:
@@ -339,7 +341,9 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
             "logprobs": True,
         }
     )
-    asyncio.run(generator.generate(PolicyTurnRequest(messages=({"role": "user", "content": "hello"},), sampling=sampling)))
+    asyncio.run(
+        generator.generate(PolicyTurnRequest(messages=({"role": "user", "content": "hello"},), sampling=sampling))
+    )
     assert server.request is not None
     assert server.request["sampling_params"] == {
         "max_tokens": 16,
@@ -354,7 +358,9 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
     assert generator.behavior_policy == BehaviorPolicySpan(3, 5)
     generator.set_sampling_overrides({"max_tokens": 33})
     with pytest.raises(ValueError, match="exceeds the environment output limit"):
-        asyncio.run(generator.generate(PolicyTurnRequest(messages=({"role": "user", "content": "hello"},), sampling=sampling)))
+        asyncio.run(
+            generator.generate(PolicyTurnRequest(messages=({"role": "user", "content": "hello"},), sampling=sampling))
+        )
     sys.modules.pop(module_name, None)
 
 

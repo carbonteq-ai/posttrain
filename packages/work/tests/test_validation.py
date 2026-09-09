@@ -23,15 +23,9 @@ def test_job_validation_report_is_stable_and_bound_to_resolved_inputs() -> None:
     origins = (SettingOrigin("policy.reasoning_mode", "off", "default", "qwen-renderer@1"),)
     checks = (ValidationCheck("static-configuration", "passed", "static checks passed"),)
 
-    first = JobValidationReport.for_resolved_inputs(
-        {"b": 2, "a": {"value": 1}}, origins=origins, checks=checks
-    )
-    reordered = JobValidationReport.for_resolved_inputs(
-        {"a": {"value": 1}, "b": 2}, origins=origins, checks=checks
-    )
-    changed = JobValidationReport.for_resolved_inputs(
-        {"a": {"value": 1}, "b": 3}, origins=origins, checks=checks
-    )
+    first = JobValidationReport.for_resolved_inputs({"b": 2, "a": {"value": 1}}, origins=origins, checks=checks)
+    reordered = JobValidationReport.for_resolved_inputs({"a": {"value": 1}, "b": 2}, origins=origins, checks=checks)
+    changed = JobValidationReport.for_resolved_inputs({"a": {"value": 1}, "b": 3}, origins=origins, checks=checks)
 
     assert first.resolved_input_digest == reordered.resolved_input_digest
     assert first.resolved_input_digest != changed.resolved_input_digest
@@ -87,9 +81,7 @@ def test_hardware_advice_recommends_qualified_accelerations_without_mutating_bin
     assert "kv_cache_dtype" not in binding.engine
     assert checks[0].outcome == "passed"
 
-    teacher_issues, _ = _configuration_findings(
-        {"teacher": replace(binding, purpose=("teacher-score",))}
-    )
+    teacher_issues, _ = _configuration_findings({"teacher": replace(binding, purpose=("teacher-score",))})
     assert "MTP_AVAILABLE" not in {issue.code for issue in teacher_issues}
 
 
@@ -126,9 +118,7 @@ def test_execution_target_snapshot_retains_exact_accelerator_model() -> None:
         catalog.resolve(CatalogRef("target", "targets/rtx-pro-4500-32gb")).value,
     )
 
-    snapshot = _execution_target_snapshot(
-        {"evaluation": ResolvedSeat("evaluation", target, None, "base")}
-    )
+    snapshot = _execution_target_snapshot({"evaluation": ResolvedSeat("evaluation", target, None, "base")})
 
     entry = cast(dict[str, JsonValue], snapshot[0])
     hardware = cast(dict[str, JsonValue], entry["hardware"])

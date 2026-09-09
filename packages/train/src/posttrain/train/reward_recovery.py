@@ -28,7 +28,9 @@ def reward_contract_digest(request: GDPORequest | CAPORequest | SAMPORequest) ->
         "projection": asdict(projection),
         "environment": request.environment,
     }
-    return hashlib.sha256(json.dumps(payload, sort_keys=True, allow_nan=False, default=_identity_value).encode()).hexdigest()
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, allow_nan=False, default=_identity_value).encode()
+    ).hexdigest()
 
 
 def _identity_value(value: Any) -> object:

@@ -431,9 +431,7 @@ def audit(root, *, reload_export=False, include_mechanics=False):
         )
         model = PeftModel.from_pretrained(base, adapters[0].parent, local_files_only=True).to("cuda").eval()
         template_kwargs = (
-            {"enable_thinking": False}
-            if selection["policy"]["family"] == "qwen3.5"
-            else {"preserve_thinking": False}
+            {"enable_thinking": False} if selection["policy"]["family"] == "qwen3.5" else {"preserve_thinking": False}
         )
         inputs = tokenizer.apply_chat_template(
             [{"role": "user", "content": "Reply with one word: ready."}],

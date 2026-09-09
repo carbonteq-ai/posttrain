@@ -210,13 +210,10 @@ def main() -> None:
     before = {name: parameter.detach().cpu().clone() for name, parameter in trainer.model.named_parameters()}
     result = trainer.train()
     changed = sum(
-        not torch.equal(before[name], parameter.detach().cpu())
-        for name, parameter in trainer.model.named_parameters()
+        not torch.equal(before[name], parameter.detach().cpu()) for name, parameter in trainer.model.named_parameters()
     )
     if result.global_step != args.steps or changed == 0:
-        raise RuntimeError(
-            f"async qualification did not perform {args.steps} parameter-changing optimizer updates"
-        )
+        raise RuntimeError(f"async qualification did not perform {args.steps} parameter-changing optimizer updates")
     expected_group_ids = [group_id for group_id in range(args.steps) for _ in range(2)]
     if producer.consumed_group_ids != expected_group_ids:
         raise RuntimeError(f"learner consumption acknowledgement was incorrect: {producer.consumed_group_ids}")

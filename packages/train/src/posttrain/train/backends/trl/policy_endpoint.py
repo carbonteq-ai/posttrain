@@ -240,9 +240,7 @@ class TrlPolicyEndpoint:
                 )
             try:
                 output = await session.generate(native_request)
-                return web.json_response(
-                    self._response_payload(request_id, native_request.prompt_token_ids, output)
-                )
+                return web.json_response(self._response_payload(request_id, native_request.prompt_token_ids, output))
             finally:
                 async with self._lock:
                     self._requests.pop(request_id, None)

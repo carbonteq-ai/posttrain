@@ -34,15 +34,11 @@ def main() -> None:
     assert result["summary"]["global_step"] == expected_steps
     rows = list(_metric_rows(root / "observations.jsonl"))
     optimizer_steps = {
-        int(step)
-        for step, values in rows
-        if "train/rl/advantage_abs_mean" in values or "train/grad_norm" in values
+        int(step) for step, values in rows if "train/rl/advantage_abs_mean" in values or "train/grad_norm" in values
     }
     assert optimizer_steps == set(range(1, expected_steps + 1))
     advantage_abs = [
-        float(values["train/rl/advantage_abs_mean"])
-        for _, values in rows
-        if "train/rl/advantage_abs_mean" in values
+        float(values["train/rl/advantage_abs_mean"]) for _, values in rows if "train/rl/advantage_abs_mean" in values
     ]
     grad_norms = [float(values["train/grad_norm"]) for _, values in rows if "train/grad_norm" in values]
     assert advantage_abs and grad_norms
@@ -61,11 +57,7 @@ def main() -> None:
         for _, values in rows
         if values.get("train/global_step") == expected_steps and "train/runtime_seconds" in values
     )
-    active_rows = [
-        values
-        for _, values in rows
-        if any(name.startswith("train/rl/active_sampling_") for name in values)
-    ]
+    active_rows = [values for _, values in rows if any(name.startswith("train/rl/active_sampling_") for name in values)]
     if algorithm == "olmo3":
         assert selection["settings"]["active_sampling"] == {"max_candidate_batches": 10}
         assert active_rows

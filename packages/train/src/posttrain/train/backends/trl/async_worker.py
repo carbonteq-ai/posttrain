@@ -189,9 +189,7 @@ class TrlAsyncRolloutWorker:
             loop = self._loop
         if loop is None:
             raise RuntimeError("cannot acknowledge samples before the async rollout worker starts")
-        future = asyncio.run_coroutine_threadsafe(
-            self._producer.acknowledge_consumed_samples(tuple(group_ids)), loop
-        )
+        future = asyncio.run_coroutine_threadsafe(self._producer.acknowledge_consumed_samples(tuple(group_ids)), loop)
         future.result(timeout=self._shutdown_timeout_s)
 
     def rollout_state_dict(self) -> Mapping[str, Any]:
@@ -240,11 +238,7 @@ class TrlAsyncRolloutWorker:
                 self._initialized = True
             self._ready.set()
             while not stop_event.is_set():
-                while (
-                    admission_open.is_set()
-                    and len(pending) < self._max_inflight_groups
-                    and not stop_event.is_set()
-                ):
+                while admission_open.is_set() and len(pending) < self._max_inflight_groups and not stop_event.is_set():
                     with self._lock:
                         target_version = self._model_version
                     pending.add(asyncio.create_task(self._produce(target_version)))
@@ -262,9 +256,7 @@ class TrlAsyncRolloutWorker:
                         with self._lock:
                             self._last_progress = time.monotonic()
                         if consecutive_rejections >= self._max_consecutive_rejections:
-                            raise RuntimeError(
-                                "async rollout group rejection limit was exhausted"
-                            ) from None
+                            raise RuntimeError("async rollout group rejection limit was exhausted") from None
                         continue
                     consecutive_rejections = 0
                     self._validate_native_group(samples, target_version)

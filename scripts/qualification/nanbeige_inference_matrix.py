@@ -45,8 +45,7 @@ PROFILES = (
         dspark=True,
         supported=False,
         unsupported_reason=(
-            "Nanbeige vLLM 62f6de733 cannot apply TurboQuant KV cache to "
-            "DSpark's non-causal draft attention"
+            "Nanbeige vLLM 62f6de733 cannot apply TurboQuant KV cache to DSpark's non-causal draft attention"
         ),
     ),
 )
@@ -229,8 +228,7 @@ def _run_profile(profile: Profile, output: Path, port: int, startup_timeout: flo
                 "direct": direct,
                 "reasoning": reasoning,
                 "passed": all(
-                    probe["finish_reason"] == "stop" and bool(probe["content"])
-                    for probe in (direct, reasoning)
+                    probe["finish_reason"] == "stop" and bool(probe["content"]) for probe in (direct, reasoning)
                 ),
             }
         finally:
@@ -256,9 +254,7 @@ def main() -> int:
     args.output.mkdir(parents=True, exist_ok=False)
     gpu_initial = _gpu_snapshot()
     if gpu_initial["name"] != EXPECTED_GPU_NAME:
-        raise RuntimeError(
-            f"qualification requires {EXPECTED_GPU_NAME!r}, found {gpu_initial['name']!r}"
-        )
+        raise RuntimeError(f"qualification requires {EXPECTED_GPU_NAME!r}, found {gpu_initial['name']!r}")
     manifest = {
         "scope": "inference runtime qualification; not judge-quality calibration",
         "target": {"repo_id": TARGET_REPO, "revision": TARGET_REVISION},
@@ -287,9 +283,7 @@ def main() -> int:
             }
             profile_root = args.output / profile.name
             profile_root.mkdir(parents=True, exist_ok=False)
-            (profile_root / "result.json").write_text(
-                json.dumps(result, indent=2, sort_keys=True)
-            )
+            (profile_root / "result.json").write_text(json.dumps(result, indent=2, sort_keys=True))
             results.append(result)
             print(
                 json.dumps({"profile": profile.name, "status": result["status"]}),
@@ -312,9 +306,7 @@ def main() -> int:
     summary = {
         "passed": all(result["passed"] for result in supported_results),
         "unsupported_profiles": [
-            result["profile"]["name"]
-            for result in results
-            if result.get("status") == "unsupported"
+            result["profile"]["name"] for result in results if result.get("status") == "unsupported"
         ],
         "results": results,
     }

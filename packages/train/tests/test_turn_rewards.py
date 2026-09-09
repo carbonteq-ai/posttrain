@@ -97,8 +97,11 @@ def test_unavailable_turn_score_is_not_replaced_by_zero(status):
 @pytest.mark.parametrize("field", ["trace_id", "branch_id", "projection_id", "scorer_digest"])
 def test_foreign_evidence_identity_fails(field):
     with pytest.raises(InvalidRewardEvidence, match="identity"):
-        selection().project(observation(**cast(dict[str, Any], {field: "foreign"})),
-                            scalar_reward=0, turn_ids=("assistant-0", "assistant-1"))
+        selection().project(
+            observation(**cast(dict[str, Any], {field: "foreign"})),
+            scalar_reward=0,
+            turn_ids=("assistant-0", "assistant-1"),
+        )
 
 
 def test_mask_disagreement_and_nonpolicy_ownership_fail():

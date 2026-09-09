@@ -256,11 +256,7 @@ class TrlAsyncPolicyGateway:
         client = self._client
         if client is None:
             raise RuntimeError("async policy gateway has not started")
-        headers = {
-            name: request.headers[name]
-            for name in ("Authorization", "X-Session-ID")
-            if name in request.headers
-        }
+        headers = {name: request.headers[name] for name in ("Authorization", "X-Session-ID") if name in request.headers}
         try:
             async with client.request(
                 request.method,
@@ -270,9 +266,7 @@ class TrlAsyncPolicyGateway:
             ) as response:
                 body = await response.read()
                 if response.status >= 500:
-                    error = CollectionExecutionError(
-                        f"async policy upstream returned HTTP {response.status}"
-                    )
+                    error = CollectionExecutionError(f"async policy upstream returned HTTP {response.status}")
                     self._record_fatal(error)
                 return web.Response(
                     body=body,
@@ -282,9 +276,7 @@ class TrlAsyncPolicyGateway:
         except asyncio.CancelledError:
             raise
         except Exception as error:
-            failure = CollectionExecutionError(
-                f"async policy upstream request failed: {type(error).__name__}: {error}"
-            )
+            failure = CollectionExecutionError(f"async policy upstream request failed: {type(error).__name__}: {error}")
             self._record_fatal(failure)
             raise failure from error
 
@@ -303,9 +295,7 @@ class TrlAsyncPolicyGateway:
                 payload = await response.json()
                 return bool(payload.get("cancelled"))
         except Exception as error:
-            failure = CollectionExecutionError(
-                f"async policy upstream abort failed: {type(error).__name__}: {error}"
-            )
+            failure = CollectionExecutionError(f"async policy upstream abort failed: {type(error).__name__}: {error}")
             self._record_fatal(failure)
             raise failure from error
 

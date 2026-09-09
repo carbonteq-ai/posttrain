@@ -151,9 +151,7 @@ class PlannedJobPackage:
         snapshotter = ImmutableSourceSnapshotter(cache_root=source_root)
         project_source = snapshotter.materialize(self.project_source_request)
         backend_source = (
-            snapshotter.materialize(self.backend_source_request)
-            if self.backend_source_request is not None
-            else None
+            snapshotter.materialize(self.backend_source_request) if self.backend_source_request is not None else None
         )
         project_environment_sources: dict[str, Path] = {}
         for request in self.pack_plan.spec.project_environment_sources:
@@ -969,9 +967,7 @@ def _plan_job_package_from_intent(
     if backend_source_request is not None and settings.provider != "local":
         raise ContractError("--backend-source is a local-executor development option")
     backend_inspection = (
-        inspector.inspect_details(backend_source_request)
-        if backend_source_request is not None
-        else None
+        inspector.inspect_details(backend_source_request) if backend_source_request is not None else None
     )
     backend_runtime_identity = _backend_runtime_identity(registry, runtime_variant)
     _validate_backend_runtime_selection(prepared, runtime_variant, backend_runtime_identity)

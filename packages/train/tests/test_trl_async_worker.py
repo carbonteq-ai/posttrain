@@ -130,9 +130,7 @@ class FailingStartupProducer(FailingProducer):
 
 def test_startup_failure_closes_producer_and_does_not_leave_worker_started():
     producer = FailingStartupProducer()
-    worker = TrlAsyncRolloutWorker(
-        producer, max_inflight_groups=1, queue_maxsize=1, shutdown_timeout_s=1
-    )
+    worker = TrlAsyncRolloutWorker(producer, max_inflight_groups=1, queue_maxsize=1, shutdown_timeout_s=1)
 
     with pytest.raises(RuntimeError, match="broken producer startup"):
         worker.start()
@@ -167,9 +165,7 @@ class RejectingProducer(ProducerState):
 
 
 def test_failure_reaches_native_health_contract_without_fake_sample():
-    worker = TrlAsyncRolloutWorker(
-        FailingProducer(), max_inflight_groups=1, queue_maxsize=1, shutdown_timeout_s=2
-    )
+    worker = TrlAsyncRolloutWorker(FailingProducer(), max_inflight_groups=1, queue_maxsize=1, shutdown_timeout_s=2)
     worker.start()
     deadline = time.monotonic() + 1
     while time.monotonic() < deadline:
@@ -189,9 +185,7 @@ def test_failure_reaches_native_health_contract_without_fake_sample():
 
 def test_empty_queue_with_no_producer_progress_fails_native_health_check():
     producer = StalledProducer()
-    worker = TrlAsyncRolloutWorker(
-        producer, max_inflight_groups=1, queue_maxsize=1, shutdown_timeout_s=1
-    )
+    worker = TrlAsyncRolloutWorker(producer, max_inflight_groups=1, queue_maxsize=1, shutdown_timeout_s=1)
     worker.start()
     try:
         assert producer.entered.wait(timeout=1)
@@ -205,9 +199,7 @@ def test_empty_queue_with_no_producer_progress_fails_native_health_check():
 
 def test_rejected_group_is_dropped_and_next_group_can_publish():
     producer = RejectingProducer()
-    worker = TrlAsyncRolloutWorker(
-        producer, max_inflight_groups=1, queue_maxsize=1, max_consecutive_rejections=2
-    )
+    worker = TrlAsyncRolloutWorker(producer, max_inflight_groups=1, queue_maxsize=1, max_consecutive_rejections=2)
     worker.start()
     try:
         published = worker.rollout_buffer.get(timeout=1)
@@ -244,9 +236,7 @@ def test_rejects_unbounded_queue_and_version_regression():
     with pytest.raises(ValueError, match="positive bound"):
         TrlAsyncRolloutWorker(producer, max_inflight_groups=1, queue_maxsize=0)
     with pytest.raises(ValueError, match="rejection limit"):
-        TrlAsyncRolloutWorker(
-            producer, max_inflight_groups=1, queue_maxsize=1, max_consecutive_rejections=0
-        )
+        TrlAsyncRolloutWorker(producer, max_inflight_groups=1, queue_maxsize=1, max_consecutive_rejections=0)
     worker = TrlAsyncRolloutWorker(producer, initial_model_version=4, max_inflight_groups=1, queue_maxsize=1)
     with pytest.raises(ValueError, match="backwards"):
         worker.update_model_version(3)
@@ -285,9 +275,7 @@ class FullQueueProducer(ProducerState):
 
 def test_shutdown_remains_responsive_when_native_queue_is_full():
     producer = FullQueueProducer()
-    worker = TrlAsyncRolloutWorker(
-        producer, max_inflight_groups=1, queue_maxsize=1, shutdown_timeout_s=1
-    )
+    worker = TrlAsyncRolloutWorker(producer, max_inflight_groups=1, queue_maxsize=1, shutdown_timeout_s=1)
     worker.start()
     deadline = time.monotonic() + 1
     while worker.rollout_buffer.empty() and time.monotonic() < deadline:
@@ -301,9 +289,7 @@ def test_shutdown_remains_responsive_when_native_queue_is_full():
 
 def test_forwards_learner_acknowledgement_and_checkpoint_state_to_producer():
     producer = FullQueueProducer()
-    worker = TrlAsyncRolloutWorker(
-        producer, max_inflight_groups=1, queue_maxsize=2, shutdown_timeout_s=1
-    )
+    worker = TrlAsyncRolloutWorker(producer, max_inflight_groups=1, queue_maxsize=2, shutdown_timeout_s=1)
     worker.load_rollout_state_dict({"cursor": 3})
     assert producer.loaded == {"cursor": 3}
     worker.start()

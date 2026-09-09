@@ -22,9 +22,7 @@ from posttrain.serve import Endpoint, ProbeResult, ServeLaunchRequest
 def service_selection(tmp_path):
     model = cast(
         ModelVariant,
-        open_catalog(scope="service-test").resolve(
-            CatalogRef("model", "models/qwen3.5-2b@bf16")
-        ).value,
+        open_catalog(scope="service-test").resolve(CatalogRef("model", "models/qwen3.5-2b@bf16")).value,
     )
     inference = InferenceBinding(
         "inference/judge@1",
@@ -70,9 +68,7 @@ def test_managed_services_use_isolated_workspaces_and_close_in_reverse_order(ser
         "judge/nanbeige": ManagedInferenceService(ServeLaunchRequest(inference, port=8123)),
         "judge/gemma": ManagedInferenceService(ServeLaunchRequest(inference, port=8124)),
     }
-    with bind_inference_services(
-        context, requests, provisioner=provisioner, readiness_probe=_ready
-    ) as services:
+    with bind_inference_services(context, requests, provisioner=provisioner, readiness_probe=_ready) as services:
         assert tuple(services) == ("judge/nanbeige", "judge/gemma")
         assert services["judge/nanbeige"].owned is True
         assert services["judge/nanbeige"].endpoint.api_key == "local"
@@ -81,9 +77,7 @@ def test_managed_services_use_isolated_workspaces_and_close_in_reverse_order(ser
     assert closed == [8124, 8123]
 
 
-def test_attached_service_resolves_scoped_credential_and_is_never_stopped(
-    service_selection, monkeypatch
-):
+def test_attached_service_resolves_scoped_credential_and_is_never_stopped(service_selection, monkeypatch):
     context, inference = service_selection
     monkeypatch.setenv("TEST_JUDGE_API_KEY", "attached-secret")
     calls: list[str] = []

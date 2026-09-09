@@ -31,9 +31,7 @@ from posttrain.serve import ServeLaunchRequest, launch
 
 
 def _subject(training_output: Path | None):
-    policy = open_catalog(scope="lfm26-comparison-eval").resolve(
-        CatalogRef("model", "models/lfm2.5-2.6b@bf16")
-    ).value
+    policy = open_catalog(scope="lfm26-comparison-eval").resolve(CatalogRef("model", "models/lfm2.5-2.6b@bf16")).value
     if training_output is None:
         return policy
     payload = json.loads((training_output / "result.json").read_text())
@@ -67,6 +65,7 @@ def _summarize(path: Path) -> dict:
     traces = list(_flatten_traces(path))
     partial = [_score_value(trace["rewards"]["partial_credit"]) for trace in traces]
     success = [_score_value(trace["metrics"]["task_completed_correctly"]) for trace in traces]
+
     def mean(values):
         return math.fsum(values) / len(values)
 
@@ -106,9 +105,7 @@ def _summarize(path: Path) -> dict:
         row["exact_task_completion"].append(_score_value(trace["metrics"]["task_completed_correctly"]))
         domain_row = per_domain.setdefault(domain, {"partial_credit": [], "exact_task_completion": []})
         domain_row["partial_credit"].append(_score_value(trace["rewards"]["partial_credit"]))
-        domain_row["exact_task_completion"].append(
-            _score_value(trace["metrics"]["task_completed_correctly"])
-        )
+        domain_row["exact_task_completion"].append(_score_value(trace["metrics"]["task_completed_correctly"]))
 
     return {
         "trajectories": len(traces),

@@ -20,8 +20,7 @@ pytest.importorskip(
 
 def _output(request_id, prompt_ids=(1, 2), completion_ids=(3, 4), logprobs=(-0.25, -0.5)):
     steps = [
-        {token_id: SimpleNamespace(logprob=logprob)}
-        for token_id, logprob in zip(completion_ids, logprobs, strict=True)
+        {token_id: SimpleNamespace(logprob=logprob)} for token_id, logprob in zip(completion_ids, logprobs, strict=True)
     ]
     completion = SimpleNamespace(
         index=0,
@@ -133,9 +132,7 @@ async def test_explicit_abort_cancels_the_registered_http_request():
     root = endpoint.base_url.removesuffix("/v1")
     try:
         async with httpx.AsyncClient() as client:
-            generation = asyncio.create_task(
-                client.post(f"{root}/inference/v1/generate", json=_body("slow"))
-            )
+            generation = asyncio.create_task(client.post(f"{root}/inference/v1/generate", json=_body("slow")))
             async with asyncio.timeout(5):
                 while endpoint.active_request_ids != frozenset({"slow"}):
                     await asyncio.sleep(0)

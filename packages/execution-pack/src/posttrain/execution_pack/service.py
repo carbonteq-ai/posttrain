@@ -281,11 +281,7 @@ class JobPackService:
         else:
             framework_digest = _framework_wheel_digest(inputs.framework_wheels)
         project_digest = digest_source_package(inputs.project_source)
-        backend_digest = (
-            digest_source_package(inputs.backend_source)
-            if inputs.backend_source is not None
-            else None
-        )
+        backend_digest = digest_source_package(inputs.backend_source) if inputs.backend_source is not None else None
         if framework_digest != plan.spec.framework_source_digest:
             raise ContractError("framework code differs from the job-pack plan")
         if project_digest != plan.spec.project_source_digest:

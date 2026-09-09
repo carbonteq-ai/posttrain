@@ -120,10 +120,7 @@ async def test_native_train_client_round_trips_exact_lfm_tokens_over_loopback(mo
             completion = SimpleNamespace(
                 index=0,
                 token_ids=completion_ids,
-                logprobs=[
-                    {token_id: SimpleNamespace(logprob=-0.125)}
-                    for token_id in completion_ids
-                ],
+                logprobs=[{token_id: SimpleNamespace(logprob=-0.125)} for token_id in completion_ids],
                 finish_reason="stop",
             )
             return SimpleNamespace(

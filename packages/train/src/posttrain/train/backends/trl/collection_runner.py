@@ -186,9 +186,7 @@ class TrlCollectionRunner:
                 if cleanup_failures:
                     collection_error = CollectionExecutionError(
                         "TRL collection did not reach a safe optimizer handoff: "
-                        + "; ".join(
-                            f"{type(error).__name__}: {error}" for error in cleanup_failures
-                        )
+                        + "; ".join(f"{type(error).__name__}: {error}" for error in cleanup_failures)
                     )
             if collection_error is not None:
                 if isinstance(collection_error, asyncio.CancelledError):
@@ -266,9 +264,7 @@ class TrlNativeRolloutCollector:
                         else f"{collection_id}/group/{ordinal}"
                     ),
                     occurrence_id=(
-                        batch.rollout_ids[ordinal]
-                        if batch.rollout_ids
-                        else f"{collection_id}/response/{ordinal}"
+                        batch.rollout_ids[ordinal] if batch.rollout_ids else f"{collection_id}/response/{ordinal}"
                     ),
                     seed=_episode_seed(collection, ordinal),
                     rollout_ordinal=ordinal,
@@ -302,9 +298,7 @@ class TrlNativeRolloutCollector:
 
 
 def _episode_seed(collection: CollectionKey, ordinal: int) -> int:
-    payload = "\0".join(
-        (collection.run_id, collection.collection_id, collection.policy_version, str(ordinal))
-    ).encode()
+    payload = "\0".join((collection.run_id, collection.collection_id, collection.policy_version, str(ordinal))).encode()
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
 
 

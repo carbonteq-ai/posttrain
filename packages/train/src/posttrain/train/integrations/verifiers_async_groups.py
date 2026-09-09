@@ -75,6 +75,7 @@ class _PromptSelector:
         self._base = tuple(example_ids)
         self._seed = seed
         self._shuffle = shuffle
+
     @property
     def example_ids(self) -> tuple[str, ...]:
         return self._base
@@ -88,11 +89,7 @@ class _PromptSelector:
     def _order(self, epoch: int) -> tuple[str, ...]:
         values = list(self._base)
         if self._shuffle:
-            values.sort(
-                key=lambda value: hashlib.sha256(
-                    f"{self._seed}\0{epoch}\0{value}".encode()
-                ).digest()
-            )
+            values.sort(key=lambda value: hashlib.sha256(f"{self._seed}\0{epoch}\0{value}".encode()).digest())
         return tuple(values)
 
 
@@ -300,9 +297,7 @@ class VerifiersAsyncGroupProducer:
                     raise CollectionExecutionError(f"learner acknowledged rejected async group {group_id}")
                 count = self._consumed_counts.get(group_id, 0) + 1
                 if count > self._settings.num_generations:
-                    raise CollectionExecutionError(
-                        f"learner acknowledged too many samples for async group {group_id}"
-                    )
+                    raise CollectionExecutionError(f"learner acknowledged too many samples for async group {group_id}")
                 self._consumed_counts[group_id] = count
 
     async def rollout_state_dict(self) -> Mapping[str, Any]:
@@ -351,9 +346,7 @@ class VerifiersAsyncGroupProducer:
         if consumed & rejected or any(group_id >= next_group_id for group_id in consumed | rejected):
             raise ValueError("async rollout checkpoint group sets are inconsistent with its cursor")
         self._next_group_id = next_group_id
-        self._consumed_counts = {
-            group_id: self._settings.num_generations for group_id in consumed
-        }
+        self._consumed_counts = {group_id: self._settings.num_generations for group_id in consumed}
         self._rejected_group_ids = rejected
         settled = consumed | rejected
         self._replay_group_ids = [group_id for group_id in range(next_group_id) if group_id not in settled]
@@ -416,9 +409,7 @@ class VerifiersAsyncGroupProducer:
         except ValueError as error:
             raise CollectionExecutionError("async collection policy version is not numeric") from error
         if behavior_policy.start != target_version:
-            raise CollectionExecutionError(
-                "native Verifiers rollout started on a different policy than its collection"
-            )
+            raise CollectionExecutionError("native Verifiers rollout started on a different policy than its collection")
         return outcome.rollout
 
     def _require_running(self) -> None:

@@ -83,9 +83,7 @@ async def test_drains_requests_gates_next_turn_and_preserves_session_policy_span
             second_response = await second
             assert second_response.status == 200
 
-        episode = SimpleNamespace(
-            traces=[SimpleNamespace(id="trace-1", agent=SimpleNamespace(trainable=True))]
-        )
+        episode = SimpleNamespace(traces=[SimpleNamespace(id="trace-1", agent=SimpleNamespace(trainable=True))])
         span = await gateway.behavior_policy_for_episode(episode_key(), episode)
         assert span == BehaviorPolicySpan(0, 1)
     finally:
@@ -110,9 +108,7 @@ async def test_shared_upstream_failure_poisoning_is_not_a_low_reward():
     sockets = tuple(getattr(getattr(upstream_site, "_server", None), "sockets", ()) or ())
     assert len(sockets) == 1
     socket = sockets[0]
-    gateway = TrlAsyncPolicyGateway(
-        upstream_base_url=f"http://127.0.0.1:{socket.getsockname()[1]}"
-    )
+    gateway = TrlAsyncPolicyGateway(upstream_base_url=f"http://127.0.0.1:{socket.getsockname()[1]}")
     await gateway.start(0)
     try:
         async with ClientSession() as client:
@@ -156,9 +152,7 @@ async def test_shutdown_requires_upstream_abort_acknowledgement_and_still_cleans
     sockets = tuple(getattr(getattr(upstream_site, "_server", None), "sockets", ()) or ())
     assert len(sockets) == 1
     socket = sockets[0]
-    gateway = TrlAsyncPolicyGateway(
-        upstream_base_url=f"http://127.0.0.1:{socket.getsockname()[1]}"
-    )
+    gateway = TrlAsyncPolicyGateway(upstream_base_url=f"http://127.0.0.1:{socket.getsockname()[1]}")
     await gateway.start(0)
     client = ClientSession()
     request = asyncio.create_task(
