@@ -275,7 +275,10 @@ training:
     selection_type: grpo-settings
     revision: "1"
     loop:
-      max_steps: 1
+      # Step 1 performs the first optimizer update. Step 2 must collect again
+      # so qualification observes rollout inference after changed LoRA weights
+      # have been synchronized into vLLM.
+      max_steps: 2
       max_length: 2048
       per_device_batch_size: 1
       gradient_accumulation_steps: 2

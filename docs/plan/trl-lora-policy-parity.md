@@ -30,7 +30,7 @@ This corrects a backend synchronization defect and strengthens validation withou
 - [x] (2026-09-09) Changed the TRL candidate to score bounded actor parity rows independently without padding (19 focused trainer tests passed), and removed the Qwen-only `language_model.` prefix from both LFM rollout bindings (catalog regression passed).
 - [x] (2026-09-09) Passed local LFM async-engine drain/cancel/sleep/wake across two collection rounds and a separate changed-LoRA actor/vLLM canary: 166 nonzero LoRA-B modules produced a `0.00910` mean rollout effect while changed-weight parity remained `0.00894`.
 - [x] (2026-09-09) Proved the 2.6B BF16 actor plus colocated vLLM weight floor cannot fit the 8 GiB local target, added a static cross-seat rejection before packaging, and moved the composed changed-weight canary to the idle 96 GiB RTX PRO target.
-- [ ] Run one composed LFM optimizer update with the corrected local TRL source, followed by a post-update rollout, before resubmitting the comparison arms.
+- [ ] Run the two-iteration composed LFM canary with corrected TRL: the first iteration updates LoRA weights and the second collection proves the post-update rollout path before comparison-arm resubmission.
 - [ ] Compare corrected and prior DAPO under repeated seeds or a held-out set before claiming the algorithm is better; then decide whether the production objective remains scalar DAPO or moves to decoupled multi-signal normalization.
 - [ ] After explicit publication authorization, commit and push the TRL fork, update the framework's immutable dependency pin and lock, and reconcile Ambient Agent provenance.
 

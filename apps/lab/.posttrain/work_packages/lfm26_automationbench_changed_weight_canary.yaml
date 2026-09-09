@@ -1,7 +1,7 @@
 project_id: posttrain-lab
 work_package_id: train/lfm2.5-2.6b/automationbench-changed-weight-canary
 stage: train
-description: One-update LFM gate for unpadded parity, sleep, LoRA synchronization, and post-update rollout.
+description: Two-iteration LFM gate for unpadded parity, sleep, LoRA synchronization, and a changed-weight rollout.
 recipe:
   type: inline
   id: recipes/lfm2.5-2.6b-automationbench-changed-weight-canary@1
