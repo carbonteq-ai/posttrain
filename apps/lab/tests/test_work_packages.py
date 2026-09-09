@@ -89,6 +89,7 @@ def test_two_update_gdpo_resolves_self_hosted_gemma_on_the_local_server() -> Non
     assert "--tensor-parallel-size" in command
     assert "--speculative-config" in command
     assert "--reasoning-parser" in command
+    assert command[command.index("--gpu-memory-utilization") + 1] == "0.37"
 
     settings = resolved.seats["settings"].value
     assert settings.loop.max_steps == 2

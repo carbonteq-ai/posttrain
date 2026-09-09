@@ -805,7 +805,10 @@ inference:
     backend: vllm@0.25.1
     renderer: gemma4-tools@1
     engine:
-      gpu_memory_utilization: 0.35
+      # Live RTX PRO qualification needs 7.88 GiB of KV cache at the full
+      # 8,192-input + 16,384-output judge budget. A 0.35 allocation exposed
+      # only 6.60 GiB; 0.37 preserves the budget with a narrow safety margin.
+      gpu_memory_utilization: 0.37
       dtype: bfloat16
       tensor_parallel_size: 1
       max_model_len: 24576
