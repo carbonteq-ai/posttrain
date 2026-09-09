@@ -1,5 +1,19 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 26 — 2026-09-09. The matched twenty-update GRPO and OLMo3
+qualification remains on the retained `carbonteq-ai-workstation.lan` RTX PRO
+6000 because one worker is presently healthy and idle; the two canonical runs
+will be submitted together and serialized by dstack's single worker block. A
+hardware-planning audit found that both LFM comparison training bindings still
+declared the superseded TRL post5 source after the runtime dependency advanced
+to post6. Both bindings now select `trl@1.12.0.post6` and retain the generated
+current lock's exact source revision and digest. Catalog regression coverage
+compares the active bindings with `locks.toml` so a later fork upgrade cannot
+silently leave this campaign on stale provenance. The unused RTX PRO 4500
+on-demand training variant is deferred; its target remains available for a
+separate measured 32 GiB qualification instead of being substituted into this
+matched run without evidence.
+
 Revision 25 — 2026-09-09. The complete external environment repository now
 selects the same immutable CarbonTeq Verifiers revision as Posttrain. Published
 environment commit `d994073b9632e73c96a57865683133d7a6ebc4bf` removes mixed

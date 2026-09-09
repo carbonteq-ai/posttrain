@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import tomllib
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -212,6 +213,9 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     local_rollout = catalog.resolve(
         CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32@1")
     ).value
+    local_training = catalog.resolve(
+        CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench-local@1")
+    ).value
 
     assert isinstance(local_grpo, GRPOSettings)
     assert local_grpo.loop.max_steps == 20
@@ -223,6 +227,7 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_olmo.algorithm == "olmo3"
     assert local_olmo.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
     assert isinstance(local_rollout, InferenceBinding)
+    assert isinstance(local_training, TrainingBinding)
     assert local_rollout.engine["max_num_seqs"] == 32
     assert local_rollout.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
 
@@ -239,6 +244,18 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert isinstance(remote_rollout, InferenceBinding)
     assert isinstance(heldout_inference, InferenceBinding)
     assert isinstance(judge, InferenceBinding)
+    lock_document = tomllib.loads(
+        (WORKSPACE / "packages/catalog/src/posttrain/catalog/base/locks.toml").read_text(encoding="utf-8")
+    )
+    current_trl_lock = lock_document["locks"]["trl-fork@current"]
+    assert remote_training.backend == "trl@1.12.0.post6"
+    assert remote_training.backend_options["dependency_lock"] == "trl-fork@current"
+    assert remote_training.backend_options["source_revision"] == current_trl_lock["source_revision"]
+    assert remote_training.backend_options["dependency_lock_sha256"] == current_trl_lock["dependency_lock_sha256"]
+    assert local_training.backend == remote_training.backend
+    assert local_training.backend_options["dependency_lock"] == "trl-fork@current"
+    assert local_training.backend_options["source_revision"] == current_trl_lock["source_revision"]
+    assert local_training.backend_options["dependency_lock_sha256"] == current_trl_lock["dependency_lock_sha256"]
     assert remote_training.target.id == "targets/runpod-rtx-pro-6000-96gb-secure-ondemand"
     assert remote_rollout.target == remote_training.target
     assert judge.target == remote_training.target
