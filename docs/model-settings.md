@@ -114,7 +114,8 @@ number of training steps.
 ## Hardware facts, residency, and advice
 
 
-An exact target records SKU/edition, accelerator architecture or compute
+An exact target records `accelerator_model` (the scheduler-facing SKU),
+accelerator architecture or compute
 capability, visible usable memory, count, partition, interconnect, and runtime
 requirements. Generic memory-only targets remain valid but cannot authorize
 architecture-specific defaults. Exact profiles must distinguish RTX A6000,

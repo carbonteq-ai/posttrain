@@ -67,6 +67,7 @@ class ModelVariantSchema(CatalogSchema):
 
 class HardwareCapabilitiesSchema(CatalogSchema):
     accelerator_count: int | None = Field(default=None, gt=0)
+    accelerator_model: str | None = None
     gpu_architecture: str | None = None
     supports_bf16: bool | None = None
     supports_mtp: bool | None = None

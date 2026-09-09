@@ -291,7 +291,7 @@ training:
       rank: 4
       alpha: 8
       target_modules: all-linear
-    target: targets/runpod-a100-80gb-secure-ondemand-qualification
+    target: targets/runpod-rtx-pro-6000-96gb-secure-ondemand
     parallelism: {sequence_length_divisor: 2}
     runtime:
       global_batch_size: 64
@@ -370,7 +370,7 @@ inference:
       text_only: true
       skip_mm_profiling: true
     sampling: *policy_sampling
-    target: targets/runpod-a100-80gb-secure-ondemand-qualification
+    target: targets/runpod-rtx-pro-6000-96gb-secure-ondemand
     purpose: [rollout]
     capabilities: [tool-calling]
 
@@ -420,7 +420,7 @@ inference:
       max_tokens: 2048
       temperature: 0.0
       top_p: 1.0
-    target: targets/runpod-rtx-pro-6000-spot-qualification
+    target: targets/runpod-rtx-pro-4500-32gb-secure-ondemand
     purpose: [eval]
     capabilities: [tool-calling]
 
@@ -449,7 +449,7 @@ inference:
           repo_id: google/gemma-4-12B-it-assistant
           revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
     sampling: *judge_sampling
-    target: targets/runpod-rtx-pro-6000-spot-qualification
+    target: targets/runpod-rtx-pro-6000-96gb-secure-ondemand
     purpose: [eval]
 
 evaluation:

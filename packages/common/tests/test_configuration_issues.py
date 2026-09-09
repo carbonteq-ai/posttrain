@@ -40,6 +40,7 @@ def test_execution_target_keeps_declared_hardware_facts_typed() -> None:
         96,
         hardware=HardwareCapabilities(
             accelerator_count=1,
+            accelerator_model="RTXPRO6000",
             gpu_architecture="blackwell",
             supports_bf16=True,
             supports_mtp=True,
@@ -48,6 +49,7 @@ def test_execution_target_keeps_declared_hardware_facts_typed() -> None:
     )
 
     assert target.hardware is not None
+    assert target.hardware.accelerator_model == "RTXPRO6000"
     assert target.hardware.supports_turboquant is True
 
 

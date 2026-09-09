@@ -197,12 +197,15 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert isinstance(scalar, EnvironmentBinding)
     assert isinstance(judged, EnvironmentBinding)
     for environment in (scalar, judged):
+        assert isinstance(environment.activation, VerifiersV1ConfigActivation)
         assert environment.num_tasks == 160
         assert environment.num_rollouts == 4
         assert environment.parameters["sampling_seed"] == 172846
         assert environment.parameters["task_mix_id"] == "lfm26-automationbench-mix-v2"
         assert environment.parameters["task_mix_sha256"] == fixture_digest
-        assert environment.activation.config["taskset"].get("task_names") is None
+        taskset = environment.activation.config["taskset"]
+        assert isinstance(taskset, Mapping)
+        assert taskset.get("task_names") is None
     assert scalar.max_concurrent == 32
     assert judged.max_concurrent == 32
 
@@ -220,7 +223,7 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_grpo.loop.max_steps == 20
     assert local_grpo.num_prompts_per_step == 8
     assert local_grpo.num_generations == 4
-    assert local_grpo.max_admission_attempts == 2
+    assert local_grpo.max_admission_attempts == 1
     assert isinstance(local_olmo, GRPOSettings)
     assert local_olmo.loop.max_steps == 20
     assert local_olmo.algorithm == "olmo3"
@@ -228,6 +231,43 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert isinstance(local_rollout, InferenceBinding)
     assert local_rollout.engine["max_num_seqs"] == 32
     assert local_rollout.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
+
+    remote_training = catalog.resolve(
+        CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench@1")
+    ).value
+    remote_rollout = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout@1")
+    ).value
+    heldout_inference = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-eval@1")
+    ).value
+    judge = catalog.resolve(
+        CatalogRef("inference", "inference/gemma4-12b-vllm-automationbench-judge-mtp2@1")
+    ).value
+
+    assert isinstance(remote_training, TrainingBinding)
+    assert isinstance(remote_rollout, InferenceBinding)
+    assert isinstance(heldout_inference, InferenceBinding)
+    assert isinstance(judge, InferenceBinding)
+    assert remote_training.target.id == "targets/runpod-rtx-pro-6000-96gb-secure-ondemand"
+    assert remote_rollout.target == remote_training.target
+    assert judge.target == remote_training.target
+    assert heldout_inference.target.id == "targets/runpod-rtx-pro-4500-32gb-secure-ondemand"
+    for target in (remote_training.target, heldout_inference.target):
+        assert target.hardware is not None
+        assert target.hardware.gpu_architecture == "blackwell"
+        assert target.hardware.supports_bf16 is True
+        assert target.hardware.supports_mtp is True
+        assert target.hardware.supports_turboquant is True
+        assert target.placement["fleets"] == ["runpod-secure-ondemand-workers"]
+        assert target.placement["spot_policy"] == "on-demand"
+        assert target.placement["max_price"] == 2.2
+    remote_hardware = remote_training.target.hardware
+    heldout_hardware = heldout_inference.target.hardware
+    assert remote_hardware is not None
+    assert heldout_hardware is not None
+    assert remote_hardware.accelerator_model == "RTXPRO6000"
+    assert heldout_hardware.accelerator_model == "RTXPRO4500"
 
 
 def test_qwen4b_automationbench_eval_binding_declares_tool_protocol() -> None:

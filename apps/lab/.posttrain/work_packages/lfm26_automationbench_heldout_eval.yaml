@@ -21,7 +21,7 @@ recipe:
 bindings:
   model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
   evaluation_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-eval@1}
-  target: {type: ref, family: target, id: targets/runpod-rtx-pro-6000-spot-qualification}
+  target: {type: ref, family: target, id: targets/runpod-rtx-pro-4500-32gb-secure-ondemand}
   evaluation_plan: {type: ref, family: evaluation, id: lfm26-automationbench-heldout-v1}
   environment: {type: ref, family: environment, id: automationbench-lfm26-heldout-mix-v1}
 enabled_optional_jobs: []

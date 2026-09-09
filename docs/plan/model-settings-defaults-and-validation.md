@@ -47,6 +47,16 @@ observed rollout staleness up to depth 3 without sample loss; staleness policy
 qualification remains owned by the async-rollout plan rather than being
 reclassified as a model-setting concern.
 
+Revision 9 — 2026-09-09. Exact hardware profiles now retain the
+scheduler-facing accelerator SKU through catalog decoding, planning, and run
+snapshots. The active AutomationBench comparison uses the reusable on-demand
+fleet: colocated LFM 2.6B training/rollout and the 12B judge select RTX PRO
+6000, while standalone 2.6B held-out evaluation selects the lower-cost RTX PRO
+4500. Static planning rejects device counts and model-parallel topology that do
+not fit the declared target. MTP and TurboQuant eligibility remains visible as
+non-mutating advice; no rank, batch, algorithm, numerical format, or engine
+setting is silently changed.
+
 Revision 3 — 2026-09-09. Implementation started. M0 added the canonical API amendment and `docs/model-settings.md` inventory, now expanded to job-type and algorithm settings. Defaults, hard validity, and efficiency advice remain separate at each layer. Hardware-aware recommendations cover architecture, residency, MTP, and TurboQuant independently of full-weight/LoRA/QLoRA selection. No new LoRA-rank default is introduced.
 
 ## Purpose / Big Picture
@@ -72,6 +82,7 @@ The outcome is an inspectable model-configuration resolution and validation path
 - [x] M4: expose explainable CLI/Python behavior and the bounded preflight bypass.
 - [ ] M5: migrate versioned catalog defaults and qualify supported model/backend paths (no default migration was justified; fixture, training, and live Qwen serving gates are complete; only the independently stale local OCI runtime-image release gate remains).
 - [x] (2026-09-09) Re-ran source-local qualification for five updates and the focused configuration/rendering/async regression suite (77 passed, 4 skipped).
+- [x] (2026-09-09) Integrated exact RTX PRO 4500/6000 hardware profiles into the active remote comparison jobs and added topology/snapshot regression coverage.
 
 ## Scope and explicit exclusions
 
@@ -434,6 +445,13 @@ Existing native options are split across frontend arguments, engine settings, re
 
 The inspected TRL consumer ledger still records Qwen3.5 K8V4 recall regressions for tested long-context configurations. This blocks blanket promotion of TurboQuant despite its potential cache-capacity benefit. The user wants TurboQuant recommended independently of the update method, not bundled with LoRA rank 8; this supersedes the intermediate interpretation of that phrase.
 
+The active remote AutomationBench bindings still referenced the retired A100
+qualification target after the reusable fleet changed to RTX PRO 4500/6000.
+Because placement was expressed only as a generic target reference, planning
+also lost the exact scheduler GPU identity. The corrected split keeps
+colocated training and judging on the 96 GiB target and moves only standalone
+LFM evaluation to the 32 GiB target.
+
 ## Decision Log
 
 
@@ -452,6 +470,12 @@ The inspected TRL consumer ledger still records Qwen3.5 K8V4 recall regressions 
 2026-09-09, revision 2: Enable MTP by default in new qualified model/backend/hardware/operation bindings. Recommend TurboQuant independently of full-weight/LoRA/QLoRA, and prefer it in newly qualified optimized defaults. Preserve explicit overrides and known quality/compatibility gates. Do not introduce a new LoRA-rank default from the user's corrected wording.
 
 2026-09-09, revision 2: Add phase-aware hardware advice using architecture, role residency and training method/rank. Hardware determines eligible implementations and capacity recommendations, not scientific training choices. Memory reservation, useful cache demand and compute utilization are separate quantities.
+
+2026-09-09, revision 9: Hardware profiles select eligible execution targets
+and produce explainable compatibility findings. Engine tuning remains in
+versioned inference bindings, and training/scientific settings remain explicit.
+Use RTX PRO 6000 for the colocated LFM training/rollout and Gemma judge path;
+use RTX PRO 4500 for the independent LFM held-out evaluation path.
 
 ## Outcomes & Retrospective
 
@@ -493,6 +517,14 @@ It reported `global_step=5`, 27 changed parameter tensors, consumed group IDs
 follow-up focused suite covering model settings, Qwen/LFM/Gemma rendering,
 vLLM translation, async rollout acknowledgement, work validation, project
 planning, and CLI behavior passed 77 tests with four dependency/cache skips.
+
+Revision 9 outcome: the four remote work-package plans resolve without static
+errors. GRPO, OLMo3, and GDPO training select the on-demand RTX PRO 6000 target;
+held-out evaluation selects the on-demand RTX PRO 4500 target. Each plan
+retains `accelerator_model`, the reusable fleet name, and on-demand policy in
+its immutable resolved-input snapshot. The focused hardware/catalog/work suite
+passes 31 tests; one separate catalog test remains excluded because the release
+dependency-lock digest was already stale before this revision.
 
 
 Revision 1 delivers the implementation plan and its separate policy decisions only. No model default, adapter behavior, canonical baseline, dependency pin, runtime, or active run has been changed by this plan. Implementation begins with M0; release requires all applicable acceptance gates, not just creation of schemas or new CLI flags.

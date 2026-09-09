@@ -9,6 +9,11 @@ target:
     revision: "1"
     device_class: nvidia-cuda
     memory_gb: 8
+    hardware:
+      accelerator_count: 1
+      accelerator_model: RTX3070Ti
+      gpu_architecture: ampere
+      supports_bf16: true
     placement:
       world_size: 1
       instances:
@@ -17,6 +22,13 @@ target:
     revision: "1"
     device_class: nvidia-cuda
     memory_gb: 96
+    hardware:
+      accelerator_count: 1
+      accelerator_model: RTXPRO6000
+      gpu_architecture: blackwell
+      supports_bf16: true
+      supports_mtp: true
+      supports_turboquant: true
     placement:
       world_size: 1
       instances:
@@ -35,24 +47,17 @@ target:
         - L40S
       max_price: 1.0
       disk_gb: 100
-  targets/runpod-a100-80gb-spot-qualification:
-    revision: "2"
-    device_class: nvidia-cuda
-    memory_gb: 80
-    placement:
-      world_size: 1
-      backends:
-        - runpod
-      spot_policy: spot
-      managed_run_storage: true
-      gpu_names:
-        - A100
-      max_price: 2.5
-      disk_gb: 100
-  targets/runpod-a100-80gb-secure-ondemand-qualification:
+  targets/runpod-rtx-pro-4500-32gb-secure-ondemand:
     revision: "1"
     device_class: nvidia-cuda
-    memory_gb: 80
+    memory_gb: 32
+    hardware:
+      accelerator_count: 1
+      accelerator_model: RTXPRO4500
+      gpu_architecture: blackwell
+      supports_bf16: true
+      supports_mtp: true
+      supports_turboquant: true
     placement:
       world_size: 1
       fleets:
@@ -60,10 +65,33 @@ target:
       spot_policy: on-demand
       managed_run_storage: true
       gpu_names:
-        - A100
-      gpu_memory_min_gb: 80
-      gpu_memory_max_gb: 80
-      max_price: 1.75
+        - RTXPRO4500
+      gpu_memory_min_gb: 32
+      gpu_memory_max_gb: 32
+      max_price: 2.2
+      disk_gb: 100
+  targets/runpod-rtx-pro-6000-96gb-secure-ondemand:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 96
+    hardware:
+      accelerator_count: 1
+      accelerator_model: RTXPRO6000
+      gpu_architecture: blackwell
+      supports_bf16: true
+      supports_mtp: true
+      supports_turboquant: true
+    placement:
+      world_size: 1
+      fleets:
+        - runpod-secure-ondemand-workers
+      spot_policy: on-demand
+      managed_run_storage: true
+      gpu_names:
+        - RTXPRO6000
+      gpu_memory_min_gb: 96
+      gpu_memory_max_gb: 96
+      max_price: 2.2
       disk_gb: 100
   targets/runpod-rtx-pro-6000-spot-qualification:
     revision: "2"

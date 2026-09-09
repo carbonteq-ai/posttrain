@@ -459,6 +459,58 @@ def _configuration_findings(
     issues: list[ConfigurationIssue] = []
     checks: list[ValidationCheck] = []
     for role, value in sorted(seats.items()):
+        if isinstance(value, TrainingBinding):
+            hardware = value.target.hardware
+            if hardware is None or hardware.accelerator_count is None:
+                checks.append(
+                    ValidationCheck(
+                        f"{role}-hardware-topology",
+                        "deferred",
+                        "target has no declared accelerator count; runtime readiness must verify training topology",
+                    )
+                )
+                continue
+            checks.append(
+                ValidationCheck(
+                    f"{role}-hardware-topology",
+                    "passed",
+                    "declared accelerator count was checked against the training topology",
+                )
+            )
+            devices_per_node = value.runtime.devices_per_node
+            if devices_per_node is not None and devices_per_node > hardware.accelerator_count:
+                issues.append(
+                    ConfigurationIssue(
+                        "TRAINING_DEVICES_EXCEED_TARGET",
+                        "error",
+                        "static",
+                        role,
+                        f"{role}.runtime.devices_per_node",
+                        (
+                            f"training requests {devices_per_node} devices per node but target "
+                            f"{value.target.id} declares {hardware.accelerator_count}"
+                        ),
+                        "Select a larger target or reduce the explicit devices-per-node topology.",
+                    )
+                )
+            available_devices = value.runtime.nodes * (devices_per_node or hardware.accelerator_count)
+            if value.parallelism.required_devices > available_devices:
+                issues.append(
+                    ConfigurationIssue(
+                        "TRAINING_PARALLELISM_EXCEEDS_TOPOLOGY",
+                        "error",
+                        "static",
+                        role,
+                        f"{role}.parallelism",
+                        (
+                            f"training parallelism requires {value.parallelism.required_devices} devices but the "
+                            f"declared runtime topology provides {available_devices}"
+                        ),
+                        "Select a compatible topology or reduce the explicit model-parallel dimensions.",
+                        (f"{role}.runtime.nodes", f"{role}.runtime.devices_per_node"),
+                    )
+                )
+            continue
         if not isinstance(value, InferenceBinding):
             continue
         hardware = value.target.hardware
@@ -514,6 +566,24 @@ def _configuration_findings(
                     role,
                     f"{role}.target.hardware.supports_mtp",
                     f"target {value.target.id} declares MTP unsupported",
+                )
+            )
+        generation_purposes = {"screen", "eval", "rollout", "smoke"}
+        if (
+            not is_mtp
+            and generation_purposes.intersection(value.purpose)
+            and value.model.capabilities.mtp
+            and hardware.supports_mtp is True
+        ):
+            issues.append(
+                ConfigurationIssue(
+                    "MTP_AVAILABLE",
+                    "recommendation",
+                    "static",
+                    role,
+                    f"{role}.engine.speculative_config",
+                    "the selected model and target advertise MTP capability but this binding does not enable it",
+                    "Select a versioned MTP binding only after qualifying the model/backend/operation combination.",
                 )
             )
         if turboquant and hardware.supports_turboquant is False:
@@ -814,6 +884,7 @@ def _execution_target_snapshot(
             "hardware": (
                 {
                     "accelerator_count": target.hardware.accelerator_count,
+                    "accelerator_model": target.hardware.accelerator_model,
                     "gpu_architecture": target.hardware.gpu_architecture,
                     "supports_bf16": target.hardware.supports_bf16,
                     "supports_mtp": target.hardware.supports_mtp,
@@ -866,6 +937,18 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
         return {
             "device_class": value.device_class,
             "memory_gb": value.memory_gb,
+            "hardware": (
+                {
+                    "accelerator_count": value.hardware.accelerator_count,
+                    "accelerator_model": value.hardware.accelerator_model,
+                    "gpu_architecture": value.hardware.gpu_architecture,
+                    "supports_bf16": value.hardware.supports_bf16,
+                    "supports_mtp": value.hardware.supports_mtp,
+                    "supports_turboquant": value.hardware.supports_turboquant,
+                }
+                if value.hardware is not None
+                else None
+            ),
             "placement": dict(value.placement),
             "host_constraints": dict(value.host_constraints),
         }

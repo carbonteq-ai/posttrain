@@ -41,6 +41,7 @@ class HardwareCapabilities:
     """Declared, versioned target facts used by pure configuration advice."""
 
     accelerator_count: int | None = None
+    accelerator_model: str | None = None
     gpu_architecture: str | None = None
     supports_bf16: bool | None = None
     supports_mtp: bool | None = None
@@ -51,6 +52,8 @@ class HardwareCapabilities:
             isinstance(self.accelerator_count, bool) or self.accelerator_count < 1
         ):
             raise ContractError("hardware accelerator_count must be a positive integer")
+        if self.accelerator_model is not None and not self.accelerator_model.strip():
+            raise ContractError("hardware accelerator_model cannot be empty")
         if self.gpu_architecture is not None and not self.gpu_architecture.strip():
             raise ContractError("hardware gpu_architecture cannot be empty")
 

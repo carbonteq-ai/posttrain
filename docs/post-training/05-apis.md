@@ -167,6 +167,11 @@ the selected runtime. It performs no model download, image build, provider
 contact, or run creation. The existing global `--json` surface returns the same
 stable report.
 
+Exact hardware profiles declare a scheduler-facing `accelerator_model` in
+addition to accelerator count, usable memory, architecture, and qualified
+capabilities. Provider placement names must resolve to that model; generic
+memory-only targets omit it and cannot authorize model-specific defaults.
+
 `job run --skip-preflight` skips only additional bounded readiness probes that
 may inspect cached metadata or an already-running endpoint. It never skips
 schema validation, known cross-seat incompatibilities, immutable source/image
