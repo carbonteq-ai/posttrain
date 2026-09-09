@@ -761,7 +761,8 @@ def test_machine_init_creates_shared_defaults_and_scoped_credentials(
 
 def test_hosted_inference_declares_only_its_credential_name_as_a_runtime_requirement() -> None:
     from posttrain_cli.commands.work_package import _paid_judge_limits
-    from posttrain_cli.execution_planning import required_runtime_variables
+    from posttrain_cli.execution_config import DstackBinding, ExecutionOverrides, LocalExecutionConfig
+    from posttrain_cli.execution_planning import required_runtime_variables, runtime_credential_status_for_seats
 
     binding = HostedInferenceBinding(
         "hosted-inference/test@1",
@@ -780,6 +781,21 @@ def test_hosted_inference_declares_only_its_credential_name_as_a_runtime_require
     assert required_runtime_variables({"judge": binding}) == ("ROUTER_API_KEY",)
     assert _paid_judge_limits({"judge": binding}) == {
         "judge": {"max_cost_usd": "4.99", "max_cost_usd_micros": 4_990_000}
+    }
+    remote = LocalExecutionConfig(
+        path=Path("/tmp/posttrain-test-config.toml"),
+        defaults=ExecutionOverrides(provider="dstack"),
+        dstack=DstackBinding(
+            project="main",
+            python=Path("/tmp/dstack-python"),
+            runtime_secrets={"ROUTER_API_KEY": "router-job-key"},
+        ),
+    )
+    assert runtime_credential_status_for_seats(remote, {"judge": binding}, provider="dstack") == {
+        "ROUTER_API_KEY": "configured"
+    }
+    assert runtime_credential_status_for_seats(remote, {"judge": binding}, provider="local") == {
+        "ROUTER_API_KEY": "unavailable"
     }
 
 

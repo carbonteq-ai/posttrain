@@ -511,7 +511,7 @@ class PlannedJobExecution:
         return self.launch.mounts
 
     def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobExecution:
-        _require_runtime_credentials(self.package)
+        _require_runtime_credentials(self.package, provider=self.settings.provider)
         publisher_supports_daemon = self.settings.provider == "local" and hasattr(
             self.package._publisher(), "publish_local_daemon"
         )
@@ -1371,31 +1371,53 @@ def required_runtime_variables(seats: Mapping[str, object]) -> tuple[str, ...]:
     )
 
 
-def runtime_credential_status(package: PlannedJobPackage) -> dict[str, Literal["configured", "unavailable"]]:
+def runtime_credential_status(
+    package: PlannedJobPackage,
+    *,
+    provider: str | None = None,
+) -> dict[str, Literal["configured", "unavailable"]]:
     """Report required external-service credential presence without values."""
 
-    return runtime_credential_status_for_seats(package.local_config, package.prepared.seats)
+    return runtime_credential_status_for_seats(
+        package.local_config,
+        package.prepared.seats,
+        provider=provider or package.local_config.defaults.provider,
+    )
 
 
 def runtime_credential_status_for_seats(
     local_config: LocalExecutionConfig,
     seats: Mapping[str, object],
+    *,
+    provider: str | None = None,
 ) -> dict[str, Literal["configured", "unavailable"]]:
     required = required_runtime_variables(seats)
     environment = load_execution_environment(
         local_config,
         runtime_variable_names=required,
     )
-    return {name: "configured" if bool(environment.get(name)) else "unavailable" for name in required}
+    native_secret_names = (
+        local_config.dstack.runtime_secrets
+        if provider == "dstack" and local_config.dstack is not None
+        else {}
+    )
+    return {
+        name: "configured" if bool(environment.get(name)) or name in native_secret_names else "unavailable"
+        for name in required
+    }
 
 
-def _require_runtime_credentials(package: PlannedJobPackage) -> None:
-    unavailable = [name for name, status in runtime_credential_status(package).items() if status == "unavailable"]
+def _require_runtime_credentials(package: PlannedJobPackage, *, provider: str) -> None:
+    unavailable = [
+        name
+        for name, status in runtime_credential_status(package, provider=provider).items()
+        if status == "unavailable"
+    ]
     if unavailable:
         raise ContractError(
             "required runtime credentials are unavailable: "
             + ", ".join(unavailable)
-            + "; configure the named machine credential source before packing"
+            + "; configure a protected job value, machine credential source, or provider-native secret before packing"
         )
 
 

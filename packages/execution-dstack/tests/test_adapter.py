@@ -251,6 +251,28 @@ def test_sdk_bridge_uses_only_the_private_runtime_map_for_declared_job_values(
         module._configuration({"configuration": {"env": ["TRACKIO_WRITE_TOKEN"]}})
 
 
+def test_sdk_bridge_uses_native_dstack_secret_reference_without_receiving_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _sdk_bridge_module(monkeypatch)
+
+    task = module._configuration(
+        {
+            "configuration": {
+                "env": ["OPENROUTER_API_KEY"],
+                "_posttrain_runtime_env": {},
+                "_posttrain_runtime_secret_refs": {
+                    "OPENROUTER_API_KEY": "openrouter-job-key",
+                },
+            }
+        }
+    )
+
+    assert task.values["env"] == {
+        "OPENROUTER_API_KEY": "${{ secrets.openrouter-job-key }}",
+    }
+
+
 def test_sdk_bridge_private_runtime_values_are_not_part_of_public_provider_configuration(
     tmp_path: Path,
 ) -> None:

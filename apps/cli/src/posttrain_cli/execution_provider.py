@@ -82,14 +82,21 @@ def create_execution_provider(
         provider_type = getattr(module, "DstackExecutionProvider", None)
         if provider_type is None:
             raise RuntimeError("installed dstack execution package has no provider")
+        runtime_environment = load_execution_environment(
+            local_config,
+            runtime_variable_names=settings.environment_names,
+        )
+        # Native dstack secret references are resolved by the dstack server at
+        # worker launch. Do not also send their locally configured values over
+        # the submission bridge.
+        for name in binding.runtime_secrets:
+            runtime_environment.pop(name, None)
         provider = provider_type.from_sdk_environment(
             project=binding.project,
             python=binding.python,
             environment_file=binding.environment_file,
-            runtime_environment=load_execution_environment(
-                local_config,
-                runtime_variable_names=settings.environment_names,
-            ),
+            runtime_environment=runtime_environment,
+            runtime_secret_references=binding.runtime_secrets,
             trust_bundle=resolve_trust_bundle(binding.trust_bundle).path,
             capacity_wait_seconds=binding.capacity_wait_seconds,
         )
@@ -169,6 +176,7 @@ def _configuration_for_provider_source(
                 storage=(current.dstack.storage if current.dstack is not None else None),
                 trust_bundle=source.trust_bundle,
                 capacity_wait_seconds=source.capacity_wait_seconds,
+                runtime_secrets=(current.dstack.runtime_secrets if current.dstack is not None else {}),
             ),
         )
     raise RuntimeError(f"recorded provider source is unsupported: {source.provider!r}")

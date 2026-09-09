@@ -90,6 +90,12 @@ provenance, and an exported adapter.
 - [x] (2026-09-09 15:35Z) Generalize optional paid-judge composition to the
   full GRPO family and split projection into a training-owned maximum trajectory
   envelope plus a Verifiers-owned per-trajectory judge-call envelope.
+- [x] (2026-09-09 16:20Z) Split runtime credential delivery into protected
+  job-local values and provider-native infrastructure secrets. The dstack
+  adapter now accepts secret-free environment-to-secret references, emits
+  native dstack `${{ secrets.<name> }}` expressions, and does not forward a
+  locally configured duplicate value. This path is backend-independent and
+  therefore also applies when dstack places the worker on RunPod.
 - [ ] Replace the one-off comparison scripts with a service-neutral local
   replay harness and qualify DeepSeek against the reviewed fixture and the
   retained multi-run corpus.
@@ -159,6 +165,14 @@ provenance, and an exported adapter.
   test skips before opening a paid request. The implementation and offline
   tests can proceed, but fixture replay and five-update qualification require
   the operator to populate the protected machine credential source.
+
+- Observation: the live dstack project currently contains only the existing
+  `hf_token` secret; it does not yet contain an OpenRouter secret.
+  Evidence: a value-redacted dstack secret inventory on 2026-09-09 returned
+  only that name. No RunPod job was submitted and no secret was created. The
+  remote path becomes runnable after an operator creates, for example,
+  `openrouter-job-key` in dstack and maps `OPENROUTER_API_KEY` to it under
+  `[providers.dstack.runtime_secrets]`.
 
 - Observation: the environment-owned judge performs its completion calls after
   Posttrain injects a generic OpenAI-compatible endpoint, so catalog metadata
@@ -267,6 +281,18 @@ provenance, and an exported adapter.
   GDPO, or CAPO. Training publishes only a generic maximum trajectory count;
   Verifiers publishes calls and token bounds per trajectory; composition joins
   them for cost control.
+  Date/Author: 2026-09-09 / user and Codex.
+
+- Decision: separate credential requirement, secret selection, and secret
+  value. A work package or hosted-service binding declares only
+  `OPENROUTER_API_KEY`; a protected job env file may supply a one-off value;
+  machine configuration may select a reusable credential file for local work
+  or a named dstack project secret for remote work. On RunPod, dstack performs
+  the final secret interpolation into the worker environment.
+  Rationale: job meaning remains portable and secret-free while local,
+  shared-LAN, and RunPod execution can use the security boundary owned by each
+  executor. Literal values must not be retained in dstack task configuration
+  when a native secret is configured.
   Date/Author: 2026-09-09 / user and Codex.
 
 ## Outcomes & Retrospective
@@ -545,7 +571,11 @@ Extend the machine-configuration path documented in
 `docs/plan/dx-configuration-authority.md` so a named `openrouter-default`
 credential source permits only `OPENROUTER_API_KEY`. Local execution loads it
 from a mode-0600 machine file. Dstack or another remote executor forwards only
-that named variable through its secret mechanism. The packer and image builder
+that named variable through its secret mechanism. For dstack, machine config
+maps the environment name to an encrypted project-secret name under
+`[providers.dstack.runtime_secrets]`; this remains valid when the selected
+backend is RunPod. A protected job-local env file is the explicit one-off
+alternative. The packer and image builder
 must reject the secret as file content, image environment, catalog data,
 command-line argument, event field, or serialized run snapshot. A plan command
 must report `OpenRouter credential: configured/unavailable`, never its value.

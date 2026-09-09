@@ -72,6 +72,7 @@ class DstackBinding:
     storage: ExecutionStorageBinding | None = None
     trust_bundle: Path | None = None
     capacity_wait_seconds: int = 0
+    runtime_secrets: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -442,6 +443,7 @@ def provider_binding_fingerprint(
             "trust_bundle": (str(binding.trust_bundle) if binding.trust_bundle is not None else None),
             "storage": _storage_identity(binding.storage),
             "capacity_wait_seconds": binding.capacity_wait_seconds,
+            "runtime_secrets": dict(sorted(binding.runtime_secrets.items())),
         }
     else:
         # Third-party providers retain a stable name-only identity until their
@@ -536,6 +538,7 @@ def _parse_dstack(value: object, *, base: Path) -> DstackBinding | None:
             "storage",
             "trust_bundle",
             "capacity_wait_seconds",
+            "runtime_secrets",
         },
         "providers.dstack",
     )
@@ -574,6 +577,10 @@ def _parse_dstack(value: object, *, base: Path) -> DstackBinding | None:
             "providers.dstack.capacity_wait_seconds",
         )
         or 0,
+        _parse_runtime_secret_references(
+            payload.get("runtime_secrets"),
+            context="providers.dstack.runtime_secrets",
+        ),
     )
 
 
@@ -669,7 +676,14 @@ def load_machine_config() -> MachineConfig | None:
     if dstack_payload:
         _reject_unknown(
             dstack_payload,
-            {"project", "python", "credentials", "credentials_file", "capacity_wait_seconds"},
+            {
+                "project",
+                "python",
+                "credentials",
+                "credentials_file",
+                "capacity_wait_seconds",
+                "runtime_secrets",
+            },
             "providers.dstack",
         )
         credential_name = _optional_config_string(dstack_payload.get("credentials"), "providers.dstack.credentials")
@@ -710,6 +724,10 @@ def load_machine_config() -> MachineConfig | None:
                 "providers.dstack.capacity_wait_seconds",
             )
             or 0,
+            runtime_secrets=_parse_runtime_secret_references(
+                dstack_payload.get("runtime_secrets"),
+                context="providers.dstack.runtime_secrets",
+            ),
         )
     if default_provider == "dstack" and dstack is None:
         raise ContractError("default_provider is dstack but providers.dstack is not configured")
@@ -1378,6 +1396,22 @@ def _mapping(
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
         raise ContractError(f"execution configuration {context} must be a table")
     return value
+
+
+def _parse_runtime_secret_references(value: object, *, context: str) -> dict[str, str]:
+    """Parse environment-variable to provider-secret references without values."""
+
+    payload = _mapping(value, context=context, allow_none=True)
+    references: dict[str, str] = {}
+    for variable, secret_name in payload.items():
+        if not variable.isidentifier() or not variable.isupper():
+            raise ContractError(f"execution configuration {context} keys must be uppercase environment names")
+        if not isinstance(secret_name, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,200}", secret_name) is None:
+            raise ContractError(
+                f"execution configuration {context}.{variable} must name a valid provider secret"
+            )
+        references[variable] = secret_name
+    return references
 
 
 def _reject_unknown(

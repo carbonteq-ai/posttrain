@@ -71,6 +71,7 @@ class DstackSdkBridge:
         *,
         environment_file: Path | None = None,
         runtime_environment: Mapping[str, str] | None = None,
+        runtime_secret_references: Mapping[str, str] | None = None,
     ) -> None:
         # Preserve a virtualenv's ``bin/python`` symlink: resolving it escapes
         # the environment and loses the dstack installation.
@@ -82,6 +83,7 @@ class DstackSdkBridge:
         # they cross the bridge only for names declared by the execution
         # request, never by reading the submitting shell.
         self._runtime_environment = dict(runtime_environment or {})
+        self._runtime_secret_references = dict(runtime_secret_references or {})
         if not self._python.is_file():
             raise FileNotFoundError(self._python)
         if not self._bridge.is_file():
@@ -117,6 +119,7 @@ class DstackSdkBridge:
             # and gateway-visible configuration so no public representation can
             # accidentally serialize a secret value.
             bridge_configuration["_posttrain_runtime_env"] = dict(self._runtime_environment)
+            bridge_configuration["_posttrain_runtime_secret_refs"] = dict(self._runtime_secret_references)
             bridge_payload["configuration"] = bridge_configuration
         result = subprocess.run(
             [str(self._python), str(self._bridge), action],
@@ -183,6 +186,7 @@ class DstackExecutionProvider:
         python: Path,
         environment_file: Path | None = None,
         runtime_environment: Mapping[str, str] | None = None,
+        runtime_secret_references: Mapping[str, str] | None = None,
         trust_bundle: Path | None = None,
         capacity_wait_seconds: int = 0,
     ) -> DstackExecutionProvider:
@@ -191,6 +195,7 @@ class DstackExecutionProvider:
                 python,
                 environment_file=environment_file,
                 runtime_environment=runtime_environment,
+                runtime_secret_references=runtime_secret_references,
             ),
             project=project,
             trust_bundle=trust_bundle,
