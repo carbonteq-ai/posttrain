@@ -179,7 +179,7 @@ jobs:
         run: |
           uv sync --frozen --all-packages --extra verifiers --python 3.13 --no-install-package carbonteq-trackio --inexact
           uv pip install --python .venv/bin/python \
-            "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@b7bcb591facfcd2b073802f6d7496b24ab9c479e#subdirectory=environments/gsm8k_v1"
+            "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@d994073b9632e73c96a57865683133d7a6ebc4bf#subdirectory=environments/gsm8k_v1"
       - name: Test the Verifiers bridge
         run: |
           uv run \

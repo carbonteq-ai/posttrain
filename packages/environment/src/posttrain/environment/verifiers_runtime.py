@@ -11,13 +11,14 @@ def verifiers_environment_types() -> tuple[type[Any], type[Any]]:
 
     try:
         environment_module = import_module("verifiers.v1.env")
-        config_type = getattr(environment_module, "EnvConfig", None)
+        environment_symbols = vars(environment_module)
+        config_type = environment_symbols.get("EnvConfig")
         if config_type is None:
-            config_type = getattr(import_module("verifiers.v1.configs.env"), "EnvConfig")
-        environment_type = getattr(environment_module, "Env", None)
+            config_type = vars(import_module("verifiers.v1.configs.env"))["EnvConfig"]
+        environment_type = environment_symbols.get("Env")
         if environment_type is None:
-            environment_type = getattr(environment_module, "Environment")
-    except (AttributeError, ImportError) as error:
+            environment_type = environment_symbols["Environment"]
+    except (ImportError, KeyError) as error:
         raise RuntimeError("install the Verifiers integration dependencies") from error
     return cast(type[Any], config_type), cast(type[Any], environment_type)
 

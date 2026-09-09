@@ -42,7 +42,7 @@ the task population.
 
 The Verifiers v1 adapter is published as the standalone `automationbench-v1`
 package in `https://github.com/carbonteq-ai/verifiers-environments` at the
-framework-pinned commit `12ff5e1abfab369b8dec4df3ce83c5984f55ad34`, under
+framework-pinned commit `d994073b9632e73c96a57865683133d7a6ebc4bf`, under
 `environments/automationbench_v1`. There is no framework-local implementation;
 the external repository owns its package lifecycle. GRPO and
 evaluation select domain categories, deterministic sampling seeds, task and

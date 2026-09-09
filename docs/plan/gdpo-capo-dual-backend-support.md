@@ -1,5 +1,14 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 25 — 2026-09-09. The complete external environment repository now
+selects the same immutable CarbonTeq Verifiers revision as Posttrain. Published
+environment commit `d994073b9632e73c96a57865683133d7a6ebc4bf` removes mixed
+upstream/fork dependency URLs across all six packages and passes their
+individual and combined-wheel gates. Posttrain catalogs, generated starters,
+release constraints, comparison overlays, and CI select that commit. This is a
+dependency-closure correction; it does not alter environment reward semantics
+or satisfy the remaining GPU qualification matrix.
+
 Revision 24 — 2026-09-09. The next framework release target is `0.4.0` and
 GDPO/CAPO are part of its intended scope. This does not close the qualification
 matrix: the release notes preserve the four backend cells, packaged scorer,
@@ -2566,15 +2575,16 @@ Each contains its selection, native traces, observations, checkpoints, export
 and independent `audit.json`.
 
 Revision 23 supersedes the former uncommitted v0.3.1 worktrees described below.
-The current isolated fork worktree is
-`/home/hammad/projects/verifiers-carbonteq-latest`, branch
+The current isolated fork worktree is `/home/hammad/projects/verifiers`, branch
 `codex/carbonteq-verifiers-latest`, published at
-`90055c11896954fac429bb9120245caa6dc1dd59`. The current environments worktree is
-`/home/hammad/projects/verifiers-environments-latest`, branch
+`36eac9d5e04ef29b584b6fa4f027af00cd76ea19`. The current environments worktree
+is `/home/hammad/projects/verifiers-environments`, branch
 `codex/verifiers-latest-support`, published at
-`12ff5e1abfab369b8dec4df3ce83c5984f55ad34`. Original sibling checkouts remain
-untouched. Neither development branch is a release tag; package artifacts and
-the complete release-readiness receipt remain explicit gates.
+`d994073b9632e73c96a57865683133d7a6ebc4bf`. This environment revision aligns
+all six standalone packages on the selected Verifiers fork and passes a
+combined wheel activation gate. Neither development branch is a release tag;
+package artifacts and the complete release-readiness receipt remain explicit
+gates.
 
 Modern integration command from the framework root uses the upstream-locked
 Python interpreter at

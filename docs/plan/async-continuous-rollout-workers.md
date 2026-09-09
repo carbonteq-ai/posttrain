@@ -140,7 +140,7 @@ The inspected source baseline is:
 | `/home/hammad/projects/rl-local-async` | Active Posttrain v0.4 worktree on `codex/local-async-source-env`; it selects the development fork closure below. This is not a stable release until OCI and GPU gates pass. |
 | `/home/hammad/projects/trl-async-training` | Canonical async-training worktree on `codex/posttrain-v04-dev`. Release source `526e284922a0e4d92d7920916398d8be8d36aa85` is tagged `carbonteq-v1.12.0.post6`; ledger follow-up `3ab670f3611f381b373b7e97267879a4afde37ff` is pushed. Posttrain workflow `34334889582` published and clean-installed the exact retained bytes from `carbonteq/dev`. The sibling `/home/hammad/projects/trl` checkout remains historical and is not the edit target. |
 | `/home/hammad/projects/verifiers` | Canonical checkout on `codex/carbonteq-verifiers-latest`. Selected pushed commit `36eac9d5e04ef29b584b6fa4f027af00cd76ea19` merges upstream main `27bbd216df0af719a43705866b2cf6139bcc95de`; the complete v1 suite passes with credential-dependent Prime tests skipped. Verifiers is selected by immutable Git revision rather than a private-index wheel. |
-| `/home/hammad/projects/verifiers-environments` | Canonical checkout; branch `codex/verifiers-latest-support`, commit `12ff5e1abfab369b8dec4df3ce83c5984f55ad34`. Clean after consolidation. Task semantics remain here; no changes required initially. |
+| `/home/hammad/projects/verifiers-environments` | Canonical checkout on `codex/verifiers-latest-support`. Commit `d994073b9632e73c96a57865683133d7a6ebc4bf` aligns all six independent environment packages on Verifiers `36eac9d5`; every package suite and a combined clean-wheel installation pass. Task semantics remain owned by this repository. |
 | `/home/hammad/projects/verl-upstream` | Active branch `codex/verl-rollout-execution`. Release source `98742d3e9507318ba0b5d4944034deb7db1ec84b` is tagged `carbonteq-v0.9.0.post2`; ledger follow-up `4050fbeb3528d80492880b7c0eb16f0b3e81322d` is pushed. Posttrain workflow `34335257738` published and clean-installed the exact retained bytes from `carbonteq/dev`. The development profile selects post2; immutable OCI and GPU qualification remain. |
 
 Resolve branches, dirty state, manifests, and lockfiles again when implementation starts. These are inspection anchors, not permission to overwrite later changes.
@@ -608,3 +608,13 @@ immutable digests in `packages/runtime-images/src/posttrain/runtime_images/publi
 The strict release check passes and the runtime-image plus release regression
 slice passes with 126 tests and one existing skip. This closes package and OCI
 development publication, but not the remaining real GPU training qualification.
+
+Revision 25 environment-closure checkpoint: pushed environment commit
+`d994073b9632e73c96a57865683133d7a6ebc4bf` removes mixed upstream/fork
+Verifiers URLs from all six standalone packages. Their individual lock, Ruff,
+format, Pyright, test, and wheel gates pass (59 tests, two data-dependent
+skips), and all six wheels install and activate together against Verifiers
+`36eac9d5`. Posttrain catalogs, starter generation, the AutomationBench ledger,
+and CI now select this one repository revision. This repairs the external
+consumer and optional-Verifiers dependency closure exposed by CI run
+`34337365149`; a new exact-source CI run must still prove the repair remotely.
