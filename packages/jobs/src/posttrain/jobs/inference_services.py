@@ -52,10 +52,25 @@ class AttachedInferenceService:
 
 
 @dataclass(frozen=True, slots=True)
+class ExternalInferenceUsageProjection:
+    """Conservative run-wide request and token ceilings for one paid service."""
+
+    requests: int
+    input_tokens: int
+    output_tokens: int
+
+    def __post_init__(self) -> None:
+        values = (self.requests, self.input_tokens, self.output_tokens)
+        if any(isinstance(value, bool) or not isinstance(value, int) or value < 1 for value in values):
+            raise ValueError("external inference usage projection values must be positive integers")
+
+
+@dataclass(frozen=True, slots=True)
 class ExternalInferenceServiceRequest:
     """An external API service resolved but never deployed by Posttrain."""
 
     binding: HostedInferenceBinding
+    usage: ExternalInferenceUsageProjection
 
     @property
     def inference(self) -> HostedInferenceBinding:
@@ -271,6 +286,7 @@ def _service_attributes(
 __all__ = [
     "AttachedInferenceService",
     "ExternalInferenceServiceRequest",
+    "ExternalInferenceUsageProjection",
     "ExternalServiceResolver",
     "HostedInferenceBinding",
     "InferenceSelection",

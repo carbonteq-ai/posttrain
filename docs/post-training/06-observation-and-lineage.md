@@ -288,6 +288,13 @@ models have no artifact digest and create no model-lineage edge. A response from
 a model or provider outside the run-scoped route is invalid assessment evidence,
 not a numeric reward.
 
+Paid-judge evidence additionally retains the selected run cost ceiling, the
+preflight request/input/output-token projection, its live-price estimate,
+readiness-probe cost, enforcement revision, dispatched-call count, and final
+spent/reserved amounts. Missing or malformed provider usage is never recorded
+as zero cost. A cost-limit rejection is an infrastructure/admission outcome,
+not a zero reward, and must remain distinguishable from judge-output validity.
+
 
 Includes the common `train/*` step series plus:
 

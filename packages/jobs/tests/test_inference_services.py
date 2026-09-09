@@ -22,6 +22,7 @@ from posttrain.common import (
 from posttrain.jobs import (
     AttachedInferenceService,
     ExternalInferenceServiceRequest,
+    ExternalInferenceUsageProjection,
     HostedInferenceBinding,
     ManagedInferenceService,
     ResolvedInferenceService,
@@ -185,7 +186,9 @@ def test_external_service_uses_resolver_without_inventing_model_artifact(service
         "open-inference",
         {"temperature": 0.0, "max_tokens": 16_384},
     )
-    request = ExternalInferenceServiceRequest(hosted)
+    request = ExternalInferenceServiceRequest(
+        hosted, ExternalInferenceUsageProjection(requests=1, input_tokens=128, output_tokens=128)
+    )
     closed: list[str] = []
 
     @contextmanager
@@ -229,6 +232,10 @@ def test_external_service_rejects_an_unregistered_provider(service_selection):
     with pytest.raises(ValueError, match="no external inference provider adapter"):
         with bind_inference_services(
             context,
-            {"judge/external": ExternalInferenceServiceRequest(hosted)},
+            {
+                "judge/external": ExternalInferenceServiceRequest(
+                    hosted, ExternalInferenceUsageProjection(requests=1, input_tokens=128, output_tokens=128)
+                )
+            },
         ):
             pytest.fail("unresolved external service admitted")

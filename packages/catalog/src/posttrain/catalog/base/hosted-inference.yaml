@@ -29,6 +29,8 @@ hosted-inference:
     model: hosted-models/deepseek-v4-flash-0731@1
     service: external-services/openrouter@1
     provider: open-inference/fp8
+    # $4.99. A higher paid-judge ceiling requires another explicit selection.
+    max_cost_usd_micros: 4990000
     purpose: [judge]
     sampling:
       temperature: 0.0

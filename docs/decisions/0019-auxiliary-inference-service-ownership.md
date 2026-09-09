@@ -58,6 +58,19 @@ failure attribution, and cleanup ambiguous.
 - The default OpenRouter policy permits provider retention and does not require
   zero-data-retention routing. Posttrain records that policy but does not mutate
   account-level prompt logging or privacy settings during job execution.
+- Every API-paid judge binding carries a run-wide hard cost ceiling. The shared
+  default is USD 4.99. Composition derives a worst-case call/token projection
+  from resolved loop and judge limits, prices it using the selected live
+  endpoint, and rejects an over-budget run before the paid readiness probe.
+  Admitted calls use an atomic run-local reservation guard, so concurrency and
+  retries cannot spend through the ceiling. Missing usage is charged
+  conservatively. Raising the ceiling requires an explicit versioned binding;
+  it is never an algorithm knob or implicit retry behavior.
+- The same auxiliary-service boundary applies to any algorithm whose Verifiers
+  environment uses a judge, including scalar-reward GRPO, DAPO, and OLMo-style
+  GRPO. Algorithms expose only a generic maximum trajectory-consumption
+  envelope; Verifiers configuration exposes calls and tokens per trajectory;
+  composition combines them without moving judge semantics into training.
 - The host/work-package orchestrator owns dependency ordering: service ready,
   training admitted, training drained, then owned service release. Attached
   services are never stopped by the consumer. Interrupted training may reattach
@@ -75,6 +88,12 @@ Portable packaging still contains the expected judge inference selection and
 task-owned rubric. It does not contain a workstation path or a fixed ephemeral
 URL. Evidence must connect the training run to the exact service deployment and
 retain endpoint latency/error observations without credentials.
+
+The conservative projection may reject a large judged run even when its likely
+cost is lower. That is intentional: an operator must either reduce the bounded
+population or explicitly select a higher ceiling. The selected limit and final
+metering receipt make that choice auditable without coupling dollars to reward
+weights.
 
 ## Alternatives Considered
 
@@ -113,6 +132,9 @@ services running, and interrupted reattachment. The live GDPO comparison remains
 blocked until service placement and teardown are observed on RunPod.
 
 ## Revision History
+
+- 2026-09-09: Added the USD 4.99 default hard ceiling, live-price admission,
+  and concurrency-safe run-local enforcement for API-paid judges.
 
 - 2026-09-09: Added API-only external services, run-scoped route stability, and
   the retention-allowed OpenRouter default without changing judge or algorithm

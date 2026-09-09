@@ -312,6 +312,20 @@ parity = ["compare judge outputs on the same frozen trajectories", "retain model
 deletion_condition = "The Observatory report owns judge comparison and provenance checks."
 
 [[surfaces]]
+id = "compare-episode-judges"
+path = "scripts/qualification/compare_episode_judges.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "a public service-neutral judge replay qualification command"
+tests = []
+parity = [
+  "replay byte-identical reviewed inputs through managed or external judge services",
+  "retain model, provider, usage, cost-limit, and rubric provenance without credentials",
+]
+deletion_condition = "The public qualification command owns service-neutral replay and cost-controlled evidence."
+
+[[surfaces]]
 id = "deterministic-turn-fixture"
 path = "scripts/qualification/deterministic_turn_fixture.py"
 kind = "provider-fixture"
@@ -464,6 +478,20 @@ replacement = "the maintained episode replay test suite"
 tests = []
 parity = ["verify episode replay validation", "reject incomplete and saturated verdicts"]
 deletion_condition = "Episode replay tests are owned by the maintained judge contract."
+
+[[surfaces]]
+id = "test-compare-episode-judges"
+path = "scripts/qualification/test_compare_episode_judges.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "the public service-neutral judge replay contract tests"
+tests = []
+parity = [
+  "verify managed and external judge selections map to the same replay lifecycle",
+  "verify the environment remains authoritative for rubric and sampling configuration",
+]
+deletion_condition = "The public judge replay test suite covers both service lifecycle variants."
 
 [[surfaces]]
 id = "validate-context-preflight"

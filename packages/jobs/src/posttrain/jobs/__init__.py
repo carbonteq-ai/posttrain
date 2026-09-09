@@ -22,6 +22,7 @@ from .definitions import (
 from .inference_services import (
     AttachedInferenceService,
     ExternalInferenceServiceRequest,
+    ExternalInferenceUsageProjection,
     ExternalServiceResolver,
     HostedInferenceBinding,
     InferenceSelection,
@@ -40,6 +41,7 @@ from .runtime import build_job_runtime
 __all__ = [
     "AttachedInferenceService",
     "ExternalInferenceServiceRequest",
+    "ExternalInferenceUsageProjection",
     "ExternalServiceResolver",
     "HostedInferenceBinding",
     "InferenceSelection",

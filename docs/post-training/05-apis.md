@@ -810,6 +810,19 @@ secret-free service receipt. External provider fallback must not change the
 judge implementation silently inside one optimizer run; a changed route is a
 new explicit provider attempt.
 
+`HostedInferenceBinding.max_cost_usd_micros` is the exact run-wide paid-service
+ceiling in millionths of one US dollar. Its framework default is `4_990_000`.
+`ExternalInferenceServiceRequest` carries a conservative run usage projection:
+maximum request count plus aggregate input and output token ceilings. The
+external resolver must reject a live-price estimate above the binding ceiling
+before a paid probe and must expose only a run-local metered endpoint to the
+judge plugin. Increasing the ceiling requires selecting a different explicit
+binding value; retry code, provider adapters, and trainer settings cannot do it.
+The same optional named judge-service composition is available to the
+`train.grpo` family; the selected Verifiers plugin determines whether it emits
+a scalar reward or annotations, while the selected algorithm determines only
+how admitted reward evidence is consumed.
+
 ### Package surfaces
 
 ```text

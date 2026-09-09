@@ -19,6 +19,7 @@ from posttrain.common import HostedInferenceBinding, InferenceBinding, NullObser
 from posttrain.environment import EnvironmentBinding, VerifiersV1ConfigActivation
 from posttrain.jobs import (
     ExternalInferenceServiceRequest,
+    ExternalInferenceUsageProjection,
     ManagedInferenceService,
     bind_inference_services,
     bind_native_judge_services,
@@ -34,11 +35,23 @@ def service_request(
     inference: HostedInferenceBinding | InferenceBinding,
     *,
     port: int,
+    requests: int = 1,
+    input_tokens_per_request: int = 8_192,
 ) -> ExternalInferenceServiceRequest | ManagedInferenceService:
     """Map a truthful catalog selection to its lifecycle request."""
 
     if isinstance(inference, HostedInferenceBinding):
-        return ExternalInferenceServiceRequest(inference)
+        output_tokens = inference.sampling.get("max_tokens")
+        if not isinstance(output_tokens, int):
+            raise ValueError("hosted judge comparison requires an explicit output-token limit")
+        return ExternalInferenceServiceRequest(
+            inference,
+            ExternalInferenceUsageProjection(
+                requests=requests,
+                input_tokens=requests * input_tokens_per_request,
+                output_tokens=requests * output_tokens,
+            ),
+        )
     return ManagedInferenceService(ServeLaunchRequest(inference, port=port))
 
 
@@ -84,7 +97,25 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         observer=NullObserver(),
     )
     service_name = f"judge/{args.judge_name}"
-    requests = {service_name: service_request(selected, port=args.port)}
+    if args.fixture is not None:
+        fixture_payload = json.loads(args.fixture.read_text())
+        fixture_cases = fixture_payload.get("cases") if isinstance(fixture_payload, dict) else None
+        if not isinstance(fixture_cases, list) or not fixture_cases:
+            raise ValueError("judge comparison fixture must contain a nonempty cases list")
+        request_count = len(fixture_cases)
+    else:
+        assert args.replay_inputs is not None
+        request_count = sum(1 for line in args.replay_inputs.read_text().splitlines() if line.strip())
+        if request_count < 1:
+            raise ValueError("materialized judge input is empty")
+    requests = {
+        service_name: service_request(
+            selected,
+            port=args.port,
+            requests=request_count,
+            input_tokens_per_request=judge_config(environment, args.judge_name).input_budget_tokens,
+        )
+    }
     with bind_inference_services(context, requests) as services:
         service = services[service_name]
         receipt = service.trace_identity()

@@ -258,6 +258,19 @@ the host rejects an absent, unavailable, or incompatible pair instead of
 selecting one automatically. A provider route may not change silently within one
 optimizer run.
 
+For API-paid auxiliary inference, composition also owns cost admission and
+enforcement. It derives the maximum paid call and token population from the
+resolved training loop, group size, bounded collection attempts, judge attempts,
+and judge token budgets. It rejects a projection over the selected run ceiling
+before the paid readiness probe. Admitted calls pass through a run-local guard
+that atomically reserves worst-case request cost before dispatch and reconciles
+reported usage afterward, so concurrent calls and retries cannot race past the
+ceiling. Missing usage is charged conservatively rather than treated as free.
+This mechanism does not enter trainer or Verifiers reward contracts.
+It applies whenever a paid judge is composed with training or evaluation,
+including scalar-reward GRPO, DAPO, and OLMo-style GRPO as well as SAMPO,
+GDPO, and CAPO.
+
 | Layer | Developer writes / publishes | Example |
 | --- | --- | --- |
 | Framework core (`common` + contracts) | Rarely; extend carefully | Run status, artifact reference types |

@@ -219,6 +219,18 @@ class GRPOSettings:
             return 0.272
         return self.clip_epsilon_low
 
+    @property
+    def max_collection_attempts(self) -> int:
+        """Maximum bounded trajectory collections for one requested population."""
+
+        candidate_batches = 1
+        if self.dynamic_sampling is not None:
+            candidate_batches = self.dynamic_sampling.max_candidate_batches
+        if self.active_sampling is not None:
+            candidate_batches = self.active_sampling.max_candidate_batches
+        admission_attempts = 1 if self.active_sampling is not None else self.max_admission_attempts
+        return candidate_batches * admission_attempts
+
 
 @dataclass(frozen=True, slots=True)
 class SAMPOSettings:
@@ -267,6 +279,12 @@ class SAMPOSettings:
         if self.clip_epsilon_low <= 0 or self.clip_epsilon_high <= 0:
             raise ValueError("SAMPO clip epsilons must be positive")
 
+    @property
+    def max_collection_attempts(self) -> int:
+        """Maximum bounded trajectory collections for one requested population."""
+
+        return self.dynamic_sampling.max_candidate_batches
+
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class _StructuredRLSettings:
@@ -289,6 +307,12 @@ class _StructuredRLSettings:
     @property
     def mask_truncated_completions(self) -> bool:
         return False
+
+    @property
+    def max_collection_attempts(self) -> int:
+        """Maximum bounded trajectory collections for one requested population."""
+
+        return self.max_admission_attempts
 
     def __post_init__(self) -> None:
         _validate_settings(self.id, self.revision)

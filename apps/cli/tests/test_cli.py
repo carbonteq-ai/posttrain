@@ -760,6 +760,7 @@ def test_machine_init_creates_shared_defaults_and_scoped_credentials(
 
 
 def test_hosted_inference_declares_only_its_credential_name_as_a_runtime_requirement() -> None:
+    from posttrain_cli.commands.work_package import _paid_judge_limits
     from posttrain_cli.execution_planning import required_runtime_variables
 
     binding = HostedInferenceBinding(
@@ -777,6 +778,9 @@ def test_hosted_inference_declares_only_its_credential_name_as_a_runtime_require
     )
 
     assert required_runtime_variables({"judge": binding}) == ("ROUTER_API_KEY",)
+    assert _paid_judge_limits({"judge": binding}) == {
+        "judge": {"max_cost_usd": "4.99", "max_cost_usd_micros": 4_990_000}
+    }
 
 
 def test_machine_init_omits_redundant_hostname_by_default(tmp_path: Path, capsys) -> None:

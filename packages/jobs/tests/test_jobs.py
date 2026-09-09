@@ -103,6 +103,7 @@ def test_standard_definition_registry_covers_every_technique() -> None:
         "train/trl-sft@1",
         "train/trl-dpo@1",
         "train/trl-grpo@1",
+        "train/grpo-family-judged@1",
         "train/trl-sampo@1",
         "train/gdpo@1",
         "train/capo@1",
@@ -121,6 +122,8 @@ def test_standard_definition_registry_covers_every_technique() -> None:
     assert definitions["eval/verifiers-managed-general@1"].kind == "eval.general"
     assert definitions["data/canonicalize-supervised@1"].kind == "data.prepare"
     assert definitions["data/canonicalize-preference@1"].kind == "data.prepare"
+    assert definitions["train/grpo-family-judged@1"].kind == "train.grpo"
+    assert "judge_inference" in definitions["train/grpo-family-judged@1"].seats
 
 
 def test_remote_evaluation_definition_does_not_construct_a_local_vllm_endpoint(tmp_path: Path) -> None:

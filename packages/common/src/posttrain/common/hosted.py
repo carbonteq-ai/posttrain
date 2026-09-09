@@ -171,6 +171,7 @@ class HostedInferenceBinding:
     provider: str
     sampling: Mapping[str, JsonValue]
     purpose: tuple[Literal["judge"], ...] = ("judge",)
+    max_cost_usd_micros: int = 4_990_000
 
     def __post_init__(self) -> None:
         validate_selection_id(self.id, "hosted inference binding id")
@@ -182,6 +183,12 @@ class HostedInferenceBinding:
             raise ValueError("hosted inference binding provider must be an exact provider slug")
         if self.purpose != ("judge",):
             raise ValueError("hosted inference binding is supported only for judge inference")
+        if (
+            isinstance(self.max_cost_usd_micros, bool)
+            or not isinstance(self.max_cost_usd_micros, int)
+            or self.max_cost_usd_micros < 1
+        ):
+            raise ValueError("hosted inference max_cost_usd_micros must be a positive integer")
         sampling = _json_mapping(self.sampling, "hosted inference sampling")
         max_tokens = sampling.get("max_tokens")
         if max_tokens is not None and (

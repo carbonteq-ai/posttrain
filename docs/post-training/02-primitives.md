@@ -119,6 +119,14 @@ Judge use is a composition dependency rather than a train request seat. Its
 compatibility is established by retained service and scorer evidence, not
 inferred from a provider name.
 
+An API-paid judge binding also selects a run-wide hard cost ceiling. The shared
+default is USD 4.99, deliberately below USD 5.00. Price remains live provider
+evidence rather than immutable catalog identity: composition multiplies the
+resolved endpoint rates by conservative request and token ceilings derived from
+the run and judge selections. A higher cost ceiling is valid only when a
+project selects it explicitly in a versioned hosted-inference binding. It is
+never inferred from run size, retry count, availability, or an algorithm.
+
 ---
 
 ## Model variant

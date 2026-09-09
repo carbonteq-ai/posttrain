@@ -69,6 +69,7 @@ def test_every_temporary_script_and_lab_dependent_fixture_has_one_owner_and_exit
         "automationbench-deterministic",
         "calibrate-automationbench-judge",
         "compare-automationbench-judges",
+        "compare-episode-judges",
         "deterministic-turn-fixture",
         "episode-reward-profile",
         "evaluate-automationbench-adapter",
@@ -83,6 +84,7 @@ def test_every_temporary_script_and_lab_dependent_fixture_has_one_owner_and_exit
         "test-episode-reward-profile",
         "test-nanbeige-inference-matrix",
         "test-replay-episode-judge",
+        "test-compare-episode-judges",
         "validate-context-preflight",
     }
     assert len({surface["path"] for surface in surfaces}) == len(surfaces)

@@ -8,13 +8,14 @@ import os
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from dataclasses import replace
-from typing import Any
+from typing import Any, cast
 
 from posttrain.common import JsonValue, RunContext
 from posttrain.environment import EnvironmentBinding, VerifiersV1ConfigActivation
 from posttrain.serve import Endpoint, ProbeResult, ServeLaunchRequest, launch, probe
 
 from .inference_services import (
+    ExternalInferenceUsageProjection,
     HostedInferenceBinding,
     ManagedInferenceService,
     ResolvedInferenceService,
@@ -197,6 +198,63 @@ def _native_judges(
     return raw, judges
 
 
+def project_native_judge_usage(
+    environment: EnvironmentBinding,
+    maximum_trajectories: int,
+    judge_services: Mapping[str, str],
+) -> dict[str, ExternalInferenceUsageProjection]:
+    """Project paid calls from a generic trajectory ceiling and Verifiers config."""
+
+    if not judge_services:
+        return {}
+    if isinstance(maximum_trajectories, bool) or not isinstance(maximum_trajectories, int) or maximum_trajectories < 1:
+        raise ValueError("external judge cost projection requires a positive trajectory ceiling")
+    if not isinstance(environment.activation, VerifiersV1ConfigActivation):
+        raise ValueError("paid native judges require declarative Verifiers activation")
+    raw = cast(Mapping[str, Any], environment.activation.config)
+    taskset = raw.get("taskset", {})
+    task = taskset.get("task", {}) if isinstance(taskset, Mapping) else {}
+    entries = task.get("judges", []) if isinstance(task, Mapping) else []
+    if not isinstance(entries, list):
+        raise ValueError("native judges must be a list")
+    by_name = {
+        str(entry.get("name") or entry.get("id")): entry
+        for entry in entries
+        if isinstance(entry, Mapping)
+    }
+    agent = raw.get("agent", {})
+    max_turns = agent.get("max_turns", 1) if isinstance(agent, Mapping) else 1
+    if isinstance(max_turns, bool) or not isinstance(max_turns, int) or max_turns < 1:
+        raise ValueError("external judge cost projection requires a positive agent max_turns")
+    totals: dict[str, list[int]] = {service: [0, 0, 0] for service in set(judge_services.values())}
+    for judge_name, service_name in judge_services.items():
+        judge = by_name.get(judge_name)
+        if judge is None:
+            raise ValueError(f"external judge cost projection cannot find plugin {judge_name!r}")
+        attempts_value = judge.get("attempts")
+        input_tokens_value = judge.get("input_budget_tokens")
+        sampling = judge.get("sampling")
+        output_tokens_value = sampling.get("max_tokens") if isinstance(sampling, Mapping) else None
+        values = (attempts_value, input_tokens_value, output_tokens_value)
+        if any(isinstance(value, bool) or not isinstance(value, int) or value < 1 for value in values):
+            raise ValueError(
+                f"external judge {judge_name!r} must explicitly declare positive attempts and token budgets"
+            )
+        attempts = cast(int, attempts_value)
+        input_tokens = cast(int, input_tokens_value)
+        output_tokens = cast(int, output_tokens_value)
+        calls_per_trajectory = max_turns if judge.get("context_scope") == "prefix" else 1
+        requests = maximum_trajectories * calls_per_trajectory * attempts
+        total = totals[service_name]
+        total[0] += requests
+        total[1] += requests * input_tokens
+        total[2] += requests * output_tokens
+    return {
+        name: ExternalInferenceUsageProjection(requests, input_tokens, output_tokens)
+        for name, (requests, input_tokens, output_tokens) in totals.items()
+    }
+
+
 def _validate_judge_selection(
     name: str,
     judge: Mapping[str, Any],
@@ -227,4 +285,5 @@ __all__ = [
     "bind_managed_native_judge_services",
     "bind_native_judge_services",
     "bind_native_judges",
+    "project_native_judge_usage",
 ]

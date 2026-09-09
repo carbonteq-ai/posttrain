@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from collections.abc import Mapping
 from contextlib import nullcontext, redirect_stdout
 from pathlib import Path
 from typing import Annotated
 
 import typer
-from posttrain.common import ContractError
+from posttrain.common import ContractError, HostedInferenceBinding
 from posttrain.execution import ProjectControlLocator, compare_job_packages, unchanged_fields
 from posttrain.project import JobIntent, Project
 from posttrain.work import resolve_work_package, run_work_package_job, validate_work_package
@@ -171,6 +172,13 @@ def plan_work_package_cmd(
     if credential_status:
         payload["runtime_credentials"] = credential_status
         lines.extend(f"Runtime credential {name}: {status}" for name, status in credential_status.items())
+    paid_judge_limits = _paid_judge_limits(intent.prepared.seats)
+    if paid_judge_limits:
+        payload["paid_judge_cost_limits"] = paid_judge_limits
+        lines.extend(
+            f"Paid judge {name} hard limit: ${policy['max_cost_usd']} per run"
+            for name, policy in paid_judge_limits.items()
+        )
     if builder is not None:
         if builder not in {"local", "remote"}:
             raise ContractError("job builder must be 'local' or 'remote'")
@@ -622,6 +630,7 @@ def _execution_plan_payload(planned: PlannedJobExecution) -> dict[str, object]:
             "timeout_source": settings.sources["timeout_seconds"],
             "environment_names": settings.environment_names,
             "runtime_credentials": runtime_credential_status(planned.package),
+            "paid_judge_cost_limits": _paid_judge_limits(planned.package.prepared.seats),
             "setting_sources": settings.sources,
             "mounts": [
                 {
@@ -635,6 +644,17 @@ def _execution_plan_payload(planned: PlannedJobExecution) -> dict[str, object]:
         }
     )
     return payload
+
+
+def _paid_judge_limits(seats: Mapping[str, object]) -> dict[str, dict[str, object]]:
+    return {
+        name: {
+            "max_cost_usd": f"{selection.max_cost_usd_micros / 1_000_000:.6f}".rstrip("0").rstrip("."),
+            "max_cost_usd_micros": selection.max_cost_usd_micros,
+        }
+        for name, selection in seats.items()
+        if isinstance(selection, HostedInferenceBinding)
+    }
 
 
 def _packed_job_payload(

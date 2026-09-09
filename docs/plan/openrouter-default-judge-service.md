@@ -83,11 +83,22 @@ provenance, and an exported adapter.
 - [x] (2026-09-09 12:25Z) Add the service-neutral episode replay harness and
   prove its managed-versus-external request mapping with unit tests. Retain the
   real fixture and historical-corpus executions as qualification work below.
+- [x] (2026-09-09 15:10Z) Add provider-neutral paid-judge cost policy: a USD
+  4.99 default hard ceiling, conservative run-wide usage projection, live-price
+  admission, an atomic run-local metering gateway, CLI visibility, and focused
+  regression tests.
+- [x] (2026-09-09 15:35Z) Generalize optional paid-judge composition to the
+  full GRPO family and split projection into a training-owned maximum trajectory
+  envelope plus a Verifiers-owned per-trajectory judge-call envelope.
 - [ ] Replace the one-off comparison scripts with a service-neutral local
   replay harness and qualify DeepSeek against the reviewed fixture and the
   retained multi-run corpus.
-- [ ] Run focused tests, package-boundary checks, full repository validation,
-  and a clean consumer install.
+- [x] (2026-09-09 15:45Z) Run focused common/catalog/jobs/train/CLI tests,
+  Ruff, Pyright, import-boundary checks, diff checks, and the full repository
+  suite. The changed surface is green; the full suite retains two unrelated
+  baseline failures recorded below.
+- [ ] Complete a clean consumer install and resolve or separately baseline the
+  two pre-existing full-suite failures before release qualification.
 - [ ] Run a five-update real judged GDPO qualification through OpenRouter,
   inspect its reward variation and optimizer evidence, then update the v0.4
   release ledger. Do not promote v0.4 solely from this cell; the other release
@@ -148,6 +159,33 @@ provenance, and an exported adapter.
   test skips before opening a paid request. The implementation and offline
   tests can proceed, but fixture replay and five-update qualification require
   the operator to populate the protected machine credential source.
+
+- Observation: the environment-owned judge performs its completion calls after
+  Posttrain injects a generic OpenAI-compatible endpoint, so catalog metadata
+  alone cannot enforce spend.
+  Evidence: Verifiers `Judge.complete()` creates its own async client and records
+  returned usage on the native trace. Posttrain now gives it a loopback metered
+  endpoint whose upstream credential and atomic cost ledger remain composition
+  owned; the judge and algorithm APIs remain unchanged.
+
+- Observation: the existing 50-update, 16-by-4 GDPO work package is correctly
+  too large for the new default ceiling when every bounded recovery path is
+  included.
+  Evidence: its resolved projection is 19,200 judge requests, 157,286,400 input
+  tokens, and 314,572,800 output tokens. At the currently tested endpoint rates
+  of USD 0.00000005/input token and USD 0.00000016/output token, the conservative
+  maximum is USD 58.195968. It must not run on the USD 4.99 selection; a five-step
+  cell must reduce its bounded population or explicitly select a higher ceiling.
+
+- Observation: the complete repository suite no longer reports an ownership
+  gap for the new replay harness, but it is not globally green for two failures
+  outside this change.
+  Evidence: `uv run pytest -q` reports 1,626 passed and 24 skipped, with failures
+  in `test_terminal_rollout_evidence.py` (an older fixture lacks the newer
+  `trace.info` field) and `test_work_packages.py` (the base-only catalog cannot
+  resolve a Lab overlay distillation selection). Focused changed-surface tests
+  report 497 passed and 10 skipped; Ruff, Pyright, all eight import contracts,
+  and `git diff --check` pass.
 
 ## Decision Log
 
@@ -212,13 +250,37 @@ provenance, and an exported adapter.
   A GPU is required only for the later optimizer qualification.
   Date/Author: 2026-09-09 / user and Codex.
 
+- Decision: cap every API-paid judge service at USD 4.99 per run by default.
+  Before a paid readiness probe, price the conservative maximum derived from
+  loop steps, prompt groups, generations, collection attempts, judge attempts,
+  context fan-out, and input/output budgets. Route admitted traffic through an
+  atomic reservation gateway and require an explicit versioned hosted-inference
+  binding to raise the ceiling.
+  Rationale: a warning or post-hoc usage report cannot prevent concurrent calls
+  and retries from crossing a spend limit. The limit is operational service
+  policy and must not alter reward weights, rubrics, GDPO, CAPO, or SAMPO.
+  Date/Author: 2026-09-09 / user and Codex.
+
+- Decision: paid judge composition is algorithm-independent.
+  Rationale: Verifiers owns judge models, rubrics, retries, and reward shape. A
+  scalar-reward GRPO/DAPO/OLMo run can use the same judge service as SAMPO,
+  GDPO, or CAPO. Training publishes only a generic maximum trajectory count;
+  Verifiers publishes calls and token bounds per trajectory; composition joins
+  them for cost control.
+  Date/Author: 2026-09-09 / user and Codex.
+
 ## Outcomes & Retrospective
 
-Planning outcome: the work is anchored to the correct v0.4 development commit
-and has a concrete boundary between algorithm, judge plugin, service
-orchestration, and provider transport. No implementation or qualification is
-claimed yet. Update this section after every milestone with measured outcomes,
-remaining gaps, and any change to the decisions above.
+Implementation outcome: the v0.4 development line now has a concrete boundary
+between algorithm, judge plugin, service orchestration, provider transport, and
+paid-service cost control. Offline tests prove that an over-budget projection is
+rejected before the paid probe, concurrent reservations cannot cross the limit,
+the upstream credential stays behind the loopback gateway, and the standard job
+projection includes bounded retries. Real OpenRouter fixture comparison and GPU
+qualification remain blocked on the protected runtime credential.
+The same service is now composable with the whole GRPO family, and the replay
+harness has a declared Lab ownership/exit path. Full release validation still
+has the two unrelated baseline failures described above.
 
 ## Context and Orientation
 
@@ -231,13 +293,19 @@ implements GDPO or CAPO credit assignment. Neither layer should know whether
 the answer came from OpenRouter, a local vLLM process, or a separately deployed
 Gemma service.
 
+That seven-component plugin is one use, not the definition of a judge. Another
+Verifiers plugin may return one scalar reward to GRPO, DAPO, or OLMo-style GRPO,
+or annotate a SAMPO trajectory. The same service composition and cost control
+applies; only the algorithm-side reward consumer differs.
+
 `packages/jobs` is the composition layer. Its
 `packages/jobs/src/posttrain/jobs/inference_services.py` resolves named service
 dependencies. Its `packages/jobs/src/posttrain/jobs/native_judges.py` injects a
 resolved endpoint and ephemeral API-key variable into a copied Verifiers
 configuration. Its `packages/jobs/src/posttrain/jobs/definitions.py` defines
-the standard SAMPO, GDPO, and CAPO jobs. Today those definitions expose extra
-local inference seats and always start managed vLLM children.
+the standard GRPO-family, SAMPO, GDPO, and CAPO jobs. Their judged variants
+accept the same named service seat and can resolve a managed local model, an
+attached deployment, or an API-only external service.
 
 `packages/eval` already supports an API-only evaluation subject through
 `RemotePolicy`, `ExternalInferenceService`, and `RemoteEvaluationBinding` in
@@ -334,12 +402,14 @@ Generalize `packages/jobs/src/posttrain/jobs/inference_services.py` so
         revision: str
         model: HostedModel
         service: ExternalInferenceService
+        max_cost_usd_micros: int = 4_990_000
         sampling: Mapping[str, JsonValue]
         purpose: tuple[Literal["judge"], ...]
 
     @dataclass(frozen=True, slots=True)
     class ExternalInferenceServiceRequest:
         binding: HostedInferenceBinding
+        usage: ExternalInferenceUsageProjection
 
 The exact class names may change once existing catalog conventions are applied,
 but the distinctions may not. Managed and attached local services retain an
@@ -382,6 +452,15 @@ The adapter must:
 8. classify 401/403 as credential/admission failures, unsupported parameters as
    configuration failures, 429/5xx/timeouts as service failures, and invalid
    model output as scorer failures.
+
+Before item 6 performs its paid readiness request, the adapter must price the
+request's aggregate input/output-token projection against the selected endpoint
+and reject any value above `HostedInferenceBinding.max_cost_usd_micros`. Once
+admitted, expose a run-local OpenAI-compatible gateway rather than the upstream
+URL. It atomically reserves each request's conservative maximum charge before
+dispatch, reconciles valid reported usage, and conservatively retains the
+reservation when usage is unavailable. A 402 response with code
+`posttrain_judge_cost_limit` is a service-budget failure, not a judge score.
 
 Do not add automatic semantic retries at the algorithm layer. The existing
 judge plugin may perform its declared bounded parse/transport attempts under a
@@ -695,6 +774,8 @@ The default service policy is:
     zero-data-retention requirement: false
     provider retention/training restriction: none
     account-level prompt logging: unchanged by Posttrain
+    default hard run cost ceiling: USD 4.99
+    higher ceiling: explicit versioned hosted-inference binding only
 
 Mutable prices are evidence, not configuration. At qualification time, record
 the endpoint inventory's current rates and timestamp in the route receipt and
@@ -741,6 +822,7 @@ the repository's naming review, but their ownership is fixed:
       ManagedInferenceService
       AttachedInferenceService
       ExternalInferenceServiceRequest
+      ExternalInferenceUsageProjection
       ResolvedInferenceService
       bind_inference_services(...)
       bind_native_judge_services(...)
@@ -767,8 +849,22 @@ OpenAI-compatible `model`, `base_url`, `api_key_var`, `sampling`, and safe
 headers. TRL and veRL continue to consume the same validated structured reward
 contract.
 
+The standard registry also exposes `train/grpo-family-judged@1`. It accepts the
+same optional named judge inference seat for scalar GRPO, DAPO, and OLMo-style
+GRPO without adding judge fields to `GRPOSettings`.
+
 Revision note, 2026-09-09: created this plan after confirming that the correct
 baseline is the v0.4 development worktree at `4bf6470a`. It replaces the earlier
 informal idea of “deploy OpenRouter alongside training” with three explicit
 lifecycle variants, an OpenRouter/DeepSeek default, retention-allowed routing,
 local judge comparison, and a five-update release qualification gate.
+
+Revision note, 2026-09-09: added the user-required sub-USD-5 default judge cost
+control. The plan now distinguishes mutable live prices from an immutable
+selected cost ceiling and requires both conservative preflight admission and
+concurrency-safe runtime enforcement, because either mechanism alone can still
+permit an unintended bill.
+
+Revision note, 2026-09-09: clarified that judges are Verifiers-owned and usable
+with every compatible RL algorithm. Projection now joins two neutral envelopes
+at composition instead of branching on an algorithm to understand judge work.

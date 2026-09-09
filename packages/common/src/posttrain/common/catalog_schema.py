@@ -143,6 +143,7 @@ class HostedInferenceBindingSchema(CatalogSchema):
     provider: str
     sampling: dict[str, JsonValue]
     purpose: tuple[Literal["judge"], ...] = ("judge",)
+    max_cost_usd_micros: int = Field(default=4_990_000, gt=0)
 
 
 __all__ = [

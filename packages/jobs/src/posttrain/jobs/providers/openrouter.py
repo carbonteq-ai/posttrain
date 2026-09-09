@@ -13,9 +13,17 @@ from typing import Any, cast
 
 import httpx
 from posttrain.common import JsonValue, RunContext
-from posttrain.serve import Endpoint, ProbeResult
+from posttrain.serve import ProbeResult
 
 from ..inference_services import ExternalInferenceServiceRequest, ResolvedInferenceService
+from .cost_control import (
+    CostLedger,
+    InferenceCostLimitError,
+    TokenPrices,
+    metered_openai_gateway,
+    projected_cost,
+    usage_cost,
+)
 
 type ClientFactory = Callable[..., httpx.Client]
 
@@ -71,6 +79,15 @@ class OpenRouterResolver:
         with self._client_factory(headers=headers, timeout=self._timeout_seconds) as client:
             inventory = _inventory(client, service.base_url, binding.model.model)
             selected = _select_endpoint(inventory, binding)
+            prices = _token_prices(selected)
+            projection = request.usage
+            projected = projected_cost(projection.input_tokens, projection.output_tokens, prices)
+            limit = Decimal(binding.max_cost_usd_micros) / Decimal(1_000_000)
+            if projected > limit:
+                raise OpenRouterResolutionError(
+                    "projected judge cost exceeds the selected run ceiling: "
+                    f"${projected:.6f} > ${limit:.6f} for {projection.requests} bounded requests"
+                )
             requested_provider = binding.provider
             provider_slug = _provider_slug(selected)
             route = _route_policy(service.provider_policy, requested_provider)
@@ -89,7 +106,14 @@ class OpenRouterResolver:
                 raise OpenRouterResolutionError(
                     "OpenRouter capability probe returned a provider outside the frozen route"
                 )
-            endpoint = Endpoint(service.base_url, binding.model.model, api_key)
+            try:
+                readiness_cost = usage_cost(probe_evidence.get("usage"), prices) if probe_evidence else Decimal(0)
+            except InferenceCostLimitError as error:
+                raise OpenRouterResolutionError(str(error)) from error
+            if projected + readiness_cost > limit:
+                raise OpenRouterResolutionError(
+                    "projected judge traffic plus readiness cost exceeds the selected run cost ceiling"
+                )
             provider: dict[str, JsonValue] = {
                 "resolved_at": datetime.now(UTC).isoformat(),
                 "resolution_latency_seconds": time.monotonic() - started,
@@ -104,6 +128,15 @@ class OpenRouterResolver:
                 "pricing": _safe_pricing(selected.get("pricing")),
                 "route": route,
                 "capability_probe": probe_evidence,
+                "cost_control": {
+                    "limit_usd": f"{limit:f}",
+                    "projected_usd": f"{projected:f}",
+                    "projected_requests": projection.requests,
+                    "projected_input_tokens": projection.input_tokens,
+                    "projected_output_tokens": projection.output_tokens,
+                    "readiness_cost_usd": f"{readiness_cost:f}",
+                    "enforcement": "run-local-reservation-gateway@1",
+                },
             }
             readiness = ProbeResult(
                 True,
@@ -111,24 +144,37 @@ class OpenRouterResolver:
                 cast(float, provider["resolution_latency_seconds"]),
                 (binding.model.model,),
             )
-            yield ResolvedInferenceService(
-                name,
-                binding,
-                endpoint,
-                readiness,
-                owned=False,
-                lifecycle="external",
-                provider=provider,
-            )
-            context.event(
-                "external_inference_service_drained",
-                {
-                    "service_name": name,
-                    "provider_slug": provider_slug,
-                    "requested_provider": requested_provider,
-                    "model": binding.model.model,
-                },
-            )
+            ledger = CostLedger(binding.max_cost_usd_micros, prices, initial_cost=readiness_cost)
+            maximum_output_tokens = binding.sampling.get("max_tokens")
+            assert isinstance(maximum_output_tokens, int)
+            try:
+                with metered_openai_gateway(
+                    upstream=client,
+                    upstream_base_url=service.base_url,
+                    model=binding.model.model,
+                    maximum_output_tokens=maximum_output_tokens,
+                    ledger=ledger,
+                ) as endpoint:
+                    yield ResolvedInferenceService(
+                        name,
+                        binding,
+                        endpoint,
+                        readiness,
+                        owned=False,
+                        lifecycle="external",
+                        provider=provider,
+                    )
+            finally:
+                context.event(
+                    "external_inference_service_drained",
+                    {
+                        "service_name": name,
+                        "provider_slug": provider_slug,
+                        "requested_provider": requested_provider,
+                        "model": binding.model.model,
+                        "cost_control": ledger.snapshot(),
+                    },
+                )
 
 
 def _inventory(client: httpx.Client, base_url: str, model: str) -> Mapping[str, Any]:
@@ -186,6 +232,18 @@ def _endpoint_rank(endpoint: Mapping[str, Any]) -> tuple[Decimal, Decimal, str]:
     prompt = _decimal(pricing.get("prompt")) if isinstance(pricing, dict) else Decimal("Infinity")
     completion = _decimal(pricing.get("completion")) if isinstance(pricing, dict) else Decimal("Infinity")
     return (completion, prompt, str(endpoint.get("tag", "")))
+
+
+def _token_prices(endpoint: Mapping[str, Any]) -> TokenPrices:
+    pricing = endpoint.get("pricing")
+    if not isinstance(pricing, Mapping):
+        raise OpenRouterResolutionError("OpenRouter endpoint has no usable pricing")
+    prompt = _decimal(pricing.get("prompt"))
+    completion = _decimal(pricing.get("completion"))
+    try:
+        return TokenPrices(prompt, completion)
+    except ValueError as error:
+        raise OpenRouterResolutionError("OpenRouter endpoint has invalid paid-token pricing") from error
 
 
 def _decimal(value: object) -> Decimal:

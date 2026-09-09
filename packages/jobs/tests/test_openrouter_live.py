@@ -9,7 +9,7 @@ from typing import cast
 import pytest
 from posttrain.catalog import open_catalog
 from posttrain.common import CatalogRef, HostedInferenceBinding, NullObserver, RunContext
-from posttrain.jobs import ExternalInferenceServiceRequest
+from posttrain.jobs import ExternalInferenceServiceRequest, ExternalInferenceUsageProjection
 from posttrain.jobs.providers.openrouter import OpenRouterResolver
 
 
@@ -36,7 +36,10 @@ def test_default_openrouter_judge_model_and_provider_are_live(tmp_path: Path) ->
     with OpenRouterResolver(timeout_seconds=60)(
         context,
         "judge/quality",
-        ExternalInferenceServiceRequest(binding),
+        ExternalInferenceServiceRequest(
+            binding,
+            ExternalInferenceUsageProjection(requests=1, input_tokens=256, output_tokens=64),
+        ),
     ) as resolved:
         identity = resolved.trace_identity()
         assert binding.model.model == "deepseek/deepseek-v4-flash-0731"
