@@ -110,6 +110,29 @@ def test_tensor_parallel_size_is_validated_and_forwarded(qwen_screen_binding: In
         VllmEngineConfig(max_model_len=1_024, gpu_memory_utilization=0.75, tensor_parallel_size=0)
 
 
+def test_request_only_sampling_extensions_are_validated_but_not_forwarded_to_sampling_params(
+    qwen_screen_binding: InferenceBinding,
+) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        sampling={
+            **qwen_screen_binding.sampling,
+            "top_p": 0.9,
+            "min_p": 0.1,
+            "presence_penalty": 0.25,
+            "extra_body": {"chat_template_kwargs": {"enable_thinking": True}},
+        },
+    )
+
+    resolved = resolve_binding_configuration(binding)
+
+    assert resolved.sampling.as_vllm_kwargs()["top_p"] == 0.9
+    assert resolved.sampling.as_vllm_kwargs()["min_p"] == 0.1
+    assert resolved.sampling.as_vllm_kwargs()["presence_penalty"] == 0.25
+    assert "extra_body" not in resolved.sampling.as_vllm_kwargs()
+    assert any(origin.path == "sampling.extra_body" for origin in resolved.origins)
+
+
 def test_mtp_requires_a_model_variant_that_declares_it(qwen_screen_binding: InferenceBinding) -> None:
     binding = replace(
         qwen_screen_binding,

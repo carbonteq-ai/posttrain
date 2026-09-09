@@ -73,6 +73,16 @@ def resolve_binding_configuration(binding: InferenceBinding) -> ResolvedVllmBind
                 binding.revision if name in binding.sampling else None,
             )
         )
+    if sampling.extra_body is not None:
+        origins.append(
+            SettingOrigin(
+                "sampling.extra_body",
+                cast(JsonValue, dict(sampling.extra_body)),
+                "explicit",
+                binding.id,
+                binding.revision,
+            )
+        )
     origins.append(
         SettingOrigin(
             "reasoning_mode",

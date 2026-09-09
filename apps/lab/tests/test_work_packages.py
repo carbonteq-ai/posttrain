@@ -13,7 +13,8 @@ from posttrain.catalog import open_catalog as open_framework_catalog
 from posttrain.common import Catalog, CatalogRef, ContractError, HostedInferenceBinding, InferenceBinding
 from posttrain.common.variants import QWEN_35_2B
 from posttrain.eval import EnvironmentBinding, EvaluateRequest, EvaluationBudget, EvaluationEndpoint
-from posttrain.serve import ServeBenchmarkRequest
+from posttrain.serve import ServeBenchmarkRequest, ServeLaunchRequest
+from posttrain.serve.backends.vllm.server import build_vllm_command
 from posttrain.train import (
     QWEN35_SFT_SMOKE,
     GRPOSettings,
@@ -81,6 +82,13 @@ def test_two_update_gdpo_resolves_self_hosted_gemma_on_the_local_server() -> Non
         overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
     )
     resolved = resolve_work_package(catalog, package)
+
+    judge = resolved.seats["judge_inference"].value
+    assert isinstance(judge, InferenceBinding)
+    command = build_vllm_command(ServeLaunchRequest(judge))
+    assert "--tensor-parallel-size" in command
+    assert "--speculative-config" in command
+    assert "--reasoning-parser" in command
 
     settings = resolved.seats["settings"].value
     assert settings.loop.max_steps == 2

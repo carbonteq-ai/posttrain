@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -171,10 +172,14 @@ class VllmEngineConfig:
 class VllmSamplingConfig:
     max_tokens: int
     temperature: float = 0.0
+    top_p: float | None = None
     top_k: int | None = None
+    min_p: float | None = None
     repetition_penalty: float | None = None
+    presence_penalty: float | None = None
     ignore_eos: bool = False
     min_tokens: int | None = None
+    extra_body: Mapping[str, object] | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.max_tokens, bool) or not isinstance(self.max_tokens, int) or self.max_tokens < 1:
@@ -186,6 +191,25 @@ class VllmSamplingConfig:
             or self.temperature < 0
         ):
             raise ValueError("temperature cannot be negative")
+        for name, value in (("top_p", self.top_p), ("min_p", self.min_p)):
+            if value is not None and (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                or not 0 <= value <= 1
+            ):
+                raise ValueError(f"{name} must be in [0, 1]")
+        if self.presence_penalty is not None and (
+            isinstance(self.presence_penalty, bool)
+            or not isinstance(self.presence_penalty, (int, float))
+            or not math.isfinite(float(self.presence_penalty))
+        ):
+            raise ValueError("presence_penalty must be finite")
+        if self.extra_body is not None and (
+            not isinstance(self.extra_body, Mapping)
+            or any(not isinstance(key, str) for key in self.extra_body)
+        ):
+            raise ValueError("extra_body must be an object with string keys")
         if self.min_tokens is not None and (
             isinstance(self.min_tokens, bool)
             or not isinstance(self.min_tokens, int)
@@ -199,10 +223,16 @@ class VllmSamplingConfig:
             "temperature": self.temperature,
             "ignore_eos": self.ignore_eos,
         }
+        if self.top_p is not None:
+            values["top_p"] = self.top_p
         if self.top_k is not None:
             values["top_k"] = self.top_k
+        if self.min_p is not None:
+            values["min_p"] = self.min_p
         if self.repetition_penalty is not None:
             values["repetition_penalty"] = self.repetition_penalty
+        if self.presence_penalty is not None:
+            values["presence_penalty"] = self.presence_penalty
         if self.min_tokens is not None:
             values["min_tokens"] = self.min_tokens
         return values
