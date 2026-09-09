@@ -1,5 +1,24 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 27 — 2026-09-09. Live inspection of release-candidate run
+`34340433050` established that GPU scheduling was not the delay: the protected
+8-vCPU release runner was concurrently rebuilding the TRL and veRL runtime
+images. The base image's source and dependency-lock digests were unchanged, but
+the workflow had supplied the runner's complete 122-certificate system bundle
+as additional image content. An ordinary host CA refresh therefore changed the
+base identity and correctly fanned out a rebuild to every child image. Keep
+host-side clients on system trust, but give BuildKit only the provisioned
+single-certificate CarbonTeq private root that the runtime needs in addition to
+its distribution CA store. Release-candidate and manual runtime publication
+now retain an explicit immutable image plan, fail before publication when it is
+blocked, and separate lock materialization, planning, publication, and registry
+verification into visible steps. The broad branch-diff shortcut and its dead
+legacy publication block are removed; immutable input identity, rather than an
+unrelated catalog or release-file diff, decides image work. The already-running
+candidate remains untouched and retains its exact evidence. These changes are
+release-path efficiency and observability improvements, not algorithm or
+qualification evidence.
+
 Revision 26 — 2026-09-09. The matched twenty-update GRPO and OLMo3
 qualification remains on the retained `carbonteq-ai-workstation.lan` RTX PRO
 6000 because one worker is presently healthy and idle; the two canonical runs

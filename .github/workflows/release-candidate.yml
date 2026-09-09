@@ -207,30 +207,40 @@ jobs:
       - name: Capture the pre-build BuildKit cache
         run: buildctl --addr unix:///var/lib/github-runner/buildkit/buildkitd.sock du
 
-      # Publish OCI inputs before building the wheelhouse. The runtime image
-      # manifest is packaged into posttrain-runtime-images, so the consumer
-      # venv used by the canary must contain the freshly generated digests.
-      - name: Build changed OCI inputs and retain the generated manifest
+      # Materialize and plan OCI inputs before building the wheelhouse. The
+      # runtime image manifest is packaged into posttrain-runtime-images, so
+      # the consumer venv must contain the freshly generated digests.
+      - name: Materialize runtime dependency locks
         run: |
           uv run --no-sync posttrain-release lock-runtime-dependencies
-          git fetch --no-tags origin main
+
+      - name: Plan immutable runtime image work
+        run: |
           authored_framework_version="$(sed -n 's/^version = "\([^" ]*\)"$/\1/p' release/manifest.toml)"
-          published_framework_version="$(sed -n 's/^framework_version = "\([^" ]*\)"$/\1/p' \
-            packages/runtime-images/src/posttrain/runtime_images/published.toml)"
-          if [[ "${published_framework_version}" = "${authored_framework_version}" ]] \
-            && git diff --quiet origin/main...HEAD -- containers packages/runtime-images packages/catalog uv.lock release; then
-            echo "No OCI input or framework-version change; committed immutable image manifest remains authoritative."
-          else
-            uv run --no-sync posttrain-release images publish \
-              --registry "${JOB_REGISTRY}" \
-              --framework-version "${authored_framework_version}" \
-              --receipt-root .release/image-receipts \
-              --trust-bundle /etc/ssl/certs/ca-certificates.crt
-          fi
+          test -n "${authored_framework_version}"
+          mkdir -p .release/image-receipts
+          uv run --no-sync posttrain-release images plan \
+            --registry "${JOB_REGISTRY}" \
+            --receipt-root .release/image-receipts \
+            --trust-bundle /usr/local/share/ca-certificates/carbonteq-local-ai-caddy.crt \
+            | tee .release/runtime-image-plan.json
+          jq -e '.blocked == false' .release/runtime-image-plan.json >/dev/null
+
+      - name: Publish planned runtime images
+        run: |
+          authored_framework_version="$(sed -n 's/^version = "\([^" ]*\)"$/\1/p' release/manifest.toml)"
+          uv run --no-sync posttrain-release images publish \
+            --registry "${JOB_REGISTRY}" \
+            --framework-version "${authored_framework_version}" \
+            --receipt-root .release/image-receipts \
+            --trust-bundle /usr/local/share/ca-certificates/carbonteq-local-ai-caddy.crt
           cp packages/runtime-images/src/posttrain/runtime_images/published.toml .release/published.toml
           mkdir -p .release/runtime-locks
           cp -a packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/. \
             .release/runtime-locks/
+
+      - name: Verify published runtime images
+        run: |
           uv run --no-sync posttrain-release check
           image_verify_config="${RUNNER_TEMP}/posttrain-image-verify-config"
           mkdir -p "${image_verify_config}"
@@ -344,36 +354,6 @@ jobs:
             "posttrain[dstack,trackio]==${{ steps.version.outputs.version }}" \
             "posttrain-lab==${{ steps.version.outputs.version }}"
           .release/consumer-venv/bin/posttrain --help >/dev/null
-
-      # The OCI manifest was generated before the wheelhouse was staged.
-      - name: Legacy OCI publication location (disabled)
-        if: ${{ false }}
-        run: |
-          git fetch --no-tags origin main
-          if git diff --quiet origin/main...HEAD -- containers packages/runtime-images packages/catalog uv.lock release; then
-            echo "No OCI input changed; committed immutable image manifest remains authoritative."
-          else
-            uv run --no-sync posttrain-release images publish \
-              --registry "${JOB_REGISTRY}" \
-              --framework-version "$(sed -n 's/^version = "\([^"]*\)"$/\1/p' release/manifest.toml)" \
-              --receipt-root .release/image-receipts \
-              --trust-bundle /etc/ssl/certs/ca-certificates.crt
-          fi
-          cp packages/runtime-images/src/posttrain/runtime_images/published.toml .release/published.toml
-          uv run --no-sync posttrain-release check
-          # Runtime-image verification reads only registry and manifest state;
-          # it must not inherit the runner's production Trackio credentials.
-          image_verify_config="${RUNNER_TEMP}/posttrain-image-verify-config"
-          mkdir -p "${image_verify_config}"
-          image_verify_env="apps/lab/posttrain.env"
-          test ! -e "${image_verify_env}"
-          printf 'POSTTRAIN_REGISTRY=%s\n' "${JOB_REGISTRY}" > "${image_verify_env}"
-          chmod 600 "${image_verify_env}"
-          trap 'rm -f "${image_verify_env}"' EXIT
-          env -u TRACKIO_SERVER_URL -u POSTTRAIN_TRACKIO_SERVER_URL -u TRACKIO_WRITE_TOKEN \
-            XDG_CONFIG_HOME="${image_verify_config}" \
-            uv run --no-sync posttrain \
-            --project-root apps/lab runtime images verify > .release/runtime-images-verify.json
 
       - name: Run one real packed GPU qualification through dstack
         id: qualification
@@ -509,6 +489,7 @@ jobs:
             .release/release-SHA256SUMS
             .release/SHA256SUMS
             .release/image-receipts/**
+            .release/runtime-image-plan.json
             .release/published.toml
             .release/runtime-locks/**
             .release/published-manifest.diff

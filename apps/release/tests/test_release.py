@@ -1045,7 +1045,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "Reject occupied development versions before image work" in candidate
     assert "Verify qualification capacity before image publication" in candidate
     assert candidate.index("Verify qualification capacity before image publication") < candidate.index(
-        "Build changed OCI inputs and retain the generated manifest"
+        "Plan immutable runtime image work"
     )
     assert "posttrain-release readiness-check" in candidate
     assert "posttrain-readiness" in candidate
@@ -1053,12 +1053,15 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "posttrain-release lock-runtime-dependencies" in candidate
     assert ".release/runtime-locks/**" in candidate
     assert 'authored_framework_version="$(sed -n' in candidate
-    assert 'published_framework_version="$(sed -n' in candidate
-    assert '"${published_framework_version}" = "${authored_framework_version}"' in candidate
+    assert "posttrain-release images plan" in candidate
+    assert ".release/runtime-image-plan.json" in candidate
+    assert "            .release/runtime-image-plan.json" in candidate
+    assert "jq -e '.blocked == false'" in candidate
+    assert "git diff --quiet origin/main...HEAD -- containers packages/runtime-images" not in candidate
+    assert "/usr/local/share/ca-certificates/carbonteq-local-ai-caddy.crt" in candidate
+    assert "--trust-bundle /etc/ssl/certs/ca-certificates.crt" not in candidate
     assert '--framework-version "${authored_framework_version}"' in candidate
-    assert candidate.index("Build changed OCI inputs and retain the generated manifest") < candidate.index(
-        "Build and hash the Python wheelhouse"
-    )
+    assert candidate.index("Publish planned runtime images") < candidate.index("Build and hash the Python wheelhouse")
     assert "for attempt in $(seq 1 120)" in candidate
     assert (
         'select(.headSha == $sha and (.event == "push" or .event == "pull_request" or .event == "workflow_dispatch"))'
@@ -1168,6 +1171,10 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
     assert "posttrain-release sync-runtime-profile-pins" in runtime_candidate
     assert "posttrain-release lock-dependencies" in runtime_candidate
     assert "runtime lock resolved an internal package outside" in runtime_candidate
+    assert "posttrain-release images plan" in runtime_candidate
+    assert ".release/runtime-image-plan.json" in runtime_candidate
+    assert "/usr/local/share/ca-certificates/carbonteq-local-ai-caddy.crt" in runtime_candidate
+    assert "--trust-bundle /etc/ssl/certs/ca-certificates.crt" not in runtime_candidate
     assert "            uv.lock" in runtime_candidate
 
 
