@@ -1,5 +1,23 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 30 — 2026-09-10. The matched 8x4 OLMo qualification exposed a
+shared late-turn admission defect rather than an OLMo-specific context need.
+Its first candidate wave retained 18 successful traces but seven episode
+errors included `11165 prompt + 3072 completion > 13312`. The completed
+20-update GRPO run retained the same failure form (30 structured episode
+errors) but tolerated the missing occurrences through group admission, so the
+defect was previously masked. OLMo active sampling made it expensive because
+failed complete groups consume candidate capacity before informative-group
+selection. Keep the common 13,312-token engine selection. The loopback TRL
+policy endpoint now bounds each native late-turn request to the exact remaining
+model context and lets vLLM return its ordinary `length` finish reason; only a
+prompt that has already consumed the complete context is rejected. This
+algorithm-neutral boundary applies to GRPO, OLMo3, GDPO, CAPO and SAMPO when
+they use the native worker topology, preserves returned token/logprob identity,
+and converts avoidable provider errors and group regeneration into explicit
+truncation evidence. Focused endpoint, async-runtime and reward-admission tests
+cover the correction.
+
 Revision 29 — 2026-09-10. Live inspection of the first shared-vLLM GRPO
 updates found that most truncated trajectories were stopped by the configured
 `max_total_tokens: 8192`, whose Verifiers meaning is cumulative model input and

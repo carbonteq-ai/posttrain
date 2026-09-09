@@ -125,6 +125,17 @@ objective. This plan does not claim benchmark reproduction or superiority.
 
 ## Progress
 
+- [x] (2026-09-10) Correct shared late-turn context admission before the
+  matched three-update runs. OLMo attempt
+  `lfm26-olmo3-3-local-20260910-r1` was stopped after 24 episodes/18 traces
+  exposed the same `prompt + 3072 > 13312` failures retained by the completed
+  20-update GRPO run. GRPO did not prove the configuration healthy: group
+  admission merely tolerated 30 structured overflow errors. The generic TRL
+  loopback endpoint now caps an admitted turn to remaining policy context and
+  preserves a normal length/truncation result, independent of algorithm.
+  GDPO attempt `lfm26-gdpo3-gemma12-local-20260910-r1` was cancelled while
+  queued and never consumed GPU. Superseding runs must use fresh identities.
+
 - [ ] (2026-09-10) Run matched bounded OLMo3 and self-hosted-Gemma GDPO
   qualifications before the remote two-machine topology. The exact work
   packages are

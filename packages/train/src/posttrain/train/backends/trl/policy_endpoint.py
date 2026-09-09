@@ -298,16 +298,29 @@ class TrlPolicyEndpoint:
         max_tokens = parsed.sampling_params.max_tokens
         if max_tokens is None or max_tokens < 1:
             raise ValueError("TRL policy endpoint requires a positive max_tokens value")
-        if len(parsed.token_ids) + max_tokens > self._max_model_len:
+        remaining_tokens = self._max_model_len - len(parsed.token_ids)
+        if remaining_tokens < 1:
             raise ValueError(
-                "token generation request exceeds the loaded policy context: "
-                f"{len(parsed.token_ids)} prompt + {max_tokens} completion > {self._max_model_len}"
+                "token generation request has no remaining policy context: "
+                f"{len(parsed.token_ids)} prompt >= {self._max_model_len}"
             )
+        sampling_params = parsed.sampling_params
+        if max_tokens > remaining_tokens:
+            # Agent histories grow after every tool observation.  The selected
+            # max_tokens is a per-turn upper bound, not a promise that every
+            # late turn still has that much context available.  Bounding the
+            # native request lets vLLM return an ordinary length finish reason,
+            # which Verifiers preserves as truncation evidence, instead of a
+            # provider 400 that discards and regenerates the complete group.
+            sampling_params = sampling_params.clone()
+            sampling_params.max_tokens = remaining_tokens
+            if sampling_params.min_tokens > remaining_tokens:
+                sampling_params.min_tokens = remaining_tokens
         request_id = parsed.request_id or secrets.token_hex(16)
         native_request = _SessionGenerationRequest(
             request_id=request_id,
             prompt_token_ids=tuple(parsed.token_ids),
-            sampling_params=parsed.sampling_params,
+            sampling_params=sampling_params,
         )
         return request_id, native_request
 

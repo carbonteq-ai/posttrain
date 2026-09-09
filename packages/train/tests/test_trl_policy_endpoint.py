@@ -147,8 +147,18 @@ async def test_explicit_abort_cancels_the_registered_http_request():
 
 
 @pytest.mark.asyncio
-async def test_endpoint_rejects_context_overflow_without_calling_engine():
-    session = FakeSession()
+async def test_endpoint_bounds_late_agent_turn_to_remaining_context():
+    class ContextBoundSession(FakeSession):
+        async def generate(self, request):
+            self.requests.append(request)
+            return _output(
+                request.request_id,
+                prompt_ids=request.prompt_token_ids,
+                completion_ids=(3,),
+                logprobs=(-0.25,),
+            )
+
+    session = ContextBoundSession()
     endpoint = TrlPolicyEndpoint(model_name="policy-model", max_model_len=3)
     collection = CollectionKey("run", "collection-1", "policy-7")
     await endpoint.start(session)
@@ -159,8 +169,30 @@ async def test_endpoint_rejects_context_overflow_without_calling_engine():
                 f"{endpoint.base_url.removesuffix('/v1')}/inference/v1/generate",
                 json=_body(),
             )
+        assert response.status_code == 200
+        assert response.json()["choices"][0]["finish_reason"] == "length"
+        assert len(session.requests) == 1
+        assert session.requests[0].sampling_params.max_tokens == 1
+        assert endpoint.fatal_error is None
+    finally:
+        await endpoint.aclose()
+
+
+@pytest.mark.asyncio
+async def test_endpoint_rejects_turn_when_prompt_exhausts_context_without_calling_engine():
+    session = FakeSession()
+    endpoint = TrlPolicyEndpoint(model_name="policy-model", max_model_len=2)
+    collection = CollectionKey("run", "collection-1", "policy-7")
+    await endpoint.start(session)
+    await endpoint.open_admission(collection)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{endpoint.base_url.removesuffix('/v1')}/inference/v1/generate",
+                json=_body(),
+            )
         assert response.status_code == 400
-        assert "2 prompt + 2 completion > 3" in response.json()["error"]
+        assert "2 prompt >= 2" in response.json()["error"]
         assert session.requests == []
         assert endpoint.fatal_error is None
     finally:
