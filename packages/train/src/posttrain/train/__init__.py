@@ -53,6 +53,7 @@ from .grpo_observations import (
     normalize_grpo_metrics,
     required_grpo_metrics,
 )
+from .model_configuration import ResolvedTrainingModelConfiguration, resolve_training_model_configuration
 from .online_rl import (
     AgenticTurn,
     AsyncRolloutCompletionObserver,
@@ -134,6 +135,7 @@ __all__ = [
     "RewardEvidence",
     "RewardValue",
     "RewardProjection",
+    "ResolvedTrainingModelConfiguration",
     "RewardComponentProjection",
     "build_verifiers_structured_request",
     "capo",
@@ -240,6 +242,7 @@ __all__ = [
     "compute_sampo_advantages",
     "normalize_grpo_metrics",
     "render_preferences",
+    "resolve_training_model_configuration",
     "render_supervised",
     "run_llm_compressor",
     "required_grpo_metrics",

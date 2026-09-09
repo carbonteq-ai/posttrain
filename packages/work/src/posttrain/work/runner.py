@@ -11,6 +11,7 @@ from typing import cast
 from posttrain.common import (
     Catalog,
     CatalogRef,
+    ConfigurationIssue,
     ContractError,
     ExecutionTarget,
     HubModelRef,
@@ -20,6 +21,7 @@ from posttrain.common import (
     ModelVariant,
     Resolved,
     RunContext,
+    SettingOrigin,
     StoredArtifactRef,
     TrackioArtifactRef,
     Workload,
@@ -49,6 +51,7 @@ from .contracts import (
 )
 from .execution import ArtifactInput, FinalizedRunResult, RunSpec, execute_run
 from .project_brief import ProjectBrief, project_brief_snapshot
+from .validation import JobValidationReport, ValidationCheck
 
 type RunExecutor = Callable[[RunSpec, Callable[[RunContext], object]], object]
 type SeatResolver = Callable[[ResolvedSeat], Selection]
@@ -93,6 +96,7 @@ class PreparedWorkPackageJob:
     definition: JobDefinition
     seats: ResolvedSeats
     spec: RunSpec
+    validation: JobValidationReport
 
 
 @dataclass(frozen=True, slots=True)
@@ -351,7 +355,159 @@ def prepare_work_package_job(
         required_artifact_roles=definition.required_artifact_roles,
         evidence_retention=package.evidence_retention,
     )
-    return PreparedWorkPackageJob(resolved, job, definition, seats, spec)
+    issues, checks = _configuration_findings(seats)
+    errors = [issue for issue in issues if issue.severity == "error"]
+    if errors:
+        detail = "; ".join(f"{issue.path}: {issue.message}" for issue in errors)
+        raise ContractError(f"invalid model configuration: {detail}")
+    validation = JobValidationReport.for_resolved_inputs(
+        resolved_inputs,
+        origins=_setting_origins(seats),
+        issues=issues,
+        checks=(
+            ValidationCheck("static-configuration", "passed", "resolved seats and static validators passed"),
+            *checks,
+        ),
+    )
+    return PreparedWorkPackageJob(resolved, job, definition, seats, spec, validation)
+
+
+def _setting_origins(seats: ResolvedSeats) -> tuple[SettingOrigin, ...]:
+    origins: list[SettingOrigin] = []
+    for role, value in sorted(seats.items()):
+        if isinstance(value, ModelVariant):
+            origins.append(SettingOrigin(f"{role}.model", value.id, "explicit", value.id, value.revision))
+        elif isinstance(value, InferenceBinding):
+            origins.extend(
+                (
+                    SettingOrigin(f"{role}.model", value.model.id, "explicit", value.id, value.revision),
+                    SettingOrigin(f"{role}.target", value.target.id, "explicit", value.id, value.revision),
+                    SettingOrigin(
+                        f"{role}.reasoning_mode",
+                        value.resolved_reasoning_mode,
+                        "explicit" if value.reasoning_mode is not None else "default",
+                        value.id if value.reasoning_mode is not None else value.model.renderer.id,
+                        value.revision if value.reasoning_mode is not None else None,
+                    ),
+                )
+            )
+            origins.extend(
+                SettingOrigin(f"{role}.engine.{name}", item, "explicit", value.id, value.revision)
+                for name, item in sorted(value.engine.items())
+            )
+            origins.extend(
+                SettingOrigin(f"{role}.sampling.{name}", item, "explicit", value.id, value.revision)
+                for name, item in sorted(value.sampling.items())
+            )
+        elif isinstance(value, TrainingBinding):
+            origins.extend(
+                (
+                    SettingOrigin(f"{role}.update.kind", value.update.kind, "explicit", value.id, value.revision),
+                    SettingOrigin(f"{role}.target", value.target.id, "explicit", value.id, value.revision),
+                    SettingOrigin(
+                        f"{role}.reasoning_mode",
+                        value.renderer.reasoning_mode,
+                        "explicit",
+                        value.id,
+                        value.revision,
+                    ),
+                )
+            )
+            rank = getattr(value.update, "rank", None)
+            if isinstance(rank, int):
+                origins.append(SettingOrigin(f"{role}.update.rank", rank, "explicit", value.id, value.revision))
+    return tuple(origins)
+
+
+def _configuration_findings(
+    seats: ResolvedSeats,
+) -> tuple[tuple[ConfigurationIssue, ...], tuple[ValidationCheck, ...]]:
+    """Assess declared model/target compatibility without loading a runtime."""
+
+    issues: list[ConfigurationIssue] = []
+    checks: list[ValidationCheck] = []
+    for role, value in sorted(seats.items()):
+        if not isinstance(value, InferenceBinding):
+            continue
+        hardware = value.target.hardware
+        engine = value.engine
+        speculative = engine.get("speculative_config", engine.get("speculative"))
+        is_mtp = isinstance(speculative, Mapping) and speculative.get("method") == "mtp"
+        turboquant = engine.get("kv_cache_dtype") == "turboquant_k8v4"
+        if is_mtp and not value.model.capabilities.mtp:
+            issues.append(
+                ConfigurationIssue(
+                    "MTP_MODEL_CAPABILITY_MISSING",
+                    "error",
+                    "static",
+                    role,
+                    f"{role}.engine.speculative_config",
+                    f"{value.model.id} does not declare MTP capability",
+                    "Select a qualified MTP-capable variant or remove speculative decoding.",
+                )
+            )
+        if hardware is None:
+            checks.append(
+                ValidationCheck(
+                    f"{role}-hardware-capabilities",
+                    "deferred",
+                    "target has no declared hardware capabilities; runtime readiness must verify acceleration support",
+                )
+            )
+            continue
+        checks.append(
+            ValidationCheck(
+                f"{role}-hardware-capabilities",
+                "passed",
+                "declared target capabilities were checked without reserving hardware",
+            )
+        )
+        if value.model.weight_precision == "bf16" and hardware.supports_bf16 is False:
+            issues.append(
+                ConfigurationIssue(
+                    "BF16_TARGET_UNSUPPORTED",
+                    "error",
+                    "static",
+                    role,
+                    f"{role}.target.hardware.supports_bf16",
+                    f"target {value.target.id} declares BF16 unsupported for BF16 model weights",
+                )
+            )
+        if is_mtp and hardware.supports_mtp is False:
+            issues.append(
+                ConfigurationIssue(
+                    "MTP_TARGET_UNSUPPORTED",
+                    "error",
+                    "static",
+                    role,
+                    f"{role}.target.hardware.supports_mtp",
+                    f"target {value.target.id} declares MTP unsupported",
+                )
+            )
+        if turboquant and hardware.supports_turboquant is False:
+            issues.append(
+                ConfigurationIssue(
+                    "TURBOQUANT_TARGET_UNSUPPORTED",
+                    "error",
+                    "static",
+                    role,
+                    f"{role}.target.hardware.supports_turboquant",
+                    f"target {value.target.id} declares TurboQuant unsupported",
+                )
+            )
+        if not turboquant and hardware.supports_turboquant is True:
+            issues.append(
+                ConfigurationIssue(
+                    "TURBOQUANT_AVAILABLE",
+                    "recommendation",
+                    "static",
+                    role,
+                    f"{role}.engine.kv_cache_dtype",
+                    "the target advertises TurboQuant capability but this binding uses its native KV-cache dtype",
+                    "Enable TurboQuant only after selecting a qualified model/backend/operation combination.",
+                )
+            )
+    return tuple(issues), tuple(checks)
 
 
 def override_job_execution_target(
@@ -623,6 +779,17 @@ def _execution_target_snapshot(
             "roles": serialized_roles,
             "device_class": target.device_class,
             "memory_gb": target.memory_gb,
+            "hardware": (
+                {
+                    "accelerator_count": target.hardware.accelerator_count,
+                    "gpu_architecture": target.hardware.gpu_architecture,
+                    "supports_bf16": target.hardware.supports_bf16,
+                    "supports_mtp": target.hardware.supports_mtp,
+                    "supports_turboquant": target.hardware.supports_turboquant,
+                }
+                if target.hardware is not None
+                else None
+            ),
             "placement": dict(target.placement),
             "host_constraints": dict(target.host_constraints),
         }

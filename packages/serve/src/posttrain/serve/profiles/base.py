@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -75,13 +76,24 @@ class VllmEngineConfig:
     speculative: VllmSpeculativeConfig | None = None
 
     def __post_init__(self) -> None:
-        if self.max_model_len < 1:
+        if isinstance(self.max_model_len, bool) or not isinstance(self.max_model_len, int) or self.max_model_len < 1:
             raise ValueError("max_model_len must be positive")
-        if not 0 < self.gpu_memory_utilization <= 1:
+        if (
+            isinstance(self.gpu_memory_utilization, bool)
+            or not isinstance(self.gpu_memory_utilization, (int, float))
+            or not math.isfinite(float(self.gpu_memory_utilization))
+            or not 0 < self.gpu_memory_utilization <= 1
+        ):
             raise ValueError("gpu_memory_utilization must be in (0, 1]")
-        if self.max_num_seqs is not None and self.max_num_seqs < 1:
+        if self.max_num_seqs is not None and (
+            isinstance(self.max_num_seqs, bool) or not isinstance(self.max_num_seqs, int) or self.max_num_seqs < 1
+        ):
             raise ValueError("max_num_seqs must be positive")
-        if self.max_num_batched_tokens is not None and self.max_num_batched_tokens < 1:
+        if self.max_num_batched_tokens is not None and (
+            isinstance(self.max_num_batched_tokens, bool)
+            or not isinstance(self.max_num_batched_tokens, int)
+            or self.max_num_batched_tokens < 1
+        ):
             raise ValueError("max_num_batched_tokens must be positive")
         if self.skip_mm_profiling and not self.text_only:
             raise ValueError("skip_mm_profiling is only safe for an explicit text-only profile")
@@ -155,11 +167,20 @@ class VllmSamplingConfig:
     min_tokens: int | None = None
 
     def __post_init__(self) -> None:
-        if self.max_tokens < 1:
+        if isinstance(self.max_tokens, bool) or not isinstance(self.max_tokens, int) or self.max_tokens < 1:
             raise ValueError("max_tokens must be positive")
-        if self.temperature < 0:
+        if (
+            isinstance(self.temperature, bool)
+            or not isinstance(self.temperature, (int, float))
+            or not math.isfinite(float(self.temperature))
+            or self.temperature < 0
+        ):
             raise ValueError("temperature cannot be negative")
-        if self.min_tokens is not None and not 0 <= self.min_tokens <= self.max_tokens:
+        if self.min_tokens is not None and (
+            isinstance(self.min_tokens, bool)
+            or not isinstance(self.min_tokens, int)
+            or not 0 <= self.min_tokens <= self.max_tokens
+        ):
             raise ValueError("min_tokens must be between zero and max_tokens")
 
     def as_vllm_kwargs(self) -> dict[str, object]:

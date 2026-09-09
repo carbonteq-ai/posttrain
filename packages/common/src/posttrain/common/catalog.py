@@ -17,6 +17,7 @@ from .errors import ContractError
 from .models import ModelCapabilities, ModelVariant
 from .selections import (
     ExecutionTarget,
+    HardwareCapabilities,
     InferenceBinding,
     Selection,
     SelectionFamily,
@@ -249,7 +250,11 @@ def _decode_selection(
         return _decode_model(_validated(ModelVariantSchema, data, ref).model_dump())
     if ref.family == "target":
         payload = _validated(ExecutionTargetSchema, data, ref)
-        return ExecutionTarget(**payload.model_dump())
+        values = payload.model_dump()
+        hardware = values.get("hardware")
+        if hardware is not None:
+            values["hardware"] = HardwareCapabilities(**hardware)
+        return ExecutionTarget(**values)
     if ref.family == "workload":
         payload = _validated(WorkloadSchema, data, ref)
         return Workload(**payload.model_dump())

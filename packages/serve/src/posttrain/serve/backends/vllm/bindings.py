@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from math import ceil
-from typing import Any
+from typing import Any, cast
 
-from posttrain.common import InferenceBinding, JsonValue, ModelVariant
+from posttrain.common import InferenceBinding, JsonValue, ModelVariant, SettingOrigin
 
 from ...benchmarks import BenchmarkCell
 from ...profiles import VllmDraftModel, VllmEngineConfig, VllmSamplingConfig, VllmSpeculativeConfig
@@ -33,12 +33,67 @@ class VllmBenchmarkConfig:
     selection_seed: int
 
 
+@dataclass(frozen=True, slots=True)
+class ResolvedVllmBindingConfiguration:
+    """Effective lightweight vLLM settings and their safe origins."""
+
+    engine: VllmEngineConfig
+    sampling: VllmSamplingConfig
+    frontend_args: tuple[str, ...]
+    reasoning_mode: str
+    origins: tuple[SettingOrigin, ...]
+
+
+def resolve_binding_configuration(binding: InferenceBinding) -> ResolvedVllmBindingConfiguration:
+    """Resolve one binding without importing vLLM, loading a model, or probing hardware."""
+
+    if not binding.backend.startswith("vllm@"):
+        raise ValueError(f"unsupported vLLM binding backend: {binding.backend!r}")
+    engine = engine_config(binding)
+    sampling = sampling_config(binding)
+    args = frontend_args(binding)
+    origins: list[SettingOrigin] = []
+    for name, value in engine.as_vllm_kwargs().items():
+        origins.append(
+            SettingOrigin(
+                f"engine.{name}",
+                cast(JsonValue, value),
+                "explicit" if name in binding.engine else "default",
+                binding.id if name in binding.engine else "posttrain.serve.vllm",
+                binding.revision if name in binding.engine else None,
+            )
+        )
+    for name, value in sampling.as_vllm_kwargs().items():
+        origins.append(
+            SettingOrigin(
+                f"sampling.{name}",
+                cast(JsonValue, value),
+                "explicit" if name in binding.sampling else "default",
+                binding.id if name in binding.sampling else "posttrain.serve.vllm",
+                binding.revision if name in binding.sampling else None,
+            )
+        )
+    origins.append(
+        SettingOrigin(
+            "reasoning_mode",
+            binding.resolved_reasoning_mode,
+            "explicit" if binding.reasoning_mode is not None else "default",
+            binding.id if binding.reasoning_mode is not None else binding.model.renderer.id,
+            binding.revision if binding.reasoning_mode is not None else None,
+        )
+    )
+    if args:
+        origins.append(SettingOrigin("frontend_args", list(args), "derived", binding.model.renderer.id))
+    return ResolvedVllmBindingConfiguration(engine, sampling, args, binding.resolved_reasoning_mode, tuple(origins))
+
+
 def benchmark_config(request: ServeBenchmarkRequest) -> VllmBenchmarkConfig:
     binding = request.inference
     if not binding.backend.startswith("vllm@"):
         raise ValueError(f"unsupported serve.benchmark backend: {binding.backend!r}")
-    engine = engine_config(binding)
-    sampling = sampling_config(binding)
+    resolved = resolve_binding_configuration(binding)
+    engine = resolved.engine
+    sampling = resolved.sampling
     variants: list[str] = []
     if engine.speculative is not None:
         variants.append(engine.speculative.method)
@@ -104,6 +159,8 @@ def engine_config(binding: InferenceBinding) -> VllmEngineConfig:
             speculative_values["draft_model"] = VllmDraftModel(**dict(draft_model))
         values["speculative"] = VllmSpeculativeConfig(**speculative_values)
     engine = VllmEngineConfig(**values)
+    if engine.speculative is not None and engine.speculative.method == "mtp" and not binding.model.capabilities.mtp:
+        raise ValueError(f"model variant {binding.model.id!r} does not declare MTP capability")
     _validate_runtime_compatibility(binding, engine)
     return engine
 
@@ -193,9 +250,11 @@ def _mapping_string(values: Mapping[str, object], name: str) -> str:
 
 
 __all__ = [
+    "ResolvedVllmBindingConfiguration",
     "VllmBenchmarkConfig",
     "benchmark_config",
     "engine_config",
     "frontend_args",
     "sampling_config",
+    "resolve_binding_configuration",
 ]

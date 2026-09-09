@@ -132,6 +132,7 @@ def plan_work_package_cmd(
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
     builder: str | None = None,
+    explain: bool = False,
 ) -> JobIntent:
     """Render job meaning, with optional metadata-only builder selection."""
 
@@ -166,6 +167,15 @@ def plan_work_package_cmd(
         }
         endpoint = f" at {selected.endpoint}" if selected.endpoint is not None else ""
         lines.append(f"Developer job builder: {selected.mode} ({selected.source}){endpoint}")
+    if explain:
+        payload["validation"] = intent.prepared.validation.as_dict()
+        lines.extend(
+            (
+                f"Configuration digest: {intent.prepared.validation.resolved_input_digest}",
+                f"Resolved settings: {len(intent.prepared.validation.origins)}",
+                f"Configuration findings: {len(intent.prepared.validation.issues)}",
+            )
+        )
     lines.append("Use job pack to materialize an image or job run to select execution.")
     emit(
         state,
@@ -569,6 +579,7 @@ def _job_intent_payload(intent: JobIntent) -> dict[str, object]:
         "job_definition_version": spec.job_definition_version,
         "resolved_inputs": dict(spec.resolved_inputs),
         "required_artifact_roles": list(spec.required_artifact_roles),
+        "validation_digest": intent.prepared.validation.resolved_input_digest,
     }
 
 
@@ -743,6 +754,10 @@ def register(app: typer.Typer) -> None:
             ),
         ] = None,
         run_id: Annotated[str | None, typer.Option("--run-id")] = None,
+        explain: Annotated[
+            bool,
+            typer.Option("--explain", help="include resolved model-setting origins and validation findings"),
+        ] = False,
         host: Annotated[
             str | None,
             typer.Option(
@@ -778,6 +793,7 @@ def register(app: typer.Typer) -> None:
             run_id=run_id,
             host=host,
             entry=entry,
+            explain=explain,
         )
 
     @work_package_app.command(

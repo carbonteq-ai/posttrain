@@ -65,11 +65,20 @@ class ModelVariantSchema(CatalogSchema):
     provenance: dict[str, JsonValue] = Field(default_factory=dict)
 
 
+class HardwareCapabilitiesSchema(CatalogSchema):
+    accelerator_count: int | None = Field(default=None, gt=0)
+    gpu_architecture: str | None = None
+    supports_bf16: bool | None = None
+    supports_mtp: bool | None = None
+    supports_turboquant: bool | None = None
+
+
 class ExecutionTargetSchema(CatalogSchema):
     id: str
     revision: str
     device_class: str
     memory_gb: float | None = Field(default=None, gt=0)
+    hardware: HardwareCapabilitiesSchema | None = None
     placement: dict[str, JsonValue] = Field(default_factory=dict)
     host_constraints: dict[str, JsonValue] = Field(default_factory=dict)
 
@@ -102,11 +111,13 @@ class InferenceBindingSchema(CatalogSchema):
     target: str | CatalogLinkSchema
     purpose: tuple[Literal["screen", "eval", "rollout", "teacher-score", "smoke", "handoff"], ...]
     capabilities: tuple[str, ...] = ()
+    reasoning_mode: str | None = None
     startup_timeout_seconds: float = Field(default=180.0, gt=0)
 
 
 __all__ = [
     "ExecutionTargetSchema",
+    "HardwareCapabilitiesSchema",
     "InferenceBindingSchema",
     "ModelVariantSchema",
     "WorkloadSchema",

@@ -38,7 +38,8 @@ from .models import (
     RendererContract,
     ToolCallProtocol,
 )
-from .selections import ExecutionTarget, InferenceBinding, Workload
+from .selections import ExecutionTarget, HardwareCapabilities, InferenceBinding, Workload
+from .validation import CheckOutcome, ConfigurationIssue, SettingOrigin
 
 __all__ = [
     "ArtifactRef",
@@ -48,10 +49,13 @@ __all__ = [
     "CatalogLayer",
     "CatalogRef",
     "ChatTemplate",
+    "CheckOutcome",
+    "ConfigurationIssue",
     "ContractError",
     "EventObservation",
     "ExecutionTarget",
     "HubModelRef",
+    "HardwareCapabilities",
     "InferenceBinding",
     "JsonValue",
     "JsonlJournalStats",
@@ -76,6 +80,7 @@ __all__ = [
     "SignalSource",
     "SignalSourceKind",
     "StoredArtifactRef",
+    "SettingOrigin",
     "TraceFactSet",
     "TraceFactUpdateObservation",
     "TraceObservation",

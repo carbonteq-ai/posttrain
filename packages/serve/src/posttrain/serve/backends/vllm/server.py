@@ -14,13 +14,14 @@ from posttrain.common import HubModelRef, LocalArtifactRef
 from posttrain.common.cuda import TorchModule, cuda_environment
 
 from ...online import Endpoint, ServeLaunchRequest, served_model_name
-from .bindings import engine_config, frontend_args
+from .bindings import resolve_binding_configuration
 
 
 def build_vllm_command(request: ServeLaunchRequest, chat_template_path: Path | None = None) -> tuple[str, ...]:
     executable = Path(sys.executable).with_name("vllm")
     model = request.inference.model
-    engine = engine_config(request.inference)
+    resolved = resolve_binding_configuration(request.inference)
+    engine = resolved.engine
     artifact = model.artifact
     if model.form in {"adapter", "peft-adapter"}:
         if not isinstance(artifact, LocalArtifactRef):
@@ -54,7 +55,7 @@ def build_vllm_command(request: ServeLaunchRequest, chat_template_path: Path | N
         str(request.port),
         *engine.as_cli_args(),
         *adapter_args,
-        *frontend_args(request.inference),
+        *resolved.frontend_args,
     ]
     if chat_template_path is not None:
         values.extend(("--chat-template", str(chat_template_path)))

@@ -37,6 +37,25 @@ def immutable_json_mapping(value: JsonMapping) -> JsonMapping:
 
 
 @dataclass(frozen=True, slots=True)
+class HardwareCapabilities:
+    """Declared, versioned target facts used by pure configuration advice."""
+
+    accelerator_count: int | None = None
+    gpu_architecture: str | None = None
+    supports_bf16: bool | None = None
+    supports_mtp: bool | None = None
+    supports_turboquant: bool | None = None
+
+    def __post_init__(self) -> None:
+        if self.accelerator_count is not None and (
+            isinstance(self.accelerator_count, bool) or self.accelerator_count < 1
+        ):
+            raise ContractError("hardware accelerator_count must be a positive integer")
+        if self.gpu_architecture is not None and not self.gpu_architecture.strip():
+            raise ContractError("hardware gpu_architecture cannot be empty")
+
+
+@dataclass(frozen=True, slots=True)
 class ExecutionTarget:
     """Hardware and placement constraints for an execution."""
 
@@ -46,6 +65,7 @@ class ExecutionTarget:
     memory_gb: float | None = None
     placement: JsonMapping = field(default_factory=dict)
     host_constraints: JsonMapping = field(default_factory=dict)
+    hardware: HardwareCapabilities | None = None
 
     def __post_init__(self) -> None:
         validate_selection_id(self.id, "execution target id")
@@ -54,6 +74,8 @@ class ExecutionTarget:
             raise ContractError("execution target device_class cannot be empty")
         if self.memory_gb is not None and self.memory_gb <= 0:
             raise ContractError("execution target memory_gb must be positive")
+        if self.hardware is not None and not isinstance(self.hardware, HardwareCapabilities):
+            raise ContractError("execution target hardware must be HardwareCapabilities")
         object.__setattr__(self, "placement", immutable_json_mapping(self.placement))
         object.__setattr__(self, "host_constraints", immutable_json_mapping(self.host_constraints))
 
@@ -108,6 +130,7 @@ class InferenceBinding:
     purpose: tuple[Purpose, ...]
     capabilities: tuple[str, ...] = ()
     startup_timeout_seconds: float = 180.0
+    reasoning_mode: str | None = None
 
     def __post_init__(self) -> None:
         validate_selection_id(self.id, "inference binding id")
@@ -126,6 +149,8 @@ class InferenceBinding:
             validate_selection_id(capability, "inference capability")
         if "tool-calling" in self.capabilities and self.model.conversation.tool_calls is None:
             raise ContractError("tool-calling inference requires a model renderer with a tool-call protocol")
+        if self.reasoning_mode is not None:
+            self.model.conversation.reasoning_mode(self.reasoning_mode)
         if self.startup_timeout_seconds <= 0:
             raise ContractError("inference startup timeout must be positive")
         context_window = self.engine.get("max_model_len")
@@ -143,6 +168,12 @@ class InferenceBinding:
         object.__setattr__(self, "engine", immutable_json_mapping(self.engine))
         object.__setattr__(self, "sampling", immutable_json_mapping(self.sampling))
 
+    @property
+    def resolved_reasoning_mode(self) -> str:
+        """Return the per-use mode or the renderer's versioned default."""
+
+        return self.reasoning_mode or self.model.default_reasoning_mode
+
 
 @runtime_checkable
 class Selection(Protocol):
@@ -154,6 +185,7 @@ class Selection(Protocol):
 
 __all__ = [
     "ExecutionTarget",
+    "HardwareCapabilities",
     "InferenceBinding",
     "JsonMapping",
     "Purpose",

@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from posttrain.catalog import open_catalog
-from posttrain.common import CatalogRef, ModelVariant
+from posttrain.common import CatalogRef, ExecutionTarget, ModelVariant
 from posttrain.data import DatasetLoadPlan, SupervisedDataset, resolve_dataset_source
 from posttrain.train import SFTRequest, SFTSettings, TrainingBinding
 
@@ -30,3 +30,14 @@ def test_global_dataset_builds_public_sft_request_without_project_code(tmp_path:
     request = SFTRequest(model=model, data=dataset, settings=settings, training=training)
     assert request.data.descriptor.id == "datasets/posttrain-sft-smoke"
     assert request.data.descriptor.num_examples == 2
+
+
+def test_framework_catalog_exposes_versioned_high_memory_gpu_facts() -> None:
+    catalog = open_catalog(scope="empty-project")
+
+    target = catalog.resolve(CatalogRef("target", "targets/rtx-pro-6000-96gb")).value
+
+    assert isinstance(target, ExecutionTarget)
+    assert target.hardware is not None
+    assert target.hardware.gpu_architecture == "blackwell"
+    assert target.hardware.supports_turboquant is True

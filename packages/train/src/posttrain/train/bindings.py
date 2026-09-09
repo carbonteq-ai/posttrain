@@ -183,7 +183,19 @@ class QuantizationPlan:
 
 
 def _validate_adapter(rank: int, alpha: int, dropout: float, target_modules: str) -> None:
-    if rank < 1 or alpha < 1 or not 0 <= dropout < 1 or not target_modules.strip():
+    if (
+        isinstance(rank, bool)
+        or not isinstance(rank, int)
+        or isinstance(alpha, bool)
+        or not isinstance(alpha, int)
+        or isinstance(dropout, bool)
+        or not isinstance(dropout, (int, float))
+        or not math.isfinite(float(dropout))
+        or rank < 1
+        or alpha < 1
+        or not 0 <= dropout < 1
+        or not target_modules.strip()
+    ):
         raise ValueError("invalid adapter update plan")
 
 

@@ -161,6 +161,19 @@ posttrain run checkpoint diff RUN_ID --from-step STEP --to-step STEP
 posttrain observatory up [--port PORT]
 ```
 
+`job plan --explain` adds effective model, job-type, and algorithm settings,
+their origins, compatibility findings, hardware advice, and checks deferred to
+the selected runtime. It performs no model download, image build, provider
+contact, or run creation. The existing global `--json` surface returns the same
+stable report.
+
+`job run --skip-preflight` skips only additional bounded readiness probes that
+may inspect cached metadata or an already-running endpoint. It never skips
+schema validation, known cross-seat incompatibilities, immutable source/image
+integrity, security policy, or selected-runtime validation. The run receipt
+records skipped probes. This option is independent of deferred qualification
+and does not change job meaning.
+
 Project and catalog commands load the same `ProjectLayout`, `CatalogRef`, and
 composed `Catalog` values used by Python callers. Work-package commands validate
 all seats and catalog references before opening a run or invoking an operation.
@@ -401,6 +414,7 @@ is a **field** (`engine`), not its own catalog family. See
 | `target` | `ExecutionTarget` |
 | `purpose` | screen \| eval \| rollout \| teacher-score \| smoke \| handoff |
 | `capabilities` | Portable interaction capabilities this complete model/backend binding is qualified to provide |
+| `reasoning_mode` | Optional per-use reasoning mode; omission resolves to the renderer's versioned default |
 
 `engine` schema is owned by the `serve` (or colocated train) adapter for that
 `backend`. Changing engine or sampling → new binding revision; same model
@@ -415,6 +429,21 @@ the backend parser from the model's `ToolCallProtocol` and emits
 `--enable-auto-tool-choice` plus `--tool-call-parser`. A conflicting explicit
 backend override is rejected. An MCP client or stdio tool server is part of
 environment execution and is not an inference capability.
+
+Model, job-type, and algorithm settings are resolved before packaging and are
+explainable with their origins. An omitted value may receive a versioned
+default; an explicit value is preserved when valid and is never silently
+repaired. Hardware-aware advice may recommend a different versioned binding,
+but it does not change update kind, adapter rank, learning batch, context or
+output budgets, parallelism, or hardware. A configured engine memory fraction
+is a per-instance memory budget, not a prediction of GPU compute utilization.
+
+Acceleration eligibility and qualification are distinct. MTP and TurboQuant
+are selected independently, and TurboQuant eligibility is independent of
+full-weight, LoRA, or QLoRA training. A versioned default enables either only
+for a qualified model/backend/hardware/operation combination; an explicit
+disable remains valid. Known adverse quality evidence blocks default promotion
+without turning every explicit use into a schema error.
 
 Illustrative composition:
 

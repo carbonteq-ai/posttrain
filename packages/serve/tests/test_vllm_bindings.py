@@ -6,7 +6,12 @@ import pytest
 from posttrain.common import InferenceBinding, Workload
 from posttrain.common.variants import NANBEIGE_42_3B
 from posttrain.serve import ServeBenchmarkRequest
-from posttrain.serve.backends.vllm.bindings import benchmark_config, engine_config, frontend_args
+from posttrain.serve.backends.vllm.bindings import (
+    benchmark_config,
+    engine_config,
+    frontend_args,
+    resolve_binding_configuration,
+)
 from posttrain.serve.benchmarks import CORE_INFERENCE_V1
 from posttrain.serve.profiles import VllmEngineConfig, VllmSpeculativeConfig
 
@@ -19,6 +24,26 @@ def test_qwen_screen_binding_captures_tested_8gb_constraints(qwen_screen_binding
     assert kwargs["limit_mm_per_prompt"] == {"image": 0, "video": 0, "audio": 0}
     assert kwargs["skip_mm_profiling"] is True
     assert kwargs["max_num_seqs"] == 4
+
+
+def test_resolution_explains_explicit_and_default_settings(qwen_screen_binding: InferenceBinding) -> None:
+    resolved = resolve_binding_configuration(qwen_screen_binding)
+    origins = {origin.path: origin for origin in resolved.origins}
+
+    assert origins["engine.enforce_eager"].kind == "explicit"
+    assert origins["engine.enforce_eager"].value is True
+    assert origins["sampling.ignore_eos"].kind == "default"
+    assert origins["reasoning_mode"].kind == "default"
+    assert origins["reasoning_mode"].value == qwen_screen_binding.model.default_reasoning_mode
+
+
+def test_explicit_reasoning_mode_is_preserved_in_resolution(qwen_screen_binding: InferenceBinding) -> None:
+    binding = replace(qwen_screen_binding, reasoning_mode="thinking")
+
+    resolved = resolve_binding_configuration(binding)
+
+    assert resolved.reasoning_mode == "thinking"
+    assert next(origin for origin in resolved.origins if origin.path == "reasoning_mode").kind == "explicit"
 
 
 def test_lfm_binding_uses_model_renderer_and_frontend_parsers(lfm_screen_binding: InferenceBinding) -> None:
@@ -67,6 +92,21 @@ def test_vllm_rejects_parser_override_that_conflicts_with_model_protocol(
 def test_skip_mm_profiling_requires_text_only_mode() -> None:
     with pytest.raises(ValueError, match="text-only"):
         VllmEngineConfig(max_model_len=1_024, gpu_memory_utilization=0.75, skip_mm_profiling=True)
+
+
+def test_mtp_requires_a_model_variant_that_declares_it(qwen_screen_binding: InferenceBinding) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        model=NANBEIGE_42_3B,
+        renderer=NANBEIGE_42_3B.renderer.id,
+        engine={
+            **qwen_screen_binding.engine,
+            "speculative_config": {"method": "mtp", "num_speculative_tokens": 2},
+        },
+    )
+
+    with pytest.raises(ValueError, match="does not declare MTP capability"):
+        engine_config(binding)
 
 
 def test_local_matrix_stops_at_concurrency_four_and_requires_turboquant_at_32k() -> None:
