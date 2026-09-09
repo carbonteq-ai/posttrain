@@ -1,5 +1,14 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 27 — 2026-09-09. The next framework release line is allocated as
+`0.4.0`, covering structured-credit algorithms, native asynchronous agent
+collection, and model/hardware configuration diagnostics. Allocation is not
+activation: the canonical baseline still defers public async GRPO until
+Milestone D closes. Release notes explicitly retain live failure-path,
+checkpoint/resume, bounded 2B packaged training, maintained-fork publication,
+and candidate-image gates. The older registry graph labeled `0.4.0.dev0`
+predates this branch and is not release evidence.
+
 Revision 26 — 2026-09-09. The source-composed local gate now overlays the
 selected TRL, Verifiers, and AutomationBench environment checkouts and verifies
 every import origin. Local TRL commit

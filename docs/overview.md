@@ -48,8 +48,9 @@ See [Post-training platform architecture](./architecture.md) and [Architecture d
 
 ## Current implementation state
 
-See the [v0.3 release notes](./releases/v0.3.md) for shipped capabilities,
-qualification coverage, and support boundaries, and the
+See the [v0.4 release notes](./releases/v0.4.md) for the current release target
+and open qualification gates, the [v0.3 release notes](./releases/v0.3.md) for
+the published support boundary, and the
 [CHANGELOG](../CHANGELOG.md) for individual versions.
 
 ## Design principles

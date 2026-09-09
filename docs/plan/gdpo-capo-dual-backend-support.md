@@ -1,5 +1,12 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 24 — 2026-09-09. The next framework release target is `0.4.0` and
+GDPO/CAPO are part of its intended scope. This does not close the qualification
+matrix: the release notes preserve the four backend cells, packaged scorer,
+checkpoint/reload, exported inference, maintained-fork publication, and final
+OCI gates as explicit blockers. Existing numerical and five-step toy evidence
+cannot be promoted into a general support claim.
+
 Revision 23 — 2026-09-08. Status: the independently governed CarbonTeq
 Verifiers distribution now rebases its host-client seam onto upstream main
 `e3bcbcbe` (71 commits after v0.3.1) at published CarbonTeq commit `90055c11`.
