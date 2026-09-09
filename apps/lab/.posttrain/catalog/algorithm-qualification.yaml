@@ -1199,7 +1199,7 @@ training:
   training/qwen3.5-0.8b-trl-grpo-qualification-lora@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.8.0
+    backend: trl@1.12.0.post8
     renderer:
       id: qwen3.5-off-v1
       model_family: qwen3.5

@@ -102,8 +102,9 @@ def test_reference_yaml_runs_screen_and_skips_optional_eval() -> None:
 
 def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
     pytest.importorskip("verifiers")
+    pytest.importorskip("gsm8k_v1")
     package = load_work_package(WORK_PACKAGES / "gsm8k_distillation.yaml")
-    catalog = open_catalog(scope=package.project_id)
+    catalog = open_catalog(scope=package.project_id, overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
     resolved = resolve_work_package(catalog, package)
     definition = distillation_definition(
         lambda context, request: request,
@@ -129,8 +130,8 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
         "kind": "lora",
     }
     assert training["resolved"]["backend_options"] == {  # type: ignore[index]
-        "dependency_lock": "trl-fork@1.9.2.post11",
-        "source_revision": "69cf80a7319079ec5523841553467e119ebc1cec",
+        "dependency_lock": "trl-fork@current",
+        "source_revision": "6dfc69db939144d270cbcbbed17294262b5ac6f4",
         "dependency_lock_sha256": hashlib.sha256((WORKSPACE / "uv.lock").read_bytes()).hexdigest(),
         "bf16": False,
         "model_dtype": "float32",

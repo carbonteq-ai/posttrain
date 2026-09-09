@@ -30,9 +30,10 @@ This work does not introduce stronger compression, forced recompression, a new l
 - [x] (2026-08-30) Ran the actual-job projection and source-build regression gates. The published canary passed offline runtime qualification and produced `registry.lan/carbonteq-qualification/posttrain-job@sha256:b832ca17f8beeaf8848b774c174c7f4670708db5e6fbdb3f5362ef21124595af` with 24 inherited layers and an 1,704,638-byte compressed job suffix.
 - [x] (2026-08-30) Qualified and published the optimized veRL runtime at `registry.lan/carbonteq/posttrain-kind-online-rl-verl-py313@sha256:fea65ed6037f52f44f5f901fb1b95c5888fe6d47c8799e0dbcdc6f1318add28d`. Its exact ten-layer base prefix is unchanged, a repeat pull transferred no layers, FlashInfer compiled its sampling extension, CUDA matmul and single-rank NCCL passed, and vLLM loaded Qwen3.5-0.8B and generated one token on the Pop!_OS RTX 3070 Ti with 8 GiB VRAM.
 - [x] (2026-08-30) Published and qualified the additive cloud-compatible successor `sha256:9bf4ff554416e34fdd0a484102c243bd470054212111ab65a0864015a860df38`. It retains the exact complete `sha256:fea65ed...` layer sequence, appends only NVIDIA's pinned 104,195,781-byte CUDA 13 compatibility payload, and does not globally set `LD_LIBRARY_PATH`. Local CUDA passed with the host driver, while explicit compatibility activation passed on a RunPod A100 80 GB PCIe Secure Cloud spot Pod whose driver exposes CUDA 12.8.
-- [ ] Share the vLLM parent across serve, eval, and TRL. The source topology,
-  explicit `vllm-common` profile/lock, and lock-regeneration tests are complete;
-  disposable OCI descriptor measurement and per-kind GPU qualification remain.
+- [x] (2026-09-10) Shared one locked vLLM parent across serve, eval, and TRL,
+  published the scoped image graph, measured a 2,458,782,369-byte reduction in
+  the three-kind after-base union, and ran real Qwen2.5-0.5B GPU generation from
+  every final kind on the local RTX 3070 Ti.
 - [x] (2026-08-29) Scoped out hardware-specific variants, Trackio dependency changes, bytecode removal, and toolchain removal. Retain one hardware-portable lineage, mandatory `pyturso`, precompiled bytecode, and the current runtime tools.
 - [x] (2026-08-30) Recorded the accepted digest, local GPU evidence, exact compressed-size reduction, cache behavior, and publication decision. A separate dstack cloud pull remains part of the registry-routing plan rather than this image-composition gate.
 
@@ -123,6 +124,22 @@ This work does not introduce stronger compression, forced recompression, a new l
 - Observation: making the current serve dependency layer the parent of thin eval and TRL deltas is estimated to remove about 2,544,923,302 compressed bytes, or 2.37 GiB, from the three-kind registry union without removing a package.
   Evidence: the estimate is the current three-kind after-base union minus serve's after-base bytes and the observed eval-minus-serve and TRL-minus-serve descriptor totals. It is a planning estimate; only a rebuilt disposable candidate can establish actual descriptors.
 
+- Observation: the published shared-parent topology reduced the three-kind
+  after-base union from 4,080,451,370 to 1,621,669,001 compressed bytes, a
+  2,458,782,369-byte (about 2.29 GiB) reduction.
+  Evidence: OCI descriptor inspection of serve `sha256:31050db3...`, eval
+  `sha256:98681c38...`, and TRL `sha256:238a963d...` finds eight shared
+  post-base descriptors totaling 1,244,080,157 bytes. The universal base and
+  shared vLLM ancestry form the same 17-layer prefix in all three images.
+
+- Observation: vLLM 0.25.1 auto-selects FlashInfer's JIT top-k/top-p sampler,
+  which cannot initialize in the intentionally compiler-free normal runtime.
+  Evidence: the first GPU smoke loaded the model and allocated KV cache, then
+  failed looking for `nvcc`. The final images set vLLM's supported
+  `VLLM_USE_FLASHINFER_SAMPLER=0` runtime selection after all dependency layers;
+  serve, eval, and TRL then each generated on GPU while retaining FlashAttention
+  2 for attention execution.
+
 - Observation: transform and supervised are already comparatively small, adding 216,605,395 and 277,624,663 compressed bytes over base. They share 350,062,028 unpacked distribution bytes at matching versions, while all five non-veRL kinds share only 150,907,046 such bytes.
   Evidence: package inventories show that a new universal common-Python layer would save much less than the vLLM parent and would rebuild every kind. Transform is also the only normal kind that upgrades base packages, changing `cuda-pathfinder`, `filelock`, and `setuptools`; the overwritten content is small.
 
@@ -196,6 +213,15 @@ This work does not introduce stronger compression, forced recompression, a new l
   and TRL without pretending veRL's fork-qualified runtime is compatible.
   Date/Author: 2026-09-10 / Codex and user.
 
+- Decision: encode the compiler-free sampler choice in each final vLLM image
+  configuration, after dependency installation, rather than installing CUDA
+  compilation tools or requiring a per-job flag.
+  Rationale: the optional sampler is not the attention kernel, and its first-use
+  JIT path otherwise makes a slim immutable image fail. Placing the environment
+  setting after dependency layers preserves every expensive layer cache key and
+  changes only final image configuration and manifests.
+  Date/Author: 2026-09-10 / Codex and user.
+
 - Decision: do not use uv symlink link mode or retain uv's cache as runtime package storage.
   Rationale: uv documents that symlink mode is cache-coupled and can be broken by cache cleanup. The digest-pinned base environment is already the stable immutable store and needs only a plain fallback path.
   Date/Author: 2026-08-29 / Codex.
@@ -213,6 +239,17 @@ This work does not introduce stronger compression, forced recompression, a new l
 The veRL composition change is accepted and published. The canonical runtime now points to `sha256:9bf4ff554416e34fdd0a484102c243bd470054212111ab65a0864015a860df38`, with source digest `a2a1c37481051d064c9b42b367932986e78d15465900963ba27145567b4f5e83`, backend constraint digest `688cc6f99ad98b6279421a6d98d25c7a37cef5dc1a38aaeba78fc0b425b69d0e`, and dependency-lock digest `19f96d07e64c3664b4c09d41db9b98142aa3ec3d0bdbfa3179012dd0d7d2f2ed`. The accepted boundary shares 16 exact-version CUDA/PyTorch distributions and keeps `nvidia-cuda-runtime` backend-local so the CUDA 13.0 compiler and runtime headers remain coherent. It preserves deterministic compiled bytecode and runtime JIT tools, passes FlashInfer compilation, CUDA/NCCL, Qwen3.5 vLLM generation, an actual-job publication canary, local CUDA with native host driver selection, and RunPod A100 CUDA with explicit forward-compatibility activation. The new 104,195,781-byte layer follows the previously accepted complete veRL graph, so it does not rewrite the base or any expensive kind layer.
 
 The previously measured seven-root union was 9,217,281,255 unique compressed layer bytes. The cloud-compatibility successor adds one 104,195,781-byte unique layer, for a projected 9,321,477,036-byte release-root union, still below 10,000,000,000 bytes before actual-job suffixes and OCI metadata. Hardware-specific variants, Trackio dependency changes, bytecode removal, and toolchain removal remain out of scope. The actual-job projection gate is closed by the retained canary receipt and immutable job digest above.
+
+The compatible normal vLLM consumers now inherit one physical dependency
+closure without putting vLLM into the universal base. The accepted manifests
+are serve `sha256:31050db333186966f7f4cc2523a05d3e9b9a7d6fe356d4a50838033a883552c5`,
+eval `sha256:98681c38e8a5e166af148496e1e9f251953ddd3d49041ee92455b65226ab93da`,
+and TRL `sha256:238a963d4bdc54176244c0a5204b6a4e325c3c10783d48e82a63ab02b2099b5b`.
+Supervised and transform remain independent of vLLM, and veRL retains its
+fork-qualified vLLM environment. All three normal vLLM kinds passed real GPU
+generation; the repository validation closed with 1,641 tests passed, 25
+skipped, Ruff, Pyright, all eight import contracts, dependency-lock checks, and
+release metadata/image checks green.
 
 ## Context and Orientation
 
@@ -390,3 +427,8 @@ Revision note (2026-08-29): retained precompiled bytecode and made the entire ca
 Revision note (2026-09-10): implemented the source-level shared vLLM parent
 with an explicit generated lock, retained the universal-base and veRL
 boundaries, and recorded the remaining OCI descriptor and GPU gates.
+
+Revision note (2026-09-10): closed the shared-parent milestone with immutable
+registry manifests, exact descriptor measurements, and per-kind GPU generation.
+The GPU gate exposed and then closed the compiler-free FlashInfer sampler
+startup failure without adding a toolchain or invalidating dependency layers.

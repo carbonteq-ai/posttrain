@@ -167,7 +167,7 @@ training:
   training/qwen3.5-trl-lora@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.8.0
+    backend: trl@1.12.0.post8
     renderer:
       id: qwen3.5-off-v1
       model_family: qwen3.5
@@ -189,7 +189,7 @@ training:
   training/qwen3.5-0.8b-trl-distill-lora@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.8.0
+    backend: trl@1.12.0.post8
     renderer:
       id: qwen3.5-off-v1
       model_family: qwen3.5
@@ -210,7 +210,7 @@ training:
   training/qwen3.5-0.8b-trl-automationbench-lora-thinking@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.8.0
+    backend: trl@1.12.0.post8
     renderer:
       id: qwen3.5-thinking-v1
       model_family: qwen3.5
@@ -233,7 +233,7 @@ training:
   training/qwen3.5-trl-qlora@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.8.0
+    backend: trl@1.12.0.post8
     renderer:
       id: qwen3.5-off-v1
       model_family: qwen3.5
@@ -258,7 +258,7 @@ training:
   training/lfm2.5-trl-lora@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.8.0
+    backend: trl@1.12.0.post8
     renderer:
       id: lfm2.5-native-v1
       model_family: lfm2.5
@@ -277,7 +277,7 @@ training:
   training/lfm2.5-trl-qlora@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.8.0
+    backend: trl@1.12.0.post8
     renderer:
       id: lfm2.5-native-v1
       model_family: lfm2.5

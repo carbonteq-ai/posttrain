@@ -59,6 +59,9 @@ RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locke
       --requirement /opt/posttrain/profiles/serve.txt
 
 FROM online-rl-trl-py312-dependencies AS online-rl-trl-py312
+# This slim runtime has no CUDA compiler. Keep FlashAttention enabled while
+# selecting vLLM's built-in sampler instead of FlashInfer's JIT-only sampler.
+ENV VLLM_USE_FLASHINFER_SAMPLER="0"
 ARG CREATED
 ARG LOCK_DIGEST
 ARG SOURCE_REVISION
@@ -76,6 +79,7 @@ LABEL org.opencontainers.image.created="${CREATED}" \
 WORKDIR /opt/posttrain/job
 
 FROM eval-dependencies AS eval
+ENV VLLM_USE_FLASHINFER_SAMPLER="0"
 ARG CREATED
 ARG LOCK_DIGEST
 ARG SOURCE_REVISION
@@ -93,6 +97,7 @@ ENV POSTTRAIN_VERIFIERS_PREINSTALLED="1"
 WORKDIR /opt/posttrain/job
 
 FROM serve-dependencies AS serve
+ENV VLLM_USE_FLASHINFER_SAMPLER="0"
 ARG CREATED
 ARG LOCK_DIGEST
 ARG SOURCE_REVISION

@@ -82,6 +82,30 @@ training:
       bf16: false
       model_dtype: float32
 
+  training/qwen3.5-0.8b-trl-distill-lora@7:
+    selection_type: training-binding
+    revision: "7"
+    backend: trl@1.12.0.post8
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: all-linear
+    target: targets/carbonteq-cuda-24gb-plus
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 2
+    backend_options:
+      dependency_lock: trl-fork@current
+      bf16: false
+      model_dtype: float32
+
 inference:
   inference/qwen3.5-0.8b-vllm-distill-rollout@3:
     revision: "3"

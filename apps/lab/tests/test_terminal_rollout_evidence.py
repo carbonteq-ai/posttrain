@@ -61,11 +61,11 @@ class _FailedTerminalTrace:
 
     def __init__(self) -> None:
         self._run: dict[str, object] = {}
-        self._info: dict[str, object] = {}
+        self.info: dict[str, object] = {}
 
     def stamp(self, *, run: Any, environment_id: str, task_index: int, example_id: str) -> None:
         self._run = {"type": "train", "id": str(run.id), "step": int(run.step)}
-        self._info = {
+        self.info = {
             "environment_id": environment_id,
             "task_index": task_index,
             "example_id": example_id,
@@ -76,7 +76,7 @@ class _FailedTerminalTrace:
             "id": self.id,
             "version": 1,
             "run": self._run,
-            "info": self._info,
+            "info": self.info,
             "errors": [{"type": "HarnessError", "message": "generator unavailable"}],
             "is_completed": False,
             "stop_condition": None,

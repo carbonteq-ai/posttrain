@@ -662,6 +662,32 @@ job_kind = "data.prepare"
 acceptance = "dataset-canonicalization"
 
 [[gates]]
+id = "lfm12-automationbench-changed-weight-local"
+work_package = ".posttrain/work_packages/lfm12_automationbench_changed_weight_local.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.grpo"
+acceptance = "five-update-local-changed-weight-canary"
+experiment_family = "lfm25-local-changed-weight-v1"
+hypothesis = "The LFM 1.2B local canary proves continuous-batched AutomationBench collection, parity, sleep, and changed-weight LoRA synchronization on bounded hardware."
+owner = "posttrain-training"
+replacement_condition = "Retire after the same lifecycle is retained by a promoted changed-weight gate on the selected release model."
+
+[[gates]]
+id = "lfm26-automationbench-changed-weight-canary"
+work_package = ".posttrain/work_packages/lfm26_automationbench_changed_weight_canary.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.grpo"
+acceptance = "two-update-changed-weight-canary"
+experiment_family = "lfm26-automationbench-changed-weight-v1"
+hypothesis = "The LFM 2.6B canary proves that a changed policy is synchronized into the continuous-batched rollout engine before the second collection round."
+owner = "posttrain-training"
+replacement_condition = "Promote only after retained GPU evidence contains finite updates, parity, sleep, and a post-update rollout from the new policy version."
+
+[[gates]]
 id = "lfm26-automationbench-grpo-20-local"
 work_package = ".posttrain/work_packages/lfm26_automationbench_grpo_20_local.yaml"
 job_id = "train"

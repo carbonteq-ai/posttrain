@@ -152,7 +152,11 @@ def _validate_boundaries() -> None:
     _require(
         "FROM kind-common AS vllm-kind-common" in vllm_dockerfile
         and "apt-get install --yes --no-install-recommends g++" in vllm_dockerfile,
-        "vLLM kind images need a host C++ compiler for CUDA JIT extensions",
+        "vLLM kind images need a host C++ compiler for native extensions",
+    )
+    _require(
+        vllm_dockerfile.count('ENV VLLM_USE_FLASHINFER_SAMPLER="0"') == 3,
+        "each compiler-free vLLM runtime must not auto-select FlashInfer's JIT sampler",
     )
     for profile in (
         "online-rl-trl-py312-dependencies",

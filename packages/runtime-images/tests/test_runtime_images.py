@@ -107,6 +107,8 @@ def test_compatible_vllm_kinds_share_one_locked_parent_layer() -> None:
     assert "vllm-common.lock.txt" in shared_stage
     assert "profiles/vllm-common.txt" in shared_stage
     assert "--requirement /opt/posttrain/profiles/vllm-common.txt" in shared_stage
+    assert 'VLLM_USE_FLASHINFER_SAMPLER="0"' not in shared_stage
+    assert dockerfile.count('ENV VLLM_USE_FLASHINFER_SAMPLER="0"') == 3
     assert vllm_lock.is_file()
     assert "vllm==0.25.1" in vllm_profile.read_text(encoding="utf-8")
     for stage in ("online-rl-trl-py312-dependencies", "eval-dependencies", "serve-dependencies"):
