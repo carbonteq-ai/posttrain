@@ -103,15 +103,21 @@ The framework may publish reusable choices in any family. Projects still bind
 exact versions and may create project-local choices when shared ones do not
 match.
 
-Evaluation has one deliberate exception to the otherwise model-variant-first
-rule. A local or trainable policy is a `ModelVariant`: it has immutable weights,
-a tokenizer, and a renderer contract. An API-only policy has none of those
-properties. `eval` may therefore accept an evaluation-only remote policy
-selector together with an external inference service binding. The selector says
-which remote policy is requested; the service says where and how it is called.
-Neither is a `ModelVariant`, and neither can be used by train, token-level
-rollout, or serving operations. Their compatibility is established by retained
-Verifiers evaluation evidence, not inferred from a provider name.
+There is one deliberate exception to the otherwise model-variant-first rule. A
+local or trainable policy is a `ModelVariant`: it has immutable weights, a
+tokenizer, and a renderer contract. An API-only hosted model has none of those
+properties. `eval` may therefore accept a remote subject selector together with
+an external inference service binding, and runtime composition may use the same
+hosted identity for an auxiliary service such as an environment-owned judge.
+The selector says which hosted model is requested; the service says where it is
+called; and the hosted inference binding must name the exact provider slug used
+for this workload. Model and provider are both required selections: composition
+must not choose either from price, availability, or a router default. Neither is
+a `ModelVariant`, a model-lineage node, or a valid
+trainable policy, token-level rollout binding, serving input, or exported model.
+Judge use is a composition dependency rather than a train request seat. Its
+compatibility is established by retained service and scorer evidence, not
+inferred from a provider name.
 
 ---
 

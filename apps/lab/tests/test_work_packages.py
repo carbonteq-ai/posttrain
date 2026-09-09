@@ -9,7 +9,8 @@ from types import SimpleNamespace
 from typing import cast
 
 import pytest
-from posttrain.common import Catalog, CatalogRef, ContractError
+from posttrain.catalog import open_catalog as open_framework_catalog
+from posttrain.common import Catalog, CatalogRef, ContractError, HostedInferenceBinding
 from posttrain.common.variants import QWEN_35_2B
 from posttrain.eval import EnvironmentBinding, EvaluateRequest, EvaluationBudget, EvaluationEndpoint
 from posttrain.serve import ServeBenchmarkRequest
@@ -43,6 +44,29 @@ from posttrain_lab.work_packages import (
 
 WORKSPACE = Path(__file__).resolve().parents[3]
 WORK_PACKAGES = WORKSPACE / "apps" / "lab" / ".posttrain" / "work_packages"
+
+
+def test_default_judged_gdpo_resolves_openrouter_without_a_gpu_judge_target() -> None:
+    package = load_work_package(WORK_PACKAGES / "lfm26_automationbench_gdpo_episode_50.yaml")
+    catalog = open_framework_catalog(
+        scope=package.project_id,
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    resolved = resolve_work_package(catalog, package)
+
+    judge = resolved.seats["judge_inference"].value
+    assert isinstance(judge, HostedInferenceBinding)
+    assert judge.model.model == "deepseek/deepseek-v4-flash-0731"
+    assert judge.service.origin == "https://openrouter.ai"
+    assert "secret-value" not in str(resolved.snapshot)
+    targets = resolved.snapshot["execution_targets"]
+    assert isinstance(targets, dict)
+    roles = {
+        role
+        for target in cast(list[dict[str, object]], targets["targets"])
+        for role in cast(list[str], target["roles"])
+    }
+    assert "judge_inference" not in roles
 
 
 def test_reference_yaml_runs_screen_and_skips_optional_eval() -> None:

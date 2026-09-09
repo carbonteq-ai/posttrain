@@ -13,7 +13,14 @@ from pathlib import Path, PurePosixPath
 
 import yaml
 from posttrain.catalog import FamilyRegistryLock, ProjectLayout
-from posttrain.common import Catalog, CatalogRef, ContractError, ExecutionTarget, StoredArtifactRef
+from posttrain.common import (
+    Catalog,
+    CatalogRef,
+    ContractError,
+    ExecutionTarget,
+    HostedInferenceBinding,
+    StoredArtifactRef,
+)
 from posttrain.data import DatasetLoadPlan, project_dataset_input_paths
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
@@ -774,6 +781,7 @@ def plan_job_launch(
             package.layout,
             job_kind=package.prepared.recipe_job.kind,
             runtime_variant=package.pack_plan.spec.runtime_variant,
+            required_runtime_variables=_required_runtime_variables(package.prepared.seats),
         ),
     )
     sources = dict(base.sources)
@@ -908,6 +916,7 @@ def _plan_job_package_from_intent(
             layout,
             job_kind=prepared.recipe_job.kind,
             runtime_variant=inferred_variant,
+            required_runtime_variables=_required_runtime_variables(prepared.seats),
         ),
     )
     if settings.target is not None:
@@ -1324,6 +1333,7 @@ def _job_defaults(
     *,
     job_kind: str | None = None,
     runtime_variant: str | None = None,
+    required_runtime_variables: tuple[str, ...] = (),
 ) -> ExecutionOverrides:
     environment_names: tuple[str, ...] = ()
     if layout.tracking == "trackio":
@@ -1333,6 +1343,7 @@ def _job_defaults(
         )
     elif layout.tracking == "wandb":
         environment_names = ("WANDB_API_KEY", "WANDB_ENTITY")
+    environment_names = tuple(dict.fromkeys((*environment_names, *required_runtime_variables)))
     return ExecutionOverrides(
         provider="local",
         runtime_profile=_runtime_profile_for_job_kind(
@@ -1343,6 +1354,18 @@ def _job_defaults(
         max_attempts=1,
         priority=0,
         environment_names=environment_names,
+    )
+
+
+def _required_runtime_variables(seats: Mapping[str, object]) -> tuple[str, ...]:
+    """Return secret names required by resolved external services, never values."""
+
+    return tuple(
+        dict.fromkeys(
+            selection.service.api_key_var
+            for selection in seats.values()
+            if isinstance(selection, HostedInferenceBinding)
+        )
     )
 
 

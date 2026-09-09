@@ -1,11 +1,11 @@
 project_id: posttrain-lab
-work_package_id: train/lfm2.5-2.6b/automationbench-gdpo-episode-50
+work_package_id: train/lfm2.5-2.6b/automationbench-gdpo-episode-50-gemma
 stage: train
-description: Matched 50-update episode-level multi-reward GDPO arm with the default OpenRouter DeepSeek judge.
+description: Explicit self-hosted Gemma 4 12B alternate for the matched episode-level GDPO arm.
 recipe:
   type: inline
-  id: recipes/lfm2.5-2.6b-automationbench-gdpo-episode-50@1
-  revision: "2"
+  id: recipes/lfm2.5-2.6b-automationbench-gdpo-episode-50-gemma@1
+  revision: "1"
   stage: train
   seats:
     model: model
@@ -14,7 +14,7 @@ recipe:
     reward_projection: training
     training: training
     rollout_inference: inference
-    judge_inference: hosted-inference
+    judge_inference: inference
   jobs:
     - id: train
       kind: train.gdpo
@@ -22,15 +22,15 @@ recipe:
   expected_artifacts: [trained adapter, native Verifiers trajectories, episode judge evidence, training summary]
 bindings:
   model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
-  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-episode-openrouter-v1}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-episode-judged-v2}
   settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-gdpo-episode-50-v1}
   reward_projection: {type: ref, family: training, id: reward/automationbench-episode-gdpo@1}
   training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench@1}
   rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout@1}
-  judge_inference: {type: ref, family: hosted-inference, id: hosted-inference/deepseek-v4-flash-openrouter-judge@1}
+  judge_inference: {type: ref, family: inference, id: inference/gemma4-12b-vllm-automationbench-judge-mtp2@1}
 enabled_optional_jobs: []
 metadata:
   comparison_family: lfm26-automationbench-50-v2
-  arm: gdpo-episode-multireward
+  arm: gdpo-episode-multireward-gemma
   task_mix: lfm26-automationbench-mix-v2
-  labels: [qualification, automationbench, lfm2.5, gdpo, episode-judge, openrouter, deepseek-v4-flash]
+  labels: [qualification, automationbench, lfm2.5, gdpo, episode-judge, gemma4]

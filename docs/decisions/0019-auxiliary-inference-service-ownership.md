@@ -2,8 +2,10 @@
 
 ## Status
 
-Accepted for implementation, 2026-09-07. Remote service-handle qualification
-remains open. Related plan: `docs/plan/gdpo-capo-dual-backend-support.md`.
+Accepted for implementation, 2026-09-07; amended 2026-09-09 to cover API-only
+external providers. Remote service-handle qualification remains open. Related
+plans: `docs/plan/gdpo-capo-dual-backend-support.md` and
+`docs/plan/openrouter-default-judge-service.md`.
 
 ## Context
 
@@ -26,6 +28,11 @@ failure attribution, and cleanup ambiguous.
   service and attaches to it. The service owner reserves its target, starts the
   selected model/runtime, authenticates the endpoint, proves readiness, retains
   immutable model and engine provenance, and stops only the service it owns.
+- API-only providers and routers are a third, unowned lifecycle variant. The
+  hosted inference binding must explicitly select both the API model and the
+  provider slug. The composition host validates and probes that exact pair but
+  does not pretend to deploy, stop, or own remote weights. A hosted-model
+  selector is not a `ModelVariant` and creates no model-lineage edge.
 - A training job receives a named attached-service connection plus the expected
   `InferenceBinding`. The volatile address and scoped credential reference are
   composition inputs, not catalog primitives and never algorithm settings.
@@ -42,6 +49,15 @@ failure attribution, and cleanup ambiguous.
   reservation.
 - Service readiness, saturation, timeout, and termination remain distinct from
   scorer-output validity. A failed endpoint never becomes a numeric zero reward.
+- A router route is explicit and frozen per optimizer run. Price- or
+  availability-based automatic provider selection is not admission policy.
+  Provider fallback that would
+  change the judge implementation is disabled by default; a route change is a
+  new explicit provider attempt with separate evidence rather than a silent
+  continuation of the same reward population.
+- The default OpenRouter policy permits provider retention and does not require
+  zero-data-retention routing. Posttrain records that policy but does not mutate
+  account-level prompt logging or privacy settings during job execution.
 - The host/work-package orchestrator owns dependency ordering: service ready,
   training admitted, training drained, then owned service release. Attached
   services are never stopped by the consumer. Interrupted training may reattach
@@ -97,6 +113,10 @@ services running, and interrupted reattachment. The live GDPO comparison remains
 blocked until service placement and teardown are observed on RunPod.
 
 ## Revision History
+
+- 2026-09-09: Added API-only external services, run-scoped route stability, and
+  the retention-allowed OpenRouter default without changing judge or algorithm
+  ownership.
 
 - 2026-09-07: Accepted independent ownership and attached-service composition
   for production remote judged training.

@@ -8,7 +8,15 @@ from typing import Any, cast
 
 import pytest
 from posttrain.catalog import open_catalog
-from posttrain.common import CatalogRef, ExecutionTarget, InferenceBinding, ModelVariant, NullObserver, RunContext
+from posttrain.common import (
+    CatalogRef,
+    ExecutionTarget,
+    HostedInferenceBinding,
+    InferenceBinding,
+    ModelVariant,
+    NullObserver,
+    RunContext,
+)
 from posttrain.environment import EnvironmentBinding, EnvironmentSource, SamplingPolicy, VerifiersV1ConfigActivation
 from posttrain.jobs import ResolvedInferenceService, bind_native_judge_services, bind_native_judges
 from posttrain.serve import Endpoint, ProbeResult, ServeLaunchRequest
@@ -185,3 +193,43 @@ def test_multiple_native_judges_can_share_one_resolved_service(selections):
             "efficiency": "judge/shared",
         }
     assert judges[0]["api_key_var"] not in os.environ
+
+
+def test_external_judge_injects_the_explicit_provider_route_without_a_model_artifact(selections):
+    context, environment, _ = selections
+    binding = cast(
+        HostedInferenceBinding,
+        open_catalog(scope="judge-test")
+        .resolve(CatalogRef("hosted-inference", "hosted-inference/deepseek-v4-flash-openrouter-judge@1"))
+        .value,
+    )
+    raw = json.loads(json.dumps(dict(environment.activation.config)))
+    judge = raw["taskset"]["task"]["judges"][0]
+    judge.update(
+        model=binding.model.model,
+        model_revision=binding.model.revision,
+        sampling=dict(binding.sampling),
+    )
+    environment = replace(environment, activation=VerifiersV1ConfigActivation(raw))
+    route = {
+        "order": [binding.provider],
+        "allow_fallbacks": False,
+        "require_parameters": True,
+    }
+    service = ResolvedInferenceService(
+        "judge/quality",
+        binding,
+        Endpoint(binding.service.base_url, binding.model.model, "external-secret"),
+        ProbeResult(True, True, 0.01, (binding.model.model,)),
+        False,
+        lifecycle="external",
+        provider={"provider_slug": binding.provider, "route": route},
+    )
+
+    with bind_native_judge_services(environment, {"judge/quality": service}, {"quality": "judge/quality"}) as bound:
+        config = cast(Any, bound.activation).config["taskset"]["task"]["judges"][0]
+        assert config["sampling"]["extra_body"]["provider"] == route
+        identity = cast(Any, bound.parameters)["inference_services"]["judge/quality"]
+        assert identity["requested_provider"] == "open-inference"
+        assert "artifact_digest" not in identity
+        assert "external-secret" not in json.dumps(bound.activation.to_payload())

@@ -2797,6 +2797,7 @@ name = "posttrain-jobs"
 version = "0.0.0"
 source = { editable = "packages/jobs" }
 dependencies = [
+    { name = "httpx" },
     { name = "posttrain-common" },
     { name = "posttrain-data" },
     { name = "posttrain-environment" },
@@ -2811,6 +2812,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-data", editable = "packages/data" },
     { name = "posttrain-environment", editable = "packages/environment" },

@@ -780,13 +780,19 @@ this operation.
 Do not require `training.target == inference.target`. Colocation is a work-package
 choice.
 
-Evaluation has a second, evaluation-only subject path for a remote policy. It
-binds a remote model selector to a versioned external service descriptor rather
-than forcing an API model into `ModelVariant`. The descriptor carries an
-OpenAI-compatible protocol revision, secret-variable name, safe headers, and
-safe request defaults. It is not accepted by train, serve, or token-level
-rollout APIs. The service and policy remain separate because the same policy
-can be served locally, directly by a provider, or through a router.
+Evaluation has a second subject path for an API-only hosted model. It binds a
+hosted-model selector to a versioned external service descriptor rather than
+forcing an API model into `ModelVariant`. The descriptor carries an
+OpenAI-compatible protocol revision, secret-variable name, safe headers, safe
+request defaults, and provider policy. The binding also carries a required exact
+provider slug. Runtime composition may also use this model-service-provider
+triple to satisfy an auxiliary judge dependency. Missing model or provider
+selection is invalid configuration; runtime must verify the exact pair and must
+not silently choose a provider. It is never accepted as the
+trainable model, rollout inference, ordinary serving input, or model artifact.
+The service and hosted model remain separate because the same hosted model may
+be called directly or through a router and the same service can expose several
+models.
 
 Do not pass a `GenerationHandle` as a public seat across packages. If local eval
 or train needs live generation, the **host** (or work-package runner) may start
@@ -795,6 +801,14 @@ satisfies the inference seat — capability packages still speak
 `InferenceBinding`, not foreign handles. Remote evaluation instead uses the
 typed evaluation-only remote binding described above; its client remains inside
 Verifiers and does not become a cross-package generation handle.
+
+Judged training likewise receives no external generation handle as a train
+seat. The composition host resolves a named managed, attached, or external
+judge service, proves its declared capabilities, injects an ephemeral
+credential reference into the environment-owned judge plugin, and retains a
+secret-free service receipt. External provider fallback must not change the
+judge implementation silently inside one optimizer run; a changed route is a
+new explicit provider attempt.
 
 ### Package surfaces
 

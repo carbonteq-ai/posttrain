@@ -91,6 +91,7 @@ class MachineServicesBinding:
     python_index_credentials: str | None = None
     job_registry: str | None = None
     job_builder: JobBuilderBinding = field(default_factory=lambda: JobBuilderBinding())
+    runtime_credentials: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -747,7 +748,7 @@ def load_machine_config() -> MachineConfig | None:
     services_payload = _mapping(payload.get("services"), context="services", allow_none=True)
     _reject_unknown(
         services_payload,
-        {"python_index_url", "python_index_credentials", "job_registry", "job_builder"},
+        {"python_index_url", "python_index_credentials", "job_registry", "job_builder", "runtime_credentials"},
         "services",
     )
     job_builder_payload = _mapping(services_payload.get("job_builder"), context="services.job_builder", allow_none=True)
@@ -759,6 +760,23 @@ def load_machine_config() -> MachineConfig | None:
     job_builder_mode = job_builder_payload.get("mode", "local")
     if job_builder_mode not in {"local", "remote"}:
         raise ContractError("services.job_builder.mode must be 'local' or 'remote'")
+    runtime_credential_payload = _mapping(
+        services_payload.get("runtime_credentials"),
+        context="services.runtime_credentials",
+        allow_none=True,
+    )
+    runtime_credentials: dict[str, str] = {}
+    for variable, credential in runtime_credential_payload.items():
+        if not isinstance(variable, str) or not variable.isidentifier() or not variable.isupper():
+            raise ContractError("services.runtime_credentials keys must be uppercase environment-variable names")
+        credential_name = _credential_reference(
+            credential_sources,
+            credential,
+            context=f"services.runtime_credentials.{variable}",
+        )
+        if credential_name is None:
+            raise ContractError(f"services.runtime_credentials.{variable} must name a credential source")
+        runtime_credentials[variable] = credential_name
     services = MachineServicesBinding(
         python_index_url=_optional_http_url(services_payload.get("python_index_url"), "services.python_index_url"),
         python_index_credentials=_credential_reference(
@@ -767,6 +785,7 @@ def load_machine_config() -> MachineConfig | None:
             context="services.python_index_credentials",
         ),
         job_registry=_optional_config_string(services_payload.get("job_registry"), "services.job_registry"),
+        runtime_credentials=runtime_credentials,
         job_builder=JobBuilderBinding(
             mode=cast(Literal["local", "remote"], job_builder_mode),
             endpoint=_optional_http_url(job_builder_payload.get("endpoint"), "services.job_builder.endpoint"),
@@ -1544,6 +1563,8 @@ def _absolute_path_tuple(value: object, *, context: str) -> tuple[Path, ...]:
 
 def load_execution_environment(
     configuration: LocalExecutionConfig,
+    *,
+    runtime_variable_names: tuple[str, ...] = (),
 ) -> dict[str, str]:
     """Overlay project runtime values on reusable machine service defaults."""
 
@@ -1584,6 +1605,16 @@ def load_execution_environment(
                 machine.credentials[machine.services.job_builder.credentials],
                 allowed={"POSTTRAIN_JOB_BUILDER_TOKEN"},
                 purpose="job builder",
+            )
+        for variable in runtime_variable_names:
+            credential_name = machine.services.runtime_credentials.get(variable)
+            if credential_name is None:
+                continue
+            _merge_credential_environment(
+                environment,
+                machine.credentials[credential_name],
+                allowed={variable},
+                purpose=f"runtime variable {variable}",
             )
     path = configuration.environment_file
     if path is None:

@@ -494,9 +494,12 @@ def test_base_catalog_manifest_is_complete_and_manifest_controlled() -> None:
     assert set(layer) == {
         "layer_id",
         "model",
+        "hosted-model",
+        "external-service",
         "dataset",
         "target",
         "inference",
+        "hosted-inference",
         "workload",
         "environment",
         "evaluation",

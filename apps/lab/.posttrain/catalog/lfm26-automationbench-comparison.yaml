@@ -110,6 +110,71 @@ environment:
       facets:
         - {field: domain, dimension: domain, label: Domain}
 
+  automationbench-lfm26-train-mix-episode-openrouter-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: d994073b9632e73c96a57865683133d7a6ebc4bf
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            judges:
+              - id: automationbench-v1
+                name: quality
+                weight: 0.0
+                assessment_scope: episode
+                code_revision: c8c3bb57cb484a068be975fa97e07f5bc86930fd
+                model: deepseek/deepseek-v4-flash-0731
+                model_revision: "0731"
+                context_scope: retrospective
+                attempts: 2
+                timeout_seconds: 900
+                input_budget_tokens: 8192
+                sampling:
+                  temperature: 0.0
+                  max_tokens: 16384
+                  extra_body:
+                    reasoning: {enabled: true}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_total_tokens: 8192
+    sampling: *policy_sampling
+    num_tasks: 160
+    num_rollouts: 4
+    max_concurrent: 32
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_total_tokens: 8192
+      judge_input_budget_tokens: 8192
+      judge_output_budget_tokens: 16384
+      judge_context_window: 24576
+      judge_service: openrouter
+      judge_retention: allowed
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
   automationbench-lfm26-heldout-mix-v1:
     category: agentic-tool-use
     source:
@@ -303,7 +368,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 526e284922a0e4d92d7920916398d8be8d36aa85
-      dependency_lock_sha256: e44589243cd0931ce3853c305b9aae63c1e56eefb7b8a90f514ab9bb348ec835
+      dependency_lock_sha256: 4f30e7e09f6337499180ebc43282f93cb49bb6d965a7d44232507f1af21c1f44
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local@1:
     selection_type: training-binding
@@ -331,7 +396,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 526e284922a0e4d92d7920916398d8be8d36aa85
-      dependency_lock_sha256: e44589243cd0931ce3853c305b9aae63c1e56eefb7b8a90f514ab9bb348ec835
+      dependency_lock_sha256: 4f30e7e09f6337499180ebc43282f93cb49bb6d965a7d44232507f1af21c1f44
 
   reward/automationbench-episode-gdpo@1:
     selection_type: reward-projection

@@ -9,7 +9,9 @@ from typing import Any, Literal
 from posttrain.common import (
     ContractError,
     ExecutionTarget,
+    HostedInferenceBinding,
     InferenceBinding,
+    JudgeInferenceBinding,
     LocalArtifactRef,
     ModelVariant,
     RunContext,
@@ -83,8 +85,14 @@ from posttrain.train import (
 )
 from posttrain.work import JobDefinition, ResolvedSeats
 
-from .inference_services import ManagedInferenceService
-from .native_judges import bind_managed_native_judge_services
+from .inference_services import (
+    ExternalInferenceServiceRequest,
+    ExternalServiceResolver,
+    InferenceServiceRequest,
+    ManagedInferenceService,
+    bind_inference_services,
+)
+from .native_judges import bind_native_judge_services
 
 _DEFAULT_EVALUATION_BUDGET = EvaluationBudget()
 
@@ -337,33 +345,38 @@ def sampo_definition(
     turn_rewards: bool = False,
     judge_inference_seats: Mapping[str, tuple[str, int]] | None = None,
     judge_service_bindings: Mapping[str, str] | None = None,
+    external_service_resolver: ExternalServiceResolver | None = None,
 ) -> JobDefinition:
     judge_seats = _judge_seats(judge_inference_seats)
     judge_services = _judge_service_bindings(judge_seats, judge_service_bindings)
 
     def run(context: RunContext, seats: ResolvedSeats) -> object:
-        managed = _judge_requests(context, seats, judge_seats)
-        with bind_managed_native_judge_services(
+        service_requests = _judge_requests(context, seats, judge_seats)
+        with bind_inference_services(
             context,
-            _seat(seats, "environment", EnvironmentBinding),
-            managed,
-            judge_services,
-        ) as environment:
-            projection = _seat(seats, "reward_projection", RewardProjection) if turn_rewards else None
-            if projection is not None and projection.turn_reward_key is None:
-                raise ValueError("turn-reward SAMPO requires an explicit direct turn reward selection")
-            request = build_verifiers_sampo_request(
-                policy=_materialize_selected_model_variant(context, _seat(seats, "model", ModelVariant)),
-                environment=environment,
-                settings=_seat(seats, "settings", SAMPOSettings),
-                training=_seat(seats, "training", TrainingBinding),
-                inference=_seat(seats, "rollout_inference", InferenceBinding),
-                trace_path=context.workspace / "training" / "sampo" / "verifiers-traces.jsonl",
-                run_id=context.run_id,
-                tasks=tasks,
-                reward_projection=projection,
-            )
-            return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
+            service_requests,
+            external_resolver=external_service_resolver,
+        ) as services:
+            with bind_native_judge_services(
+                _seat(seats, "environment", EnvironmentBinding),
+                services,
+                judge_services,
+            ) as environment:
+                projection = _seat(seats, "reward_projection", RewardProjection) if turn_rewards else None
+                if projection is not None and projection.turn_reward_key is None:
+                    raise ValueError("turn-reward SAMPO requires an explicit direct turn reward selection")
+                request = build_verifiers_sampo_request(
+                    policy=_materialize_selected_model_variant(context, _seat(seats, "model", ModelVariant)),
+                    environment=environment,
+                    settings=_seat(seats, "settings", SAMPOSettings),
+                    training=_seat(seats, "training", TrainingBinding),
+                    inference=_seat(seats, "rollout_inference", InferenceBinding),
+                    trace_path=context.workspace / "training" / "sampo" / "verifiers-traces.jsonl",
+                    run_id=context.run_id,
+                    tasks=tasks,
+                    reward_projection=projection,
+                )
+                return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
 
     return JobDefinition(
         definition_id
@@ -376,7 +389,7 @@ def sampo_definition(
             "training": TrainingBinding,
             "rollout_inference": InferenceBinding,
             **({"reward_projection": RewardProjection} if turn_rewards else {}),
-            **{seat: InferenceBinding for seat, _ in judge_seats.values()},
+            **{seat: JudgeInferenceBinding for seat, _ in judge_seats.values()},
         },
         run,
         "Train a multi-turn tool policy with sequence clipping and hierarchical episode/turn advantages.",
@@ -400,13 +413,18 @@ def _judge_requests(
     context: RunContext,
     seats: ResolvedSeats,
     selected: Mapping[str, tuple[str, int]],
-) -> dict[str, ManagedInferenceService]:
-    managed = {}
+) -> dict[str, InferenceServiceRequest]:
+    requests: dict[str, InferenceServiceRequest] = {}
     for service_name, (seat, port) in selected.items():
-        inference = _seat(seats, seat, InferenceBinding)
+        inference = _seat(seats, seat, JudgeInferenceBinding)
+        if isinstance(inference, HostedInferenceBinding):
+            requests[service_name] = ExternalInferenceServiceRequest(inference)
+            continue
+        if not isinstance(inference, InferenceBinding):
+            raise TypeError(f"judge service seat {seat!r} has an unsupported inference selection")
         _, inference = _materialize_selected_model(context, inference.model, inference, role=seat)
-        managed[service_name] = ManagedInferenceService(ServeLaunchRequest(inference, port=port))
-    return managed
+        requests[service_name] = ManagedInferenceService(ServeLaunchRequest(inference, port=port))
+    return requests
 
 
 def _judge_service_bindings(
@@ -430,6 +448,7 @@ def structured_rl_definition(
     operation: Callable[[RunContext, GDPORequest | CAPORequest], object] | None = None,
     judge_inference_seats: Mapping[str, tuple[str, int]] | None = None,
     judge_service_bindings: Mapping[str, str] | None = None,
+    external_service_resolver: ExternalServiceResolver | None = None,
 ) -> JobDefinition:
     """Backend-neutral composition with an explicit, reproducible evidence selection."""
     if technique not in {"gdpo", "capo"}:
@@ -439,28 +458,32 @@ def structured_rl_definition(
     judge_services = _judge_service_bindings(judge_seats, judge_service_bindings)
 
     def run(context: RunContext, seats: ResolvedSeats) -> object:
-        managed = _judge_requests(context, seats, judge_seats)
-        with bind_managed_native_judge_services(
+        service_requests = _judge_requests(context, seats, judge_seats)
+        with bind_inference_services(
             context,
-            _seat(seats, "environment", EnvironmentBinding),
-            managed,
-            judge_services,
-        ) as environment:
-            request = build_verifiers_structured_request(
-                policy=_materialize_selected_model_variant(context, _seat(seats, "model", ModelVariant)),
-                environment=environment,
-                settings=_seat(seats, "settings", settings_type),
-                reward_projection=_seat(seats, "reward_projection", RewardProjection),
-                training=_seat(seats, "training", TrainingBinding),
-                inference=_seat(seats, "rollout_inference", InferenceBinding),
-                trace_path=context.workspace / "training" / technique / "verifiers-traces.jsonl",
-                run_id=context.run_id,
-                tasks=tasks,
-            )
-            request = replace(request, resume_from=_recovery_checkpoint(context))
-            if operation is not None:
-                return operation(context, request)
-            return gdpo(context, request) if isinstance(request, GDPORequest) else capo(context, request)
+            service_requests,
+            external_resolver=external_service_resolver,
+        ) as services:
+            with bind_native_judge_services(
+                _seat(seats, "environment", EnvironmentBinding),
+                services,
+                judge_services,
+            ) as environment:
+                request = build_verifiers_structured_request(
+                    policy=_materialize_selected_model_variant(context, _seat(seats, "model", ModelVariant)),
+                    environment=environment,
+                    settings=_seat(seats, "settings", settings_type),
+                    reward_projection=_seat(seats, "reward_projection", RewardProjection),
+                    training=_seat(seats, "training", TrainingBinding),
+                    inference=_seat(seats, "rollout_inference", InferenceBinding),
+                    trace_path=context.workspace / "training" / technique / "verifiers-traces.jsonl",
+                    run_id=context.run_id,
+                    tasks=tasks,
+                )
+                request = replace(request, resume_from=_recovery_checkpoint(context))
+                if operation is not None:
+                    return operation(context, request)
+                return gdpo(context, request) if isinstance(request, GDPORequest) else capo(context, request)
 
     return JobDefinition(
         definition_id or f"train/{technique}{'-judged' if judge_seats else ''}@1",
@@ -472,7 +495,7 @@ def structured_rl_definition(
             "reward_projection": RewardProjection,
             "training": TrainingBinding,
             "rollout_inference": InferenceBinding,
-            **{seat: InferenceBinding for seat, _ in judge_seats.values()},
+            **{seat: JudgeInferenceBinding for seat, _ in judge_seats.values()},
         },
         run,
         "Train from explicitly selected retained outcome and process evidence.",

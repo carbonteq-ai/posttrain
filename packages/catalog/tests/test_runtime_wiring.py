@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from posttrain.catalog import open_catalog
-from posttrain.common import CatalogRef, ExecutionTarget, ModelVariant
+from posttrain.common import CatalogRef, ExecutionTarget, HostedInferenceBinding, ModelVariant
 from posttrain.data import DatasetLoadPlan, SupervisedDataset, resolve_dataset_source
 from posttrain.train import SFTRequest, SFTSettings, TrainingBinding
 
@@ -60,3 +60,19 @@ def test_framework_catalog_exposes_versioned_hardware_profile_facts(
     assert target.hardware.supports_bf16 is True
     assert target.hardware.supports_mtp is True
     assert target.hardware.supports_turboquant is True
+
+
+def test_framework_catalog_exposes_openrouter_deepseek_judge_without_model_artifact() -> None:
+    catalog = open_catalog(scope="empty-project")
+
+    binding = catalog.resolve(
+        CatalogRef("hosted-inference", "hosted-inference/deepseek-v4-flash-openrouter-judge@1")
+    ).value
+
+    assert isinstance(binding, HostedInferenceBinding)
+    assert binding.model.model == "deepseek/deepseek-v4-flash-0731"
+    assert binding.provider == "open-inference"
+    assert binding.service.origin == "https://openrouter.ai"
+    assert binding.service.provider_policy["allow_fallbacks"] is False
+    assert binding.service.provider_policy["zdr"] is False
+    assert not hasattr(binding.model, "artifact")

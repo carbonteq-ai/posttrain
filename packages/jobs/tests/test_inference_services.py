@@ -5,14 +5,26 @@ from __future__ import annotations
 import os
 from contextlib import contextmanager
 from dataclasses import replace
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from posttrain.catalog import open_catalog
-from posttrain.common import CatalogRef, ExecutionTarget, InferenceBinding, ModelVariant, NullObserver, RunContext
+from posttrain.common import (
+    CatalogRef,
+    ExecutionTarget,
+    ExternalInferenceService,
+    HostedModel,
+    InferenceBinding,
+    ModelVariant,
+    NullObserver,
+    RunContext,
+)
 from posttrain.jobs import (
     AttachedInferenceService,
+    ExternalInferenceServiceRequest,
+    HostedInferenceBinding,
     ManagedInferenceService,
+    ResolvedInferenceService,
     bind_inference_services,
 )
 from posttrain.serve import Endpoint, ProbeResult, ServeLaunchRequest
@@ -148,3 +160,75 @@ def test_managed_bind_addresses_must_be_explicitly_distinct(service_selection):
             readiness_probe=_ready,
         ):
             pytest.fail("conflicting services admitted")
+
+
+def test_external_service_uses_resolver_without_inventing_model_artifact(service_selection, monkeypatch):
+    context, _ = service_selection
+    monkeypatch.setenv("TEST_OPENROUTER_API_KEY", "external-secret")
+    hosted = HostedInferenceBinding(
+        "hosted-inference/deepseek-judge@1",
+        "1",
+        HostedModel(
+            "hosted-models/deepseek-v4-flash-0731@1",
+            "0731",
+            "deepseek/deepseek-v4-flash-0731",
+            1_310_720,
+            {"structured-output": True, "reasoning": True},
+        ),
+        ExternalInferenceService(
+            "external-services/openrouter@1",
+            "1",
+            "https://openrouter.ai/api/v1",
+            "TEST_OPENROUTER_API_KEY",
+            provider_policy={"allow_fallbacks": False},
+        ),
+        "open-inference",
+        {"temperature": 0.0, "max_tokens": 16_384},
+    )
+    request = ExternalInferenceServiceRequest(hosted)
+    closed: list[str] = []
+
+    @contextmanager
+    def resolver(_context, name, selected):
+        assert selected is request
+        endpoint = Endpoint(hosted.service.base_url, hosted.model.model, os.environ[hosted.service.api_key_var])
+        try:
+            yield ResolvedInferenceService(
+                name,
+                hosted,
+                endpoint,
+                ProbeResult(True, True, 0.02, (hosted.model.model,)),
+                owned=False,
+                lifecycle="external",
+                provider={"slug": "deepseek", "allow_fallbacks": False},
+            )
+        finally:
+            closed.append(name)
+
+    with bind_inference_services(context, {"judge/quality": request}, external_resolver=resolver) as services:
+        resolved = services["judge/quality"]
+        identity = resolved.trace_identity()
+        assert resolved.lifecycle == "external"
+        assert resolved.owned is False
+        assert cast(dict[str, Any], identity["model"])["api_model"] == "deepseek/deepseek-v4-flash-0731"
+        assert "artifact_digest" not in identity
+        assert "external-secret" not in str(identity)
+    assert closed == ["judge/quality"]
+
+
+def test_external_service_rejects_an_unregistered_provider(service_selection):
+    context, _ = service_selection
+    hosted = HostedInferenceBinding(
+        "hosted-inference/test@1",
+        "1",
+        HostedModel("hosted-models/test@1", "1", "provider/model", 4096),
+        ExternalInferenceService("external-services/test@1", "1", "https://provider.example/v1", "TEST_API_KEY"),
+        "provider",
+        {"max_tokens": 128},
+    )
+    with pytest.raises(ValueError, match="no external inference provider adapter"):
+        with bind_inference_services(
+            context,
+            {"judge/external": ExternalInferenceServiceRequest(hosted)},
+        ):
+            pytest.fail("unresolved external service admitted")

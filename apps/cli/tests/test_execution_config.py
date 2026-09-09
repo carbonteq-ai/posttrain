@@ -1239,6 +1239,43 @@ def test_machine_config_loads_remote_job_builder_from_protected_machine_credenti
     assert resolve_job_builder(loaded.machine, cli_override="local").source == "cli"
 
 
+def test_machine_runtime_credentials_are_loaded_only_when_the_job_requires_them(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layout = _layout(tmp_path)
+    config_home = tmp_path / "config"
+    config_dir = config_home / "posttrain"
+    config_dir.mkdir(parents=True)
+    credentials = tmp_path / "openrouter.env"
+    credentials.write_text("OPENROUTER_API_KEY=redacted\n", encoding="utf-8")
+    credentials.chmod(0o600)
+    (config_dir / "config.toml").write_text(
+        "\n".join(
+            (
+                "schema_version = 1",
+                'machine_name = "developer"',
+                'default_provider = "local"',
+                "",
+                "[services.runtime_credentials]",
+                'OPENROUTER_API_KEY = "openrouter-default"',
+                "",
+                "[credentials.openrouter-default]",
+                f'file = "{credentials}"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+    loaded = load_local_execution_config(layout)
+
+    assert "OPENROUTER_API_KEY" not in load_execution_environment(loaded)
+    selected = load_execution_environment(loaded, runtime_variable_names=("OPENROUTER_API_KEY",))
+    assert selected["OPENROUTER_API_KEY"] == "redacted"
+
+
 def test_remote_job_builder_override_requires_machine_remote_configuration() -> None:
     with pytest.raises(ContractError, match="--builder remote requires machine"):
         resolve_job_builder(None, cli_override="remote")

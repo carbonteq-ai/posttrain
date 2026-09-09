@@ -15,6 +15,7 @@ from posttrain.environment import EnvironmentBinding, VerifiersV1ConfigActivatio
 from posttrain.serve import Endpoint, ProbeResult, ServeLaunchRequest, launch, probe
 
 from .inference_services import (
+    HostedInferenceBinding,
     ManagedInferenceService,
     ResolvedInferenceService,
     bind_inference_services,
@@ -121,12 +122,23 @@ def bind_native_judge_services(
             credential_vars[service_name] = key
         for judge_name, service_name in judge_services.items():
             service = services[service_name]
+            sampling = dict(service.inference.sampling)
+            headers: dict[str, str] = {}
+            if isinstance(service.inference, HostedInferenceBinding):
+                headers.update(service.inference.service.headers)
+                extra_body = sampling.get("extra_body", {})
+                if not isinstance(extra_body, dict):
+                    raise ValueError(f"judge {judge_name!r} sampling extra_body must be an object")
+                route = service.provider.get("route")
+                if not isinstance(route, dict):
+                    raise ValueError(f"external judge {judge_name!r} has no resolved provider route")
+                sampling["extra_body"] = {**extra_body, "provider": route}
             judges[judge_name].update(
                 model=service.endpoint.model,
                 base_url=service.endpoint.base_url,
                 api_key_var=credential_vars[service_name],
-                sampling=dict(service.inference.sampling),
-                headers={},
+                sampling=sampling,
+                headers=headers,
             )
         yield replace(
             environment,
@@ -190,9 +202,13 @@ def _validate_judge_selection(
     judge: Mapping[str, Any],
     service: ResolvedInferenceService,
 ) -> None:
-    model = service.inference.model
+    inference = service.inference
     declared_revision = judge.get("model_revision")
-    if declared_revision is not None and declared_revision != (model.revision or model.digest):
+    if isinstance(inference, HostedInferenceBinding):
+        expected_revision = inference.model.revision
+    else:
+        expected_revision = inference.model.revision or inference.model.digest
+    if declared_revision is not None and declared_revision != expected_revision:
         raise ValueError(f"judge {name!r} revision differs from its selected inference model")
     if judge.get("model") not in (None, service.endpoint.model):
         raise ValueError(f"judge {name!r} model differs from its selected inference model")

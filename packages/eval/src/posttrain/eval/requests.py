@@ -2,20 +2,21 @@
 
 from __future__ import annotations
 
-import json
 import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Literal
-from urllib.parse import urlsplit
 
 from posttrain.common import (
     ExecutionTarget,
+    ExternalInferenceService,
+    HostedModel,
     InferenceBinding,
     JsonValue,
     ModelVariant,
+    validate_secret_free_http_url,
 )
 from posttrain.common.selections import validate_selection_id
 from posttrain.environment import (
@@ -29,29 +30,6 @@ from posttrain.environment import (
 )
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9._/-]*$")
-_REMOTE_PROTOCOL = "openai-chat@1"
-_SECRET_HEADERS = frozenset({"authorization", "cookie", "proxy-authorization", "x-api-key"})
-_OWNED_REQUEST_FIELDS = frozenset(
-    {
-        "model",
-        "messages",
-        "tools",
-        "stream",
-        "temperature",
-        "top_p",
-        "top_k",
-        "min_p",
-        "repetition_penalty",
-        "presence_penalty",
-        "reasoning_effort",
-        "max_tokens",
-        "max_completion_tokens",
-        "n",
-        "seed",
-    }
-)
-
-
 def _stable_id(value: str, field: str) -> None:
     if not _ID.fullmatch(value):
         raise ValueError(f"{field} must be a lowercase stable identifier, got {value!r}")
@@ -62,28 +40,6 @@ def _selection_id(value: str, field: str) -> None:
         validate_selection_id(value, field)
     except Exception as error:
         raise ValueError(str(error)) from error
-
-
-def _secret_free_http_url(value: str, field: str) -> None:
-    parsed = urlsplit(value)
-    if (
-        parsed.scheme not in {"http", "https"}
-        or not parsed.netloc
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.query
-        or parsed.fragment
-    ):
-        raise ValueError(f"{field} must be a secret-free absolute HTTP URL")
-
-
-def _json_mapping(value: Mapping[str, JsonValue], field: str) -> Mapping[str, JsonValue]:
-    copied = dict(value)
-    try:
-        json.dumps(copied, sort_keys=True)
-    except (TypeError, ValueError) as error:
-        raise ValueError(f"{field} must contain only JSON values") from error
-    return MappingProxyType(copied)
 
 
 @dataclass(frozen=True, slots=True)
@@ -241,71 +197,7 @@ class EvaluationPlan:
         return self.breakdowns.get(environment_id, ())
 
 
-@dataclass(frozen=True, slots=True)
-class RemotePolicy:
-    """An evaluation-only remote model selector with no local weight artifact."""
-
-    id: str
-    revision: str
-    model: str
-    context_window: int
-    capabilities: Mapping[str, JsonValue] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        _selection_id(self.id, "remote policy id")
-        if not self.revision.strip():
-            raise ValueError("remote policy revision cannot be empty")
-        if not self.model.strip():
-            raise ValueError("remote policy model cannot be empty")
-        if self.context_window < 1:
-            raise ValueError("remote policy context_window must be positive")
-        object.__setattr__(self, "capabilities", _json_mapping(self.capabilities, "remote policy capabilities"))
-
-
-@dataclass(frozen=True, slots=True)
-class ExternalInferenceService:
-    """One secret-free OpenAI-chat service configuration for remote evaluation."""
-
-    id: str
-    revision: str
-    base_url: str
-    api_key_var: str
-    headers: Mapping[str, str] = field(default_factory=dict)
-    request_defaults: Mapping[str, JsonValue] = field(default_factory=dict)
-    protocol: Literal["openai-chat@1"] = _REMOTE_PROTOCOL
-
-    def __post_init__(self) -> None:
-        _selection_id(self.id, "external inference service id")
-        if not self.revision.strip():
-            raise ValueError("external inference service revision cannot be empty")
-        _secret_free_http_url(self.base_url, "external inference service base_url")
-        if self.protocol != _REMOTE_PROTOCOL:
-            raise ValueError(f"unsupported external inference protocol: {self.protocol!r}")
-        if not self.api_key_var.isidentifier() or not self.api_key_var.isupper():
-            raise ValueError("api_key_var must be an uppercase environment-variable name")
-        headers = dict(self.headers)
-        if any(
-            not isinstance(name, str) or not name.strip() or not isinstance(value, str)
-            for name, value in headers.items()
-        ):
-            raise ValueError("external inference service headers must be non-empty string pairs")
-        blocked = sorted(name for name in headers if name.casefold() in _SECRET_HEADERS)
-        if blocked:
-            raise ValueError(f"external inference service headers must not carry credentials: {', '.join(blocked)}")
-        defaults = _json_mapping(self.request_defaults, "external inference service request_defaults")
-        collisions = sorted(set(defaults).intersection(_OWNED_REQUEST_FIELDS))
-        if collisions:
-            raise ValueError(
-                "external inference service request_defaults cannot override evaluation-owned fields: "
-                + ", ".join(collisions)
-            )
-        object.__setattr__(self, "headers", MappingProxyType(headers))
-        object.__setattr__(self, "request_defaults", defaults)
-
-    @property
-    def origin(self) -> str:
-        parsed = urlsplit(self.base_url)
-        return f"{parsed.scheme}://{parsed.netloc}"
+RemotePolicy = HostedModel
 
 
 @dataclass(frozen=True, slots=True)
@@ -335,7 +227,7 @@ class EvaluationEndpoint:
     api_key_var: str = "LOCAL_INFERENCE_API_KEY"
 
     def __post_init__(self) -> None:
-        _secret_free_http_url(self.base_url, "evaluation target base_url")
+        validate_secret_free_http_url(self.base_url, "evaluation target base_url")
         if not self.served_model.strip():
             raise ValueError("evaluation target requires a served model name")
         if not self.api_key_var.isidentifier() or not self.api_key_var.isupper():

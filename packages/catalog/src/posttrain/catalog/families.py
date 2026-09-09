@@ -156,9 +156,12 @@ def core_catalog_family_descriptors(
     version = _distribution_version("posttrain-catalog")
     names = (
         "model",
+        "hosted-model",
+        "external-service",
         "dataset",
         "environment",
         "inference",
+        "hosted-inference",
         "training",
         "quantization",
         "evaluation",

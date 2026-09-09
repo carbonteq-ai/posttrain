@@ -27,6 +27,13 @@ from .execution import (
     TraceObservation,
     TraceRewardComponent,
 )
+from .hosted import (
+    ExternalInferenceService,
+    HostedInferenceBinding,
+    HostedModel,
+    JudgeInferenceBinding,
+    validate_secret_free_http_url,
+)
 from .jsonl_journal import AppendOnlyJsonlTailer, JsonlJournalStats
 from .models import (
     ChatTemplate,
@@ -53,8 +60,12 @@ __all__ = [
     "ConfigurationIssue",
     "ContractError",
     "EventObservation",
+    "ExternalInferenceService",
     "ExecutionTarget",
     "HubModelRef",
+    "HostedModel",
+    "HostedInferenceBinding",
+    "JudgeInferenceBinding",
     "HardwareCapabilities",
     "InferenceBinding",
     "JsonValue",
@@ -87,4 +98,5 @@ __all__ = [
     "TraceRewardComponent",
     "TrackioArtifactRef",
     "Workload",
+    "validate_secret_free_http_url",
 ]

@@ -278,6 +278,16 @@ derived native-trace records referenced immutably. Checkpoint compatibility
 includes algorithm, reward schema, scorer, and normalization identity. Judge
 sampling attempts and token costs remain individually attributable.
 
+For an API-only judge, evidence also retains the requested hosted-model id and
+revision, external-service id and revision, safe endpoint origin, resolved
+provider route, explicitly requested provider slug, fallback policy, capability
+probe, reported model/provider,
+request id, latency, input/reasoning/output tokens, and the timestamped price
+snapshot used for cost calculation. Credentials are never evidence. Hosted
+models have no artifact digest and create no model-lineage edge. A response from
+a model or provider outside the run-scoped route is invalid assessment evidence,
+not a numeric reward.
+
 
 Includes the common `train/*` step series plus:
 

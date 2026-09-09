@@ -116,9 +116,41 @@ class InferenceBindingSchema(CatalogSchema):
     startup_timeout_seconds: float = Field(default=180.0, gt=0)
 
 
+class HostedModelSchema(CatalogSchema):
+    id: str
+    revision: str
+    model: str
+    context_window: int = Field(gt=0)
+    capabilities: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class ExternalInferenceServiceSchema(CatalogSchema):
+    id: str
+    revision: str
+    base_url: str
+    api_key_var: str
+    headers: dict[str, str] = Field(default_factory=dict)
+    request_defaults: dict[str, JsonValue] = Field(default_factory=dict)
+    provider_policy: dict[str, JsonValue] = Field(default_factory=dict)
+    protocol: Literal["openai-chat@1"] = "openai-chat@1"
+
+
+class HostedInferenceBindingSchema(CatalogSchema):
+    id: str
+    revision: str
+    model: str | CatalogLinkSchema
+    service: str | CatalogLinkSchema
+    provider: str
+    sampling: dict[str, JsonValue]
+    purpose: tuple[Literal["judge"], ...] = ("judge",)
+
+
 __all__ = [
     "ExecutionTargetSchema",
     "HardwareCapabilitiesSchema",
+    "HostedInferenceBindingSchema",
+    "HostedModelSchema",
+    "ExternalInferenceServiceSchema",
     "InferenceBindingSchema",
     "ModelVariantSchema",
     "WorkloadSchema",

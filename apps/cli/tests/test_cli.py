@@ -14,7 +14,14 @@ from typing import cast
 
 import pytest
 from posttrain.catalog import ProjectLayout
-from posttrain.common import ContractError, ExecutionTarget, RunContext
+from posttrain.common import (
+    ContractError,
+    ExecutionTarget,
+    ExternalInferenceService,
+    HostedInferenceBinding,
+    HostedModel,
+    RunContext,
+)
 from posttrain.execution import (
     AdmissionEntry,
     AdmissionResult,
@@ -700,6 +707,7 @@ def test_machine_init_creates_shared_defaults_and_scoped_credentials(
         "python-index.env",
         "dstack.env",
         "job-builder.env",
+        "openrouter.env",
     ):
         assert (credentials / filename).stat().st_mode & 0o077 == 0
 
@@ -749,6 +757,26 @@ def test_machine_init_creates_shared_defaults_and_scoped_credentials(
 
     assert main(["machine", "init"]) == 1
     assert "refusing to overwrite existing machine configuration" in capsys.readouterr().err
+
+
+def test_hosted_inference_declares_only_its_credential_name_as_a_runtime_requirement() -> None:
+    from posttrain_cli.execution_planning import _required_runtime_variables
+
+    binding = HostedInferenceBinding(
+        "hosted-inference/test@1",
+        "1",
+        HostedModel("hosted-model/test@1", "1", "author/model", 4096),
+        ExternalInferenceService(
+            "external-service/test@1",
+            "1",
+            "https://router.example/v1",
+            "ROUTER_API_KEY",
+        ),
+        "provider",
+        {"max_tokens": 128},
+    )
+
+    assert _required_runtime_variables({"judge": binding}) == ("ROUTER_API_KEY",)
 
 
 def test_machine_init_omits_redundant_hostname_by_default(tmp_path: Path, capsys) -> None:

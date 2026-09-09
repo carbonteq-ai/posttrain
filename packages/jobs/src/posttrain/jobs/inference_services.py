@@ -7,17 +7,18 @@ import os
 import re
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, ExitStack, contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from types import MappingProxyType
+from typing import Literal
 
-from posttrain.common import InferenceBinding, JsonValue, RunContext
+from posttrain.common import HostedInferenceBinding, InferenceBinding, JsonValue, RunContext
 from posttrain.common.selections import validate_selection_id
 from posttrain.serve import Endpoint, ProbeResult, ServeLaunchRequest, launch, probe
 
 
 @dataclass(frozen=True, slots=True)
 class ManagedInferenceService:
-    """A service whose lifecycle is owned by the enclosing composition host."""
+    """A local model service whose lifecycle is owned by the composition host."""
 
     request: ServeLaunchRequest
 
@@ -28,11 +29,7 @@ class ManagedInferenceService:
 
 @dataclass(frozen=True, slots=True)
 class AttachedInferenceService:
-    """A pre-existing endpoint that the composition host must never stop.
-
-    Secrets are referenced by environment-variable name and resolved only for
-    the ephemeral connection object. They are never copied into observations.
-    """
+    """A pre-existing local-model endpoint that the composition host never stops."""
 
     inference: InferenceBinding
     base_url: str
@@ -54,53 +51,85 @@ class AttachedInferenceService:
         return Endpoint(self.base_url, self.model, api_key)
 
 
-type InferenceServiceRequest = ManagedInferenceService | AttachedInferenceService
+@dataclass(frozen=True, slots=True)
+class ExternalInferenceServiceRequest:
+    """An external API service resolved but never deployed by Posttrain."""
+
+    binding: HostedInferenceBinding
+
+    @property
+    def inference(self) -> HostedInferenceBinding:
+        return self.binding
+
+
+type InferenceSelection = InferenceBinding | HostedInferenceBinding
+type InferenceServiceRequest = ManagedInferenceService | AttachedInferenceService | ExternalInferenceServiceRequest
 
 
 @dataclass(frozen=True, slots=True)
 class ResolvedInferenceService:
-    """One ready connection and the exact selection it is expected to serve."""
+    """One ready ephemeral connection and its exact secret-free selection."""
 
     name: str
-    inference: InferenceBinding
+    inference: InferenceSelection
     endpoint: Endpoint
     readiness: ProbeResult
     owned: bool
+    lifecycle: Literal["managed", "attached", "external"] | None = None
+    provider: Mapping[str, JsonValue] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        lifecycle = self.lifecycle or ("managed" if self.owned else "attached")
+        if self.owned != (lifecycle == "managed"):
+            raise ValueError("only managed inference services may be owned")
+        object.__setattr__(self, "lifecycle", lifecycle)
+        object.__setattr__(self, "provider", MappingProxyType(dict(self.provider)))
 
     def trace_identity(self) -> dict[str, JsonValue]:
-        return {
+        identity: dict[str, JsonValue] = {
             "service_name": self.name,
-            "ownership": "managed" if self.owned else "attached",
+            "lifecycle": self.lifecycle,
+            "ownership": "managed" if self.owned else "unowned",
             "inference_binding_id": self.inference.id,
             "inference_binding_revision": self.inference.revision,
             "model": self.inference.model.trace_identity(),
-            "artifact_digest": self.inference.model.digest,
-            "backend": self.inference.backend,
-            "renderer": self.inference.renderer,
-            "engine": dict(self.inference.engine),
             "sampling": dict(self.inference.sampling),
-            "target": {
-                "id": self.inference.target.id,
-                "revision": self.inference.target.revision,
-                "device_class": self.inference.target.device_class,
-                "memory_gb": self.inference.target.memory_gb,
-                "placement": dict(self.inference.target.placement),
-                "host_constraints": dict(self.inference.target.host_constraints),
-            },
-            "endpoint": {
-                "base_url": self.endpoint.base_url,
-                "model": self.endpoint.model,
-            },
+            "endpoint": {"base_url": self.endpoint.base_url, "model": self.endpoint.model},
             "readiness": {
                 "healthy": self.readiness.healthy,
                 "model_available": self.readiness.model_available,
                 "models": list(self.readiness.models),
             },
+            "provider": dict(self.provider),
         }
+        if isinstance(self.inference, InferenceBinding):
+            identity.update(
+                {
+                    "artifact_digest": self.inference.model.digest,
+                    "backend": self.inference.backend,
+                    "renderer": self.inference.renderer,
+                    "engine": dict(self.inference.engine),
+                    "target": {
+                        "id": self.inference.target.id,
+                        "revision": self.inference.target.revision,
+                        "device_class": self.inference.target.device_class,
+                        "memory_gb": self.inference.target.memory_gb,
+                        "placement": dict(self.inference.target.placement),
+                        "host_constraints": dict(self.inference.target.host_constraints),
+                    },
+                }
+            )
+        else:
+            identity["external_service"] = self.inference.service.trace_identity()
+            identity["requested_provider"] = self.inference.provider
+        return identity
 
 
 type ServiceProvisioner = Callable[[RunContext, ServeLaunchRequest], AbstractContextManager[Endpoint]]
 type ReadinessProbe = Callable[[RunContext, Endpoint], ProbeResult]
+type ExternalServiceResolver = Callable[
+    [RunContext, str, ExternalInferenceServiceRequest], AbstractContextManager[ResolvedInferenceService]
+]
 
 
 @contextmanager
@@ -110,13 +139,9 @@ def bind_inference_services(
     *,
     provisioner: ServiceProvisioner = launch,
     readiness_probe: ReadinessProbe = probe,
+    external_resolver: ExternalServiceResolver | None = None,
 ) -> Iterator[Mapping[str, ResolvedInferenceService]]:
-    """Resolve named services once and close only the managed instances.
-
-    Service names are explicit identity. Equal endpoints or models are not
-    deduplicated implicitly, so sharing occurs only when consumers reference
-    the same resolved service name.
-    """
+    """Resolve named services once and close only resources owned by each variant."""
 
     _validate_service_requests(services)
     if not services:
@@ -126,13 +151,43 @@ def bind_inference_services(
     resolved: dict[str, ResolvedInferenceService] = {}
     with ExitStack() as stack:
         for name, service in services.items():
+            if isinstance(service, ExternalInferenceServiceRequest):
+                if external_resolver is None:
+                    from .providers import resolve_external_service
+
+                    external_resolver = resolve_external_service
+                context.event(
+                    "inference_service_resolving",
+                    _service_attributes(name, service.inference, lifecycle="external"),
+                )
+                connection = stack.enter_context(external_resolver(context, name, service))
+                if connection.name != name or connection.inference != service.inference:
+                    raise ValueError(f"external inference service {name!r} resolved a different selection")
+                if connection.lifecycle != "external" or connection.owned:
+                    raise ValueError(f"external inference service {name!r} returned invalid lifecycle ownership")
+                if not connection.readiness.healthy or not connection.readiness.model_available:
+                    raise RuntimeError(
+                        f"inference service {name!r} did not expose selected model {connection.endpoint.model!r}"
+                    )
+                resolved[name] = connection
+                context.event(
+                    "inference_service_ready",
+                    {
+                        **_service_attributes(name, service.inference, lifecycle="external"),
+                        "base_url": connection.endpoint.base_url,
+                        "endpoint_model": connection.endpoint.model,
+                    },
+                )
+                continue
+
             owned = isinstance(service, ManagedInferenceService)
-            if owned:
+            lifecycle: Literal["managed", "attached"] = "managed" if owned else "attached"
+            if isinstance(service, ManagedInferenceService):
                 service_context = _service_context(context, name)
                 service_context.workspace.mkdir(parents=True, exist_ok=True)
                 service_context.event(
                     "inference_service_starting",
-                    _service_attributes(name, service.inference, owned=True),
+                    _service_attributes(name, service.inference, lifecycle=lifecycle),
                 )
                 endpoint = stack.enter_context(provisioner(service_context, service.request))
                 expected = service.request.endpoint
@@ -141,7 +196,7 @@ def bind_inference_services(
                 expected = Endpoint(service.base_url, service.model)
                 context.event(
                     "inference_service_attaching",
-                    _service_attributes(name, service.inference, owned=False),
+                    _service_attributes(name, service.inference, lifecycle=lifecycle),
                 )
             if endpoint.base_url != expected.base_url or endpoint.model != expected.model:
                 raise ValueError(f"inference service {name!r} endpoint differs from its selected address or model")
@@ -154,12 +209,13 @@ def bind_inference_services(
                 endpoint=endpoint,
                 readiness=readiness,
                 owned=owned,
+                lifecycle=lifecycle,
             )
             resolved[name] = connection
             context.event(
                 "inference_service_ready",
                 {
-                    **_service_attributes(name, service.inference, owned=owned),
+                    **_service_attributes(name, service.inference, lifecycle=lifecycle),
                     "base_url": endpoint.base_url,
                     "endpoint_model": endpoint.model,
                 },
@@ -170,7 +226,7 @@ def bind_inference_services(
             for connection in reversed(tuple(resolved.values())):
                 context.event(
                     "inference_service_released",
-                    _service_attributes(connection.name, connection.inference, owned=connection.owned),
+                    _service_attributes(connection.name, connection.inference, lifecycle=connection.lifecycle),
                 )
 
 
@@ -178,7 +234,10 @@ def _validate_service_requests(services: Mapping[str, InferenceServiceRequest]) 
     managed_addresses: dict[tuple[str, int], str] = {}
     for name, service in services.items():
         validate_selection_id(name, "inference service name")
-        if not isinstance(service, ManagedInferenceService | AttachedInferenceService):
+        if not isinstance(
+            service,
+            ManagedInferenceService | AttachedInferenceService | ExternalInferenceServiceRequest,
+        ):
             raise TypeError(f"inference service {name!r} has an unsupported request type")
         if isinstance(service, ManagedInferenceService):
             address = (service.request.host, service.request.port)
@@ -196,21 +255,25 @@ def _service_context(context: RunContext, name: str) -> RunContext:
 
 def _service_attributes(
     name: str,
-    inference: InferenceBinding,
+    inference: InferenceSelection,
     *,
-    owned: bool,
+    lifecycle: Literal["managed", "attached", "external"] | None,
 ) -> dict[str, JsonValue]:
     return {
         "service_name": name,
-        "service_ownership": "managed" if owned else "attached",
+        "service_lifecycle": lifecycle,
         "inference_binding_id": inference.id,
         "inference_binding_revision": inference.revision,
-        "model_variant_id": inference.model.id,
+        "model_selection_id": inference.model.id,
     }
 
 
 __all__ = [
     "AttachedInferenceService",
+    "ExternalInferenceServiceRequest",
+    "ExternalServiceResolver",
+    "HostedInferenceBinding",
+    "InferenceSelection",
     "InferenceServiceRequest",
     "ManagedInferenceService",
     "ResolvedInferenceService",

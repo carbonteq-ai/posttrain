@@ -12,8 +12,17 @@ from typing import Any, cast
 from pydantic import ValidationError
 
 from .artifacts import HubModelRef, LocalArtifactRef, TrackioArtifactRef
-from .catalog_schema import ExecutionTargetSchema, InferenceBindingSchema, ModelVariantSchema, WorkloadSchema
+from .catalog_schema import (
+    ExecutionTargetSchema,
+    ExternalInferenceServiceSchema,
+    HostedInferenceBindingSchema,
+    HostedModelSchema,
+    InferenceBindingSchema,
+    ModelVariantSchema,
+    WorkloadSchema,
+)
 from .errors import ContractError
+from .hosted import ExternalInferenceService, HostedInferenceBinding, HostedModel
 from .models import ModelCapabilities, ModelVariant
 from .selections import (
     ExecutionTarget,
@@ -28,6 +37,8 @@ from .variants import RENDERER_CONTRACTS
 
 _CORE_FAMILY_ORDER: tuple[str, ...] = (
     "model",
+    "hosted-model",
+    "external-service",
     "target",
     "dataset",
     "environment",
@@ -38,6 +49,7 @@ _CORE_FAMILY_ORDER: tuple[str, ...] = (
     "quantization",
     "recipe",
     "inference",
+    "hosted-inference",
 )
 _FAMILY = re.compile(r"^[a-z][a-z0-9-]*$")
 
@@ -248,6 +260,10 @@ def _decode_selection(
             raise ContractError(f"invalid catalog entry {ref.family}/{ref.id}: {error}") from error
     if ref.family == "model":
         return _decode_model(_validated(ModelVariantSchema, data, ref).model_dump())
+    if ref.family == "hosted-model":
+        return HostedModel(**_validated(HostedModelSchema, data, ref).model_dump())
+    if ref.family == "external-service":
+        return ExternalInferenceService(**_validated(ExternalInferenceServiceSchema, data, ref).model_dump())
     if ref.family == "target":
         payload = _validated(ExecutionTargetSchema, data, ref)
         values = payload.model_dump()
@@ -264,6 +280,12 @@ def _decode_selection(
         model = _linked(known, "model", values.pop("model"), ModelVariant)
         target = _linked(known, "target", values.pop("target"), ExecutionTarget)
         return InferenceBinding(model=model, target=target, **values)
+    if ref.family == "hosted-inference":
+        payload = _validated(HostedInferenceBindingSchema, data, ref)
+        values = payload.model_dump()
+        model = _linked(known, "hosted-model", values.pop("model"), HostedModel)
+        service = _linked(known, "external-service", values.pop("service"), ExternalInferenceService)
+        return HostedInferenceBinding(model=model, service=service, **values)
     raise ContractError(f"catalog loader for family {ref.family!r} is not available in slice 0")
 
 
@@ -313,7 +335,15 @@ def _linked[SelectionT: Selection](
     return value
 
 
-def _validated[SchemaT: ModelVariantSchema | ExecutionTargetSchema | WorkloadSchema | InferenceBindingSchema](
+def _validated[
+    SchemaT: ModelVariantSchema
+    | HostedModelSchema
+    | ExternalInferenceServiceSchema
+    | HostedInferenceBindingSchema
+    | ExecutionTargetSchema
+    | WorkloadSchema
+    | InferenceBindingSchema
+](
     schema: type[SchemaT],
     data: dict[str, object],
     ref: CatalogRef,

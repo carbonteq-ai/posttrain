@@ -57,7 +57,10 @@ def create_execution_provider(
             raise RuntimeError("installed local execution package has no provider")
         provider = provider_type(
             state_root=layout.state,
-            environment=load_execution_environment(local_config),
+            environment=load_execution_environment(
+                local_config,
+                runtime_variable_names=settings.environment_names,
+            ),
             dns_servers=(local_config.local.dns_servers if local_config.local is not None else ()),
             trust_bundle=resolve_trust_bundle(
                 local_config.local.trust_bundle if local_config.local is not None else None
@@ -83,7 +86,10 @@ def create_execution_provider(
             project=binding.project,
             python=binding.python,
             environment_file=binding.environment_file,
-            runtime_environment=load_execution_environment(local_config),
+            runtime_environment=load_execution_environment(
+                local_config,
+                runtime_variable_names=settings.environment_names,
+            ),
             trust_bundle=resolve_trust_bundle(binding.trust_bundle).path,
             capacity_wait_seconds=binding.capacity_wait_seconds,
         )

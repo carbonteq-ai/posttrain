@@ -1,0 +1,38 @@
+hosted-model:
+  hosted-models/deepseek-v4-flash-0731@1:
+    revision: "0731"
+    model: deepseek/deepseek-v4-flash-0731
+    context_window: 1048576
+    capabilities:
+      system-role: true
+      reasoning: true
+      structured-output: true
+
+external-service:
+  external-services/openrouter@1:
+    revision: "1"
+    base_url: https://openrouter.ai/api/v1
+    api_key_var: OPENROUTER_API_KEY
+    protocol: openai-chat@1
+    headers: {}
+    request_defaults: {}
+    provider_policy:
+      freeze_provider_per_run: true
+      allow_fallbacks: false
+      require_parameters: true
+      zdr: false
+      data_collection: allow
+
+hosted-inference:
+  hosted-inference/deepseek-v4-flash-openrouter-judge@1:
+    revision: "1"
+    model: hosted-models/deepseek-v4-flash-0731@1
+    service: external-services/openrouter@1
+    provider: open-inference
+    purpose: [judge]
+    sampling:
+      temperature: 0.0
+      max_tokens: 16384
+      extra_body:
+        reasoning:
+          enabled: true

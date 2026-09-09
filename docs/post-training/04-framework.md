@@ -248,6 +248,16 @@ validated turn-to-original-token mapping and algorithm credit. Generic native
 record compatibility belongs in `posttrain.environment`, without concrete
 Verifiers types in its public contracts.
 
+Composition may satisfy a judge dependency with a managed local model, an
+attached deployment, or an API-only external service. A hosted model has no
+framework-owned weight artifact and therefore never becomes a `ModelVariant` or
+model-lineage node. The host records the exact hosted-model selection, service
+revision, explicitly requested provider slug, resolved provider endpoint,
+capability probe and usage evidence. Model and provider are mandatory inputs;
+the host rejects an absent, unavailable, or incompatible pair instead of
+selecting one automatically. A provider route may not change silently within one
+optimizer run.
+
 | Layer | Developer writes / publishes | Example |
 | --- | --- | --- |
 | Framework core (`common` + contracts) | Rarely; extend carefully | Run status, artifact reference types |
