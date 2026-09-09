@@ -442,6 +442,37 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
+  lfm2.5-2.6b/automationbench-olmo3-3-local-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop: &comparison_local_3_loop
+      max_steps: 3
+      max_length: 13312
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      # This is a runtime qualification, so retain the final adapter without
+      # paying checkpoint finalization cost after every optimizer update.
+      checkpoint_steps: 3
+      checkpoint_limit: 1
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 10240
+    max_completion_length: 3072
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
   lfm2.5-2.6b/automationbench-gdpo-episode-50-v1:
     selection_type: gdpo-settings
     revision: "1"
@@ -478,6 +509,26 @@ training:
       checkpoint_steps: 1
       checkpoint_limit: 2
     num_prompts_per_step: 16
+    num_generations: 4
+    max_prompt_length: 10240
+    max_completion_length: 3072
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - evidence_state_grounding
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.50, 0.05, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 3
+
+  lfm2.5-2.6b/automationbench-gdpo-episode-3-local-v1:
+    selection_type: gdpo-settings
+    revision: "1"
+    loop: *comparison_local_3_loop
+    num_prompts_per_step: 8
     num_generations: 4
     max_prompt_length: 10240
     max_completion_length: 3072

@@ -125,19 +125,28 @@ objective. This plan does not claim benchmark reproduction or superiority.
 
 ## Progress
 
-- [ ] (2026-09-10) Run the bounded self-hosted Gemma qualification before the
-  remote two-machine topology. The exact work package is
-  `apps/lab/.posttrain/work_packages/lfm26_automationbench_gdpo_episode_2_gemma_local.yaml`:
-  two GDPO optimizer updates, 16 prompt groups by four trajectories, LFM2.5
-  2.6B LoRA policy, and the pinned Gemma 4 12B thinking judge with MTP-2. All
-  three compute roles resolve to the free CarbonTeq RTX PRO 6000 96 GB server;
-  the judge is a managed local vLLM service and no OpenRouter/OpenAI credential
-  or request path is permitted. Acceptance requires 128 admitted trajectories,
-  two finite optimizer updates, non-uniform retained eight-component reward
-  evidence, changed-weight collection for update two, both checkpoints, and
-  complete summary/model/trace artifact publication. This is a colocated
-  development qualification, not evidence for the still-pending independently
-  provisioned production judge topology.
+- [ ] (2026-09-10) Run matched bounded OLMo3 and self-hosted-Gemma GDPO
+  qualifications before the remote two-machine topology. The exact work
+  packages are
+  `apps/lab/.posttrain/work_packages/lfm26_automationbench_olmo3_3_local.yaml`
+  and
+  `apps/lab/.posttrain/work_packages/lfm26_automationbench_gdpo_episode_3_gemma_local.yaml`.
+  Each performs three optimizer updates over eight prompt groups by four
+  trajectories (32 trajectories per update, 96 nominal trajectories per arm)
+  with the same LFM2.5 2.6B LoRA policy, AutomationBench task mix and rollout
+  service. OLMo3 retains native active sampling. GDPO additionally uses the
+  pinned Gemma 4 12B thinking judge with MTP-2 and the generic eight-component
+  episode reward projection. All compute roles resolve to the CarbonTeq RTX PRO
+  6000 96 GB server; no OpenRouter/OpenAI credential or request path is
+  permitted. Run OLMo3 and GDPO serially because they target one GPU. Acceptance
+  requires three finite optimizer updates per arm, changed-weight rollout
+  collection after updates one and two, valid retained reward evidence, one
+  final LoRA checkpoint per arm, and complete summary/model/trace artifact
+  publication. For GDPO, retain the seven independent judge dimensions plus
+  native task partial credit and reject uniform/suspicious scoring as a quality
+  finding rather than binding the projection to Gemma identity. This is a
+  colocated development qualification, not evidence for the still-pending
+  independently provisioned production judge topology.
 
 - [x] (2026-09-08) Consolidate Verifiers worktrees. Current edit targets are
   `/home/hammad/projects/verifiers` on `codex/carbonteq-verifiers-latest` and
