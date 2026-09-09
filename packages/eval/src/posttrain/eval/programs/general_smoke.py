@@ -12,7 +12,7 @@ from ..requests import (
     VerifiersV1ConfigActivation,
 )
 
-VERIFIERS_REVISION = "36eac9d5e04ef29b584b6fa4f027af00cd76ea19"
+VERIFIERS_REVISION = "1f6793f7d46e8a650a54b2a585193b4010578fa6"
 VERIFIERS_REPOSITORY = "https://github.com/carbonteq-ai/verifiers"
 ENVIRONMENTS_REVISION = "d994073b9632e73c96a57865683133d7a6ebc4bf"
 ENVIRONMENTS_REPOSITORY = "https://github.com/carbonteq-ai/verifiers-environments"

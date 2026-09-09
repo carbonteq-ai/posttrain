@@ -2640,7 +2640,7 @@ and independent `audit.json`.
 Revision 23 supersedes the former uncommitted v0.3.1 worktrees described below.
 The current isolated fork worktree is `/home/hammad/projects/verifiers`, branch
 `codex/carbonteq-verifiers-latest`, published at
-`36eac9d5e04ef29b584b6fa4f027af00cd76ea19`. The current environments worktree
+`5304495a246e174683f5932377703e9a0a4a6926`. The current environments worktree
 is `/home/hammad/projects/verifiers-environments`, branch
 `codex/verifiers-latest-support`, published at
 `d994073b9632e73c96a57865683133d7a6ebc4bf`. This environment revision aligns

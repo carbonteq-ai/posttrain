@@ -172,6 +172,7 @@ def _online_rl_arguments(
         arguments.update(
             {
                 "vllm_mode": rollout.get("mode"),
+                "vllm_request_mode": rollout.get("request_mode", "batch"),
                 "vllm_enable_sleep_mode": rollout.get("sleep_during_optimization", False),
                 "vllm_gpu_memory_utilization": rollout.get("gpu_memory_utilization"),
                 "vllm_tensor_parallel_size": rollout.get("tensor_parallel_size", 1),
@@ -208,7 +209,12 @@ def _rollout_execution_config(
     """Validate the opt-in native TRL worker topology without changing direct mode."""
 
     raw = request.training.backend_options.get("rollout_execution")
+    request_mode = request.inference.engine.get("request_mode", "batch")
+    if request_mode not in {"batch", "async"}:
+        raise ValueError("TRL inference engine request_mode must be either 'batch' or 'async'")
     if raw is None:
+        if request_mode == "async":
+            raise ValueError("TRL request_mode=async requires backend_options.rollout_execution")
         return None
     if not isinstance(raw, Mapping):
         raise ValueError("TRL backend_options.rollout_execution must be a mapping")
@@ -232,8 +238,15 @@ def _rollout_execution_config(
         raise ValueError("TRL rollout_execution requires a vLLM rollout inference binding")
     if request.inference.engine.get("mode") != "colocate":
         raise ValueError("TRL rollout_execution currently requires colocated vLLM")
+    if request_mode != "async":
+        raise ValueError("TRL rollout_execution requires inference request_mode=async")
     if request.inference.engine.get("sleep_during_optimization") is not True:
         raise ValueError("TRL rollout_execution requires inference sleep_during_optimization=true")
+    if request.training.update.kind not in {"lora", "qlora"}:
+        raise ValueError("TRL asynchronous colocated rollout execution currently requires a LoRA update")
+    devices_per_node = request.training.runtime.devices_per_node or 1
+    if request.training.runtime.nodes * devices_per_node != 1:
+        raise ValueError("TRL asynchronous colocated rollout execution currently requires one trainer process")
     global_limit = getattr(request.bridge, "max_concurrent", None)
     if not isinstance(global_limit, int) or isinstance(global_limit, bool):
         raise ValueError("TRL rollout_execution requires the environment bridge to declare max_concurrent")
@@ -277,6 +290,7 @@ def _online_rl_runtime_attributes(
         "inference_binding_id": request.inference.id,
         "inference_backend": request.inference.backend,
         "rollout_mode": engine.get("mode", "colocate"),
+        "rollout_request_mode": engine.get("request_mode", "batch"),
         "rollout_sleep_during_optimization": engine.get("sleep_during_optimization", False),
         "rollout_gpu_memory_utilization": engine.get("gpu_memory_utilization"),
         "update_kind": request.training.update.kind,
@@ -328,7 +342,6 @@ def _online_rl_runtime_attributes(
     execution = _rollout_execution_config(request)
     if execution is not None:
         attributes.update(
-            rollout_request_mode="native_async",
             rollout_env_workers=execution.env_workers,
             rollout_episodes_per_worker=execution.episodes_per_worker,
             rollout_worker_native_threads=execution.worker_native_threads,

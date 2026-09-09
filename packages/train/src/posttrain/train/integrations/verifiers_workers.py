@@ -61,6 +61,7 @@ def create_verifiers_train_client_config(
     """
 
     try:
+        from verifiers.v1.clients.renderer_extensions import register_renderer_extensions
         from verifiers.v1.configs.client import TrainClientConfig
     except ImportError as error:
         raise RuntimeError("install the Verifiers integration dependencies") from error
@@ -68,10 +69,11 @@ def create_verifiers_train_client_config(
         raise RuntimeError(
             "native rollout workers require a Verifiers TrainClientConfig with exact chat-template support"
         )
+    register_renderer_extensions()
     values: dict[str, Any] = {
         "base_url": base_url,
         "api_key_var": api_key_var,
-        "renderer": create_renderer_config(model, renderer),
+        "renderer": create_renderer_config(model, renderer, structured_output=True),
         "renderer_model_name": renderer_model_name,
         "chat_template": model.conversation.chat_template.text(),
         "multiplex": multiplex,
@@ -244,12 +246,14 @@ class VerifiersWorkerPool:
             if remaining <= 0:
                 raise _EpisodeDeadline
             task_data = self._task_data(task)
+            task_config = self._task_config(task)
             request = asyncio.create_task(
                 client.run(
                     client=client_config,
                     model=self._model,
                     sampling=self._sampling,
                     task_data=task_data,
+                    task_config=task_config,
                     request_id=native_request_id,
                 )
             )
@@ -480,6 +484,18 @@ class VerifiersWorkerPool:
         payload = data.model_dump(mode="json")
         if not isinstance(payload, dict):
             raise CollectionExecutionError("native Verifiers task data did not serialize to an object")
+        return payload
+
+    @staticmethod
+    def _task_config(task: Any) -> dict[str, Any] | None:
+        config = getattr(task, "config", None)
+        if config is None:
+            return None
+        if not hasattr(config, "model_dump"):
+            raise CollectionExecutionError("native Verifiers task config is not serializable")
+        payload = config.model_dump(mode="json")
+        if not isinstance(payload, dict):
+            raise CollectionExecutionError("native Verifiers task config did not serialize to an object")
         return payload
 
 

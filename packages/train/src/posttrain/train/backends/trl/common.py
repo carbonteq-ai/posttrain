@@ -571,7 +571,12 @@ def trainer_lifecycle(trainer: Any) -> Iterator[None]:
     try:
         yield
     finally:
-        trainer.accelerator.end_training()
+        runtime = getattr(trainer, "_posttrain_async_collection_runtime", None)
+        try:
+            if runtime is not None:
+                runtime.close()
+        finally:
+            trainer.accelerator.end_training()
 
 
 def publish_interrupted_recovery_checkpoint(

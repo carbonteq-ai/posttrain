@@ -1,6 +1,47 @@
 # Matched 50-update LFM2.5-2.6B AutomationBench comparison. The task-owned
 # episode judge emits seven independent annotations; only GDPO consumes them.
 environment:
+  automationbench-lfm12-local-five-step-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: d994073b9632e73c96a57865683133d7a6ebc4bf
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          task_names:
+            - simple.sf_create_account_note
+            - simple.gmail_invoice_email
+            - simple.asana_team_offsite
+            - simple.jira_mobile_redesign_epic
+            - simple.airtable_create_contact
+          task: {toolset: limited_zapier, search_top_k: 20}
+        retries: {max_retries: 0}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 600, rollout: 300, finalize: 60, scoring: 120}
+          max_turns: 4
+          max_total_tokens: 2048
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    num_tasks: 5
+    num_rollouts: 4
+    max_concurrent: 2
+    parameters:
+      task_names:
+        - simple.sf_create_account_note
+        - simple.gmail_invoice_email
+        - simple.asana_team_offsite
+        - simple.jira_mobile_redesign_epic
+        - simple.airtable_create_contact
+      toolset: limited_zapier
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+
   automationbench-lfm26-changed-weight-canary-v1:
     category: agentic-tool-use
     source:
@@ -278,21 +319,21 @@ training:
     selection_type: grpo-settings
     revision: "1"
     loop:
-      # The second collection runs after the first optimizer update and is the
-      # changed-weight qualification surface.
-      max_steps: 2
-      max_length: 2048
+      # Later collections run after the first nonzero optimizer update and are
+      # the changed-weight qualification surface.
+      max_steps: 5
+      max_length: 3072
       per_device_batch_size: 1
-      gradient_accumulation_steps: 2
+      gradient_accumulation_steps: 4
       learning_rate: 0.00001
       logging_steps: 1
       checkpoint_steps: 1
       checkpoint_limit: 1
       gradient_checkpointing: true
     num_prompts_per_step: 1
-    num_generations: 2
-    max_prompt_length: 1536
-    max_completion_length: 512
+    num_generations: 4
+    max_prompt_length: 2048
+    max_completion_length: 1024
     shuffle_prompts: false
     mask_truncated_completions: false
     max_admission_attempts: 1
@@ -442,6 +483,7 @@ training:
       devices_per_node: 1
       timeout_seconds: 43200
     backend_options:
+      rollout_execution: {env_workers: 4, episodes_per_worker: 8, worker_native_threads: 1}
       use_liger_kernel: false
       logits_chunk_size: 128
       vllm_policy_parity_max_sequence_tokens: 4096
@@ -470,6 +512,7 @@ training:
       devices_per_node: 1
       timeout_seconds: 43200
     backend_options:
+      rollout_execution: {env_workers: 4, episodes_per_worker: 8, worker_native_threads: 1}
       use_liger_kernel: false
       logits_chunk_size: 128
       vllm_policy_parity_max_sequence_tokens: 4096
@@ -491,6 +534,7 @@ training:
     parallelism: {sequence_length_divisor: 2}
     runtime: {global_batch_size: 2, devices_per_node: 1, timeout_seconds: 1800}
     backend_options:
+      rollout_execution: {env_workers: 1, episodes_per_worker: 2, worker_native_threads: 1}
       use_liger_kernel: false
       logits_chunk_size: 64
       vllm_policy_parity_max_sequence_tokens: 1024
@@ -510,8 +554,9 @@ training:
     update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
     target: targets/local-cuda-8gb
     parallelism: {sequence_length_divisor: 2}
-    runtime: {global_batch_size: 2, devices_per_node: 1, timeout_seconds: 1800}
+    runtime: {global_batch_size: 4, devices_per_node: 1, timeout_seconds: 1800}
     backend_options:
+      rollout_execution: {env_workers: 1, episodes_per_worker: 2, worker_native_threads: 1}
       use_liger_kernel: false
       logits_chunk_size: 64
       vllm_policy_parity_max_sequence_tokens: 1024
@@ -541,10 +586,11 @@ inference:
     renderer: lfm2.5-tools@1
     engine:
       mode: colocate
+      request_mode: async
       sleep_during_optimization: true
       gpu_memory_utilization: 0.55
       tensor_parallel_size: 1
-      max_model_len: 2048
+      max_model_len: 3072
       max_num_seqs: 2
       max_num_batched_tokens: 512
       kv_cache_memory_bytes: 134217728
@@ -554,7 +600,7 @@ inference:
       free_cache_engine: true
       text_only: true
       skip_mm_profiling: true
-    sampling: {max_tokens: 512, temperature: 0.8, top_p: 0.95}
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
     target: targets/local-cuda-8gb
     purpose: [rollout]
     capabilities: [tool-calling]
@@ -566,6 +612,7 @@ inference:
     renderer: lfm2.5-tools-thinking@2
     engine:
       mode: colocate
+      request_mode: async
       sleep_during_optimization: true
       gpu_memory_utilization: 0.80
       tensor_parallel_size: 1
@@ -591,6 +638,7 @@ inference:
     renderer: lfm2.5-tools-thinking@2
     engine:
       mode: colocate
+      request_mode: async
       sleep_during_optimization: true
       gpu_memory_utilization: 0.20
       tensor_parallel_size: 1
@@ -619,6 +667,7 @@ inference:
     renderer: lfm2.5-tools-thinking@2
     engine:
       mode: colocate
+      request_mode: async
       sleep_during_optimization: true
       gpu_memory_utilization: 0.20
       tensor_parallel_size: 1

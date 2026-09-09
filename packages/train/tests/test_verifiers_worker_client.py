@@ -83,9 +83,19 @@ def test_native_worker_uses_exact_lfm_template_and_tokens(monkeypatch):
 
     assert config.chat_template == LFM_25_12B_THINKING.conversation.chat_template.text()
     assert config.renderer_model_name == model_name
+    assert config.renderer.tool_parser == "lfm2"
     assert worker_tokens.token_ids == direct_tokens.token_ids
     assert worker_tokens.message_indices == direct_tokens.message_indices
     assert worker_tokens.is_content == direct_tokens.is_content
+
+    completion_ids = worker_tokenizer.encode(
+        "<|tool_call_start|>[contact_update(id='003001', phone='+1-555-0101')]<|tool_call_end|>",
+        add_special_tokens=False,
+    )
+    parsed = worker.parse_response(completion_ids, tools=cast(Any, tools))
+    assert len(parsed.tool_calls) == 1
+    assert parsed.tool_calls[0].name == "contact_update"
+    assert parsed.tool_calls[0].arguments == {"id": "003001", "phone": "+1-555-0101"}
 
 
 @pytest.mark.asyncio

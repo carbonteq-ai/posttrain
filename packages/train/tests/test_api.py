@@ -493,6 +493,19 @@ def test_trainer_lifecycle_closes_distributed_runtime_after_failure() -> None:
     assert closed == [True]
 
 
+def test_trainer_lifecycle_closes_async_collection_before_distributed_runtime() -> None:
+    closed: list[str] = []
+    trainer = SimpleNamespace(
+        accelerator=SimpleNamespace(end_training=lambda: closed.append("accelerator")),
+        _posttrain_async_collection_runtime=SimpleNamespace(close=lambda: closed.append("rollouts")),
+    )
+
+    with trainer_lifecycle(trainer):
+        pass
+
+    assert closed == ["rollouts", "accelerator"]
+
+
 def test_sft_operation_separates_adapter_recovery_and_summary_artifacts() -> None:
     observer = Observer()
     with tempfile.TemporaryDirectory() as raw:

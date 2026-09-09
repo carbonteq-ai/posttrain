@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -87,6 +88,19 @@ class BatchFakeTrainer:
         )
 
 
+class BlockingFakeTrainer(BatchFakeTrainer):
+    def __init__(self) -> None:
+        super().__init__()
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def _generate_single_turn(self, prompt_ids, generation_config, extra):
+        self.entered.set()
+        if not self.release.wait(timeout=5):
+            raise TimeoutError("test did not release the blocking trainer")
+        return super()._generate_single_turn(prompt_ids, generation_config, extra)
+
+
 def test_trl_checkpoint_steps_zero_disables_recovery_saves(tmp_path: Path) -> None:
     arguments = trainer_arguments(
         TrainingLoop(max_steps=2, checkpoint_steps=0),
@@ -167,7 +181,7 @@ def test_trl_lfm_tool_cycle_keeps_sampled_prefix_and_appends_only_new_tool_messa
 
     renderer = LfmRenderer()
     monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: renderer)
-    tokenizer = SimpleNamespace(bos_token_id=99, encode=lambda text, **kwargs: [10])
+    tokenizer = SimpleNamespace(bos_token_id=99, eos_token_id=4, encode=lambda text, **kwargs: [10])
     generator = TrlPolicyGenerator(
         LfmTrainer(),
         tokenizer,
@@ -186,7 +200,7 @@ def test_trl_lfm_tool_cycle_keeps_sampled_prefix_and_appends_only_new_tool_messa
                 ),
                 sampling=PolicySampling(max_tokens=2, temperature=0.7, top_p=0.9),
                 previous_prompt_ids=(1, 2),
-                previous_completion_ids=(3, 4),
+                previous_completion_ids=(3,),
                 tail_start=2,
             )
         )
@@ -316,6 +330,35 @@ def test_trl_policy_generator_batches_concurrent_environment_turns(monkeypatch) 
     assert trainer.prompt_batches == [[[1, 2], [1, 2], [1, 2], [1, 2]]]
     assert [result.completion_ids for result in results] == [(3, 4)] * 4
     assert [result.completion_logprobs for result in results] == [(-0.1, -0.2)] * 4
+
+
+def test_trl_policy_generation_does_not_block_environment_event_loop(monkeypatch) -> None:
+    monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: FakeRenderer())
+    profile = replace(QWEN35_GRPO_SMOKE, max_completion_length=2)
+    trainer = BlockingFakeTrainer()
+    generator = TrlPolicyGenerator(trainer, object(), QWEN_35_2B, profile, _training())
+    request = PolicyTurnRequest(
+        messages=({"role": "user", "content": "hello"},),
+        sampling=PolicySampling(max_tokens=2, temperature=0.7, top_p=0.9),
+    )
+
+    async def generate_while_environment_progresses():
+        generation = asyncio.create_task(generator.generate(request))
+        while not trainer.entered.is_set():
+            await asyncio.sleep(0)
+        # MCP and environment coroutines share this loop in the direct bridge.
+        # They must remain schedulable while colocated vLLM is generating.
+        environment_progressed = asyncio.Event()
+        asyncio.get_running_loop().call_soon(environment_progressed.set)
+        await asyncio.wait_for(environment_progressed.wait(), timeout=0.1)
+        assert not generation.done()
+        trainer.release.set()
+        return await asyncio.wait_for(generation, timeout=1)
+
+    result = asyncio.run(generate_while_environment_progresses())
+
+    assert result.completion_ids == (3, 4)
+    assert trainer.prompt_batches == [[[1, 2]]]
 
 
 def test_trl_policy_generator_drains_turns_queued_while_waiting_for_the_lock(monkeypatch) -> None:

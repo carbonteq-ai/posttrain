@@ -28,6 +28,17 @@ Posttrain retained-asset workflow `34361897003` published and read back those
 exact bytes from `carbonteq/dev`.
 Live RTX PRO qualification remains pending. Harness optimization is deferred.
 
+An unpublished follow-on candidate connects `GRPOConfig.vllm_request_mode`
+to a lazily owned colocated `AsyncLLM`. Posttrain selects it only together with
+an explicit bounded `rollout_execution` topology; `batch` remains the legacy
+default. During each synchronous GRPO/OLMo collection round, native Verifiers
+workers may submit independent model turns to vLLM's continuous scheduler.
+Posttrain then closes admission, drains all requests, suspends inference, and
+only then returns control for the optimizer update. The initial supported
+shape is single-process LoRA/QLoRA. Deterministic TRL and Posttrain tests pass;
+the fork must be committed, published as a new development candidate, pinned,
+and pass a changed-weight GPU update before it is release evidence.
+
 The async rollout lifecycle is published in post6 from consolidated fork branch
 `codex/posttrain-v04-dev`; ledger follow-up commit
 `3ab670f3611f381b373b7e97267879a4afde37ff` records its development

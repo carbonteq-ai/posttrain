@@ -42,15 +42,18 @@ class FakeClient:
         self.release = asyncio.Event()
         self.cancelled = 0
         self.tasks = {}
+        self.task_configs = {}
 
     async def wait_for_server_startup(self, timeout):
         assert timeout == 3.0
         self.started = True
 
-    async def run(self, *, client, model, sampling, task_data, request_id):
+    async def run(self, *, client, model, sampling, task_data, task_config, request_id):
         del client, sampling
         assert model == "policy-model"
+        assert task_config is None or isinstance(task_config, dict)
         self.tasks[request_id] = asyncio.current_task()
+        self.task_configs[request_id] = task_config
         self.entered.set()
         if task_data.get("wait"):
             try:
@@ -127,11 +130,14 @@ async def test_fixed_native_pool_dispatches_and_fences_collection_identity():
     try:
         outcome = await workers.run_episode(
             episode_key(collection),
-            SimpleNamespace(data=Data(value=11)),
+            SimpleNamespace(data=Data(value=11), config=Data(allowed_tools=["salesforce_note_create"])),
             asyncio.get_running_loop().time() + 5,
         )
         assert outcome.status is EpisodeStatus.COMPLETED
         assert cast(Any, outcome.rollout).native_value == 11
+        assert next(iter(client.task_configs.values())) == {
+            "allowed_tools": ["salesforce_note_create"]
+        }
         native = FakePool.instances[-1]
         assert native.kwargs["max_workers"] == 2
         assert native.kwargs["multiplex"] == 2

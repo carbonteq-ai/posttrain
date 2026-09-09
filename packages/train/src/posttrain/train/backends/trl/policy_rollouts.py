@@ -6,7 +6,7 @@ import asyncio
 import math
 import time
 from collections.abc import Sequence
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from posttrain.common import RunContext, TraceFactSet, TraceFactUpdateObservation, TraceObservation
 
@@ -34,8 +34,12 @@ def rollout_function(
 ) -> Any:
     """Translate TRL generation batches into the public environment-rollout bridge contract."""
 
+    from .policy_config import _rollout_execution_config
+
+    rollout_execution = _rollout_execution_config(request)
     rollout_batch_step: int | None = None
     rollout_batch_ordinal = 0
+    collection_ordinal = 0
 
     def run_rollouts(
         prompts: list[Any],
@@ -43,16 +47,13 @@ def rollout_function(
         *,
         inputs: list[dict[str, Any]] | None,
     ) -> dict[str, Any]:
-        nonlocal rollout_batch_ordinal, rollout_batch_step
+        nonlocal collection_ordinal, rollout_batch_ordinal, rollout_batch_step
         if inputs is None or len(inputs) != len(prompts):
             raise ValueError("TRL must provide dataset rows aligned with rollout prompts")
         try:
             example_ids = tuple(str(row["example_id"]) for row in inputs)
         except KeyError as error:
             raise ValueError("every online-RL dataset row requires an example_id") from error
-        from .online_rl import TrlPolicyGenerator
-
-        generator = TrlPolicyGenerator(trainer, tokenizer, request.policy, request.settings, request.training)
         optimizer_step = int(trainer.state.global_step) + 1
         if rollout_batch_step != optimizer_step:
             rollout_batch_step = optimizer_step
@@ -83,7 +84,51 @@ def rollout_function(
             batch = _rollout_batch(request, trainer, example_ids, optimizer_step, rollout_batch_ordinal)
 
             def collect(selected: RolloutBatch) -> Sequence[EnvironmentRollout]:
-                return asyncio.run(run_observed_rollouts(request.bridge, selected, generator, observe_trace))
+                nonlocal collection_ordinal
+                if rollout_execution is None:
+                    from .online_rl import TrlPolicyGenerator
+
+                    generator = TrlPolicyGenerator(
+                        trainer,
+                        tokenizer,
+                        request.policy,
+                        request.settings,
+                        request.training,
+                    )
+                    return asyncio.run(run_observed_rollouts(request.bridge, selected, generator, observe_trace))
+
+                from .async_collection_runtime import TrlAsyncCollectionRuntime
+
+                runtime = getattr(trainer, "_posttrain_async_collection_runtime", None)
+                if runtime is None:
+                    bridge = cast(Any, request.bridge)
+                    rollout_timeout = bridge.rollout_timeout_seconds
+                    renderer_model_name = str(trainer.vllm_generation.model.name_or_path)
+                    max_model_len = request.inference.engine.get(
+                        "max_model_len",
+                        request.settings.max_prompt_length + request.settings.max_completion_length,
+                    )
+                    if isinstance(max_model_len, bool) or not isinstance(max_model_len, int):
+                        raise ValueError("TRL async rollout max_model_len must be an integer")
+                    runtime = TrlAsyncCollectionRuntime(
+                        trainer=trainer,
+                        bridge=bridge,
+                        model=request.policy,
+                        renderer=request.training.renderer,
+                        renderer_model_name=renderer_model_name,
+                        max_model_len=max_model_len,
+                        execution_config=rollout_execution,
+                        episode_timeout=rollout_timeout,
+                        startup_timeout=request.inference.startup_timeout_seconds,
+                    )
+                    trainer._posttrain_async_collection_runtime = runtime  # noqa: SLF001 - backend lifecycle state
+                collection_ordinal += 1
+                return runtime.collect(
+                    selected,
+                    collection_id=f"step-{optimizer_step:08d}/collection-{collection_ordinal:06d}",
+                    policy_version=f"optimizer-step-{int(trainer.state.global_step):08d}",
+                    observe_trace=observe_trace,
+                )
 
             if isinstance(request, GDPORequest | CAPORequest) or (
                 isinstance(request, GRPORequest) and batch.prompt_group_ids

@@ -8,7 +8,7 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 ## Install / pin
 
 The selected independently maintained CarbonTeq distribution is
-`carbonteq-ai/verifiers@36eac9d5e04ef29b584b6fa4f027af00cd76ea19`, based on
+`carbonteq-ai/verifiers@1f6793f7d46e8a650a54b2a585193b4010578fa6`, based on
 upstream main commit `27bbd216df0af719a43705866b2cf6139bcc95de` and retaining
 the CarbonTeq host-client, selected-template, and cancellation seams. It adds
 optional host-client injection through native serving/interception. The fork
@@ -35,7 +35,7 @@ publication, staleness admission, group advantages, and learner coordination.
 Posttrain follows the same split for its TRL asynchronous prototype rather than
 putting trainer state or update policy inside Verifiers.
 
-Selected commit `36eac9d5e04ef29b584b6fa4f027af00cd76ea19` additionally lets a native
+Selected commit `1f6793f7d46e8a650a54b2a585193b4010578fa6` additionally lets a native
 `TrainClientConfig` carry the exact selected chat template and fences the
 shared renderer cache by that template. This is required for LFM because the
 framework's versioned package template intentionally differs from the model
@@ -56,6 +56,23 @@ the collection instead of permitting a weight update with uncertain live work.
 The real ZMQ request/response contract and deterministic fixed-pool adapter
 lifecycle tests pass; real spawned environment-worker qualification remains
 open.
+
+The selected commit also makes a served task lossless across the native worker
+boundary: `EnvClient.run` carries the task's per-instance validated config as
+well as its data. This is required for tasksets such as AutomationBench that
+derive a row-specific concrete-tool allowlist during loading. The server still
+accepts legacy data-only requests and falls back to the static catalog config.
+Its training client additionally registers a safe `lfm2` parser for the
+model's special-token-delimited Python call list; parsing uses literal values
+only and never executes sampled code. Posttrain selects this parser from the
+versioned LFM conversation contract. The LFM tool-cycle bridge preserves the
+exact sampled prefix when an inference engine strips the stop token, then adds
+only the protocol close/newline scaffold and new tool observations. This keeps
+the second assistant turn on one policy-token branch. Deterministic fork and
+consumer tests cover task-config preservation, legacy fallback, exact LFM
+rendering, structured tool-call recovery, a successful real AutomationBench
+tool execution, and the resulting two-turn linear token history. A real GPU
+canary with tool execution remains the next qualification gate.
 
 CarbonTeq Verifiers is not maintained as a temporary patch awaiting upstream
 acceptance. It is the supported environment, harness, episode, trace and scorer

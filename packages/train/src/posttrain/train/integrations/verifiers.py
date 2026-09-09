@@ -579,6 +579,31 @@ class VerifiersEnvironmentRolloutBridge:
     def dataset(self) -> RolloutDataset:
         return self._dataset
 
+    @property
+    def native_activation(self) -> Mapping[str, Any]:
+        """Return the validated portable config used by isolated workers."""
+
+        config = getattr(self.environment_factory, "config", None)
+        if not isinstance(config, Mapping):
+            raise RuntimeError("this Verifiers bridge does not have a portable native activation")
+        return config
+
+    @property
+    def rollout_timeout_seconds(self) -> float:
+        """Return the environment-owned deadline for one complete episode."""
+
+        agent = self.native_activation.get("agent")
+        timeout = agent.get("timeout") if isinstance(agent, Mapping) else None
+        rollout = timeout.get("rollout") if isinstance(timeout, Mapping) else None
+        if (
+            isinstance(rollout, bool)
+            or not isinstance(rollout, int | float)
+            or not math.isfinite(rollout)
+            or rollout <= 0
+        ):
+            raise ValueError("native Verifiers execution requires agent.timeout.rollout to be a positive number")
+        return float(rollout)
+
     def task_for_example_id(self, example_id: str) -> Any:
         """Return the selected native task for one stable rollout example id."""
 

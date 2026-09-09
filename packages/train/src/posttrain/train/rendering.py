@@ -46,11 +46,11 @@ def bridge_lfm25_tool_cycle(
 
     if not new_messages or any(message.get("role") != "tool" for message in new_messages):
         return None
-    stop_ids = frozenset(int(value) for value in renderer.get_stop_token_ids())
-    if not previous_completion_ids or previous_completion_ids[-1] not in stop_ids:
+    if not previous_completion_ids:
         return None
     bos_token_id = getattr(tokenizer, "bos_token_id", None)
-    if not isinstance(bos_token_id, int):
+    eos_token_id = getattr(tokenizer, "eos_token_id", None)
+    if not isinstance(bos_token_id, int) or not isinstance(eos_token_id, int):
         return None
     suffix = renderer.render(new_messages, tools=None, add_generation_prompt=True)
     if not suffix.token_ids or int(suffix.token_ids[0]) != bos_token_id:
@@ -62,11 +62,18 @@ def bridge_lfm25_tool_cycle(
         from renderers import RenderedTokens  # pyright: ignore[reportMissingImports]
     except ImportError as error:
         raise RuntimeError("install posttrain-train with the trl extra") from error
-    prefix_length = len(previous_prompt_ids) + len(previous_completion_ids) + len(newline_ids)
+    close_ids = [] if previous_completion_ids[-1] == eos_token_id else [eos_token_id]
+    prefix_length = len(previous_prompt_ids) + len(previous_completion_ids) + len(close_ids) + len(newline_ids)
     suffix_is_content = list(suffix.is_content[1:]) if suffix.is_content else []
     suffix_sampled = list(suffix.sampled_mask[1:]) if suffix.sampled_mask else []
     return RenderedTokens(
-        token_ids=[*previous_prompt_ids, *previous_completion_ids, *newline_ids, *suffix.token_ids[1:]],
+        token_ids=[
+            *previous_prompt_ids,
+            *previous_completion_ids,
+            *close_ids,
+            *newline_ids,
+            *suffix.token_ids[1:],
+        ],
         message_indices=[-1] * prefix_length + list(suffix.message_indices[1:]),
         sampled_mask=([False] * prefix_length + suffix_sampled) if suffix_sampled else [],
         is_content=([False] * prefix_length + suffix_is_content) if suffix_is_content else [],
@@ -75,7 +82,12 @@ def bridge_lfm25_tool_cycle(
     )
 
 
-def create_renderer_config(model: ModelVariant, renderer: TrainingRenderer) -> Any:
+def create_renderer_config(
+    model: ModelVariant,
+    renderer: TrainingRenderer,
+    *,
+    structured_output: bool = False,
+) -> Any:
     """Create the serializable renderer config for a model contract."""
     try:
         from renderers import (  # pyright: ignore[reportMissingImports]
@@ -95,7 +107,12 @@ def create_renderer_config(model: ModelVariant, renderer: TrainingRenderer) -> A
         config = Qwen35RendererConfig(enable_thinking=enable_thinking)
     else:
         template_kwargs = cast(dict[str, Any], mode.kwargs())
+        tool_parser = None
+        protocol = model.conversation.tool_calls
+        if structured_output and protocol is not None and protocol.id == "lfm2_pythonic":
+            tool_parser = "lfm2"
         config = DefaultRendererConfig(
+            tool_parser=tool_parser,
             **template_kwargs,
         )
     return config

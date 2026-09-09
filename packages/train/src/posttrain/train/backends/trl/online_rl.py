@@ -145,7 +145,14 @@ class TrlPolicyGenerator:
                 if not active:
                     continue
                 async with self._lock:
-                    completion_ids, logprobs = self._trainer._generate_single_turn(  # noqa: SLF001 - pinned adapter
+                    # TRL's colocated vLLM surface is synchronous. Running it on
+                    # this event-loop thread prevents peer episodes from serving
+                    # MCP/state requests or queuing their next model turn for the
+                    # entire generation. Keep GPU calls serialized, but move the
+                    # blocking boundary to one worker thread so environment work
+                    # and late-turn admission remain live.
+                    completion_ids, logprobs = await asyncio.to_thread(
+                        self._trainer._generate_single_turn,  # noqa: SLF001 - pinned adapter
                         [list(prompt_ids) for prompt_ids, _future in active],
                         None,
                         {},

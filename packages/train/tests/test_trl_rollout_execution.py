@@ -5,12 +5,26 @@ import pytest
 from posttrain.train.backends.trl.policy_config import _rollout_execution_config
 
 
-def request(*, options=None, max_concurrent=32, backend="vllm@0.25.1", mode="colocate", sleep=True) -> Any:
+def request(
+    *,
+    options=None,
+    max_concurrent=32,
+    backend="vllm@0.25.1",
+    mode="colocate",
+    request_mode="batch",
+    sleep=True,
+    update_kind="lora",
+    world_size=1,
+) -> Any:
     return SimpleNamespace(
-        training=SimpleNamespace(backend_options=options or {}),
+        training=SimpleNamespace(
+            backend_options=options or {},
+            update=SimpleNamespace(kind=update_kind),
+            runtime=SimpleNamespace(nodes=1, devices_per_node=world_size),
+        ),
         inference=SimpleNamespace(
             backend=backend,
-            engine={"mode": mode, "sleep_during_optimization": sleep},
+            engine={"mode": mode, "request_mode": request_mode, "sleep_during_optimization": sleep},
         ),
         bridge=SimpleNamespace(max_concurrent=max_concurrent),
     )
@@ -20,6 +34,7 @@ def test_trl_rollout_execution_is_opt_in_and_capacity_bounded():
     assert _rollout_execution_config(request()) is None
     execution = _rollout_execution_config(
         request(
+            request_mode="async",
             options={
                 "rollout_execution": {
                     "env_workers": 4,
@@ -36,6 +51,7 @@ def test_trl_rollout_execution_is_opt_in_and_capacity_bounded():
         _rollout_execution_config(
             request(
                 max_concurrent=31,
+                request_mode="async",
                 options={
                     "rollout_execution": {
                         "env_workers": 4,
@@ -60,7 +76,7 @@ def test_trl_rollout_execution_is_opt_in_and_capacity_bounded():
 )
 def test_trl_rollout_execution_rejects_ambiguous_topologies(values, message):
     with pytest.raises(ValueError, match=message):
-        _rollout_execution_config(request(options={"rollout_execution": values}))
+        _rollout_execution_config(request(options={"rollout_execution": values}, request_mode="async"))
 
 
 @pytest.mark.parametrize(
@@ -70,9 +86,19 @@ def test_trl_rollout_execution_rejects_ambiguous_topologies(values, message):
         ({"mode": "server"}, "requires colocated vLLM"),
         ({"sleep": False}, "sleep_during_optimization=true"),
         ({"max_concurrent": None}, "declare max_concurrent"),
+        ({"request_mode": "batch"}, "request_mode=async"),
+        ({"update_kind": "full"}, "requires a LoRA update"),
+        ({"world_size": 2}, "requires one trainer process"),
     ],
 )
 def test_trl_rollout_execution_rejects_unsupported_runtime_ownership(overrides, message):
     values = {"env_workers": 1, "episodes_per_worker": 1, "worker_native_threads": 1}
     with pytest.raises(ValueError, match=message):
-        _rollout_execution_config(request(options={"rollout_execution": values}, **overrides))
+        _rollout_execution_config(
+            request(options={"rollout_execution": values}, **{"request_mode": "async", **overrides})
+        )
+
+
+def test_trl_async_request_mode_requires_an_explicit_worker_topology():
+    with pytest.raises(ValueError, match="requires backend_options.rollout_execution"):
+        _rollout_execution_config(request(request_mode="async"))
