@@ -2273,7 +2273,7 @@ triton==3.6.0 \
     #   torch
     #   xgrammar
 
-trl @ https://pypi.lan/carbonteq/dev/+f/1f4/2571c28e178bb/trl-1.12.0.post5-py3-none-any.whl#sha256=1f42571c28e178bb292eb7b904940f0d0e4b0ccdf936b23b8bec9704190b6ecb
+trl @ https://pypi.lan/carbonteq/dev/+f/57a/ef51b31fa6e0b/trl-1.12.0.post6-py3-none-any.whl#sha256=57aef51b31fa6e0bfbcd942bddd62bf995f5c2f82e3107bb91cdba7436a1366c
     # via posttrain-train
 
 truststore==0.10.4 ; sys_platform != 'emscripten' \
@@ -2371,7 +2371,7 @@ uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'c
     --hash=sha256:bc5ef13bbc10b5335792360623cc378d52d7e62c2de64660616478c32cd0598e
     # via uvicorn
 
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@c6c0097ad21da845c62e4b19aba80ef6633e4d9f
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@36eac9d5e04ef29b584b6fa4f027af00cd76ea19
     # via
     #   posttrain-data
     #   posttrain-eval

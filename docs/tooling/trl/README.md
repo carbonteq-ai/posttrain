@@ -9,27 +9,31 @@ resume checkpoint 1 to matching uninterrupted weights, and generate from the
 export. This is deterministic full-parameter fixture evidence, not live Verifiers,
 judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
 
-Latest candidate: `1.12.0.post5`, commit
-`b9f3a09369d9cfa21950feef3e110e1fdf779c54`. It consumes retained source-row
+Latest candidate: `1.12.0.post6`, release commit
+`526e284922a0e4d92d7920916398d8be8d36aa85`, tag
+`carbonteq-v1.12.0.post6`. It includes the post5 complete-group admission
+behavior and consumes retained source-row
 identities before reward calculation, validates complete groups, and keeps
 single-process GRPO accumulation normalized over admitted samples. OLMo active
 sampling accepts partial and empty candidate rounds within its existing bound.
 Padding exists only in trainer tensors after scoring; no synthetic rewards or
 episodes are created. Partial distributed, multimodal, fixed alternate-loss,
 fused-loss, entropy-bonus and auxiliary-loss cases remain unqualified/rejected.
-43 focused fork checks pass, including actual tiny-model updates in both paths
-and retained-gradient equivalence across microbatch sizes. Wheel SHA-256:
-`1f42571c28e178bb292eb7b904940f0d0e4b0ccdf936b23b8bec9704190b6ecb`;
-sdist: `ceb581cc5a3d7a4a8a34cbc1b7fbc64e7aba9e3c55a6508b4a14ce257d341bc9`.
+The post6 rollout/async slice passes 139 focused tests with 36 capability
+skips; its clean installed wheel imports the async GRPO, asynchronous vLLM
+session, IW-OPD, and OLMo3 surfaces. Wheel SHA-256:
+`57aef51b31fa6e0bfbcd942bddd62bf995f5c2f82e3107bb91cdba7436a1366c`;
+sdist: `68365d87107b1df3b2fe8227ab64afaceb37a9ce5fd3a8b3c5b6894d5e49d13e`.
+Posttrain retained-asset workflow `34334889582` published and read back those
+exact bytes from `carbonteq/dev`.
 Live RTX PRO qualification remains pending. Harness optimization is deferred.
 
-The async rollout lifecycle is under development on fork branch
-`codex/trl-parity-probe-bound`. Its latest pushed candidate is
-`213bc267445c8787e2ccbc7c2021360a9f6e840c`; it is not part of the published
-post5 package or framework pin. Local committed tip
-`278af512459b6be6d9510029ad9bbfd7d7faff03` adds the corrected
-learner-consumption acknowledgement and native-agent qualification, but is not
-yet pushed or packaged. Against the selected vLLM 0.25.1 runtime, its
+The async rollout lifecycle is published in post6 from consolidated fork branch
+`codex/posttrain-v04-dev`; ledger follow-up commit
+`3ab670f3611f381b373b7e97267879a4afde37ff` records its development
+publication. It includes corrected
+learner-consumption acknowledgement and native-agent qualification. Against
+the selected vLLM 0.25.1 runtime, its
 bounded Qwen 0.5B gate passes independent request completion, explicit abort,
 sampled-token logprobs, drain, staged weights/KV-cache wake, sleep, and clean
 shutdown on the local RTX 3070 Ti. The first attempt found that restoring only

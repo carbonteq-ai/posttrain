@@ -1,10 +1,10 @@
 # veRL training backend
 
-## Rollout-execution candidate (unpublished)
+## Rollout-execution development candidate
 
-Branch `codex/verl-rollout-execution` is pushed at
-`9694a6242e3590acaf58a779c1151b370f313b51`, based on the current post1
-runtime source. It adds opt-in Ray agent-worker episode limits, explicit CPU
+Branch `codex/verl-rollout-execution` publishes `0.9.0.post2` from immutable
+release commit `98742d3e9507318ba0b5d4944034deb7db1ec84b`, with ledger
+follow-up `4050fbeb`. It adds opt-in Ray agent-worker episode limits, explicit CPU
 reservations, and complete failed-group replacement in the V1 TransferQueue
 path. The framework accepts a private
 `TrainingBinding.backend_options.rollout_execution` mapping with
@@ -22,10 +22,14 @@ real AutomationBench bridge test separately proves one emitted tool action is
 executed once before the next model turn. This is CPU protocol evidence, not a
 changed-weight GPU qualification.
 
-The candidate is not the stable runtime selection. The profile below still
-pins `cec7e74c361bb973b641db8dfbb75a5544c33139` and post1 artifact hashes.
-Publication, runtime-image reconstruction, and a real GPU collection/update
-gate are required before changing that selection. Renderer construction is now
+The candidate wheel SHA-256 is
+`adeef5700a7f56a10beaef5304f6a5626b015c45334d516d2330243bcad174f5`;
+the sdist SHA-256 is
+`0c1c1ac543a93d2ff5ba50c4394c4b9838ad90615c981422ce22df4693224a0a`.
+Posttrain workflow `34335257738` published and clean-installed those exact
+bytes from `carbonteq/dev`. The development profile selects post2, but
+runtime-image reconstruction and a real GPU collection/update gate are still
+required before stable promotion. Renderer construction is now
 binding-driven for Qwen and LFM, but the existing Qwen-only GPU qualification
 policy remains in force.
 

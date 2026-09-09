@@ -2,22 +2,24 @@
 
 from __future__ import annotations
 
-from typing import Any
+from importlib import import_module
+from typing import Any, cast
 
 
 def verifiers_environment_types() -> tuple[type[Any], type[Any]]:
     """Return the native config and environment types across the v0.2/v0.3 rename."""
 
     try:
-        from verifiers.v1.env import EnvConfig  # pyright: ignore[reportMissingImports]
-
-        try:
-            from verifiers.v1.env import Environment  # pyright: ignore[reportMissingImports]
-        except ImportError:
-            from verifiers.v1.env import Env as Environment  # pyright: ignore[reportMissingImports]
-    except ImportError as error:
+        environment_module = import_module("verifiers.v1.env")
+        config_type = getattr(environment_module, "EnvConfig", None)
+        if config_type is None:
+            config_type = getattr(import_module("verifiers.v1.configs.env"), "EnvConfig")
+        environment_type = getattr(environment_module, "Env", None)
+        if environment_type is None:
+            environment_type = getattr(environment_module, "Environment")
+    except (AttributeError, ImportError) as error:
         raise RuntimeError("install the Verifiers integration dependencies") from error
-    return EnvConfig, Environment
+    return cast(type[Any], config_type), cast(type[Any], environment_type)
 
 
 def materialize_verifiers_environment(value: object) -> Any:
@@ -35,7 +37,7 @@ def materialize_verifiers_environment(value: object) -> Any:
             # Verifiers v0.2 exposed a concrete Environment class and did not
             # provide the centralized environment loader used by v0.3.
             return environment_type(value)
-        return load_environment(value)
+        return load_environment(cast(Any, value))
     raise TypeError("environment activation did not produce a Verifiers EnvConfig")
 
 

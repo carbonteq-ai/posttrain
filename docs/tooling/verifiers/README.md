@@ -8,9 +8,9 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 ## Install / pin
 
 The selected independently maintained CarbonTeq distribution is
-`carbonteq-ai/verifiers@c6c0097ad21da845c62e4b19aba80ef6633e4d9f`, based on
-upstream main commit `e3bcbcbe5c55297a07a5d1038e37c2408b4a3dbd` (71 commits
-after v0.3.1). It adds
+`carbonteq-ai/verifiers@36eac9d5e04ef29b584b6fa4f027af00cd76ea19`, based on
+upstream main commit `27bbd216df0af719a43705866b2cf6139bcc95de` and retaining
+the CarbonTeq host-client, selected-template, and cancellation seams. It adds
 optional host-client injection through native serving/interception. The fork
 ledger is `CARBONTEQ_FORK.md`; three real local harness lifecycle cases and the
 complete upstream v1 suite pass.
@@ -22,14 +22,11 @@ synchronization. The failed R10 cloud attempt proved that the old upstream pin
 cannot inject the already-loaded policy; runtime-image publication and the
 corrected cloud retry remain open.
 
-The canonical fork checkout also contains local synchronization candidate
-`36eac9d5e04ef29b584b6fa4f027af00cd76ea19` on
-`codex/carbonteq-verifiers-latest`, merging upstream main
-`27bbd216df0af719a43705866b2cf6139bcc95de`. Its complete v1 suite passes, with
-only credential-dependent Prime cases skipped. This candidate is deliberately
-not called selected or published: the immutable workspace pin remains
-`c6c0097ad21da845c62e4b19aba80ef6633e4d9f` until the candidate is pushed and
-Posttrain consumer integration is qualified.
+The selected synchronization commit is pushed on
+`codex/carbonteq-verifiers-latest`. Its complete v1 suite passes, with only
+credential-dependent Prime cases skipped. Verifiers is consumed directly by
+immutable Git revision rather than as a private-index wheel; the Posttrain
+manifests and runtime locks therefore constitute its development selection.
 
 Prime-RL demonstrates the intended asynchronous ownership boundary. Verifiers
 executes environments and carries the neutral episode `PolicySpan`; the
@@ -38,7 +35,7 @@ publication, staleness admission, group advantages, and learner coordination.
 Posttrain follows the same split for its TRL asynchronous prototype rather than
 putting trainer state or update policy inside Verifiers.
 
-Selected commit `c6c0097ad21da845c62e4b19aba80ef6633e4d9f` additionally lets a native
+Selected commit `36eac9d5e04ef29b584b6fa4f027af00cd76ea19` additionally lets a native
 `TrainClientConfig` carry the exact selected chat template and fences the
 shared renderer cache by that template. This is required for LFM because the
 framework's versioned package template intentionally differs from the model
