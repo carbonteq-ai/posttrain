@@ -62,6 +62,7 @@ class VllmSpeculativeConfig:
 class VllmEngineConfig:
     max_model_len: int
     gpu_memory_utilization: float
+    tensor_parallel_size: int = 1
     dtype: str = "float16"
     load_format: str = "auto"
     enforce_eager: bool = False
@@ -85,6 +86,12 @@ class VllmEngineConfig:
             or not 0 < self.gpu_memory_utilization <= 1
         ):
             raise ValueError("gpu_memory_utilization must be in (0, 1]")
+        if (
+            isinstance(self.tensor_parallel_size, bool)
+            or not isinstance(self.tensor_parallel_size, int)
+            or self.tensor_parallel_size < 1
+        ):
+            raise ValueError("tensor_parallel_size must be positive")
         if self.max_num_seqs is not None and (
             isinstance(self.max_num_seqs, bool) or not isinstance(self.max_num_seqs, int) or self.max_num_seqs < 1
         ):
@@ -102,6 +109,7 @@ class VllmEngineConfig:
         values: dict[str, object] = {
             "max_model_len": self.max_model_len,
             "gpu_memory_utilization": self.gpu_memory_utilization,
+            "tensor_parallel_size": self.tensor_parallel_size,
             "dtype": self.dtype,
             "load_format": self.load_format,
             "enforce_eager": self.enforce_eager,
@@ -129,6 +137,8 @@ class VllmEngineConfig:
             str(self.max_model_len),
             "--gpu-memory-utilization",
             str(self.gpu_memory_utilization),
+            "--tensor-parallel-size",
+            str(self.tensor_parallel_size),
             "--dtype",
             self.dtype,
             "--load-format",

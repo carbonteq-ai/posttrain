@@ -94,6 +94,22 @@ def test_skip_mm_profiling_requires_text_only_mode() -> None:
         VllmEngineConfig(max_model_len=1_024, gpu_memory_utilization=0.75, skip_mm_profiling=True)
 
 
+def test_tensor_parallel_size_is_validated_and_forwarded(qwen_screen_binding: InferenceBinding) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        engine={**qwen_screen_binding.engine, "tensor_parallel_size": 2},
+    )
+
+    engine = engine_config(binding)
+
+    assert engine.tensor_parallel_size == 2
+    assert engine.as_vllm_kwargs()["tensor_parallel_size"] == 2
+    assert ("--tensor-parallel-size", "2") == engine.as_cli_args()[4:6]
+
+    with pytest.raises(ValueError, match="tensor_parallel_size"):
+        VllmEngineConfig(max_model_len=1_024, gpu_memory_utilization=0.75, tensor_parallel_size=0)
+
+
 def test_mtp_requires_a_model_variant_that_declares_it(qwen_screen_binding: InferenceBinding) -> None:
     binding = replace(
         qwen_screen_binding,
