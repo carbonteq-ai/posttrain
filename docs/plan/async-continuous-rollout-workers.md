@@ -127,7 +127,7 @@ Actor forward/backward optimization is explicitly out of scope: no changes to ac
 - [x] (2026-09-09) Integrate bounded environment workers and coordinator admission/cancellation.
 - [x] (2026-09-09) Implement veRL worker budgets, model-independent rendering, typed episode failures, and pre-advantage group admission.
 - [ ] Qualify failure handling, numerical equivalence, and real GPU optimizer updates (changed-weight parity, deterministic failure semantics, and one controlled small-model optimizer update pass; live failure injection, real environment serving, and a 2B learner update remain).
-- [ ] Publish fork revisions, update consumer locks and documentation, and qualify the immutable runtime image before promoting the mode. TRL `1.12.0.post6` and veRL `0.9.0.post2` are now immutable GitHub prereleases published byte-for-byte to `carbonteq/dev`; Verifiers `36eac9d5` is pushed and selected by Git revision; Trackio dev20 metadata drift is repaired. Root and runtime locks are regenerated. OCI publication and GPU qualification remain.
+- [ ] Publish fork revisions, update consumer locks and documentation, and qualify the immutable runtime image before promoting the mode. TRL `1.12.0.post6` and veRL `0.9.0.post2` are immutable GitHub prereleases published byte-for-byte to `carbonteq/dev`; Verifiers `36eac9d5` is pushed and selected by Git revision; Trackio dev20 metadata drift is repaired. Root and runtime locks are regenerated, and all seven v0.4 runtime images are published and recorded in `published.toml`. GPU qualification remains, so the milestone stays open.
 
 ## Context and source authority
 
@@ -597,3 +597,14 @@ updates, checkpoint/resume, publication, and public activation remain
 Milestone D.
 
 Baseline checkpoint note (2026-09-08): the user requested commits preserving previous work. Framework changes are captured on `codex/pre-rollout-optimization-baseline`; historical veRL changes are separately preserved on `codex/verl-pre-rollout-optimization-baseline`. No fork pin is changed by these snapshots. Focused framework reward-admission, reward-advantage, and policy-message tests passed (32 tests); full release/GPU qualification is not implied. The two cleanup stashes remain separate and untouched.
+
+Revision 24 development-publication checkpoint: the maintained fork closure is
+now reproducible outside local worktrees. TRL `1.12.0.post6` and veRL
+`0.9.0.post2` were published byte-for-byte to `carbonteq/dev`; Trackio remains
+selected at `0.31.5.post14.dev20`; Verifiers is consumed from immutable pushed
+commit `36eac9d5e04ef29b584b6fa4f027af00cd76ea19`. A system-CA-trusting local
+BuildKit publication produced all seven v0.4 runtime images and recorded their
+immutable digests in `packages/runtime-images/src/posttrain/runtime_images/published.toml`.
+The strict release check passes and the runtime-image plus release regression
+slice passes with 126 tests and one existing skip. This closes package and OCI
+development publication, but not the remaining real GPU training qualification.
