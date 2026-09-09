@@ -1,5 +1,21 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 28 — 2026-09-10. The shared-vLLM development runtime is now under a
+20-update AutomationBench comparison on the single RTX PRO 6000 worker. GRPO
+run `lfm26-grpo20-post8-vllm-shared-20260910-r1` (provider
+`pt-9513925ba050b2c35d8cc006`) is running; OLMo 3 run
+`lfm26-olmo3-20-post8-vllm-shared-20260910-r1` (provider
+`pt-fb34751e310dae4667a5f174`) is queued behind it rather than competing for
+the same GPU. Each update selects 8 prompt groups with 4 generations per group,
+uses rollout concurrency 32, and assigns four environment worker processes.
+At the first bounded check, GRPO had completed no optimizer update; more than
+212 seconds of startup and first collection had elapsed, so no new seconds per
+step can yet be reported. Subsequent checks must derive step time only from
+completed optimizer records and, where native evidence permits, separate
+rollout/environment time from learner-update time. The prior run's latest
+`1183`-second step is a historical comparison point, not a result for these
+runs.
+
 Revision 27 — 2026-09-09. The next framework release line is allocated as
 `0.4.0`, covering structured-credit algorithms, native asynchronous agent
 collection, and model/hardware configuration diagnostics. Allocation is not
