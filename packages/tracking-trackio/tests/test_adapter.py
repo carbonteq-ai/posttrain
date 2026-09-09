@@ -1200,7 +1200,48 @@ def test_trackio_artifact_queue_backpressure_drains_before_retry(
     )
 
     assert attempts == [True, True]
-    assert drains == [30]
+    assert drains == [600.0]
+
+
+def test_trackio_artifact_queue_wait_uses_declared_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    trackio_dir: Path,
+) -> None:
+    tracked = TrackioBackend(
+        TrackioSettings(
+            project="trackio-artifact-queue-wait",
+            artifact_publication_timeout_seconds=725,
+        )
+    ).start_run(_spec("00000000-0000-4000-8000-000000000110"))
+    output = trackio_dir / "diagnostic.log"
+    output.write_text("diagnostic\n", encoding="utf-8")
+    calls: list[dict[str, Any]] = []
+
+    def log_artifact(
+        artifact: Any,
+        *,
+        background: bool = False,
+        queue_timeout: float | None = None,
+    ) -> Any:
+        calls.append({"background": background, "queue_timeout": queue_timeout})
+        return artifact
+
+    monkeypatch.setattr(tracked._run, "log_artifact", log_artifact)
+    tracked.artifact(
+        ProducedArtifact(
+            "training/diagnostics/log",
+            "training-runtime-log",
+            LocalArtifactRef(output.resolve(), hashlib.sha256(output.read_bytes()).hexdigest()),
+        )
+    )
+
+    assert calls == [{"background": True, "queue_timeout": 725}]
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan")])
+def test_trackio_artifact_publication_timeout_must_be_positive_finite(timeout: float) -> None:
+    with pytest.raises(ValueError, match="artifact publication timeout"):
+        TrackioSettings(artifact_publication_timeout_seconds=timeout)
 
 
 @pytest.mark.asyncio

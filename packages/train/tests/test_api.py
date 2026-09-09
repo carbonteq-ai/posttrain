@@ -521,9 +521,9 @@ def test_sft_operation_separates_adapter_recovery_and_summary_artifacts() -> Non
     assert result.model_artifact.name.endswith("/sft/qlora/adapter")
     assert result.summary.global_step == 2
     assert [artifact.kind for artifact in observer.artifacts] == [
+        "training-summary",
         "model-adapter",
         "training-checkpoint",
-        "training-summary",
     ]
     assert observer.events[-1].name == "training_completed"
 
@@ -544,10 +544,10 @@ def test_training_operation_records_retention_manifest(tmp_path: Path) -> None:
     )
 
     assert [artifact.kind for artifact in observer.artifacts] == [
-        "model-adapter",
-        "training-checkpoint",
         "training-summary",
         "training-retention-manifest",
+        "model-adapter",
+        "training-checkpoint",
     ]
 
 

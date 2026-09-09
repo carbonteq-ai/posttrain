@@ -270,12 +270,15 @@ def _finish(
             metadata=attributes,
             role="retention",
         )
-    context.artifact(model_artifact)
-    if recovery_artifact is not None:
-        context.artifact(recovery_artifact)
+    # Terminal metadata is small and required for diagnosis. Queue it before
+    # model and recovery payloads so a saturated artifact publisher cannot
+    # hide an otherwise complete training summary behind large uploads.
     context.artifact(native_artifact)
     if retention_artifact is not None:
         context.artifact(retention_artifact)
+    context.artifact(model_artifact)
+    if recovery_artifact is not None:
+        context.artifact(recovery_artifact)
     context.metrics(
         {
             "train/global_step": backend.summary.global_step,

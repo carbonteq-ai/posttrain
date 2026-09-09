@@ -3,13 +3,17 @@
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
 `import trackio` API. The current framework dependency is
-`carbonteq-trackio==0.31.5.post14.dev20`, built from immutable fork commit
-`1f7ceba9f5728259de6cb8801a7fd8a5dcd49752`. Its wheel
-(`60b502993e421a029f8b9e075c68ce0e5cff3a8a89fd72f6af8f138adede1fd6`) and
-sdist (`e48098a985673e4a6848a83879c797d767afa2b07f29790579f207993f2e6e44`)
-were released manually as `carbonteq-v0.31.5.post14.dev20`, published
-unchanged to `carbonteq/dev` by Posttrain workflow `34138466438`, then promoted
-byte-for-byte to `carbonteq/stable` by workflow `34138583808`. This revision
+`carbonteq-trackio==0.31.5.post14.dev21`, built from immutable fork commit
+`ce3863a61f2773d7e62cc3f2ae5acdf6f3e5cfc5`. Its wheel
+(`1d33039c083d6455ccc26251b1b375bd79abf6d47072158b37b277e9029dbbbc`) and
+sdist (`edb6f32c568e0fe3774a16b3c78f95c648ffc1d2169d98b661385a06817ce775`)
+were released manually as `carbonteq-v0.31.5.post14.dev21` and published
+unchanged to `carbonteq/dev` by Posttrain workflow `34413103302`. Promotion to
+`carbonteq/stable` remains gated on the real training canary. This revision
+adds bounded wait-for-one-slot artifact backpressure, a configurable
+600-second finalization barrier, and one per-run remote publication transaction
+that prevents overlapping manifests from transferring the same absent blob.
+The prior dev20 revision
 also accepts Verifiers v1 weighted reward records in the query summary while
 retaining their native structure unchanged. The development suffix is
 part of the immutable version; it does not make the stable-index publication mutable.

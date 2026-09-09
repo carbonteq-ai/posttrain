@@ -636,7 +636,7 @@ Baseline checkpoint note (2026-09-08): the user requested commits preserving pre
 Revision 24 development-publication checkpoint: the maintained fork closure is
 now reproducible outside local worktrees. TRL `1.12.0.post6` and veRL
 `0.9.0.post2` were published byte-for-byte to `carbonteq/dev`; Trackio remains
-selected at `0.31.5.post14.dev20`; Verifiers was consumed from immutable pushed
+selected at `0.31.5.post14.dev21`; Verifiers was consumed from immutable pushed
 commit `36eac9d5e04ef29b584b6fa4f027af00cd76ea19`. A system-CA-trusting local
 BuildKit publication produced all seven v0.4 runtime images and recorded their
 immutable digests in `packages/runtime-images/src/posttrain/runtime_images/published.toml`.
