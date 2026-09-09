@@ -74,7 +74,7 @@ environment:
     reward_components: [partial_credit]
     required_inference_capabilities: [tool-calling]
 
-  automationbench-lfm26-train-mix-v2:
+  automationbench-lfm26-train-mix-v2: &automationbench_train_mix_v2
     category: agentic-tool-use
     source:
       package: automationbench-v1
@@ -120,7 +120,38 @@ environment:
       facets:
         - {field: domain, dimension: domain, label: Domain}
 
-  automationbench-lfm26-train-mix-episode-judged-v2:
+  automationbench-lfm26-train-mix-v3:
+    <<: *automationbench_train_mix_v2
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 16384
+    sampling: &policy_sampling_4k
+      max_tokens: 4096
+      temperature: 0.8
+      top_p: 0.95
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 16384
+
+  automationbench-lfm26-train-mix-episode-judged-v2: &automationbench_train_mix_episode_judged_v2
     category: agentic-tool-use
     source:
       package: automationbench-v1
@@ -182,6 +213,50 @@ environment:
       pass_rate_metric: task_completed_correctly
       facets:
         - {field: domain, dimension: domain, label: Domain}
+
+  automationbench-lfm26-train-mix-episode-judged-v3:
+    <<: *automationbench_train_mix_episode_judged_v2
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            judges:
+              - id: automationbench-v1
+                name: quality
+                weight: 0.0
+                assessment_scope: episode
+                code_revision: c8c3bb57cb484a068be975fa97e07f5bc86930fd
+                model: google/gemma-4-12B-it
+                model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
+                context_scope: retrospective
+                attempts: 2
+                timeout_seconds: 900
+                input_budget_tokens: 16384
+                sampling: *judge_sampling
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 16384
+    sampling: *policy_sampling_4k
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 16384
+      judge_input_budget_tokens: 16384
+      judge_output_budget_tokens: 16384
+      judge_context_window: 32768
 
   automationbench-lfm26-train-mix-episode-openrouter-v1:
     category: agentic-tool-use
@@ -447,7 +522,7 @@ training:
     revision: "1"
     loop: &comparison_local_3_loop
       max_steps: 3
-      max_length: 13312
+      max_length: 24576
       per_device_batch_size: 1
       gradient_accumulation_steps: 32
       learning_rate: 0.00001
@@ -458,8 +533,8 @@ training:
       checkpoint_limit: 1
     num_prompts_per_step: 8
     num_generations: 4
-    max_prompt_length: 10240
-    max_completion_length: 3072
+    max_prompt_length: 20480
+    max_completion_length: 4096
     algorithm: olmo3
     beta: 0.0
     advantage_scaling: none
@@ -530,8 +605,8 @@ training:
     loop: *comparison_local_3_loop
     num_prompts_per_step: 8
     num_generations: 4
-    max_prompt_length: 10240
-    max_completion_length: 3072
+    max_prompt_length: 20480
+    max_completion_length: 4096
     component_names:
       - partial_credit
       - problem_understanding_planning
@@ -796,6 +871,32 @@ inference:
     purpose: [rollout]
     capabilities: [tool-calling]
 
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@1:
+    revision: "1"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.25.1
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.20
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 32
+      max_num_batched_tokens: 32768
+      kv_cache_memory_bytes: 4294967296
+      weight_sync_mode: lora
+      enforce_eager: true
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: *policy_sampling_4k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
   inference/lfm2.5-2.6b-vllm-automationbench-eval@1:
     revision: "1"
     startup_timeout_seconds: 900
@@ -864,6 +965,37 @@ inference:
       max_model_len: 24576
       max_num_seqs: 16
       max_num_batched_tokens: 24576
+      enforce_eager: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: gemma4
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 2
+        draft_model:
+          repo_id: google/gemma-4-12B-it-assistant
+          revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
+    sampling: *judge_sampling
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+
+  inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      # The v3 episode contract allows 16K policy output and must not compact
+      # below that before retrospective scoring. Reserve a symmetric 16K input
+      # and 16K judge-output envelope; the RTX PRO has ample colocated headroom.
+      gpu_memory_utilization: 0.40
+      dtype: bfloat16
+      tensor_parallel_size: 1
+      max_model_len: 32768
+      max_num_seqs: 16
+      max_num_batched_tokens: 32768
       enforce_eager: true
       enable_chunked_prefill: true
       text_only: true

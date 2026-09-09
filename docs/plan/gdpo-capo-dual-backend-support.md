@@ -1,5 +1,20 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 29 — 2026-09-10. The matched three-update OLMo3 and episode-GDPO
+qualification now uses an explicit 16,384-token generated-output budget for
+each complete AutomationBench episode. A separate 4,096-token per-turn limit
+keeps individual policy calls bounded without conflating one call with the
+multi-turn episode. The 24,576-token actor context admits the observed initial
+prompts plus substantially longer trajectories, while the remaining-context
+guard makes any late-turn clipping explicit. The retrospective Gemma
+judge receives a 16,384-token compacted episode envelope and a separate 16,384-
+token response allowance inside its 32,768-token context. Tool calls and policy
+outputs remain authoritative; oversized tool observations may be compacted by
+the native judge projection. These are new v3 environment selections so the
+older 8K comparison evidence remains reproducible. Both arms still use the
+same 8 prompt groups by 4 generations, three optimizer updates, and one final
+adapter checkpoint.
+
 Revision 28 — 2026-09-09. Before submitting the matched local scalar
 comparison, re-audit LFM rollout capacity rather than treating a valid engine
 configuration as an efficient one. The previous explicit 512 MiB KV-cache cap

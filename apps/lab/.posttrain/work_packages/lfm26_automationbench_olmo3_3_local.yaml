@@ -20,10 +20,10 @@ recipe:
   expected_artifacts: [trained adapter, native Verifiers trajectories, training summary]
 bindings:
   model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
-  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-v2}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-v3}
   settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-olmo3-3-local-v1}
   training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-local@1}
-  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@1}
 enabled_optional_jobs: []
 metadata:
   comparison_family: lfm26-automationbench-3-local-v1

@@ -6,6 +6,7 @@ import hashlib
 import tomllib
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from posttrain.catalog import load_catalog_layer, packaged_base_directory
@@ -15,6 +16,7 @@ from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
 from posttrain.train import (
     ActiveGroupSampling,
     DynamicGroupSampling,
+    GDPOSettings,
     GRPOSettings,
     LoRAUpdate,
     OnPolicyDistillationSettings,
@@ -301,6 +303,62 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert changed_weight_training.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
     assert changed_weight_rollout.target == changed_weight_training.target
     assert "weight_name_prefix" not in changed_weight_rollout.engine
+
+
+def test_lfm26_three_step_qualification_retains_a_16k_episode_budget() -> None:
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    scalar = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-v3")).value
+    judged = catalog.resolve(
+        CatalogRef("environment", "automationbench-lfm26-train-mix-episode-judged-v3")
+    ).value
+    olmo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-3-local-v1")).value
+    gdpo = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-gdpo-episode-3-local-v1")
+    ).value
+    rollout = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@1")
+    ).value
+    judge = catalog.resolve(
+        CatalogRef("inference", "inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@1")
+    ).value
+
+    assert isinstance(scalar, EnvironmentBinding)
+    assert isinstance(judged, EnvironmentBinding)
+    for environment in (scalar, judged):
+        assert environment.sampling.max_tokens == 4_096
+        parameters = cast(Mapping[str, Any], environment.parameters)
+        assert parameters["max_output_tokens"] == 16_384
+        assert isinstance(environment.activation, VerifiersV1ConfigActivation)
+        agent = cast(Mapping[str, Any], environment.activation.config["agent"])
+        assert agent["max_output_tokens"] == 16_384
+
+    assert isinstance(judged.activation, VerifiersV1ConfigActivation)
+    taskset = cast(Mapping[str, Any], judged.activation.config["taskset"])
+    judged_task = cast(Mapping[str, Any], taskset["task"])
+    judges = cast(list[Mapping[str, Any]], judged_task["judges"])
+    assert judges[0]["input_budget_tokens"] == 16_384
+
+    assert isinstance(olmo, GRPOSettings)
+    assert isinstance(gdpo, GDPOSettings)
+    for settings in (olmo, gdpo):
+        assert settings.loop.max_steps == 3
+        assert settings.loop.max_length == 24_576
+        assert settings.num_prompts_per_step == 8
+        assert settings.num_generations == 4
+        assert settings.max_prompt_length == 20_480
+        assert settings.max_completion_length == 4_096
+
+    assert isinstance(rollout, InferenceBinding)
+    assert rollout.sampling["max_tokens"] == 4_096
+    assert rollout.engine["max_model_len"] == 24_576
+    assert rollout.engine["max_num_seqs"] == 32
+    assert rollout.engine["max_num_batched_tokens"] == 32_768
+    assert rollout.engine["kv_cache_memory_bytes"] == 4 * 1024**3
+
+    assert isinstance(judge, InferenceBinding)
+    assert judge.sampling["max_tokens"] == 16_384
+    assert judge.engine["max_model_len"] == 32_768
+    assert judge.engine["max_num_seqs"] == 16
 
 
 def test_qwen4b_automationbench_eval_binding_declares_tool_protocol() -> None:

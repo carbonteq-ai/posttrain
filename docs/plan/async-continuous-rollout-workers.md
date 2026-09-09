@@ -1,5 +1,17 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 31 — 2026-09-10. The replacement three-update qualification raises
+the episode generated-output budget from 8,192 to 16,384 tokens and the
+per-turn allowance from 3,072 to 4,096. In the existing TRL request contract,
+`max_completion_length` is the per-call behavior-policy limit and therefore
+remains aligned with the rollout binding at 4,096; the Verifiers agent owns the
+separate cumulative 16K episode limit. The actor sequence/context ceiling is
+24,576 tokens. The shared remaining-context guard from Revision 30
+still clips only a late individual request when its rendered prefix leaves less
+than 4K room, preventing provider-level failures across GRPO, OLMo3, GDPO,
+CAPO, and SAMPO. Historical v2 environments are unchanged; the new v3 scalar
+and judged selections carry the larger runtime limit explicitly.
+
 Revision 30 — 2026-09-10. The matched 8x4 OLMo qualification exposed a
 shared late-turn admission defect rather than an OLMo-specific context need.
 Its first candidate wave retained 18 successful traces but seven episode
