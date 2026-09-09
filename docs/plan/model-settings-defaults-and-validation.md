@@ -28,6 +28,16 @@ passed or skipped in the digest-bound report. Hosts with no readiness probe
 record `not_applicable`, so the flag cannot falsely claim that an unperformed
 check passed or weaken runtime guards.
 
+Revision 7 — 2026-09-09. M3 is complete for the changed serving path. The
+Posttrain-selected Qwen3.5 2B serving work package plans with zero findings;
+the exact cached Qwen3.5 0.8B and 2B checkpoints then passed local vLLM
+health, served-model identity, and schema-validated `record_choice` tool-call
+smokes with the resolved Qwen parser settings. The 2B checkpoint requires a
+0.90, rather than 0.70, GPU-memory reservation on the 8 GiB RTX 3070 Ti to
+create any KV-cache blocks. M5 remains open only for the local OCI-packaging
+gate: it correctly rejects the stale shipped runtime-image lock manifest,
+before image build or provider submission.
+
 Revision 3 — 2026-09-09. Implementation started. M0 added the canonical API amendment and `docs/model-settings.md` inventory, now expanded to job-type and algorithm settings. Defaults, hard validity, and efficiency advice remain separate at each layer. Hardware-aware recommendations cover architecture, residency, MTP, and TurboQuant independently of full-weight/LoRA/QLoRA selection. No new LoRA-rank default is introduced.
 
 ## Purpose / Big Picture
@@ -49,9 +59,9 @@ The outcome is an inspectable model-configuration resolution and validation path
 - [x] (2026-09-09) M0: added `docs/model-settings.md` and amended the canonical API with explain, bypass, per-use reasoning, hardware-advice, and independent acceleration semantics.
 - [x] M1: implement effective-setting resolution and provenance without changing existing selections.
 - [x] M2: implement uniform static validation and error reporting across model roles and entry points; dynamic readiness remains M3.
-- [ ] M3: align native adapter translation, generation settings, rendering, and runtime verification (serving translation is complete; live identity verification remains).
+- [x] M3: aligned serving translation with resolved settings and qualified live model/template/parser identity for the changed Qwen path.
 - [x] M4: expose explainable CLI/Python behavior and the bounded preflight bypass.
-- [ ] M5: migrate versioned catalog defaults and qualify supported model/backend paths (hardware profiles and one bounded local training qualification complete; serving/model-family gates remain).
+- [ ] M5: migrate versioned catalog defaults and qualify supported model/backend paths (no default migration was justified; fixture, training, and live Qwen serving gates are complete; only the independently stale local OCI runtime-image release gate remains).
 
 ## Scope and explicit exclusions
 
@@ -445,6 +455,25 @@ also rejects booleans and non-finite values in engine, sampling, and adapter
 fields. The real local qualification covers an optimizer update but not the
 new serving readiness path. No claim is made for untested 12B-family loading
 or production target availability.
+
+Revision 7 qualification outcome: direct local vLLM smokes used the cached
+Qwen3.5 0.8B and 2B checkpoints at vLLM 0.25.1 with exact model names,
+`qwen3_xml` tool parsing, `qwen3` reasoning parsing, FP16 compute, and a
+1,024-token engine bound. Both returned one valid `record_choice(color="blue")`
+call. The 2B model loaded at a 0.70 reservation but had negative available KV
+cache memory and was rejected before serving; at 0.90 it retained 0.86 GiB KV
+capacity (28,057 cache tokens) and served correctly. This is capacity evidence
+for this hardware/bound, not a universal default. `posttrain job plan` for
+`apps/lab/.posttrain/work_packages/qwen2b_serve_smoke_qualification.yaml`
+reported zero findings. The local OCI packaging command stopped before build
+because the shipped `serve.lock.txt` bytes hash to
+`846c1efa7f4b5c31d14133cf60375b6f48fafddf8c8b3e73320f43d6d894e89a`, while
+the selected manifest records
+`0a7529b389433531041e28c073ce13a2b3986c583afe9efc325224327d8d0bd3`.
+The same manifest also reports a stale `eval` lock during verified loading.
+Do not bypass or rewrite those identities from this model-settings change;
+regenerate/publish the runtime-image release in its owning workstream, then
+rerun M5 local packaging and launch qualification.
 
 
 Revision 1 delivers the implementation plan and its separate policy decisions only. No model default, adapter behavior, canonical baseline, dependency pin, runtime, or active run has been changed by this plan. Implementation begins with M0; release requires all applicable acceptance gates, not just creation of schemas or new CLI flags.
