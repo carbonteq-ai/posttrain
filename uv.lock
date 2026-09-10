@@ -3018,6 +3018,7 @@ vllm = [
     { name = "torchaudio" },
     { name = "torchvision" },
     { name = "vllm" },
+    { name = "vllm-spark2-5-plugin" },
 ]
 
 [package.metadata]
@@ -3034,6 +3035,7 @@ requires-dist = [
     { name = "torchaudio", marker = "extra == 'vllm'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", marker = "extra == 'vllm'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "vllm", marker = "extra == 'vllm'", specifier = "==0.25.1" },
+    { name = "vllm-spark2-5-plugin", marker = "extra == 'vllm'", git = "https://github.com/XHToken/Spark-plugin.git?rev=3e1040e63a5907e4c748a485d6795d739dcd5bd6" },
 ]
 provides-extras = ["vllm"]
 
@@ -4801,6 +4803,14 @@ sdist = { url = "https://files.pythonhosted.org/packages/bf/ce/542315fe84e23a73b
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fd/36/40055709d6625a4f96fce5b82625860625d66723979ac092c10bef03d8c1/vllm-0.25.1-cp38-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:902be760af4c5ebfad8af5b8ea07a53ae14e5a6c839c8ab56da30581abb75ad2", size = 244036150, upload-time = "2026-07-14T08:58:44.737Z" },
     { url = "https://files.pythonhosted.org/packages/35/9d/c379618ce0abfc2679607d403c0f586b07e9c9c33d08c5bdd6196cb524e0/vllm-0.25.1-cp38-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e", size = 250100306, upload-time = "2026-07-14T08:59:06.476Z" },
+]
+
+[[package]]
+name = "vllm-spark2-5-plugin"
+version = "0.1.0"
+source = { git = "https://github.com/XHToken/Spark-plugin.git?rev=3e1040e63a5907e4c748a485d6795d739dcd5bd6#3e1040e63a5907e4c748a485d6795d739dcd5bd6" }
+dependencies = [
+    { name = "vllm" },
 ]
 
 [[package]]

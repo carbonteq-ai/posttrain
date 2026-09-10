@@ -11,6 +11,7 @@ from posttrain.common.variants import (
     QWEN35_THINKING_RENDERER_CONTRACT,
     QWEN_35_08B,
     QWEN_35_2B,
+    SPARK_X25_4B,
 )
 
 
@@ -33,6 +34,13 @@ def test_foundation_variants_publish_explicit_model_and_renderer_contracts() -> 
     assert NANBEIGE_42_3B.renderer.id == "nanbeige4.2-tools-thinking@1"
     assert NANBEIGE_42_3B.default_reasoning_mode == "thinking"
     assert NANBEIGE_42_3B.capabilities.mtp is False
+    assert SPARK_X25_4B.base.repo_id == "XHToken/Spark-X2.5-4B"
+    assert SPARK_X25_4B.base.revision == "5e10fcc0286756aebf7c41dc52c1e42d95c70281"
+    assert SPARK_X25_4B.default_reasoning_mode == "thinking"
+    assert SPARK_X25_4B.renderer.conversation.reasoning_mode("off").kwargs() == {
+        "enable_thinking": False
+    }
+    assert SPARK_X25_4B.capabilities.mtp is False
     assert GEMMA_4_12B_IT.family == "gemma4"
     assert GEMMA_4_12B_IT.parameters == 11_959_730_224
     assert GEMMA_4_12B_IT.base.revision == "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7"

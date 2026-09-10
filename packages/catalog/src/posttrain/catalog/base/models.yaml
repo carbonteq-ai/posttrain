@@ -109,6 +109,27 @@ model:
       upstream_model_type: nanbeige
       upstream_architecture: NanbeigeForCausalLM
       parameter_count_basis: model-card-total-rounded
+  models/spark-x2.5-4b@bf16:
+    artifact:
+      kind: hub
+      repo_id: XHToken/Spark-X2.5-4B
+      revision: 5e10fcc0286756aebf7c41dc52c1e42d95c70281
+    form: foundation
+    weight_precision: bf16
+    family: spark2.5
+    parameters: 4000000000
+    instruction_tuned: true
+    renderer_contract: spark2.5-tools-thinking@1
+    capabilities:
+      modalities: [text]
+      native_context_window: 1048576
+      mtp: false
+    provenance:
+      source: huggingface
+      license: apache-2.0
+      upstream_model_type: spark2_5
+      upstream_architecture: Spark2_5ForCausalLM
+      parameter_count_basis: model-card-name-rounded
   models/gemma4-e2b-it@bf16:
     artifact:
       kind: hub

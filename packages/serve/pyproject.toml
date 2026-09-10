@@ -25,6 +25,7 @@ vllm = [
     "nvidia-ml-py>=13.580.82; sys_platform == 'linux'",
     "ninja>=1.13",
     "vllm==0.25.1",
+    "vllm-spark2-5-plugin",
 ]
 [tool.uv]
 package = true
@@ -34,6 +35,7 @@ posttrain-common = { workspace = true }
 torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
 torchaudio = { index = "pytorch-cu130" }
+vllm-spark2-5-plugin = { git = "https://github.com/XHToken/Spark-plugin.git", rev = "3e1040e63a5907e4c748a485d6795d739dcd5bd6" }
 
 [build-system]
 requires = ["hatchling"]

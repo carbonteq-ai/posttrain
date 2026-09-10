@@ -258,6 +258,54 @@ environment:
       judge_output_budget_tokens: 16384
       judge_context_window: 32768
 
+  automationbench-lfm26-train-mix-episode-spark-nothink-v1:
+    <<: *automationbench_train_mix_episode_judged_v2
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            judges:
+              - id: automationbench-v1
+                name: quality
+                weight: 0.0
+                assessment_scope: episode
+                code_revision: c8c3bb57cb484a068be975fa97e07f5bc86930fd
+                model: XHToken/Spark-X2.5-4B
+                model_revision: 5e10fcc0286756aebf7c41dc52c1e42d95c70281
+                context_scope: retrospective
+                attempts: 2
+                timeout_seconds: 300
+                input_budget_tokens: 12288
+                sampling:
+                  temperature: 0.0
+                  max_tokens: 8192
+                  extra_body:
+                    chat_template_kwargs: {enable_thinking: false}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 300}
+          max_turns: 12
+          max_output_tokens: 12288
+    sampling: *policy_sampling_4k
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 12288
+      judge_input_budget_tokens: 12288
+      judge_output_budget_tokens: 8192
+      judge_context_window: 24576
+
   automationbench-lfm26-train-mix-episode-openrouter-v1:
     category: agentic-tool-use
     source:
@@ -698,7 +746,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: f8e9252737ad08ba298b60c42f1bbb2fa863d3c712f0a0c43b336584f16639ae
+      dependency_lock_sha256: ab04a5a4a462bc10ffb40ebb04f2d5408f68b0e436c3a88c973e1528113550f6
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local@1:
     selection_type: training-binding
@@ -727,7 +775,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: f8e9252737ad08ba298b60c42f1bbb2fa863d3c712f0a0c43b336584f16639ae
+      dependency_lock_sha256: ab04a5a4a462bc10ffb40ebb04f2d5408f68b0e436c3a88c973e1528113550f6
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
     selection_type: training-binding
@@ -776,7 +824,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: f8e9252737ad08ba298b60c42f1bbb2fa863d3c712f0a0c43b336584f16639ae
+      dependency_lock_sha256: ab04a5a4a462bc10ffb40ebb04f2d5408f68b0e436c3a88c973e1528113550f6
 
   training/lfm2.5-1.2b-trl-lora-changed-weight-local@1:
     selection_type: training-binding
@@ -798,7 +846,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: f8e9252737ad08ba298b60c42f1bbb2fa863d3c712f0a0c43b336584f16639ae
+      dependency_lock_sha256: ab04a5a4a462bc10ffb40ebb04f2d5408f68b0e436c3a88c973e1528113550f6
 
   reward/automationbench-episode-gdpo@1:
     selection_type: reward-projection
@@ -1091,6 +1139,34 @@ inference:
           repo_id: google/gemma-4-12B-it-assistant
           revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
     sampling: *judge_sampling
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+
+  inference/spark-x2.5-4b-vllm-automationbench-judge-nothink-local@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/spark-x2.5-4b@bf16
+    backend: vllm@0.25.1
+    renderer: spark2.5-tools-thinking@1
+    reasoning_mode: "off"
+    engine:
+      gpu_memory_utilization: 0.30
+      dtype: bfloat16
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 16
+      max_num_batched_tokens: 24576
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      trust_remote_code: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      temperature: 0.0
+      max_tokens: 8192
+      extra_body:
+        chat_template_kwargs: {enable_thinking: false}
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [eval]
 

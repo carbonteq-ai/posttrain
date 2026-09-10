@@ -254,12 +254,22 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
         CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-eval@1")
     ).value
     judge = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-vllm-automationbench-judge-mtp2@1")).value
+    spark_judge = catalog.resolve(
+        CatalogRef("inference", "inference/spark-x2.5-4b-vllm-automationbench-judge-nothink-local@1")
+    ).value
 
     assert isinstance(remote_training, TrainingBinding)
     assert isinstance(remote_rollout, InferenceBinding)
     assert "weight_name_prefix" not in remote_rollout.engine
     assert isinstance(heldout_inference, InferenceBinding)
     assert isinstance(judge, InferenceBinding)
+    assert isinstance(spark_judge, InferenceBinding)
+    assert spark_judge.model.id == "models/spark-x2.5-4b@bf16"
+    assert spark_judge.model.artifact.revision == "5e10fcc0286756aebf7c41dc52c1e42d95c70281"
+    assert spark_judge.resolved_reasoning_mode == "off"
+    assert spark_judge.sampling["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+    assert spark_judge.engine.get("speculative_config") is None
+    assert spark_judge.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
     lock_document = tomllib.loads(
         (WORKSPACE / "packages/catalog/src/posttrain/catalog/base/locks.toml").read_text(encoding="utf-8")
     )

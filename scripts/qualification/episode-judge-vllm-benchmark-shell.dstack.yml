@@ -1,0 +1,32 @@
+type: task
+name: pt-episode-judge-bench
+
+image: registry.lan/carbonteq/posttrain-lab/posttrain-job@sha256:7783191c65b631e9228649c1610f8f6c8c4dc383d5a49baa9ff6d417b80c254e
+shell: /bin/bash
+commands:
+  - sleep infinity
+
+files:
+  - ./episode_judge_vllm_benchmark.py:/opt/posttrain/benchmark/episode_judge_vllm_benchmark.py
+  - /home/hammad/projects/rl/outputs/qualification/episode-judge-regression-2026-09-07/historical-corpus-v5-8/judge-inputs.jsonl:/opt/posttrain/benchmark/judge-inputs.jsonl
+
+volumes:
+  - /var/lib/posttrain/cache/huggingface:/root/.cache/huggingface
+  - /var/lib/posttrain/qualifications/episode-judge-vllm-benchmark-20260910:/opt/posttrain/evidence
+
+resources:
+  cpu: 8..
+  memory: 48GB..
+  gpu:
+    vendor: nvidia
+    count: 1
+    memory: 96GB..
+
+fleets:
+  - local-gpu-workers
+max_duration: 3h
+stop_duration: 1m
+retry: false
+tags:
+  purpose: episode-judge-vllm-benchmark
+  training: "false"

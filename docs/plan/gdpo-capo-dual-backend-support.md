@@ -1,5 +1,18 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 35 — 2026-09-10. The immediate bounded GDPO qualification replaces
+the cancelled Gemma R3 judge with pinned `XHToken/Spark-X2.5-4B` at revision
+`5e10fcc0286756aebf7c41dc52c1e42d95c70281`, using its vendor vLLM plugin at
+commit `3e1040e63a5907e4c748a485d6795d739dcd5bd6`. MTP is deferred. Thinking is
+disabled explicitly in both the typed renderer selection and request body.
+Frozen-trace replay already produced 8/8 schema-valid differentiated judgments
+in 20.42 seconds at 465.35 completion tokens/second, while the thinking-enabled
+cell produced 0/8 valid judgments in 132.77 seconds. This replay admits the
+model/runtime/profile combination but does not qualify training. The fresh
+two-update run keeps the LFM2.5-2.6B policy, AutomationBench mix, 8x4 population,
+12,288-token episode budget, generic eight-component GDPO projection, and local
+RTX PRO 6000 target unchanged.
+
 Revision 34 — 2026-09-10. The 0.45 Gemma judge passed the earlier KV-cache
 admission boundary in replacement R2, which then exposed an algorithm-type bug
 before its first trajectory. The OLMo refill validator read
@@ -203,6 +216,16 @@ feedback, but faithful GDPO and CAPO qualification precedes a combined custom
 objective. This plan does not claim benchmark reproduction or superiority.
 
 ## Progress
+
+- [ ] (2026-09-10) Complete the two-update Spark-no-thinking GDPO qualification.
+  The new work package is
+  `apps/lab/.posttrain/work_packages/lfm26_automationbench_gdpo_episode_2_spark_nothink_local.yaml`.
+  Static composition and catalog validation pass; 40 focused common, catalog,
+  and vLLM-binding tests pass. The actual-job dependency closure pins the Spark
+  architecture plugin and records the current `uv.lock` digest. Acceptance
+  requires two finite optimizer updates, changed-weight recollection, nonuniform
+  retained judge dimensions, native task credit, and final adapter, trace,
+  summary, and model artifacts. The frozen replay is only serving/judge evidence.
 
 - [x] (2026-09-10) Correct shared late-turn context admission before the
   matched three-update runs. OLMo attempt
