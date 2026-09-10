@@ -13,8 +13,11 @@ the generic eight-component projection and self-hosted Gemma 4 12B judge. The
 immutable submissions are OLMo3
 `lfm26-olmo3-2-local-12k-20260910-r1` / `pt-43bcd322a64d6e334f2ffa57`
 and GDPO `lfm26-gdpo2-gemma12-local-12k-v2-20260910-r1` /
-`pt-77dabd78ca3c8a1aa028e52a`. The superseded queued three-update submissions
-were cancelled before allocation. Eleven terminal zero-update LFM2.6B
+`pt-77dabd78ca3c8a1aa028e52a`. After the immutable 16K OLMo R3 completed two
+finite changed-weight updates without the refill ValueError, the queued 12K
+OLMo submission was cancelled before allocation as redundant; GDPO remains the
+required two-update qualification. The superseded queued three-update
+submissions were also cancelled before allocation. Eleven terminal zero-update LFM2.6B
 AutomationBench workspaces have exact-host cleanup tasks pending behind the
 active workload; the twelfth had never created a workspace and was finalized
 immediately. Retained Trackio failure evidence is intentionally preserved.

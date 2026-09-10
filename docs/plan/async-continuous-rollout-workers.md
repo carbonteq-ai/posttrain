@@ -11,7 +11,10 @@ matched arm. Catalog validation also repairs all LFM comparison bindings to the
 current generated TRL dependency-lock digest. Submitted provider identities are
 `pt-43bcd322a64d6e334f2ffa57` for OLMo3 and
 `pt-77dabd78ca3c8a1aa028e52a` for episode GDPO. Superseded queued three-step
-jobs were cancelled before allocation.
+jobs were cancelled before allocation. The queued two-step OLMo3 submission was
+later cancelled before allocation after the 16K R3 run completed two finite
+changed-weight updates and made that duplicate lifecycle check unnecessary;
+the two-step GDPO submission remains required.
 
 Revision 33 — 2026-09-10. Following retained-trace comparison, future matched
 three-update runs use a 12,288-token cumulative episode-output ceiling while
