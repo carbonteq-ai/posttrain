@@ -13,10 +13,12 @@ from typing import Any
 import verifiers.v1 as vf
 from automationbench_v1.episode_prompt import (
     EpisodeVerdict,
+    WireEpisodeVerdict,
     build_episode_judge_messages,
+    normalize_wire_verdict,
     validate_episode_verdict,
 )
-from automationbench_v1.judge import AutomationBenchTurnJudge, TurnQualityConfig
+from automationbench_v1.judge import AutomationBenchEpisodeJudge, EpisodeQualityConfig
 
 
 def load_cases(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -73,11 +75,10 @@ def assess_expectations(case: dict[str, Any], verdict: EpisodeVerdict) -> list[s
 async def execute(cases: list[dict[str, Any]], args: argparse.Namespace) -> list[dict[str, Any]]:
     if not os.environ.get(args.api_key_var):
         raise ValueError(f"{args.api_key_var} is required for --execute")
-    judge = AutomationBenchTurnJudge(
-        TurnQualityConfig(
+    judge = AutomationBenchEpisodeJudge(
+        EpisodeQualityConfig(
             id="general-episode-calibration",
             name="quality",
-            assessment_scope="episode",
             model=args.model,
             model_revision=args.model_revision,
             code_revision=args.code_revision,
@@ -96,7 +97,9 @@ async def execute(cases: list[dict[str, Any]], args: argparse.Namespace) -> list
     return await execute_with_judge(cases, judge)
 
 
-async def execute_with_judge(cases: list[dict[str, Any]], judge: AutomationBenchTurnJudge) -> list[dict[str, Any]]:
+async def execute_with_judge(
+    cases: list[dict[str, Any]], judge: AutomationBenchEpisodeJudge
+) -> list[dict[str, Any]]:
     rows = []
     for case in cases:
         response = None
@@ -106,9 +109,11 @@ async def execute_with_judge(cases: list[dict[str, Any]], judge: AutomationBench
                 vf.SystemMessage(content=wire[0]["content"]),
                 vf.UserMessage(content=wire[1]["content"]),
             ]
-            response = await judge.complete(messages, schema=EpisodeVerdict)
-            verdict = EpisodeVerdict.model_validate_json(response.text)
-            validate_episode_verdict(verdict, {message["message_id"] for message in case["trajectory"]})
+            response = await judge.complete(messages, schema=WireEpisodeVerdict)
+            wire_verdict = WireEpisodeVerdict.model_validate_json(response.text)
+            message_ids = [message["message_id"] for message in case["trajectory"]]
+            verdict = normalize_wire_verdict(wire_verdict, message_ids)
+            validate_episode_verdict(verdict, set(message_ids))
             failures = assess_expectations(case, verdict)
             row = {
                 "case": case["id"],
@@ -136,7 +141,7 @@ async def execute_with_judge(cases: list[dict[str, Any]], judge: AutomationBench
 async def run_with_judge(
     fixture_path: Path,
     output: Path,
-    judge: AutomationBenchTurnJudge,
+    judge: AutomationBenchEpisodeJudge,
 ) -> dict[str, Any]:
     """Run the frozen controls against an already bound inference service."""
     fixture, cases = load_cases(fixture_path)

@@ -23,8 +23,6 @@ def test_episode_judge_projection_covers_training_admission_and_judge_attempts()
                         "judges": [
                             {
                                 "name": "quality",
-                                "assessment_scope": "episode",
-                                "context_scope": "retrospective",
                                 "attempts": 2,
                                 "input_budget_tokens": 8_192,
                                 "sampling": {"max_tokens": 16_384},

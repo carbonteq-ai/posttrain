@@ -83,16 +83,18 @@ reviewed delta ledger, pass fork and consumer compatibility suites, publish an
 immutable CarbonTeq revision, and update Posttrain pins only after qualification.
 
 The published external environment revision is
-`carbonteq-ai/verifiers-environments@c7e88d7b302e6177041ac0849863d0466be77d8b`
+`carbonteq-ai/verifiers-environments@b14dfe0ba9d60184f36d78786a543242fabfb765`
 (development branch `codex/verifiers-latest-support`). It migrates
 `Task.toolsets(config)` and `Toolset.register` and includes
-an optional native AutomationBench turn-judge plugin. The plugin uses a supplied
-hosted endpoint, retains bounded attempts and scorer identity, and emits generic
-turn annotations without adding quality to the benchmark's scalar reward.
-Twenty-seven AutomationBench tests and its clean Pyright/Ruff checks pass on the
+an optional native AutomationBench episode-judge plugin. The plugin uses a
+supplied hosted endpoint, retains bounded attempts and scorer identity, and
+emits seven independent whole-episode components without adding quality to the
+benchmark's scalar reward. Version 0.4 has one rubric and one wire schema; the
+former selectable turn/prefix contract was removed after exact production
+request replay showed its turn prompt could be paired with the episode schema.
+Twenty-one AutomationBench tests and its clean Pyright/Ruff checks pass on the
 latest Verifiers contract. The real framework tool integration also passes.
-Multiple-judge composition, mixed-version replay, and installed GPU runtime
-release gates remain open.
+Mixed-version replay and installed GPU runtime release gates remain open.
 
 - Via **`packages/eval` `verifiers` extra**:
   `uv sync --package eval --extra verifiers --python 3.12`
@@ -115,7 +117,7 @@ branch and no assumption that upstream is the product authority.
 CarbonTeq's maintained Verifiers v1 environment packs live in the separate
 framework-neutral [verifiers-environments repository](https://github.com/carbonteq-ai/verifiers-environments).
 The current framework integration uses published commit
-`c7e88d7b302e6177041ac0849863d0466be77d8b` and keeps each package independently
+`b14dfe0ba9d60184f36d78786a543242fabfb765` and keeps each package independently
 installable:
 
 | Package | Taskset | Source data / generator revision |

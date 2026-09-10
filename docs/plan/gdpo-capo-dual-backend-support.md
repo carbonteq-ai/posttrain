@@ -1,5 +1,65 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 39 — 2026-09-10. Exact localhost request capture from R7 proved that
+the active AutomationBench judge still combined its former turn-level default
+rubric with the episode-level response schema. Spark consequently interpreted
+rubric instructions as task requirements and expanded them until the response
+budget was exhausted. This was a product-contract defect, not stale tracking
+data or insufficient context. `automationbench-v1` 0.4.0 now exposes only
+`AutomationBenchEpisodeJudge` and `EpisodeQualityConfig`, with one versioned
+whole-episode rubric and one compact wire schema. Integer evidence indexes are
+validated and normalized to stable native message IDs before reward admission;
+turn scope, prefix/retrospective selection, and turn annotation namespaces are
+removed from the public runtime. The candidate is committed and published at
+`carbonteq-ai/verifiers-environments@b14dfe0ba9d60184f36d78786a543242fabfb765`;
+its 21 tests, Ruff, formatting, Pyright, lock check, and wheel build pass.
+On 14 exact captured requests, the corrected prompt changed Spark from 13/14
+length stops and 1/14 schema-valid responses in 85.13 seconds to 14/14 normal
+stops and 14/14 valid responses in 36.39 seconds. This closes the contract and
+truncation defect, not semantic calibration: successful traces still saturated
+at 1.0 while failed controls differentiated. A fresh immutable GPU replay must
+demonstrate defect-sensitive, nonuniform episode scores before GDPO training
+qualification resumes.
+
+Revision 38 — 2026-09-10. R6 was cancelled during judge startup after live
+process inspection showed that its Spark server still used the old 24,576-token
+context with the new 16,384-token response cap. A mechanical catalog edit had
+changed similarly named fields in unrelated LFM rollout and Gemma judge
+bindings rather than Spark's engine block; those unrelated changes are restored
+and Spark now resolves to a 32,768-token model and batch-token ceiling. This
+also exposed a missing generic admission invariant. Managed native judges now
+fail before model startup when their declared input budget plus selected output
+budget exceeds the selected self-hosted inference context. The focused native-
+judge suite passes 9 tests, including the new negative case. R6 produced no
+rollout, reward, or optimizer evidence and must not be resumed; use a fresh
+immutable identity after its graceful teardown.
+
+Revision 37 — 2026-09-10. R5 confirmed that 12,288 was only the Spark judge's
+response allowance, not its whole episode-assessment budget. The judge retained
+a separate 12,288-token input allowance inside a 24,576-token serving window.
+After 36 completed requests, 25 still ended by length and only 11 ended by
+normal stop; no complete reward group or optimizer update was retained. R5 was
+cancelled. The next attempt raises the judge response allowance to 16,384 and
+the serving window and aggregate batch-token ceiling to 32,768, while preserving
+the 12,288-token input allowance. This leaves 4,096 tokens of configured context
+headroom beyond the maximum input-plus-output envelope. It does not alter the
+policy episode budget, task population, reward projection, or algorithm.
+
+Revision 36 — 2026-09-10. The first real Spark no-thinking training attempt R4
+proved that the inference service and continuous-batching boundary work, but it
+did not admit a training group. Thinking was explicitly disabled and the judge
+served up to 16 requests concurrently at roughly 1.3–1.4K aggregate generated
+tokens/second with 100% GPU utilization. Of the first 69 completed judgments,
+54 exhausted the 8,192-token response allowance, 15 stopped normally, and none
+failed at transport. R4 was therefore cancelled before any optimizer update;
+this is output-budget/model-behavior evidence, not GDPO qualification. The
+Spark judge response allowance is now 12,288 tokens at both the Verifiers
+request and inference-binding boundaries, while its input allowance remains
+12,288 inside the existing 24,576-token context. Fresh immutable R5
+`lfm26-gdpo2-spark4b-nothink-judge12k-20260910-r5` uses provider run
+`pt-8edc8af984db5f61da17bb28`; it must still prove valid differentiated rewards
+and two optimizer updates. MTP remains deferred.
+
 Revision 35 — 2026-09-10. The immediate bounded GDPO qualification replaces
 the cancelled Gemma R3 judge with pinned `XHToken/Spark-X2.5-4B` at revision
 `5e10fcc0286756aebf7c41dc52c1e42d95c70281`, using its vendor vLLM plugin at
@@ -217,6 +277,13 @@ objective. This plan does not claim benchmark reproduction or superiority.
 
 ## Progress
 
+- [x] (2026-09-10) Remove the dual turn/episode AutomationBench judge contract.
+  The external v0.4 package now has one episode rubric, one schema, and one
+  exported judge. Exact captured-request replay eliminates the pathological
+  output expansion, and the immutable environment commit is published. Update
+  every Posttrain source pin and active judge code revision to that commit/blob;
+  retain historical turn evidence only as read-only compatibility input.
+
 - [ ] (2026-09-10) Complete the two-update Spark-no-thinking GDPO qualification.
   The new work package is
   `apps/lab/.posttrain/work_packages/lfm26_automationbench_gdpo_episode_2_spark_nothink_local.yaml`.
@@ -241,7 +308,15 @@ objective. This plan does not claim benchmark reproduction or superiority.
   for `trust_remote_code`, also before model load or GPU work. Both supported
   fields now exist in the typed engine contract, and the Lab catalog test
   resolves the complete Spark judge through the vLLM adapter so every selected
-  engine key is checked together before submission. Use fresh identity R4.
+  engine key is checked together before submission. R4 then reached live
+  continuous-batched judging but 54 of its first 69 completions exhausted the
+  8,192-token judge response cap; it was cancelled before reward admission or
+  optimizer work. R5 raised that response cap to 12,288 but still produced 25
+  length completions versus 11 normal stops across its first 36 requests, with
+  no retained reward group or update, so it was also cancelled. The 16,384-token
+  response / 32,768-token context replacement validates statically and requires
+  a fresh run identity. Do not count R4/R5 serving throughput as judge-quality
+  or algorithm qualification.
 
 - [x] (2026-09-10) Correct shared late-turn context admission before the
   matched three-update runs. OLMo attempt
@@ -1946,6 +2021,17 @@ new artifacts pass qualification.
 
 ## Surprises & Discoveries
 
+2026-09-10 exact judge replay: the apparent need for ever-larger Spark output
+budgets was caused by incompatible instructions and structured output, not by
+the episode input size. R7 requests carried a turn rubric demanding a `turns`
+list while constrained decoding required `requirement_checks` and episode
+assessments. The model tried to encode the rubric itself as task requirements.
+One corrected episode contract reduced wall time by more than half and made all
+14 captured requests structurally valid at a 2K response cap. Structural
+validity is still separate from semantic discrimination: Spark no-thinking
+distinguished failed controls but gave uniform perfect ratings to the successful
+real traces, including cases with subtle unsupported claims.
+
 2026-09-08 correctness/performance audit: the bridge returned
 `retained_input_indices`, but post4 TRL never consumed them, leaving reward
 inputs misaligned after dropped groups. GRPO also only enabled complete-group
@@ -2286,6 +2372,15 @@ The local fork checkouts do not match selected release revisions; veRL also has
 unrelated uncommitted work. Pinned-object inspection was necessary.
 
 ## Decision Log
+
+2026-09-10: AutomationBench exposes one whole-episode judge API. Rubric detail
+is task-owned scorer policy and does not change trainer algorithm semantics, but
+scope and response schema must be one inseparable versioned contract. Remove the
+turn-level selector instead of keeping a compatibility default that can silently
+pair the wrong prompt and schema. Preserve old turn evidence only in offline
+audit readers; new jobs cannot select or emit it. Do not raise output budgets to
+mask prompt/schema mismatch, and do not admit uniform perfect scores as GDPO
+qualification merely because they are schema-valid.
 
 2026-09-08: fix algorithm correctness first, then submit matched jobs, then
 optimize harness execution. A dropped group must never be partially normalized,
@@ -2631,6 +2726,13 @@ algorithm reproduction, and policy quality are different claims.
 
 ## Outcomes & Retrospective
 
+2026-09-10 judge-contract checkpoint: the production-request reproducer and
+three-pair input/output artifact make the failure inspectable without rerunning
+training. The v0.4 external environment candidate removes the old runtime path
+and passes its complete local package gate. Posttrain pin promotion and a fresh
+GPU calibration remain; no optimizer qualification is claimed from prompt-only
+replay.
+
 2026-09-08 current continuation: code inspection established an unconsumed
 retained-row contract and a reproducible event-loop bottleneck. Retained-row
 correction is published/tested as post5; the harness bottleneck is deferred.
@@ -2795,7 +2897,7 @@ The current isolated fork worktree is `/home/hammad/projects/verifiers`, branch
 `5304495a246e174683f5932377703e9a0a4a6926`. The current environments worktree
 is `/home/hammad/projects/verifiers-environments`, branch
 `codex/verifiers-latest-support`, published at
-`c7e88d7b302e6177041ac0849863d0466be77d8b`. This environment revision aligns
+`b14dfe0ba9d60184f36d78786a543242fabfb765`. This environment revision aligns
 all six standalone packages on the selected Verifiers fork and passes a
 combined wheel activation gate. Neither development branch is a release tag;
 package artifacts and the complete release-readiness receipt remain explicit

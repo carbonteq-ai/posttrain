@@ -125,6 +125,20 @@ def test_invalid_selection_fails_before_loading_any_model(selections, change, ma
             pytest.fail("invalid selection admitted")
 
 
+def test_judge_input_and_output_budgets_must_fit_selected_inference_context(selections):
+    context, environment, request = selections
+    raw = json.loads(json.dumps(dict(environment.activation.config)))
+    raw["taskset"]["task"]["judges"][0]["input_budget_tokens"] = 4_000
+    environment = replace(environment, activation=VerifiersV1ConfigActivation(raw))
+
+    def forbidden(*_):
+        raise AssertionError("model must not start")
+
+    with pytest.raises(ValueError, match=r"4_000|4000 \+ 128 > 4096"):
+        with bind_native_judges(context, environment, {"quality": request}, launcher=forbidden):
+            pytest.fail("invalid judge context admitted")
+
+
 def test_second_endpoint_startup_failure_closes_first_and_restores_credentials(selections):
     context, environment, request = selections
     raw = json.loads(json.dumps(dict(environment.activation.config)))

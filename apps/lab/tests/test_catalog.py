@@ -160,7 +160,7 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert isinstance(environment.source, EnvironmentSource)
     assert environment.source.package == "automationbench-v1"
     assert environment.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-    assert environment.source.revision == "c7e88d7b302e6177041ac0849863d0466be77d8b"
+    assert environment.source.revision == "b14dfe0ba9d60184f36d78786a543242fabfb765"
     assert environment.source.subdirectory == "environments/automationbench_v1"
     assert environment.parameters["domains"] == ["simple"]
     assert environment.parameters["sampling_seed"] == 17
@@ -351,6 +351,9 @@ def test_lfm26_three_step_qualification_retains_a_12k_episode_budget() -> None:
     judged_task = cast(Mapping[str, Any], taskset["task"])
     judges = cast(list[Mapping[str, Any]], judged_task["judges"])
     assert judges[0]["input_budget_tokens"] == 12_288
+    assert judges[0]["code_revision"] == "0dd354d929821174f6cbd8eaa90d82d488df6ff7"
+    assert "assessment_scope" not in judges[0]
+    assert "context_scope" not in judges[0]
 
     assert isinstance(olmo, GRPOSettings)
     assert isinstance(gdpo, GDPOSettings)
@@ -443,7 +446,7 @@ def test_general_capability_catalog_and_library_qualification_are_pinned() -> No
     for item in plan.environments:
         assert isinstance(item.source, EnvironmentSource)
         assert item.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-        assert item.source.revision == "c7e88d7b302e6177041ac0849863d0466be77d8b"
+        assert item.source.revision == "b14dfe0ba9d60184f36d78786a543242fabfb765"
 
 
 def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:

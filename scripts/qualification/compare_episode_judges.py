@@ -58,7 +58,7 @@ def service_request(
 def judge_config(environment: EnvironmentBinding, name: str) -> Any:
     """Read the task-owned judge config after endpoint injection."""
 
-    from automationbench_v1.judge import TurnQualityConfig
+    from automationbench_v1.judge import EpisodeQualityConfig
 
     activation = environment.activation
     if not isinstance(activation, VerifiersV1ConfigActivation):
@@ -68,11 +68,11 @@ def judge_config(environment: EnvironmentBinding, name: str) -> Any:
     matches = [entry for entry in entries if isinstance(entry, dict) and entry.get("name") == name]
     if len(matches) != 1:
         raise ValueError(f"environment must declare exactly one judge named {name!r}")
-    return TurnQualityConfig.model_validate(matches[0])
+    return EpisodeQualityConfig.model_validate(matches[0])
 
 
 async def run(args: argparse.Namespace) -> dict[str, Any]:
-    from automationbench_v1.judge import AutomationBenchTurnJudge
+    from automationbench_v1.judge import AutomationBenchEpisodeJudge
     from calibrate_general_episode_prompt import run_with_judge
     from replay_episode_judge import run_materialized_with_judge
 
@@ -124,7 +124,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             services,
             {args.judge_name: service_name},
         ) as bound:
-            judge = AutomationBenchTurnJudge(judge_config(bound, args.judge_name))
+            judge = AutomationBenchEpisodeJudge(judge_config(bound, args.judge_name))
             if args.fixture is not None:
                 result = await run_with_judge(args.fixture, args.output / "results", judge)
                 input_kind = "reviewed-fixture"

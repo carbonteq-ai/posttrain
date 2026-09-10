@@ -53,7 +53,7 @@ def mechanics(root, selection, records, identities, expected):
 
     artifact = selection["policy"]["artifact"]
     tokenizer = AutoTokenizer.from_pretrained(artifact["repo_id"], revision=artifact["revision"], local_files_only=True)
-    if selection["judge"].get("assessment_scope") == "episode":
+    if selection["judge"].get("assessment_scope", "episode") == "episode":
         return episode_mechanics(tokenizer, selection, records, identities, expected)
     spec = importlib.util.spec_from_file_location("qualification_saved_judge", root / "judge-source.py")
     if spec is None or spec.loader is None:
@@ -206,7 +206,7 @@ def audit(root, *, reload_export=False, include_mechanics=False):
     settings = selection["settings"]
     expected_steps = int(settings["loop"]["max_steps"])
     native_judge = "judge" in selection
-    episode_judge = selection.get("judge", {}).get("assessment_scope") == "episode"
+    episode_judge = native_judge and selection["judge"].get("assessment_scope", "episode") == "episode"
     scorer_digest = (
         selection["projection"]["scorer_digest"]
         if native_judge

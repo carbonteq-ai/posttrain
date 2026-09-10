@@ -6,7 +6,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: c7e88d7b302e6177041ac0849863d0466be77d8b
+      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -47,7 +47,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: c7e88d7b302e6177041ac0849863d0466be77d8b
+      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -79,7 +79,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: c7e88d7b302e6177041ac0849863d0466be77d8b
+      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -156,7 +156,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: c7e88d7b302e6177041ac0849863d0466be77d8b
+      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -171,11 +171,9 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                assessment_scope: episode
-                code_revision: c8c3bb57cb484a068be975fa97e07f5bc86930fd
+                code_revision: 0dd354d929821174f6cbd8eaa90d82d488df6ff7
                 model: google/gemma-4-12B-it
                 model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
-                context_scope: retrospective
                 attempts: 2
                 timeout_seconds: 900
                 input_budget_tokens: 8192
@@ -229,11 +227,9 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                assessment_scope: episode
-                code_revision: c8c3bb57cb484a068be975fa97e07f5bc86930fd
+                code_revision: 0dd354d929821174f6cbd8eaa90d82d488df6ff7
                 model: google/gemma-4-12B-it
                 model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
-                context_scope: retrospective
                 attempts: 2
                 timeout_seconds: 900
                 input_budget_tokens: 12288
@@ -273,17 +269,15 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                assessment_scope: episode
-                code_revision: c8c3bb57cb484a068be975fa97e07f5bc86930fd
+                code_revision: 0dd354d929821174f6cbd8eaa90d82d488df6ff7
                 model: XHToken/Spark-X2.5-4B
                 model_revision: 5e10fcc0286756aebf7c41dc52c1e42d95c70281
-                context_scope: retrospective
                 attempts: 2
                 timeout_seconds: 300
                 input_budget_tokens: 12288
                 sampling:
                   temperature: 0.0
-                  max_tokens: 8192
+                  max_tokens: 16384
                   extra_body:
                     chat_template_kwargs: {enable_thinking: false}
         retries: {max_retries: 2}
@@ -303,15 +297,15 @@ environment:
       max_turns: 12
       max_output_tokens: 12288
       judge_input_budget_tokens: 12288
-      judge_output_budget_tokens: 8192
-      judge_context_window: 24576
+      judge_output_budget_tokens: 16384
+      judge_context_window: 32768
 
   automationbench-lfm26-train-mix-episode-openrouter-v1:
     category: agentic-tool-use
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: c7e88d7b302e6177041ac0849863d0466be77d8b
+      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -326,11 +320,9 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                assessment_scope: episode
-                code_revision: c8c3bb57cb484a068be975fa97e07f5bc86930fd
+                code_revision: 0dd354d929821174f6cbd8eaa90d82d488df6ff7
                 model: deepseek/deepseek-v4-flash-0731
                 model_revision: "0731"
-                context_scope: retrospective
                 attempts: 2
                 timeout_seconds: 900
                 input_budget_tokens: 8192
@@ -376,7 +368,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: c7e88d7b302e6177041ac0849863d0466be77d8b
+      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -1153,9 +1145,9 @@ inference:
       gpu_memory_utilization: 0.30
       dtype: bfloat16
       tensor_parallel_size: 1
-      max_model_len: 24576
+      max_model_len: 32768
       max_num_seqs: 16
-      max_num_batched_tokens: 24576
+      max_num_batched_tokens: 32768
       enforce_eager: false
       enable_chunked_prefill: true
       enable_prefix_caching: true
@@ -1164,7 +1156,7 @@ inference:
       skip_mm_profiling: true
     sampling:
       temperature: 0.0
-      max_tokens: 8192
+      max_tokens: 16384
       extra_body:
         chat_template_kwargs: {enable_thinking: false}
     target: targets/carbonteq-rtx-pro-6000-96gb

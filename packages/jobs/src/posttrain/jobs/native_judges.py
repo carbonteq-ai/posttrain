@@ -10,7 +10,7 @@ from contextlib import AbstractContextManager, ExitStack, contextmanager
 from dataclasses import replace
 from typing import Any, cast
 
-from posttrain.common import JsonValue, RunContext
+from posttrain.common import InferenceBinding, JsonValue, RunContext
 from posttrain.environment import EnvironmentBinding, VerifiersV1ConfigActivation
 from posttrain.serve import Endpoint, ProbeResult, ServeLaunchRequest, launch, probe
 
@@ -272,6 +272,18 @@ def _validate_judge_selection(
         raise ValueError(f"judge {name!r} model differs from its selected inference model")
     if judge.get("sampling", dict(service.inference.sampling)) != dict(service.inference.sampling):
         raise ValueError(f"judge {name!r} sampling differs from its selected inference")
+    if isinstance(inference, InferenceBinding):
+        input_budget = judge.get("input_budget_tokens")
+        output_budget = inference.sampling.get("max_tokens")
+        context_window = inference.engine.get("max_model_len")
+        budgets = (input_budget, output_budget, context_window)
+        if all(isinstance(value, int) and not isinstance(value, bool) for value in budgets):
+            required_context = cast(int, input_budget) + cast(int, output_budget)
+            if required_context > cast(int, context_window):
+                raise ValueError(
+                    f"judge {name!r} input and output budgets exceed selected inference context: "
+                    f"{input_budget} + {output_budget} > {context_window}"
+                )
 
 
 def _restore_environment(key: str, previous: str | None) -> None:

@@ -28,7 +28,7 @@ commands:
     --prompts-per-step 1 --generations-per-prompt 4
     --train-micro-batch-size 2 --checkpoint-steps 1
     --task-mix /opt/posttrain/qualification/lfm26_multiturn_smoke_v1.json
-    --judge-code-revision c8c3bb57cb484a068be975fa97e07f5bc86930fd
+    --judge-code-revision 0dd354d929821174f6cbd8eaa90d82d488df6ff7
     --environment-wheel-sha256 1e62968347bed34b53161596bb89f505ed1b8844e36f07dcdd7549224d81573a
     --output /opt/posttrain/evidence/lfm26-tool-parser-smoke-r9
 files:

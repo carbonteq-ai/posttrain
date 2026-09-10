@@ -790,7 +790,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
         "8d4736461fbc3bf72075b4d84417208b3c5fc9ffc6f48bf26cbe9ef955cf307b"
     )
-    assert entries["automationbench"].artifacts["environment_revision"] == ("c7e88d7b302e6177041ac0849863d0466be77d8b")
+    assert entries["automationbench"].artifacts["environment_revision"] == ("b14dfe0ba9d60184f36d78786a543242fabfb765")
     assert entries["dstack"].required is False
     assert entries["dstack"].deployed_image and "@sha256:" in entries["dstack"].deployed_image
     assert render_fork_ledger(repository_root)["schema"] == "posttrain.fork-ledger.v1"

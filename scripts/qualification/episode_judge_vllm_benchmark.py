@@ -12,7 +12,11 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from automationbench_v1.episode_prompt import EpisodeVerdict
+from automationbench_v1.episode_prompt import (
+    EpisodeVerdict,
+    WireEpisodeVerdict,
+    normalize_wire_verdict,
+)
 
 
 def _arguments() -> argparse.Namespace:
@@ -29,6 +33,16 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--top-k", type=int, default=-1)
     parser.add_argument("--timeout-seconds", type=float, default=600.0)
     parser.add_argument("--enable-thinking", action="store_true")
+    parser.add_argument(
+        "--retain-content",
+        action="store_true",
+        help="Retain raw model content in the report for qualitative prompt debugging",
+    )
+    parser.add_argument(
+        "--wire-evidence-indexes",
+        action="store_true",
+        help="Use the compact judge wire schema and normalize evidence indexes before validation",
+    )
     parser.add_argument(
         "--chat-template-kwargs-json",
         help="Model-specific chat-template kwargs as a JSON object",
@@ -67,7 +81,14 @@ def _load_cases(path: Path) -> list[dict[str, Any]]:
             raise ValueError("every replay record must contain a non-empty messages list")
         if not isinstance(input_digest, str) or not input_digest:
             raise ValueError("every replay record must contain an input digest")
-        cases.append({"input_digest": input_digest, "messages": messages})
+        cases.append(
+            {
+                "input_digest": input_digest,
+                "source_input_digest": record.get("source_input_digest", input_digest),
+                "case_id": record.get("case_id"),
+                "messages": messages,
+            }
+        )
     if not cases:
         raise ValueError("replay corpus is empty")
     return cases
@@ -95,8 +116,11 @@ def _complete(
     temperature: float,
     top_p: float,
     top_k: int,
+    wire_evidence_indexes: bool,
+    retain_content: bool,
 ) -> dict[str, Any]:
     started = time.perf_counter()
+    schema = WireEpisodeVerdict if wire_evidence_indexes else EpisodeVerdict
     response = _json_request(
         f"{base_url.rstrip('/')}/v1/chat/completions",
         {
@@ -110,8 +134,8 @@ def _complete(
             "response_format": {
                 "type": "json_schema",
                 "json_schema": {
-                    "name": EpisodeVerdict.__name__,
-                    "schema": EpisodeVerdict.model_json_schema(),
+                    "name": schema.__name__,
+                    "schema": schema.model_json_schema(),
                     "strict": True,
                 },
             },
@@ -130,11 +154,18 @@ def _complete(
     reasoning = reasoning if isinstance(reasoning, str) else ""
     verdict = None
     try:
-        verdict = EpisodeVerdict.model_validate_json(content)
+        if wire_evidence_indexes:
+            wire = WireEpisodeVerdict.model_validate_json(content)
+            request = json.loads(case["messages"][1]["content"])
+            verdict = normalize_wire_verdict(wire, request["valid_message_ids"])
+        else:
+            verdict = EpisodeVerdict.model_validate_json(content)
     except ValueError:
         pass
-    return {
+    result = {
+        "case_id": case["case_id"],
         "input_digest": case["input_digest"],
+        "source_input_digest": case["source_input_digest"],
         "elapsed_seconds": elapsed,
         "prompt_tokens": int(usage.get("prompt_tokens") or 0),
         "completion_tokens": int(usage.get("completion_tokens") or 0),
@@ -151,6 +182,10 @@ def _complete(
             else None
         ),
     }
+    if retain_content:
+        result["content"] = content
+        result["reasoning"] = reasoning
+    return result
 
 
 def main() -> None:
@@ -171,6 +206,8 @@ def main() -> None:
                     temperature=args.temperature,
                     top_p=args.top_p,
                     top_k=args.top_k,
+                    wire_evidence_indexes=args.wire_evidence_indexes,
+                    retain_content=args.retain_content,
                 ),
                 requests,
             )
@@ -190,6 +227,8 @@ def main() -> None:
         "max_tokens": args.max_tokens,
         "enable_thinking": args.chat_template_kwargs.get("enable_thinking"),
         "chat_template_kwargs": args.chat_template_kwargs,
+        "wire_evidence_indexes": args.wire_evidence_indexes,
+        "content_retained": args.retain_content,
         "sampling": {
             "temperature": args.temperature,
             "top_p": args.top_p,

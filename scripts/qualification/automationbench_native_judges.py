@@ -20,12 +20,8 @@ from pathlib import Path
 
 import torch
 from automationbench_structured_toy import FileObserver, plain
-from automationbench_v1.episode_prompt import (
-    EPISODE_RUBRICS,
-    GENERAL_EPISODE_JUDGE_SYSTEM_PROMPT,
-    build_episode_judge_messages,
-)
-from automationbench_v1.judge import RUBRIC, AutomationBenchTurnJudge, TurnQualityConfig
+from automationbench_v1.episode_prompt import EPISODE_RUBRICS, build_episode_judge_messages
+from automationbench_v1.judge import AutomationBenchEpisodeJudge, EpisodeQualityConfig
 from automationbench_v1.limited_tools import selected_tool_definitions
 from automationbench_v1.taskset import AutomationBenchTaskset
 from episode_reward_profile import episode_component_weights
@@ -37,7 +33,6 @@ from posttrain.serve import ServeLaunchRequest, launch
 from posttrain.serve.backends.vllm import VllmServer
 from posttrain.train import (
     ActiveGroupSampling,
-    CAPOSettings,
     GDPOSettings,
     GRPOSettings,
     LoRAUpdate,
@@ -49,7 +44,6 @@ from posttrain.train import (
     TrainingRuntime,
     build_verifiers_grpo_request,
     build_verifiers_structured_request,
-    capo,
     gdpo,
     grpo,
 )
@@ -58,7 +52,7 @@ from transformers import set_seed
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--algorithm", choices=("grpo", "olmo3", "gdpo", "capo"), required=True)
+    parser.add_argument("--algorithm", choices=("grpo", "olmo3", "gdpo"), required=True)
     parser.add_argument("--backend", choices=("trl", "verl"), required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
@@ -66,7 +60,6 @@ def main():
     )
     parser.add_argument("--environment-wheel-sha256", required=True, help="Exact candidate environment wheel digest.")
     parser.add_argument("--judge-profile", choices=("qwen2b", "gemma12b", "nanbeige3b"), default="gemma12b")
-    parser.add_argument("--episode-rewards", action="store_true")
     parser.add_argument("--judge-vllm-executable", help="Explicit inference runtime, independent of the trainer venv.")
     parser.add_argument("--judge-vllm-version", help="Required version of the explicitly selected inference runtime.")
     parser.add_argument("--verl-source", type=Path)
@@ -108,8 +101,6 @@ def main():
             return server
 
         judge_launcher = partial(launch, server_factory=server_factory)
-    if args.episode_rewards and args.algorithm != "gdpo":
-        parser.error("episode reward comparison uses GDPO")
     scalar_grpo = args.algorithm in {"grpo", "olmo3"}
     if scalar_grpo and args.calibrate_only:
         parser.error("scalar GRPO-family controls have no judge to calibrate")
@@ -135,7 +126,7 @@ def main():
     update_batch_size = args.prompts_per_step * args.generations_per_prompt
     if update_batch_size % args.train_micro_batch_size:
         parser.error("update batch must be divisible by train micro-batch size")
-    if args.calibrate_only and args.episode_rewards:
+    if args.calibrate_only:
         if (args.calibration_fixture is None) == (args.replay_inputs is None):
             parser.error("episode calibration requires exactly one fixture or replay input")
     if args.backend == "verl" and args.verl_source is None:
@@ -146,7 +137,7 @@ def main():
     domains = task_mix["domains"] if task_mix is not None else ["simple"]
     task_names = [row["name"] for row in task_mix["training"]] if task_mix is not None else []
     task_mix_digest = hashlib.sha256(args.task_mix.read_bytes()).hexdigest() if args.task_mix is not None else None
-    judge_source = inspect.getsourcefile(AutomationBenchTurnJudge)
+    judge_source = inspect.getsourcefile(AutomationBenchEpisodeJudge)
     assert judge_source is not None
     source_bytes = Path(judge_source).read_bytes()
     blob = hashlib.sha1(b"blob " + str(len(source_bytes)).encode() + b"\0" + source_bytes).hexdigest()
@@ -155,7 +146,7 @@ def main():
     (output / "judge-source.py").write_bytes(source_bytes)
     judge_source_manifest = {}
     for name, owner in {
-        "judge.py": AutomationBenchTurnJudge,
+        "judge.py": AutomationBenchEpisodeJudge,
         "episode_prompt.py": build_episode_judge_messages,
         "limited_tools.py": selected_tool_definitions,
         "taskset.py": AutomationBenchTaskset,
@@ -222,9 +213,7 @@ def main():
         startup_timeout_seconds=600,
     )
     judge_request = ServeLaunchRequest(judge_inference, port=args.judge_port)
-    judge_config = TurnQualityConfig(
-        assessment_scope="episode" if args.episode_rewards else "turn",
-        rubric=GENERAL_EPISODE_JUDGE_SYSTEM_PROMPT if args.episode_rewards else RUBRIC,
+    judge_config = EpisodeQualityConfig(
         id="automationbench-v1",
         name="quality",
         model=judge_request.endpoint.model,
@@ -239,7 +228,7 @@ def main():
     # sampling contract, rather than relying on different runtime defaults.
     judge_inference = dataclasses.replace(judge_inference, sampling=judge_config.sampling.model_dump(mode="json"))
     judge_request = dataclasses.replace(judge_request, inference=judge_inference)
-    scorer_digest = AutomationBenchTurnJudge(judge_config).scorer_digest
+    scorer_digest = AutomationBenchEpisodeJudge(judge_config).scorer_digest
     sampling = {"max_tokens": 2048, "temperature": 0.8, "top_p": 0.95}
     task_config = {"toolset": "limited_zapier"}
     if not scalar_grpo:
@@ -377,35 +366,18 @@ def main():
     elif args.algorithm == "gdpo":
         settings = GDPOSettings(
             **extra,
-            component_names=("partial_credit", *EPISODE_RUBRICS)
-            if args.episode_rewards
-            else ("partial_credit", "quality"),
-            component_weights=episode_component_weights(tuple(EPISODE_RUBRICS)) if args.episode_rewards else (1.0, 1.0),
+            component_names=("partial_credit", *EPISODE_RUBRICS),
+            component_weights=episode_component_weights(tuple(EPISODE_RUBRICS)),
         )
-    else:
-        settings = CAPOSettings(**extra)
     projection = RewardProjection(
-        "native/automationbench",
+        "native/automationbench-episode",
         "1",
         (
             RewardComponentProjection("partial_credit", "scalar"),
-            RewardComponentProjection("outcome", "native_metric", "task_completed_correctly"),
-            RewardComponentProjection("quality", "turn_mean", "quality"),
+            *(RewardComponentProjection(name, "annotation", f"episode_reward/{name}") for name in EPISODE_RUBRICS),
         ),
         scorer_digest=scorer_digest,
-        turns_info_key="posttrain_turn_rewards",
-        turn_error_key="erroneous_turn_ids" if args.algorithm == "capo" else None,
     )
-    if args.episode_rewards:
-        projection = RewardProjection(
-            "native/automationbench-episode",
-            "1",
-            (
-                RewardComponentProjection("partial_credit", "scalar"),
-                *(RewardComponentProjection(name, "annotation", f"episode_reward/{name}") for name in EPISODE_RUBRICS),
-            ),
-            scorer_digest=scorer_digest,
-        )
     context = RunContext(
         "qualification",
         "automationbench-native-judges",
@@ -446,7 +418,7 @@ def main():
         selection = {
             "policy": plain(policy),
             "settings": plain(settings),
-            "episode_rubrics": EPISODE_RUBRICS if args.episode_rewards else None,
+            "episode_rubrics": EPISODE_RUBRICS if not scalar_grpo else None,
             "training": plain(training),
             "environment": plain(active_environment),
             "candidate_unpublished": True,
@@ -467,28 +439,21 @@ def main():
             )
         (output / "selection.json").write_text(json.dumps(selection, default=str, indent=2))
         if args.calibrate_only:
-            if args.episode_rewards:
-                judges = active_environment.activation.config["taskset"]["task"]["judges"]
-                connected = AutomationBenchTurnJudge(TurnQualityConfig.model_validate(judges[0]))
-                if args.replay_inputs is not None:
-                    from replay_episode_judge import run_materialized_with_judge
+            judges = active_environment.activation.config["taskset"]["task"]["judges"]
+            connected = AutomationBenchEpisodeJudge(EpisodeQualityConfig.model_validate(judges[0]))
+            if args.replay_inputs is not None:
+                from replay_episode_judge import run_materialized_with_judge
 
-                    asyncio.run(run_materialized_with_judge(args.replay_inputs, output / "replay", connected))
-                else:
-                    from calibrate_general_episode_prompt import run_with_judge
-
-                    asyncio.run(run_with_judge(args.calibration_fixture, output / "calibration", connected))
+                asyncio.run(run_materialized_with_judge(args.replay_inputs, output / "replay", connected))
             else:
-                from calibrate_automationbench_judge import run
+                from calibrate_general_episode_prompt import run_with_judge
 
-                asyncio.run(run(output / "selection.json", output / "calibration"))
+                asyncio.run(run_with_judge(args.calibration_fixture, output / "calibration", connected))
             return
         if scalar_grpo:
             result = grpo(context, request)
-        elif args.algorithm == "gdpo":
-            result = gdpo(context, request)
         else:
-            result = capo(context, request)
+            result = gdpo(context, request)
         (output / "result.json").write_text(json.dumps(plain(result), default=str, indent=2))
 
     if scalar_grpo:

@@ -19,13 +19,14 @@ from typing import Any
 import verifiers.v1 as vf
 from automationbench_v1.episode_prompt import (
     EPISODE_RUBRICS,
-    EpisodeVerdict,
+    WireEpisodeVerdict,
     build_episode_judge_messages,
+    normalize_wire_verdict,
     validate_episode_verdict,
 )
 from automationbench_v1.judge import (
-    AutomationBenchTurnJudge,
-    TurnQualityConfig,
+    AutomationBenchEpisodeJudge,
+    EpisodeQualityConfig,
     project_tool_observation,
 )
 from automationbench_v1.limited_tools import selected_tool_definitions
@@ -126,11 +127,10 @@ async def execute(inputs: list[dict[str, Any]], args: argparse.Namespace) -> lis
     api_key = os.environ.get(args.api_key_var)
     if not api_key:
         raise ValueError(f"{args.api_key_var} is required for --execute")
-    judge = AutomationBenchTurnJudge(
-        TurnQualityConfig(
+    judge = AutomationBenchEpisodeJudge(
+        EpisodeQualityConfig(
             id="general-episode-replay",
             name="quality",
-            assessment_scope="episode",
             model=args.model,
             model_revision=args.model_revision,
             code_revision=args.code_revision,
@@ -149,7 +149,9 @@ async def execute(inputs: list[dict[str, Any]], args: argparse.Namespace) -> lis
     return await execute_with_judge(inputs, judge)
 
 
-async def execute_with_judge(inputs: list[dict[str, Any]], judge: AutomationBenchTurnJudge) -> list[dict[str, Any]]:
+async def execute_with_judge(
+    inputs: list[dict[str, Any]], judge: AutomationBenchEpisodeJudge
+) -> list[dict[str, Any]]:
     results = []
     for item in inputs:
         response = None
@@ -159,9 +161,13 @@ async def execute_with_judge(inputs: list[dict[str, Any]], judge: AutomationBenc
                 vf.SystemMessage(content=wire[0]["content"]),
                 vf.UserMessage(content=wire[1]["content"]),
             ]
-            response = await judge.complete(messages, schema=EpisodeVerdict)
-            verdict = EpisodeVerdict.model_validate_json(response.text)
-            known = {message["message_id"] for message in item["assessment_request"]["trajectory"]}
+            response = await judge.complete(messages, schema=WireEpisodeVerdict)
+            wire_verdict = WireEpisodeVerdict.model_validate_json(response.text)
+            message_ids = [
+                message["message_id"] for message in item["assessment_request"]["trajectory"]
+            ]
+            verdict = normalize_wire_verdict(wire_verdict, message_ids)
+            known = set(message_ids)
             validate_episode_verdict(verdict, known)
             result = {
                 "trace_id": item["trace_id"],
@@ -188,7 +194,7 @@ async def execute_with_judge(inputs: list[dict[str, Any]], judge: AutomationBenc
 async def run_materialized_with_judge(
     inputs_path: Path,
     output: Path,
-    judge: AutomationBenchTurnJudge,
+    judge: AutomationBenchEpisodeJudge,
 ) -> dict[str, Any]:
     """Execute already materialized inputs without rebuilding or adding labels."""
     inputs = [json.loads(line) for line in inputs_path.read_text().splitlines() if line.strip()]

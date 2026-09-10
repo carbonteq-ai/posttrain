@@ -28,7 +28,7 @@ commands:
     --prompts-per-step 16 --generations-per-prompt 4
     --train-micro-batch-size 2 --checkpoint-steps 10
     --task-mix /opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
-    --judge-code-revision c8c3bb57cb484a068be975fa97e07f5bc86930fd
+    --judge-code-revision 0dd354d929821174f6cbd8eaa90d82d488df6ff7
     --environment-wheel-sha256 1e62968347bed34b53161596bb89f505ed1b8844e36f07dcdd7549224d81573a
     --output /opt/posttrain/evidence/lfm26-grpo-50-r7
   - >-
@@ -66,7 +66,7 @@ commands:
     --prompts-per-step 16 --generations-per-prompt 4
     --train-micro-batch-size 2 --checkpoint-steps 10
     --task-mix /opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
-    --judge-code-revision c8c3bb57cb484a068be975fa97e07f5bc86930fd
+    --judge-code-revision 0dd354d929821174f6cbd8eaa90d82d488df6ff7
     --environment-wheel-sha256 1e62968347bed34b53161596bb89f505ed1b8844e36f07dcdd7549224d81573a
     --output /opt/posttrain/evidence/lfm26-olmo3-50-r7
   - >-
@@ -107,7 +107,7 @@ commands:
     --task-mix /opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
     --judge-profile gemma12b --judge-vllm-executable vllm
     --judge-vllm-version 0.26.1rc1.dev1235+g62f6de733
-    --judge-code-revision c8c3bb57cb484a068be975fa97e07f5bc86930fd
+    --judge-code-revision 0dd354d929821174f6cbd8eaa90d82d488df6ff7
     --environment-wheel-sha256 1e62968347bed34b53161596bb89f505ed1b8844e36f07dcdd7549224d81573a
     --output /opt/posttrain/evidence/lfm26-gdpo-50-r7
   - >-

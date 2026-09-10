@@ -259,7 +259,7 @@ The inspected source baseline is:
 | `/home/hammad/projects/rl-local-async` | Active Posttrain v0.4 worktree on `codex/local-async-source-env`; it selects the development fork closure below. This is not a stable release until OCI and GPU gates pass. |
 | `/home/hammad/projects/trl-async-training` | Canonical async-training worktree on `codex/posttrain-v04-dev`. Candidate source `6dfc69db939144d270cbcbbed17294262b5ac6f4` is tagged `carbonteq-v1.12.0.post8`; retained-asset workflow `34393365885` published and clean-installed the exact wheel and sdist from `carbonteq/dev`. The sibling `/home/hammad/projects/trl` checkout remains historical and is not the edit target. |
 | `/home/hammad/projects/verifiers` | Canonical checkout on `codex/carbonteq-verifiers-latest`. Selected pushed commit `1f6793f7d46e8a650a54b2a585193b4010578fa6` is based on upstream main `27bbd216df0af719a43705866b2cf6139bcc95de`; the complete v1 suite passes with credential-dependent Prime tests skipped. Verifiers is selected by immutable Git revision rather than a private-index wheel. |
-| `/home/hammad/projects/verifiers-environments` | Canonical checkout on `codex/verifiers-latest-support`. Commit `c7e88d7b302e6177041ac0849863d0466be77d8b` aligns all six independent environment packages on Verifiers `1f6793f7`; all 59 available tests pass with two data-dependent skips. Task semantics remain owned by this repository. |
+| `/home/hammad/projects/verifiers-environments` | Canonical checkout on `codex/verifiers-latest-support`. Commit `b14dfe0ba9d60184f36d78786a543242fabfb765` aligns all six independent environment packages on Verifiers `1f6793f7`; all 59 available tests pass with two data-dependent skips. Task semantics remain owned by this repository. |
 | `/home/hammad/projects/verl-upstream` | Active branch `codex/verl-rollout-execution`. Release source `98742d3e9507318ba0b5d4944034deb7db1ec84b` is tagged `carbonteq-v0.9.0.post2`; ledger follow-up `4050fbeb3528d80492880b7c0eb16f0b3e81322d` is pushed. Posttrain workflow `34335257738` published and clean-installed the exact retained bytes from `carbonteq/dev`. The development profile selects post2; immutable OCI and GPU qualification remain. |
 
 Resolve branches, dirty state, manifests, and lockfiles again when implementation starts. These are inspection anchors, not permission to overwrite later changes.
@@ -758,7 +758,7 @@ contracts, and the fork's focused tests pass. A changed-weight GPU run using an
 actual job capsule remains the next gate; the RTX PRO is currently occupied by
 the pre-existing 20-step GRPO comparison and must not be oversubscribed.
 The environment package closure is published at
-`c7e88d7b302e6177041ac0849863d0466be77d8b`; its six package suites pass with
+`b14dfe0ba9d60184f36d78786a543242fabfb765`; its six package suites pass with
 59 tests and two data-dependent skips against Verifiers `1f6793f7`.
 
 Revision 27 runtime-cache checkpoint: local runtime recovery previously omitted

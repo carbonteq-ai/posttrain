@@ -41,5 +41,7 @@ def test_environment_remains_authority_for_judge_rubric_and_sampling():
 
     assert isinstance(environment, EnvironmentBinding)
     config = judge_config(environment, "quality")
-    assert config.assessment_scope == "episode"
+    assert config.rubric.startswith(
+        "You are an exacting, domain-general evaluator of one agent episode."
+    )
     assert config.sampling.max_tokens == 16_384
