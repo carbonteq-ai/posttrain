@@ -13,6 +13,7 @@ from posttrain.catalog import load_catalog_layer, packaged_base_directory
 from posttrain.common import CatalogRef, ContractError, ExecutionTarget, InferenceBinding, ModelVariant
 from posttrain.environment import VerifiersV1ConfigActivation
 from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
+from posttrain.serve.backends.vllm.bindings import resolve_binding_configuration
 from posttrain.train import (
     ActiveGroupSampling,
     DynamicGroupSampling,
@@ -270,6 +271,9 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert spark_judge.sampling["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
     assert spark_judge.engine.get("speculative_config") is None
     assert spark_judge.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
+    resolved_spark_judge = resolve_binding_configuration(spark_judge)
+    assert resolved_spark_judge.engine.enable_prefix_caching is True
+    assert resolved_spark_judge.engine.trust_remote_code is True
     lock_document = tomllib.loads(
         (WORKSPACE / "packages/catalog/src/posttrain/catalog/base/locks.toml").read_text(encoding="utf-8")
     )

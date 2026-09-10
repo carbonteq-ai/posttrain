@@ -38,6 +38,18 @@ def test_prefix_caching_is_validated_and_forwarded(qwen_screen_binding: Inferenc
     assert "--enable-prefix-caching" in engine.as_cli_args()
 
 
+def test_trust_remote_code_is_explicit_and_forwarded(qwen_screen_binding: InferenceBinding) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        engine={**qwen_screen_binding.engine, "trust_remote_code": True},
+    )
+
+    engine = engine_config(binding)
+
+    assert engine.as_vllm_kwargs()["trust_remote_code"] is True
+    assert "--trust-remote-code" in engine.as_cli_args()
+
+
 def test_resolution_explains_explicit_and_default_settings(qwen_screen_binding: InferenceBinding) -> None:
     resolved = resolve_binding_configuration(qwen_screen_binding)
     origins = {origin.path: origin for origin in resolved.origins}

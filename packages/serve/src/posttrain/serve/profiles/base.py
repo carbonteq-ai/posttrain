@@ -69,6 +69,7 @@ class VllmEngineConfig:
     enforce_eager: bool = False
     enable_chunked_prefill: bool = True
     enable_prefix_caching: bool = False
+    trust_remote_code: bool = False
     disable_log_stats: bool = False
     max_num_seqs: int | None = None
     max_num_batched_tokens: int | None = None
@@ -117,6 +118,7 @@ class VllmEngineConfig:
             "enforce_eager": self.enforce_eager,
             "enable_chunked_prefill": self.enable_chunked_prefill,
             "enable_prefix_caching": self.enable_prefix_caching,
+            "trust_remote_code": self.trust_remote_code,
             "disable_log_stats": self.disable_log_stats,
             "kv_cache_dtype": self.kv_cache_dtype,
         }
@@ -155,6 +157,8 @@ class VllmEngineConfig:
             values.append("--enable-chunked-prefill")
         if self.enable_prefix_caching:
             values.append("--enable-prefix-caching")
+        if self.trust_remote_code:
+            values.append("--trust-remote-code")
         if self.disable_log_stats:
             values.append("--disable-log-stats")
         if self.max_num_seqs is not None:
