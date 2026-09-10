@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 from posttrain.common import InferenceBinding, Workload
-from posttrain.common.variants import NANBEIGE_42_3B
+from posttrain.common.variants import NANBEIGE_42_3B, SPARK_X25_4B
 from posttrain.serve import ServeBenchmarkRequest
 from posttrain.serve.backends.vllm.bindings import (
     benchmark_config,
@@ -74,6 +74,18 @@ def test_qwen_tool_capability_uses_its_declared_xml_protocol(qwen_screen_binding
         "--reasoning-parser",
         "qwen3",
     )
+
+
+def test_spark_tool_capability_uses_vendor_plugin_parser(qwen_screen_binding: InferenceBinding) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        model=SPARK_X25_4B,
+        renderer=SPARK_X25_4B.renderer.id,
+        capabilities=("tool-calling",),
+        engine={key: value for key, value in qwen_screen_binding.engine.items() if key != "reasoning_parser"},
+    )
+
+    assert frontend_args(binding) == ("--enable-auto-tool-choice", "--tool-call-parser", "spark25")
 
 
 def test_vllm_rejects_parser_override_that_conflicts_with_model_protocol(

@@ -223,10 +223,28 @@ def test_narrow_runtime_locks_pin_every_profile_root_and_artifact() -> None:
     expected_roots = {
         BASE_LOCK: {"torch", "triton"},
         constraint_lock("supervised"): {"carbonteq-trackio", "pydantic", "pyyaml", "trl"},
-        constraint_lock("online-rl-trl-py312"): {"carbonteq-trackio", "trl", "vllm", "verifiers"},
+        constraint_lock("online-rl-trl-py312"): {
+            "carbonteq-trackio",
+            "trl",
+            "verifiers",
+            "vllm",
+            "vllm-spark2-5-plugin",
+        },
         constraint_lock("online-rl-verl-py313"): {"carbonteq-trackio", "verifiers"},
-        constraint_lock("eval"): {"carbonteq-trackio", "datasets", "vllm", "verifiers"},
-        constraint_lock("serve"): {"carbonteq-trackio", "vllm", "torchvision", "torchaudio"},
+        constraint_lock("eval"): {
+            "carbonteq-trackio",
+            "datasets",
+            "verifiers",
+            "vllm",
+            "vllm-spark2-5-plugin",
+        },
+        constraint_lock("serve"): {
+            "carbonteq-trackio",
+            "torchaudio",
+            "torchvision",
+            "vllm",
+            "vllm-spark2-5-plugin",
+        },
         TRANSFORM_LOCK: {
             "carbonteq-trackio",
             "datasets",

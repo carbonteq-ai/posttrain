@@ -18,6 +18,7 @@ _TOOL_PARSER_BY_PROTOCOL = {
     "lfm2_pythonic": "lfm2",
     "nanbeige_xml": "nanbeige",
     "qwen3_xml": "qwen3_xml",
+    "spark25_xml": "spark25",
 }
 
 

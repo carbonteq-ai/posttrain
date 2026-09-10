@@ -2270,6 +2270,9 @@ vllm==0.25.1 \
     # via
     #   posttrain-serve
     #   posttrain-train
+    #   vllm-spark2-5-plugin
+vllm-spark2-5-plugin @ git+https://github.com/XHToken/Spark-plugin.git@3e1040e63a5907e4c748a485d6795d739dcd5bd6
+    # via posttrain-serve
 wandb==0.28.1 \
     --hash=sha256:3da3db219c54bfd1082c00e9061c8ea894ba43e42733b5af00bb10c09d7158fe \
     --hash=sha256:4aa07f13dd3bcac2c0524c8d0f49f76e83ab5c1054fd09f3b1a436cfcde146a6 \
