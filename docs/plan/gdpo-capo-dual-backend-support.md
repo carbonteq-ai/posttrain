@@ -1,5 +1,14 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 31 — 2026-09-10. Future matched OLMo3 and episode-GDPO qualification
+uses a 12,288-token cumulative policy-output ceiling, selected from the retained
+R2/R3 distribution rather than the single 4K-turn Airtable tail. The per-turn
+cap remains 4,096 because R3 independently produced a second 4K call. The Gemma
+retrospective input allowance is reduced in lockstep to 12,288 so it is never
+smaller than the policy episode budget; its separate 16,384-token response
+allowance and 32,768-token serving context remain unchanged. Already packaged
+or running 16K jobs remain immutable historical evidence.
+
 Revision 30 — 2026-09-10. The first 16K-budget OLMo3 run proved the complete
 native rollout path (32/32 episodes, no failed/replaced admission, nonzero group
 reward variation) but exposed a trainer-side active-sampling refill invariant

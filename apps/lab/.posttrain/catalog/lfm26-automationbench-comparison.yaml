@@ -137,7 +137,7 @@ environment:
           runtime: {type: subprocess}
           timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
           max_turns: 12
-          max_output_tokens: 16384
+          max_output_tokens: 12288
     sampling: &policy_sampling_4k
       max_tokens: 4096
       temperature: 0.8
@@ -149,7 +149,7 @@ environment:
       sampling_seed: 172846
       toolset: limited_zapier
       max_turns: 12
-      max_output_tokens: 16384
+      max_output_tokens: 12288
 
   automationbench-lfm26-train-mix-episode-judged-v2: &automationbench_train_mix_episode_judged_v2
     category: agentic-tool-use
@@ -236,7 +236,7 @@ environment:
                 context_scope: retrospective
                 attempts: 2
                 timeout_seconds: 900
-                input_budget_tokens: 16384
+                input_budget_tokens: 12288
                 sampling: *judge_sampling
         retries: {max_retries: 2}
         agent:
@@ -244,7 +244,7 @@ environment:
           runtime: {type: subprocess}
           timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
           max_turns: 12
-          max_output_tokens: 16384
+          max_output_tokens: 12288
     sampling: *policy_sampling_4k
     parameters:
       domains: [simple, sales, marketing, operations, support, finance, hr]
@@ -253,8 +253,8 @@ environment:
       sampling_seed: 172846
       toolset: limited_zapier
       max_turns: 12
-      max_output_tokens: 16384
-      judge_input_budget_tokens: 16384
+      max_output_tokens: 12288
+      judge_input_budget_tokens: 12288
       judge_output_budget_tokens: 16384
       judge_context_window: 32768
 
@@ -987,9 +987,9 @@ inference:
     backend: vllm@0.25.1
     renderer: gemma4-tools@1
     engine:
-      # The v3 episode contract allows 16K policy output and must not compact
-      # below that before retrospective scoring. Reserve a symmetric 16K input
-      # and 16K judge-output envelope; the RTX PRO has ample colocated headroom.
+      # The v3 episode contract allows 12K policy output and must not compact
+      # below that before retrospective scoring. Keep a separate 16K judge
+      # response allowance inside the 32K context envelope.
       gpu_memory_utilization: 0.40
       dtype: bfloat16
       tensor_parallel_size: 1

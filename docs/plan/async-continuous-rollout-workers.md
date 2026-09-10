@@ -1,5 +1,14 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 33 — 2026-09-10. Following retained-trace comparison, future matched
+three-update runs use a 12,288-token cumulative episode-output ceiling while
+retaining the 4,096-token per-turn policy cap and 24,576-token actor context.
+Across R2 without the identified Airtable tail and the first 48 R3 trajectories,
+episode-output p95 was about 11K; 12K preserves that operating range without
+paying the full latency cost of the earlier 16K ceiling. The change is encoded
+in both the native Verifiers agent and its environment parameters. The running
+immutable R3 remains 16K evidence and is not relabeled or mutated.
+
 Revision 32 — 2026-09-10. OLMo R2 completed its first 8x4 candidate wave in
 655.83 seconds with 32/32 episodes, no failed or replaced rollout, 181,592
 selected tokens, reward standard deviation 0.4139, and no context-overflow

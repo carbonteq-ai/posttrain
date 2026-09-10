@@ -305,7 +305,7 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert "weight_name_prefix" not in changed_weight_rollout.engine
 
 
-def test_lfm26_three_step_qualification_retains_a_16k_episode_budget() -> None:
+def test_lfm26_three_step_qualification_retains_a_12k_episode_budget() -> None:
     catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
     scalar = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-v3")).value
     judged = catalog.resolve(
@@ -327,16 +327,16 @@ def test_lfm26_three_step_qualification_retains_a_16k_episode_budget() -> None:
     for environment in (scalar, judged):
         assert environment.sampling.max_tokens == 4_096
         parameters = cast(Mapping[str, Any], environment.parameters)
-        assert parameters["max_output_tokens"] == 16_384
+        assert parameters["max_output_tokens"] == 12_288
         assert isinstance(environment.activation, VerifiersV1ConfigActivation)
         agent = cast(Mapping[str, Any], environment.activation.config["agent"])
-        assert agent["max_output_tokens"] == 16_384
+        assert agent["max_output_tokens"] == 12_288
 
     assert isinstance(judged.activation, VerifiersV1ConfigActivation)
     taskset = cast(Mapping[str, Any], judged.activation.config["taskset"])
     judged_task = cast(Mapping[str, Any], taskset["task"])
     judges = cast(list[Mapping[str, Any]], judged_task["judges"])
-    assert judges[0]["input_budget_tokens"] == 16_384
+    assert judges[0]["input_budget_tokens"] == 12_288
 
     assert isinstance(olmo, GRPOSettings)
     assert isinstance(gdpo, GDPOSettings)
