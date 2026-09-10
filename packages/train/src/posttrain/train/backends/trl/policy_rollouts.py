@@ -366,7 +366,9 @@ def _validate_group_relative_examples(settings: Any, example_ids: Sequence[str])
 
     size = settings.num_generations
     expected = settings.num_prompts_per_step * size
-    active_refill = settings.active_sampling is not None
+    # Active sampling is a GRPO/OLMo capability, not part of the structured
+    # GDPO/CAPO settings contract. Keep the shared validator capability-safe.
+    active_refill = getattr(settings, "active_sampling", None) is not None
     if active_refill:
         if not example_ids or len(example_ids) > expected or len(example_ids) % size != 0:
             raise ValueError("OLMo3 active-sampling refill must contain one or more complete prompt groups")

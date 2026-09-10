@@ -1,5 +1,13 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 36 — 2026-09-10. After the 0.45 judge started, GDPO R2 reached the
+shared rollout identity validator and exposed a direct access to the
+GRPO-specific `active_sampling` field. Shared validation now detects that
+optional capability without adding it to structured algorithm settings. GDPO
+and CAPO continue to require complete logical batches; only OLMo active
+sampling accepts smaller complete-group refills. Focused API, collection,
+rollout, reward-admission, lint, and type checks pass.
+
 Revision 35 — 2026-09-10. The first two-step GDPO submission reached the exact
 RTX PRO host but the managed 32K Gemma judge failed vLLM admission before any
 trajectory: 10.50 GiB of KV cache was required and the 0.40 allocation exposed

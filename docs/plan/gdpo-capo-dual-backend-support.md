@@ -1,5 +1,15 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 34 — 2026-09-10. The 0.45 Gemma judge passed the earlier KV-cache
+admission boundary in replacement R2, which then exposed an algorithm-type bug
+before its first trajectory. The OLMo refill validator read
+`settings.active_sampling` directly even though that capability exists only on
+GRPO settings; GDPO and CAPO intentionally omit it. The validator now uses
+capability-safe access while preserving complete logical batches for GDPO/CAPO
+and relaxed complete-group refills only for active-sampling OLMo. A direct GDPO
+regression plus the focused rollout/admission suites pass. R2 is failure
+evidence and must not be resumed; use a fresh identity after publication.
+
 Revision 33 — 2026-09-10. GDPO submission
 `lfm26-gdpo2-gemma12-local-12k-v2-20260910-r1` failed before rollout when the
 revision-1 32K Gemma judge exposed 10.41 GiB of KV cache but vLLM required

@@ -48,6 +48,7 @@ from posttrain.train import (
     EnvironmentRollout,
     EnvironmentRolloutEvidence,
     FullParameterUpdate,
+    GDPOSettings,
     GRPOObservationFeatures,
     GRPORequest,
     GRPOSettings,
@@ -1897,6 +1898,23 @@ def test_ordinary_grpo_still_requires_the_complete_logical_batch() -> None:
 
     with pytest.raises(ValueError, match="complete logical batch"):
         _validate_group_relative_examples(settings, refill)
+
+
+def test_gdpo_requires_a_complete_batch_without_active_sampling() -> None:
+    settings = GDPOSettings(
+        id="qwen3.5/gdpo-complete-batch-test@1",
+        loop=TrainingLoop(max_steps=1, per_device_batch_size=1, gradient_accumulation_steps=32),
+        num_prompts_per_step=8,
+        num_generations=4,
+        component_names=("outcome", "quality"),
+        component_weights=(0.8, 0.2),
+    )
+    complete = [example for name in tuple("abcdefgh") for example in (name,) * 4]
+
+    _validate_group_relative_examples(settings, complete)
+
+    with pytest.raises(ValueError, match="complete logical batch"):
+        _validate_group_relative_examples(settings, complete[:-4])
 
 
 def test_algorithm_settings_reject_embedded_backend_and_update_knobs() -> None:
