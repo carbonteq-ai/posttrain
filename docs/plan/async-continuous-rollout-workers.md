@@ -1,5 +1,15 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 34 — 2026-09-10. The matched 12K qualification is now a two-update
+pair. This is the minimum run that exercises both initial-policy collection and
+collection after a real adapter update; a third update adds cost but no new
+rollout-lifecycle boundary for this gate. OLMo3 and episode-GDPO retain the same
+8x4 request population, continuous-batching limits, environment workers, and
+12K episode budget. New revisioned selections and work packages prevent the
+historical 16x4/3K two-step GDPO configuration from being mistaken for the
+matched arm. Catalog validation also repairs all LFM comparison bindings to the
+current generated TRL dependency-lock digest.
+
 Revision 33 — 2026-09-10. Following retained-trace comparison, future matched
 three-update runs use a 12,288-token cumulative episode-output ceiling while
 retaining the 4,096-token per-turn policy cap and 24,576-token actor context.

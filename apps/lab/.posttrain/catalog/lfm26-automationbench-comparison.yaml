@@ -548,6 +548,38 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
+  # Matched two-update qualification profile. This intentionally keeps the
+  # 12K episode environment and 8x4 collection shape used by the paired GDPO
+  # arm; only the optimizer-step count is reduced for the qualification run.
+  lfm2.5-2.6b/automationbench-olmo3-2-local-v2:
+    selection_type: grpo-settings
+    revision: "2"
+    loop: &comparison_local_2_loop
+      max_steps: 2
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 2
+      checkpoint_limit: 1
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
   lfm2.5-2.6b/automationbench-gdpo-episode-50-v1:
     selection_type: gdpo-settings
     revision: "1"
@@ -619,6 +651,26 @@ training:
     component_weights: [0.50, 0.05, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
     max_admission_attempts: 3
 
+  lfm2.5-2.6b/automationbench-gdpo-episode-2-local-v2:
+    selection_type: gdpo-settings
+    revision: "2"
+    loop: *comparison_local_2_loop
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - evidence_state_grounding
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.50, 0.05, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 3
+
   training/lfm2.5-2.6b-trl-lora-automationbench@1:
     selection_type: training-binding
     revision: "1"
@@ -646,7 +698,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: 0b7c8a431411a625cbfdb9623d0bac75798bffacdd77268d076cb31a30fb3d1d
+      dependency_lock_sha256: f8e9252737ad08ba298b60c42f1bbb2fa863d3c712f0a0c43b336584f16639ae
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local@1:
     selection_type: training-binding
@@ -675,7 +727,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: 0b7c8a431411a625cbfdb9623d0bac75798bffacdd77268d076cb31a30fb3d1d
+      dependency_lock_sha256: f8e9252737ad08ba298b60c42f1bbb2fa863d3c712f0a0c43b336584f16639ae
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
     selection_type: training-binding
@@ -724,7 +776,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: 0b7c8a431411a625cbfdb9623d0bac75798bffacdd77268d076cb31a30fb3d1d
+      dependency_lock_sha256: f8e9252737ad08ba298b60c42f1bbb2fa863d3c712f0a0c43b336584f16639ae
 
   training/lfm2.5-1.2b-trl-lora-changed-weight-local@1:
     selection_type: training-binding
@@ -746,7 +798,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: 0b7c8a431411a625cbfdb9623d0bac75798bffacdd77268d076cb31a30fb3d1d
+      dependency_lock_sha256: f8e9252737ad08ba298b60c42f1bbb2fa863d3c712f0a0c43b336584f16639ae
 
   reward/automationbench-episode-gdpo@1:
     selection_type: reward-projection

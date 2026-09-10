@@ -1,5 +1,16 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 32 — 2026-09-10. The immediate matched local qualification is reduced
+to two optimizer updates per arm so it proves initial collection, one
+changed-weight recollection, learner updates, and final adapter publication
+without paying for an unnecessary third collection. New revision-2 OLMo3 and
+episode-GDPO selections preserve the current 12,288-token episode budget,
+4,096-token per-turn cap, 24,576-token actor context, and 8 prompt groups by 4
+generations. The older two-step GDPO revision remains reproducible but is not a
+valid comparison arm because it used 16x4 and a 3,072-token completion limit.
+The paired revision-2 work packages share one comparison family; only GDPO adds
+the generic eight-component projection and self-hosted Gemma 4 12B judge.
+
 Revision 31 — 2026-09-10. Future matched OLMo3 and episode-GDPO qualification
 uses a 12,288-token cumulative policy-output ceiling, selected from the retained
 R2/R3 distribution rather than the single 4K-turn Airtable tail. The per-turn
@@ -174,19 +185,19 @@ objective. This plan does not claim benchmark reproduction or superiority.
 - [ ] (2026-09-10) Run matched bounded OLMo3 and self-hosted-Gemma GDPO
   qualifications before the remote two-machine topology. The exact work
   packages are
-  `apps/lab/.posttrain/work_packages/lfm26_automationbench_olmo3_3_local.yaml`
+  `apps/lab/.posttrain/work_packages/lfm26_automationbench_olmo3_2_local_v2.yaml`
   and
-  `apps/lab/.posttrain/work_packages/lfm26_automationbench_gdpo_episode_3_gemma_local.yaml`.
-  Each performs three optimizer updates over eight prompt groups by four
-  trajectories (32 trajectories per update, 96 nominal trajectories per arm)
+  `apps/lab/.posttrain/work_packages/lfm26_automationbench_gdpo_episode_2_gemma_local_v2.yaml`.
+  Each performs two optimizer updates over eight prompt groups by four
+  trajectories (32 trajectories per update, 64 nominal trajectories per arm)
   with the same LFM2.5 2.6B LoRA policy, AutomationBench task mix and rollout
   service. OLMo3 retains native active sampling. GDPO additionally uses the
   pinned Gemma 4 12B thinking judge with MTP-2 and the generic eight-component
   episode reward projection. All compute roles resolve to the CarbonTeq RTX PRO
   6000 96 GB server; no OpenRouter/OpenAI credential or request path is
   permitted. Run OLMo3 and GDPO serially because they target one GPU. Acceptance
-  requires three finite optimizer updates per arm, changed-weight rollout
-  collection after updates one and two, valid retained reward evidence, one
+  requires two finite optimizer updates per arm, changed-weight rollout
+  collection after update one, valid retained reward evidence, one
   final LoRA checkpoint per arm, and complete summary/model/trace artifact
   publication. For GDPO, retain the seven independent judge dimensions plus
   native task partial credit and reject uniform/suspicious scoring as a quality

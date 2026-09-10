@@ -361,6 +361,30 @@ def test_lfm26_three_step_qualification_retains_a_12k_episode_budget() -> None:
     assert judge.engine["max_num_seqs"] == 16
 
 
+def test_lfm26_two_step_qualification_is_matched() -> None:
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    olmo = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-2-local-v2")
+    ).value
+    gdpo = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-gdpo-episode-2-local-v2")
+    ).value
+
+    assert isinstance(olmo, GRPOSettings)
+    assert isinstance(gdpo, GDPOSettings)
+    for settings in (olmo, gdpo):
+        assert settings.loop.max_steps == 2
+        assert settings.loop.max_length == 24_576
+        assert settings.loop.gradient_accumulation_steps == 32
+        assert settings.num_prompts_per_step == 8
+        assert settings.num_generations == 4
+        assert settings.max_prompt_length == 20_480
+        assert settings.max_completion_length == 4_096
+
+    assert olmo.algorithm == "olmo3"
+    assert gdpo.component_weights == (0.50, 0.05, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10)
+
+
 def test_qwen4b_automationbench_eval_binding_declares_tool_protocol() -> None:
     catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
     environment = catalog.resolve(CatalogRef("environment", "automationbench-zapier-simple-qualification")).value
