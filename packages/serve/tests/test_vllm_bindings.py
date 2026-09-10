@@ -26,6 +26,18 @@ def test_qwen_screen_binding_captures_tested_8gb_constraints(qwen_screen_binding
     assert kwargs["max_num_seqs"] == 4
 
 
+def test_prefix_caching_is_validated_and_forwarded(qwen_screen_binding: InferenceBinding) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        engine={**qwen_screen_binding.engine, "enable_prefix_caching": True},
+    )
+
+    engine = engine_config(binding)
+
+    assert engine.as_vllm_kwargs()["enable_prefix_caching"] is True
+    assert "--enable-prefix-caching" in engine.as_cli_args()
+
+
 def test_resolution_explains_explicit_and_default_settings(qwen_screen_binding: InferenceBinding) -> None:
     resolved = resolve_binding_configuration(qwen_screen_binding)
     origins = {origin.path: origin for origin in resolved.origins}

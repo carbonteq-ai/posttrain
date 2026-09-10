@@ -233,7 +233,11 @@ objective. This plan does not claim benchmark reproduction or superiority.
   root of `vllm-common`; regenerated online-RL, eval, and serve locks and the
   Spark parser mapping are covered by 68 focused tests. Rebuild the kind image,
   prove the installed plugin entry point from the immutable actual-job image,
-  and use fresh run identity R2.
+  and use a fresh run identity. R2 then failed before model load because the
+  catalog's `enable_prefix_caching` setting was not represented by
+  `VllmEngineConfig`; the framework now forwards that supported vLLM option in
+  both Python and CLI forms with regression coverage. R2 retained zero traces
+  and performed no GPU work or optimizer update. Use fresh identity R3.
 
 - [x] (2026-09-10) Correct shared late-turn context admission before the
   matched three-update runs. OLMo attempt
