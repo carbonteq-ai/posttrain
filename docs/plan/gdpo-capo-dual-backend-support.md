@@ -1,5 +1,16 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 30 — 2026-09-10. The first 16K-budget OLMo3 run proved the complete
+native rollout path (32/32 episodes, no failed/replaced admission, nonzero group
+reward variation) but exposed a trainer-side active-sampling refill invariant
+before optimizer update one. OLMo3 legitimately refills only the rows missing
+after zero-variance groups are filtered; those refills remain complete prompt
+groups but need not equal the original 8x4 batch. Posttrain now accepts that
+bounded OLMo3 shape while keeping full logical batches mandatory for ordinary
+GRPO, GDPO, and CAPO. R2 is retained as failure evidence; a fresh immutable R3
+must complete changed-weight optimizer and checkpoint gates before OLMo3 is
+qualified.
+
 Revision 29 — 2026-09-10. The matched three-update OLMo3 and episode-GDPO
 qualification now uses an explicit 16,384-token generated-output budget for
 each complete AutomationBench episode. A separate 4,096-token per-turn limit

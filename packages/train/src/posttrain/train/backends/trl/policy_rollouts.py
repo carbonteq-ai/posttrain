@@ -350,11 +350,7 @@ def _rollout_batch(request: Any, trainer: Any, example_ids: tuple[str, ...], ste
     offset = sum(len(rows) for rows in ranks[:rank])
     all_examples = [example for rows in ranks for example in rows]
     size = request.settings.num_generations
-    if len(all_examples) != request.settings.num_prompts_per_step * size:
-        raise ValueError("group-relative RL generation must contain the complete logical batch")
-    for start in range(0, len(all_examples), size):
-        if len(set(all_examples[start : start + size])) != 1:
-            raise ValueError("trainer generation order split or mixed prompt occurrences")
+    _validate_group_relative_examples(request.settings, all_examples)
     prefix = f"step/{step}/batch/{ordinal}"
     return RolloutBatch(
         example_ids=example_ids,
@@ -363,6 +359,22 @@ def _rollout_batch(request: Any, trainer: Any, example_ids: tuple[str, ...], ste
         prompt_group_ids=tuple(f"{prefix}/group/{(offset + i) // size}" for i in range(len(example_ids))),
         rollout_ids=tuple(f"{prefix}/response/{offset + i}" for i in range(len(example_ids))),
     )
+
+
+def _validate_group_relative_examples(settings: Any, example_ids: Sequence[str]) -> None:
+    """Validate one complete batch or one OLMo3 active-sampling refill."""
+
+    size = settings.num_generations
+    expected = settings.num_prompts_per_step * size
+    active_refill = settings.active_sampling is not None
+    if active_refill:
+        if not example_ids or len(example_ids) > expected or len(example_ids) % size != 0:
+            raise ValueError("OLMo3 active-sampling refill must contain one or more complete prompt groups")
+    elif len(example_ids) != expected:
+        raise ValueError("group-relative RL generation must contain the complete logical batch")
+    for start in range(0, len(example_ids), size):
+        if len(set(example_ids[start : start + size])) != 1:
+            raise ValueError("trainer generation order split or mixed prompt occurrences")
 
 
 def reward_functions(request: Any) -> Any:

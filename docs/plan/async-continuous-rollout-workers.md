@@ -1,5 +1,18 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 32 — 2026-09-10. OLMo R2 completed its first 8x4 candidate wave in
+655.83 seconds with 32/32 episodes, no failed or replaced rollout, 181,592
+selected tokens, reward standard deviation 0.4139, and no context-overflow
+error. It then failed before optimizer update one because active sampling kept
+the informative groups and asked TRL for a smaller complete-group refill, while
+the Posttrain rollout identity builder incorrectly required every invocation to
+equal the original 32-row logical batch. The identity builder now admits a
+nonempty OLMo3 refill no larger than the target batch and divisible by the
+four-sibling group size; it still rejects partial/mixed groups, and ordinary
+GRPO, GDPO, and CAPO retain the full-batch invariant. Focused training,
+collection, and admission tests pass. This is an active-sampling orchestration
+repair, not a relaxation of group-relative algorithm semantics.
+
 Revision 31 — 2026-09-10. The replacement three-update qualification raises
 the episode generated-output budget from 8,192 to 16,384 tokens and the
 per-turn allowance from 3,072 to 4,096. In the existing TRL request contract,

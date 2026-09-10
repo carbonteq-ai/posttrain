@@ -83,7 +83,12 @@ from posttrain.train.backends.trl.policy_config import (
     _grpo_arguments,
     _grpo_runtime_attributes,
 )
-from posttrain.train.backends.trl.policy_rollouts import rollout_function as _rollout_function
+from posttrain.train.backends.trl.policy_rollouts import (
+    _validate_group_relative_examples,
+)
+from posttrain.train.backends.trl.policy_rollouts import (
+    rollout_function as _rollout_function,
+)
 from posttrain.train.backends.trl.policy_telemetry import (
     ActorUpdateTelemetry as _ActorUpdateTelemetry,
 )
@@ -1857,6 +1862,41 @@ def test_grpo_settings_use_effective_batch_across_gradient_accumulation() -> Non
 
     assert settings.loop.per_device_batch_size == 1
     assert settings.loop.gradient_accumulation_steps == 2
+
+
+def test_olmo3_active_sampling_accepts_complete_group_refills() -> None:
+    settings = GRPOSettings(
+        "qwen3.5/olmo-active-refill-test@1",
+        TrainingLoop(max_steps=1, per_device_batch_size=1, gradient_accumulation_steps=32),
+        num_prompts_per_step=8,
+        num_generations=4,
+        algorithm="olmo3",
+        advantage_scaling="none",
+        clip_epsilon_high=0.272,
+        importance_sampling_mode="token_truncate",
+        importance_sampling_clip_min=None,
+        importance_sampling_clip_max=2.0,
+        active_sampling=ActiveGroupSampling(max_candidate_batches=10),
+    )
+    refill = [example for name in ("a", "b", "c") for example in (name,) * 4]
+
+    _validate_group_relative_examples(settings, refill)
+
+    with pytest.raises(ValueError, match="complete prompt groups"):
+        _validate_group_relative_examples(settings, refill[:-1])
+
+
+def test_ordinary_grpo_still_requires_the_complete_logical_batch() -> None:
+    settings = GRPOSettings(
+        "qwen3.5/grpo-complete-batch-test@1",
+        TrainingLoop(max_steps=1, per_device_batch_size=1, gradient_accumulation_steps=32),
+        num_prompts_per_step=8,
+        num_generations=4,
+    )
+    refill = [example for name in ("a", "b", "c") for example in (name,) * 4]
+
+    with pytest.raises(ValueError, match="complete logical batch"):
+        _validate_group_relative_examples(settings, refill)
 
 
 def test_algorithm_settings_reject_embedded_backend_and_update_knobs() -> None:
