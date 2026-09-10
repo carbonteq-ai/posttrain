@@ -8,6 +8,9 @@ not an algorithm or reward result. A revision-2 judge binding raises
 `gpu_memory_utilization` from 0.40 to 0.45, preserving the 32,768-token context,
 MTP-2, concurrency 16, and all scoring budgets with deliberate headroom. The
 failed immutable run remains evidence; qualification requires a fresh identity.
+The replacement is `lfm26-gdpo2-gemma12-local-12k-v2-20260910-r2` /
+`pt-12273d933d5ce86bd3747b16`, packaged from the revision-2 binding and
+submitted to the same exact RTX PRO target.
 
 Revision 32 — 2026-09-10. The immediate matched local qualification is reduced
 to two optimizer updates per arm so it proves initial collection, one

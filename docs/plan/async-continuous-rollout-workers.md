@@ -6,6 +6,7 @@ trajectory: 10.50 GiB of KV cache was required and the 0.40 allocation exposed
 10.41 GiB. The revision-2 judge binding uses 0.45 rather than tuning against the
 minimum. This changes only judge serving capacity; rollout concurrency, worker
 topology, algorithm settings, and reward semantics remain unchanged.
+Replacement GDPO provider identity: `pt-12273d933d5ce86bd3747b16`.
 
 Revision 34 — 2026-09-10. The matched 12K qualification is now a two-update
 pair. This is the minimum run that exercises both initial-policy collection and
