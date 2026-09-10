@@ -8,7 +8,10 @@ rollout-lifecycle boundary for this gate. OLMo3 and episode-GDPO retain the same
 12K episode budget. New revisioned selections and work packages prevent the
 historical 16x4/3K two-step GDPO configuration from being mistaken for the
 matched arm. Catalog validation also repairs all LFM comparison bindings to the
-current generated TRL dependency-lock digest.
+current generated TRL dependency-lock digest. Submitted provider identities are
+`pt-43bcd322a64d6e334f2ffa57` for OLMo3 and
+`pt-77dabd78ca3c8a1aa028e52a` for episode GDPO. Superseded queued three-step
+jobs were cancelled before allocation.
 
 Revision 33 — 2026-09-10. Following retained-trace comparison, future matched
 three-update runs use a 12,288-token cumulative episode-output ceiling while
