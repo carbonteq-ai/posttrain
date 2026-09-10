@@ -1063,6 +1063,37 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [eval]
 
+  inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@2:
+    revision: "2"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      # Revision 1 exposed only 10.41 GiB of KV cache where vLLM requires
+      # 10.50 GiB for one 32K request. Use deliberate headroom rather than an
+      # allocation tuned to the observed minimum.
+      gpu_memory_utilization: 0.45
+      dtype: bfloat16
+      tensor_parallel_size: 1
+      max_model_len: 32768
+      max_num_seqs: 16
+      max_num_batched_tokens: 32768
+      enforce_eager: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: gemma4
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 2
+        draft_model:
+          repo_id: google/gemma-4-12B-it-assistant
+          revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
+    sampling: *judge_sampling
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+
 evaluation:
   lfm26-automationbench-heldout-v1:
     revision: "1"

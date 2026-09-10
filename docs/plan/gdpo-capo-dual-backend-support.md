@@ -1,5 +1,14 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 33 — 2026-09-10. GDPO submission
+`lfm26-gdpo2-gemma12-local-12k-v2-20260910-r1` failed before rollout when the
+revision-1 32K Gemma judge exposed 10.41 GiB of KV cache but vLLM required
+10.50 GiB to admit one full-context request. This is serving admission evidence,
+not an algorithm or reward result. A revision-2 judge binding raises
+`gpu_memory_utilization` from 0.40 to 0.45, preserving the 32,768-token context,
+MTP-2, concurrency 16, and all scoring budgets with deliberate headroom. The
+failed immutable run remains evidence; qualification requires a fresh identity.
+
 Revision 32 — 2026-09-10. The immediate matched local qualification is reduced
 to two optimizer updates per arm so it proves initial collection, one
 changed-weight recollection, learner updates, and final adapter publication

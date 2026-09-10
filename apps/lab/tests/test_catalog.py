@@ -369,6 +369,9 @@ def test_lfm26_two_step_qualification_is_matched() -> None:
     gdpo = catalog.resolve(
         CatalogRef("training", "lfm2.5-2.6b/automationbench-gdpo-episode-2-local-v2")
     ).value
+    judge = catalog.resolve(
+        CatalogRef("inference", "inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@2")
+    ).value
 
     assert isinstance(olmo, GRPOSettings)
     assert isinstance(gdpo, GDPOSettings)
@@ -383,6 +386,9 @@ def test_lfm26_two_step_qualification_is_matched() -> None:
 
     assert olmo.algorithm == "olmo3"
     assert gdpo.component_weights == (0.50, 0.05, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10)
+    assert isinstance(judge, InferenceBinding)
+    assert judge.engine["gpu_memory_utilization"] == 0.45
+    assert judge.engine["max_model_len"] == 32_768
 
 
 def test_qwen4b_automationbench_eval_binding_declares_tool_protocol() -> None:

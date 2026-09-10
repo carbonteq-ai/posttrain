@@ -1,5 +1,12 @@
 # Continuous rollout workers and native asynchronous training integration
 
+Revision 35 — 2026-09-10. The first two-step GDPO submission reached the exact
+RTX PRO host but the managed 32K Gemma judge failed vLLM admission before any
+trajectory: 10.50 GiB of KV cache was required and the 0.40 allocation exposed
+10.41 GiB. The revision-2 judge binding uses 0.45 rather than tuning against the
+minimum. This changes only judge serving capacity; rollout concurrency, worker
+topology, algorithm settings, and reward semantics remain unchanged.
+
 Revision 34 — 2026-09-10. The matched 12K qualification is now a two-update
 pair. This is the minimum run that exercises both initial-policy collection and
 collection after a real adapter update; a third update adds cost but no new
