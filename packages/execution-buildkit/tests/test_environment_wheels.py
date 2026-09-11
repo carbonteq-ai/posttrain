@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from posttrain.common import ContractError
-from posttrain.execution_pack import ProjectEnvironmentSourceRequest
+from posttrain.execution_pack import ProjectEnvironmentSourceRequest, SourcePackage, digest_source_package
 from posttrain_execution_buildkit import (
     EnvironmentWheelRequest,
     GitSourceLock,
@@ -150,6 +150,15 @@ def test_builds_a_project_snapshot_without_git_metadata(tmp_path: Path) -> None:
     assert lock.source_kind == "project-path"
     assert lock.repository is None and lock.revision is None
     assert lock.project_path == request.path
+
+
+def test_tree_digest_matches_execution_pack_source_identity(tmp_path: Path) -> None:
+    root = (tmp_path / "nested" / "toy_env").absolute()
+    root.mkdir(parents=True)
+    (root / "pyproject.toml").write_text('[project]\nname = "toy-env"\nversion = "1.0.0"\n')
+    (root / "toy.py").write_text("VALUE = 1\n")
+
+    assert _tree_digest(root) == digest_source_package(SourcePackage(root, (".",)))
 
 
 def test_accepts_uv_generated_output_gitignore(tmp_path: Path) -> None:
