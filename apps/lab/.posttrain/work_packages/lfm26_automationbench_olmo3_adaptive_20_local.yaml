@@ -17,7 +17,7 @@ recipe:
     - id: train
       kind: train.grpo
       definition: train/trl-grpo@1
-  expected_artifacts: [trained adapter, native Verifiers trajectories, training summary]
+  expected_artifacts: [trained adapter, native Verifiers trajectories, adaptive curriculum state, training summary]
 bindings:
   model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
   environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-v2}

@@ -10,7 +10,7 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 
 ## Progress
 
-- [x] (2026-09-12) Created branch `codex/adaptive-curriculum-automationbench` without reverting the existing proposal edits.
+- [x] (2026-09-12) Created the implementation branch without reverting the existing proposal edits, then replayed the controller commits onto `codex/adaptive-curriculum-automationbench-v04` from stable `main` (`2bdae383`), which contains the v0.4 release and its dependency-closure hardening.
 - [x] (2026-09-12) Confirmed AutomationBench exposes `domain` as a task-class facet and that the Verifiers bridge carries it into every TRL dataset row.
 - [x] (2026-09-12) Confirmed TRL forms repeated prompt groups before rollout generation and OLMo 3 performs active group retention after rewards are computed.
 - [x] (2026-09-12) Chose a queued file backend with checkpoint-aligned snapshots for controller persistence.
@@ -19,7 +19,9 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 - [x] (2026-09-12) Added unit and integration tests for selection, persistence, schema decoding, trainer composition, and checkpoint ordering.
 - [x] (2026-09-12) Added the adaptive AutomationBench/OLMo 3 catalog selection and 20-step work package; both work packages pass static composition validation.
 - [x] (2026-09-12) Registered the queued journal and final snapshot as one durable controller-state artifact.
-- [x] (2026-09-12) Aligned the framework and external environment dependency closure on published Verifiers commit `36eac9d5e04ef29b584b6fa4f027af00cd76ea19`; 197 focused tests pass with 3 expected skips.
+- [x] (2026-09-12) Preserved the v0.4 dependency closure: TRL post8, Verifiers `1f6793f7d46e8a650a54b2a585193b4010578fa6`, and AutomationBench environment revision `1181585ea66c6f89432864a476b5110794afc9fe`.
+- [x] (2026-09-12) Passed 463 train and lab tests with 10 expected skips, Ruff, focused Pyright, import boundaries, and diff checks on the v0.4 branch.
+- [x] (2026-09-12) Collected one rollout batch from each R1 arm on the older branch; both failed closed before optimizer step one at the LFM actor/vLLM parity gate.
 - [ ] Run both 20-update training jobs.
 - [ ] Compare run evidence and record the result here.
 
@@ -34,11 +36,11 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 - Observation: the machine config contains a retired `[providers.dstack.runtime_secrets]` table while this checkout reads runtime credentials from `[services.runtime_credentials]`.
   Evidence: `posttrain machine show` rejected `providers.dstack.runtime_secrets` as an unknown field. Qualification commands use an ephemeral config copy with only the retired duplicate table removed; the user's config remains unchanged.
 
-- Observation: repository-wide Pyright currently reports 25 pre-existing errors outside the new controller modules.
-  Evidence: focused Pyright reports zero errors for the changed train modules and controller test, while the full command reports existing errors in environment runtime, Observatory HTTP tests, and older rollout tests.
+- Observation: the R1 jobs were packed from commit `756f943d`, based on the pre-release development branch rather than v0.4. Both completed one 32-group rollout batch and then failed the pre-update parity gate: mean selected-token log-probability delta was `0.458367` for vanilla GRPO and `0.378127` for adaptive OLMo 3, above the `0.05` bound.
+  Evidence: that branch selected TRL post5 and the older LFM `language_model.` adapter prefix. The v0.4 branch selects TRL post8, which contains the published row-wise LFM parity repair and native LFM module naming. No R1 optimizer update occurred, so the controller did not cause the divergence.
 
-- Observation: the first job-pack attempt found that AutomationBench revision `12ff5e1...` pinned Verifiers `90055c1...`, while the current training runtime pinned descendant `c6c0097...`; uv correctly refused two immutable URLs for one package.
-  Evidence: published environment revision `d994073...` changes only the six environment packages' shared Verifiers pin to descendant `36eac9d...`. The framework already contains this dependency-closure migration in later history, and both commits are present on their respective origin branches.
+- Observation: the R1 vanilla rollout took `1396.71` seconds at `97.20` aggregate rollout tokens/s. The adaptive OLMo 3 rollout took `1341.67` seconds at `121.35` aggregate rollout tokens/s.
+  Evidence: retained Trackio metrics from the first batches. These measure the whole rollout system, not optimizer throughput; 22 of 32 vanilla and 24 of 32 adaptive episodes were truncated.
 
 ## Decision Log
 
@@ -70,13 +72,13 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
   Rationale: queued file persistence is useful only if the journal and final snapshot survive remote workspace cleanup and can be inspected with the other run outputs.
   Date/Author: 2026-09-12 / Codex
 
-- Decision: Reuse published environment revision `d994073...` and Verifiers revision `36eac9d...` rather than creating another external fork commit.
-  Rationale: these revisions already provide the exact compatible dependency closure, the environment revision changes no task or scorer semantics, and both are immutable and published.
+- Decision: Run R2 from the stable v0.4 code line and its existing TRL post8 runtime instead of transplanting only the parity fix into the older feature branch.
+  Rationale: v0.4 already contains the published LFM parity repair, native module naming, runtime locks, and subsequent integration work. Keeping the `0.05` gate unchanged preserves the behavior-policy safety check.
   Date/Author: 2026-09-12 / Codex
 
 ## Outcomes & Retrospective
 
-Implementation and qualification are in progress. This section will record the two run identifiers, terminal states, controller evidence, held conditions, and any limits revealed by the experiment.
+Implementation is validated on the v0.4 branch. R1 runs `lfm26-grpo20-random-20260912-r1` and `lfm26-olmo3-adaptive20-20260912-r1` are diagnostic failures from the older branch, not training results. R2 will use the v0.4/post8 runtime and new run identities.
 
 ## Context and Orientation
 
@@ -141,7 +143,7 @@ The existing proposal edits in `docs/research/README.md` and `docs/research/prop
 
 ## Artifacts and Notes
 
-The AutomationBench environment is pinned to `carbonteq-ai/verifiers-environments` commit `d994073b9632e73c96a57865683133d7a6ebc4bf`, whose packages share the framework's selected Verifiers commit `36eac9d5e04ef29b584b6fa4f027af00cd76ea19`. Its resolved training population contains 160 selected tasks, each with four fresh attempts, and declares `domain` as an observation facet. The controller file names and run identifiers will be recorded after implementation and launch.
+The v0.4 AutomationBench environment is pinned to `carbonteq-ai/verifiers-environments` commit `1181585ea66c6f89432864a476b5110794afc9fe`; the framework selects Verifiers commit `1f6793f7d46e8a650a54b2a585193b4010578fa6`. Its resolved training population contains 160 selected tasks, each with four fresh attempts, and declares `domain` as an observation facet. The controller file names and successful R2 run identifiers will be recorded after launch.
 
 ## Interfaces and Dependencies
 
@@ -161,3 +163,5 @@ Change note, 2026-09-12: created the implementation plan after source inspection
 Change note, 2026-09-12: updated progress after implementing the controller and catalog profile; recorded the machine-config compatibility issue and current repository-wide Pyright baseline before remote qualification.
 
 Change note, 2026-09-12: recorded the published dependency-closure alignment found during job packing and made the queued controller directory a durable run artifact.
+
+Change note, 2026-09-12: moved qualification to the stable v0.4/post8 code line after the two post5 R1 parity failures; recorded retained rollout speed and truncation evidence.

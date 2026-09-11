@@ -247,6 +247,9 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_olmo.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
     assert isinstance(local_adaptive, GRPOSettings)
     assert local_adaptive.loop.max_steps == 20
+    assert local_adaptive.loop.max_length == local_grpo.loop.max_length
+    assert local_adaptive.max_prompt_length == local_grpo.max_prompt_length
+    assert local_adaptive.max_completion_length == local_grpo.max_completion_length
     assert local_adaptive.algorithm == "olmo3"
     assert local_adaptive.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
     assert local_adaptive.adaptive_curriculum == AdaptiveCurriculum(

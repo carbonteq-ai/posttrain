@@ -277,4 +277,3 @@ def test_runtime_rejects_missing_class_metadata(tmp_path: Path) -> None:
             state_dir=tmp_path / "state",
             resume_checkpoint=None,
         )
-

@@ -714,7 +714,7 @@ training:
     num_prompts_per_step: 8
     num_generations: 4
     max_prompt_length: 10240
-    max_completion_length: 2048
+    max_completion_length: 3072
     algorithm: olmo3
     beta: 0.0
     advantage_scaling: none
