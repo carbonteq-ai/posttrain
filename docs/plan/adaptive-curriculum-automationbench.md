@@ -4,9 +4,9 @@ This ExecPlan is a living document. The sections `Progress`, `Surprises & Discov
 
 ## Purpose / Big Picture
 
-After this change, a GRPO training profile can optionally select rollout tasks from observed learning signal instead of relying on a fixed shuffled mixture. The first qualification combines this controller with the repository's OLMo 3 profile and AutomationBench task classes. A paired 20-update vanilla GRPO run provides the fixed-mixture baseline. The comparison will show which classes and tasks were proposed, what reward variation the current student produced, and how the next allocation changed.
+After this change, a GRPO training profile can optionally select rollout tasks from observed learning signal instead of relying on a fixed shuffled mixture. The first qualification compares two 20-update runs of the repository's OLMo 3 profile on the same AutomationBench task population. The control arm uses OLMo 3 with its normal shuffled mixture. The treatment arm changes only task exposure by enabling the adaptive curriculum. The comparison will show which classes and tasks were proposed, what reward variation the current student produced, and how the next allocation changed.
 
-The controller changes exposure before generation. OLMo 3 active sampling remains a separate algorithm feature that retains useful generated groups for the optimizer. This experiment therefore compares a vanilla GRPO baseline with a combined adaptive-curriculum plus OLMo 3 arm; it does not claim to isolate the curriculum's causal effect from the OLMo 3 update rule.
+The controller changes exposure before generation. OLMo 3 active sampling remains enabled and identical in both arms; it retains useful generated groups for the optimizer after rewards are computed. Holding the model, update rule, active sampling, task population, and training budget constant isolates the effect of adaptive curriculum selection as far as one paired run can.
 
 ## Progress
 
@@ -22,6 +22,7 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 - [x] (2026-09-12) Preserved the v0.4 dependency closure: TRL post8, Verifiers `1f6793f7d46e8a650a54b2a585193b4010578fa6`, and AutomationBench environment revision `1181585ea66c6f89432864a476b5110794afc9fe`.
 - [x] (2026-09-12) Passed 463 train and lab tests with 10 expected skips, Ruff, focused Pyright, import boundaries, and diff checks on the v0.4 branch.
 - [x] (2026-09-12) Collected one rollout batch from each R1 arm on the older branch; both failed closed before optimizer step one at the LFM actor/vLLM parity gate.
+- [x] (2026-09-12) Stopped the R2 vanilla-GRPO/adaptive-OLMo comparison after the vanilla arm completed two healthy optimizer updates because it changed both the update rule and task selection. The replacement comparison uses OLMo 3 in both arms.
 - [ ] Run both 20-update training jobs.
 - [ ] Compare run evidence and record the result here.
 
@@ -76,9 +77,13 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
   Rationale: v0.4 already contains the published LFM parity repair, native module naming, runtime locks, and subsequent integration work. Keeping the `0.05` gate unchanged preserves the behavior-policy safety check.
   Date/Author: 2026-09-12 / Codex
 
+- Decision: Compare OLMo 3 with its normal shuffled task mixture against OLMo 3 with adaptive curriculum selection.
+  Rationale: changing only the curriculum capability makes any observed difference interpretable. The earlier vanilla-GRPO/OLMo comparison changed the algorithm at the same time and was stopped once the mismatch was recognized.
+  Date/Author: 2026-09-12 / Codex
+
 ## Outcomes & Retrospective
 
-Implementation is validated on the v0.4 branch. R1 runs `lfm26-grpo20-random-20260912-r1` and `lfm26-olmo3-adaptive20-20260912-r1` are diagnostic failures from the older branch, not training results. R2 will use the v0.4/post8 runtime and new run identities.
+Implementation is validated on the v0.4 branch. R1 runs `lfm26-grpo20-random-20260912-r1` and `lfm26-olmo3-adaptive20-20260912-r1` are diagnostic failures from the older branch, not training results. The mismatched v0.4 R2 comparison was canceled and retained only as diagnostic evidence. The corrected qualification uses OLMo 3 for both the normal-mixture and adaptive-mixture arms.
 
 ## Context and Orientation
 
@@ -88,7 +93,7 @@ A task class is the category used by the sampler. For this experiment it is an A
 
 The adaptive controller will own an inventory of tasks, a bounded recent evidence window for each task, the current class and task probabilities, a deterministic decision counter, and a persistence backend. Its learning signal is within-group reward variance. For binary rewards, the normalized score is four times the population variance and lies between zero and one. For bounded continuous rewards the same formula is clipped to that interval. Zero is ambiguous: it can mean every attempt failed or every attempt succeeded. The controller therefore never removes a task solely because its variance is zero; a configured exploration reserve keeps it eligible and allows later model updates to change its state.
 
-The existing `apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml` owns the model, environment, inference, and training selections for this comparison. The vanilla work package is `apps/lab/.posttrain/work_packages/lfm26_automationbench_grpo_20_local.yaml`. The adaptive arm will be a new work package rather than changing the existing OLMo 3 arm in place.
+The existing `apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml` owns the model, environment, inference, and training selections for this comparison. The control work package is `apps/lab/.posttrain/work_packages/lfm26_automationbench_olmo3_20_local.yaml`. The treatment work package is `apps/lab/.posttrain/work_packages/lfm26_automationbench_olmo3_adaptive_20_local.yaml`. Their settings are identical except for the treatment arm's `adaptive_curriculum` block.
 
 ## Plan of Work
 
@@ -102,9 +107,9 @@ Compose a small TRL subclass around the existing telemetry subclass. Immediately
 
 Add tests that use small synthetic task inventories and rewards. They must prove equal initialization, high-variance prioritization, exploration-based revisits, fallback when all scores are zero, per-task evidence windows, deterministic replay, ordered queued writes, snapshot restore, invalid class metadata rejection, and unchanged behavior when the profile field is absent. A trainer-wrapper test will prove that selection occurs before generation and observation after reward computation without requiring a GPU.
 
-Add a new OLMo 3 training selection with the adaptive curriculum configured for `domain`, then bind it in a new 20-update work package. Keep the existing vanilla GRPO work package as the random shuffled baseline. Validate both packages before running them.
+Add a new OLMo 3 training selection with the adaptive curriculum configured for `domain`, then bind it in a new 20-update work package. Keep the existing OLMo 3 work package as the normal shuffled-mixture control. Validate both packages before running them.
 
-Run the baseline to completion, then run the adaptive OLMo 3 arm on the same machine and resolved task population. Record run identities before waiting. Compare completed updates, rollout cost, reward signal, class/task allocations, active-sampling retention, and terminal artifacts. Because the algorithm also changes, describe the result as a system comparison.
+Run the OLMo 3 control to completion, then run the adaptive OLMo 3 arm on the same machine and resolved task population. Record run identities before waiting. Compare completed updates, rollout cost, reward signal, class/task allocations, active-sampling retention, and terminal artifacts.
 
 ## Concrete Steps
 
@@ -120,9 +125,9 @@ Implement and test incrementally:
 
 Validate and launch each work package from `apps/lab`:
 
-    uv run --package posttrain posttrain work-package validate .posttrain/work_packages/lfm26_automationbench_grpo_20_local.yaml
+    uv run --package posttrain posttrain work-package validate .posttrain/work_packages/lfm26_automationbench_olmo3_20_local.yaml
     uv run --package posttrain posttrain work-package validate .posttrain/work_packages/lfm26_automationbench_olmo3_adaptive_20_local.yaml
-    uv run --package posttrain posttrain job run .posttrain/work_packages/lfm26_automationbench_grpo_20_local.yaml --job train --provider dstack
+    uv run --package posttrain posttrain job run .posttrain/work_packages/lfm26_automationbench_olmo3_20_local.yaml --job train --provider dstack
     uv run --package posttrain posttrain job run .posttrain/work_packages/lfm26_automationbench_olmo3_adaptive_20_local.yaml --job train --provider dstack
 
 The exact run and log inspection commands will be added here after launch because the CLI returns the durable run identifiers.
@@ -131,9 +136,9 @@ The exact run and log inspection commands will be added here after launch becaus
 
 The capability is accepted when profile decoding rejects malformed settings, the pure controller tests pass, the queued backend produces an ordered replayable journal, and a checkpoint contains an atomic controller snapshot that restores the same evidence windows and next allocation.
 
-Both work packages must validate against the same model, AutomationBench environment revision, task-mix digest, rollout sampling, optimizer budget, and local inference binding. The vanilla job must complete 20 optimizer updates with no adaptive-controller events. The combined job must complete 20 optimizer updates and produce controller journal records showing equal initial allocation, observed group evidence, and later allocation changes while OLMo active-sampling metrics remain separately visible.
+Both work packages must validate against the same model, OLMo 3 update rule, OLMo 3 active-sampling settings, AutomationBench environment revision, task-mix digest, rollout sampling, optimizer budget, and local inference binding. The control job must complete 20 optimizer updates with no adaptive-controller events. The treatment job must complete 20 optimizer updates and produce controller journal records showing equal initial allocation, observed group evidence, and later allocation changes while the same OLMo active-sampling metrics remain separately visible.
 
-The final report must distinguish observed facts from inference. It must not attribute any quality difference solely to adaptive selection because the second arm also uses the OLMo 3 update recipe.
+The final report must distinguish observed facts from inference and treat one run per arm as qualification evidence rather than a statistically conclusive quality result.
 
 ## Idempotence and Recovery
 
@@ -165,3 +170,5 @@ Change note, 2026-09-12: updated progress after implementing the controller and 
 Change note, 2026-09-12: recorded the published dependency-closure alignment found during job packing and made the queued controller directory a durable run artifact.
 
 Change note, 2026-09-12: moved qualification to the stable v0.4/post8 code line after the two post5 R1 parity failures; recorded retained rollout speed and truncation evidence.
+
+Change note, 2026-09-12: corrected the qualification design to compare normal-mixture OLMo 3 with adaptive-curriculum OLMo 3, holding the update algorithm and active sampling constant.
