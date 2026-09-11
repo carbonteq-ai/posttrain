@@ -80,6 +80,7 @@ from .profiles import (
     QWEN35_SFT_SMOKE,
     QWEN35_THINKING_RENDERER,
     ActiveGroupSampling,
+    AdaptiveCurriculum,
     CAPOSettings,
     DPOSettings,
     DynamicGroupSampling,
@@ -125,6 +126,7 @@ from .verifiers_requests import (
 )
 
 __all__ = [
+    "AdaptiveCurriculum",
     "CAPORequest",
     "CAPOSettings",
     "GDPORequest",

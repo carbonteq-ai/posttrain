@@ -16,6 +16,7 @@ from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
 from posttrain.serve.backends.vllm.bindings import resolve_binding_configuration
 from posttrain.train import (
     ActiveGroupSampling,
+    AdaptiveCurriculum,
     DynamicGroupSampling,
     GDPOSettings,
     GRPOSettings,
@@ -217,8 +218,15 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert scalar.max_concurrent == 32
     assert judged.max_concurrent == 32
 
-    local_grpo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-grpo-20-local-v1")).value
-    local_olmo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-20-local-v1")).value
+    local_grpo = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-grpo-20-local-v1")
+    ).value
+    local_olmo = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-20-local-v1")
+    ).value
+    local_adaptive = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-adaptive-20-local-v1")
+    ).value
     local_rollout = catalog.resolve(
         CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32@1")
     ).value
@@ -237,6 +245,16 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_olmo.loop.max_steps == 20
     assert local_olmo.algorithm == "olmo3"
     assert local_olmo.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
+    assert isinstance(local_adaptive, GRPOSettings)
+    assert local_adaptive.loop.max_steps == 20
+    assert local_adaptive.algorithm == "olmo3"
+    assert local_adaptive.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
+    assert local_adaptive.adaptive_curriculum == AdaptiveCurriculum(
+        "domain",
+        exploration=0.2,
+        history_groups=4,
+        seed=172846,
+    )
     assert isinstance(local_rollout, InferenceBinding)
     assert isinstance(local_training, TrainingBinding)
     assert local_rollout.engine["max_num_seqs"] == 32

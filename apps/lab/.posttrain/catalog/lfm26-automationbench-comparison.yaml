@@ -707,6 +707,32 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
+  lfm2.5-2.6b/automationbench-olmo3-adaptive-20-local-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop: *comparison_local_20_loop
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 10240
+    max_completion_length: 2048
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    adaptive_curriculum:
+      class_field: domain
+      exploration: 0.2
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
   lfm2.5-2.6b/automationbench-gdpo-episode-50-v1:
     selection_type: gdpo-settings
     revision: "1"

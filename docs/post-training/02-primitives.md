@@ -467,7 +467,7 @@ QLoRA-as-default, vLLM topology, or a single forced train=rollout target.
 
 | Layer | Type | Owns |
 | --- | --- | --- |
-| Algorithm settings | `SFTSettings` \| `DPOSettings` \| `GRPOSettings` \| `OnPolicyDistillationSettings` | Algorithm identity, generations, divergence semantics, advantages, reward **weights**, IS *learning* semantics, prompt/completion limits, opt schedule |
+| Algorithm settings | `SFTSettings` \| `DPOSettings` \| `GRPOSettings` \| `OnPolicyDistillationSettings` | Algorithm identity, generations, divergence semantics, advantages, reward **weights**, IS *learning* semantics, prompt/completion limits, opt schedule; GRPO may compose an optional pre-rollout curriculum profile |
 | Parameter update | `ParameterUpdatePlan` | Full-parameter \| LoRA \| QLoRA \| quantization-aware (QAT) |
 | Training binding | `TrainingBinding` | Train backend, update plan, normalized train parallelism/runtime, backend-specific options, **training** `ExecutionTarget` |
 | Rollout inference | `InferenceBinding` | Rollout backend/`engine`/sampling, **rollout** `ExecutionTarget` |
@@ -589,6 +589,15 @@ Efficiency, memory, synchronization, and observability changes that preserve
 these semantics remain DAPO implementation improvements, not a new algorithm.
 CISPO, GSPO, and Dr. GRPO replace objective or normalization semantics and are
 not DAPO flags.
+
+`GRPOSettings.adaptive_curriculum`, when selected, is a pre-rollout exposure
+policy rather than an update objective. It names a class field already carried
+by the resolved environment tasks and uses completed rollout evidence to choose
+future classes and tasks. The environment still owns the task population and
+reward meaning. The curriculum must retain a nonzero base allocation, record
+proposed and observed task identities, and checkpoint its state with the model.
+It composes with `grpo`, `dapo`, or `olmo3`; post-generation retained-group
+sampling remains separately attributable to the selected algorithm.
 
 SAMPO is a separate selection for multi-turn tool-using agents. It combines one
 sequence-level importance ratio per trajectory with a token-aligned advantage

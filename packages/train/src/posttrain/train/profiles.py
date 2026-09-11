@@ -121,6 +121,24 @@ class ActiveGroupSampling:
 
 
 @dataclass(frozen=True, slots=True)
+class AdaptiveCurriculum:
+    """Select rollout tasks from recent within-task reward variation."""
+
+    class_field: str
+    exploration: float = 0.2
+    history_groups: int = 4
+    seed: int = 42
+
+    def __post_init__(self) -> None:
+        if not self.class_field or not self.class_field.strip():
+            raise ValueError("adaptive curriculum class field is required")
+        if not math.isfinite(self.exploration) or not 0 < self.exploration <= 1:
+            raise ValueError("adaptive curriculum exploration must be in (0, 1]")
+        if self.history_groups < 1:
+            raise ValueError("adaptive curriculum history groups must be positive")
+
+
+@dataclass(frozen=True, slots=True)
 class GRPOSettings:
     id: str
     loop: TrainingLoop
@@ -141,6 +159,7 @@ class GRPOSettings:
     clip_epsilon_high: float | None = None
     dynamic_sampling: DynamicGroupSampling | None = None
     active_sampling: ActiveGroupSampling | None = None
+    adaptive_curriculum: AdaptiveCurriculum | None = None
     shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
     overlong_buffer_tokens: int | None = None
@@ -489,6 +508,7 @@ QWEN35_GRPO_MTP_SMOKE = GRPOSettings(
 )
 
 __all__ = [
+    "AdaptiveCurriculum",
     "DPOSettings",
     "DynamicGroupSampling",
     "GRPOSettings",

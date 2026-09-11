@@ -485,11 +485,20 @@ not replace selected model, data, environment, target, or artifact identities.
 
 Reward **weights** live in algorithm settings; reward **meanings** live on the
 environment. Rollout engine knobs live on `InferenceBinding.engine`.
-`GRPOSettings.algorithm` selects `grpo` or `dapo`. The DAPO selection owns its
+`GRPOSettings.algorithm` selects `grpo`, `dapo`, or `olmo3`. The DAPO selection owns its
 token-level aggregation, asymmetric clipping, bounded retained-group dynamic
 sampling, truncation handling, and optional soft-overlong shaping. Run evidence
 records these settings explicitly. Backend adapters reject unsupported
 semantics rather than approximating DAPO with another objective.
+
+`GRPOSettings.adaptive_curriculum` optionally selects rollout exposure before
+the algorithm update. Its initial contract contains `class_field`,
+`exploration`, `history_groups`, and `seed`. The named field must exist on every
+resolved rollout task. Evidence windows advance when that task produces a
+completed group, not merely when an optimizer step passes. Controller state and
+write position are recovery state and must be retained with a model checkpoint.
+The run records curriculum allocation separately from OLMo 3 or DAPO
+post-generation group selection.
 
 `SAMPOSettings` belongs to the separate `train.sampo` operation. It owns the
 discount factor, turn-advantage weight, sequence clipping bounds, reward

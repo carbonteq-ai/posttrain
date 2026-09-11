@@ -23,6 +23,7 @@ from .bindings import (
 )
 from .profiles import (
     ActiveGroupSampling,
+    AdaptiveCurriculum,
     CAPOSettings,
     DPOSettings,
     DynamicGroupSampling,
@@ -162,6 +163,13 @@ class ActiveGroupSamplingSchema(TrainCatalogSchema):
     max_candidate_batches: int = Field(default=10, gt=0)
 
 
+class AdaptiveCurriculumSchema(TrainCatalogSchema):
+    class_field: str = Field(min_length=1)
+    exploration: float = Field(default=0.2, gt=0, le=1, allow_inf_nan=False)
+    history_groups: int = Field(default=4, gt=0)
+    seed: int = 42
+
+
 class GRPOSettingsSchema(TrainCatalogSchema):
     selection_type: Literal["grpo-settings"]
     id: str
@@ -183,6 +191,7 @@ class GRPOSettingsSchema(TrainCatalogSchema):
     clip_epsilon_high: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     dynamic_sampling: DynamicGroupSamplingSchema | None = None
     active_sampling: ActiveGroupSamplingSchema | None = None
+    adaptive_curriculum: AdaptiveCurriculumSchema | None = None
     shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
     overlong_buffer_tokens: int | None = Field(default=None, gt=0)
@@ -361,6 +370,9 @@ def decode_training_selection(
         active_sampling = values.pop("active_sampling")
         if active_sampling is not None:
             values["active_sampling"] = ActiveGroupSampling(**active_sampling)
+        adaptive_curriculum = values.pop("adaptive_curriculum")
+        if adaptive_curriculum is not None:
+            values["adaptive_curriculum"] = AdaptiveCurriculum(**adaptive_curriculum)
         return GRPOSettings(
             payload.id,
             TrainingLoop(**payload.loop.model_dump()),
@@ -431,6 +443,7 @@ TRAIN_CATALOG_DECODERS: Mapping[SelectionFamily, SelectionDecoder] = {
 }
 
 __all__ = [
+    "AdaptiveCurriculumSchema",
     "DPOSettingsSchema",
     "GRPOSettingsSchema",
     "OnPolicyDistillationSettingsSchema",
