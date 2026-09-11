@@ -510,6 +510,8 @@ class TrackioTrackedRun:
 
     def flush_artifacts(self, timeout: float | None = None) -> tuple[PublishedArtifact, ...]:
         """Drain queued Trackio publications before evidence reconciliation."""
+        if timeout is None:
+            timeout = self._artifact_publication_timeout_seconds
         deadline = None if timeout is None else monotonic() + timeout
         flusher = getattr(self._run, "flush_artifacts", None)
         if callable(flusher):

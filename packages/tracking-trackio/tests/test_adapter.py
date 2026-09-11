@@ -1280,6 +1280,28 @@ def test_trackio_artifact_queue_wait_uses_declared_timeout(
     assert calls == [{"background": True, "queue_timeout": 725}]
 
 
+def test_trackio_artifact_drain_uses_declared_timeout_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+    trackio_dir: Path,
+) -> None:
+    del trackio_dir
+    tracked = TrackioBackend(
+        TrackioSettings(
+            project="trackio-artifact-drain-timeout",
+            artifact_publication_timeout_seconds=725,
+        )
+    ).start_run(_spec("00000000-0000-4000-8000-000000000111"))
+    calls: list[float | None] = []
+    monkeypatch.setattr(
+        tracked._run,
+        "flush_artifacts",
+        lambda *, timeout=None: calls.append(timeout) or (),
+    )
+
+    assert tracked.flush_artifacts() == ()
+    assert calls == [725]
+
+
 @pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan")])
 def test_trackio_artifact_publication_timeout_must_be_positive_finite(timeout: float) -> None:
     with pytest.raises(ValueError, match="artifact publication timeout"):

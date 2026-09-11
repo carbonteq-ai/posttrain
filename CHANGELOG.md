@@ -40,6 +40,9 @@ submission.
   artifact-drain error is surfaced. Candidate materialization also refreshes
   the independently locked transform environment instead of carrying a stale
   tracking client into that job kind.
+- Work execution delegates the bounded artifact-drain timeout to the selected
+  tracking backend instead of imposing a shorter framework-wide constant, so
+  large model artifacts honor Trackio's configured finalization window.
 
 ### Release gates still open
 
