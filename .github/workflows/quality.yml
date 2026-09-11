@@ -2,6 +2,12 @@ name: Quality
 
 on:
   workflow_dispatch:
+    inputs:
+      allow_pending_runtime_lock:
+        description: Allow the protected candidate workflow to materialize a changed runtime lock
+        required: false
+        default: false
+        type: boolean
   pull_request:
   push:
     branches: [main]
@@ -57,7 +63,8 @@ jobs:
         run: uv run --no-sync posttrain-release repository-check
       - name: Run deterministic release readiness
         run: |
-          if [[ "${GITHUB_EVENT_NAME}" = "pull_request" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" = "pull_request" \
+            || "${{ inputs.allow_pending_runtime_lock || false }}" = "true" ]]; then
             pending_lock=--allow-pending-runtime-lock
           else
             pending_lock=

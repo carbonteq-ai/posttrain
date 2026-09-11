@@ -1056,6 +1056,12 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
     candidate = (repository_root / ".github/workflows/release-candidate.yml").read_text(encoding="utf-8")
     final = (repository_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    quality = (repository_root / ".github/workflows/quality.yml").read_text(encoding="utf-8")
+
+    assert "allow_pending_runtime_lock:" in quality
+    assert "default: false" in quality
+    assert "inputs.allow_pending_runtime_lock || false" in quality
+    assert "--allow-pending-runtime-lock" in quality
 
     for workflow in (candidate,):
         assert "runs-on: [self-hosted, linux, x64, lan-release]" in workflow
