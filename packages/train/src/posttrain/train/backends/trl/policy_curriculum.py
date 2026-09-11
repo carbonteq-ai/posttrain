@@ -95,11 +95,33 @@ class AdaptiveCurriculumRuntime:
         generation_batch: Sequence[Mapping[str, object]],
         *,
         step: int,
+        selection_kind: str = "initial_batch",
+        round_index: int | None = None,
     ) -> list[dict[str, object]]:
         if len(generation_batch) % self.num_generations != 0:
             raise RuntimeError("adaptive curriculum received an incomplete prompt group batch")
         group_count = len(generation_batch) // self.num_generations
-        decision = self.controller.select(group_count, step=step)
+        return self.select_task_groups(
+            group_count,
+            step=step,
+            selection_kind=selection_kind,
+            round_index=round_index,
+        )
+
+    def select_task_groups(
+        self,
+        group_count: int,
+        *,
+        step: int,
+        selection_kind: str,
+        round_index: int | None = None,
+    ) -> list[dict[str, object]]:
+        decision = self.controller.select(
+            group_count,
+            step=step,
+            selection_kind=selection_kind,
+            round_index=round_index,
+        )
         selected = [
             dict(self.task_rows[task_id])
             for task_id in decision.task_ids
@@ -173,12 +195,26 @@ def adaptive_curriculum_trainer_type(parent: type[Any], runtime: AdaptiveCurricu
                 if getattr(self.accelerator, "num_processes", 1) != 1:
                     raise RuntimeError("adaptive curriculum currently requires one training process")
                 generate_every = self.args.steps_per_generation * self.num_iterations
-                if self._step % generate_every == 0 or self._buffered_inputs is None:
+                if (
+                    not getattr(self, "active_sampling", False)
+                    and (self._step % generate_every == 0 or self._buffered_inputs is None)
+                ):
                     generation_batch = runtime.select_generation_batch(
                         cast(Sequence[Mapping[str, object]], generation_batch),
                         step=int(self.state.global_step) + 1,
+                        selection_kind="initial_batch",
                     )
             return cast(dict[str, Any], super()._prepare_inputs(generation_batch))
+
+        def _prepare_active_sampling_inputs(self, candidate_inputs: Any) -> dict[str, Any]:
+            if not getattr(self, "active_sampling", False):
+                return cast(dict[str, Any], super()._prepare_active_sampling_inputs(candidate_inputs))
+            return _prepare_adaptive_active_sampling_inputs(
+                self,
+                cast(list[dict[str, Any]], candidate_inputs),
+                runtime,
+                step=int(self.state.global_step) + 1,
+            )
 
         def _calculate_rewards(
             self,
@@ -200,6 +236,96 @@ def adaptive_curriculum_trainer_type(parent: type[Any], runtime: AdaptiveCurricu
             return rewards
 
     return AdaptiveCurriculumTrainer
+
+
+def _prepare_adaptive_active_sampling_inputs(
+    trainer: Any,
+    candidate_inputs: list[dict[str, Any]],
+    runtime: AdaptiveCurriculumRuntime,
+    *,
+    step: int,
+) -> dict[str, Any]:
+    """Choose each OLMo refill after observing earlier rounds at the same weights."""
+    import torch
+    from trl.trainer.rollout_admission import NoAdmittedRollouts
+
+    if any("image" in row or "images" in row for row in candidate_inputs):
+        raise NotImplementedError("adaptive active sampling currently supports text-only GRPO datasets")
+
+    max_batches = int(trainer.active_sampling_max_batches)
+    target_size = len(candidate_inputs) // max_batches
+    if target_size == 0 or len(candidate_inputs) % max_batches != 0:
+        raise RuntimeError("adaptive active sampling received an incomplete candidate generation batch")
+
+    retained_batches: list[dict[str, Any]] = []
+    retained_count = 0
+    candidate_count = 0
+    candidate_cursor = 0
+    generation_rounds = 0
+    for round_index in range(1, max_batches + 1):
+        local_missing = max(target_size - retained_count, 0)
+        missing_by_process = trainer.accelerator.gather(
+            torch.tensor(local_missing, device=trainer.accelerator.device)
+        )
+        synchronized_missing = int(missing_by_process.max().item())
+        if synchronized_missing == 0:
+            break
+        if synchronized_missing % trainer.num_generations != 0:
+            raise RuntimeError("adaptive active sampling refill size must contain complete prompt groups")
+        if candidate_cursor + synchronized_missing > len(candidate_inputs):
+            raise RuntimeError("adaptive active sampling exhausted its bounded candidate capacity")
+
+        candidate_batch = runtime.select_task_groups(
+            synchronized_missing // trainer.num_generations,
+            step=step,
+            selection_kind="active_sampling_refill",
+            round_index=round_index,
+        )
+        candidate_cursor += synchronized_missing
+
+        try:
+            scored_batch = trainer._generate_and_score_completions(candidate_batch)
+        except NoAdmittedRollouts:
+            generation_rounds += 1
+            candidate_count += len(candidate_batch)
+            continue
+        group_reward_std = scored_batch.pop("group_reward_std")
+        keep = group_reward_std > trainer.active_sampling_reward_std_epsilon
+        generation_rounds += 1
+        candidate_count += len(candidate_batch)
+        if keep.any():
+            retained_batches.append(trainer._select_dynamic_sampling_rows(scored_batch, keep))
+            retained_count += int(keep.sum().item())
+
+    local_ready = torch.tensor(retained_count >= target_size, device=trainer.accelerator.device)
+    all_ready = trainer.accelerator.gather(local_ready)
+    if not all_ready.all():
+        retained_counts = trainer.accelerator.gather(
+            torch.tensor(retained_count, device=trainer.accelerator.device)
+        ).tolist()
+        raise RuntimeError(
+            "adaptive active sampling exhausted "
+            f"{max_batches} generation rounds before every process filled its generation batch; "
+            f"retained rows by process: {retained_counts}"
+        )
+
+    batch = trainer._concatenate_dynamic_sampling_batches(retained_batches)
+    batch = trainer._select_dynamic_sampling_rows(
+        batch,
+        torch.arange(len(batch["completion_ids"]), device=trainer.accelerator.device) < target_size,
+    )
+    local_tokens = batch["completion_mask"].sum()
+    batch["num_items_in_batch"] = trainer.accelerator.gather(local_tokens).sum()
+    trainer._metrics["train"]["active_sampling/generation_rounds"].append(generation_rounds)
+    trainer._metrics["train"]["active_sampling/retained_fraction"].append(retained_count / candidate_count)
+    trainer._metrics["train"]["active_sampling/generated_rows"].append(candidate_count)
+    trainer._metrics["train"]["active_sampling/candidate_groups_reserved"].append(len(candidate_inputs))
+    trainer._metrics["train"]["active_sampling/candidate_groups_generated"].append(candidate_count)
+    trainer._metrics["train"]["active_sampling/candidate_groups_retained"].append(retained_count)
+    trainer._metrics["train"]["active_sampling/candidate_groups_unused"].append(
+        len(candidate_inputs) - candidate_cursor
+    )
+    return cast(dict[str, Any], batch)
 
 
 def _weighted_reward(rewards: Sequence[float], weights: Sequence[float]) -> float:

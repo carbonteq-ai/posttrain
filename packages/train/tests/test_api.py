@@ -43,6 +43,7 @@ from posttrain.train import (
     QWEN35_RENDERER,
     QWEN35_SFT_SMOKE,
     ActiveGroupSampling,
+    AdaptiveCurriculum,
     CAPOSettings,
     DPORequest,
     DynamicGroupSampling,
@@ -1755,6 +1756,30 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
         assert invariant not in olmo3_arguments
     assert olmo3_arguments["active_sampling_max_batches"] == 6
     assert _grpo_runtime_attributes(olmo3_request)["active_sampling"] is True
+
+    adaptive_olmo3_request = replace(
+        olmo3_request,
+        settings=replace(
+            olmo3_request.settings,
+            adaptive_curriculum=AdaptiveCurriculum("domain"),
+        ),
+    )
+    assert (
+        _grpo_runtime_attributes(adaptive_olmo3_request)["adaptive_curriculum_sampling_mode"]
+        == "active_sampling_refill"
+    )
+
+    adaptive_grpo_request = replace(
+        request,
+        settings=replace(
+            request.settings,
+            adaptive_curriculum=AdaptiveCurriculum("domain"),
+        ),
+    )
+    assert (
+        _grpo_runtime_attributes(adaptive_grpo_request)["adaptive_curriculum_sampling_mode"]
+        == "initial_batch"
+    )
 
     shuffled_request = replace(olmo3_request, settings=replace(olmo3_request.settings, shuffle_prompts=True))
     shuffled_arguments = _grpo_arguments(shuffled_request, tmp_path, {"enable_thinking": False})

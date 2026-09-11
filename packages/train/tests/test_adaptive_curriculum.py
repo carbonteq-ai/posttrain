@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from collections.abc import Mapping
 from pathlib import Path
 from types import SimpleNamespace
@@ -262,6 +263,123 @@ def test_trainer_composition_selects_before_generation_and_observes_raw_rewards(
         evidence_events = [event for event in context.events if event[0] == "adaptive_curriculum_evidence_observed"]
         assert evidence_events[-1][1]["observed_groups"] == 4
         assert runtime.controller.class_signals() == {"a": 0.25, "b": 0.0}
+        decisions = [event for event in context.events if event[0] == "adaptive_curriculum_allocation_selected"]
+        assert decisions[-1][1]["selection_kind"] == "initial_batch"
+        assert decisions[-1][1]["round_index"] is None
+    finally:
+        runtime.close()
+
+
+def test_olmo_active_sampling_selects_each_refill_from_fresh_evidence(tmp_path: Path) -> None:
+    import torch
+
+    context = EventContext()
+    runtime = _runtime(tmp_path, context)
+
+    class Accelerator:
+        num_processes = 1
+        device = torch.device("cpu")
+
+        @staticmethod
+        def gather(value: object) -> object:
+            if isinstance(value, torch.Tensor) and value.ndim == 0:
+                return value.reshape(1)
+            return value
+
+    class Parent:
+        def __init__(self) -> None:
+            self.model = SimpleNamespace(training=True)
+            self.accelerator = Accelerator()
+            self.active_sampling = True
+            self.active_sampling_max_batches = 3
+            self.active_sampling_reward_std_epsilon = 0.0
+            self.num_generations = 2
+            self.state = SimpleNamespace(global_step=0)
+            self.reward_weights = [1.0]
+            self._metrics = {"train": defaultdict(list)}
+            self.generated_task_classes: list[tuple[str, ...]] = []
+
+        def _calculate_rewards(
+            self,
+            inputs: list[dict[str, object]],
+            prompts: list[object],
+            completions: list[object],
+            completion_ids_list: list[list[int]],
+        ) -> list[list[float]]:
+            del prompts, completions, completion_ids_list
+            rewards: list[list[float]] = []
+            for offset in range(0, len(inputs), self.num_generations):
+                varied = inputs[offset]["domain"] == "a"
+                rewards.extend([[0.0], [1.0]] if varied else [[0.0], [0.0]])
+            return rewards
+
+        def _generate_and_score_completions(
+            self,
+            inputs: list[dict[str, object]],
+        ) -> dict[str, object]:
+            self.generated_task_classes.append(
+                tuple(str(inputs[offset]["domain"]) for offset in range(0, len(inputs), self.num_generations))
+            )
+            rewards = self._calculate_rewards(inputs, [], [], [])
+            group_std: list[float] = []
+            for offset in range(0, len(rewards), self.num_generations):
+                values = torch.tensor([row[0] for row in rewards[offset : offset + self.num_generations]])
+                group_std.extend([float(values.std(unbiased=False))] * self.num_generations)
+            return {
+                "completion_ids": torch.arange(len(inputs)).reshape(-1, 1),
+                "completion_mask": torch.ones((len(inputs), 1), dtype=torch.bool),
+                "group_reward_std": torch.tensor(group_std),
+                "example_id": [row["example_id"] for row in inputs],
+                "domain": [row["domain"] for row in inputs],
+            }
+
+        @staticmethod
+        def _select_dynamic_sampling_rows(batch: dict[str, object], keep: object) -> dict[str, object]:
+            assert isinstance(keep, torch.Tensor)
+            indices = keep.nonzero(as_tuple=False).flatten().tolist()
+            selected: dict[str, object] = {}
+            for key, value in batch.items():
+                if isinstance(value, torch.Tensor):
+                    selected[key] = value if value.ndim == 0 else value[keep]
+                elif isinstance(value, list):
+                    selected[key] = [value[index] for index in indices]
+                else:
+                    selected[key] = value
+            return selected
+
+        @staticmethod
+        def _concatenate_dynamic_sampling_batches(
+            batches: list[dict[str, object]],
+        ) -> dict[str, object]:
+            result: dict[str, object] = {}
+            for key in batches[0]:
+                values = [batch[key] for batch in batches]
+                if all(isinstance(value, torch.Tensor) for value in values):
+                    result[key] = torch.cat(values)  # type: ignore[arg-type]
+                elif all(isinstance(value, list) for value in values):
+                    result[key] = [item for value in values for item in value]  # type: ignore[union-attr]
+                else:
+                    result[key] = values[0]
+            return result
+
+    try:
+        trainer = adaptive_curriculum_trainer_type(Parent, runtime)()
+        # The scheduled rows define capacity only. Task identities must be chosen lazily per refill.
+        candidate_capacity = [{"example_id": "ignored"}] * 12
+        retained = trainer._prepare_active_sampling_inputs(candidate_capacity)
+
+        assert trainer.generated_task_classes == [("a", "b"), ("a",)]
+        assert len(retained["completion_ids"]) == 4
+        assert trainer._metrics["train"]["active_sampling/generation_rounds"] == [2]
+        assert trainer._metrics["train"]["active_sampling/generated_rows"] == [6]
+        decisions = [event[1] for event in context.events if event[0] == "adaptive_curriculum_allocation_selected"]
+        assert [decision["selection_kind"] for decision in decisions] == [
+            "active_sampling_refill",
+            "active_sampling_refill",
+        ]
+        assert [decision["round_index"] for decision in decisions] == [1, 2]
+        assert decisions[0]["selected_classes"] == {"a": 1, "b": 1}
+        assert decisions[1]["selected_classes"] == {"a": 1}
     finally:
         runtime.close()
 

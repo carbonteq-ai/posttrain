@@ -41,6 +41,8 @@ class CurriculumDecision:
     task_probabilities: Mapping[str, float]
     selected_classes: Mapping[str, int]
     selected_tasks: Mapping[str, int]
+    selection_kind: str = "initial_batch"
+    round_index: int | None = None
 
     def as_record(self) -> dict[str, object]:
         return {
@@ -53,6 +55,8 @@ class CurriculumDecision:
             "task_probabilities": dict(self.task_probabilities),
             "selected_classes": dict(self.selected_classes),
             "selected_tasks": dict(self.selected_tasks),
+            "selection_kind": self.selection_kind,
+            "round_index": self.round_index,
         }
 
 
@@ -257,7 +261,14 @@ class AdaptiveCurriculumController:
     def decision_index(self) -> int:
         return self._decision_index
 
-    def select(self, group_count: int, *, step: int) -> CurriculumDecision:
+    def select(
+        self,
+        group_count: int,
+        *,
+        step: int,
+        selection_kind: str = "initial_batch",
+        round_index: int | None = None,
+    ) -> CurriculumDecision:
         if group_count < 1:
             raise ValueError("adaptive curriculum group count must be positive")
         class_signals = self.class_signals()
@@ -289,6 +300,8 @@ class AdaptiveCurriculumController:
             task_probabilities=task_probabilities,
             selected_classes=selected_classes,
             selected_tasks=selected_tasks,
+            selection_kind=selection_kind,
+            round_index=round_index,
         )
         self._decision_index += 1
         self.backend.append(decision.as_record())

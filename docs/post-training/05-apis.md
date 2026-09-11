@@ -497,6 +497,13 @@ the algorithm update. Its initial contract contains `class_field`,
 resolved rollout task. Evidence windows advance when that task produces a
 completed group, not merely when an optimizer step passes. Controller state and
 write position are recovery state and must be retained with a model checkpoint.
+Algorithms without bounded refill sampling call the controller once for the
+initial generation batch. OLMo 3 calls it for every active-sampling refill, so
+evidence from an earlier round can change later task identities while policy
+weights remain fixed. Each decision records its sampling stage and refill round.
+Resolved runtime evidence reports `adaptive_curriculum_sampling_mode` as
+`initial_batch` or `active_sampling_refill`; this is derived from the selected
+algorithm capability rather than exposed as another tuning parameter.
 The run records curriculum allocation separately from OLMo 3 or DAPO
 post-generation group selection.
 

@@ -596,7 +596,11 @@ by the resolved environment tasks and uses completed rollout evidence to choose
 future classes and tasks. The environment still owns the task population and
 reward meaning. The curriculum must retain a nonzero base allocation, record
 proposed and observed task identities, and checkpoint its state with the model.
-It composes with `grpo`, `dapo`, or `olmo3`; post-generation retained-group
+It composes with `grpo`, `dapo`, or `olmo3`. An algorithm without a refill
+boundary receives one curriculum decision before its generation batch. When an
+algorithm such as OLMo 3 requests another candidate group before updating model
+weights, each refill is a new curriculum decision informed by earlier groups
+from that same fixed-policy collection phase. Post-generation retained-group
 sampling remains separately attributable to the selected algorithm.
 
 SAMPO is a separate selection for multi-turn tool-using agents. It combines one

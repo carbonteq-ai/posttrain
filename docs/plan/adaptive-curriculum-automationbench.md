@@ -23,6 +23,9 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 - [x] (2026-09-12) Passed 463 train and lab tests with 10 expected skips, Ruff, focused Pyright, import boundaries, and diff checks on the v0.4 branch.
 - [x] (2026-09-12) Collected one rollout batch from each R1 arm on the older branch; both failed closed before optimizer step one at the LFM actor/vLLM parity gate.
 - [x] (2026-09-12) Stopped the R2 vanilla-GRPO/adaptive-OLMo comparison after the vanilla arm completed two healthy optimizer updates because it changed both the update rule and task selection. The replacement comparison uses OLMo 3 in both arms.
+- [x] (2026-09-12) Stopped queued adaptive run `lfm26-olmo3-adaptive20-20260912-r3` before admission after discovering that its complete candidate pool was selected before OLMo active sampling began.
+- [x] (2026-09-12) Moved OLMo curriculum decisions into each active-sampling refill while retaining one initial selection for algorithms without refill sampling; added decision-stage evidence and a fixed-policy refill test.
+- [x] (2026-09-12) Passed the full repository validation after the refill change: 1,712 tests passed with 25 expected skips, plus Ruff, Pyright, import boundaries, and diff checks.
 - [ ] Run both 20-update training jobs.
 - [ ] Compare run evidence and record the result here.
 
@@ -30,6 +33,9 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 
 - Observation: OLMo 3 active sampling reserves up to ten candidate batches and then generates only enough candidates to fill the retained batch.
   Evidence: the installed TRL `GRPOTrainer._prepare_active_sampling_inputs` slices a bounded candidate pool, scores each generated group, and retains groups whose reward standard deviation is nonzero.
+
+- Observation: selecting the reserved candidate pool before entering OLMo active sampling prevents evidence from one refill round from changing the next round's task identities.
+  Evidence: TRL holds model weights fixed throughout `_prepare_active_sampling_inputs`, while the earlier framework wrapper replaced all reserved rows before calling that method. The revised adapter requests task groups immediately before each `_generate_and_score_completions` call.
 
 - Observation: a step count is not a sound evidence horizon because a class may receive no examples during a step.
   Evidence: the rollout dataset is sampled by prompt group; evidence freshness must therefore be counted per task from completed groups rather than inferred from optimizer steps.
@@ -81,6 +87,10 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
   Rationale: changing only the curriculum capability makes any observed difference interpretable. The earlier vanilla-GRPO/OLMo comparison changed the algorithm at the same time and was stopped once the mismatch was recognized.
   Date/Author: 2026-09-12 / Codex
 
+- Decision: Treat initial batch selection and active-sampling refill selection as two compositions of the same controller capability.
+  Rationale: algorithms without a refill loop can select only at the generation boundary. OLMo 3 can use newly observed variance between refill rounds because no optimizer update occurs inside that collection phase. The algorithm still owns the retain-or-refill rule; the controller owns only the task identities proposed for each request.
+  Date/Author: 2026-09-12 / Codex
+
 ## Outcomes & Retrospective
 
 Implementation is validated on the v0.4 branch. R1 runs `lfm26-grpo20-random-20260912-r1` and `lfm26-olmo3-adaptive20-20260912-r1` are diagnostic failures from the older branch, not training results. The mismatched v0.4 R2 comparison was canceled and retained only as diagnostic evidence. The corrected qualification uses OLMo 3 for both the normal-mixture and adaptive-mixture arms.
@@ -91,7 +101,7 @@ Implementation is validated on the v0.4 branch. R1 runs `lfm26-grpo20-random-202
 
 A task class is the category used by the sampler. For this experiment it is an AutomationBench domain such as `sales` or `support`; internally they are all classes. A task is one concrete rollout example. A prompt group is one task repeated for four fresh student attempts, which GRPO compares to compute relative advantages.
 
-The adaptive controller will own an inventory of tasks, a bounded recent evidence window for each task, the current class and task probabilities, a deterministic decision counter, and a persistence backend. Its learning signal is within-group reward variance. For binary rewards, the normalized score is four times the population variance and lies between zero and one. For bounded continuous rewards the same formula is clipped to that interval. Zero is ambiguous: it can mean every attempt failed or every attempt succeeded. The controller therefore never removes a task solely because its variance is zero; a configured exploration reserve keeps it eligible and allows later model updates to change its state.
+The adaptive controller will own an inventory of tasks, a bounded recent evidence window for each task, the current class and task probabilities, a deterministic decision counter, and a persistence backend. Its learning signal is within-group reward variance. For binary rewards, population variance lies between zero and `0.25`. Zero is ambiguous: it can mean every attempt failed or every attempt succeeded. The controller therefore never removes a task solely because its variance is zero; a configured exploration reserve keeps it eligible and allows later model updates to change its state.
 
 The existing `apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml` owns the model, environment, inference, and training selections for this comparison. The control work package is `apps/lab/.posttrain/work_packages/lfm26_automationbench_olmo3_20_local.yaml`. The treatment work package is `apps/lab/.posttrain/work_packages/lfm26_automationbench_olmo3_adaptive_20_local.yaml`. Their settings are identical except for the treatment arm's `adaptive_curriculum` block.
 
@@ -103,9 +113,9 @@ Add `AdaptiveCurriculum` to `profiles.py` and a matching strict Pydantic schema 
 
 Create a train-owned adaptive curriculum module containing the pure selection/state logic and a persistence protocol. The file implementation will append versioned records to JSONL through one bounded queue. It will expose `flush`, `snapshot`, and `close`; errors raised by the writer thread must surface on the next public operation. Snapshots use write-then-rename so a model checkpoint either has a complete matching controller state or no controller state.
 
-Compose a small TRL subclass around the existing telemetry subclass. Immediately before a generation boundary, it replaces the dataloader's scheduled prompt groups with controller-selected inventory rows while preserving the required number of repeats. When TRL has calculated raw rewards, it records one observation per complete task group and updates the next allocation. It emits allocation and evidence events with stable task/class identities. A trainer callback flushes and snapshots controller state on checkpoint saves. The backend closes the writer in `finally` on success or failure.
+Compose a small TRL subclass around the existing telemetry subclass. For ordinary GRPO-family collection, it replaces the scheduled prompt groups once at the initial generation boundary. For OLMo 3 active sampling, the scheduled candidate pool supplies only bounded capacity: the adapter asks the controller for exactly the missing task groups immediately before every refill generation. When TRL calculates raw rewards, it records one observation per complete task group before making the next refill decision. Allocation evidence names the initial or refill stage and refill round. A trainer callback flushes and snapshots controller state on checkpoint saves. The backend closes the writer in `finally` on success or failure.
 
-Add tests that use small synthetic task inventories and rewards. They must prove equal initialization, high-variance prioritization, exploration-based revisits, fallback when all scores are zero, per-task evidence windows, deterministic replay, ordered queued writes, snapshot restore, invalid class metadata rejection, and unchanged behavior when the profile field is absent. A trainer-wrapper test will prove that selection occurs before generation and observation after reward computation without requiring a GPU.
+Add tests that use small synthetic task inventories and rewards. They must prove equal initialization, high-variance prioritization, exploration-based revisits, fallback when all scores are zero, per-task evidence windows, deterministic replay, ordered queued writes, snapshot restore, invalid class metadata rejection, and unchanged behavior when the profile field is absent. Trainer-wrapper tests must prove that ordinary algorithms select once before generation and OLMo 3 selects again after observing each refill round without requiring a GPU.
 
 Add a new OLMo 3 training selection with the adaptive curriculum configured for `domain`, then bind it in a new 20-update work package. Keep the existing OLMo 3 work package as the normal shuffled-mixture control. Validate both packages before running them.
 
@@ -136,7 +146,7 @@ The exact run and log inspection commands will be added here after launch becaus
 
 The capability is accepted when profile decoding rejects malformed settings, the pure controller tests pass, the queued backend produces an ordered replayable journal, and a checkpoint contains an atomic controller snapshot that restores the same evidence windows and next allocation.
 
-Both work packages must validate against the same model, OLMo 3 update rule, OLMo 3 active-sampling settings, AutomationBench environment revision, task-mix digest, rollout sampling, optimizer budget, and local inference binding. The control job must complete 20 optimizer updates with no adaptive-controller events. The treatment job must complete 20 optimizer updates and produce controller journal records showing equal initial allocation, observed group evidence, and later allocation changes while the same OLMo active-sampling metrics remain separately visible.
+Both work packages must validate against the same model, OLMo 3 update rule, OLMo 3 active-sampling settings, AutomationBench environment revision, task-mix digest, rollout sampling, optimizer budget, and local inference binding. The control job must complete 20 optimizer updates with no adaptive-controller events. The treatment job must complete 20 optimizer updates and produce controller journal records showing refill round 1 selection, its observed evidence, and a later same-step refill decision made before the optimizer update. OLMo active-sampling retention metrics remain separately visible.
 
 The final report must distinguish observed facts from inference and treat one run per arm as qualification evidence rather than a statistically conclusive quality result.
 
@@ -172,3 +182,5 @@ Change note, 2026-09-12: recorded the published dependency-closure alignment fou
 Change note, 2026-09-12: moved qualification to the stable v0.4/post8 code line after the two post5 R1 parity failures; recorded retained rollout speed and truncation evidence.
 
 Change note, 2026-09-12: corrected the qualification design to compare normal-mixture OLMo 3 with adaptive-curriculum OLMo 3, holding the update algorithm and active sampling constant.
+
+Change note, 2026-09-12: moved adaptive OLMo task choice from an eagerly selected candidate pool to each fixed-policy refill boundary; retained initial-only selection for algorithms without refill sampling.
