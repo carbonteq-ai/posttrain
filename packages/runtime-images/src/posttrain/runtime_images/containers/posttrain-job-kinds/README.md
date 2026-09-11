@@ -34,7 +34,10 @@ project source change therefore invalidates only the actual-job code layer,
 while a kind lock change deliberately invalidates the shared dependency layer.
 The generated constraint files retain the versions and hashes resolved by
 `uv.lock`; `transform.lock.txt` comes from the separately maintained
-`tools/quantization/uv.lock`. `build-tools.lock.txt` is a separate
+`tools/quantization/uv.lock`. Release-candidate materialization therefore
+exports that transform lock explicitly after refreshing the root-derived
+runtime locks; omitting it would leave a stale dependency closure in an
+otherwise current candidate. `build-tools.lock.txt` is a separate
 hash-locked closure for Hatchling and its build-time dependencies. It is
 installed in every kind image because actual-job source installation disables
 build isolation and must never fetch an implicit build backend.

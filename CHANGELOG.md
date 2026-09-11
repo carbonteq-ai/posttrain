@@ -35,6 +35,11 @@ submission.
   fatal to the affected collection.
 - Hardware inventory is resolved through explicit dstack targets and live
   admission evidence rather than implicit workstation assumptions.
+- Trackio multipart publication retries transient idempotent control requests,
+  while failed and cancelled jobs flush their terminal status before an
+  artifact-drain error is surfaced. Candidate materialization also refreshes
+  the independently locked transform environment instead of carrying a stale
+  tracking client into that job kind.
 
 ### Release gates still open
 

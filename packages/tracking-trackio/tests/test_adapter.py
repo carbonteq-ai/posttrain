@@ -998,6 +998,48 @@ async def test_trackio_shared_terminal_outcomes(
     assert detail.summary.error is not None if status == "failed" else detail.summary.error is None
 
 
+def test_failed_outcome_is_flushed_before_failed_artifact_is_reraised(
+    monkeypatch: pytest.MonkeyPatch,
+    trackio_dir: Path,
+) -> None:
+    del trackio_dir
+    tracked = TrackioBackend(TrackioSettings(project="trackio-terminal-artifact-failure")).start_run(
+        _spec("00000000-0000-4000-8000-000000000109")
+    )
+    calls: list[object] = []
+    failure = RuntimeError("artifact transport failed")
+    monkeypatch.setattr(
+        tracked,
+        "flush_artifacts",
+        lambda *, timeout=None: (_ for _ in ()).throw(failure),
+    )
+    monkeypatch.setattr(tracked._run, "log", lambda values: calls.append(values))
+    monkeypatch.setattr(tracked._run, "flush", lambda: calls.append("flush"))
+    monkeypatch.setattr(tracked._run, "finish", lambda: calls.append("finish"))
+    outcome = RunOutcome(
+        "failed",
+        STARTED,
+        STARTED + timedelta(seconds=1),
+        RunError("ArtifactUploadError", "required artifact publication failed"),
+    )
+
+    with pytest.raises(RuntimeError, match="artifact transport failed"):
+        tracked.finish(outcome)
+
+    assert calls == [
+        {
+            "run/status": "failed",
+            "run/started_at": STARTED.isoformat(),
+            "run/finished_at": (STARTED + timedelta(seconds=1)).isoformat(),
+            "run/error_type": "ArtifactUploadError",
+            "run/error_message": "required artifact publication failed",
+        },
+        "flush",
+        "finish",
+    ]
+    tracked.finish(outcome)
+
+
 @pytest.mark.asyncio
 async def test_trackio_write_read_conformance(trackio_dir: Path) -> None:
     backend = TrackioBackend(TrackioSettings(project="trackio-conformance"))

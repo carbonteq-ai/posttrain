@@ -201,6 +201,14 @@ jobs:
       - name: Materialize runtime dependency locks
         run: |
           uv run --no-sync posttrain-release lock-runtime-dependencies
+          uv export \
+            --project tools/quantization \
+            --frozen \
+            --python 3.13.12 \
+            --no-emit-project \
+            --no-dev \
+            --format requirements.txt \
+            --output-file packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/transform.lock.txt
 
       - name: Plan immutable runtime image work
         run: |

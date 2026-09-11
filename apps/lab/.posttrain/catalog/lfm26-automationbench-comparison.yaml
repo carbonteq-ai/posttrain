@@ -895,7 +895,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: ab04a5a4a462bc10ffb40ebb04f2d5408f68b0e436c3a88c973e1528113550f6
+      dependency_lock_sha256: 095981e4bcb9deff27c215f0b0b47ee0f0350204aea10816a0119b05359f2b55
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local@1:
     selection_type: training-binding
@@ -924,7 +924,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: ab04a5a4a462bc10ffb40ebb04f2d5408f68b0e436c3a88c973e1528113550f6
+      dependency_lock_sha256: 095981e4bcb9deff27c215f0b0b47ee0f0350204aea10816a0119b05359f2b55
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
     selection_type: training-binding
@@ -973,7 +973,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: ab04a5a4a462bc10ffb40ebb04f2d5408f68b0e436c3a88c973e1528113550f6
+      dependency_lock_sha256: 095981e4bcb9deff27c215f0b0b47ee0f0350204aea10816a0119b05359f2b55
 
   training/lfm2.5-1.2b-trl-lora-changed-weight-local@1:
     selection_type: training-binding
@@ -995,7 +995,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: ab04a5a4a462bc10ffb40ebb04f2d5408f68b0e436c3a88c973e1528113550f6
+      dependency_lock_sha256: 095981e4bcb9deff27c215f0b0b47ee0f0350204aea10816a0119b05359f2b55
 
   reward/automationbench-episode-gdpo@1:
     selection_type: reward-projection

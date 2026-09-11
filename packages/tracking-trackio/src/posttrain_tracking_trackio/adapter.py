@@ -527,7 +527,13 @@ class TrackioTrackedRun:
             if self._outcome == outcome:
                 return
             raise ContractError("Trackio run was already finalized with a different outcome")
-        self.flush_artifacts(timeout=self._artifact_publication_timeout_seconds)
+        artifact_error: Exception | None = None
+        try:
+            self.flush_artifacts(timeout=self._artifact_publication_timeout_seconds)
+        except Exception as error:
+            if outcome.status in {"succeeded", "partial"}:
+                raise
+            artifact_error = error
         values: dict[str, Any] = {
             "run/status": outcome.status,
             "run/started_at": outcome.started_at.isoformat(),
@@ -537,8 +543,18 @@ class TrackioTrackedRun:
             values["run/error_type"] = outcome.error.type
             values["run/error_message"] = outcome.error.message
         self._run.log(values)
+        if artifact_error is not None:
+            # Failure evidence must become queryable even when an output
+            # artifact cannot be published. Trackio's ordinary finish path
+            # drains artifacts first, so explicitly flush the terminal metric
+            # before asking it to stop its background workers.
+            flush = getattr(self._run, "flush", None)
+            if callable(flush):
+                flush()
         self._run.finish()
         self._outcome = outcome
+        if artifact_error is not None:
+            raise artifact_error
 
 
 class TrackioBackend:

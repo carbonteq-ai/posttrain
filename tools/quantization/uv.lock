@@ -192,8 +192,8 @@ wheels = [
 
 [[package]]
 name = "carbonteq-trackio"
-version = "0.31.5.post14.dev21"
-source = { url = "https://pypi.lan/carbonteq/dev/+f/1d3/3039c083d6455/carbonteq_trackio-0.31.5.post14.dev21-py3-none-any.whl" }
+version = "0.31.5.post14.dev23"
+source = { url = "https://pypi.lan/carbonteq/dev/+f/046/0ba6a4d531595/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl" }
 dependencies = [
     { name = "boto3" },
     { name = "brotli" },
@@ -209,7 +209,7 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 wheels = [
-    { url = "https://pypi.lan/carbonteq/dev/+f/1d3/3039c083d6455/carbonteq_trackio-0.31.5.post14.dev21-py3-none-any.whl", hash = "sha256:1d33039c083d6455ccc26251b1b375bd79abf6d47072158b37b277e9029dbbbc" },
+    { url = "https://pypi.lan/carbonteq/dev/+f/046/0ba6a4d531595/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl", hash = "sha256:0460ba6a4d531595a1caba1c6d340f13d4ba490be149308138b695b0a03512a6" },
 ]
 
 [package.metadata]
@@ -1037,7 +1037,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "carbonteq-trackio", url = "https://pypi.lan/carbonteq/dev/+f/1d3/3039c083d6455/carbonteq_trackio-0.31.5.post14.dev21-py3-none-any.whl" },
+    { name = "carbonteq-trackio", url = "https://pypi.lan/carbonteq/dev/+f/046/0ba6a4d531595/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl" },
     { name = "datasets", specifier = ">=4.8.4,<5" },
     { name = "llmcompressor", git = "https://github.com/vllm-project/llm-compressor.git?rev=655b83d1240c37920a603b747bbfb6c218f66383" },
     { name = "pydantic", specifier = "==2.13.4" },
