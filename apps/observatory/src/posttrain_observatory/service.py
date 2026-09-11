@@ -86,6 +86,7 @@ from .serving_capacity import project_serving_benchmark
 from .sources import RunSourceRegistry
 from .telemetry import (
     DEFAULT_TELEMETRY_DEFINITIONS,
+    GROUP_POLICY_JOB_KINDS,
     EvidenceCondition,
     HealthRuleDefinition,
     JobTelemetryDefinition,
@@ -916,7 +917,7 @@ def _evidence_completeness(
     missing_conditional = any(item.state == "missing" for item in conditional)
     state = "insufficient" if missing_required else "partial" if missing_conditional else "complete"
     validation = next((item for item in requirements if item.key == "held_out_preferences"), None)
-    if definition.job_kind in {"train.grpo", "train.sampo", "train.distill"}:
+    if definition.job_kind in GROUP_POLICY_JOB_KINDS | {"train.sampo", "train.distill"}:
         research_ready = state == "complete" and trace_count > 0
     else:
         research_ready = state == "complete" and validation is not None and validation.state == "available"
@@ -1181,7 +1182,11 @@ class ObservatoryService:
             charts=charts,
             metric_help=definition.metric_help,
             completeness=completeness,
-            grpo=(_grpo_projection(detail.resolved_inputs, by_name) if definition.job_kind == "train.grpo" else None),
+            grpo=(
+                _grpo_projection(detail.resolved_inputs, by_name)
+                if definition.job_kind in GROUP_POLICY_JOB_KINDS
+                else None
+            ),
             alerts=self._alerts(
                 detail.summary.status,
                 definition,
@@ -2043,7 +2048,7 @@ class ObservatoryService:
             alerts.append(
                 RunAlert(id=f"run-{status}", severity="warning", message=f"The run finished with status {status}.")
             )
-        if definition.job_kind in {"train.grpo", "train.sampo", "train.distill"} and trace_count == 0:
+        if definition.job_kind in GROUP_POLICY_JOB_KINDS | {"train.sampo", "train.distill"} and trace_count == 0:
             technique = definition.job_kind.removeprefix("train.")
             alerts.append(
                 RunAlert(

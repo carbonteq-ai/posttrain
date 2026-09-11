@@ -1211,6 +1211,24 @@ describe('Observatory React product shell', () => {
 
   it.each([
     {
+      kind: 'train.gdpo',
+      display: 'GDPO weighted cedar',
+      heading: 'Policy learning evidence',
+      configHeading: 'Policy & task inputs',
+      summary: [
+        { key: 'reward_mean', label: 'Mean reward', metric: 'train/rl/reward_mean', value: 0.7, unit: null },
+        { key: 'policy_loss', label: 'Policy loss', metric: 'train/rl/policy_loss', value: 0.02, unit: null },
+      ],
+      inputs: {
+        model: { selection_id: 'models/lfm', revision: 'v1', resolved: {} },
+        environment: { selection_id: 'environments/automationbench', revision: 'v1', resolved: {} },
+        reward_projection: { selection_id: 'reward/gdpo', revision: 'v1', resolved: {} },
+        judge_inference: { selection_id: 'hosted-inference/deepseek', revision: 'v1', resolved: {} },
+        settings: { selection_id: 'settings/gdpo', revision: 'v1', resolved: { num_generations: 4 } },
+      },
+      traceAware: true,
+    },
+    {
       kind: 'train.distill',
       display: 'Distill quiet lake',
       heading: 'Student learning evidence',

@@ -28,6 +28,8 @@ function evaluation(overrides: Partial<TraceEvaluation> = {}): TraceEvaluation {
 describe('tracePresentation', () => {
   it('routes all rollout-producing training jobs to the optimization surface', () => {
     expect(traceSurfaceMode('train.grpo')).toBe('optimization');
+    expect(traceSurfaceMode('train.gdpo')).toBe('optimization');
+    expect(traceSurfaceMode('train.capo')).toBe('optimization');
     expect(traceSurfaceMode('train.sampo')).toBe('optimization');
     expect(traceSurfaceMode('train.distill')).toBe('optimization');
     expect(traceSurfaceMode('serve.benchmark')).toBe('generic');

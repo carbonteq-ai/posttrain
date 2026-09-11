@@ -15,7 +15,13 @@ export type TracePresentation = {
   outcomeLabel: (outcome: TraceSummary['outcome']) => string;
 };
 
-const optimizationJobKinds = new Set(['train.grpo', 'train.sampo', 'train.distill']);
+const optimizationJobKinds = new Set([
+  'train.grpo',
+  'train.gdpo',
+  'train.capo',
+  'train.sampo',
+  'train.distill',
+]);
 
 export function traceSurfaceMode(jobKind: string): TraceSurfaceMode {
   return jobKind.startsWith('eval.')
