@@ -2,6 +2,7 @@ import asyncio
 import threading
 from types import SimpleNamespace
 
+import pytest
 from posttrain.common.variants import LFM_25_12B_THINKING
 from posttrain.train.backends.trl import async_collection_runtime as runtime_module
 from posttrain.train.backends.trl.async_collection_runtime import TrlAsyncCollectionRuntime
@@ -11,6 +12,7 @@ from posttrain.train.rollout_execution import RolloutExecutionConfig
 
 
 def test_sync_collection_runtime_reuses_one_async_loop_and_replays_observations_on_caller(monkeypatch):
+    pytest.importorskip("verifiers.v1")
     loop_ids = []
     closed = []
 
