@@ -22,7 +22,7 @@ from .artifacts import (
     write_distribution_receipt,
 )
 from .candidate import fetch_simple_artifacts, next_candidate_version
-from .fork_ledger import render_fork_ledger
+from .fork_ledger import render_fork_ledger, verify_required_fork_index
 from .promotion import create_promotion_receipt, write_promotion_receipt
 from .publish import _release_image_plan, publish_release
 from .readiness import run_readiness, verify_readiness_receipt, write_readiness_receipt
@@ -55,6 +55,18 @@ def fork_ledger_cmd(
     ] = Path("."),
 ) -> None:
     print(json.dumps(render_fork_ledger(repository_root), indent=2, sort_keys=True))
+
+
+@app.command("fork-index-check", help="verify every required Python fork in one PEP 503 index")
+def fork_index_check_cmd(
+    simple_base_url: Annotated[str, typer.Option("--simple-base-url", help="PEP 503 index base URL")],
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout to inspect"),
+    ] = Path("."),
+) -> None:
+    verified = verify_required_fork_index(repository_root, simple_base_url)
+    print(f"verified required maintained forks: {', '.join(verified)}")
 
 
 @app.command("readiness", help="run deterministic release checks and write an immutable source-readiness receipt")

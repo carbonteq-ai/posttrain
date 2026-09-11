@@ -387,16 +387,21 @@ gh pr checks <n>
    the candidate-equivalent commit; the final workflow permits that generated
    record only when it is byte-for-byte identical to the retained candidate
    manifest.
-10. **Dispatch Publish release for the merged commit and successful candidate
+10. **Promote every required maintained Python fork byte-for-byte to stable.**
+    Use the retained-fork promotion workflow and the hashes recorded in
+    `release/forks.toml`; do not rebuild or upload new bytes. The final workflow
+    verifies the entire required Python-fork closure before publishing any
+    framework package.
+11. **Dispatch Publish release for the merged commit and successful candidate
     run.** The runner compares exact source trees, rejects non-release build
     changes, rechecks the RC in `carbonteq/dev`, restores the accepted OCI
     materialization, and builds final-version Python metadata. It does not
     repeat the GPU canary.
-11. **Publish the attested final files to `carbonteq/stable`.** Read them back,
+12. **Publish the attested final files to `carbonteq/stable`.** Read them back,
     verify their hashes, and perform a no-cache stable-index install. The
     promotion receipt must bind the RC and final receipts to the same package
     set and runtime-image manifest.
-12. **Tag last.** After stable readback, create `v<version>` on the exact merged
+13. **Tag last.** After stable readback, create `v<version>` on the exact merged
     commit and create the GitHub Release with the already-retained bundle and
     receipt. If this final step fails, retry it without rebuilding or
     republishing.
@@ -451,6 +456,10 @@ hashes. No promotion rebuilds, re-uploads, or runs fork source.
 - **Do not upload directly to `stable` outside the protected final workflow.**
   That workflow first verifies the accepted RC and materialization, then owns
   the one final-version build and stable upload.
+- **Promote required maintained forks before final framework publication.** A
+  dev-only exact pin can pass candidate qualification but makes a stable-only
+  framework install unsatisfiable. The final workflow verifies fork filenames
+  and hashes against `release/forks.toml` before it handles framework bytes.
 - **Do not rebuild final artifacts locally.** Only the protected final workflow
   may render `X.Y.Z`, and its promotion receipt must bind the RC and final
   receipts.

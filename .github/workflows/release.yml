@@ -71,7 +71,11 @@ jobs:
           test "$(jq -r '.workflowName // empty' <<<"${resume_run}")" = "Publish release"
           test "$(jq -r '.event // empty' <<<"${resume_run}")" = workflow_dispatch
           test "$(jq -r '.status // empty' <<<"${resume_run}")" = completed
-          test "$(jq -r '.conclusion // empty' <<<"${resume_run}")" = success
+          resume_conclusion="$(jq -r '.conclusion // empty' <<<"${resume_run}")"
+          case "${resume_conclusion}" in
+            success|failure) ;;
+            *) echo "release resume source must be a completed success or failure" >&2; exit 1 ;;
+          esac
           gh run download "${RESUME_FROM_RUN_ID}" \
             --repo "${GITHUB_REPOSITORY}" \
             --dir .release/resume
@@ -98,6 +102,11 @@ jobs:
           # release-specific manifest check before it handles remote state.
           uv sync --all-packages --group dev --python 3.13 --locked
           uv run --no-sync posttrain-release check
+
+      - name: Verify required maintained forks are stable
+        run: |
+          uv run --no-sync posttrain-release fork-index-check \
+            --simple-base-url "${PYPI_STABLE_SIMPLE}"
 
       - name: Materialize and verify the retained release wheelhouse
         if: inputs.resume_from_run_id != ''

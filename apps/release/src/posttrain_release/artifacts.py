@@ -123,10 +123,13 @@ def _authenticated_request(url: str) -> urllib.request.Request:
     return request
 
 
-def verify_index_receipt(receipt_path: Path, simple_base_url: str) -> None:
-    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-    packages = receipt.get("packages")
-    artifacts = receipt.get("artifacts")
+def verify_index_artifacts(
+    packages: object,
+    artifacts: object,
+    simple_base_url: str,
+) -> None:
+    """Verify named distribution hashes using only one PEP 503 index."""
+
     if not isinstance(packages, list) or not isinstance(artifacts, list):
         raise ValueError("release receipt packages or artifacts are invalid")
     links: dict[str, str] = {}
@@ -160,9 +163,15 @@ def verify_index_receipt(receipt_path: Path, simple_base_url: str) -> None:
             raise ValueError(f"index artifact hash does not match receipt: {filename}")
 
 
+def verify_index_receipt(receipt_path: Path, simple_base_url: str) -> None:
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    verify_index_artifacts(receipt.get("packages"), receipt.get("artifacts"), simple_base_url)
+
+
 __all__ = [
     "create_distribution_receipt",
     "verify_distribution_receipt",
+    "verify_index_artifacts",
     "verify_index_receipt",
     "write_distribution_receipt",
 ]
