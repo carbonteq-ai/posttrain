@@ -26,6 +26,7 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 - [x] (2026-09-12) Stopped queued adaptive run `lfm26-olmo3-adaptive20-20260912-r3` before admission after discovering that its complete candidate pool was selected before OLMo active sampling began.
 - [x] (2026-09-12) Moved OLMo curriculum decisions into each active-sampling refill while retaining one initial selection for algorithms without refill sampling; added decision-stage evidence and a fixed-policy refill test.
 - [x] (2026-09-12) Passed the full repository validation after the refill change: 1,712 tests passed with 25 expected skips, plus Ruff, Pyright, import boundaries, and diff checks.
+- [x] (2026-09-12) Committed refill-time selection as `fd154ed7` and submitted replacement adaptive run `lfm26-olmo3-adaptive20-20260912-r4` (`pt-66c1c609dfa568471a62b4b9`); it is queued for the RTX PRO worker behind the running control.
 - [ ] Run both 20-update training jobs.
 - [ ] Compare run evidence and record the result here.
 
