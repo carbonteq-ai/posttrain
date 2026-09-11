@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any, cast
 
-from posttrain.common import RunContext
+from posttrain.common import LocalArtifactRef, ProducedArtifact, RunContext
 from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
 
 from ...grpo_observations import GRPOObservationFeatures
@@ -209,7 +210,24 @@ def _run_online_rl(
                 if actor_update.active:
                     raise RuntimeError("TRL training completed before the active actor update reached an optimizer step")
                 if curriculum is not None:
-                    curriculum.save_final_state()
+                    state_path = curriculum.save_final_state()
+                    context.artifact(
+                        ProducedArtifact(
+                            name=f"training/{request.policy.id}/{technique}/adaptive-curriculum-state",
+                            kind="adaptive-curriculum-state",
+                            reference=LocalArtifactRef(
+                                curriculum.state_dir.resolve(),
+                                _digest_curriculum_state(curriculum.state_dir),
+                            ),
+                            metadata={
+                                "class_field": curriculum.settings.class_field,
+                                "decision_count": curriculum.controller.decision_index,
+                                "format": "queued-jsonl-with-snapshot",
+                                "snapshot": state_path.name,
+                            },
+                            role="controller-state",
+                        )
+                    )
                 with context.phase("artifact_export", {"backend": "trl"}):
                     return finish_training(
                         context,
@@ -246,6 +264,17 @@ def _run_online_rl(
                 if failure is None:
                     raise
                 failure.add_note(f"failed to close adaptive curriculum state: {close_error!r}")
+
+
+def _digest_curriculum_state(path: Path) -> str:
+    digest = hashlib.sha256()
+    for child in sorted(item for item in path.rglob("*") if item.is_file()):
+        digest.update(child.relative_to(path).as_posix().encode())
+        digest.update(b"\0")
+        with child.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
 
 
 __all__ = ["run_grpo", "run_sampo"]

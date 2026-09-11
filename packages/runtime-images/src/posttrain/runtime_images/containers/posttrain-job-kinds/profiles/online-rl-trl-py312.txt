@@ -4,5 +4,5 @@ nvidia-cuda-cccl==13.0.85
 nvidia-cuda-crt==13.0.88
 nvidia-cuda-nvcc==13.0.88
 nvidia-nvvm==13.0.88
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@c6c0097ad21da845c62e4b19aba80ef6633e4d9f
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@36eac9d5e04ef29b584b6fa4f027af00cd76ea19
 vllm==0.25.1
