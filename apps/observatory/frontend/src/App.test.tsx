@@ -1367,13 +1367,21 @@ describe('Observatory React product shell', () => {
       response_chars: 80,
       thinking_tokens: 5,
       thinking_chars: 20,
-      reward_components: { correct: 0.25 },
+      reward_components: {
+        partial_credit: 0.25,
+        problem_understanding_planning: 0.75,
+        logical_correctness: 0.5,
+        verification_self_correction: 0.25,
+        progress_efficiency: 1,
+        action_quality: 0.75,
+        answer_quality: 0.5,
+      },
       native_metrics: {},
       metrics: { correct: 0.25 },
     });
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
             const path = String(input);
-            if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
       if (path === '/api/v1/runs?source_id=fixture&limit=1000') return new Response(JSON.stringify([jobRun]));
       if (path.includes('/traces-evaluation')) throw new Error('optimization view must not request evaluation aggregation');
       if (path.includes('/traces?')) {
@@ -1394,6 +1402,8 @@ describe('Observatory React product shell', () => {
     await user.click(await screen.findByRole('button', { name: 'Rollouts & rewards' }));
     expect(await screen.findByText('2 of 250 loaded')).toBeVisible();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/traces-evaluation'))).toBe(false);
+    expect(screen.getByText('Action Quality')).toBeVisible();
+    expect(screen.getByText('Answer Quality')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'Load 100 more' }));
     expect(await screen.findByText('3 of 250 loaded')).toBeVisible();

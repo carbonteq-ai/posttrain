@@ -241,6 +241,71 @@ def _wire_numeric_container(payload: Mapping[str, JsonValue], name: str) -> dict
     return {str(key): number for key, value in container.items() if (number := project(value)) is not None}
 
 
+def _wire_reward_components(payload: Mapping[str, JsonValue]) -> dict[str, float]:
+    """Project every reward signal recorded on a Verifiers episode.
+
+    Native Verifiers rewards live at the top level. Structured episode judges
+    retain their training-consumed scalar projections under ``info`` so the
+    complete assessment (including reasons and evidence) can remain alongside
+    the trace without changing the Verifiers wire schema.
+    """
+
+    components = _wire_numeric_container(payload, "rewards")
+    components.update(
+        {
+            name: value
+            for name, value in _wire_numeric_container(payload, "reward_components").items()
+            if name not in components
+        }
+    )
+    info = payload.get("info")
+    if not isinstance(info, Mapping):
+        return components
+    prefix = "episode_reward/"
+    for key, value in info.items():
+        if not isinstance(key, str) or not key.startswith(prefix):
+            continue
+        name = key.removeprefix(prefix)
+        number = _number(value)
+        if name and number is not None:
+            components.setdefault(name, number)
+    return components
+
+
+def _wire_reward_component_details(payload: Mapping[str, JsonValue]) -> tuple[RewardComponent, ...]:
+    components = _wire_reward_components(payload)
+    info = payload.get("info")
+    info = info if isinstance(info, Mapping) else {}
+    panel = info.get("posttrain_episode_rewards")
+    panel = panel if isinstance(panel, Mapping) else {}
+    assessments = panel.get("assessments")
+    assessments = assessments if isinstance(assessments, Mapping) else {}
+
+    details: list[RewardComponent] = []
+    for name, value in components.items():
+        assessment = assessments.get(name)
+        assessment = assessment if isinstance(assessment, Mapping) else {}
+        reason = assessment.get("reason")
+        raw_evidence = assessment.get("evidence")
+        evidence = (
+            tuple(str(item) for item in raw_evidence if isinstance(item, str | int))
+            if isinstance(raw_evidence, list)
+            else ()
+        )
+        is_episode_judge = f"episode_reward/{name}" in info or name in assessments
+        details.append(
+            RewardComponent(
+                name=name,
+                value=value,
+                source="episode_judge" if is_episode_judge else "verifier",
+                scope="episode" if is_episode_judge else None,
+                reason=reason if isinstance(reason, str) and reason else None,
+                evidence=evidence,
+            )
+        )
+    return tuple(details)
+
+
 def _messages(payload: Mapping[str, JsonValue]) -> tuple[Mapping[str, JsonValue], ...]:
     nodes = payload.get("nodes")
     if isinstance(nodes, list):
@@ -805,7 +870,7 @@ def _summary(record: TraceRecord, evaluation_metadata: EvaluationMetadata | None
         response_chars=response_chars,
         thinking_tokens=thinking_tokens,
         thinking_chars=thinking_chars,
-        reward_components=_wire_numeric_container(payload, "rewards"),
+        reward_components=_wire_reward_components(payload),
         native_metrics=_wire_numeric_container(payload, "metrics"),
         metrics=_wire_metrics(payload),
     )
@@ -877,13 +942,7 @@ def project_trace(record: TraceRecord, redaction: RedactionPolicy) -> TraceDetai
     warning = None
     if record.trace_type != "verifiers":
         warning = f"No specialized projector is registered for trace type {record.trace_type!r}."
-    components: list[RewardComponent] = []
-    raw_components = payload.get("reward_components") or payload.get("rewards")
-    if isinstance(raw_components, Mapping):
-        for name, value in sorted(raw_components.items()):
-            number = _wire_reward_component(value)
-            if number is not None:
-                components.append(RewardComponent(name=str(name), value=number))
+    components = _wire_reward_component_details(payload)
     transcript_value = payload.get("messages") or payload.get("transcript") or payload.get("nodes")
     transcript: list[dict[str, JsonValue]] = []
     if isinstance(transcript_value, list):
@@ -902,7 +961,7 @@ def project_trace(record: TraceRecord, redaction: RedactionPolicy) -> TraceDetai
             transcript.append(entry)
     return TraceDetail(
         summary=_summary(record),
-        reward_components=tuple(components),
+        reward_components=components,
         transcript=tuple(transcript),
         attributes=redaction.mapping(record.attributes),
         raw=payload,

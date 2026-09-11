@@ -444,6 +444,10 @@ class ServingCapacityWorkPackageView(ObservatoryModel):
 class RewardComponent(ObservatoryModel):
     name: str = Field(min_length=1)
     value: float
+    source: Literal["verifier", "episode_judge"] = "verifier"
+    scope: Literal["episode"] | None = None
+    reason: str | None = None
+    evidence: tuple[str, ...] = ()
 
 
 class EvaluationMetricDefinition(ObservatoryModel):

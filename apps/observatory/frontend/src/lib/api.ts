@@ -372,7 +372,14 @@ export type EvaluationDistribution = {
 
 export type TraceDetail = {
   summary: TraceSummary;
-  reward_components: Array<{ name: string; value: number }>;
+  reward_components: Array<{
+    name: string;
+    value: number;
+    source: 'verifier' | 'episode_judge';
+    scope: 'episode' | null;
+    reason: string | null;
+    evidence: string[];
+  }>;
   transcript: Array<Record<string, unknown>>;
   attributes: Record<string, unknown>;
   raw: Record<string, unknown>;

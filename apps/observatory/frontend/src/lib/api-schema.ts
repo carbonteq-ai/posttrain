@@ -1798,6 +1798,12 @@ export interface components {
             live_traces: boolean;
             /** Provider */
             provider: string;
+            /**
+             * Trace Facts
+             * @default unavailable
+             * @enum {string}
+             */
+            trace_facts: "available" | "unsupported" | "unavailable";
         };
         /** ValidationError */
         ValidationError: {

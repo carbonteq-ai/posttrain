@@ -2140,7 +2140,7 @@ function TraceView({
   const pageTraces = page?.items ?? [];
   const metricColumns = useMemo(() => {
     if (evaluation) return traceSignalColumns(evaluation);
-    const names = [...new Set(pageTraces.flatMap((trace) => Object.keys(trace.reward_components)))].slice(0, 4);
+    const names = [...new Set(pageTraces.flatMap((trace) => Object.keys(trace.reward_components)))].slice(0, 8);
     return names.map((name) => ({
       name,
       label: name.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()),
@@ -2264,10 +2264,17 @@ function TraceInspector({
       <div className="flex items-center justify-between gap-3"><h3 id="reward-components-heading" className="type-label">Reward components</h3><span className="text-[10px] text-muted">{detail.reward_components.length ? `${detail.reward_components.length} signals` : 'Not exposed'}</span></div>
       {detail.reward_components.length ? <div className="mt-3 space-y-2.5">{detail.reward_components.map((item) => {
         const width = Math.abs(item.value) / componentScale * 50;
-        return <div key={item.name} className="grid grid-cols-[minmax(90px,1fr)_1.4fr_48px] items-center gap-2 text-[10px]">
-          <span className="truncate text-secondary" title={item.name}>{humanizeKey(item.name)}</span>
-          <div className="relative h-1.5 rounded-full bg-subtle" aria-label={`${humanizeKey(item.name)} ${item.value.toFixed(3)}`} role="img"><span className="absolute left-1/2 top-0 h-full w-px bg-divider" /><span className={`absolute top-0 h-full rounded-full ${item.value < 0 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ left: `${item.value < 0 ? 50 - width : 50}%`, width: `${width}%` }} /></div>
-          <strong className="text-right tabular-nums">{item.value.toFixed(3)}</strong>
+        return <div key={item.name} className="text-[10px]">
+          <div className="grid grid-cols-[minmax(90px,1fr)_1.4fr_48px] items-center gap-2">
+            <span className="truncate text-secondary" title={item.name}>{humanizeKey(item.name)}</span>
+            <div className="relative h-1.5 rounded-full bg-subtle" aria-label={`${humanizeKey(item.name)} ${item.value.toFixed(3)}`} role="img"><span className="absolute left-1/2 top-0 h-full w-px bg-divider" /><span className={`absolute top-0 h-full rounded-full ${item.value < 0 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ left: `${item.value < 0 ? 50 - width : 50}%`, width: `${width}%` }} /></div>
+            <strong className="text-right tabular-nums">{item.value.toFixed(3)}</strong>
+          </div>
+          {item.source === 'episode_judge' && <div className="mt-1.5 rounded-[4px] bg-subtle px-2.5 py-2 leading-4 text-secondary">
+            <span className="font-medium text-violet-700">Episode judge</span>
+            {item.reason && <p className="mt-0.5">{item.reason}</p>}
+            {item.evidence.length > 0 && <p className="mt-0.5 text-muted">Evidence: {item.evidence.join(', ')}</p>}
+          </div>}
         </div>;
       })}</div> : <p className="mt-2 text-[11px] leading-4 text-muted">This trace exposes a primary reward without named underlying components.</p>}
     </section>}
