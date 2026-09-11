@@ -13,6 +13,7 @@ from posttrain.environment import VerifiersV1ConfigActivation
 from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
 from posttrain.train import (
     ActiveGroupSampling,
+    AdaptiveCurriculum,
     DynamicGroupSampling,
     GRPOSettings,
     LoRAUpdate,
@@ -212,6 +213,9 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     local_olmo = catalog.resolve(
         CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-20-local-v1")
     ).value
+    local_adaptive = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-adaptive-20-local-v1")
+    ).value
     local_rollout = catalog.resolve(
         CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32@1")
     ).value
@@ -220,11 +224,21 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_grpo.loop.max_steps == 20
     assert local_grpo.num_prompts_per_step == 8
     assert local_grpo.num_generations == 4
-    assert local_grpo.max_admission_attempts == 2
+    assert local_grpo.max_admission_attempts == 1
     assert isinstance(local_olmo, GRPOSettings)
     assert local_olmo.loop.max_steps == 20
     assert local_olmo.algorithm == "olmo3"
     assert local_olmo.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
+    assert isinstance(local_adaptive, GRPOSettings)
+    assert local_adaptive.loop.max_steps == 20
+    assert local_adaptive.algorithm == "olmo3"
+    assert local_adaptive.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
+    assert local_adaptive.adaptive_curriculum == AdaptiveCurriculum(
+        "domain",
+        exploration=0.2,
+        history_groups=4,
+        seed=172846,
+    )
     assert isinstance(local_rollout, InferenceBinding)
     assert local_rollout.engine["max_num_seqs"] == 32
     assert local_rollout.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
