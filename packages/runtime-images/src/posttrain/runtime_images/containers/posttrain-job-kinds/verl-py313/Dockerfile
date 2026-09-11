@@ -14,13 +14,6 @@ ARG SOURCE_REVISION
 ARG SOURCE_REPOSITORY
 ARG SOURCE_DATE_EPOCH
 ARG VERSION
-ARG VLLM_BINARY_WHEEL_URL="https://files.pythonhosted.org/packages/35/9d/c379618ce0abfc2679607d403c0f586b07e9c9c33d08c5bdd6196cb524e0/vllm-0.25.1-cp38-abi3-manylinux_2_28_x86_64.whl"
-ARG VLLM_BINARY_WHEEL_SHA256="16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e"
-ARG VLLM_RUNTIME_VERSION="0.25.2.dev2+g7817d8457.precompiled"
-ARG CUTLASS_BASE_WHEEL_URL="https://files.pythonhosted.org/packages/0a/6e/bfe256ac08e5a6dfb11444809e54c76c3a2f05fff38dd173e2e71b95e4d2/nvidia_cutlass_dsl_libs_base-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl"
-ARG CUTLASS_BASE_WHEEL_SHA256="e59da7d89e5e4f8514c6530843f910f9d8734d8042dcaa079c9d9c5063eb3514"
-ARG CUTLASS_CU13_WHEEL_URL="https://files.pythonhosted.org/packages/5c/9f/b7928ff505e577c1021c07b206ce32d285aae793763d524023c1800b6dc9/nvidia_cutlass_dsl_libs_cu13-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl"
-ARG CUTLASS_CU13_WHEEL_SHA256="c7a5ce1c01616fc4c3ac492e011c543a79c3dde86aaf20a8af55e9d40ef2b2e6"
 
 # The cache-lineage record owns a stable epoch. Python emits hash-based
 # bytecode and BuildKit rewrites new layer timestamps to that epoch, so later
@@ -82,22 +75,46 @@ RUN test -n "${DEPENDENCY_LOCK_SHA256}" && \
     test -f /opt/posttrain-verl-build/release/uv.lock && \
     echo "${DEPENDENCY_LOCK_SHA256}  /opt/posttrain-verl-build/release/uv.lock" | sha256sum --check -
 
-ARG TORCH_C_DLPACK_WHEEL_URL="https://files.pythonhosted.org/packages/2d/68/f434b48700f3e04f33882f54d8d3910327b935f55e14ec49da7d607bf470/torch_c_dlpack_ext-0.1.5-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl"
+ARG VLLM_BINARY_WHEEL_URL="https://pypi.lan/root/pypi/+f/16f/c7a28df1576eb/vllm-0.25.1-cp38-abi3-manylinux_2_28_x86_64.whl"
+ARG VLLM_BINARY_WHEEL_SHA256="16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e"
+ARG VLLM_RUNTIME_VERSION="0.25.2.dev2+g7817d8457.precompiled"
+ARG CUTLASS_BASE_WHEEL_URL="https://pypi.lan/root/pypi/+f/e59/da7d89e5e4f85/nvidia_cutlass_dsl_libs_base-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl"
+ARG CUTLASS_BASE_WHEEL_SHA256="e59da7d89e5e4f8514c6530843f910f9d8734d8042dcaa079c9d9c5063eb3514"
+ARG CUTLASS_CU13_WHEEL_URL="https://pypi.lan/root/pypi/+f/c7a/5ce1c01616fc4/nvidia_cutlass_dsl_libs_cu13-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl"
+ARG CUTLASS_CU13_WHEEL_SHA256="c7a5ce1c01616fc4c3ac492e011c543a79c3dde86aaf20a8af55e9d40ef2b2e6"
+ARG TORCH_C_DLPACK_WHEEL_URL="https://pypi.lan/root/pypi/+f/deb/e62e5ef93e631/torch_c_dlpack_ext-0.1.5-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl"
 ARG TORCH_C_DLPACK_WHEEL_SHA256="debe62e5ef93e631065d6b9f6e60d3d39bae6b89fa1b25d9523f40b3efbf8aba"
 
 # FlashInfer and torch-c-dlpack-ext both ship an unnamespaced build_backend.py.
 # uv installs independent wheels concurrently, so restore the locked
 # torch-c-dlpack-ext payload explicitly before compiling bytecode.
 RUN --mount=type=cache,id=posttrain-verl-uv,target=/root/.cache/uv,sharing=locked \
+    --mount=type=cache,id=posttrain-verl-wheels,target=/opt/posttrain-wheel-cache,sharing=locked \
+    download_wheel() { \
+      url="$1"; sha256="$2"; filename="$3"; target="/opt/posttrain-wheel-cache/${sha256}.whl"; \
+      link="/opt/posttrain-wheel-cache/${filename}"; \
+      if ! test -f "${target}" || ! echo "${sha256}  ${target}" | sha256sum --check --status; then \
+        rm -f "${target}" "${target}.part"; \
+        "${VIRTUAL_ENV}/bin/python" -c \
+          "import sys, urllib.request; urllib.request.urlretrieve(sys.argv[1], sys.argv[2])" \
+          "${url}" "${target}.part"; \
+        echo "${sha256}  ${target}.part" | sha256sum --check --status; \
+        mv "${target}.part" "${target}"; \
+      fi; \
+      ln -sfn "${sha256}.whl" "${link}"; \
+      printf '%s\n' "${link}"; \
+    }; \
     UV_COMPILE_BYTECODE=0 uv python install 3.13.12 && \
     uv venv --python 3.13.12 /opt/posttrain-verl && \
-    "${VIRTUAL_ENV}/bin/python" -c \
-      "import urllib.request; urllib.request.urlretrieve('${VLLM_BINARY_WHEEL_URL}', '/tmp/vllm-binary-base.whl')" && \
-    echo "${VLLM_BINARY_WHEEL_SHA256}  /tmp/vllm-binary-base.whl" | sha256sum --check - && \
+    VLLM_WHEEL="$(download_wheel "${VLLM_BINARY_WHEEL_URL}" "${VLLM_BINARY_WHEEL_SHA256}" "vllm-0.25.1-cp38-abi3-manylinux_2_28_x86_64.whl")" && \
+    CUTLASS_BASE_WHEEL="$(download_wheel "${CUTLASS_BASE_WHEEL_URL}" "${CUTLASS_BASE_WHEEL_SHA256}" "nvidia_cutlass_dsl_libs_base-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl")" && \
+    CUTLASS_CU13_WHEEL="$(download_wheel "${CUTLASS_CU13_WHEEL_URL}" "${CUTLASS_CU13_WHEEL_SHA256}" "nvidia_cutlass_dsl_libs_cu13-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl")" && \
+    TORCH_C_DLPACK_WHEEL="$(download_wheel "${TORCH_C_DLPACK_WHEEL_URL}" "${TORCH_C_DLPACK_WHEEL_SHA256}" "torch_c_dlpack_ext-0.1.5-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl")" && \
     VIRTUAL_ENV=/opt/posttrain-verl \
     VLLM_USE_PRECOMPILED=1 \
-    VLLM_PRECOMPILED_WHEEL_LOCATION=/tmp/vllm-binary-base.whl \
+    VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_WHEEL}" \
     VLLM_VERSION_OVERRIDE="${VLLM_RUNTIME_VERSION}" \
+    UV_FIND_LINKS=/opt/posttrain-wheel-cache \
     UV_COMPILE_BYTECODE=0 uv sync \
       --project /opt/posttrain-verl-build/release \
       --active \
@@ -119,15 +136,10 @@ RUN --mount=type=cache,id=posttrain-verl-uv,target=/root/.cache/uv,sharing=locke
       --no-install-package nvidia-nvtx \
       --no-install-package torch \
       --no-install-package triton && \
-    "${VIRTUAL_ENV}/bin/python" -c \
-      "import urllib.request; urllib.request.urlretrieve('${CUTLASS_BASE_WHEEL_URL}', '/tmp/nvidia_cutlass_dsl_libs_base-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl'); urllib.request.urlretrieve('${CUTLASS_CU13_WHEEL_URL}', '/tmp/nvidia_cutlass_dsl_libs_cu13-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl'); urllib.request.urlretrieve('${TORCH_C_DLPACK_WHEEL_URL}', '/tmp/torch_c_dlpack_ext-0.1.5-cp313-cp313-manylinux_2_28_x86_64.whl')" && \
-    echo "${CUTLASS_BASE_WHEEL_SHA256}  /tmp/nvidia_cutlass_dsl_libs_base-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl" | sha256sum --check - && \
-    echo "${CUTLASS_CU13_WHEEL_SHA256}  /tmp/nvidia_cutlass_dsl_libs_cu13-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl" | sha256sum --check - && \
-    echo "${TORCH_C_DLPACK_WHEEL_SHA256}  /tmp/torch_c_dlpack_ext-0.1.5-cp313-cp313-manylinux_2_28_x86_64.whl" | sha256sum --check - && \
     UV_COMPILE_BYTECODE=0 uv pip install --python /opt/posttrain-verl --no-deps --reinstall \
-      /tmp/nvidia_cutlass_dsl_libs_base-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl && \
+      "${CUTLASS_BASE_WHEEL}" && \
     UV_COMPILE_BYTECODE=0 uv pip install --python /opt/posttrain-verl --no-deps --reinstall \
-      /tmp/nvidia_cutlass_dsl_libs_cu13-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl && \
+      "${CUTLASS_CU13_WHEEL}" && \
     sed -i '/uv_cache\.json,/d' \
       /opt/posttrain-verl/lib/python3.13/site-packages/nvidia_cutlass_dsl_libs_base-4.5.2.dist-info/RECORD \
       /opt/posttrain-verl/lib/python3.13/site-packages/nvidia_cutlass_dsl_libs_cu13-4.5.2.dist-info/RECORD && \
@@ -136,18 +148,14 @@ RUN --mount=type=cache,id=posttrain-verl-uv,target=/root/.cache/uv,sharing=locke
       /opt/posttrain-verl/lib/python3.13/site-packages/nvidia_cutlass_dsl_libs_cu13-4.5.2.dist-info \
       -maxdepth 1 -type f -name uv_cache.json -delete && \
     /opt/posttrain-verl/bin/python -c \
-      "import zipfile; wheel='/tmp/torch_c_dlpack_ext-0.1.5-cp313-cp313-manylinux_2_28_x86_64.whl'; target='/opt/posttrain-verl/lib/python3.13/site-packages/build_backend.py'; archive=zipfile.ZipFile(wheel); names=[name for name in archive.namelist() if name == 'build_backend.py']; assert names == ['build_backend.py'], names; open(target, 'wb').write(archive.read(names[0]))" && \
+      "import sys, zipfile; wheel=sys.argv[1]; target='/opt/posttrain-verl/lib/python3.13/site-packages/build_backend.py'; archive=zipfile.ZipFile(wheel); names=[name for name in archive.namelist() if name == 'build_backend.py']; assert names == ['build_backend.py'], names; open(target, 'wb').write(archive.read(names[0]))" \
+      "${TORCH_C_DLPACK_WHEEL}" && \
     BACKEND_STDLIB="$(/opt/posttrain-verl/bin/python -c \
       'import sysconfig; print(sysconfig.get_path("stdlib"))')" && \
     /opt/posttrain-verl/bin/python -m compileall --invalidation-mode checked-hash -q -f \
       "${BACKEND_STDLIB}" \
       /opt/posttrain-verl/lib/python3.13/site-packages && \
     find /tmp -maxdepth 1 -type f -name 'uv-*.lock' -delete && \
-    rm \
-      /tmp/vllm-binary-base.whl \
-      /tmp/nvidia_cutlass_dsl_libs_base-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl \
-      /tmp/nvidia_cutlass_dsl_libs_cu13-4.5.2-cp313-cp313-manylinux_2_28_x86_64.whl \
-      /tmp/torch_c_dlpack_ext-0.1.5-cp313-cp313-manylinux_2_28_x86_64.whl && \
     install -d /opt/posttrain-verl/release && \
     printf '%s\n' "${VIRTUAL_ENV}/lib/python3.13/site-packages" \
       > /opt/posttrain-verl/lib/python3.13/site-packages/posttrain-control-fallback.pth && \

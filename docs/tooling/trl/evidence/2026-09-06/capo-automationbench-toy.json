@@ -1,0 +1,115 @@
+{
+  "algorithm": "capo",
+  "optimizer_steps": 5,
+  "native_traces": 15,
+  "admitted_traces": 10,
+  "nonadmitted_traces": [
+    {
+      "trace_id": "8783767d2b7f442289f5ac40889cea8d",
+      "stop_condition": "max_turns",
+      "errors": []
+    },
+    {
+      "trace_id": "506ac2ffe48643efa62fa3fe52d9d2fe",
+      "stop_condition": "max_turns",
+      "errors": []
+    },
+    {
+      "trace_id": "4658e7ebfeb145f59929817facaa02ac",
+      "stop_condition": "agent_completed",
+      "errors": []
+    },
+    {
+      "trace_id": "38237150141443daa83670dd52de7938",
+      "stop_condition": "agent_completed",
+      "errors": []
+    },
+    {
+      "trace_id": "e5f9a7d8b0744ac9b40de94d399c0c90",
+      "stop_condition": "max_turns",
+      "errors": []
+    }
+  ],
+  "prompt_groups": 5,
+  "partial_credit": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "binary_success": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "judge_quality": [
+    0.0,
+    0.5,
+    0.0,
+    0.5,
+    0.0,
+    0.2,
+    0.0,
+    0.5,
+    0.0,
+    0.2
+  ],
+  "sampled_tokens": [
+    55,
+    481,
+    167,
+    82,
+    120,
+    169,
+    209,
+    192,
+    153,
+    117
+  ],
+  "process_error_tokens": [
+    55,
+    92,
+    98,
+    82,
+    120,
+    43,
+    75,
+    129,
+    62,
+    82
+  ],
+  "grad_norms": [
+    2.5241456031799316,
+    1.707053542137146,
+    2.3446404933929443,
+    1.3394404649734497,
+    2.290489912033081
+  ],
+  "lora_B_norm": 0.02252371938933692,
+  "decimal_advantage_mean_parity": true,
+  "native_token_mask_alignment": true,
+  "learning_signal_exercised": true,
+  "scope": "local TRL toy; not veRL, benchmark improvement, or expert validation of judge judgments",
+  "export_reload_generation": {
+    "token_ids": [
+      9405,
+      248046,
+      198,
+      248044
+    ],
+    "text": "yes<|im_end|>\n<|endoftext|>"
+  }
+}

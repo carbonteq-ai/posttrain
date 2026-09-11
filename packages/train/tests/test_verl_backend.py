@@ -74,6 +74,7 @@ from posttrain.train.backends.verl.worker import (
     _write_dataset,
     build_hydra_overrides,
 )
+from posttrain.train.online_rl import BehaviorPolicySpan
 from pydantic import ValidationError
 
 
@@ -84,6 +85,7 @@ class FakeEnvironment:
 
 
 class FakeBridge:
+    max_concurrent = 32
     dataset = RolloutDataset(
         "test-rollouts-v1",
         "a" * 40,
@@ -256,21 +258,38 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
             return ()
 
     renderers = ModuleType("renderers")
+    renderer_configs: list[object] = []
     renderers.__dict__["Qwen35RendererConfig"] = lambda *, enable_thinking: {"enable_thinking": enable_thinking}
-    renderers.__dict__["create_renderer"] = lambda tokenizer, config: FakeRenderer()
+    renderers.__dict__["DefaultRendererConfig"] = lambda: {"default": True}
+    renderers.__dict__["create_renderer"] = lambda tokenizer, config: (renderer_configs.append(config), FakeRenderer())[
+        1
+    ]
     monkeypatch.setitem(sys.modules, "renderers", renderers)
 
     class ServerManager:
         def __init__(self) -> None:
             self.request: dict[str, object] | None = None
+            self.spans = iter(((3, 3), (3, 4), (4, 5)))
 
         async def generate(self, **kwargs):
             self.request = kwargs
-            return SimpleNamespace(token_ids=(3, 4), log_probs=(-0.1, -0.2))
+            start, end = next(self.spans)
+            return SimpleNamespace(
+                token_ids=(3, 4),
+                log_probs=(-0.1, -0.2),
+                extra_fields={"min_global_steps": start, "max_global_steps": end},
+            )
 
     agent_loop = importlib.import_module(module_name)
     server = ServerManager()
     generator = agent_loop.VerlPolicyGenerator(server, object(), enable_thinking=False)
+    agent_loop.VerlPolicyGenerator(
+        server,
+        object(),
+        enable_thinking=False,
+        renderer_implementation="default",
+    )
+    assert renderer_configs == [{"enable_thinking": False}, {"default": True}]
     sampling = PolicySampling(
         max_tokens=32,
         temperature=0.7,
@@ -286,6 +305,8 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
     )
 
     assert result.completion_ids == (3, 4)
+    assert result.behavior_policy == BehaviorPolicySpan(3, 3)
+    assert generator.behavior_policy == BehaviorPolicySpan(3, 3)
     assert server.request is not None
     assert server.request["sampling_params"] == {
         "max_tokens": 32,
@@ -297,6 +318,49 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
         "presence_penalty": 1.5,
         "logprobs": True,
     }
+    asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=({"role": "user", "content": "hello"},),
+                sampling=replace(sampling, min_p=None, presence_penalty=0.0),
+            )
+        )
+    )
+    parameters = server.request["sampling_params"]
+    assert isinstance(parameters, dict)
+    assert "min_p" not in parameters
+    assert parameters["repetition_penalty"] == 1.1
+    assert parameters["presence_penalty"] == 0.0
+
+    generator.set_sampling_overrides(
+        {
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "top_k": -1,
+            "max_tokens": 16,
+            "logprobs": True,
+        }
+    )
+    asyncio.run(
+        generator.generate(PolicyTurnRequest(messages=({"role": "user", "content": "hello"},), sampling=sampling))
+    )
+    assert server.request is not None
+    assert server.request["sampling_params"] == {
+        "max_tokens": 16,
+        "temperature": 0.0,
+        "top_p": 1.0,
+        "top_k": -1,
+        "min_p": 0.01,
+        "repetition_penalty": 1.1,
+        "presence_penalty": 1.5,
+        "logprobs": True,
+    }
+    assert generator.behavior_policy == BehaviorPolicySpan(3, 5)
+    generator.set_sampling_overrides({"max_tokens": 33})
+    with pytest.raises(ValueError, match="exceeds the environment output limit"):
+        asyncio.run(
+            generator.generate(PolicyTurnRequest(messages=({"role": "user", "content": "hello"},), sampling=sampling))
+        )
     sys.modules.pop(module_name, None)
 
 
@@ -379,6 +443,97 @@ def test_grpo_worker_maps_prompt_groups_generations_and_kl_without_importing_ver
     assert "trainer.logger=['console','file']" in overrides
 
 
+def test_grpo_worker_maps_bounded_rollout_execution_to_native_verl(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    request = _grpo_request()
+    training = replace(
+        request.training,
+        backend_options={
+            **request.training.backend_options,
+            "source_revision": "5dbf667c99b29db613d1dfcded1ed90440ef6311",
+            "rollout_execution": {
+                "env_workers": 4,
+                "episodes_per_worker": 8,
+                "worker_native_threads": 1,
+            },
+        },
+    )
+    plan = build_grpo_launch_plan(replace(request, training=training), tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+
+    overrides = build_hydra_overrides(
+        plan,
+        tmp_path / "rollouts.parquet",
+        tmp_path / "agent-loop.json",
+        tmp_path / "checkpoints",
+    )
+
+    assert "actor_rollout_ref.rollout.agent.num_workers=4" in overrides
+    assert "actor_rollout_ref.rollout.agent.num_cpus_per_worker=1" in overrides
+    assert "actor_rollout_ref.rollout.agent.max_concurrent_episodes=32" in overrides
+    assert "actor_rollout_ref.rollout.agent.max_concurrent_episodes_per_worker=8" in overrides
+    assert "trainer.v1.sampler.refill_all_failed_groups=True" in overrides
+
+
+def test_grpo_worker_rejects_rollout_capacity_above_environment_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    request = _grpo_request()
+    training = replace(
+        request.training,
+        backend_options={
+            **request.training.backend_options,
+            "source_revision": "5dbf667c99b29db613d1dfcded1ed90440ef6311",
+            "rollout_execution": {
+                "env_workers": 5,
+                "episodes_per_worker": 8,
+                "worker_native_threads": 1,
+            },
+        },
+    )
+    plan = build_grpo_launch_plan(replace(request, training=training), tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+
+    with pytest.raises(ValueError, match="environment worker capacity exceeds"):
+        build_hydra_overrides(
+            plan,
+            tmp_path / "rollouts.parquet",
+            tmp_path / "agent-loop.json",
+            tmp_path / "checkpoints",
+        )
+
+
+def test_grpo_worker_rejects_bounded_execution_on_legacy_verl_revision(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    request = _grpo_request()
+    training = replace(
+        request.training,
+        backend_options={
+            **request.training.backend_options,
+            "rollout_execution": {
+                "env_workers": 4,
+                "episodes_per_worker": 8,
+                "worker_native_threads": 1,
+            },
+        },
+    )
+    plan = build_grpo_launch_plan(replace(request, training=training), tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+
+    with pytest.raises(ValueError, match="does not support bounded rollout_execution"):
+        build_hydra_overrides(
+            plan,
+            tmp_path / "rollouts.parquet",
+            tmp_path / "agent-loop.json",
+            tmp_path / "checkpoints",
+        )
+
+
 def test_grpo_prompt_shuffle_is_explicit_and_backend_neutral(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -423,11 +578,78 @@ def test_verl_checkpoint_steps_zero_keeps_only_terminal_model_save(
     assert f"trainer.save_freq={request.settings.loop.max_steps + 1}" in overrides
 
 
+@pytest.mark.parametrize("algorithm", ["gdpo", "capo"])
+def test_structured_algorithms_select_explicit_native_loss_and_evidence_contract(monkeypatch, tmp_path, algorithm):
+    from posttrain.train import CAPORequest, CAPOSettings, GDPORequest, GDPOSettings
+    from posttrain.train.backends.verl.launcher import build_structured_launch_plan
+
+    base = _sampo_request()
+    from posttrain.train import RewardComponentProjection, RewardProjection
+
+    monkeypatch.setattr(
+        FakeBridge,
+        "reward_projection",
+        RewardProjection(
+            "fixture",
+            "1",
+            (RewardComponentProjection("outcome", "scalar"), RewardComponentProjection("quality", "metric", "quality")),
+            "resolved_credit",
+        ),
+        raising=False,
+    )
+    loop = base.settings.loop
+    settings = (
+        GDPOSettings(
+            id="gdpo",
+            loop=loop,
+            component_names=("outcome", "quality"),
+            component_weights=(1.0, 2.0),
+            shuffle_prompts=True,
+        )
+        if algorithm == "gdpo"
+        else CAPOSettings(id="capo", loop=loop, shuffle_prompts=True)
+    )
+    request = (
+        GDPORequest(base.policy, base.bridge, settings, base.environment, base.training, base.inference)
+        if isinstance(settings, GDPOSettings)
+        else CAPORequest(base.policy, base.bridge, settings, base.environment, base.training, base.inference)
+    )
+    from posttrain.train.backends.trl.policy_config import _online_rl_arguments
+
+    trl_arguments = _online_rl_arguments(request, tmp_path / "trl", {})
+    assert trl_arguments["shuffle_dataset"] is True
+    assert trl_arguments["vllm_importance_sampling_mode"] == "token_truncate"
+    assert trl_arguments["vllm_importance_sampling_clip_min"] is None
+    assert trl_arguments["vllm_importance_sampling_clip_max"] == 3.0
+    plan = build_structured_launch_plan(request, tmp_path)
+    from posttrain.train.backends.verl.launcher import _grpo_runtime_attributes
+
+    assert _grpo_runtime_attributes(request, plan)["online_rl_algorithm"] == algorithm
+    assert _grpo_runtime_attributes(request, plan)["shuffle_prompts"] is True
+    assert plan.payload.algorithm.shuffle_prompts is True
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    overrides = build_hydra_overrides(plan, tmp_path / "data", tmp_path / "agent", tmp_path / "checkpoints")
+    assert f"algorithm.adv_estimator={algorithm}" in overrides
+    assert "data.shuffle=true" in overrides
+    assert "actor_rollout_ref.actor.policy_loss.loss_mode=token_clip" in overrides
+    assert "actor_rollout_ref.actor.kl_loss_type=k3_unclipped" in overrides
+    assert "algorithm.filter_groups.enable=false" in overrides
+    assert "+algorithm.structured_rewards.max_admission_attempts=3" in overrides
+    config_path = tmp_path / "agent.json"
+    _write_agent_config(plan.payload, config_path)
+    config = json.loads(config_path.read_text())
+    assert config[0]["structured_algorithm"] == algorithm
+
+
 def test_verl_sampo_maps_hierarchical_advantages_gspo_and_dynamic_sampling(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    request = _sampo_request()
+    base = _sampo_request()
+    request = replace(base, settings=replace(base.settings, shuffle_prompts=True))
+    from posttrain.train.backends.trl.policy_config import _online_rl_arguments
+
+    assert _online_rl_arguments(request, tmp_path / "trl", {})["shuffle_dataset"] is True
     plan = build_sampo_launch_plan(request, tmp_path)
     monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
 
@@ -443,7 +665,9 @@ def test_verl_sampo_maps_hierarchical_advantages_gspo_and_dynamic_sampling(
 
     assert plan.operation == "sampo"
     assert plan.payload.algorithm.advantage_estimator == "sampo"
+    assert plan.payload.algorithm.shuffle_prompts is True
     assert "algorithm.adv_estimator=sampo" in overrides
+    assert "data.shuffle=true" in overrides
     assert "algorithm.sampo.discount_gamma=0.95" in overrides
     assert "algorithm.sampo.step_advantage_weight=1.0" in overrides
     assert "algorithm.sampo.advantage_normalization=mean" in overrides
@@ -454,6 +678,31 @@ def test_verl_sampo_maps_hierarchical_advantages_gspo_and_dynamic_sampling(
     assert "algorithm.filter_groups.enable=true" in overrides
     assert "algorithm.filter_groups.max_num_gen_batches=3" in overrides
     assert agent_config[0]["emit_sampo_metadata"] is True
+
+
+def test_sampo_explicit_turn_selection_is_in_recovery_contract(monkeypatch, tmp_path):
+    from posttrain.train.reward_projection import RewardComponentProjection, RewardProjection
+    from posttrain.train.reward_recovery import reward_contract_digest
+
+    projection = RewardProjection(
+        "turns",
+        "1",
+        (RewardComponentProjection("outcome", "scalar"),),
+        scorer_digest="a" * 64,
+        turns_info_key="ratings",
+        turn_reward_key="quality",
+        turn_reward_includes_terminal_outcome=False,
+    )
+    monkeypatch.setattr(FakeBridge, "reward_projection", projection, raising=False)
+    request = _sampo_request()
+    first = reward_contract_digest(request)
+    plan = build_sampo_launch_plan(request, tmp_path)
+    assert plan.payload.algorithm.reward_contract_digest == first
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    overrides = build_hydra_overrides(plan, tmp_path / "data", tmp_path / "agent", tmp_path / "checkpoints")
+    assert f"+algorithm.structured_rewards.reward_contract_digest={first}" in overrides
+    monkeypatch.setattr(FakeBridge, "reward_projection", replace(projection, turn_reward_key="other"))
+    assert reward_contract_digest(request) != first
 
 
 def test_verl_dapo_uses_core_trainer_and_maps_all_dynamic_sampling_controls(
@@ -1094,7 +1343,9 @@ def test_verl_agent_loop_honors_selected_reasoning_mode(tmp_path: Path) -> None:
 
     _write_agent_config(payload, path)
 
-    assert '"enable_thinking": true' in path.read_text(encoding="utf-8")
+    config = json.loads(path.read_text(encoding="utf-8"))
+    assert config[0]["enable_thinking"] is True
+    assert config[0]["renderer_implementation"] == "qwen3.5"
 
 
 def test_verl_streaming_reward_exposes_dynamic_filter_metric() -> None:

@@ -120,6 +120,30 @@ def test_job_package_key_changes_with_meaning_but_not_a_run() -> None:
     )
 
 
+def test_job_package_records_a_content_addressed_backend_development_source() -> None:
+    manifest = _manifest()
+    candidate = replace(manifest, backend_source_digest="8" * 64)
+
+    assert JobPackageManifest.from_bytes(candidate.to_bytes()) == candidate
+    assert candidate.package_key != manifest.package_key
+
+    with pytest.raises(ContractError, match="backend source"):
+        replace(
+            manifest,
+            job_kind="train.sft",
+            runtime_variant="supervised",
+            backend_source_digest="8" * 64,
+        )
+
+
+@pytest.mark.parametrize("kind", ["train.gdpo", "train.capo"])
+def test_structured_reward_jobs_accept_online_rl_runtime(kind: str) -> None:
+    manifest = replace(_manifest(), job_kind=kind)
+    assert manifest.runtime_variant == "online-rl-trl-py312"
+    with pytest.raises(ContractError):
+        replace(manifest, runtime_variant="supervised-trl-py312")
+
+
 def test_job_package_runtime_variant_must_refine_logical_profile() -> None:
     with pytest.raises(ContractError, match="refine"):
         replace(_manifest(), runtime_variant="supervised-trl-py312")

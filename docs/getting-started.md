@@ -168,6 +168,11 @@ credentials = "dstack-default"
 # Persist a pre-start no-capacity task in dstack for up to one day.
 capacity_wait_seconds = 86400
 
+# Optional: resolve selected job variables from dstack's encrypted project
+# secret store instead of sending literal values in the task configuration.
+[providers.dstack.runtime_secrets]
+OPENROUTER_API_KEY = "openrouter-job-key"
+
 [credentials.dstack-default]
 file = "credentials/dstack.env"
 ```
@@ -182,6 +187,17 @@ dstack queue retention window. It retries only `no-capacity` before the job
 starts; interruption and runtime errors remain fail-fast so user code is never
 repeated under the same framework attempt. This dstack release defaults an
 omitted retry duration to one hour and has no unbounded value.
+
+Jobs and external-service selections declare only required environment-variable
+names. For local or one-off execution, put the value in the ignored mode-0600
+`posttrain.env` file (or pass a protected `--env-file`). For shared remote
+execution, prefer `[providers.dstack.runtime_secrets]`: each value is the name
+of a secret already created in the selected dstack project. Posttrain submits a
+`${{ secrets.<name> }}` reference, and dstack resolves it only when constructing
+the worker environment. Secret values never belong in a work package, catalog,
+image, command-line argument, plan, or run snapshot. The same mechanism applies
+when dstack places the task on RunPod; OpenRouter judging does not deploy a
+second model or consume another RunPod GPU.
 
 Targets declare capacity (`device_class` / `memory_gb`). That is enough for
 dstack to place the run on any matching worker. posttrain does **not** lock a

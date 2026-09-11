@@ -27,6 +27,7 @@ from posttrain_observatory import (
     JobTelemetryDefinition,
     MetricSeriesQuery,
     ObservatoryService,
+    RunView,
     SummaryFieldDefinition,
 )
 from posttrain_observatory.cli import main
@@ -482,6 +483,54 @@ def test_grpo_policy_optimization_unifies_learning_signal_and_update_control() -
         "active_sampling_yield",
         "active_sampling_population",
     ]
+
+
+@pytest.mark.parametrize("job_kind", ["train.gdpo", "train.capo"])
+def test_structured_group_policy_jobs_reuse_the_policy_optimization_contract(job_kind: str) -> None:
+    definition = DEFAULT_TELEMETRY_DEFINITIONS[job_kind]
+
+    assert definition.job_kind == job_kind
+    assert definition.metric_names == DEFAULT_TELEMETRY_DEFINITIONS["train.grpo"].metric_names
+    assert all(rule.id.startswith(f"{job_kind.removeprefix('train.')}-") for rule in definition.health_rules)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("job_kind", ["train.gdpo", "train.capo"])
+async def test_structured_group_policy_jobs_resolve_a_curated_view(job_kind: str) -> None:
+    run_id = f"runs/{job_kind.removeprefix('train.')}"
+    detail = RunDetail(
+        summary=_summary(run_id, job_kind),
+        metric_names=("train/rl/reward_mean",),
+        trace_count=1,
+        resolved_inputs={
+            "settings": {
+                "resolved": {
+                    "num_generations": 4,
+                    "component_names": ["outcome", "quality"],
+                    "component_weights": [0.8, 0.2],
+                }
+            }
+        },
+    )
+    source = FakeRunDataSource(
+        {run_id: detail},
+        {
+            run_id: {
+                "train/rl/reward_mean": MetricSeries(
+                    name="train/rl/reward_mean",
+                    points=(MetricPoint(value=0.5, step=1),),
+                )
+            }
+        },
+    )
+
+    response = await ObservatoryService(source).get_run_view_response(run_id)
+
+    assert response.resolved_mode == "job"
+    assert response.fallback_reason is None
+    assert isinstance(response.view, RunView)
+    assert response.view.run.job_kind == job_kind
+    assert response.view.grpo is not None
 
 
 def _dpo_source(*, missing: str | None = None, validation_configured: bool = False) -> FakeRunDataSource:

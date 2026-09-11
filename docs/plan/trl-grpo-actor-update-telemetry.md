@@ -22,7 +22,7 @@ An Observatory reader must be able to distinguish rollout generation from the ac
 
 ## Surprises & Discoveries
 
-- Observation: `packages/train/src/posttrain/train/backends/trl/grpo.py` currently wraps `trainer.train()` in `context.phase("actor_update")` while `_rollout_function` opens nested rollout phases.
+- Observation: `packages/train/src/posttrain/train/backends/trl/policy_optimization.py` currently wraps `trainer.train()` in `context.phase("actor_update")` while `_rollout_function` opens nested rollout phases.
   Evidence: the live diagnostic run emitted `actor_update` and then `rollout` at the same timestamp; no actor optimizer work had occurred yet.
 
 - Observation: the canonical metric catalog already contains `train/rl/time/actor_update_seconds`, but the TRL adapter does not emit it. The equivalent veRL native timing is already normalized.
@@ -85,7 +85,7 @@ The matched SFT-start diagnostic later completed through finalization as `train.
 
 ## Context and Orientation
 
-`packages/train/src/posttrain/train/backends/trl/grpo.py` translates a backend-neutral `GRPORequest` into Hugging Face TRL. Its `_rollout_function` invokes the selected Verifiers environment and already emits a bounded `rollout` phase plus rollout duration. `packages/train/src/posttrain/train/backends/trl/common.py` creates a Transformers callback that receives optimizer lifecycle hooks and forwards normalized step metrics through `RunContext`. `RunContext.phase` in `packages/common/src/posttrain/common/execution.py` records phase start, completion, and failure events. Observatory later correlates those intervals with system samples.
+`packages/train/src/posttrain/train/backends/trl/policy_optimization.py` translates backend-neutral online-RL requests into Hugging Face TRL. Its `_rollout_function` invokes the selected Verifiers environment and already emits a bounded `rollout` phase plus rollout duration. `packages/train/src/posttrain/train/backends/trl/common.py` creates a Transformers callback that receives optimizer lifecycle hooks and forwards normalized step metrics through `RunContext`. `RunContext.phase` in `packages/common/src/posttrain/common/execution.py` records phase start, completion, and failure events. Observatory later correlates those intervals with system samples.
 
 An actor update is the policy optimization after a rollout population has been scored: actor log-probability calculation, loss, backward passes over accumulated microbatches, gradient clipping, and the optimizer step. It does not include rollout generation or environment execution. A logical rollout step is zero-based in current traces, while the completed optimizer step reported by Transformers is one-based; actor telemetry must use the completed optimizer-step number.
 
@@ -93,7 +93,7 @@ The work corrects evidence semantics only. It does not change the frozen product
 
 ## Plan of Work
 
-Add a small private actor-update lifecycle helper to `packages/train/src/posttrain/train/backends/trl/grpo.py`. The helper owns at most one active `RunContext.phase` context manager, records a monotonic start time, and can complete or fail the interval exactly once. Starting a second interval while one is active is an error because it means the trainer lifecycle no longer matches the adapter's assumptions.
+Add a small private actor-update lifecycle helper to `packages/train/src/posttrain/train/backends/trl/policy_optimization.py`. The helper owns at most one active `RunContext.phase` context manager, records a monotonic start time, and can complete or fail the interval exactly once. Starting a second interval while one is active is an error because it means the trainer lifecycle no longer matches the adapter's assumptions.
 
 Construct that helper before the TRL trainer. Pass it into `_rollout_function`. At the very end of a successful rollout call, start actor update number `trainer.state.global_step + 1`. Add a TRL callback whose `on_step_end` completes the matching interval and emits `train/rl/time/actor_update_seconds` at the completed global step. If training raises between rollout return and step end, fail the active phase with the original exception before re-raising. Remove the session-wide `context.phase("actor_update")` wrapper.
 
@@ -106,8 +106,8 @@ Work from `/home/hammad/projects/rl`.
 First edit the TRL adapter and tests with `apply_patch`. Then run:
 
     uv run pytest packages/train/tests/test_api.py -k 'grpo and (rollout or actor)' -q
-    uv run ruff check packages/train/src/posttrain/train/backends/trl/grpo.py packages/train/tests/test_api.py
-    uv run pyright packages/train/src/posttrain/train/backends/trl/grpo.py packages/train/tests/test_api.py
+    uv run ruff check packages/train/src/posttrain/train/backends/trl/policy_optimization.py packages/train/tests/test_api.py
+    uv run pyright packages/train/src/posttrain/train/backends/trl/policy_optimization.py packages/train/tests/test_api.py
     uv run lint-imports
     git diff --check
 

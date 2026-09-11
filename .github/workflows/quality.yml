@@ -2,6 +2,12 @@ name: Quality
 
 on:
   workflow_dispatch:
+    inputs:
+      allow_pending_runtime_lock:
+        description: Allow the protected candidate workflow to materialize a changed runtime lock
+        required: false
+        default: false
+        type: boolean
   pull_request:
   push:
     branches: [main]
@@ -11,13 +17,13 @@ permissions:
   actions: write
 
 env:
-  CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post14.dev19/carbonteq_trackio-0.31.5.post14.dev19-py3-none-any.whl
-  CARBONTEQ_TRACKIO_WHEEL_SHA256: e92436100adc657993f7fc1e51008a4c5f6a63786c97afb2899962c872c8d5ea
-  CARBONTEQ_TRACKIO_WHEEL_PATH: /tmp/carbonteq_trackio-0.31.5.post14.dev19-py3-none-any.whl
-  CARBONTEQ_TRL_WHEEL_URL: https://github.com/carbonteq-ai/trl/releases/download/carbonteq-v1.9.2.post11/trl-1.9.2.post11-py3-none-any.whl
-  CARBONTEQ_TRL_WHEEL_SHA256: ae95f7787936f7e944766611c5545048b7710bf34e7404bb1e1a027698aa604a
-  CARBONTEQ_TRL_WHEEL_PATH: /tmp/trl-1.9.2.post11-py3-none-any.whl
-  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post14.dev19-py3-none-any.whl:/tmp/trl-1.9.2.post11-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post14.dev23/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_SHA256: 0460ba6a4d531595a1caba1c6d340f13d4ba490be149308138b695b0a03512a6
+  CARBONTEQ_TRACKIO_WHEEL_PATH: /tmp/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl
+  CARBONTEQ_TRL_WHEEL_URL: https://github.com/carbonteq-ai/trl/releases/download/carbonteq-v1.12.0.post8/trl-1.12.0.post8-py3-none-any.whl
+  CARBONTEQ_TRL_WHEEL_SHA256: aabf5a52b9f8a20db32e9da5847fd2584e18ba8cfb12f2e79ec7db146db8ffa4
+  CARBONTEQ_TRL_WHEEL_PATH: /tmp/trl-1.12.0.post8-py3-none-any.whl
+  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl:/tmp/trl-1.12.0.post8-py3-none-any.whl
 
 jobs:
   quality:
@@ -57,7 +63,8 @@ jobs:
         run: uv run --no-sync posttrain-release repository-check
       - name: Run deterministic release readiness
         run: |
-          if [[ "${GITHUB_EVENT_NAME}" = "pull_request" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" = "pull_request" \
+            || "${{ inputs.allow_pending_runtime_lock || false }}" = "true" ]]; then
             pending_lock=--allow-pending-runtime-lock
           else
             pending_lock=
@@ -179,7 +186,7 @@ jobs:
         run: |
           uv sync --frozen --all-packages --extra verifiers --python 3.13 --no-install-package carbonteq-trackio --inexact
           uv pip install --python .venv/bin/python \
-            "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@b7bcb591facfcd2b073802f6d7496b24ab9c479e#subdirectory=environments/gsm8k_v1"
+            "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@d994073b9632e73c96a57865683133d7a6ebc4bf#subdirectory=environments/gsm8k_v1"
       - name: Test the Verifiers bridge
         run: |
           uv run \
@@ -188,4 +195,6 @@ jobs:
             --extra verifiers \
             --with pytest \
             --with pytest-asyncio \
-            pytest -q packages/train/tests/test_verifiers_grpo_bridge.py
+            pytest -q \
+              packages/train/tests/test_verifiers_grpo_bridge.py \
+              packages/train/tests/test_trl_async_collection_runtime.py

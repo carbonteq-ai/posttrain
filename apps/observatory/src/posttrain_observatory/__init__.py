@@ -70,12 +70,15 @@ from .service import ObservatoryService, RunViewService
 from .settings import ObservatorySettings
 from .sources import RunSourceRegistry
 from .telemetry import (
+    CAPO_TELEMETRY,
     DATA_PREPARE_TELEMETRY,
     DEFAULT_TELEMETRY_DEFINITIONS,
     DISTILL_TELEMETRY,
     DOMAIN_EVAL_TELEMETRY,
     DPO_TELEMETRY,
+    GDPO_TELEMETRY,
     GENERAL_EVAL_TELEMETRY,
+    GROUP_POLICY_JOB_KINDS,
     GRPO_TELEMETRY,
     SAMPO_TELEMETRY,
     SERVE_BENCHMARK_TELEMETRY,
@@ -95,6 +98,7 @@ __all__ = [
     "ArtifactRoleDefinition",
     "BackendRuntimeSummary",
     "BenchmarkPopulationView",
+    "CAPO_TELEMETRY",
     "ChartDefinition",
     "ChartView",
     "ComparisonRow",
@@ -117,7 +121,9 @@ __all__ = [
     "FixtureRunDataSource",
     "FixtureSemanticSummaryProvider",
     "GENERAL_EVAL_TELEMETRY",
+    "GDPO_TELEMETRY",
     "GRPO_TELEMETRY",
+    "GROUP_POLICY_JOB_KINDS",
     "GenericRunView",
     "HealthRuleDefinition",
     "InferenceTimingStageSummary",

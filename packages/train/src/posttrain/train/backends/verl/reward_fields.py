@@ -2,6 +2,38 @@
 
 from __future__ import annotations
 
+from ...online_rl import EnvironmentRollout
+from ...reward_evidence import InvalidRewardEvidence
+
+
+def structured_reward_metadata(
+    rollout: EnvironmentRollout, *, component_names: tuple[str, ...], require_process: bool
+) -> dict[str, object]:
+    """Transport validated raw evidence, with process credit in sampled-token order.
+
+    The receiving trainer scatters against its own response mask after repadding;
+    it must never interpret original trace offsets as padded tensor positions.
+    """
+    evidence = rollout.reward_evidence
+    if evidence is None or rollout.is_truncated:
+        raise InvalidRewardEvidence("structured rewards require complete nontruncated evidence")
+    values = evidence.require_components(component_names)
+    result: dict[str, object] = {
+        "prompt_group_id": evidence.prompt_group_id,
+        "rollout_id": evidence.rollout_id,
+        "trace_id": evidence.trace_id,
+        "projection_id": evidence.projection_id,
+        "components": dict(zip(component_names, values, strict=True)),
+    }
+    if require_process:
+        if evidence.process is None:
+            raise InvalidRewardEvidence("CAPO requires retained process evidence")
+        errors = evidence.process.error_mask(rollout.env_mask)
+        result["process_error_mask"] = [
+            value for value, sampled in zip(errors, rollout.env_mask, strict=True) if sampled
+        ]
+    return result
+
 
 def training_response_mask(
     env_mask: tuple[bool, ...],

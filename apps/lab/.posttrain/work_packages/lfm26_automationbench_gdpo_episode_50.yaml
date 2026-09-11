@@ -1,0 +1,36 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-gdpo-episode-50
+stage: train
+description: Matched 50-update episode-level multi-reward GDPO arm with the default OpenRouter DeepSeek judge.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-gdpo-episode-50@1
+  revision: "2"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    reward_projection: training
+    training: training
+    rollout_inference: inference
+    judge_inference: hosted-inference
+  jobs:
+    - id: train
+      kind: train.gdpo
+      definition: train/gdpo-episode-judged@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, episode judge evidence, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-episode-openrouter-v1}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-gdpo-episode-50-v1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-episode-gdpo@1}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout@1}
+  judge_inference: {type: ref, family: hosted-inference, id: hosted-inference/deepseek-v4-flash-openrouter-judge@1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-automationbench-50-v2
+  arm: gdpo-episode-multireward
+  task_mix: lfm26-automationbench-mix-v2
+  labels: [qualification, automationbench, lfm2.5, gdpo, episode-judge, openrouter, deepseek-v4-flash]

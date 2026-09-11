@@ -14,7 +14,15 @@ from typing import cast
 
 import pytest
 from posttrain.catalog import ProjectLayout
-from posttrain.common import ContractError, ExecutionTarget, RunContext
+from posttrain.common import (
+    ContractError,
+    ExecutionTarget,
+    ExternalInferenceService,
+    HostedInferenceBinding,
+    HostedModel,
+    ProviderEndpointProfile,
+    RunContext,
+)
 from posttrain.execution import (
     AdmissionEntry,
     AdmissionResult,
@@ -31,6 +39,7 @@ from posttrain.execution import (
     JobPackageManifest,
     LogCursor,
     LogPage,
+    ProviderCleanupDeferred,
     RuntimeImageRef,
     TrackingCancellationRecovery,
 )
@@ -60,7 +69,7 @@ def _candidate_manifest_for_cli_unit_tests(monkeypatch: pytest.MonkeyPatch) -> N
     """
 
     manifest = _load_manifest(verify_locks=False)
-    monkeypatch.setattr("posttrain_cli.execution_config.load_manifest", lambda: manifest)
+    monkeypatch.setattr("posttrain_cli.execution_config.load_manifest", lambda **_: manifest)
 
 
 def _candidate_manifest():
@@ -700,6 +709,7 @@ def test_machine_init_creates_shared_defaults_and_scoped_credentials(
         "python-index.env",
         "dstack.env",
         "job-builder.env",
+        "openrouter.env",
     ):
         assert (credentials / filename).stat().st_mode & 0o077 == 0
 
@@ -749,6 +759,47 @@ def test_machine_init_creates_shared_defaults_and_scoped_credentials(
 
     assert main(["machine", "init"]) == 1
     assert "refusing to overwrite existing machine configuration" in capsys.readouterr().err
+
+
+def test_hosted_inference_declares_only_its_credential_name_as_a_runtime_requirement() -> None:
+    from posttrain_cli.commands.work_package import _paid_judge_limits
+    from posttrain_cli.execution_config import DstackBinding, ExecutionOverrides, LocalExecutionConfig
+    from posttrain_cli.execution_planning import required_runtime_variables, runtime_credential_status_for_seats
+
+    binding = HostedInferenceBinding(
+        "hosted-inference/test@1",
+        "1",
+        HostedModel("hosted-model/test@1", "1", "author/model", 4096),
+        ExternalInferenceService(
+            "external-service/test@1",
+            "1",
+            "https://router.example/v1",
+            "ROUTER_API_KEY",
+        ),
+        "provider",
+        ProviderEndpointProfile("json-schema"),
+        {"max_tokens": 128},
+    )
+
+    assert required_runtime_variables({"judge": binding}) == ("ROUTER_API_KEY",)
+    assert _paid_judge_limits({"judge": binding}) == {
+        "judge": {"max_cost_usd": "4.99", "max_cost_usd_micros": 4_990_000}
+    }
+    remote = LocalExecutionConfig(
+        path=Path("/tmp/posttrain-test-config.toml"),
+        defaults=ExecutionOverrides(provider="dstack"),
+        dstack=DstackBinding(
+            project="main",
+            python=Path("/tmp/dstack-python"),
+            runtime_secrets={"ROUTER_API_KEY": "router-job-key"},
+        ),
+    )
+    assert runtime_credential_status_for_seats(remote, {"judge": binding}, provider="dstack") == {
+        "ROUTER_API_KEY": "configured"
+    }
+    assert runtime_credential_status_for_seats(remote, {"judge": binding}, provider="local") == {
+        "ROUTER_API_KEY": "unavailable"
+    }
 
 
 def test_machine_init_omits_redundant_hostname_by_default(tmp_path: Path, capsys) -> None:
@@ -891,12 +942,12 @@ def test_init_grpo_template_declares_environment_and_selected_extras(
     pyproject = (project / "pyproject.toml").read_text(encoding="utf-8")
     work_package = (project / ".posttrain" / "work_packages" / "grpo.yaml").read_text(encoding="utf-8")
     assert '"posttrain[observatory,trackio,trl,verifiers]' in pyproject
-    assert "PrimeIntellect-ai/verifiers.git@284a868d" in pyproject
-    assert "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@b7bcb591" in pyproject
+    assert "carbonteq-ai/verifiers.git@1f6793f7" in pyproject
+    assert "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@1181585e" in pyproject
     environment = (project / ".posttrain" / "catalog" / "environments.yaml").read_text(encoding="utf-8")
     assert "starter-gsm8k-train" in work_package
     assert "package: gsm8k-v1" in environment
-    assert "revision: b7bcb591facfcd2b073802f6d7496b24ab9c479e" in environment
+    assert "revision: 1181585ea66c6f89432864a476b5110794afc9fe" in environment
     from posttrain.catalog import load_project_layout
     from posttrain.project import load_project_pack_config
 
@@ -1284,6 +1335,27 @@ def test_expected_errors_do_not_print_tracebacks(tmp_path: Path, capsys) -> None
     captured = capsys.readouterr()
     assert "error:" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_deferred_provider_cleanup_has_temporary_failure_exit_code(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    def deferred_app(*, json_stream):
+        del json_stream
+
+        def invoke(*, args, standalone_mode):
+            del args, standalone_mode
+            raise ProviderCleanupDeferred("exact cleanup is durably queued")
+
+        return invoke
+
+    monkeypatch.setattr("posttrain_cli.cli.create_app", deferred_app)
+
+    assert main(["run", "cleanup", "run-1"]) == 75
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "deferred: exact cleanup is durably queued\n"
 
 
 def test_work_package_validate_resolves_project_catalog_seats(

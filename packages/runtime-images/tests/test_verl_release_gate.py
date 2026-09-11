@@ -136,11 +136,31 @@ def test_candidate_orders_overlapping_cutlass_wheels_before_compilation() -> Non
 
     assert "CUTLASS_BASE_WHEEL_SHA256" in dockerfile
     assert "CUTLASS_CU13_WHEEL_SHA256" in dockerfile
-    assert "nvidia_cutlass_dsl_libs_base" in dockerfile[base_install:cu13_install]
-    assert "nvidia_cutlass_dsl_libs_cu13" in dockerfile[cu13_install:compile_position]
+    assert '"${CUTLASS_BASE_WHEEL}"' in dockerfile[base_install:cu13_install]
+    assert '"${CUTLASS_CU13_WHEEL}"' in dockerfile[cu13_install:compile_position]
     assert "sed -i '/uv_cache\\.json,/d'" in dockerfile[cu13_install:compile_position]
     assert "-type f -name uv_cache.json -delete" in dockerfile[cu13_install:compile_position]
     assert base_install < cu13_install < compile_position
+
+
+def test_candidate_caches_pinned_backend_wheels_across_dependency_rebuilds() -> None:
+    dockerfile = (PROFILE_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    cache_position = dockerfile.index("id=posttrain-verl-wheels")
+    cleanup_position = dockerfile.index("rm -rf /opt/posttrain-verl-build", cache_position)
+    dependency_layer = dockerfile[cache_position:cleanup_position]
+
+    assert "id=posttrain-verl-wheels" in dockerfile
+    assert "target=/opt/posttrain-wheel-cache" in dockerfile
+    assert dockerfile.count("https://pypi.lan/root/pypi/+f/") == 4
+    assert "download_wheel()" in dockerfile
+    assert "sha256sum --check --status" in dependency_layer
+    assert 'rm -f "${target}" "${target}.part"' in dependency_layer
+    assert 'mv "${target}.part" "${target}"' in dependency_layer
+    assert 'ln -sfn "${sha256}.whl" "${link}"' in dependency_layer
+    assert "printf '%s\\n' \"${link}\"" in dependency_layer
+    assert "urllib.request.urlretrieve" in dependency_layer
+    assert "UV_FIND_LINKS=/opt/posttrain-wheel-cache" in dependency_layer
+    assert "'/tmp/vllm-binary-base.whl'" not in dependency_layer
 
 
 def test_candidate_resolves_unnamespaced_build_backend_collision_before_compilation() -> None:
@@ -151,7 +171,8 @@ def test_candidate_resolves_unnamespaced_build_backend_collision_before_compilat
     compile_position = dockerfile.index("BACKEND_STDLIB=", restore_position)
 
     assert "TORCH_C_DLPACK_WHEEL_SHA256" in dockerfile
-    assert "torch_c_dlpack_ext-0.1.5-cp313-cp313-manylinux_2_28_x86_64.whl" in dockerfile
+    assert 'TORCH_C_DLPACK_WHEEL="$(download_wheel' in dockerfile
+    assert '"${TORCH_C_DLPACK_WHEEL}"' in dockerfile[restore_position:compile_position]
     assert "names == ['build_backend.py']" in dockerfile[restore_position:compile_position]
     assert apt_position < wheel_arg_position < restore_position < compile_position
 

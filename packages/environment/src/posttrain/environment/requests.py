@@ -136,7 +136,14 @@ class VerifiersV1ConfigActivation:
             from verifiers.v1.env import EnvConfig  # pyright: ignore[reportMissingImports]
         except ImportError as error:
             raise RuntimeError("install the Verifiers integration dependencies") from error
-        return EnvConfig.model_validate(dict(self.config))
+        # Native validators resolve nested plugin dictionaries in place. Give
+        # them a detached JSON tree, never the replay/recovery selection itself.
+        payload = json.loads(json.dumps(dict(self.config)))
+        try:
+            from verifiers.v1.utils.loaders import resolve_env_config  # pyright: ignore[reportMissingImports]
+        except ImportError:
+            return EnvConfig.model_validate(payload)
+        return resolve_env_config(payload)
 
 
 type EnvironmentActivation = PythonFactoryActivation | VerifiersV1ConfigActivation

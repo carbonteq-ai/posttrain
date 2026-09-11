@@ -1,5 +1,106 @@
 # veRL training backend
 
+## Rollout-execution development candidate
+
+Branch `codex/verl-rollout-execution` publishes `0.9.0.post2` from immutable
+release commit `98742d3e9507318ba0b5d4944034deb7db1ec84b`, with ledger
+follow-up `4050fbeb`. It adds opt-in Ray agent-worker episode limits, explicit CPU
+reservations, and complete failed-group replacement in the V1 TransferQueue
+path. The framework accepts a private
+`TrainingBinding.backend_options.rollout_execution` mapping with
+`env_workers`, `episodes_per_worker`, and `worker_native_threads`; it validates
+their product against the Verifiers bridge's global `max_concurrent` and maps
+the values to native veRL settings. Native overrides cannot replace those
+owned settings.
+
+The candidate also has a deterministic native partial-rollout gate. It proves
+that an aborted assistant generation resumes from the original prompt plus its
+retained generated prefix, spends only the remaining token budget, preserves
+token-aligned behavior log probabilities exactly once, and reports the served
+policy span across versions. Nine native continuation tests pass; the existing
+real AutomationBench bridge test separately proves one emitted tool action is
+executed once before the next model turn. This is CPU protocol evidence, not a
+changed-weight GPU qualification.
+
+The candidate wheel SHA-256 is
+`adeef5700a7f56a10beaef5304f6a5626b015c45334d516d2330243bcad174f5`;
+the sdist SHA-256 is
+`0c1c1ac543a93d2ff5ba50c4394c4b9838ad90615c981422ce22df4693224a0a`.
+Posttrain workflow `34335257738` published and clean-installed those exact
+bytes from `carbonteq/dev`. The development profile selects post2, but
+runtime-image reconstruction and a real GPU collection/update gate are still
+required before stable promotion. Renderer construction is now
+binding-driven for Qwen and LFM, but the existing Qwen-only GPU qualification
+policy remains in force.
+
+## GDPO/CAPO follow-on implementation (unpublished)
+
+Algorithm qualification uses deterministic synthetic turn inputs separately
+from LLM-judge calibration. The qualification-only runner is
+`scripts/qualification/automationbench_deterministic.py`; its fixture wheel is
+installed into the isolated interpreter and its digest is retained in selection
+and native evidence. Native AutomationBench success is not overwritten.
+The first live attempt exposed unset `min_p` being forwarded as `None` to vLLM;
+the framework adapter now omits unset options and preserves explicit zero values.
+Startup telemetry now labels GDPO/CAPO correctly instead of SAMPO. These fixes
+pass the 51 adapter tests; they do not yet close the five-update live-run gates.
+
+Both deterministic veRL runs subsequently completed five updates:
+`gdpo-deterministic-d` and `capo-deterministic-a`. Independent Decimal mean/min/max
+advantage audits and native Episode token/mask/logprob parity pass. CAPO retained
+one rejected max-turns group before replacement. These are not resume or release
+certifications. Strict export reload found the merger's leaf-name target
+inference could attach untrained vision layers. The unpublished fork now saves
+exact module paths, with 17 merger tests passing; original exports are retained
+and fresh exports are regenerated from unchanged final checkpoints. Follow
+Revision 11 of the execution plan for exact evidence and remaining gates.
+
+The native turn-reward bridge also transports complete selected turn scores into
+SAMPO metadata. An explicitly selected scorer is included in its checkpoint
+recovery digest; the unselected sparse-terminal path stays unchanged.
+The candidate V1 trainer accepts a recovery-only structured contract without
+overriding SAMPO admission policy. Framework backend/recovery/SAMPO tests:
+61 passed on 2026-09-06. Live veRL turn-reward qualification remains open.
+
+The v0.9.0 candidate checkout now contains explicit structured-reward profiles,
+V1 raw evidence transport, bounded invalid-group replacement, ordinary token
+clipping and unclipped k3 KL. Legacy loss profiles are unchanged. Checkpoints
+retain a selected reward-contract digest and reject missing/changed identities.
+The adapter maps versioned projection settings into this contract; runtime
+qualification and publication of a new fork version remain open. Do not point
+stable pins at this dirty source checkout or claim these changes exist in post1.
+
+## 2026-09-06 upstream audit: candidate, not a pin update
+
+The user subsequently prioritized the full upgrade. The retained fork is now
+integrated on v0.9.0, committed and pushed as
+`cec7e74c361bb973b641db8dfbb75a5544c33139`, and released as candidate
+`carbonteq-v0.9.0.post1`. Its wheel SHA-256 is
+`3d66ac6b78848ef591dd6e4be4d324fcac12c27247a05ad1c14dcf9fb370256e`;
+sdist SHA-256 is `6da77c10e5d37399c655b15e3ed78d520be2ca648ed763d43ccb7404dfe53d72`.
+Validation: 151 focused CPU source checks and 63 installed-wheel checks pass.
+SAMPO/V1 transport, bounded refill, dense teacher alignment, 3-D position
+repair, QLoRA and speculative metrics remain; equivalent upstream fixes replace
+the old maintained deltas. Posttrain Actions `34006221953` publishes retained
+bytes to dev. Stable consumer adoption remains gated on runtime-image/GPU
+qualification; the harness's Ray 2.49.2 is not the runtime's Ray 2.56.1.
+
+The selected source remains `808923d487aa2c524fda02cf5289110541b4221f`.
+Upstream v0.9.0 is available at `483b8a009ba3a97563edee3a19887e4862b8094a`,
+but a direct switch would lose SAMPO and its V1 identity/metadata transport.
+Dense teacher alignment, repaired 3-D position IDs, bounded group refill,
+LoRA synchronization/checkpoints, and distillation normalization require parity
+review when porting to that stable base.
+
+An isolated `/home/hammad/projects/verl-gdpo-capo` candidate includes the
+REINFORCE++ observation-credit fix from upstream: masked tool observations no
+longer erase credit for earlier actions. Twenty-eight native CPU core/regression
+tests pass, including non-unit discount factors and float32/float64. This does
+not change CAPO's direct-token-credit objective. The dirty `verl-upstream`
+checkout is untouched; the candidate is uncommitted and unpublished, and the
+runtime-image/GPU gates remain open. Its fork ledger and
+`docs/plan/gdpo-capo-dual-backend-support.md` record the exact changes.
+
 The framework exposes veRL as the general versioned training backend product
 `verl@<version-or-revision>`. The public operation names and requests remain
 `train.grpo` / `GRPORequest` and `train.distill` /

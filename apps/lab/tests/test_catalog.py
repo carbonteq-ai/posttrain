@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 import hashlib
+import tomllib
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from posttrain.catalog import load_catalog_layer, packaged_base_directory
-from posttrain.common import CatalogRef, ContractError, ExecutionTarget, InferenceBinding, ModelVariant
+from posttrain.common import CatalogRef, ContractError, ExecutionTarget, HubModelRef, InferenceBinding, ModelVariant
 from posttrain.environment import VerifiersV1ConfigActivation
 from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
+from posttrain.serve.backends.vllm.bindings import resolve_binding_configuration
 from posttrain.train import (
+    ActiveGroupSampling,
     DynamicGroupSampling,
+    GDPOSettings,
     GRPOSettings,
     LoRAUpdate,
     OnPolicyDistillationSettings,
@@ -155,7 +160,7 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert isinstance(environment.source, EnvironmentSource)
     assert environment.source.package == "automationbench-v1"
     assert environment.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-    assert environment.source.revision == "b7bcb591facfcd2b073802f6d7496b24ab9c479e"
+    assert environment.source.revision == "1181585ea66c6f89432864a476b5110794afc9fe"
     assert environment.source.subdirectory == "environments/automationbench_v1"
     assert environment.parameters["domains"] == ["simple"]
     assert environment.parameters["sampling_seed"] == 17
@@ -182,6 +187,251 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert rollout.capabilities == ("tool-calling",)
     assert rollout.model.conversation.tool_calls is not None
     assert rollout.model.conversation.tool_calls.id == "qwen3_xml"
+
+
+def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> None:
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    scalar = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-v2")).value
+    judged = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-episode-judged-v2")).value
+    fixture = WORKSPACE / "scripts/qualification/fixtures/lfm26_automationbench_mix_v2.json"
+    fixture_digest = hashlib.sha256(fixture.read_bytes()).hexdigest()
+
+    assert isinstance(scalar, EnvironmentBinding)
+    assert isinstance(judged, EnvironmentBinding)
+    for environment in (scalar, judged):
+        assert isinstance(environment.activation, VerifiersV1ConfigActivation)
+        assert environment.num_tasks == 160
+        assert environment.num_rollouts == 4
+        assert environment.parameters["sampling_seed"] == 172846
+        assert environment.parameters["task_mix_id"] == "lfm26-automationbench-mix-v2"
+        assert environment.parameters["task_mix_sha256"] == fixture_digest
+        assert environment.parameters["max_output_tokens"] == 8192
+        assert "max_total_tokens" not in environment.parameters
+        taskset = environment.activation.config["taskset"]
+        assert isinstance(taskset, Mapping)
+        assert taskset.get("task_names") is None
+        agent = environment.activation.config["agent"]
+        assert isinstance(agent, Mapping)
+        assert agent["max_output_tokens"] == 8192
+        assert "max_total_tokens" not in agent
+    assert scalar.max_concurrent == 32
+    assert judged.max_concurrent == 32
+
+    local_grpo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-grpo-20-local-v1")).value
+    local_olmo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-20-local-v1")).value
+    local_rollout = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32@1")
+    ).value
+    local_training = catalog.resolve(
+        CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench-local@1")
+    ).value
+
+    assert isinstance(local_grpo, GRPOSettings)
+    assert local_grpo.loop.max_steps == 20
+    assert local_grpo.num_prompts_per_step == 8
+    assert local_grpo.num_generations == 4
+    assert local_grpo.loop.max_length == 13_312
+    assert local_grpo.max_completion_length == 3_072
+    assert local_grpo.max_admission_attempts == 1
+    assert isinstance(local_olmo, GRPOSettings)
+    assert local_olmo.loop.max_steps == 20
+    assert local_olmo.algorithm == "olmo3"
+    assert local_olmo.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
+    assert isinstance(local_rollout, InferenceBinding)
+    assert isinstance(local_training, TrainingBinding)
+    assert local_rollout.engine["max_num_seqs"] == 32
+    assert local_rollout.engine["max_model_len"] == 13_312
+    assert local_rollout.sampling["max_tokens"] == 3_072
+    assert local_rollout.engine["max_num_batched_tokens"] == 32_768
+    assert local_rollout.engine["kv_cache_memory_bytes"] == 4 * 1024**3
+    assert "weight_name_prefix" not in local_rollout.engine
+    assert local_rollout.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
+
+    remote_training = catalog.resolve(CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench@1")).value
+    remote_rollout = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout@1")
+    ).value
+    heldout_inference = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-eval@1")
+    ).value
+    judge = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-vllm-automationbench-judge-mtp2@1")).value
+    spark_judge = catalog.resolve(
+        CatalogRef("inference", "inference/spark-x2.5-4b-vllm-automationbench-judge-nothink-local@1")
+    ).value
+
+    assert isinstance(remote_training, TrainingBinding)
+    assert isinstance(remote_rollout, InferenceBinding)
+    assert "weight_name_prefix" not in remote_rollout.engine
+    assert isinstance(heldout_inference, InferenceBinding)
+    assert isinstance(judge, InferenceBinding)
+    assert isinstance(spark_judge, InferenceBinding)
+    assert spark_judge.model.id == "models/spark-x2.5-4b@bf16"
+    assert isinstance(spark_judge.model.artifact, HubModelRef)
+    assert spark_judge.model.artifact.revision == "5e10fcc0286756aebf7c41dc52c1e42d95c70281"
+    assert spark_judge.resolved_reasoning_mode == "off"
+    assert spark_judge.sampling["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+    assert spark_judge.engine.get("speculative_config") is None
+    assert spark_judge.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
+    resolved_spark_judge = resolve_binding_configuration(spark_judge)
+    assert resolved_spark_judge.engine.enable_prefix_caching is True
+    assert resolved_spark_judge.engine.trust_remote_code is True
+    lock_document = tomllib.loads(
+        (WORKSPACE / "packages/catalog/src/posttrain/catalog/base/locks.toml").read_text(encoding="utf-8")
+    )
+    current_trl_lock = lock_document["locks"]["trl-fork@current"]
+    assert remote_training.backend == "trl@1.12.0.post8"
+    assert remote_training.backend_options["dependency_lock"] == "trl-fork@current"
+    assert remote_training.backend_options["source_revision"] == current_trl_lock["source_revision"]
+    assert remote_training.backend_options["dependency_lock_sha256"] == current_trl_lock["dependency_lock_sha256"]
+    assert local_training.backend == remote_training.backend
+    assert local_training.backend_options["dependency_lock"] == "trl-fork@current"
+    assert local_training.backend_options["source_revision"] == current_trl_lock["source_revision"]
+    assert local_training.backend_options["dependency_lock_sha256"] == current_trl_lock["dependency_lock_sha256"]
+    assert remote_training.target.id == "targets/runpod-rtx-pro-6000-96gb-secure-ondemand"
+    assert remote_rollout.target == remote_training.target
+    assert judge.target == remote_training.target
+    assert heldout_inference.target.id == "targets/runpod-rtx-pro-4500-32gb-secure-ondemand"
+    for target in (remote_training.target, heldout_inference.target):
+        assert target.hardware is not None
+        assert target.hardware.gpu_architecture == "blackwell"
+        assert target.hardware.supports_bf16 is True
+        assert target.hardware.supports_mtp is True
+        assert target.hardware.supports_turboquant is True
+        assert target.placement["fleets"] == ["runpod-secure-ondemand-workers"]
+        assert target.placement["spot_policy"] == "on-demand"
+        assert target.placement["max_price"] == 2.2
+    remote_hardware = remote_training.target.hardware
+    heldout_hardware = heldout_inference.target.hardware
+    assert remote_hardware is not None
+    assert heldout_hardware is not None
+    assert remote_hardware.accelerator_model == "RTXPRO6000"
+    assert heldout_hardware.accelerator_model == "RTXPRO4500"
+
+    changed_weight_training = catalog.resolve(
+        CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-changed-weight-canary@1")
+    ).value
+    changed_weight_rollout = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-changed-weight-canary@1")
+    ).value
+    assert isinstance(changed_weight_training, TrainingBinding)
+    assert isinstance(changed_weight_rollout, InferenceBinding)
+    assert changed_weight_training.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
+    assert changed_weight_rollout.target == changed_weight_training.target
+    assert "weight_name_prefix" not in changed_weight_rollout.engine
+
+
+def test_lfm26_three_step_qualification_retains_a_12k_episode_budget() -> None:
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    scalar = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-v3")).value
+    judged = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-episode-judged-v3")).value
+    olmo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-3-local-v1")).value
+    gdpo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-gdpo-episode-3-local-v1")).value
+    rollout = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@1")
+    ).value
+    judge = catalog.resolve(
+        CatalogRef("inference", "inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@1")
+    ).value
+
+    assert isinstance(scalar, EnvironmentBinding)
+    assert isinstance(judged, EnvironmentBinding)
+    for environment in (scalar, judged):
+        assert environment.sampling.max_tokens == 4_096
+        parameters = cast(Mapping[str, Any], environment.parameters)
+        assert parameters["max_output_tokens"] == 12_288
+        assert isinstance(environment.activation, VerifiersV1ConfigActivation)
+        agent = cast(Mapping[str, Any], environment.activation.config["agent"])
+        assert agent["max_output_tokens"] == 12_288
+
+    assert isinstance(judged.activation, VerifiersV1ConfigActivation)
+    taskset = cast(Mapping[str, Any], judged.activation.config["taskset"])
+    judged_task = cast(Mapping[str, Any], taskset["task"])
+    judges = cast(list[Mapping[str, Any]], judged_task["judges"])
+    assert judges[0]["input_budget_tokens"] == 12_288
+    assert judges[0]["code_revision"] == "1181585ea66c6f89432864a476b5110794afc9fe"
+    assert "assessment_scope" not in judges[0]
+    assert "context_scope" not in judges[0]
+
+    assert isinstance(olmo, GRPOSettings)
+    assert isinstance(gdpo, GDPOSettings)
+    for settings in (olmo, gdpo):
+        assert settings.loop.max_steps == 3
+        assert settings.loop.max_length == 24_576
+        assert settings.num_prompts_per_step == 8
+        assert settings.num_generations == 4
+        assert settings.max_prompt_length == 20_480
+        assert settings.max_completion_length == 4_096
+
+    assert isinstance(rollout, InferenceBinding)
+    assert rollout.sampling["max_tokens"] == 4_096
+    assert rollout.engine["max_model_len"] == 24_576
+    assert rollout.engine["max_num_seqs"] == 32
+    assert rollout.engine["max_num_batched_tokens"] == 32_768
+    assert rollout.engine["kv_cache_memory_bytes"] == 4 * 1024**3
+
+    assert isinstance(judge, InferenceBinding)
+    assert judge.sampling["max_tokens"] == 16_384
+    assert judge.engine["max_model_len"] == 32_768
+    assert judge.engine["max_num_seqs"] == 16
+
+
+def test_lfm26_two_step_qualification_is_matched() -> None:
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    olmo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-2-local-v2")).value
+    gdpo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-gdpo-episode-2-local-v2")).value
+    judge = catalog.resolve(
+        CatalogRef("inference", "inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@2")
+    ).value
+
+    assert isinstance(olmo, GRPOSettings)
+    assert isinstance(gdpo, GDPOSettings)
+    for settings in (olmo, gdpo):
+        assert settings.loop.max_steps == 2
+        assert settings.loop.max_length == 24_576
+        assert settings.loop.gradient_accumulation_steps == 32
+        assert settings.num_prompts_per_step == 8
+        assert settings.num_generations == 4
+        assert settings.max_prompt_length == 20_480
+        assert settings.max_completion_length == 4_096
+
+    assert olmo.algorithm == "olmo3"
+    assert gdpo.component_weights == (0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10)
+    assert isinstance(judge, InferenceBinding)
+    assert judge.engine["gpu_memory_utilization"] == 0.45
+    assert judge.engine["max_model_len"] == 32_768
+
+
+def test_lfm26_two_step_judge_speed_environments_are_matched() -> None:
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    spark = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-episode-spark-nothink-v1")).value
+    deepseek = catalog.resolve(
+        CatalogRef(
+            "environment",
+            "automationbench-lfm26-train-mix-episode-deepseek-v41-flash-nothink-v1",
+        )
+    ).value
+
+    assert isinstance(spark, EnvironmentBinding)
+    assert isinstance(deepseek, EnvironmentBinding)
+    for environment in (spark, deepseek):
+        assert environment.num_tasks == 160
+        assert environment.num_rollouts == 4
+        assert environment.max_concurrent == 32
+        assert environment.sampling.max_tokens == 4_096
+        assert isinstance(environment.activation, VerifiersV1ConfigActivation)
+        activation = cast(Mapping[str, Any], environment.activation.config)
+        agent = cast(Mapping[str, Any], activation["agent"])
+        taskset = cast(Mapping[str, Any], activation["taskset"])
+        task = cast(Mapping[str, Any], taskset["task"])
+        [judge_config] = cast(list[Mapping[str, Any]], task["judges"])
+        assert agent["max_output_tokens"] == 12_288
+        assert judge_config["input_budget_tokens"] == 12_288
+        assert judge_config["assessment_protocol"] == "model-native-frame@1"
+        assert judge_config["assessment_frame_max_tokens"] == 4_096
+        assert cast(Mapping[str, Any], judge_config["sampling"])["max_tokens"] == 4_096
+
+    assert spark.parameters["task_mix_sha256"] == deepseek.parameters["task_mix_sha256"]
+    assert spark.parameters["sampling_seed"] == deepseek.parameters["sampling_seed"]
 
 
 def test_qwen4b_automationbench_eval_binding_declares_tool_protocol() -> None:
@@ -222,7 +472,7 @@ def test_general_capability_catalog_and_library_qualification_are_pinned() -> No
     for item in plan.environments:
         assert isinstance(item.source, EnvironmentSource)
         assert item.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-        assert item.source.revision == "b7bcb591facfcd2b073802f6d7496b24ab9c479e"
+        assert item.source.revision == "1181585ea66c6f89432864a476b5110794afc9fe"
 
 
 def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:
@@ -399,9 +649,12 @@ def test_base_catalog_manifest_is_complete_and_manifest_controlled() -> None:
     assert set(layer) == {
         "layer_id",
         "model",
+        "hosted-model",
+        "external-service",
         "dataset",
         "target",
         "inference",
+        "hosted-inference",
         "workload",
         "environment",
         "evaluation",

@@ -154,7 +154,7 @@ def execute_run_tracked[ResultT](
         del context, value
         flusher = getattr(tracked, "flush_artifacts", None)
         if callable(flusher):
-            flusher(timeout=120)
+            flusher()
 
     try:
         result = execute_run(
@@ -219,14 +219,14 @@ def execute_run_tracked_finalized[ResultT](
         del context, error
         flusher = getattr(tracked, "flush_artifacts", None)
         if callable(flusher):
-            flusher(timeout=120)
+            flusher()
 
     def finalize(context: RunContext, result: ResultT) -> None:
         del context, result
         nonlocal published
         flusher = getattr(tracked, "flush_artifacts", None)
         if callable(flusher):
-            flusher(timeout=120)
+            flusher()
         resolver = getattr(tracked, "published_artifacts", None)
         if not callable(resolver):
             raise ContractError("tracking backend cannot resolve committed output artifacts")

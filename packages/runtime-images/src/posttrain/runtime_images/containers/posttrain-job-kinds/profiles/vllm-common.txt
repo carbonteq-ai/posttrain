@@ -1,0 +1,11 @@
+# Shared CUDA 13 vLLM/JIT dependency profile for compatible job kinds.
+ninja==1.13.0
+nvidia-cuda-cccl==13.0.85
+nvidia-cuda-crt==13.0.88
+nvidia-cuda-nvcc==13.0.88
+nvidia-ml-py==13.610.43
+nvidia-nvvm==13.0.88
+torchaudio==2.11.0+cu130
+torchvision==0.26.0+cu130
+vllm==0.25.1
+vllm-spark2-5-plugin @ git+https://github.com/XHToken/Spark-plugin.git@3e1040e63a5907e4c748a485d6795d739dcd5bd6

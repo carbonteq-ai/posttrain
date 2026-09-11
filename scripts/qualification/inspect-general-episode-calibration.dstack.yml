@@ -1,0 +1,22 @@
+type: task
+name: inspect-general-episode-calibration-u
+image: registry.carbonteq.com/carbonteq/posttrain/nanbeige-vllm@sha256:bfbeee151fb59c687f7e27d5e5e287716a7c1c6dd58ebf0a4ffe99b13702a3aa
+shell: /bin/bash
+commands:
+  - >-
+    python3 -c 'import json;
+    p=json.load(open("/opt/posttrain/evidence/general-episode-calibration-gemma-u/calibration/summary.json"));
+    rows=[];
+    [rows.append({"case":r["case"],"passed":r["passed"],"failures":r["failures"],"error_type":r.get("error_type"),"scores":{k:v.get("score") for k,v in r.get("verdict",{}).get("assessments",{}).items()},"violations":[{"requirement":c["requirement"],"outcome":c["outcome"],"dimensions":c["relevant_dimensions"]} for c in r.get("verdict",{}).get("requirement_checks",[]) if c["outcome"].startswith("violated_")],"usage":r.get("usage")}) for r in p["results"]];
+    print(json.dumps({"passed":p["passed"],"rows":rows},indent=2))'
+volumes:
+  - /var/lib/posttrain/qualifications/nanbeige-r12-20260906:/opt/posttrain/evidence
+resources:
+  cpu: 1..
+  memory: 1GB..
+fleets:
+  - local-gpu-workers
+max_duration: 10m
+retry: false
+tags:
+  purpose: inspect-general-episode-calibration

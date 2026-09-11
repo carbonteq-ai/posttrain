@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       candidate_run_id:
-        description: Successful release-candidate run whose final-version bytes and OCI manifest are promoted
+        description: Successful release-candidate run whose RC and OCI materialization qualify this final release
         required: true
         type: string
       resume_from_run_id:
@@ -32,6 +32,7 @@ env:
   PYPI_DEV_PROJECT_SIMPLE: https://pypi.lan/carbonteq/dev/+simple/
   PYPI_DEV_UPLOAD: https://pypi.lan/carbonteq/dev/
   PYPI_STABLE_SIMPLE: https://pypi.lan/carbonteq/stable/+simple/
+  PYPI_STABLE_UPLOAD: https://pypi.lan/carbonteq/stable/
   JOB_REGISTRY: registry.lan/carbonteq
 
 jobs:
@@ -131,45 +132,30 @@ jobs:
             "repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}" \
             --jq '.commit.tree.sha')"
           release_tree="$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"
-          # A candidate normally comes from the merged commit's ancestry. A
-          # squash merge deliberately removes that ancestry, so accept the
-          # candidate only when the merged tree is byte-for-byte identical.
-          if git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"; then
-            echo "candidate source is an ancestor of the merged source"
+          # The final wheel carries final version metadata, so it is rebuilt
+          # from the accepted materialization rather than byte-promoted from
+          # the RC. Ancestry alone is insufficient: an ancestor may be followed
+          # by arbitrary package changes. Compare the exact trees and reject
+          # every non-release-only change before rebuilding.
+          if [[ "${candidate_tree}" = "${release_tree}" ]]; then
+            echo "candidate source and merged release tree are identical"
           else
-            # The candidate commit may not be present in a checkout of the
-            # squash-merged default branch. Read its immutable tree through
-            # GitHub instead of assuming the source ref still exists locally.
-            if [[ "${candidate_tree}" = "${release_tree}" ]]; then
-              echo "candidate source has the identical merged tree after squash merge"
-            else
-              # A squash merge loses the candidate commit's ancestry and may
-              # include an allowlisted generated manifest in the same merged
-              # tree. Fetch the exact accepted SHA rather than the branch tip,
-              # which may advance after candidate acceptance, and compare the
-              # two trees directly. A three-dot comparison would incorrectly
-              # include the complete squash merge from their shared base.
-              candidate_ref="refs/remotes/origin/release-candidate-${CANDIDATE_RUN_ID}"
-              git fetch --no-tags origin "${candidate_sha}:${candidate_ref}"
-              test "$(git rev-parse "${candidate_ref}")" = "${candidate_sha}"
-              # Release-only workflow and release-test edits do not enter any
-              # wheel or runtime image. Permit those post-candidate changes,
-              # but reject every build-input change so candidate bytes cannot
-              # be promoted for a different package source.
-              unsafe_files="$(git diff --name-only "${candidate_sha}" "${RELEASE_SOURCE_SHA}" \
-                | while IFS= read -r path; do
-                    case "${path}" in
-                      .github/*|apps/release/tests/*|docs/plan/*|docs/publishing.md) ;;
-                      packages/runtime-images/src/posttrain/runtime_images/published.toml) ;;
-                      *) printf '%s\\n' "${path}" ;;
-                    esac
-                  done)"
-              if [[ -n "${unsafe_files}" ]]; then
-                printf 'candidate build inputs changed:\\n%s\\n' "${unsafe_files}" >&2
-                exit 1
-              fi
-              echo "candidate build inputs are unchanged after ${candidate_sha}; only release plumbing differs"
+            candidate_ref="refs/remotes/origin/release-candidate-${CANDIDATE_RUN_ID}"
+            git fetch --no-tags origin "${candidate_sha}:${candidate_ref}"
+            test "$(git rev-parse "${candidate_ref}")" = "${candidate_sha}"
+            unsafe_files="$(git diff --name-only "${candidate_sha}" "${RELEASE_SOURCE_SHA}" \
+              | while IFS= read -r path; do
+                  case "${path}" in
+                    .github/*|apps/release/tests/*|docs/plan/*|docs/publishing.md) ;;
+                    packages/runtime-images/src/posttrain/runtime_images/published.toml) ;;
+                    *) printf '%s\\n' "${path}" ;;
+                  esac
+                done)"
+            if [[ -n "${unsafe_files}" ]]; then
+              printf 'candidate build inputs changed:\\n%s\\n' "${unsafe_files}" >&2
+              exit 1
             fi
+            echo "candidate build inputs are unchanged; only release plumbing differs"
           fi
           candidate_artifact="$(gh api \
             "repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/artifacts" \
@@ -195,10 +181,10 @@ jobs:
           test -n "${candidate_readiness}"
           test "$(jq -r '.source_sha // empty' "${candidate_readiness}")" = "${candidate_sha}"
           test "$(jq -r '.source_tree // empty' "${candidate_readiness}")" = "${candidate_tree}"
-          candidate_version="$(sed -n 's/^framework_version = "\([^"]*\)"$/\1/p' "${candidate_manifest}")"
+          candidate_version="$(jq -r '.version // empty' "${candidate_receipt}")"
           release_version="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' release/manifest.toml)"
-          test "${candidate_version}" = "${release_version}"
-          test "$(jq -r '.version // empty' "${candidate_receipt}")" = "${release_version}"
+          [[ "${candidate_version}" =~ ^${release_version//./\\.}rc[1-9][0-9]*$ ]]
+          test "$(sed -n 's/^framework_version = "\([^"]*\)"$/\1/p' "${candidate_manifest}")" = "${release_version}"
           if ! cmp -s \
             "${candidate_manifest}" \
             packages/runtime-images/src/posttrain/runtime_images/published.toml; then
@@ -210,10 +196,11 @@ jobs:
             packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/
           cp "${candidate_manifest}" .release/published.toml
           cp -a "${candidate_runtime_locks}" .release/runtime-locks
-          cp "${candidate_receipt}" .release/python-release-receipt.json
-          cp "${candidate_wheelhouse}" .release/
-          cp "${candidate_checksums}" .release/release-SHA256SUMS
+          cp "${candidate_receipt}" .release/candidate-python-release-receipt.json
+          cp "${candidate_wheelhouse}" .release/candidate-wheelhouse.tar.gz
+          cp "${candidate_checksums}" .release/candidate-SHA256SUMS
           echo "POSTTRAIN_RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+          echo "POSTTRAIN_CANDIDATE_VERSION=${candidate_version}" >> "$GITHUB_ENV"
           echo "RELEASE_SOURCE_SHA=${RELEASE_SOURCE_SHA}" >> "$GITHUB_ENV"
           # The tag names the reviewed, CI-green default-branch commit. The
           # promotion receipt separately binds its released bytes to the exact
@@ -222,26 +209,34 @@ jobs:
           echo "CANDIDATE_SOURCE_SHA=${candidate_sha}" >> "$GITHUB_ENV"
           echo "CANDIDATE_SOURCE_TREE=${candidate_tree}" >> "$GITHUB_ENV"
 
-      - name: Materialize and verify the candidate wheelhouse
+      - name: Verify the accepted RC remains intact in development
         if: inputs.resume_from_run_id == ''
         run: |
-          archive="$(find .release -maxdepth 1 -type f -name 'posttrain-wheelhouse-*.tar.gz' -print -quit)"
-          test -n "${archive}"
-          mkdir -p .release/wheelhouse
-          tar -xzf "${archive}" -C .release/wheelhouse
-          uv run --no-sync posttrain-release receipt-check .release/python-release-receipt.json \
-            --distribution-root .release/wheelhouse
-
-      - name: Verify the candidate bytes remain intact in development
-        run: |
-          uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
+          mkdir -p .release/candidate-wheelhouse
+          tar -xzf .release/candidate-wheelhouse.tar.gz -C .release/candidate-wheelhouse
+          uv run --no-sync posttrain-release receipt-check \
+            .release/candidate-python-release-receipt.json \
+            --distribution-root .release/candidate-wheelhouse
+          uv run --no-sync posttrain-release index-check .release/candidate-python-release-receipt.json \
             --simple-base-url "${PYPI_DEV_SIMPLE}"
+
+      - name: Build final-version Python artifacts from the accepted materialization
+        if: inputs.resume_from_run_id == ''
+        run: |
+          scripts/release/build-python-distributions \
+            "${POSTTRAIN_RELEASE_VERSION}" \
+            "${RELEASE_SOURCE_SHA}" \
+            .release
+          uv run --no-sync posttrain-release receipt-check .release/python-release-receipt.json \
+            --distribution-root .release/distributions
 
       - name: Bind candidate evidence to the merged release target
         if: inputs.resume_from_run_id == ''
         run: |
           uv run --no-sync posttrain-release promotion-receipt \
-            .release/python-release-receipt.json \
+            .release/candidate-python-release-receipt.json \
+            --final-receipt .release/python-release-receipt.json \
+            --target-version "${POSTTRAIN_RELEASE_VERSION}" \
             --destination .release/promotion-receipt.json \
             --candidate-run-id "${{ inputs.candidate_run_id }}" \
             --candidate-source-sha "${CANDIDATE_SOURCE_SHA}" \
@@ -249,23 +244,27 @@ jobs:
             --merged-sha "${RELEASE_SOURCE_SHA}" \
             --merged-tree "$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"
 
-      - name: Promote unchanged bytes from dev to stable
-        env:
-          DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi
-          REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
+      - name: Publish the final version only to the stable index
         run: |
           if uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
             --simple-base-url "${PYPI_STABLE_SIMPLE}"; then
             echo "exact final bytes are already present in the stable index; reusing them"
           else
-            "${DEVPI_CLIENT}" use https://pypi.lan/carbonteq/dev
-            "${DEVPI_CLIENT}" login "${UV_PUBLISH_USERNAME}" --password "${UV_PUBLISH_PASSWORD}"
-            jq -r '.packages[]' .release/python-release-receipt.json | while read -r package; do
-              "${DEVPI_CLIENT}" push -y "${package}==${POSTTRAIN_RELEASE_VERSION}" carbonteq/stable
-            done
+            uv publish --publish-url "${PYPI_STABLE_UPLOAD}" .release/distributions/*
             uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
               --simple-base-url "${PYPI_STABLE_SIMPLE}"
           fi
+
+      - name: Prove a clean stable-index consumer install
+        run: |
+          uv venv .release/stable-consumer-venv --python 3.13
+          uv pip install \
+            --no-cache \
+            --python .release/stable-consumer-venv/bin/python \
+            --index-url "${PYPI_STABLE_SIMPLE}" \
+            "posttrain[dstack,trackio]==${POSTTRAIN_RELEASE_VERSION}" \
+            "posttrain-lab==${POSTTRAIN_RELEASE_VERSION}"
+          .release/stable-consumer-venv/bin/posttrain --help >/dev/null
 
       - name: Capture bounded cache evidence
         if: always()
@@ -280,6 +279,9 @@ jobs:
           include-hidden-files: true
           path: |
             .release/python-release-receipt.json
+            .release/candidate-python-release-receipt.json
+            .release/candidate-wheelhouse.tar.gz
+            .release/candidate-SHA256SUMS
             .release/promotion-receipt.json
             .release/posttrain-wheelhouse-*.tar.gz
             .release/release-SHA256SUMS

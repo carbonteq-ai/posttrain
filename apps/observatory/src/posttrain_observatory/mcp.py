@@ -2,20 +2,17 @@
 
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from posttrain.tracking import RunQuery
 
 from .models import MetricSeriesQuery, RunLocator, SemanticSummaryRequest, ViewMode
 from .service import ObservatoryService
 
 
-def create_mcp(service: ObservatoryService) -> FastMCP:
-    server = FastMCP(
+def create_mcp(service: ObservatoryService) -> MCPServer:
+    server = MCPServer(
         "Posttrain Observatory",
         instructions="Inspect post-training runs through curated job views and bounded evidence queries.",
-        stateless_http=True,
-        json_response=True,
-        streamable_http_path="/",
     )
 
     @server.tool()

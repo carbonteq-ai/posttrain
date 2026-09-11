@@ -305,7 +305,7 @@ beyond the submitting shell. It submits work when capacity becomes available,
 delivers cancellation requests, checks the provider recorded at submission,
 finalizes tracking evidence, releases settled GPU admissions, and writes
 recovery receipts. Run it under your service supervisor for unattended
-operation. Posttrain v0.3 does not include service installation, `controller
+operation. Posttrain does not include service installation, `controller
 enable` or `controller disable`, a systemd unit, or an Ansible role.
 
 ### Reliability and performance
@@ -329,20 +329,22 @@ enable` or `controller disable`, a systemd unit, or an Ansible role.
 
 ### Current support boundaries
 
-- Online RL is synchronous; Posttrain does not currently provide asynchronous
-  learner and rollout execution.
+- The `0.4.0` candidate contains native asynchronous agent collection and TRL
+  learner integration, but asynchronous training is not a supported public mode
+  until its remaining live recovery, packaged 2B, and publication gates pass.
 - Gemma 4 qualifications are bounded, text-only profiles. They do not establish
   multimodal training or full native-context support.
 - Standard KV is the qualified default for hybrid Qwen training paths;
   TurboQuant K8V4 long-context use remains experimental.
 - The six environment packages have provider-backed activation and execution
   evidence, but that does not mean every full catalog population has completed.
-  See the [v0.3 release notes](./docs/releases/v0.3.md) for the exact coverage.
+  See the [v0.4 release notes](./docs/releases/v0.4.md) for candidate gates and
+  the [v0.3 release notes](./docs/releases/v0.3.md) for published coverage.
 
-See the [v0.3 release notes](./docs/releases/v0.3.md) for release-specific
-capabilities and qualification, the [CHANGELOG](./CHANGELOG.md) for individual
-versions, and the [product baseline](./docs/post-training/README.md) for the
-public contracts.
+See the [v0.4 release notes](./docs/releases/v0.4.md) for the current release
+target, the [v0.3 release notes](./docs/releases/v0.3.md) for shipped
+capabilities, the [CHANGELOG](./CHANGELOG.md) for individual versions, and the
+[product baseline](./docs/post-training/README.md) for the public contracts.
 
 ## Choose capabilities
 

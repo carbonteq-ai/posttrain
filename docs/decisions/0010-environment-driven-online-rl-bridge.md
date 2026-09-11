@@ -106,7 +106,7 @@ the aligned dataset rows to the custom rollout function instead.
   `packages/train/src/posttrain/train/integrations/verifiers.py`.
 - TRL policy and rollout adapters:
   `packages/train/src/posttrain/train/backends/trl/online_rl.py` and
-  `packages/train/src/posttrain/train/backends/trl/grpo.py`.
+  `packages/train/src/posttrain/train/backends/trl/policy_optimization.py`.
 - Job composition:
   `apps/lab/src/posttrain_lab/environments/gsm8k_grpo.py` and
   `apps/lab/src/posttrain_lab/jobs/gsm8k_posttraining.py`.

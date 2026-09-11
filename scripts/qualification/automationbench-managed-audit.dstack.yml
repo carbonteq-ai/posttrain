@@ -1,0 +1,44 @@
+type: task
+name: posttrain-gdpo-trl-gemma-r12-i-audit-b
+
+image: registry.carbonteq.com/carbonteq/posttrain/nanbeige-vllm@sha256:bfbeee151fb59c687f7e27d5e5e287716a7c1c6dd58ebf0a4ffe99b13702a3aa
+shell: /bin/bash
+commands:
+  - >-
+    PYTHONDONTWRITEBYTECODE=1
+    HF_HUB_CACHE=/root/.cache/huggingface/hub
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/audit_structured_toy.py
+    /opt/posttrain/evidence/training-gdpo-trl-gemma-i
+    --mechanics
+    --reload-export
+
+files:
+  - ./audit_structured_toy.py:/opt/posttrain/qualification/audit_structured_toy.py
+
+volumes:
+  - /var/lib/posttrain/cache/huggingface:/root/.cache/huggingface
+  - /var/lib/posttrain/qualifications/nanbeige-r12-20260906:/opt/posttrain/evidence
+  - /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl:/home/carbonteq-ai-workstation/posttrain-qualification.2iyErl
+  - /home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu:/home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu
+
+resources:
+  cpu: 8..
+  memory: 32GB..
+  gpu:
+    vendor: nvidia
+    count: 1
+    memory: 96GB..
+
+fleets:
+  - local-gpu-workers
+max_duration: 30m
+stop_duration: 5m
+retry: false
+tags:
+  purpose: automationbench-managed-audit
+  algorithm: gdpo
+  backend: trl
+  judge: gemma4-12b-thinking
+  steps: "5"
+  bounded: "true"

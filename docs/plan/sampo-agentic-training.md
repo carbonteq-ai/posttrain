@@ -165,7 +165,7 @@ skips; the focused veRL suite passes 35 tests. Real GPU qualification remains.
 `packages/train/src/posttrain/train/online_rl.py` owns the current flat
 environment rollout. `integrations/verifiers.py` translates a native Verifiers
 trace into that rollout. `profiles.py`, `requests.py`, and `api.py` own public
-settings, requests, and operations. `backends/trl/grpo.py` supplies the custom
+settings, requests, and operations. `backends/trl/policy_optimization.py` supplies the custom
 rollout to TRL. The maintained TRL fork lives at `../trl`.
 
 SAMPO uses three components. Sequence-level clipping computes one geometric-mean

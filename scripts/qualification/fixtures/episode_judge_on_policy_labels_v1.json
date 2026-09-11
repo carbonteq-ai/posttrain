@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "population": {
+    "policy_model": "LiquidAI/LFM2.5-2.6B-Instruct",
+    "source": "retained AutomationBench policy trajectories and high-confidence failure controls",
+    "corpus_sha256": "2af95666787d844135b0c71a1aa867b86d2df5063c4dee930c663a7c8973e0fc",
+    "unit": "complete episode",
+    "label_authority": "observable trace plus native execution state; no candidate judge output is a label"
+  },
+  "cases": {
+    "truncated-0": {
+      "class": "successful_with_repaired_malformed_action",
+      "source_input_digest": "a16ed8a93de2d02b144f40e05a9489bd702e2f4830519dd57a866f19cfb33081",
+      "score_bounds": {
+        "action_quality": {"max": 0.75},
+        "progress_efficiency": {"max": 0.75},
+        "verification_self_correction": {"min": 0.75}
+      }
+    },
+    "truncated-2": {
+      "class": "unsupported_schedule_confirmation",
+      "source_input_digest": "890fa03ee7c0bc3f1da6b5646e286ff6c2e31a0031872f19ecb6d1f277a0c822",
+      "score_bounds": {
+        "logical_correctness": {"max": 0.75},
+        "verification_self_correction": {"max": 0.5},
+        "answer_quality": {"max": 0.5}
+      }
+    },
+    "truncated-3": {
+      "class": "successful_after_failed_update_and_recovery",
+      "source_input_digest": "8251faf2319a1a0963db5d5d5436f26e2540707244b572f910f411a6bb63b9a9",
+      "score_bounds": {
+        "action_quality": {"max": 0.75},
+        "progress_efficiency": {"max": 0.75},
+        "verification_self_correction": {"min": 0.75}
+      }
+    },
+    "truncated-7": {
+      "class": "unsupported_date_and_schedule_confirmation",
+      "source_input_digest": "8670c86ad7a3e318b45d9a363571b5dec597d68d209788a6bb485e0a0e5db773",
+      "score_bounds": {
+        "logical_correctness": {"max": 0.75},
+        "verification_self_correction": {"max": 0.5},
+        "answer_quality": {"max": 0.5}
+      }
+    },
+    "normal-0": {
+      "class": "clean_success",
+      "source_input_digest": "33ae54364fe3f6a2216d01c5177ff309e211178976106af35d82f58c850331ae",
+      "score_bounds": {
+        "action_quality": {"min": 0.75},
+        "answer_quality": {"min": 0.75},
+        "progress_efficiency": {"min": 0.75}
+      }
+    },
+    "normal-1": {
+      "class": "refusal_without_action",
+      "source_input_digest": "25809cc225b0e16d4088b5bcfad4c7b7da8265a0a4aa0d6c3bb41af96c85dc1b",
+      "score_bounds": {
+        "action_quality": {"max": 0.25},
+        "answer_quality": {"max": 0.25},
+        "progress_efficiency": {"max": 0.25}
+      }
+    },
+    "normal-2": {
+      "class": "rejected_action_without_repair",
+      "source_input_digest": "ca7e6300e7b6f10a3188e77f18b844d315d809aa309c89a4384f33a5364aa97a",
+      "score_bounds": {
+        "logical_correctness": {"max": 0.25},
+        "action_quality": {"max": 0.0},
+        "progress_efficiency": {"max": 0.0},
+        "verification_self_correction": {"max": 0.0}
+      }
+    },
+    "normal-6": {
+      "class": "rejected_action_without_repair",
+      "source_input_digest": "7a08ac6dbf906ab7f66ac36a699b80212598be5c5fb3cc7b48df0a2d583e9a49",
+      "score_bounds": {
+        "logical_correctness": {"max": 0.25},
+        "action_quality": {"max": 0.0},
+        "progress_efficiency": {"max": 0.0},
+        "verification_self_correction": {"max": 0.0}
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "better": "normal-0",
+      "worse": "normal-1",
+      "dimensions": ["action_quality", "answer_quality", "progress_efficiency"],
+      "minimum_margin": 0.5
+    },
+    {
+      "better": "truncated-0",
+      "worse": "normal-2",
+      "dimensions": ["action_quality", "verification_self_correction", "progress_efficiency"],
+      "minimum_margin": 0.5
+    },
+    {
+      "better": "truncated-3",
+      "worse": "normal-6",
+      "dimensions": ["action_quality", "verification_self_correction", "progress_efficiency"],
+      "minimum_margin": 0.5
+    }
+  ],
+  "gates": {
+    "minimum_valid_rate": 1.0,
+    "maximum_length_rate": 0.0,
+    "minimum_constraint_pass_rate": 1.0,
+    "maximum_false_perfect_count": 0,
+    "minimum_pairwise_accuracy": 1.0,
+    "minimum_repetitions_per_case": 2
+  }
+}

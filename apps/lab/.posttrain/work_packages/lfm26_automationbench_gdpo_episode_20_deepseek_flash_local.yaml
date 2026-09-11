@@ -1,0 +1,36 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-gdpo-episode-20-deepseek-v41-flash-local
+stage: train
+description: Twenty-update local RTX PRO 6000 GDPO run over 8 prompt groups with 4 trajectories each, a 12K episode budget, and the official DeepSeek V4.1 Flash OpenRouter provider with thinking disabled.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-gdpo-episode-20-deepseek-v41-flash-local@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    reward_projection: training
+    training: training
+    rollout_inference: inference
+    judge_inference: hosted-inference
+  jobs:
+    - id: train
+      kind: train.gdpo
+      definition: train/gdpo-episode-judged@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, episode judge evidence, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-episode-deepseek-v41-flash-nothink-v1}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-gdpo-episode-20-judge-speed-local-v1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-episode-gdpo@1}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-local@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@1}
+  judge_inference: {type: ref, family: hosted-inference, id: hosted-inference/deepseek-v4.1-flash-openrouter-deepseek-judge-20-step@1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-automationbench-20-local-v1
+  arm: gdpo-episode-multireward-deepseek-v41-flash-nothink
+  task_mix: lfm26-automationbench-mix-v3
+  labels: [experiment, automationbench, lfm2.5, gdpo, episode-judge, deepseek-v4.1-flash, no-thinking, twenty-update, openrouter, official-provider]

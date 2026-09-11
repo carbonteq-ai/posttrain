@@ -1,0 +1,65 @@
+{
+  "algorithm": "gdpo",
+  "optimizer_steps": 5,
+  "native_traces": 12,
+  "admitted_traces": 10,
+  "prompt_groups": 5,
+  "partial_credit": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "binary_success": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "judge_quality": [
+    0.0,
+    0.5,
+    0.0,
+    0.5,
+    0.0,
+    0.5,
+    0.0,
+    0.0,
+    0.2,
+    0.0
+  ],
+  "grad_norms": [
+    1.1867804527282715,
+    0.9516180753707886,
+    0.852959394454956,
+    0.0,
+    0.8746256828308105
+  ],
+  "lora_B_norm": 0.02318518313039869,
+  "decimal_advantage_mean_parity": true,
+  "native_token_mask_alignment": true,
+  "learning_signal_exercised": true,
+  "scope": "local TRL toy; not veRL, benchmark improvement, or expert validation of judge judgments",
+  "export_reload_generation": {
+    "token_ids": [
+      2232,
+      13,
+      248046,
+      198,
+      248044
+    ],
+    "text": "ready.<|im_end|>\n<|endoftext|>"
+  }
+}

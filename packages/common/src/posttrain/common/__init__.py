@@ -27,6 +27,14 @@ from .execution import (
     TraceObservation,
     TraceRewardComponent,
 )
+from .hosted import (
+    ExternalInferenceService,
+    HostedInferenceBinding,
+    HostedModel,
+    JudgeInferenceBinding,
+    ProviderEndpointProfile,
+    validate_secret_free_http_url,
+)
 from .jsonl_journal import AppendOnlyJsonlTailer, JsonlJournalStats
 from .models import (
     ChatTemplate,
@@ -38,7 +46,8 @@ from .models import (
     RendererContract,
     ToolCallProtocol,
 )
-from .selections import ExecutionTarget, InferenceBinding, Workload
+from .selections import ExecutionTarget, HardwareCapabilities, InferenceBinding, Workload
+from .validation import CheckOutcome, ConfigurationIssue, SettingOrigin
 
 __all__ = [
     "ArtifactRef",
@@ -48,10 +57,18 @@ __all__ = [
     "CatalogLayer",
     "CatalogRef",
     "ChatTemplate",
+    "CheckOutcome",
+    "ConfigurationIssue",
     "ContractError",
     "EventObservation",
+    "ExternalInferenceService",
     "ExecutionTarget",
     "HubModelRef",
+    "HostedModel",
+    "HostedInferenceBinding",
+    "JudgeInferenceBinding",
+    "ProviderEndpointProfile",
+    "HardwareCapabilities",
     "InferenceBinding",
     "JsonValue",
     "JsonlJournalStats",
@@ -76,10 +93,12 @@ __all__ = [
     "SignalSource",
     "SignalSourceKind",
     "StoredArtifactRef",
+    "SettingOrigin",
     "TraceFactSet",
     "TraceFactUpdateObservation",
     "TraceObservation",
     "TraceRewardComponent",
     "TrackioArtifactRef",
     "Workload",
+    "validate_secret_free_http_url",
 ]

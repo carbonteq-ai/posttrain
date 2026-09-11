@@ -65,6 +65,7 @@ _KIND_REPOSITORY_PREFIX = "posttrain-kind-"
 # multi-gigabyte output. Two workers preserve useful overlap without saturating
 # the release runner, the internal package index, or the registry.
 _MAX_PARALLEL_KIND_BUILDS = 2
+_VLLM_VARIANTS = frozenset({"online-rl-trl-py312", "eval", "serve"})
 
 
 def _base_source_digest(root: Path) -> str:
@@ -97,12 +98,21 @@ def _kind_source_paths(variant: str) -> tuple[Path, ...]:
             Path(KIND_DEFINITION) / "profiles" / "online-rl-verl-py313-control.txt",
             Path(KIND_DEFINITION) / "verl-py313",
         )
-    return (
-        Path(KIND_BAKE_FILE),
-        *common,
-        Path(KIND_DEFINITION) / "Dockerfile",
-        Path(KIND_DEFINITION) / "profiles" / f"{variant}.txt",
-    )
+    profiles = [Path(KIND_DEFINITION) / "profiles" / f"{variant}.txt"]
+    dockerfile = Path(KIND_DEFINITION) / "Dockerfile"
+    if variant in _VLLM_VARIANTS:
+        dockerfile = Path(KIND_DEFINITION) / "Dockerfile.vllm"
+        profiles.extend(
+            (
+                Path(KIND_DEFINITION) / "locks" / "vllm-common.lock.txt",
+                Path(KIND_DEFINITION) / "profiles" / "vllm-common.txt",
+            )
+        )
+    if variant == "online-rl-trl-py312":
+        profiles.append(Path(KIND_DEFINITION) / "profiles" / "supervised.txt")
+    elif variant == "eval":
+        profiles.append(Path(KIND_DEFINITION) / "profiles" / "serve.txt")
+    return (Path(KIND_BAKE_FILE), *common, dockerfile, *profiles)
 
 
 def _kind_bake_file(variant: str) -> Path:

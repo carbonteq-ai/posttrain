@@ -684,7 +684,16 @@ def _admission_key(
             if isinstance(item, dict) and isinstance(item.get("hostname"), str)
         )
         if len(hostnames) == 1 and len(instances) == 1:
-            return "host:" + _normalized_hostname(hostnames[0])
+            requested_hostname = _normalized_hostname(hostnames[0])
+            if plan.provider in {"local", "local-docker"} and configured_local_hostname is not None:
+                local_hostname = _normalized_hostname(configured_local_hostname)
+                if requested_hostname != local_hostname:
+                    raise ContractError(
+                        "local execution target requires hostname "
+                        f"{requested_hostname!r}, but this machine is {local_hostname!r}; "
+                        "select a scheduler-backed provider for a different host"
+                    )
+            return "host:" + requested_hostname
     if plan.provider in {"local", "local-docker"}:
         if configured_local_hostname is not None:
             return "host:" + _normalized_hostname(configured_local_hostname)

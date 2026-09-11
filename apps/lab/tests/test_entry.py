@@ -44,7 +44,18 @@ def test_configure_is_side_effect_free_and_uses_standard_definitions_and_git_met
     )
 
     assert runtime.catalog is catalog
-    assert set(runtime.definitions) == set(standard_definitions())
+    assert set(runtime.definitions) == {
+        *standard_definitions(),
+        "train/sampo-turn-judged@1",
+        "train/gdpo-episode-judged@1",
+        "train/capo-turn-judged@1",
+    }
+    for definition_id in (
+        "train/sampo-turn-judged@1",
+        "train/gdpo-episode-judged@1",
+        "train/capo-turn-judged@1",
+    ):
+        assert "judge_inference" in runtime.definitions[definition_id].seats
     assert runtime.source_metadata["git_revision"] == "test-revision"
     assert runtime.source_metadata["tracking_backend"] == "trackio"
     assert not (state / "scratch").exists()

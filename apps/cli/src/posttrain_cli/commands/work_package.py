@@ -4,18 +4,25 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from collections.abc import Mapping
 from contextlib import nullcontext, redirect_stdout
 from pathlib import Path
 from typing import Annotated
 
 import typer
-from posttrain.common import ContractError
+from posttrain.common import ContractError, HostedInferenceBinding
 from posttrain.execution import ProjectControlLocator, compare_job_packages, unchanged_fields
 from posttrain.project import JobIntent, Project
 from posttrain.work import resolve_work_package, run_work_package_job, validate_work_package
 
 from ..context import CliState
-from ..execution_config import ExecutionOverrides, PackageOverrides, load_machine_config, resolve_job_builder
+from ..execution_config import (
+    ExecutionOverrides,
+    PackageOverrides,
+    load_local_execution_config,
+    load_machine_config,
+    resolve_job_builder,
+)
 from ..execution_planning import (
     LocalPackedJobPackage,
     PackedJobExecution,
@@ -24,6 +31,8 @@ from ..execution_planning import (
     PlannedJobPackage,
     plan_job_execution,
     plan_job_package,
+    runtime_credential_status,
+    runtime_credential_status_for_seats,
     with_model_checkpoint,
     with_recovery_checkpoint,
 )
@@ -132,6 +141,8 @@ def plan_work_package_cmd(
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
     builder: str | None = None,
+    explain: bool = False,
+    skip_preflight: bool = False,
 ) -> JobIntent:
     """Render job meaning, with optional metadata-only builder selection."""
 
@@ -147,13 +158,27 @@ def plan_work_package_cmd(
             "execution, packaging, or scheduling settings"
         )
     project = Project.open(state.project_root) if state.project_root is not None else Project.discover(Path.cwd())
-    intent = project.jobs.plan(path, job=job, host=host, entry=entry)
+    intent = project.jobs.plan(path, job=job, host=host, entry=entry, skip_preflight=skip_preflight)
     payload = _job_intent_payload(intent)
     lines = [
         f"Job intent: {intent.prepared.spec.work_package_id}/{intent.job_id}",
         f"Job kind: {intent.prepared.recipe_job.kind}",
         f"Definition: {intent.prepared.definition.id}",
     ]
+    credential_status = runtime_credential_status_for_seats(
+        load_local_execution_config(intent.layout, verify_published_locks=False),
+        intent.prepared.seats,
+    )
+    if credential_status:
+        payload["runtime_credentials"] = credential_status
+        lines.extend(f"Runtime credential {name}: {status}" for name, status in credential_status.items())
+    paid_judge_limits = _paid_judge_limits(intent.prepared.seats)
+    if paid_judge_limits:
+        payload["paid_judge_cost_limits"] = paid_judge_limits
+        lines.extend(
+            f"Paid judge {name} hard limit: ${policy['max_cost_usd']} per run"
+            for name, policy in paid_judge_limits.items()
+        )
     if builder is not None:
         if builder not in {"local", "remote"}:
             raise ContractError("job builder must be 'local' or 'remote'")
@@ -166,6 +191,15 @@ def plan_work_package_cmd(
         }
         endpoint = f" at {selected.endpoint}" if selected.endpoint is not None else ""
         lines.append(f"Developer job builder: {selected.mode} ({selected.source}){endpoint}")
+    if explain:
+        payload["validation"] = intent.prepared.validation.as_dict()
+        lines.extend(
+            (
+                f"Configuration digest: {intent.prepared.validation.resolved_input_digest}",
+                f"Resolved settings: {len(intent.prepared.validation.origins)}",
+                f"Configuration findings: {len(intent.prepared.validation.issues)}",
+            )
+        )
     lines.append("Use job pack to materialize an image or job run to select execution.")
     emit(
         state,
@@ -191,6 +225,7 @@ def pack_work_package_cmd(
     framework_wheelhouse: Path | None = None,
     allow_deferred_qualification: bool = False,
     builder: str | None = None,
+    backend_source: Path | None = None,
 ) -> PackedJobPackage | LocalPackedJobPackage:
     """Pack one job to an immutable registry image or local OCI layout."""
 
@@ -198,6 +233,8 @@ def pack_work_package_cmd(
         raise ContractError("--local-output requires --local")
     if local and builder == "remote":
         raise ContractError("--builder remote cannot be combined with --local")
+    if backend_source is not None and not local:
+        raise ContractError("--backend-source requires --local; development backend capsules are never published")
 
     _layout, catalog, _resolved_path, package = load_work_package_bundle(state, path)
     job = resolve_job_id(catalog, package, job)
@@ -214,6 +251,7 @@ def pack_work_package_cmd(
         local_publication=local,
         framework_wheelhouse=framework_wheelhouse,
         builder=builder,
+        backend_source=backend_source,
     )
     _require_verified_kind_image(planned, build_missing=build_missing)
     if local:
@@ -274,6 +312,7 @@ def run_work_package_cmd(
     framework_wheelhouse: Path | None = None,
     allow_deferred_qualification: bool = False,
     builder: str | None = None,
+    backend_source: Path | None = None,
 ) -> None:
     if resume_from_run_id is not None and model_from_run_id is not None:
         raise ContractError("choose either --resume-from-run or --model-from-run, not both")
@@ -298,6 +337,7 @@ def run_work_package_cmd(
             env_file=state.env_file,
             framework_wheelhouse=framework_wheelhouse,
             builder=builder,
+            backend_source=backend_source,
         )
         if resume_from_run_id is not None:
             source = tracking_source_for_project(layout)
@@ -563,6 +603,7 @@ def _job_intent_payload(intent: JobIntent) -> dict[str, object]:
         "job_definition_version": spec.job_definition_version,
         "resolved_inputs": dict(spec.resolved_inputs),
         "required_artifact_roles": list(spec.required_artifact_roles),
+        "validation_digest": intent.prepared.validation.resolved_input_digest,
     }
 
 
@@ -588,6 +629,8 @@ def _execution_plan_payload(planned: PlannedJobExecution) -> dict[str, object]:
             "timeout_seconds": settings.timeout_seconds,
             "timeout_source": settings.sources["timeout_seconds"],
             "environment_names": settings.environment_names,
+            "runtime_credentials": runtime_credential_status(planned.package),
+            "paid_judge_cost_limits": _paid_judge_limits(planned.package.prepared.seats),
             "setting_sources": settings.sources,
             "mounts": [
                 {
@@ -601,6 +644,17 @@ def _execution_plan_payload(planned: PlannedJobExecution) -> dict[str, object]:
         }
     )
     return payload
+
+
+def _paid_judge_limits(seats: Mapping[str, object]) -> dict[str, dict[str, object]]:
+    return {
+        name: {
+            "max_cost_usd": f"{selection.max_cost_usd_micros / 1_000_000:.6f}".rstrip("0").rstrip("."),
+            "max_cost_usd_micros": selection.max_cost_usd_micros,
+        }
+        for name, selection in seats.items()
+        if isinstance(selection, HostedInferenceBinding)
+    }
 
 
 def _packed_job_payload(
@@ -737,6 +791,14 @@ def register(app: typer.Typer) -> None:
             ),
         ] = None,
         run_id: Annotated[str | None, typer.Option("--run-id")] = None,
+        explain: Annotated[
+            bool,
+            typer.Option("--explain", help="include resolved model-setting origins and validation findings"),
+        ] = False,
+        skip_preflight: Annotated[
+            bool,
+            typer.Option("--skip-preflight", help="skip only an optional host readiness probe"),
+        ] = False,
         host: Annotated[
             str | None,
             typer.Option(
@@ -772,6 +834,8 @@ def register(app: typer.Typer) -> None:
             run_id=run_id,
             host=host,
             entry=entry,
+            explain=explain,
+            skip_preflight=skip_preflight,
         )
 
     @work_package_app.command(

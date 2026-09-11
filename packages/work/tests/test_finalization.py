@@ -23,6 +23,7 @@ class PublishingRun:
     def __init__(self, run_id: str) -> None:
         self.run_id = run_id
         self.outcomes: list[RunOutcome] = []
+        self.flush_timeouts: list[float | None] = []
         self._published: list[PublishedArtifact] = []
         self._source_paths: list[Path] = []
 
@@ -75,7 +76,7 @@ class PublishingRun:
         return tuple(self._published)
 
     def flush_artifacts(self, timeout: float | None = None) -> tuple[PublishedArtifact, ...]:
-        del timeout
+        self.flush_timeouts.append(timeout)
         if "published_artifacts" in self.__dict__ and self.__dict__["published_artifacts"] is None:
             return ()
         return tuple(self._published)
@@ -156,6 +157,7 @@ def test_finalized_execution_returns_exact_identity_before_cleanup(
     assert source_path is not None and not source_path.exists()
     assert backend.tracked is not None
     assert backend.tracked.outcomes[-1].status == "succeeded"
+    assert backend.tracked.flush_timeouts == [None]
 
 
 @pytest.mark.parametrize(

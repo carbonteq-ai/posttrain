@@ -69,6 +69,67 @@ model:
       mtp: false
     provenance:
       source: huggingface
+  models/lfm2.5-2.6b@bf16:
+    artifact:
+      kind: hub
+      repo_id: LiquidAI/LFM2.5-2.6B
+      revision: 654f9463ce32b05d0429d76fe1f580b27d4c1ac0
+    form: foundation
+    weight_precision: bf16
+    family: lfm2.5
+    parameters: 2690000000
+    instruction_tuned: true
+    renderer_contract: lfm2.5-tools-thinking@2
+    capabilities:
+      modalities: [text]
+      native_context_window: 131072
+    provenance:
+      source: huggingface
+      license: lfm1.0
+      upstream_model_type: lfm2
+  models/nanbeige4.2-3b@bf16:
+    artifact:
+      kind: hub
+      repo_id: Nanbeige/Nanbeige4.2-3B
+      revision: 3384e426066d1a49c3aea90a7190b81260a6533f
+    form: foundation
+    weight_precision: bf16
+    family: nanbeige4.2
+    parameters: 4000000000
+    instruction_tuned: true
+    renderer_contract: nanbeige4.2-tools-thinking@1
+    tokenizer_fingerprint: 1d858a0fc007f22af6ae18bfa1ae52d30e398aa9cd1ea06e7777176869346a3f
+    capabilities:
+      modalities: [text]
+      native_context_window: 262144
+      mtp: false
+    provenance:
+      source: huggingface
+      license: apache-2.0
+      upstream_model_type: nanbeige
+      upstream_architecture: NanbeigeForCausalLM
+      parameter_count_basis: model-card-total-rounded
+  models/spark-x2.5-4b@bf16:
+    artifact:
+      kind: hub
+      repo_id: XHToken/Spark-X2.5-4B
+      revision: 5e10fcc0286756aebf7c41dc52c1e42d95c70281
+    form: foundation
+    weight_precision: bf16
+    family: spark2.5
+    parameters: 4000000000
+    instruction_tuned: true
+    renderer_contract: spark2.5-tools-thinking@1
+    capabilities:
+      modalities: [text]
+      native_context_window: 1048576
+      mtp: false
+    provenance:
+      source: huggingface
+      license: apache-2.0
+      upstream_model_type: spark2_5
+      upstream_architecture: Spark2_5ForCausalLM
+      parameter_count_basis: model-card-name-rounded
   models/gemma4-e2b-it@bf16:
     artifact:
       kind: hub

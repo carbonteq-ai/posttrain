@@ -1,0 +1,52 @@
+type: task
+name: posttrain-lfm26-eval-preflight-a
+image: registry.carbonteq.com/carbonteq/posttrain/nanbeige-vllm@sha256:bfbeee151fb59c687f7e27d5e5e287716a7c1c6dd58ebf0a4ffe99b13702a3aa
+shell: /bin/bash
+commands:
+  - >-
+    /opt/posttrain/uv pip install --no-deps --reinstall
+    --python /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/candidate/posttrain_common-0.0.0-py3-none-any.whl
+    /opt/posttrain/candidate/posttrain_catalog-0.0.0-py3-none-any.whl
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 HF_HUB_CACHE=/root/.cache/huggingface/hub
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/reload_deterministic_export.py
+    /opt/posttrain/evidence/lfm26-grpo-preflight-a --device cuda --allow-zero-update
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    HF_HUB_CACHE=/root/.cache/huggingface/hub OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/evaluate_automationbench_adapter.py
+    --output /opt/posttrain/evidence/lfm26-base-eval-a --port 8130
+files:
+  - ../../artifacts/qualification/lfm26-comparison/posttrain_common-0.0.0-py3-none-any.whl:/opt/posttrain/candidate/posttrain_common-0.0.0-py3-none-any.whl
+  - ../../artifacts/qualification/lfm26-comparison/posttrain_catalog-0.0.0-py3-none-any.whl:/opt/posttrain/candidate/posttrain_catalog-0.0.0-py3-none-any.whl
+  - ./automationbench_structured_toy.py:/opt/posttrain/qualification/automationbench_structured_toy.py
+  - ./evaluate_automationbench_adapter.py:/opt/posttrain/qualification/evaluate_automationbench_adapter.py
+  - ./reload_deterministic_export.py:/opt/posttrain/qualification/reload_deterministic_export.py
+volumes:
+  - /home/carbonteq-ai-workstation/.local/bin/uv:/opt/posttrain/uv
+  - /var/lib/posttrain/cache/huggingface:/root/.cache/huggingface
+  - /var/lib/posttrain/qualifications/nanbeige-r12-20260906:/opt/posttrain/evidence
+  - /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl:/home/carbonteq-ai-workstation/posttrain-qualification.2iyErl
+  - /home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu:/home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu
+resources:
+  cpu: 8..
+  memory: 48GB..
+  gpu:
+    vendor: nvidia
+    count: 1
+    memory: 96GB..
+fleets:
+  - local-gpu-workers
+max_duration: 3h
+stop_duration: 5m
+retry:
+  on_events: [no-capacity]
+  duration: 1h
+tags:
+  purpose: lfm26-comparison-eval-preflight
+  policy: lfm2.5-2.6b
+  heldout_tasks: "8"
+  rollouts_per_task: "4"

@@ -11,8 +11,27 @@ from typing import Literal, Protocol, cast
 from posttrain.common import InferenceBinding, JsonValue, MetricBatchObservation, ProducedArtifact, TraceObservation
 from posttrain.data import MessageRecord, RolloutDataset
 
+from .reward_evidence import InvalidRewardEvidence, RewardEvidence
+
 type ToolRecord = Mapping[str, JsonValue]
 type TokenSpan = tuple[int, int]
+
+
+@dataclass(frozen=True, slots=True)
+class BehaviorPolicySpan:
+    """Oldest and newest live policy versions used by one generation or episode."""
+
+    start: int
+    end: int
+
+    def __post_init__(self) -> None:
+        if self.start < 0 or self.end < self.start:
+            raise ValueError("behavior policy span must be non-negative and ordered")
+
+    def merge(self, other: BehaviorPolicySpan) -> BehaviorPolicySpan:
+        """Return the smallest span containing both observations."""
+
+        return BehaviorPolicySpan(min(self.start, other.start), max(self.end, other.end))
 
 
 class EnvironmentSampling(Protocol):
@@ -169,6 +188,7 @@ class PolicyTurnResult:
     prompt_message_spans: tuple[TokenSpan | None, ...] = ()
     prompt_is_content: tuple[bool, ...] = ()
     raw_response: Mapping[str, JsonValue] | None = None
+    behavior_policy: BehaviorPolicySpan | None = None
 
     def __post_init__(self) -> None:
         if not self.prompt_ids or not self.completion_ids:
@@ -192,6 +212,8 @@ class RolloutBatch:
     example_ids: tuple[str, ...]
     step: int
     model_id: str
+    prompt_group_ids: tuple[str, ...] = ()
+    rollout_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.example_ids:
@@ -200,6 +222,19 @@ class RolloutBatch:
             raise ValueError("online-RL batch step cannot be negative")
         if not self.model_id.strip():
             raise ValueError("online-RL batch model id cannot be empty")
+        if bool(self.prompt_group_ids) != bool(self.rollout_ids):
+            raise ValueError("explicit rollout identity requires both group and response IDs")
+        if self.prompt_group_ids:
+            if len(self.prompt_group_ids) != len(self.example_ids) or len(self.rollout_ids) != len(self.example_ids):
+                raise ValueError("explicit group and response IDs must align with the rollout batch")
+            if not all(value.strip() for value in (*self.prompt_group_ids, *self.rollout_ids)):
+                raise ValueError("explicit group and response IDs cannot be empty")
+            if len(set(self.rollout_ids)) != len(self.rollout_ids):
+                raise ValueError("response IDs must be unique within the batch")
+            task_by_group: dict[str, str] = {}
+            for task, group in zip(self.example_ids, self.prompt_group_ids, strict=True):
+                if task_by_group.setdefault(group, task) != task:
+                    raise ValueError("one prompt group cannot contain different tasks")
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,6 +250,8 @@ class EnvironmentRollout:
     is_truncated: bool
     trace: TraceObservation
     turns: tuple[AgenticTurn, ...] = ()
+    reward_evidence: RewardEvidence | None = None
+    behavior_policy: BehaviorPolicySpan | None = None
 
     def __post_init__(self) -> None:
         if not self.prompt_ids or not self.completion_ids:
@@ -227,6 +264,11 @@ class EnvironmentRollout:
             raise ValueError("sampling logprobs must be finite when provided")
         if not any(self.env_mask):
             raise ValueError("training rollouts require at least one model-sampled token")
+        if self.reward_evidence is not None:
+            if self.reward_evidence.trace_id != self.trace.external_id:
+                raise InvalidRewardEvidence("reward evidence must reference the rollout's native trace")
+            if self.reward_evidence.process is not None and self.reward_evidence.process.status == "valid":
+                self.reward_evidence.process.error_mask(self.env_mask)
         previous_end = 0
         for turn in self.turns:
             if turn.completion_start < previous_end or turn.completion_end > len(self.completion_ids):
@@ -245,6 +287,29 @@ class EnvironmentRolloutBridge(Protocol):
     async def run(self, batch: RolloutBatch, generator: PolicyGenerator) -> Sequence[EnvironmentRollout]: ...
 
     def finalize(self) -> tuple[ProducedArtifact, ...]: ...
+
+
+class PartialRolloutBatchError(RuntimeError):
+    """A batch with retained successes and isolated per-occurrence failures.
+
+    Online-RL admission can replace only the complete prompt groups that contain
+    failed occurrences. Successful groups remain eligible for the same logical
+    optimizer batch; partial groups never enter group-relative normalization.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        completed: Mapping[int, EnvironmentRollout] | None = None,
+        failures: Mapping[int, str] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.completed = dict(completed or {})
+        self.failures = dict(failures or {})
+        ordinals = (*self.completed, *self.failures)
+        if any(ordinal < 0 for ordinal in ordinals) or len(set(ordinals)) != len(ordinals):
+            raise ValueError("partial rollout ordinals must be non-negative and disjoint")
 
 
 type TerminalTraceObserver = Callable[[TraceObservation], None]
@@ -314,6 +379,7 @@ __all__ = [
     "EnvironmentRolloutBridge",
     "EnvironmentRollout",
     "ObservedEnvironmentRolloutBridge",
+    "PartialRolloutBatchError",
     "PolicyGenerator",
     "PolicySampling",
     "policy_sampling_from_binding",

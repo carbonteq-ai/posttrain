@@ -48,7 +48,11 @@ from posttrain.jobs import (
     standard_definitions,
     supervised_data_prepare_definition,
 )
-from posttrain.jobs.definitions import _materialize_grpo_policy
+from posttrain.jobs.definitions import (
+    _judge_service_bindings,
+    _materialize_grpo_policy,
+    _materialize_selected_model_variant,
+)
 from posttrain.train import (
     GRPOSettings,
     SFTRequest,
@@ -99,7 +103,10 @@ def test_standard_definition_registry_covers_every_technique() -> None:
         "train/trl-sft@1",
         "train/trl-dpo@1",
         "train/trl-grpo@1",
+        "train/grpo-family-judged@1",
         "train/trl-sampo@1",
+        "train/gdpo@1",
+        "train/capo@1",
         "train/trl-distill@1",
         "serve/vllm-benchmark@1",
         "serve/vllm-generation-smoke@1",
@@ -115,6 +122,8 @@ def test_standard_definition_registry_covers_every_technique() -> None:
     assert definitions["eval/verifiers-managed-general@1"].kind == "eval.general"
     assert definitions["data/canonicalize-supervised@1"].kind == "data.prepare"
     assert definitions["data/canonicalize-preference@1"].kind == "data.prepare"
+    assert definitions["train/grpo-family-judged@1"].kind == "train.grpo"
+    assert "judge_inference" in definitions["train/grpo-family-judged@1"].seats
 
 
 def test_remote_evaluation_definition_does_not_construct_a_local_vllm_endpoint(tmp_path: Path) -> None:
@@ -639,6 +648,48 @@ def test_grpo_materializes_stored_adapter_for_policy_and_inference(tmp_path: Pat
     assert policy.artifact is materialized
     assert policy.digest == materialized.digest
     assert rollout.model is policy
+
+
+def test_model_roles_cannot_consume_another_roles_materialized_artifact(tmp_path: Path) -> None:
+    catalog = open_catalog(scope="jobs-test")
+    model = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))
+    policy_artifact = LocalArtifactRef((tmp_path / "policy").resolve(), "a" * 64)
+    judge_artifact = LocalArtifactRef((tmp_path / "judge").resolve(), "b" * 64)
+    context = RunContext(
+        project_id="jobs-test",
+        work_package_id="train/role-isolation",
+        run_id="run-role-isolation",
+        job_kind="train.gdpo",
+        job_definition_version="train/gdpo-judged@1",
+        workspace=(tmp_path / "workspace").resolve(),
+        observer=NullObserver(),
+        input_artifacts={
+            "model_adapter": policy_artifact,
+            "judge_inference_weights": judge_artifact,
+        },
+    )
+
+    policy = _materialize_selected_model_variant(context, model)
+    judge = _materialize_selected_model_variant(context, model, role="judge_inference")
+    untouched_draft = _materialize_selected_model_variant(context, model, role="draft_inference")
+
+    assert policy.artifact is policy_artifact
+    assert policy.form == "adapter"
+    assert judge.artifact is judge_artifact
+    assert judge.form == "full-finetuned"
+    assert untouched_draft is model
+
+
+def test_judge_plugins_bind_to_services_independently_of_service_seats() -> None:
+    services = {"judge/shared": ("judge_inference", 8123)}
+
+    assert _judge_service_bindings(
+        services,
+        {"quality": "judge/shared", "efficiency": "judge/shared"},
+    ) == {"quality": "judge/shared", "efficiency": "judge/shared"}
+
+    with pytest.raises(ValueError, match="every selected service"):
+        _judge_service_bindings(services, {"quality": "judge/missing"})
 
 
 def test_runtime_rejects_shadowing_standard_definition(tmp_path: Path) -> None:

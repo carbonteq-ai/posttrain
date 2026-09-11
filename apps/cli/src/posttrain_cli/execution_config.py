@@ -72,6 +72,7 @@ class DstackBinding:
     storage: ExecutionStorageBinding | None = None
     trust_bundle: Path | None = None
     capacity_wait_seconds: int = 0
+    runtime_secrets: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +92,7 @@ class MachineServicesBinding:
     python_index_credentials: str | None = None
     job_registry: str | None = None
     job_builder: JobBuilderBinding = field(default_factory=lambda: JobBuilderBinding())
+    runtime_credentials: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,6 +233,7 @@ def load_local_execution_config(
     *,
     path: Path | None = None,
     env_file: Path | None = None,
+    verify_published_locks: bool = True,
 ) -> LocalExecutionConfig:
     """Resolve machine defaults plus one project's protected runtime values."""
 
@@ -259,6 +262,7 @@ def load_local_execution_config(
             configured,
             environ=runtime_values,
             project_id=layout.project_id,
+            verify_published_locks=verify_published_locks,
         )
         return LocalExecutionConfig(
             path=machine.path,
@@ -266,7 +270,12 @@ def load_local_execution_config(
             environment_file=runtime_environment.path,
             local=machine.local,
             dstack=machine.dstack,
-            registry=project_registry or derived_registry(environ=runtime_values, project_id=layout.project_id),
+            registry=project_registry
+            or derived_registry(
+                environ=runtime_values,
+                project_id=layout.project_id,
+                verify_published_locks=verify_published_locks,
+            ),
             machine=machine,
         )
     if not configured.exists():
@@ -276,7 +285,11 @@ def load_local_execution_config(
         return LocalExecutionConfig(
             configured,
             environment_file=runtime_environment.path,
-            registry=derived_registry(environ=runtime_environment.for_execution(), project_id=layout.project_id),
+            registry=derived_registry(
+                environ=runtime_environment.for_execution(),
+                project_id=layout.project_id,
+                verify_published_locks=verify_published_locks,
+            ),
         )
     if not configured.is_file():
         raise ContractError(f"execution configuration is not a file: {configured}")
@@ -346,8 +359,13 @@ def load_local_execution_config(
         base=configured.parent,
         environ=runtime_values,
         project_id=layout.project_id,
+        verify_published_locks=verify_published_locks,
     )
-    registry = parsed_registry or derived_registry(environ=runtime_values, project_id=layout.project_id)
+    registry = parsed_registry or derived_registry(
+        environ=runtime_values,
+        project_id=layout.project_id,
+        verify_published_locks=verify_published_locks,
+    )
     return LocalExecutionConfig(
         path=configured,
         defaults=defaults,
@@ -363,6 +381,7 @@ def _load_project_registry_override(
     *,
     environ: Mapping[str, str],
     project_id: str,
+    verify_published_locks: bool = True,
 ) -> RegistryBinding | None:
     """Load only a project-scoped immutable runtime selection under a machine.
 
@@ -389,6 +408,7 @@ def _load_project_registry_override(
         base=configured.parent,
         environ=environ,
         project_id=project_id,
+        verify_published_locks=verify_published_locks,
     )
 
 
@@ -423,6 +443,7 @@ def provider_binding_fingerprint(
             "trust_bundle": (str(binding.trust_bundle) if binding.trust_bundle is not None else None),
             "storage": _storage_identity(binding.storage),
             "capacity_wait_seconds": binding.capacity_wait_seconds,
+            "runtime_secrets": dict(sorted(binding.runtime_secrets.items())),
         }
     else:
         # Third-party providers retain a stable name-only identity until their
@@ -517,6 +538,7 @@ def _parse_dstack(value: object, *, base: Path) -> DstackBinding | None:
             "storage",
             "trust_bundle",
             "capacity_wait_seconds",
+            "runtime_secrets",
         },
         "providers.dstack",
     )
@@ -555,6 +577,10 @@ def _parse_dstack(value: object, *, base: Path) -> DstackBinding | None:
             "providers.dstack.capacity_wait_seconds",
         )
         or 0,
+        _parse_runtime_secret_references(
+            payload.get("runtime_secrets"),
+            context="providers.dstack.runtime_secrets",
+        ),
     )
 
 
@@ -650,7 +676,14 @@ def load_machine_config() -> MachineConfig | None:
     if dstack_payload:
         _reject_unknown(
             dstack_payload,
-            {"project", "python", "credentials", "credentials_file", "capacity_wait_seconds"},
+            {
+                "project",
+                "python",
+                "credentials",
+                "credentials_file",
+                "capacity_wait_seconds",
+                "runtime_secrets",
+            },
             "providers.dstack",
         )
         credential_name = _optional_config_string(dstack_payload.get("credentials"), "providers.dstack.credentials")
@@ -691,6 +724,10 @@ def load_machine_config() -> MachineConfig | None:
                 "providers.dstack.capacity_wait_seconds",
             )
             or 0,
+            runtime_secrets=_parse_runtime_secret_references(
+                dstack_payload.get("runtime_secrets"),
+                context="providers.dstack.runtime_secrets",
+            ),
         )
     if default_provider == "dstack" and dstack is None:
         raise ContractError("default_provider is dstack but providers.dstack is not configured")
@@ -729,7 +766,7 @@ def load_machine_config() -> MachineConfig | None:
     services_payload = _mapping(payload.get("services"), context="services", allow_none=True)
     _reject_unknown(
         services_payload,
-        {"python_index_url", "python_index_credentials", "job_registry", "job_builder"},
+        {"python_index_url", "python_index_credentials", "job_registry", "job_builder", "runtime_credentials"},
         "services",
     )
     job_builder_payload = _mapping(services_payload.get("job_builder"), context="services.job_builder", allow_none=True)
@@ -741,6 +778,23 @@ def load_machine_config() -> MachineConfig | None:
     job_builder_mode = job_builder_payload.get("mode", "local")
     if job_builder_mode not in {"local", "remote"}:
         raise ContractError("services.job_builder.mode must be 'local' or 'remote'")
+    runtime_credential_payload = _mapping(
+        services_payload.get("runtime_credentials"),
+        context="services.runtime_credentials",
+        allow_none=True,
+    )
+    runtime_credentials: dict[str, str] = {}
+    for variable, credential in runtime_credential_payload.items():
+        if not isinstance(variable, str) or not variable.isidentifier() or not variable.isupper():
+            raise ContractError("services.runtime_credentials keys must be uppercase environment-variable names")
+        credential_name = _credential_reference(
+            credential_sources,
+            credential,
+            context=f"services.runtime_credentials.{variable}",
+        )
+        if credential_name is None:
+            raise ContractError(f"services.runtime_credentials.{variable} must name a credential source")
+        runtime_credentials[variable] = credential_name
     services = MachineServicesBinding(
         python_index_url=_optional_http_url(services_payload.get("python_index_url"), "services.python_index_url"),
         python_index_credentials=_credential_reference(
@@ -749,6 +803,7 @@ def load_machine_config() -> MachineConfig | None:
             context="services.python_index_credentials",
         ),
         job_registry=_optional_config_string(services_payload.get("job_registry"), "services.job_registry"),
+        runtime_credentials=runtime_credentials,
         job_builder=JobBuilderBinding(
             mode=cast(Literal["local", "remote"], job_builder_mode),
             endpoint=_optional_http_url(job_builder_payload.get("endpoint"), "services.job_builder.endpoint"),
@@ -1017,11 +1072,18 @@ def derived_registry(
     environ: Mapping[str, str] | None = None,
     *,
     project_id: str | None = None,
+    verify_published_locks: bool = True,
 ) -> RegistryBinding | None:
     """Build a registry binding with no execution configuration file at all."""
     if configured_registry_prefix(environ) is None:
         return None
-    return _parse_registry({}, base=Path.cwd(), environ=environ, project_id=project_id)
+    return _parse_registry(
+        {},
+        base=Path.cwd(),
+        environ=environ,
+        project_id=project_id,
+        verify_published_locks=verify_published_locks,
+    )
 
 
 def derived_local_registry() -> RegistryBinding:
@@ -1042,6 +1104,7 @@ def _parse_registry(
     base: Path,
     environ: Mapping[str, str] | None = None,
     project_id: str | None = None,
+    verify_published_locks: bool = True,
 ) -> RegistryBinding | None:
     if value is None:
         return None
@@ -1068,7 +1131,10 @@ def _parse_registry(
         payload.get("mirror_prefix"),
         "registry.mirror_prefix",
     )
-    manifest = _published_manifest()
+    try:
+        manifest = load_manifest(verify_locks=verify_published_locks)
+    except ManifestError as error:
+        raise ContractError(f"installed runtime image manifest is unusable: {error}") from error
 
     # Explicit declarations win per variant; everything else comes from the
     # installed manifest. This is what removes the hand transcription: a
@@ -1332,6 +1398,20 @@ def _mapping(
     return value
 
 
+def _parse_runtime_secret_references(value: object, *, context: str) -> dict[str, str]:
+    """Parse environment-variable to provider-secret references without values."""
+
+    payload = _mapping(value, context=context, allow_none=True)
+    references: dict[str, str] = {}
+    for variable, secret_name in payload.items():
+        if not variable.isidentifier() or not variable.isupper():
+            raise ContractError(f"execution configuration {context} keys must be uppercase environment names")
+        if not isinstance(secret_name, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,200}", secret_name) is None:
+            raise ContractError(f"execution configuration {context}.{variable} must name a valid provider secret")
+        references[variable] = secret_name
+    return references
+
+
 def _reject_unknown(
     payload: dict[str, object],
     allowed: set[str],
@@ -1515,6 +1595,8 @@ def _absolute_path_tuple(value: object, *, context: str) -> tuple[Path, ...]:
 
 def load_execution_environment(
     configuration: LocalExecutionConfig,
+    *,
+    runtime_variable_names: tuple[str, ...] = (),
 ) -> dict[str, str]:
     """Overlay project runtime values on reusable machine service defaults."""
 
@@ -1555,6 +1637,16 @@ def load_execution_environment(
                 machine.credentials[machine.services.job_builder.credentials],
                 allowed={"POSTTRAIN_JOB_BUILDER_TOKEN"},
                 purpose="job builder",
+            )
+        for variable in runtime_variable_names:
+            credential_name = machine.services.runtime_credentials.get(variable)
+            if credential_name is None:
+                continue
+            _merge_credential_environment(
+                environment,
+                machine.credentials[credential_name],
+                allowed={variable},
+                purpose=f"runtime variable {variable}",
             )
     path = configuration.environment_file
     if path is None:

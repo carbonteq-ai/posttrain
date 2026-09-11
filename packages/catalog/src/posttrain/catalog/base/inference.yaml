@@ -1,4 +1,85 @@
 inference:
+  inference/nanbeige4.2-3b-vllm-judge@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/nanbeige4.2-3b@bf16
+    backend: vllm@62f6de733d7ae63b759329993bc209e67afdf431
+    renderer: nanbeige4.2-tools-thinking@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 2
+      max_num_batched_tokens: 8192
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: nanbeige
+    sampling:
+      max_tokens: 4096
+      temperature: 0.0
+    target: targets/local-cuda-24gb
+    purpose: [eval]
+  inference/nanbeige4.2-3b-vllm-judge-turboquant@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/nanbeige4.2-3b@bf16
+    backend: vllm@62f6de733d7ae63b759329993bc209e67afdf431
+    renderer: nanbeige4.2-tools-thinking@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 2
+      max_num_batched_tokens: 8192
+      kv_cache_dtype: turboquant_k8v4
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: nanbeige
+    sampling:
+      max_tokens: 4096
+      temperature: 0.0
+    target: targets/local-cuda-24gb
+    purpose: [eval]
+  inference/nanbeige4.2-3b-vllm-judge-dspark@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/nanbeige4.2-3b@bf16
+    backend: vllm@62f6de733d7ae63b759329993bc209e67afdf431
+    renderer: nanbeige4.2-tools-thinking@1
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.80
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 2
+      max_num_batched_tokens: 8192
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: nanbeige
+      speculative_config:
+        method: dspark
+        num_speculative_tokens: 7
+        draft_model:
+          repo_id: Nanbeige/Nanbeige4.2-3B-DSpark
+          revision: 5f12c792dabbfcdc4a0cf504e75f7216706d9590
+    sampling:
+      max_tokens: 4096
+      temperature: 0.0
+    target: targets/local-cuda-24gb
+    purpose: [eval]
   inference/qwen3.5-0.8b-vllm-automationbench-rollout-mtp@1:
     revision: "1"
     model: models/qwen3.5-0.8b@bf16

@@ -288,7 +288,7 @@ def test_agentic_and_domain_programs_share_the_native_port() -> None:
     source = AGENTIC_SMOKE.environments[0].source
     assert isinstance(source, EnvironmentSource)
     assert source.repository == ("https://github.com/carbonteq-ai/verifiers-environments")
-    assert source.revision == ("b7bcb591facfcd2b073802f6d7496b24ab9c479e")
+    assert source.revision == ("1181585ea66c6f89432864a476b5110794afc9fe")
     assert source.subdirectory == "environments/automationbench_v1"
     assert AGENTIC_SMOKE.environments[0].max_concurrent == 1
     assert AUTOMATIONBENCH_PUBLIC.kind == "domain"
@@ -414,6 +414,7 @@ def test_native_verifiers_sampling_preserves_complete_generation_policy() -> Non
 
 def test_remote_binding_maps_to_the_native_verifiers_client_without_a_custom_loop(tmp_path: Path) -> None:
     pytest.importorskip("verifiers.v1")
+    pytest.importorskip("gsm8k_v1")
     from posttrain.eval.backends.verifiers.adapter import _build_native
 
     evaluation = remote_request()
@@ -436,6 +437,77 @@ def test_remote_binding_maps_to_the_native_verifiers_client_without_a_custom_loo
     assert config.client.api_key_var == "OPENROUTER_API_KEY"
     assert config.client.headers == {"HTTP-Referer": "https://posttrain.example"}
     assert config.sampling.provider == {"allow_fallbacks": False}
+
+
+@pytest.mark.asyncio
+async def test_modern_native_eval_retains_episode_and_streams_trace_view(tmp_path, monkeypatch):
+    module = pytest.importorskip("verifiers.v1.episode")
+    if not hasattr(module, "WireEpisode"):
+        pytest.skip("requires modern native episode runtime")
+    pytest.importorskip("reverse_text")
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from posttrain.eval.backends.verifiers.adapter import _run
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            data = json.dumps(
+                {
+                    "id": "local-eval",
+                    "object": "chat.completion",
+                    "created": 0,
+                    "model": body["model"],
+                    "choices": [
+                        {"index": 0, "message": {"role": "assistant", "content": "ready"}, "finish_reason": "stop"}
+                    ],
+                    "usage": {"prompt_tokens": 5, "completion_tokens": 1, "total_tokens": 6},
+                }
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, format: str, *args: Any):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setenv("LOCAL_INFERENCE_API_KEY", "local-test-only")
+    evaluation = request()
+    binding = replace(
+        evaluation.environment,
+        num_tasks=1,
+        activation=VerifiersV1ConfigActivation(
+            {
+                "taskset": {"id": "reverse-text"},
+                "agent": {"harness": {"id": "null"}, "runtime": {"type": "subprocess"}, "max_turns": 2},
+            }
+        ),
+    )
+    evaluation = replace(
+        evaluation,
+        plan=replace(evaluation.plan, environments=(binding,)),
+        endpoint=EvaluationEndpoint(f"http://127.0.0.1:{server.server_port}/v1", QWEN_35_2B.base.repo_id),
+    )
+    observer = RecordingObserver()
+    try:
+        result = await _run(context(tmp_path, observer), evaluation, tmp_path / "native")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+    assert result.population.attempted == result.population.complete == 1
+    assert result.population.failed == result.population.coverage_missing == 0
+    assert result.synchronization.complete
+    episode = module.WireEpisode.model_validate_json((tmp_path / "native/traces.jsonl").read_text())
+    assert result.trace_ids == (episode.traces[0].id,)
+    assert observer.traces[0].attributes["episode_id"] == episode.id
 
 
 def test_remote_evaluation_binding_decodes_from_a_catalog_family() -> None:
@@ -673,7 +745,8 @@ def test_program_rejects_unknown_environment() -> None:
 
 def test_general_program_factories_return_native_configs_when_extra_is_installed() -> None:
     pytest.importorskip("verifiers.v1")
+    pytest.importorskip("gsm8k_v1")
     config: Any = GENERAL_SMOKE.environment("math-gsm8k").activate()
     assert config.taskset.id == "gsm8k-v1"
-    assert config.harness.id == "null"
-    assert config.timeout.rollout == 180
+    assert config.agent.harness.id == "null"
+    assert config.agent.timeout.rollout == 180

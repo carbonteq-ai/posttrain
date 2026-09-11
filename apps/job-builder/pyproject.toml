@@ -11,7 +11,7 @@ dependencies = [
     "posttrain-execution-buildkit",
     "posttrain-execution-pack",
     "posttrain-runtime-images",
-    "uvicorn>=0.51,<0.52",
+    "uvicorn>=0.52,<0.53",
 ]
 
 [tool.uv]

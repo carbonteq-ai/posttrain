@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import Sequence
 from typing import Any, Literal, cast
 
@@ -11,8 +10,9 @@ from posttrain.common import ModelVariant
 
 from ...bindings import TrainingBinding
 from ...online_rl import PolicySampling, PolicyTurnRequest, PolicyTurnResult
-from ...profiles import GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings
-from ...rendering import create_renderer
+from ...policy_messages import parsed_policy_message
+from ...profiles import CAPOSettings, GDPOSettings, GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings
+from ...rendering import bridge_lfm25_tool_cycle, create_renderer
 
 
 class TrlPolicyGenerator:
@@ -23,11 +23,13 @@ class TrlPolicyGenerator:
         trainer: Any,
         tokenizer: Any,
         model: ModelVariant,
-        settings: GRPOSettings | SAMPOSettings | OnPolicyDistillationSettings,
+        settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings | OnPolicyDistillationSettings,
         training: TrainingBinding,
     ) -> None:
         self._trainer = trainer
+        self._tokenizer = tokenizer
         self._renderer = create_renderer(tokenizer, model, training.renderer)
+        self._tool_call_protocol = model.conversation.tool_calls
         self._max_completion_length = settings.max_completion_length
         self._lock = asyncio.Lock()
         self._pending: list[
@@ -66,6 +68,15 @@ class TrlPolicyGenerator:
                 messages[request.tail_start :],
                 tools=tools or None,
             )
+            if rendered is None and self._tool_call_protocol is not None:
+                if self._tool_call_protocol.id == "lfm2_pythonic":
+                    rendered = bridge_lfm25_tool_cycle(
+                        self._renderer,
+                        self._tokenizer,
+                        list(request.previous_prompt_ids),
+                        list(request.previous_completion_ids),
+                        messages[request.tail_start :],
+                    )
         if rendered is None:
             rendered = self._renderer.render(messages, tools=tools or None, add_generation_prompt=True)
             spans = tuple(rendered.message_token_spans())
@@ -78,29 +89,17 @@ class TrlPolicyGenerator:
             raise RuntimeError("the policy generator returned an empty completion")
         sampled_logprobs = () if logprobs is None else tuple(float(value) for value in logprobs)
         parsed = self._renderer.parse_response(list(token_ids), tools=tools or None)
-        tool_calls = [
-            {
-                "id": item.id or f"call_{index}",
-                "name": item.name,
-                "arguments": item.arguments
-                if isinstance(item.arguments, str)
-                else json.dumps(item.arguments or {}, separators=(",", ":")),
-            }
-            for index, item in enumerate(parsed.tool_calls)
-            if item.name is not None and item.status.value == "ok"
-        ]
-        message: dict[str, Any] = {
-            "role": "assistant",
-            "content": parsed.content or None,
-        }
-        if parsed.reasoning_content is not None:
-            message["reasoning_content"] = parsed.reasoning_content
-        if tool_calls:
-            message["tool_calls"] = tool_calls
+        message = parsed_policy_message(
+            parsed,
+            token_ids,
+            self._tokenizer,
+            tool_call_protocol=self._tool_call_protocol,
+            tools=tools,
+        )
         finish_reason = _finish_reason(
             token_ids,
             frozenset(self._renderer.get_stop_token_ids()),
-            bool(tool_calls),
+            bool(message.get("tool_calls")),
             self._max_completion_length,
         )
         raw_response = _openai_response(message, finish_reason)
@@ -146,7 +145,14 @@ class TrlPolicyGenerator:
                 if not active:
                     continue
                 async with self._lock:
-                    completion_ids, logprobs = self._trainer._generate_single_turn(  # noqa: SLF001 - pinned adapter
+                    # TRL's colocated vLLM surface is synchronous. Running it on
+                    # this event-loop thread prevents peer episodes from serving
+                    # MCP/state requests or queuing their next model turn for the
+                    # entire generation. Keep GPU calls serialized, but move the
+                    # blocking boundary to one worker thread so environment work
+                    # and late-turn admission remain live.
+                    completion_ids, logprobs = await asyncio.to_thread(
+                        self._trainer._generate_single_turn,  # noqa: SLF001 - pinned adapter
                         [list(prompt_ids) for prompt_ids, _future in active],
                         None,
                         {},

@@ -179,6 +179,10 @@ class JobPackInputs:
     # image already holds the framework's dependencies, so these install with
     # --no-deps and no resolution happens inside the image build.
     framework_wheels: tuple[Path, ...] = ()
+    # An explicit backend checkout is supported for local development
+    # qualification.  It is still copied into, and identified by, the
+    # immutable actual-job capsule; no host bind mount is involved.
+    backend_source: SourcePackage | None = None
     activation_resource_sources: Mapping[tuple[str, str], Path] = field(default_factory=dict)
     project_environment_sources: Mapping[str, Path] = field(default_factory=dict)
 
@@ -277,10 +281,13 @@ class JobPackService:
         else:
             framework_digest = _framework_wheel_digest(inputs.framework_wheels)
         project_digest = digest_source_package(inputs.project_source)
+        backend_digest = digest_source_package(inputs.backend_source) if inputs.backend_source is not None else None
         if framework_digest != plan.spec.framework_source_digest:
             raise ContractError("framework code differs from the job-pack plan")
         if project_digest != plan.spec.project_source_digest:
             raise ContractError("project source tree differs from the job-pack plan")
+        if backend_digest != plan.spec.backend_source_digest:
+            raise ContractError("backend source tree differs from the job-pack plan")
         project_payload = tomllib.loads(inputs.project_config.files[inputs.project_config.project_manifest].decode())
         if project_payload.get("project_id") != plan.spec.project_id:
             raise ContractError("project manifest identity differs from the job-pack plan")
@@ -301,6 +308,9 @@ class JobPackService:
                 inputs.project_source,
                 stage / "sources" / "project",
             )
+            if inputs.backend_source is not None:
+                (stage / "sources" / "backend").mkdir(parents=True, exist_ok=False)
+                _copy_source_package(inputs.backend_source, stage / "sources" / "backend")
             _stage_activation_resources(
                 stage,
                 plan.spec.environment_activations,
@@ -373,6 +383,7 @@ class JobPackService:
                 resolved_inputs_digest=plan.spec.resolved_inputs_digest,
                 framework_source_digest=framework_digest,
                 project_source_digest=project_digest,
+                backend_source_digest=backend_digest,
                 runtime_dependencies_digest=control_lock.requirements_digest,
                 code_requirements_digest=code_requirements_digest,
                 resolved_config_digest=resolved_config_digest,
@@ -1167,6 +1178,12 @@ def _verify_staged_context(
     ):
         if observed != expected:
             raise ContractError(f"staged {label} differs from its digest")
+    backend_source = root / "sources/backend"
+    if manifest.backend_source_digest is None:
+        if backend_source.exists():
+            raise ContractError("staged backend source is not recorded in the package manifest")
+    elif not backend_source.is_dir() or digest_context_tree(backend_source) != manifest.backend_source_digest:
+        raise ContractError("staged backend source differs from its digest")
 
     try:
         resolved = json.loads((root / "config/resolved.json").read_text(encoding="utf-8"))

@@ -103,15 +103,29 @@ The framework may publish reusable choices in any family. Projects still bind
 exact versions and may create project-local choices when shared ones do not
 match.
 
-Evaluation has one deliberate exception to the otherwise model-variant-first
-rule. A local or trainable policy is a `ModelVariant`: it has immutable weights,
-a tokenizer, and a renderer contract. An API-only policy has none of those
-properties. `eval` may therefore accept an evaluation-only remote policy
-selector together with an external inference service binding. The selector says
-which remote policy is requested; the service says where and how it is called.
-Neither is a `ModelVariant`, and neither can be used by train, token-level
-rollout, or serving operations. Their compatibility is established by retained
-Verifiers evaluation evidence, not inferred from a provider name.
+There is one deliberate exception to the otherwise model-variant-first rule. A
+local or trainable policy is a `ModelVariant`: it has immutable weights, a
+tokenizer, and a renderer contract. An API-only hosted model has none of those
+properties. `eval` may therefore accept a remote subject selector together with
+an external inference service binding, and runtime composition may use the same
+hosted identity for an auxiliary service such as an environment-owned judge.
+The selector says which hosted model is requested; the service says where it is
+called; and the hosted inference binding must name the exact provider slug used
+for this workload. Model and provider are both required selections: composition
+must not choose either from price, availability, or a router default. Neither is
+a `ModelVariant`, a model-lineage node, or a valid
+trainable policy, token-level rollout binding, serving input, or exported model.
+Judge use is a composition dependency rather than a train request seat. Its
+compatibility is established by retained service and scorer evidence, not
+inferred from a provider name.
+
+An API-paid judge binding also selects a run-wide hard cost ceiling. The shared
+default is USD 4.99, deliberately below USD 5.00. Price remains live provider
+evidence rather than immutable catalog identity: composition multiplies the
+resolved endpoint rates by conservative request and token ceilings derived from
+the run and judge selections. A higher cost ceiling is valid only when a
+project selects it explicitly in a versioned hosted-inference binding. It is
+never inferred from run size, retry count, availability, or an algorithm.
 
 ---
 
@@ -492,6 +506,43 @@ bindings / quant plans.
 - when quantizing: `QuantizationPlan` (offline and/or QAT)
 
 ### Required selections by job kind
+
+GDPO and CAPO have separate kind-specific settings and requests. GDPO requires
+ordered named reward components with explicit weights; CAPO requires a verified
+binary outcome and resolved critique evidence aligned to the original sampled
+tokens. A versioned scorer selection identifies rubric, projection, judge,
+sampling, and bounded failure policy separately from algorithm settings. Judge
+inference is an execution binding and may use a different target.
+
+Scorer configuration selects custom Verifiers judge/scoring plugins, not a new
+product primitive. Rubric dimensions and their interpretation remain task-owned.
+Plugins may emit optional turn-addressed rewards using one or multiple injected
+judge clients. A turn is one assistant response, including sampled reasoning,
+content and tool calls; observations are context only. Prefix-only versus
+retrospective assessment is part of scorer identity. Training explicitly selects
+reductions to trajectory components; a turn rating is not an advantage or a
+calibrated success probability.
+
+Migrated integrations retain native episodes (task plus trace) as replay
+authority. Legacy bare-trace artifacts remain readable during migration;
+they are never rewritten in place or given fabricated task state.
+
+Prompt-group identity identifies one task occurrence in one generation batch;
+rollout identity identifies one response within it. Both survive sharding and
+reordering. Required evidence must be valid for every admitted response; failed,
+abstained, or inapplicable evidence never becomes a numeric zero. Initial
+GDPO/CAPO profiles disable scalar-variance filtering and replace incomplete
+groups only under a bounded admission policy.
+
+GDPO normalizes each component within each complete prompt group using sample
+standard deviation plus epsilon, applies component weights, then normalizes
+once over all admitted rollouts in the logical batch. Each rollout counts once
+in that final population. CAPO builds outcome-weighted minus error-weighted
+token rewards, then normalizes over all eligible tokens in each complete prompt
+group. Both use token probability ratios and per-response token-mean policy
+loss, averaged over responses. Tools and padding are excluded. KL is separate
+from reward normalization. These contracts do not imply asynchronous,
+multimodal, or arbitrary-model qualification.
 
 | Job kind | Required selections |
 | --- | --- |

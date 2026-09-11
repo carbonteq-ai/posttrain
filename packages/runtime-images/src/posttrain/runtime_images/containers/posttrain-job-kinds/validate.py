@@ -121,6 +121,7 @@ def _validate_profiles() -> None:
 def _validate_boundaries() -> None:
     inspected = [
         KINDS / "Dockerfile",
+        KINDS / "Dockerfile.vllm",
         *(KINDS / "profiles").glob("*.txt"),
         *(KINDS / "locks").glob("*.txt"),
     ]
@@ -139,15 +140,23 @@ def _validate_boundaries() -> None:
         )
 
     kind_dockerfile = (KINDS / "Dockerfile").read_text()
-    _require("ARG POSTTRAIN_BASE_IMAGE" in kind_dockerfile, "kind images need an explicit parent image")
+    vllm_dockerfile = (KINDS / "Dockerfile.vllm").read_text()
+    _require(
+        "ARG POSTTRAIN_BASE_IMAGE" in kind_dockerfile and "ARG POSTTRAIN_BASE_IMAGE" in vllm_dockerfile,
+        "kind images need an explicit parent image",
+    )
     _require(
         "locks/build-tools.lock.txt" in kind_dockerfile and "--require-hashes" in kind_dockerfile,
         "kind images must install the hash-locked source build backend",
     )
     _require(
-        "FROM kind-common AS vllm-kind-common" in kind_dockerfile
-        and "apt-get install --yes --no-install-recommends g++" in kind_dockerfile,
-        "vLLM kind images need a host C++ compiler for CUDA JIT extensions",
+        "FROM kind-common AS vllm-kind-common" in vllm_dockerfile
+        and "apt-get install --yes --no-install-recommends g++" in vllm_dockerfile,
+        "vLLM kind images need a host C++ compiler for native extensions",
+    )
+    _require(
+        vllm_dockerfile.count('ENV VLLM_USE_FLASHINFER_SAMPLER="0"') == 3,
+        "each compiler-free vLLM runtime must not auto-select FlashInfer's JIT sampler",
     )
     for profile in (
         "online-rl-trl-py312-dependencies",
@@ -155,7 +164,7 @@ def _validate_boundaries() -> None:
         "serve-dependencies",
     ):
         _require(
-            f"FROM vllm-kind-common AS {profile}" in kind_dockerfile,
+            f"FROM vllm-kind-common AS {profile}" in vllm_dockerfile,
             f"{profile} must inherit the CUDA JIT host toolchain",
         )
     for forbidden in (
@@ -165,13 +174,16 @@ def _validate_boundaries() -> None:
         "from posttrain.",
     ):
         _require(
-            forbidden not in kind_dockerfile,
+            forbidden not in kind_dockerfile and forbidden not in vllm_dockerfile,
             f"framework code leaked into dependency-only kind image: {forbidden}",
         )
     for variant in RUNTIME_VARIANTS:
-        variant_dockerfile = (
-            (KINDS / "verl-py313" / "Dockerfile").read_text() if variant == "online-rl-verl-py313" else kind_dockerfile
-        )
+        if variant == "online-rl-verl-py313":
+            variant_dockerfile = (KINDS / "verl-py313" / "Dockerfile").read_text()
+        elif variant in {"online-rl-trl-py312", "eval", "serve"}:
+            variant_dockerfile = vllm_dockerfile
+        else:
+            variant_dockerfile = kind_dockerfile
         _require(f" AS {variant}\n" in variant_dockerfile, f"missing runtime stage for {variant}")
         _require(f" AS {variant}-smoke\n" in variant_dockerfile, f"missing smoke stage for {variant}")
     _require(

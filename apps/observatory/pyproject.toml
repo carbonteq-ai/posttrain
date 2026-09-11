@@ -8,13 +8,13 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "fastapi>=0.136.3,<0.137",
     "httpx>=0.28,<1",
-    "mcp>=1.28,<2",
+    "mcp>=2,<3",
     "posttrain-common",
     "posttrain-tracking",
     "posttrain-tracking-trackio",
     "posttrain-tracking-wandb",
     "pydantic>=2.12,<3",
-    "uvicorn>=0.51,<0.52",
+    "uvicorn>=0.52,<0.53",
 ]
 
 [project.scripts]

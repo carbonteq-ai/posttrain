@@ -905,7 +905,7 @@ Current evidence anchors:
 
 The experiment uses `posttrain.train.GRPOSettings.algorithm = "olmo3"`, the
 released TRL `Olmo3GRPOConfig`, and the shared adapter in
-`packages/train/src/posttrain/train/backends/trl/grpo.py`; the project catalog
+`packages/train/src/posttrain/train/backends/trl/policy_optimization.py`; the project catalog
 and work-package files remain in `/home/hammad/projects/ambient-agent/.posttrain`.
 The run lifecycle uses dstack through `packages/execution-dstack` and evidence
 through the provider-neutral Trackio adapter. The release uses

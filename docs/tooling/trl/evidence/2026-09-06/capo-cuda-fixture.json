@@ -1,0 +1,17 @@
+{
+  "schema": "posttrain.structured-trl-lifecycle.v1",
+  "algorithm": "capo",
+  "trl": "1.12.0.post2",
+  "torch": "2.11.0+cu130",
+  "model": "trl-internal-testing/tiny-Qwen2ForCausalLM-2.5",
+  "revision": "4b10ebee6e13a2669155516652960f50984399fd",
+  "optimizer_updates": 2,
+  "beta": 0.1,
+  "gradient_norms": [
+    1.2564780712127686,
+    1.259557843208313
+  ],
+  "checkpoint_resume_matches_uninterrupted": true,
+  "export_generated_tokens": 4,
+  "scope": "tiny CUDA full-parameter deterministic reward fixture; excludes live bridge/judge/vLLM/LoRA"
+}

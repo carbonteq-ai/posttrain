@@ -111,6 +111,7 @@ class JobService:
         job: str | None = None,
         entry: str | None = None,
         host: str | None = None,
+        skip_preflight: bool = False,
     ) -> JobIntent:
         """Resolve and statically validate one enabled job without side effects."""
 
@@ -129,7 +130,7 @@ class JobService:
             host=host,
             entry=entry,
         )
-        prepared = prepare_work_package_job(context, package, job_id)
+        prepared = prepare_work_package_job(context, package, job_id, skip_preflight=skip_preflight)
         return JobIntent(
             layout=self.project.layout,
             catalog=self.project.catalog,

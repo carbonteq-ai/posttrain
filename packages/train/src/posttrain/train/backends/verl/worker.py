@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ...rollout_execution import RolloutExecutionConfig, validate_execution_config
 from ..retention import finalize_training_outputs
 from .contracts import (
     VerlLaunchManifest,
@@ -27,6 +28,7 @@ from .metrics import read_verl_metric_records
 
 _METRIC = re.compile(r"'([^']+)':\s*(?:np\.float\d+\()?([-+0-9.eE]+)")
 _INLINE_METRIC = re.compile(r"(?<![\w/])([A-Za-z_][\w]*(?:/[A-Za-z0-9_]+)*):(?:np\.(?:float|int)\d+\()?([-+0-9.eE]+)")
+_ROLLOUT_EXECUTION_FORK_REVISIONS = frozenset({"5dbf667c99b29db613d1dfcded1ed90440ef6311"})
 
 
 def main() -> None:
@@ -133,7 +135,7 @@ def build_hydra_overrides(
     engine = payload.rollout.engine
     runtime_options = training.runtime
     backend_options = training.backend_options
-    model = payload.policy if manifest.operation in {"grpo", "sampo"} else payload.student
+    model = payload.policy if manifest.operation in {"grpo", "sampo", "gdpo", "capo"} else payload.student
     assert model is not None
     model_path = _model_path(model)
     world_size = training.target.world_size
@@ -177,7 +179,7 @@ def build_hydra_overrides(
         "actor_rollout_ref.actor.strategy=fsdp2",
         f"actor_rollout_ref.actor.use_kl_loss={str((algorithm.beta or 0.0) > 0).lower()}",
         f"actor_rollout_ref.actor.kl_loss_coef={algorithm.beta or 0.0}",
-        "actor_rollout_ref.actor.kl_loss_type=low_var_kl",
+        f"actor_rollout_ref.actor.kl_loss_type={'k3_unclipped' if manifest.operation in {'gdpo', 'capo'} else 'low_var_kl'}",
         "actor_rollout_ref.actor.use_torch_compile=False",
         f"actor_rollout_ref.actor.fsdp_config.offload_policy={str(parameter_offload or optimizer_offload).lower()}",
         f"actor_rollout_ref.actor.fsdp_config.param_offload={str(parameter_offload).lower()}",
@@ -224,7 +226,7 @@ def build_hydra_overrides(
         "trainer.test_freq=-1",
         "trainer.val_before_train=False",
     ]
-    if manifest.operation in {"grpo", "sampo"}:
+    if manifest.operation in {"grpo", "sampo", "gdpo", "capo"}:
         loss_agg_mode = "token-mean" if algorithm.online_rl_algorithm == "dapo" else "seq-mean-token-mean"
         overrides.extend(
             [
@@ -233,7 +235,35 @@ def build_hydra_overrides(
                 f"actor_rollout_ref.actor.clip_ratio_high={algorithm.clip_epsilon_high}",
             ]
         )
+        if manifest.operation in {"gdpo", "capo"}:
+            structured = {
+                "reward_contract_digest": algorithm.reward_contract_digest,
+                "group_size": algorithm.num_generations,
+                "epsilon": algorithm.normalization_epsilon,
+                "component_names": algorithm.component_names,
+                "component_weights": algorithm.component_weights,
+                "outcome_component": algorithm.outcome_component,
+                "outcome_weight": algorithm.outcome_weight,
+                "process_weight": algorithm.process_weight,
+                "max_admission_attempts": algorithm.max_admission_attempts,
+            }
+            overrides.extend(
+                f"+algorithm.structured_rewards.{key}={json.dumps(value)}"
+                for key, value in structured.items()
+                if value is not None
+            )
+            overrides.extend(
+                [
+                    "actor_rollout_ref.actor.policy_loss.loss_mode=token_clip",
+                    "algorithm.filter_groups.enable=false",
+                    "trainer.v1.sampler.sync_refill_failed_groups=True",
+                ]
+            )
         if manifest.operation == "sampo":
+            if algorithm.reward_contract_digest is not None:
+                overrides.append(
+                    f"+algorithm.structured_rewards.reward_contract_digest={algorithm.reward_contract_digest}"
+                )
             overrides.extend(
                 [
                     "actor_rollout_ref.actor.policy_loss.loss_mode=gspo",
@@ -252,6 +282,7 @@ def build_hydra_overrides(
                     f"algorithm.filter_groups.max_num_gen_batches={algorithm.dynamic_sampling_max_candidate_batches}",
                 ]
             )
+        overrides.extend(_rollout_execution_hydra_overrides(manifest))
     if resume_from is not None:
         overrides.append(f"trainer.resume_from_path={json.dumps(str(resume_from))}")
     if kv_cache_dtype is not None:
@@ -385,6 +416,49 @@ def _positive_int_option(value: object, name: str, default: int) -> int:
     return value
 
 
+def _rollout_execution_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
+    """Translate the framework worker topology into enforceable native veRL settings."""
+    payload = manifest.payload
+    raw = payload.training.backend_options.get("rollout_execution")
+    if raw is None:
+        return []
+    if manifest.backend_source_revision not in _ROLLOUT_EXECUTION_FORK_REVISIONS:
+        raise ValueError(
+            "selected veRL source revision does not support bounded rollout_execution; "
+            "select a qualified CarbonTeq rollout-execution fork revision"
+        )
+    if not isinstance(raw, dict):
+        raise ValueError("veRL backend_options.rollout_execution must be a mapping")
+    expected = {"env_workers", "episodes_per_worker", "worker_native_threads"}
+    unknown = set(raw).difference(expected)
+    missing = expected.difference(raw)
+    if unknown or missing:
+        details = []
+        if missing:
+            details.append(f"missing {', '.join(sorted(missing))}")
+        if unknown:
+            details.append(f"unknown {', '.join(sorted(unknown))}")
+        raise ValueError(f"invalid veRL rollout_execution mapping: {'; '.join(details)}")
+    values = {}
+    for key in expected:
+        value = raw[key]
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"veRL rollout_execution.{key} must be an integer")
+        values[key] = value
+    execution = RolloutExecutionConfig(**values)
+    global_limit = payload.environment.max_concurrent
+    if global_limit is None:
+        raise ValueError("veRL rollout_execution requires the environment bridge to declare max_concurrent")
+    validate_execution_config(execution, global_limit=global_limit)
+    return [
+        f"actor_rollout_ref.rollout.agent.num_workers={execution.env_workers}",
+        f"actor_rollout_ref.rollout.agent.num_cpus_per_worker={execution.worker_native_threads}",
+        f"actor_rollout_ref.rollout.agent.max_concurrent_episodes={global_limit}",
+        f"actor_rollout_ref.rollout.agent.max_concurrent_episodes_per_worker={execution.episodes_per_worker}",
+        "trainer.v1.sampler.refill_all_failed_groups=True",
+    ]
+
+
 def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
     raw = options.get("hydra_overrides", [])
     if not isinstance(raw, list) or any(not isinstance(value, str) or not value.strip() for value in raw):
@@ -397,11 +471,23 @@ def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
         "actor_rollout_ref.actor.clip_ratio_low=",
         "actor_rollout_ref.actor.clip_ratio_high=",
         "actor_rollout_ref.actor.policy_loss.loss_mode=",
+        "actor_rollout_ref.actor.use_kl_loss=",
+        "actor_rollout_ref.actor.kl_loss_type=",
+        "actor_rollout_ref.actor.kl_loss_coef=",
+        "algorithm.use_kl_in_reward=",
+        "algorithm=",
+        "algorithm.structured_rewards=",
         "algorithm.adv_estimator=",
         "algorithm.sampo.",
+        "algorithm.structured_rewards.",
         "data.gen_batch_size=",
         "algorithm.filter_groups.",
         "actor_rollout_ref.rollout.agent.agent_loop_config_path=",
+        "actor_rollout_ref.rollout.agent.num_workers=",
+        "actor_rollout_ref.rollout.agent.num_cpus_per_worker=",
+        "actor_rollout_ref.rollout.agent.max_concurrent_episodes=",
+        "actor_rollout_ref.rollout.agent.max_concurrent_episodes_per_worker=",
+        "trainer.v1.sampler.refill_all_failed_groups=",
         "trainer.default_local_dir=",
         "trainer.save_freq=",
         "trainer.max_actor_ckpt_to_keep=",
@@ -409,7 +495,8 @@ def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
         "trainer.resume_mode=",
         "trainer.resume_from_path=",
     )
-    if any(value.startswith(protected) for value in raw):
+    # Hydra's +/++/~ forms must not bypass ownership of selected contracts.
+    if any(value.lstrip("+~").startswith(protected) for value in raw):
         raise ValueError(
             "veRL backend overrides cannot replace selected data, model, algorithm, checkpoint, or artifact policy"
         )
@@ -452,11 +539,22 @@ def _write_agent_config(payload: VerlPayload, path: Path) -> None:
             "_target_": "posttrain.train.backends.verl.agent_loop.PosttrainVerifiersAgentLoop",
             "bridge_snapshot": str(payload.environment.bridge_snapshot),
             "enable_thinking": renderer.reasoning_mode == "thinking",
+            "renderer_implementation": renderer.implementation,
             "mask_truncated_completions": algorithm.mask_truncated_completions,
             "max_completion_tokens": algorithm.max_completion_length,
             "overlong_buffer_tokens": algorithm.overlong_buffer_tokens,
             "overlong_penalty_factor": algorithm.overlong_penalty_factor,
             "emit_sampo_metadata": algorithm.advantage_estimator == "sampo",
+            "structured_algorithm": (
+                algorithm.advantage_estimator if algorithm.advantage_estimator in {"gdpo", "capo"} else None
+            ),
+            "reward_component_names": (
+                list(algorithm.component_names or ())
+                if algorithm.advantage_estimator == "gdpo"
+                else [algorithm.outcome_component]
+                if algorithm.advantage_estimator == "capo"
+                else None
+            ),
         }
     ]
     path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")

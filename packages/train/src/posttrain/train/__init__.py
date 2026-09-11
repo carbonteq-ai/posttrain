@@ -7,8 +7,10 @@ from .api import (
     SAMPOBackend,
     SFTBackend,
     TrainingContext,
+    capo,
     distill,
     dpo,
+    gdpo,
     grpo,
     sampo,
     sft,
@@ -51,6 +53,7 @@ from .grpo_observations import (
     normalize_grpo_metrics,
     required_grpo_metrics,
 )
+from .model_configuration import ResolvedTrainingModelConfiguration, resolve_training_model_configuration
 from .online_rl import (
     AgenticTurn,
     AsyncRolloutCompletionObserver,
@@ -77,8 +80,10 @@ from .profiles import (
     QWEN35_SFT_SMOKE,
     QWEN35_THINKING_RENDERER,
     ActiveGroupSampling,
+    CAPOSettings,
     DPOSettings,
     DynamicGroupSampling,
+    GDPOSettings,
     GRPOSettings,
     OnPolicyDistillationSettings,
     SAMPOSettings,
@@ -90,8 +95,19 @@ from .profiles import (
     shape_soft_overlong_reward,
 )
 from .rendering import RenderedPreferenceExample, RenderedSFTExample, render_preferences, render_supervised
-from .requests import DPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest, SFTRequest
+from .requests import (
+    CAPORequest,
+    DPORequest,
+    GDPORequest,
+    GRPORequest,
+    OnPolicyDistillationRequest,
+    SAMPORequest,
+    SFTRequest,
+)
 from .results import TeacherScoringSummary, TrainingResult, TrainingSummary
+from .reward_advantages import RewardAdvantages, compute_capo_advantages, compute_gdpo_advantages
+from .reward_evidence import InvalidRewardEvidence, ProcessCredit, RewardEvidence, RewardValue
+from .reward_projection import RewardComponentProjection, RewardProjection
 from .sampo_advantages import SAMPOAdvantages, compute_sampo_advantages
 from .transform import (
     TransformContext,
@@ -104,10 +120,28 @@ from .verifiers_requests import (
     build_verifiers_distillation_request,
     build_verifiers_grpo_request,
     build_verifiers_sampo_request,
+    build_verifiers_structured_request,
     validate_verifiers_policy_sampling,
 )
 
 __all__ = [
+    "CAPORequest",
+    "CAPOSettings",
+    "GDPORequest",
+    "GDPOSettings",
+    "RewardAdvantages",
+    "InvalidRewardEvidence",
+    "ProcessCredit",
+    "RewardEvidence",
+    "RewardValue",
+    "RewardProjection",
+    "ResolvedTrainingModelConfiguration",
+    "RewardComponentProjection",
+    "build_verifiers_structured_request",
+    "capo",
+    "gdpo",
+    "compute_capo_advantages",
+    "compute_gdpo_advantages",
     "ActiveGroupSampling",
     "DPOBackend",
     "DistillationBackend",
@@ -208,6 +242,7 @@ __all__ = [
     "compute_sampo_advantages",
     "normalize_grpo_metrics",
     "render_preferences",
+    "resolve_training_model_configuration",
     "render_supervised",
     "run_llm_compressor",
     "required_grpo_metrics",

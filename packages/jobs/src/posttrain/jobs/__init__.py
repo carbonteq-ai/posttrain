@@ -16,11 +16,42 @@ from .definitions import (
     serve_smoke_definition,
     sft_definition,
     standard_definitions,
+    structured_rl_definition,
     supervised_data_prepare_definition,
+)
+from .inference_services import (
+    AttachedInferenceService,
+    ExternalInferenceServiceRequest,
+    ExternalInferenceUsageProjection,
+    ExternalServiceResolver,
+    HostedInferenceBinding,
+    InferenceSelection,
+    InferenceServiceRequest,
+    ManagedInferenceService,
+    ResolvedInferenceService,
+    bind_inference_services,
+)
+from .native_judges import (
+    bind_managed_native_judge_services,
+    bind_native_judge_services,
+    bind_native_judges,
 )
 from .runtime import build_job_runtime
 
 __all__ = [
+    "AttachedInferenceService",
+    "ExternalInferenceServiceRequest",
+    "ExternalInferenceUsageProjection",
+    "ExternalServiceResolver",
+    "HostedInferenceBinding",
+    "InferenceSelection",
+    "InferenceServiceRequest",
+    "ManagedInferenceService",
+    "ResolvedInferenceService",
+    "bind_inference_services",
+    "bind_managed_native_judge_services",
+    "bind_native_judge_services",
+    "bind_native_judges",
     "build_job_runtime",
     "distillation_definition",
     "dpo_definition",
@@ -37,5 +68,6 @@ __all__ = [
     "serve_smoke_definition",
     "sft_definition",
     "standard_definitions",
+    "structured_rl_definition",
     "supervised_data_prepare_definition",
 ]

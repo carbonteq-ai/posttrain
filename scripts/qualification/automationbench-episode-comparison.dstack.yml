@@ -1,0 +1,73 @@
+type: task
+name: posttrain-episode-judges-r12-o
+image: registry.carbonteq.com/carbonteq/posttrain/nanbeige-vllm@sha256:bfbeee151fb59c687f7e27d5e5e287716a7c1c6dd58ebf0a4ffe99b13702a3aa
+shell: /bin/bash
+commands:
+  - >-
+    /opt/posttrain/uv pip install --no-deps --reinstall
+    --python /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/episode-weighted-k/automationbench_v1-0.3.0-py3-none-any.whl
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/episode-weighted-k/posttrain_common-0.0.0-py3-none-any.whl
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/episode-weighted-k/posttrain_catalog-0.0.0-py3-none-any.whl
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/episode-weighted-k/posttrain_serve-0.0.0-py3-none-any.whl
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    HF_HUB_CACHE=/root/.cache/huggingface/hub OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/automationbench_native_judges.py
+    --backend trl --algorithm gdpo --episode-rewards --judge-profile nanbeige3b
+    --judge-vllm-executable vllm --judge-vllm-version 0.26.1rc1.dev1235+g62f6de733
+    --judge-code-revision b2e712091423e5580b86735126a141401cba3ceb
+    --environment-wheel-sha256 6f8d40a4763a70d3212e8d8b1953099173e3e19e9ee6cf602709b191f9cc2ed3
+    --output /opt/posttrain/evidence/episode-gdpo-nanbeige-o
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 HF_HUB_CACHE=/root/.cache/huggingface/hub
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/audit_structured_toy.py
+    /opt/posttrain/evidence/episode-gdpo-nanbeige-o --mechanics --reload-export
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    HF_HUB_CACHE=/root/.cache/huggingface/hub OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/automationbench_native_judges.py
+    --backend trl --algorithm gdpo --episode-rewards --judge-profile gemma12b
+    --judge-vllm-executable vllm --judge-vllm-version 0.26.1rc1.dev1235+g62f6de733
+    --judge-code-revision b2e712091423e5580b86735126a141401cba3ceb
+    --environment-wheel-sha256 6f8d40a4763a70d3212e8d8b1953099173e3e19e9ee6cf602709b191f9cc2ed3
+    --output /opt/posttrain/evidence/episode-gdpo-gemma-o
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 HF_HUB_CACHE=/root/.cache/huggingface/hub
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/audit_structured_toy.py
+    /opt/posttrain/evidence/episode-gdpo-gemma-o --mechanics --reload-export
+files:
+  - ./automationbench_native_judges.py:/opt/posttrain/qualification/automationbench_native_judges.py
+  - ./automationbench_structured_toy.py:/opt/posttrain/qualification/automationbench_structured_toy.py
+  - ./episode_reward_profile.py:/opt/posttrain/qualification/episode_reward_profile.py
+  - ./audit_structured_toy.py:/opt/posttrain/qualification/audit_structured_toy.py
+volumes:
+  - /home/carbonteq-ai-workstation/.local/bin/uv:/opt/posttrain/uv
+  - /var/lib/posttrain/cache/huggingface:/root/.cache/huggingface
+  - /var/lib/posttrain/qualifications/nanbeige-r12-20260906:/opt/posttrain/evidence
+  - /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl:/home/carbonteq-ai-workstation/posttrain-qualification.2iyErl
+  - /home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu:/home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu
+resources:
+  cpu: 8..
+  memory: 48GB..
+  gpu:
+    vendor: nvidia
+    count: 1
+    memory: 96GB..
+fleets:
+  - local-gpu-workers
+max_duration: 3h
+stop_duration: 5m
+retry:
+  on_events: [no-capacity]
+  duration: 1h
+tags:
+  purpose: episode-judge-weighted-comparison
+  algorithm: gdpo
+  backend: trl
+  steps_per_judge: "5"
+  bounded: "true"

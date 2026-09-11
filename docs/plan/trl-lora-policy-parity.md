@@ -26,6 +26,13 @@ This corrects a backend synchronization defect and strengthens validation withou
 - [x] (2026-08-08 04:56Z) Completed the matched 32-prompt × 4-generation, two-update SFT-start DAPO diagnostic: reward mean `0.6476 -> 0.6680`, raw trace reward mean `0.6554 -> 0.7010`, triple-F1 mean `0.5926 -> 0.6347`, zero-variance groups `12.5% -> 6.25%`, and actor/sampler mean log-probability deltas remained below the parity gate. The run finished successfully as `d2e5a33d-0d5c-45ea-8a7f-be23a3ee1493`.
 - [x] (2026-08-08 06:53Z) Implemented explicit scalar-DAPO advantage and truncation telemetry, disabled group reward scaling for the diagnostic profile, and completed a corrected two-update 32-prompt × 4-generation run from the SFT adapter. Trace reward mean improved `0.6411 -> 0.6910`, triple-F1 `0.5608 -> 0.5933`, and truncation masking excluded `2/128` rows at step two; run `221ca5df-d555-447c-858b-e1dd780a7eab` completed successfully.
 - [x] (2026-08-08 07:24Z) Audited the generic truncation path after the diagnostic: truncation is now always observable, but rewards are excluded from the group baseline only when `mask_truncated_completions=true`; the existing scale-reward and truncation regression selection passes `7` tests.
+- [x] (2026-09-09) Replayed a retained LFM2.5 AutomationBench R9 trajectory locally and isolated a false parity failure to independently padded prompt/completion batches: unpadded selected-token delta was `0.00658`, while 2,700 leading pad tokens raised it to `0.06207`.
+- [x] (2026-09-09) Changed the TRL candidate to score bounded actor parity rows independently without padding (19 focused trainer tests passed), and removed the Qwen-only `language_model.` prefix from both LFM rollout bindings (catalog regression passed).
+- [x] (2026-09-09) Passed local LFM async-engine drain/cancel/sleep/wake across two collection rounds and a separate changed-LoRA actor/vLLM canary: 166 nonzero LoRA-B modules produced a `0.00910` mean rollout effect while changed-weight parity remained `0.00894`.
+- [x] (2026-09-09) Proved the 2.6B BF16 actor plus colocated vLLM weight floor cannot fit the 8 GiB local target, added a static cross-seat rejection before packaging, and moved the composed changed-weight canary to the idle 96 GiB RTX PRO target.
+- [x] (2026-09-09) On user direction, cancelled the remote 2.6B canary and added a distinct 1.2B LFM local package that preserves the same hybrid-family parity and LoRA lifecycle without changing the 2.6B comparison definitions.
+- [x] (2026-09-09) The first local 1.2B attempt proved the hardware fit but retained two native `HarnessError` traces: the shared PEP 723 chat environment exceeded the 120-second cold setup budget before any model call. Raised only the canary's cold setup budget to 600 seconds; rollout retries remain disabled. Prewarming this environment in the runtime image remains a harness-startup optimization, separate from algorithm correctness.
+- [ ] Run the two-iteration composed LFM canary with corrected TRL: the first iteration updates LoRA weights and the second collection proves the post-update rollout path before comparison-arm resubmission.
 - [ ] Compare corrected and prior DAPO under repeated seeds or a held-out set before claiming the algorithm is better; then decide whether the production objective remains scalar DAPO or moves to decoupled multi-signal normalization.
 - [ ] After explicit publication authorization, commit and push the TRL fork, update the framework's immutable dependency pin and lock, and reconcile Ambient Agent provenance.
 
@@ -85,8 +92,17 @@ This corrects a backend synchronization defect and strengthens validation withou
 - Observation: truncation telemetry must not change legacy unmasked training semantics.
   Evidence: the first implementation treated inferred max-length completions as unscorable even when masking was disabled; the focused TRL regression caught five zero-gradient failures. Restricting reward exclusion to the explicit mask setting restored all seven tests while retaining truncation visibility.
 
+- Observation: padding is not a semantics-preserving implementation detail for hybrid recurrent/convolutional policies.
+  Evidence: the exact retained LFM trace passed actor/vLLM parity at `0.00658` without padding. Adding 2,700 masked leading pad tokens to only the actor raised mean selected-token delta to `0.06207`, p95 to `0.34501`, and max to `1.67545`. The production probe padded prompts and completions to independent maxima, allowing an actor tensor almost twice the declared per-sequence bound.
+
+- Observation: the LFM rollout profiles copied the Qwen3.5 composite-model namespace.
+  Evidence: LFM PEFT and native vLLM modules resolve below `model.layers...`; applying `weight_name_prefix: language_model.` produces `language_model.model.layers...`, which does not attach to native LFM modules. Fresh LoRA B tensors are zero, so this did not cause the pre-update R9 delta, but it would prevent changed weights from affecting later rollouts.
+
 - Observation: the first local-source canaries used Trackio's local project store rather than the protected remote Trackio endpoint.
   Evidence: the runs are present in the local SQLite artifact lineage and absent from the remote normalized source. They prove trainer and artifact behavior but are not immutable-image or production-observability qualification.
+
+- Observation: TRL sleep mode serializes vLLM residency with optimization, not vLLM residency with the actor during rollout.
+  Evidence: local run `lfm26-local-lifecycle-unpadded-20260909` loaded the 2.6B BF16 actor first, leaving 1.66/7.63 GiB free; vLLM then rejected its 6.11 GiB reservation before rollout startup. The two policy copies have a 10.02 GiB weight-only floor before KV cache, activations, adapters, and workspaces.
 
 ## Decision Log
 
@@ -97,6 +113,14 @@ This corrects a backend synchronization defect and strengthens validation withou
 - Decision: Gate the first training rollout on the mean absolute actor-versus-sampler token log-probability delta before any optimizer update.
   Rationale: this directly tests the on-policy invariant over the exact completion tokens used for training. A default limit of 0.05 separates the qualified base evidence at 0.014 from the broken SFT bridge at 0.253, while retaining importance correction for small numerical differences.
   Date/Author: 2026-08-08 / Codex
+
+- Decision: Score parity probe rows independently without synthetic padding.
+  Rationale: parity is a one-time bounded correctness gate, so exact per-row semantics are more important than batching it. Attention masks do not make arbitrarily padded hybrid-model state equivalent to the unpadded sequence vLLM scored, and independent prompt/completion padding can also inflate the actual actor width beyond the configured bound.
+  Date/Author: 2026-09-09 / Codex
+
+- Decision: Qualify the composed LFM changed-weight lifecycle on the 96 GiB target and use a smaller policy for 8 GiB local end-to-end lifecycle tests.
+  Rationale: a startup-only actor move would not make the rollout phase fit because actor and vLLM weights coexist while vLLM generates. The planner must reject the provable 10.02 GiB weight floor on 8 GiB rather than build an image for a configuration that cannot start.
+  Date/Author: 2026-09-09 / Codex
 
 - Decision: Do not use the manually remapped SFT adapter as the actor checkpoint.
   Rationale: Transformers/PEFT owns the native actor namespace. The remap is a deployment representation; feeding it back into the actor would move the mismatch to the training side and would not solve subsequent adapter refreshes.
@@ -136,7 +160,7 @@ Local implementation, focused validation, the one-step parity canary, the fresh-
 
 `/home/hammad/projects/trl/trl/trainer/grpo_trainer.py` receives sampling log probabilities from vLLM and recomputes the same token log probabilities with the actor. It already logs their absolute difference and builds an importance-sampling ratio. The parity gate belongs immediately after this comparison and before `_generate_and_score_completions` returns data to the optimizer.
 
-`packages/train/src/posttrain/train/backends/trl/grpo.py` translates a backend-neutral inference binding into `GRPOConfig`. Ambient Agent's `.posttrain/catalog/inference.yaml` owns the Qwen3.5 rollout-engine namespace setting. The fork's `CARBONTEQ_FORK.md` owns generic implementation provenance; `docs/tooling/trl/README.md` owns consumer configuration and qualification evidence.
+`packages/train/src/posttrain/train/backends/trl/policy_optimization.py` translates a backend-neutral inference binding into `GRPOConfig`. Ambient Agent's `.posttrain/catalog/inference.yaml` owns the Qwen3.5 rollout-engine namespace setting. The fork's `CARBONTEQ_FORK.md` owns generic implementation provenance; `docs/tooling/trl/README.md` owns consumer configuration and qualification evidence.
 
 ## Plan of Work
 
@@ -167,8 +191,8 @@ Then work from `/home/hammad/projects/rl`:
 
     uv run pytest packages/train/tests/test_trl_online_rl.py packages/train/tests/test_trl_vllm_compat.py -q
     uv run pytest packages/train/tests/test_api.py packages/train/tests/test_retention.py -q
-    uv run ruff check packages/train/src/posttrain/train/backends/trl/grpo.py packages/train/tests/test_trl_online_rl.py packages/train/tests/test_trl_vllm_compat.py
-    uv run pyright packages/train/src/posttrain/train/backends/trl/grpo.py
+    uv run ruff check packages/train/src/posttrain/train/backends/trl/policy_optimization.py packages/train/tests/test_trl_online_rl.py packages/train/tests/test_trl_vllm_compat.py
+    uv run pyright packages/train/src/posttrain/train/backends/trl/policy_optimization.py
     uv run lint-imports
     git diff --check
 

@@ -251,7 +251,25 @@ class RemoteJobImagePublisher:
     @staticmethod
     def _raise_for_status(response: httpx.Response, message: str) -> None:
         if response.is_error:
-            raise ContractError(f"{message}: HTTP {response.status_code}")
+            details: list[str] = []
+            try:
+                payload = response.json()
+            except ValueError:
+                payload = None
+            detail = payload.get("detail") if isinstance(payload, dict) else None
+            if isinstance(detail, str):
+                details.append(detail[:500])
+            elif isinstance(detail, list):
+                for item in detail[:5]:
+                    if not isinstance(item, dict):
+                        continue
+                    location = ".".join(str(part) for part in item.get("loc", ()))
+                    description = item.get("msg")
+                    kind = item.get("type")
+                    if isinstance(description, str):
+                        details.append(f"{location}: {description} ({kind})" if location else description)
+            suffix = f": {'; '.join(details)}" if details else ""
+            raise ContractError(f"{message}: HTTP {response.status_code}{suffix}")
 
 
 def _packed_context_view(request: JobImagePublicationRequest, source_context_digest: str):

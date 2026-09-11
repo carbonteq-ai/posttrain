@@ -43,6 +43,7 @@ from .project_brief import (
 )
 from .runner import (
     PreparedWorkPackageJob,
+    ReadinessProbe,
     ResolvedSeat,
     ResolvedWorkPackage,
     RunExecutor,
@@ -57,6 +58,7 @@ from .runner import (
     run_work_package_job,
     validate_work_package,
 )
+from .validation import JobValidationReport, ValidationCheck
 
 JobRuntime = WorkPackageContext
 ProjectExecutionRequest = WorkPackageHostRequest
@@ -70,6 +72,7 @@ __all__ = [
     "JobDefinition",
     "JobKind",
     "JobRuntime",
+    "JobValidationReport",
     "JobOperation",
     "JobStatus",
     "Recipe",
@@ -78,6 +81,7 @@ __all__ = [
     "ProjectBrief",
     "ProjectExecutionRequest",
     "PreparedWorkPackageJob",
+    "ReadinessProbe",
     "ResolvedSeat",
     "ResolvedSeats",
     "ResolvedWorkPackage",
@@ -98,6 +102,7 @@ __all__ = [
     "WorkPackageJobResult",
     "WorkPackageResult",
     "WorkPackageSchema",
+    "ValidationCheck",
     "execute_run",
     "execute_run_tracked",
     "execute_run_tracked_finalized",

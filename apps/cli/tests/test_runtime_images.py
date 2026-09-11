@@ -15,6 +15,7 @@ from posttrain_cli.checks import runtime_images_check
 from posttrain_cli.cli import main
 from posttrain_cli.context import CliState
 from posttrain_cli.execution_config import load_local_execution_config
+from posttrain_cli.runtime_image_builds import _request as _runtime_build_request
 from posttrain_cli.runtime_images import (
     ensure_kind_image_ready,
     verify_configured_variant,
@@ -52,7 +53,7 @@ def _candidate_manifest_for_runtime_image_tests(monkeypatch: pytest.MonkeyPatch)
         "posttrain_cli.commands.runtime",
         "posttrain_cli.runtime_image_builds",
     ):
-        monkeypatch.setattr(f"{module}.load_manifest", lambda: manifest)
+        monkeypatch.setattr(f"{module}.load_manifest", lambda **_: manifest)
 
 
 def _manifest():
@@ -208,6 +209,30 @@ def test_verl_runtime_image_requires_its_backend_identity_labels(
     )
     assert drifted.status == "drifted"
     assert revision_label in drifted.detail
+
+
+def test_verl_runtime_build_request_carries_backend_identity_and_cache_lineage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = _registry(tmp_path, monkeypatch)
+    root = Path(__file__).resolve().parents[3] / "packages/runtime-images/src/posttrain/runtime_images"
+
+    request = _runtime_build_request(
+        "online-rl-verl-py313",
+        registry=registry,
+        root=root,
+        source_digest="a" * 64,
+    )
+
+    assert request.source_date_epoch is not None
+    assert request.variables["POSTTRAIN_BASE_IMAGE"] == registry.universal_image.value
+    assert request.variables["CREATED"]
+    assert request.variables["DEPENDENCY_LOCK_SHA256"]
+    assert request.variables["FORK_REVISION"]
+    assert request.variables["SOURCE_REPOSITORY"] == "https://github.com/carbonteq-ai/verl.git"
+    assert request.variables["SOURCE_REVISION"]
+    assert request.variables["VERSION"]
 
 
 def test_a_stale_image_is_reported_as_drift(

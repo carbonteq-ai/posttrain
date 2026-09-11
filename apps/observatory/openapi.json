@@ -4059,6 +4059,16 @@
             "minLength": 1,
             "title": "Provider",
             "type": "string"
+          },
+          "trace_facts": {
+            "default": "unavailable",
+            "enum": [
+              "available",
+              "unsupported",
+              "unavailable"
+            ],
+            "title": "Trace Facts",
+            "type": "string"
           }
         },
         "required": [

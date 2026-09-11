@@ -1,0 +1,32 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-olmo3-30-local
+stage: train
+description: Thirty-update local RTX PRO 6000 OLMo3 run over 8 prompt groups with 4 trajectories each and a 12K episode budget.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-olmo3-30-local@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: train
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-v3}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-olmo3-30-local-v1}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-local@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-automationbench-30-local-v1
+  arm: olmo3
+  task_mix: lfm26-automationbench-mix-v3
+  labels: [experiment, automationbench, lfm2.5, olmo3, thirty-update, local-rtx-pro-6000]

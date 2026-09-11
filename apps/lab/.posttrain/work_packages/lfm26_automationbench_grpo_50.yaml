@@ -1,0 +1,32 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-grpo-50
+stage: train
+description: Matched 50-update vanilla GRPO arm on the frozen AutomationBench training mix.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-grpo-50@1
+  revision: "2"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: train
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-v2}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-grpo-50-v1}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout@1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-automationbench-50-v2
+  arm: vanilla-grpo
+  task_mix: lfm26-automationbench-mix-v2
+  labels: [qualification, automationbench, lfm2.5, grpo]

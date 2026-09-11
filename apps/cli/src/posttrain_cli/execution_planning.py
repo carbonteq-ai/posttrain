@@ -10,10 +10,18 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
+from typing import Literal
 
 import yaml
 from posttrain.catalog import FamilyRegistryLock, ProjectLayout
-from posttrain.common import Catalog, CatalogRef, ContractError, ExecutionTarget, StoredArtifactRef
+from posttrain.common import (
+    Catalog,
+    CatalogRef,
+    ContractError,
+    ExecutionTarget,
+    HostedInferenceBinding,
+    StoredArtifactRef,
+)
 from posttrain.data import DatasetLoadPlan, project_dataset_input_paths
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
@@ -141,6 +149,7 @@ class PlannedJobPackage:
     framework_source_inspection: SourceSnapshotInspection | None = None
     dataset_source_estimates: tuple[dict[str, object], ...] = ()
     builder_override: str | None = None
+    backend_source_request: SourceSnapshotRequest | None = None
 
     def materialize(self) -> PackedJobContext:
         """Materialize the immutable job context without publishing an image."""
@@ -149,6 +158,9 @@ class PlannedJobPackage:
         source_root = cache_path(self.layout, "pack", "sources")
         snapshotter = ImmutableSourceSnapshotter(cache_root=source_root)
         project_source = snapshotter.materialize(self.project_source_request)
+        backend_source = (
+            snapshotter.materialize(self.backend_source_request) if self.backend_source_request is not None else None
+        )
         project_environment_sources: dict[str, Path] = {}
         for request in self.pack_plan.spec.project_environment_sources:
             snapshot = snapshotter.materialize(
@@ -174,31 +186,36 @@ class PlannedJobPackage:
         if (
             framework_digest != self.pack_plan.spec.framework_source_digest
             or project_source.digest != self.pack_plan.spec.project_source_digest
+            or (backend_source.digest if backend_source is not None else None)
+            != self.pack_plan.spec.backend_source_digest
         ):
             raise ContractError("source bytes changed after planning; run job plan again")
 
         cache_root = cache_path(self.layout, "pack", "cache")
+        runtime_variant = self.pack_plan.spec.runtime_variant
+        binding = registry.constraint_profiles[runtime_variant]
         constraints = {
-            profile: KindDependencyConstraints(
-                profile,
+            runtime_variant: KindDependencyConstraints(
+                runtime_variant,
                 binding.path.read_text(encoding="utf-8"),
                 binding.provided_packages,
             )
-            for profile, binding in registry.constraint_profiles.items()
         }
-        backend_constraints = {
-            profile: KindDependencyConstraints(
-                profile,
-                binding.backend_path.read_text(encoding="utf-8"),
-                binding.backend_provided_packages,
-                role="backend",
-                python_version="3.13.12",
-                python_executable="/opt/posttrain-verl/bin/python",
-                requirements_filename="runtime.backend.requirements.txt",
-            )
-            for profile, binding in registry.constraint_profiles.items()
-            if binding.backend_path is not None
-        }
+        backend_constraints = (
+            {}
+            if binding.backend_path is None
+            else {
+                runtime_variant: KindDependencyConstraints(
+                    runtime_variant,
+                    binding.backend_path.read_text(encoding="utf-8"),
+                    binding.backend_provided_packages,
+                    role="backend",
+                    python_version="3.13.12",
+                    python_executable="/opt/posttrain-verl/bin/python",
+                    requirements_filename="runtime.backend.requirements.txt",
+                )
+            }
+        )
         for profile, selected in constraints.items():
             binding = registry.constraint_profiles[profile]
             if selected.constraints_sha256 != binding.contents_digest or selected.digest != binding.digest:
@@ -255,6 +272,7 @@ class PlannedJobPackage:
             JobPackInputs(
                 framework_source=framework_package,
                 framework_wheels=framework_wheels,
+                backend_source=(backend_source.package if backend_source is not None else None),
                 project_source=project_source.package,
                 resolved_inputs=dict(self.prepared.spec.resolved_inputs),
                 project_config=project_config,
@@ -323,7 +341,8 @@ class PlannedJobPackage:
             (
                 candidate
                 for candidate in records
-                if candidate.publication_key == _publication_key(candidate.manifest, self.pack_plan.publication)
+                if candidate.manifest.project_config_digest == self.project_config_digest
+                and candidate.publication_key == _publication_key(candidate.manifest, self.pack_plan.publication)
             ),
             None,
         )
@@ -493,6 +512,7 @@ class PlannedJobExecution:
         return self.launch.mounts
 
     def pack(self, *, allow_deferred_qualification: bool = False) -> PackedJobExecution:
+        _require_runtime_credentials(self.package, provider=self.settings.provider)
         publisher_supports_daemon = self.settings.provider == "local" and hasattr(
             self.package._publisher(), "publish_local_daemon"
         )
@@ -657,6 +677,7 @@ def plan_job_execution(
     env_file: Path | None = None,
     framework_wheelhouse: Path | None = None,
     builder: str | None = None,
+    backend_source: Path | None = None,
 ) -> PlannedJobExecution:
     """Resolve and hash one job without materializing or submitting it."""
 
@@ -677,6 +698,7 @@ def plan_job_execution(
         env_file=env_file,
         framework_wheelhouse=framework_wheelhouse,
         builder=builder,
+        backend_source=backend_source,
     )
     return PlannedJobExecution(
         package=package,
@@ -709,6 +731,7 @@ def plan_job_package(
     local_publication: bool = False,
     framework_wheelhouse: Path | None = None,
     builder: str | None = None,
+    backend_source: Path | None = None,
 ) -> PlannedJobPackage:
     """Resolve capsule bytes without requiring a provider or worker storage."""
 
@@ -725,6 +748,7 @@ def plan_job_package(
             local_publication=local_publication,
             framework_wheelhouse=framework_wheelhouse,
             builder=builder,
+            backend_source=backend_source,
         )
     return _plan_job_package(
         state,
@@ -740,6 +764,7 @@ def plan_job_package(
         local_publication=local_publication,
         framework_wheelhouse=framework_wheelhouse,
         builder=builder,
+        backend_source=backend_source,
     )
 
 
@@ -759,6 +784,7 @@ def plan_job_launch(
             package.layout,
             job_kind=package.prepared.recipe_job.kind,
             runtime_variant=package.pack_plan.spec.runtime_variant,
+            required_runtime_variables=required_runtime_variables(package.prepared.seats),
         ),
     )
     sources = dict(base.sources)
@@ -814,6 +840,7 @@ def _plan_job_package(
     local_publication: bool,
     framework_wheelhouse: Path | None,
     builder: str | None,
+    backend_source: Path | None,
 ) -> PlannedJobPackage:
     layout, catalog, work_package_path, package = load_work_package_bundle(state, path)
     context = runtime_context(
@@ -843,6 +870,7 @@ def _plan_job_package(
         local_publication=local_publication,
         framework_wheelhouse=framework_wheelhouse,
         builder=builder,
+        backend_source=backend_source,
     )
 
 
@@ -857,10 +885,19 @@ def _plan_job_package_from_intent(
     local_publication: bool,
     framework_wheelhouse: Path | None,
     builder: str | None,
+    backend_source: Path | None,
 ) -> PlannedJobPackage:
     layout = intent.layout
     local_config = _with_registry_override(
-        load_local_execution_config(layout, env_file=env_file),
+        # Candidate work can republish one selected runtime while unrelated
+        # variants still carry the previous release locks. The selected image
+        # and lock are verified below and again before packaging; unrelated
+        # stale variants must not block this recovery path.
+        load_local_execution_config(
+            layout,
+            env_file=env_file,
+            verify_published_locks=False,
+        ),
         registry_prefix,
         project_id=layout.project_id,
     )
@@ -882,6 +919,7 @@ def _plan_job_package_from_intent(
             layout,
             job_kind=prepared.recipe_job.kind,
             runtime_variant=inferred_variant,
+            required_runtime_variables=required_runtime_variables(prepared.seats),
         ),
     )
     if settings.target is not None:
@@ -937,6 +975,12 @@ def _plan_job_package_from_intent(
         profile,
         settings.runtime_profile,
     )
+    backend_source_request = _backend_source_request(backend_source, runtime_variant)
+    if backend_source_request is not None and settings.provider != "local":
+        raise ContractError("--backend-source is a local-executor development option")
+    backend_inspection = (
+        inspector.inspect_details(backend_source_request) if backend_source_request is not None else None
+    )
     backend_runtime_identity = _backend_runtime_identity(registry, runtime_variant)
     _validate_backend_runtime_selection(prepared, runtime_variant, backend_runtime_identity)
     if not isinstance(catalog.family_registry_lock, FamilyRegistryLock):
@@ -952,6 +996,7 @@ def _plan_job_package_from_intent(
         family_registry_lock=catalog.family_registry_lock.to_payload(),
         project_root=layout.root,
         backend_runtime_identity=backend_runtime_identity,
+        backend_source_digest=(backend_inspection.digest if backend_inspection is not None else None),
     )
     target = _execution_target(prepared)
     if settings.runtime_profile is None:
@@ -981,6 +1026,7 @@ def _plan_job_package_from_intent(
         framework_source_inspection=framework_inspection,
         dataset_source_estimates=_dataset_source_estimates(layout.root, pack_plan),
         builder_override=_validate_builder_override(builder),
+        backend_source_request=backend_source_request,
     )
 
 
@@ -1121,6 +1167,31 @@ def _framework_source_request(configured_root: Path | None) -> SourceSnapshotReq
         includes=tuple(sorted(_FRAMEWORK_SOURCE_INCLUDES)),
         install_roots=tuple(sorted(_FRAMEWORK_INSTALL_ROOTS)),
     )
+
+
+def _backend_source_request(root: Path | None, runtime_variant: str) -> SourceSnapshotRequest | None:
+    """Select one local backend checkout for a daemon-only development capsule."""
+
+    if root is None:
+        return None
+    if not runtime_variant.startswith(("online-rl-trl-", "online-rl-verl-")):
+        raise ContractError("--backend-source requires a TRL or veRL online-RL runtime")
+    selected = root.resolve()
+    if not selected.is_dir() or not (selected / "pyproject.toml").is_file():
+        raise ContractError("--backend-source must name a checkout root with pyproject.toml")
+    # Backend checkouts often carry editor/agent instructions as root symlinks.
+    # They are neither importable package code nor safe capsule input. Exclude
+    # only those named metadata paths; a symlink anywhere in candidate runtime
+    # source still fails closed in ImmutableSourceSnapshotter.
+    metadata = {".ai", ".cursor", ".git", "AGENTS.md", "CLAUDE.md"}
+    includes: list[str] = []
+    for child in selected.iterdir():
+        if child.name in metadata:
+            continue
+        if child.is_symlink():
+            raise ContractError(f"--backend-source contains an unsupported root symlink: {child.name}")
+        includes.append(child.name)
+    return SourceSnapshotRequest(root=selected, includes=tuple(sorted(includes)), install_roots=(".",))
 
 
 def _bake_file(registry: RegistryBinding) -> Path:
@@ -1265,6 +1336,7 @@ def _job_defaults(
     *,
     job_kind: str | None = None,
     runtime_variant: str | None = None,
+    required_runtime_variables: tuple[str, ...] = (),
 ) -> ExecutionOverrides:
     environment_names: tuple[str, ...] = ()
     if layout.tracking == "trackio":
@@ -1274,6 +1346,7 @@ def _job_defaults(
         )
     elif layout.tracking == "wandb":
         environment_names = ("WANDB_API_KEY", "WANDB_ENTITY")
+    environment_names = tuple(dict.fromkeys((*environment_names, *required_runtime_variables)))
     return ExecutionOverrides(
         provider="local",
         runtime_profile=_runtime_profile_for_job_kind(
@@ -1287,6 +1360,66 @@ def _job_defaults(
     )
 
 
+def required_runtime_variables(seats: Mapping[str, object]) -> tuple[str, ...]:
+    """Return secret names required by resolved external services, never values."""
+
+    return tuple(
+        dict.fromkeys(
+            selection.service.api_key_var
+            for selection in seats.values()
+            if isinstance(selection, HostedInferenceBinding)
+        )
+    )
+
+
+def runtime_credential_status(
+    package: PlannedJobPackage,
+    *,
+    provider: str | None = None,
+) -> dict[str, Literal["configured", "unavailable"]]:
+    """Report required external-service credential presence without values."""
+
+    return runtime_credential_status_for_seats(
+        package.local_config,
+        package.prepared.seats,
+        provider=provider or package.local_config.defaults.provider,
+    )
+
+
+def runtime_credential_status_for_seats(
+    local_config: LocalExecutionConfig,
+    seats: Mapping[str, object],
+    *,
+    provider: str | None = None,
+) -> dict[str, Literal["configured", "unavailable"]]:
+    required = required_runtime_variables(seats)
+    environment = load_execution_environment(
+        local_config,
+        runtime_variable_names=required,
+    )
+    native_secret_names = (
+        local_config.dstack.runtime_secrets if provider == "dstack" and local_config.dstack is not None else {}
+    )
+    return {
+        name: "configured" if bool(environment.get(name)) or name in native_secret_names else "unavailable"
+        for name in required
+    }
+
+
+def _require_runtime_credentials(package: PlannedJobPackage, *, provider: str) -> None:
+    unavailable = [
+        name
+        for name, status in runtime_credential_status(package, provider=provider).items()
+        if status == "unavailable"
+    ]
+    if unavailable:
+        raise ContractError(
+            "required runtime credentials are unavailable: "
+            + ", ".join(unavailable)
+            + "; configure a protected job value, machine credential source, or provider-native secret before packing"
+        )
+
+
 def _runtime_profile_for_job_kind(
     job_kind: str | None,
     *,
@@ -1297,7 +1430,7 @@ def _runtime_profile_for_job_kind(
 
 
 def _kind_profile(job_kind: str | None) -> str:
-    if job_kind in {"train.grpo", "train.sampo", "train.distill"}:
+    if job_kind in {"train.grpo", "train.sampo", "train.gdpo", "train.capo", "train.distill"}:
         return "online-rl"
     if job_kind in {"eval.general", "eval.domain"}:
         return "eval"

@@ -12,7 +12,7 @@ import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Literal
 
@@ -262,6 +262,10 @@ def emit_parameter_counts(context: RunContext, model: Any, update: ParameterUpda
 
 def emit_runtime_versions(context: RunContext, imports: dict[str, Any]) -> None:
     torch = imports["torch"]
+    try:
+        bitsandbytes_version = version("bitsandbytes")
+    except PackageNotFoundError:
+        bitsandbytes_version = None
     context.event(
         "training_runtime_resolved",
         {
@@ -270,7 +274,7 @@ def emit_runtime_versions(context: RunContext, imports: dict[str, Any]) -> None:
             "transformers": version("transformers"),
             "trl": version("trl"),
             "peft": version("peft"),
-            "bitsandbytes": version("bitsandbytes"),
+            "bitsandbytes": bitsandbytes_version,
             "datasets": version("datasets"),
             "cuda": str(torch.version.cuda),
         },
@@ -377,10 +381,11 @@ def checkpoint_callback_type(
     imports: Mapping[str, Any],
     *,
     model: ModelVariant,
-    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "gdpo", "capo", "distill"],
     settings: Any,
     update: ParameterUpdatePlan,
     workspace: Path,
+    reward_contract: str | None = None,
 ) -> type[Any]:
     """Create a callback that publishes both views after a trainer save.
 
@@ -407,6 +412,10 @@ def checkpoint_callback_type(
                 context.event("checkpoint_publication_unavailable", {"technique": technique, "global_step": step})
                 return control
             checkpoint = Path(latest).resolve()
+            if reward_contract is not None:
+                from ...reward_recovery import retain_reward_contract
+
+                retain_reward_contract(checkpoint, reward_contract)
             publish_checkpoint_views(
                 context,
                 checkpoint,
@@ -491,7 +500,7 @@ def publish_checkpoint_views(
     checkpoint: Path,
     *,
     model: ModelVariant,
-    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "gdpo", "capo", "distill"],
     settings: Any,
     update: ParameterUpdatePlan,
     workspace: Path,
@@ -562,14 +571,19 @@ def trainer_lifecycle(trainer: Any) -> Iterator[None]:
     try:
         yield
     finally:
-        trainer.accelerator.end_training()
+        runtime = getattr(trainer, "_posttrain_async_collection_runtime", None)
+        try:
+            if runtime is not None:
+                runtime.close()
+        finally:
+            trainer.accelerator.end_training()
 
 
 def publish_interrupted_recovery_checkpoint(
     context: RunContext,
     trainer: Any,
     *,
-    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "gdpo", "capo", "distill"],
     model: ModelVariant,
     settings: Any,
     update: ParameterUpdatePlan,
@@ -600,7 +614,7 @@ def preserve_recovery_checkpoint_after_error(
     trainer: Any,
     error: BaseException,
     *,
-    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "gdpo", "capo", "distill"],
     model: ModelVariant,
     settings: Any,
     update: ParameterUpdatePlan,
@@ -642,7 +656,7 @@ def finish_training(
     train_output: Any,
     tokenizer: Any,
     workspace: Path,
-    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "distill"],
+    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "gdpo", "capo", "distill"],
     update: ParameterUpdatePlan,
     imports: dict[str, Any],
 ) -> BackendTrainingResult:

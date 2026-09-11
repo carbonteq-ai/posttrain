@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
+import math
 import os
 import re
 from collections.abc import Mapping, Sequence
@@ -91,12 +93,18 @@ class TrackioSettings:
     auto_log_cpu: bool = False
     gpu_log_interval: float = 1.0
     cpu_log_interval: float = 5.0
+    artifact_publication_timeout_seconds: float = 600.0
 
     def __post_init__(self) -> None:
         if self.gpu_log_interval <= 0:
             raise ValueError("Trackio GPU log interval must be positive")
         if self.cpu_log_interval <= 0:
             raise ValueError("Trackio CPU log interval must be positive")
+        if (
+            not math.isfinite(self.artifact_publication_timeout_seconds)
+            or self.artifact_publication_timeout_seconds <= 0
+        ):
+            raise ValueError("Trackio artifact publication timeout must be a finite positive number")
 
 
 def require_remote_trackio_ready(
@@ -252,7 +260,14 @@ def _trackio_trace_facts(
 class TrackioTrackedRun:
     """One open Trackio run with retry-safe canonical finalization."""
 
-    def __init__(self, run: TrackioSDKRun, project: str, spec: RunSpec) -> None:
+    def __init__(
+        self,
+        run: TrackioSDKRun,
+        project: str,
+        spec: RunSpec,
+        *,
+        artifact_publication_timeout_seconds: float = 600.0,
+    ) -> None:
         self._run = run
         self._project = project
         self._spec = spec
@@ -260,6 +275,7 @@ class TrackioTrackedRun:
         self._last_metric_step: int | None = None
         self._published_artifacts: list[PublishedArtifact] = []
         self._pending_artifacts: list[tuple[ProducedArtifact, trackio.Artifact]] = []
+        self._artifact_publication_timeout_seconds = artifact_publication_timeout_seconds
 
     @property
     def run_id(self) -> str:
@@ -413,16 +429,25 @@ class TrackioTrackedRun:
             },
         )
         logged.add_dir(path) if path.is_dir() else logged.add_file(path)
+        log_artifact = cast(Any, self._run).log_artifact
+        supports_queue_timeout = "queue_timeout" in inspect.signature(log_artifact).parameters
         try:
-            committed = cast(Any, self._run).log_artifact(logged, background=True)
+            if supports_queue_timeout:
+                committed = log_artifact(
+                    logged,
+                    background=True,
+                    queue_timeout=self._artifact_publication_timeout_seconds,
+                )
+            else:
+                committed = log_artifact(logged, background=True)
         except RuntimeError as error:
             if "artifact publication queue is full" not in str(error):
                 raise
-            # Background publication is intentionally bounded. Drain completed
-            # work before retrying so a short remote backlog does not turn an
-            # otherwise valid training result into a queue-overflow failure.
-            self.flush_artifacts(timeout=30)
-            committed = cast(Any, self._run).log_artifact(logged, background=True)
+            # Compatibility path for the previously released Trackio client.
+            # The current client waits for one queue slot itself; the old API
+            # can only drain before retrying.
+            self.flush_artifacts(timeout=self._artifact_publication_timeout_seconds)
+            committed = log_artifact(logged, background=True)
         except TypeError as error:
             if "background" not in str(error):
                 raise
@@ -469,9 +494,11 @@ class TrackioTrackedRun:
             return ()
         committed: list[PublishedArtifact] = []
         remaining: list[tuple[ProducedArtifact, trackio.Artifact]] = []
+        deadline = None if timeout is None else monotonic() + timeout
         for artifact, handle in self._pending_artifacts:
             try:
-                handle.wait(timeout=None if timeout is None else max(0, int(timeout)))
+                remaining_timeout = None if deadline is None else max(0, int(deadline - monotonic()))
+                handle.wait(timeout=remaining_timeout)
             except TimeoutError:
                 remaining.append((artifact, handle))
                 raise
@@ -483,14 +510,18 @@ class TrackioTrackedRun:
 
     def flush_artifacts(self, timeout: float | None = None) -> tuple[PublishedArtifact, ...]:
         """Drain queued Trackio publications before evidence reconciliation."""
+        if timeout is None:
+            timeout = self._artifact_publication_timeout_seconds
+        deadline = None if timeout is None else monotonic() + timeout
         flusher = getattr(self._run, "flush_artifacts", None)
         if callable(flusher):
             flusher(timeout=timeout)
-        return self._flush_pending_artifacts(timeout)
+        remaining_timeout = None if deadline is None else max(0.0, deadline - monotonic())
+        return self._flush_pending_artifacts(remaining_timeout)
 
     def published_artifacts(self) -> tuple[PublishedArtifact, ...]:
         """Return only identities committed after an explicit bounded drain."""
-        self.flush_artifacts(timeout=30)
+        self.flush_artifacts(timeout=self._artifact_publication_timeout_seconds)
         return tuple(self._published_artifacts)
 
     def finish(self, outcome: RunOutcome) -> None:
@@ -498,7 +529,13 @@ class TrackioTrackedRun:
             if self._outcome == outcome:
                 return
             raise ContractError("Trackio run was already finalized with a different outcome")
-        self.flush_artifacts(timeout=30)
+        artifact_error: Exception | None = None
+        try:
+            self.flush_artifacts(timeout=self._artifact_publication_timeout_seconds)
+        except Exception as error:
+            if outcome.status in {"succeeded", "partial"}:
+                raise
+            artifact_error = error
         values: dict[str, Any] = {
             "run/status": outcome.status,
             "run/started_at": outcome.started_at.isoformat(),
@@ -508,8 +545,18 @@ class TrackioTrackedRun:
             values["run/error_type"] = outcome.error.type
             values["run/error_message"] = outcome.error.message
         self._run.log(values)
+        if artifact_error is not None:
+            # Failure evidence must become queryable even when an output
+            # artifact cannot be published. Trackio's ordinary finish path
+            # drains artifacts first, so explicitly flush the terminal metric
+            # before asking it to stop its background workers.
+            flush = getattr(self._run, "flush", None)
+            if callable(flush):
+                flush()
         self._run.finish()
         self._outcome = outcome
+        if artifact_error is not None:
+            raise artifact_error
 
 
 class TrackioBackend:
@@ -544,6 +591,9 @@ class TrackioBackend:
     ) -> TrackioTrackedRun:
         started_at = started_at or datetime.now(UTC)
         project = self.settings.project or spec.project_id
+        init_arguments: dict[str, Any] = {}
+        if "artifact_finish_timeout" in inspect.signature(trackio.init).parameters:
+            init_arguments["artifact_finish_timeout"] = self.settings.artifact_publication_timeout_seconds
         run = trackio.init(
             project=project,
             name=f"{spec.job_kind}-{spec.run_id if full_run_name else spec.run_id[:8]}",
@@ -556,8 +606,14 @@ class TrackioBackend:
             gpu_log_interval=self.settings.gpu_log_interval,
             auto_log_cpu=self.settings.auto_log_cpu if resume == "never" else False,
             cpu_log_interval=self.settings.cpu_log_interval,
+            **init_arguments,
         )
-        return TrackioTrackedRun(run, project, spec)
+        return TrackioTrackedRun(
+            run,
+            project,
+            spec,
+            artifact_publication_timeout_seconds=self.settings.artifact_publication_timeout_seconds,
+        )
 
 
 class TrackioCancelledRunRecovery:

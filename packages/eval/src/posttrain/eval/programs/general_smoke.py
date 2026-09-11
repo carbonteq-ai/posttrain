@@ -12,9 +12,9 @@ from ..requests import (
     VerifiersV1ConfigActivation,
 )
 
-VERIFIERS_REVISION = "284a868d6a9022109b749710672a0460e8a996d4"
-VERIFIERS_REPOSITORY = "https://github.com/PrimeIntellect-ai/verifiers"
-ENVIRONMENTS_REVISION = "b7bcb591facfcd2b073802f6d7496b24ab9c479e"
+VERIFIERS_REVISION = "1f6793f7d46e8a650a54b2a585193b4010578fa6"
+VERIFIERS_REPOSITORY = "https://github.com/carbonteq-ai/verifiers"
+ENVIRONMENTS_REVISION = "1181585ea66c6f89432864a476b5110794afc9fe"
 ENVIRONMENTS_REPOSITORY = "https://github.com/carbonteq-ai/verifiers-environments"
 
 
@@ -31,8 +31,11 @@ GSM8K_ACTIVATION = _activation(
             "dataset_config": "main",
             "split": "test",
         },
-        "harness": {"id": "null", "runtime": {"type": "subprocess"}},
-        "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+        "agent": {
+            "harness": {"id": "null"},
+            "runtime": {"type": "subprocess"},
+            "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+        },
     }
 )
 
@@ -45,45 +48,54 @@ GSM8K_TRAIN_ACTIVATION = _activation(
             "dataset_config": "main",
             "split": "train",
         },
-        "harness": {"id": "null", "runtime": {"type": "subprocess"}},
-        "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+        "agent": {
+            "harness": {"id": "null"},
+            "runtime": {"type": "subprocess"},
+            "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+        },
     }
 )
 
 REVERSE_TEXT_ACTIVATION = _activation(
     {
         "taskset": {
-            "id": "reverse-text-v1",
+            "id": "reverse-text",
             "dataset_name": "PrimeIntellect/Reverse-Text-RL",
             "dataset_split": "train",
         },
-        "harness": {"id": "null", "runtime": {"type": "subprocess"}},
-        "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+        "agent": {
+            "harness": {"id": "null"},
+            "runtime": {"type": "subprocess"},
+            "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+        },
     }
 )
 
 CODE_GOLF_ACTIVATION = _activation(
     {
-        "taskset": {"id": "code-golf-v1"},
-        "harness": {
-            "id": "null",
+        "taskset": {"id": "code-golf"},
+        "agent": {
+            "harness": {"id": "null"},
             "runtime": {"type": "docker", "image": "lab/verifiers-runtime:vf-284a868d"},
+            "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
         },
-        "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
     }
 )
 
 ALPHABET_SORT_ACTIVATION = _activation(
     {
         "taskset": {
-            "id": "alphabet-sort-v1",
+            "id": "alphabet-sort",
             "min_turns": 2,
             "max_turns": 3,
             "min_names_per_turn": 2,
             "max_names_per_turn": 4,
         },
-        "harness": {"id": "null", "runtime": {"type": "subprocess"}},
-        "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+        "agent": {
+            "harness": {"id": "null"},
+            "runtime": {"type": "subprocess"},
+            "timeout": {"setup": 120, "rollout": 180, "finalize": 60, "scoring": 120},
+        },
     }
 )
 
@@ -121,7 +133,7 @@ GENERAL_SMOKE = EvaluationPlan(
         EnvironmentBinding(
             id="instruction-reverse-text",
             category="instruction-following",
-            source=_source("reverse-text-v1", "environments/reverse_text_v1"),
+            source=_source("reverse-text", "environments/reverse_text"),
             activation=REVERSE_TEXT_ACTIVATION,
             sampling=SamplingPolicy(max_tokens=1_024),
             num_tasks=8,
@@ -129,7 +141,7 @@ GENERAL_SMOKE = EvaluationPlan(
         EnvironmentBinding(
             id="code-execution",
             category="code-generation",
-            source=_source("code-golf-v1", "environments/code_golf_v1"),
+            source=_source("code-golf", "environments/code_golf"),
             activation=CODE_GOLF_ACTIVATION,
             sampling=SamplingPolicy(max_tokens=4_096),
             num_tasks=3,
@@ -139,7 +151,7 @@ GENERAL_SMOKE = EvaluationPlan(
         EnvironmentBinding(
             id="multi-turn-alphabet-sort",
             category="multi-turn-state",
-            source=_source("alphabet-sort-v1", "environments/alphabet_sort_v1"),
+            source=_source("alphabet-sort", "environments/alphabet_sort"),
             activation=ALPHABET_SORT_ACTIVATION,
             sampling=SamplingPolicy(max_tokens=2_048),
             num_tasks=4,

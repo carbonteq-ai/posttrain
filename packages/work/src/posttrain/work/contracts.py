@@ -35,6 +35,8 @@ type JobKind = Literal[
     "train.dpo",
     "train.grpo",
     "train.sampo",
+    "train.gdpo",
+    "train.capo",
     "train.distill",
     "model.transform",
 ]
@@ -56,6 +58,8 @@ _JOB_KINDS = frozenset(
         "train.dpo",
         "train.grpo",
         "train.sampo",
+        "train.gdpo",
+        "train.capo",
         "train.distill",
         "model.transform",
     }

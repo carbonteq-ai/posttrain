@@ -367,13 +367,13 @@ def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
     assert "--no-cache" not in build
     assert (
         "posttrain-job.output=type=image,push=true,compression=zstd,"
-        "compression-level=3,force-compression=false,oci-mediatypes=true"
+        "compression-level=1,force-compression=false,oci-mediatypes=true"
     ) in build
-    assert ("--provenance", "mode=max") == (
+    assert ("--provenance", "false") == (
         build[build.index("--provenance")],
         build[build.index("--provenance") + 1],
     )
-    assert ("--sbom", "true") == (
+    assert ("--sbom", "false") == (
         build[build.index("--sbom")],
         build[build.index("--sbom") + 1],
     )
@@ -390,6 +390,30 @@ def test_publisher_checks_smokes_pushes_verifies_and_reuses_receipt(
     ):
         assert variable in build
     assert sum(call[:2] == ("imagetools", "inspect") for call in gateway.calls) == 5
+
+
+def test_publisher_forwards_explicit_attestation_opt_in(tmp_path: Path) -> None:
+    gateway = FakeBuildx()
+    request = _request(tmp_path)
+    request = replace(
+        request,
+        publication=replace(
+            request.publication,
+            compression_level=3,
+            provenance=True,
+            sbom=True,
+        ),
+    )
+    BuildKitJobImagePublisher(
+        bake_file=_definition(tmp_path),
+        receipt_root=(tmp_path / "receipts").resolve(),
+        gateway=gateway,
+    ).publish(request)
+
+    build = next(call for call in gateway.calls if "--metadata-file" in call)
+    assert "compression-level=3" in next(value for value in build if value.startswith("posttrain-job.output="))
+    assert build[build.index("--provenance") + 1] == "mode=max"
+    assert build[build.index("--sbom") + 1] == "true"
 
 
 def test_publisher_recovers_a_matching_remote_tag_without_rebuilding(tmp_path: Path) -> None:
@@ -640,12 +664,17 @@ def test_changed_build_definition_cannot_reuse_receipt(
         ).publish(request)
 
 
-def test_publication_requires_attestations() -> None:
-    with pytest.raises(ContractError, match="provenance and an SBOM"):
-        ImagePublicationSpec(
-            "registry.lan/carbonteq/posttrain-job",
-            provenance=False,
-        )
+def test_publication_defaults_to_fast_push_and_allows_attestation_opt_in() -> None:
+    default = ImagePublicationSpec("registry.lan/carbonteq/posttrain-job")
+    attested = ImagePublicationSpec(
+        "registry.lan/carbonteq/posttrain-job",
+        compression_level=3,
+        provenance=True,
+        sbom=True,
+    )
+
+    assert (default.compression_level, default.provenance, default.sbom) == (1, False, False)
+    assert (attested.compression_level, attested.provenance, attested.sbom) == (3, True, True)
 
 
 def test_every_bake_call_may_read_the_context_and_the_definitions(tmp_path: Path) -> None:

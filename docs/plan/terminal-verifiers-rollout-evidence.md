@@ -60,7 +60,7 @@ This work repairs implementation conformance with `docs/post-training/06-observa
   Evidence: `packages/train/src/posttrain/train/integrations/verifiers.py` currently calls `_project()` before `_preserve()` and `on_completed()`. A terminal Verifiers trace with zero trainable branches therefore disappears before either native or provider evidence is written.
 
 - Observation: TRL's callback is typed around `EnvironmentRollout`, so its observation contract cannot represent a failed terminal trace without first pretending that failure is training data.
-  Evidence: `packages/train/src/posttrain/train/online_rl.py` defines `AsyncRolloutCompletionObserver` over `EnvironmentRollout`; `packages/train/src/posttrain/train/backends/trl/grpo.py` derives `TraceObservation` only from that projected rollout.
+  Evidence: `packages/train/src/posttrain/train/online_rl.py` defines `AsyncRolloutCompletionObserver` over `EnvironmentRollout`; `packages/train/src/posttrain/train/backends/trl/policy_optimization.py` derives `TraceObservation` only from that projected rollout.
 
 - Observation: veRL successful traces are written by isolated Ray workers, but live provider ingestion does not occur while the subprocess runs.
   Evidence: `PosttrainVerifiersAgentLoop.run()` calls `bridge.run()` without an observer. The parent `_launch()` blocks in `process.wait()`. Host finalization replays the JSONL only after success or failure.
@@ -231,7 +231,7 @@ The shared Verifiers implementation is `packages/train/src/posttrain/train/integ
 
 “Terminal trace” in this plan means a native Verifiers trace object returned by an environment episode. A terminal trace can be successful, semantically wrong, truncated, unscorable, or failed. “Trainable rollout” means a terminal trace that passes projection: it has a valid sampled branch, aligned tokens and log probabilities, an algorithm-acceptable reward, and the required masks. Evidence recording happens for every terminal trace. Training projection happens only for eligible traces.
 
-The TRL adapter is `packages/train/src/posttrain/train/backends/trl/grpo.py`. Its `rollout_func` invokes `run_observed_rollouts()`, currently receives projected `EnvironmentRollout` objects, and calls `RunContext.trace()`. The selected Trackio adapter turns this call into a bounded local submission; network persistence is asynchronous inside the Trackio client. TRL must not wait on remote persistence, but it must know whether local submission accepted the record.
+The TRL adapter is `packages/train/src/posttrain/train/backends/trl/policy_optimization.py`. Its `rollout_func` invokes `run_observed_rollouts()`, currently receives projected `EnvironmentRollout` objects, and calls `RunContext.trace()`. The selected Trackio adapter turns this call into a bounded local submission; network persistence is asynchronous inside the Trackio client. TRL must not wait on remote persistence, but it must know whether local submission accepted the record.
 
 The veRL adapter is under `packages/train/src/posttrain/train/backends/verl/`. `agent_loop.py` runs one Verifiers episode for a veRL dataset row and returns an `AgentLoopOutput`. `worker.py` starts the native veRL trainer inside an isolated Python environment. `launcher.py` runs that worker as a subprocess from the Posttrain host. The isolated environment deliberately strips `TRACKIO_*` and `WANDB_*` variables. The bridge snapshot contains an absolute trace path inside the mounted run workspace; multiple Ray processes append records with `fcntl` locking.
 
@@ -293,7 +293,7 @@ Do not send failed traces into `EnvironmentRollout`, TRL's result dict, veRL's `
 
 ### Milestone 3: make TRL stream terminal traces correctly
 
-In `packages/train/src/posttrain/train/backends/trl/grpo.py`, change the observer closure to accept `TraceObservation` directly. Add TRL-owned attributes such as algorithm, policy variant, settings id, optimizer step, and rollout-batch ordinal without changing the native payload or external id. Call `RunContext.trace()` through the shared async helper.
+In `packages/train/src/posttrain/train/backends/trl/policy_optimization.py`, change the observer closure to accept `TraceObservation` directly. Add TRL-owned attributes such as algorithm, policy variant, settings id, optimizer step, and rollout-batch ordinal without changing the native payload or external id. Call `RunContext.trace()` through the shared async helper.
 
 Preserve the existing batch-level time, token-throughput, truncation, and selected-token metrics after a successful rollout batch. On failure, let bridge evidence finalization supply terminal population counters. Update `packages/train/src/posttrain/train/api.py` so `_publish_bridge_artifacts()` knows whether it is finalizing a successful or failed backend execution. Apply `_rollout_replay_exclusions()` only after a successful TRL batch emitted its live population metrics; do not exclude the bridge-derived failure counters in the exception path.
 

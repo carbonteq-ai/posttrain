@@ -17,12 +17,15 @@ FULL_REVISION = re.compile(r"^[0-9a-f]{40}$")
 FORBIDDEN_PACKAGES = frozenset(
     {
         "alphabet-sort-v1",
+        "alphabet-sort",
         "automation-bench",
         "automationbench",
         "automationbench-v1",
         "code-golf-v1",
+        "code-golf",
         "gsm8k-v1",
         "reverse-text-v1",
+        "reverse-text",
     }
 )
 REQUIRED_PROFILE = "online-rl-verl-py313"
@@ -337,6 +340,8 @@ def validate_repository_integration(
             ("fail-closed fallback validation", "--fallback-file"),
             ("reproducible Python bytecode epoch", 'SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH}"'),
             ("cache-independent uv installation", 'UV_LINK_MODE="copy"'),
+            ("persistent pinned-wheel cache", "id=posttrain-verl-wheels"),
+            ("fail-closed wheel cache validation", "sha256sum --check --status"),
             (
                 "pinned CUTLASS base wheel",
                 "e59da7d89e5e4f8514c6530843f910f9d8734d8042dcaa079c9d9c5063eb3514",

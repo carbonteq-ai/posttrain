@@ -3,9 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
+import pytest
 from posttrain.catalog import load_project_layout
 from posttrain.execution import JobPackageManifest, RuntimeImageRef
-from posttrain.execution_pack import ImagePublicationSpec, PackageMaterializationRecord, PublishedJobImage
+from posttrain.execution_pack import (
+    ImagePublicationSpec,
+    PackageMaterializationRecord,
+    PublishedJobImage,
+    publication_key_for,
+)
 from posttrain_cli.execution_planning import PlannedJobPackage
 from posttrain_cli.package_history import retained_packages
 
@@ -113,6 +119,7 @@ def test_published_pack_reuses_record_without_materializing_context(tmp_path: Pa
         (),
         {
             "layout": layout,
+            "project_config_digest": "a" * 64,
             "pack_plan": type("Plan", (), {"plan_key": "f" * 64, "publication": publication})(),
             "_publisher": lambda self: Publisher(),
             "materialize": lambda self: (_ for _ in ()).throw(AssertionError("materialization was not skipped")),
@@ -124,3 +131,52 @@ def test_published_pack_reuses_record_without_materializing_context(tmp_path: Pa
     assert packed.image.cache_hit
     assert packed.context.manifest == manifest
     assert not packed.context.root.exists()
+
+
+def test_published_pack_does_not_reuse_record_after_project_config_changes(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    layout = load_project_layout(root)
+    manifest = JobPackageManifest(
+        project_id="project",
+        work_package_id="work",
+        job_id="job",
+        job_definition_id="definition",
+        job_kind="train.sft",
+        resolved_inputs_digest="a" * 64,
+        framework_source_digest="a" * 64,
+        project_source_digest="a" * 64,
+        runtime_dependencies_digest="a" * 64,
+        code_requirements_digest="a" * 64,
+        resolved_config_digest="a" * 64,
+        project_config_digest="a" * 64,
+        universal_image=RuntimeImageRef(f"registry.example/base@sha256:{'b' * 64}"),
+        kind_image=RuntimeImageRef(f"registry.example/kind@sha256:{'c' * 64}"),
+        runtime_variant="supervised",
+    )
+    publication = ImagePublicationSpec("registry.example/posttrain-job")
+    publication_key = publication_key_for(manifest, publication)
+    record = PackageMaterializationRecord(
+        package_key=manifest.package_key,
+        context_digest="d" * 64,
+        publication_key=publication_key,
+        manifest=manifest,
+        plan_key="f" * 64,
+    )
+    records = root / ".posttrain" / "state" / "packages" / "materializations"
+    records.mkdir(parents=True)
+    records.joinpath(f"{manifest.package_key}.json").write_bytes(record.to_bytes())
+
+    stale = type(
+        "FakePlannedPackage",
+        (),
+        {
+            "layout": layout,
+            "project_config_digest": "9" * 64,
+            "pack_plan": type("Plan", (), {"plan_key": "f" * 64, "publication": publication})(),
+            "_publisher": lambda self: (_ for _ in ()).throw(AssertionError("stale record reached publisher")),
+            "materialize": lambda self: (_ for _ in ()).throw(RuntimeError("fresh materialization required")),
+        },
+    )()
+
+    with pytest.raises(RuntimeError, match="fresh materialization required"):
+        PlannedJobPackage.pack(cast(PlannedJobPackage, stale))

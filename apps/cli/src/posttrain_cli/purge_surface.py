@@ -74,7 +74,7 @@ def candidate_catalog(
             try:
                 payload = json.loads(snapshot.read_text(encoding="utf-8"))
                 if isinstance(payload, dict):
-                    reconciled = payload.get("state") == "consistent"
+                    reconciled = _reconciliation_allows_purge(payload)
                     value = payload.get("tracking_provider_run_id")
                     tracking_provider_run_id = value if isinstance(value, str) else None
             except (OSError, json.JSONDecodeError):
@@ -122,6 +122,32 @@ def candidate_catalog(
         )
     _populate_trackio_lineage(layout, candidates, discover_run_ids=discover_lineage_for)
     return candidates
+
+
+def _reconciliation_allows_purge(payload: dict[str, Any]) -> bool:
+    """Prove both run authorities are terminal without erasing diagnostics.
+
+    Provider cleanup can report ``cancelled`` after Trackio has already
+    finalized the workload as ``failed`` (or the inverse).  That outcome
+    disagreement must remain visible in reconciliation, but it is not an
+    in-flight-state ambiguity: both authorities are terminal and the exact
+    Trackio run is known.  Purge may therefore proceed through its independent
+    ownership and lineage gates.  Successful, lost, partial, or unidentified
+    disagreements remain fail-closed.
+    """
+
+    if payload.get("state") == "consistent":
+        return True
+    provider_record = payload.get("provider_record")
+    provider_state = provider_record.get("state") if isinstance(provider_record, dict) else None
+    tracking_provider_run_id = payload.get("tracking_provider_run_id")
+    return (
+        payload.get("state") == "inconsistent"
+        and provider_state in {"failed", "cancelled"}
+        and payload.get("tracking_status") in {"failed", "cancelled"}
+        and isinstance(tracking_provider_run_id, str)
+        and bool(tracking_provider_run_id.strip())
+    )
 
 
 def _completed_purge_planes(

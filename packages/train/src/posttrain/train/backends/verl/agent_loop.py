@@ -3,16 +3,27 @@
 from __future__ import annotations
 
 import json
+import math
 import os
+from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal, cast
 from uuid import uuid4
 
 from ...integrations.verifiers import load_verifiers_bridge_snapshot
-from ...online_rl import EnvironmentRollout, PolicyTurnRequest, PolicyTurnResult, RolloutBatch
+from ...online_rl import (
+    BehaviorPolicySpan,
+    EnvironmentRollout,
+    PolicySampling,
+    PolicyTurnRequest,
+    PolicyTurnResult,
+    RolloutBatch,
+)
+from ...policy_messages import parsed_policy_message
 from ...profiles import shape_soft_overlong_reward
-from .reward_fields import streaming_reward_extra_info, training_response_mask
+from .reward_fields import streaming_reward_extra_info, structured_reward_metadata, training_response_mask
 
 try:
     from verl.experimental.agent_loop.agent_loop import (  # pyright: ignore[reportMissingImports]
@@ -24,16 +35,137 @@ except ImportError as error:  # pragma: no cover - imported only by the isolated
     raise RuntimeError("PosttrainVerifiersAgentLoop must run inside the pinned veRL environment") from error
 
 
+_SAMPLING_OVERRIDE_KEYS = frozenset(
+    {
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
+        "repetition_penalty",
+        "presence_penalty",
+        "logprobs",
+    }
+)
+
+
+def _number(value: Any, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        raise ValueError(f"veRL sampling override {name!r} must be a finite number")
+    return float(value)
+
+
+def _validated_sampling_overrides(overrides: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate native veRL sampling controls before they reach a rollout server."""
+    unknown = set(overrides).difference(_SAMPLING_OVERRIDE_KEYS)
+    if unknown:
+        raise ValueError(f"unsupported veRL sampling overrides: {', '.join(sorted(unknown))}")
+    result: dict[str, Any] = {}
+    if "max_tokens" in overrides:
+        value = overrides["max_tokens"]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError("veRL sampling override 'max_tokens' must be a positive integer")
+        result["max_tokens"] = value
+    if "temperature" in overrides:
+        value = _number(overrides["temperature"], "temperature")
+        if value < 0:
+            raise ValueError("veRL sampling override 'temperature' cannot be negative")
+        result["temperature"] = value
+    if "top_p" in overrides:
+        value = _number(overrides["top_p"], "top_p")
+        if not 0 < value <= 1:
+            raise ValueError("veRL sampling override 'top_p' must be in (0, 1]")
+        result["top_p"] = value
+    if "top_k" in overrides:
+        value = overrides["top_k"]
+        if isinstance(value, bool) or not isinstance(value, int) or value < -1:
+            raise ValueError("veRL sampling override 'top_k' must be an integer greater than or equal to -1")
+        result["top_k"] = value
+    if "min_p" in overrides:
+        value = overrides["min_p"]
+        if value is not None:
+            value = _number(value, "min_p")
+            if not 0 <= value <= 1:
+                raise ValueError("veRL sampling override 'min_p' must be in [0, 1]")
+        result["min_p"] = value
+    if "repetition_penalty" in overrides:
+        value = _number(overrides["repetition_penalty"], "repetition_penalty")
+        if value <= 0:
+            raise ValueError("veRL sampling override 'repetition_penalty' must be positive")
+        result["repetition_penalty"] = value
+    if "presence_penalty" in overrides:
+        value = _number(overrides["presence_penalty"], "presence_penalty")
+        if not -2 <= value <= 2:
+            raise ValueError("veRL sampling override 'presence_penalty' must be in [-2, 2]")
+        result["presence_penalty"] = value
+    if "logprobs" in overrides and overrides["logprobs"] is not True:
+        raise ValueError("veRL Verifiers rollouts require logprobs=true")
+    return result
+
+
+def _effective_sampling(base: PolicySampling, overrides: Mapping[str, Any]) -> dict[str, Any]:
+    """Merge phase overrides without allowing them to expand environment output limits."""
+    max_tokens = overrides.get("max_tokens", base.max_tokens)
+    if max_tokens > base.max_tokens:
+        raise ValueError(
+            "veRL sampling override 'max_tokens' exceeds the environment output limit: "
+            f"{max_tokens} > {base.max_tokens}"
+        )
+    return {
+        "max_tokens": max_tokens,
+        "temperature": overrides.get("temperature", base.temperature),
+        "top_p": overrides.get("top_p", base.top_p),
+        "top_k": overrides.get("top_k", base.top_k),
+        "min_p": overrides.get("min_p", base.min_p),
+        "repetition_penalty": overrides.get("repetition_penalty", base.repetition_penalty),
+        "presence_penalty": overrides.get("presence_penalty", base.presence_penalty),
+    }
+
+
 class VerlPolicyGenerator:
     """Expose veRL's already-loaded rollout server through the framework policy contract."""
 
-    def __init__(self, server_manager: Any, tokenizer: Any, *, enable_thinking: bool) -> None:
+    def __init__(
+        self,
+        server_manager: Any,
+        tokenizer: Any,
+        *,
+        enable_thinking: bool,
+        renderer_implementation: str = "qwen3.5",
+        sampling_overrides: Mapping[str, Any] | None = None,
+    ) -> None:
         try:
-            from renderers import Qwen35RendererConfig, create_renderer  # pyright: ignore[reportMissingImports]
+            from renderers import (  # pyright: ignore[reportMissingImports]
+                DefaultRendererConfig,
+                Qwen35RendererConfig,
+                create_renderer,
+            )
         except ImportError as error:  # pragma: no cover - isolated runtime dependency
-            raise RuntimeError("the veRL environment requires renderers with Qwen 3.5 support") from error
+            raise RuntimeError("the veRL environment requires the selected renderer implementation") from error
         self._server_manager = server_manager
-        self._renderer = create_renderer(tokenizer, Qwen35RendererConfig(enable_thinking=enable_thinking))
+        self._tokenizer = tokenizer
+        if renderer_implementation == "qwen3.5":
+            renderer_config = Qwen35RendererConfig(enable_thinking=enable_thinking)
+        elif renderer_implementation == "default":
+            renderer_config = DefaultRendererConfig()
+        else:
+            raise ValueError(f"unsupported veRL renderer implementation: {renderer_implementation!r}")
+        self._renderer = create_renderer(tokenizer, renderer_config)
+        self._sampling_overrides = _validated_sampling_overrides(sampling_overrides or {})
+        self._behavior_policy: BehaviorPolicySpan | None = None
+
+    @property
+    def behavior_policy(self) -> BehaviorPolicySpan | None:
+        return self._behavior_policy
+
+    def begin_episode(self) -> None:
+        """Reset policy provenance before one agent-loop trajectory starts."""
+
+        self._behavior_policy = None
+
+    def set_sampling_overrides(self, overrides: Mapping[str, Any]) -> None:
+        """Install the veRL phase/per-row sampling controls for this episode."""
+        self._sampling_overrides = _validated_sampling_overrides(overrides)
 
     async def generate(self, request: PolicyTurnRequest) -> PolicyTurnResult:
         messages = [cast(dict[str, Any], dict(message)) for message in request.messages]
@@ -50,18 +182,23 @@ class VerlPolicyGenerator:
             )
         if rendered is None:
             rendered = self._renderer.render(renderer_messages, tools=renderer_tools, add_generation_prompt=True)
+        sampling = _effective_sampling(request.sampling, self._sampling_overrides)
         output = await self._server_manager.generate(
             request_id=request.session_id or uuid4().hex,
             prompt_ids=list(rendered.token_ids),
             sampling_params={
-                "max_tokens": request.sampling.max_tokens,
-                "temperature": request.sampling.temperature,
-                "top_p": request.sampling.top_p,
-                "top_k": request.sampling.top_k,
-                "min_p": request.sampling.min_p,
-                "repetition_penalty": request.sampling.repetition_penalty,
-                "presence_penalty": request.sampling.presence_penalty,
-                "logprobs": True,
+                key: value
+                for key, value in {
+                    "max_tokens": sampling["max_tokens"],
+                    "temperature": sampling["temperature"],
+                    "top_p": sampling["top_p"],
+                    "top_k": sampling["top_k"],
+                    "min_p": sampling["min_p"],
+                    "repetition_penalty": sampling["repetition_penalty"],
+                    "presence_penalty": sampling["presence_penalty"],
+                    "logprobs": True,
+                }.items()
+                if value is not None
             },
         )
         token_ids = tuple(int(value) for value in output.token_ids)
@@ -70,28 +207,18 @@ class VerlPolicyGenerator:
         logprobs = tuple(float(value) for value in (output.log_probs or ()))
         if len(logprobs) != len(token_ids):
             raise RuntimeError("veRL rollout log probabilities are not aligned with completion token ids")
+        behavior_policy = _behavior_policy_span(output)
+        if behavior_policy is not None:
+            self._behavior_policy = (
+                behavior_policy if self._behavior_policy is None else self._behavior_policy.merge(behavior_policy)
+            )
         parsed = self._renderer.parse_response(list(token_ids), tools=renderer_tools)
-        tool_calls = [
-            {
-                "id": item.id or f"call_{index}",
-                "name": item.name,
-                "arguments": item.arguments
-                if isinstance(item.arguments, str)
-                else json.dumps(item.arguments or {}, separators=(",", ":")),
-            }
-            for index, item in enumerate(parsed.tool_calls)
-            if item.name is not None and item.status.value == "ok"
-        ]
-        message: dict[str, Any] = {"role": "assistant", "content": parsed.content or None}
-        if parsed.reasoning_content is not None:
-            message["reasoning_content"] = parsed.reasoning_content
-        if tool_calls:
-            message["tool_calls"] = tool_calls
+        message = parsed_policy_message(parsed, token_ids, self._tokenizer)
         finish_reason = _finish_reason(
             token_ids,
             frozenset(self._renderer.get_stop_token_ids()),
-            bool(tool_calls),
-            request.sampling.max_tokens,
+            bool(message.get("tool_calls")),
+            int(sampling["max_tokens"]),
         )
         return PolicyTurnResult(
             message=message,
@@ -113,6 +240,7 @@ class VerlPolicyGenerator:
                     }
                 ],
             },
+            behavior_policy=behavior_policy,
         )
 
 
@@ -124,11 +252,14 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         *args: Any,
         bridge_snapshot: str,
         enable_thinking: bool = False,
+        renderer_implementation: str = "qwen3.5",
         mask_truncated_completions: bool | None = False,
         max_completion_tokens: int,
         overlong_buffer_tokens: int | None = None,
         overlong_penalty_factor: float | None = None,
         emit_sampo_metadata: bool = False,
+        structured_algorithm: str | None = None,
+        reward_component_names: list[str] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -137,26 +268,46 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             self.server_manager,
             self.tokenizer,
             enable_thinking=enable_thinking,
+            renderer_implementation=renderer_implementation,
         )
         self._mask_truncated_completions = bool(mask_truncated_completions)
         self._max_completion_tokens = max_completion_tokens
         self._overlong_buffer_tokens = overlong_buffer_tokens
         self._overlong_penalty_factor = overlong_penalty_factor
         self._emit_sampo_metadata = emit_sampo_metadata
+        self._structured_algorithm = structured_algorithm
+        self._reward_component_names = tuple(reward_component_names or ())
+        trainer_v1 = getattr(getattr(self.config, "trainer", None), "v1", None)
+        self._trainer_mode = str(getattr(trainer_v1, "trainer_mode", "sync"))
 
     async def run(self, sampling_params: dict[str, Any], **kwargs: Any) -> Any:
-        del sampling_params
+        self._generator.begin_episode()
+        self._generator.set_sampling_overrides(sampling_params)
         example_id = str(kwargs["example_id"])
         step = int(kwargs.get("global_steps", 0))
         model_id = str(kwargs["model_id"])
         started = perf_counter()
+        groups: tuple[str, ...] = ()
+        identities: tuple[str, ...] = ()
+        if self._structured_algorithm is not None:
+            if "uid" not in kwargs or "session_id" not in kwargs:
+                raise ValueError("structured veRL rollouts require native prompt-occurrence and session identities")
+            groups = (f"{self._bridge.run_id}/{step}/{kwargs['uid']}",)
+            identities = (f"{groups[0]}/{kwargs['session_id']}",)
         rollouts = await self._bridge.run(
-            RolloutBatch(example_ids=(example_id,), step=step, model_id=model_id),
+            RolloutBatch(
+                example_ids=(example_id,), step=step, model_id=model_id, prompt_group_ids=groups, rollout_ids=identities
+            ),
             self._generator,
         )
         if len(rollouts) != 1:
             raise RuntimeError("a veRL agent-loop row must produce exactly one Verifiers trajectory")
-        rollout = rollouts[0]
+        behavior_policy = self._generator.behavior_policy
+        if behavior_policy is None:
+            if self._trainer_mode in {"colocate_async", "separate_async"}:
+                raise RuntimeError(f"veRL {self._trainer_mode} rollouts require native min/max policy-version evidence")
+            behavior_policy = BehaviorPolicySpan(step, step)
+        rollout = replace(rollouts[0], behavior_policy=behavior_policy)
         trace_calls = rollout.trace.payload.get("calls", [])
         num_turns = len(trace_calls) if isinstance(trace_calls, list) else 0
         if len(rollout.prompt_ids) > self.rollout_config.prompt_length:
@@ -194,11 +345,17 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
                 task_reward=rollout.reward,
                 algorithm_reward=reward,
             ),
-            "min_global_steps": step,
-            "max_global_steps": step,
+            "min_global_steps": behavior_policy.start,
+            "max_global_steps": behavior_policy.end,
         }
         if self._emit_sampo_metadata:
             extra_fields.update(_sampo_metadata(rollout))
+        if self._structured_algorithm is not None:
+            extra_fields["structured_rewards"] = structured_reward_metadata(
+                rollout,
+                component_names=self._reward_component_names,
+                require_process=self._structured_algorithm == "capo",
+            )
         _append_rollout_reward_record(
             trace_id=rollout.trace.external_id,
             step=step,
@@ -215,6 +372,27 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             metrics=AgentLoopMetrics(generate_sequences=perf_counter() - started),
             extra_fields=extra_fields,
         )
+
+
+def _behavior_policy_span(output: Any) -> BehaviorPolicySpan | None:
+    """Read veRL's native version span from one completed or resumed generation."""
+
+    fields = getattr(output, "extra_fields", None)
+    if fields is None:
+        return None
+    if not isinstance(fields, Mapping):
+        raise RuntimeError("veRL rollout extra_fields must be a mapping")
+    fallback = fields.get("global_steps")
+    start = fields.get("min_global_steps", fallback)
+    end = fields.get("max_global_steps", fallback)
+    if start is None and end is None:
+        return None
+    if isinstance(start, bool) or not isinstance(start, int) or isinstance(end, bool) or not isinstance(end, int):
+        raise RuntimeError("veRL rollout policy versions must be integers")
+    try:
+        return BehaviorPolicySpan(start, end)
+    except ValueError as error:
+        raise RuntimeError(f"invalid veRL rollout policy span: {error}") from error
 
 
 def _append_rollout_reward_record(

@@ -13,7 +13,7 @@ from posttrain.train import (
     compute_sampo_advantages,
 )
 from posttrain.train.api import _sampo_backend
-from posttrain.train.backends.trl.grpo import _online_rl_arguments
+from posttrain.train.backends.trl.policy_config import _online_rl_arguments
 
 
 def _settings(**changes) -> SAMPOSettings:

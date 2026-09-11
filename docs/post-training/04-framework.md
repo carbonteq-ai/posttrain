@@ -233,6 +233,61 @@ secrets.
 
 ## Layers of ownership
 
+For GDPO/CAPO, `posttrain.train` owns backend-neutral structured reward
+transport, group admission, normalization, and token-credit validation.
+Environment/project code owns outcome checks, rubric, and critique meaning.
+Runtime composition binds judge inference without introducing imports between
+train, eval, and serve. Critiques and annotations remain derived native-trace
+evidence with immutable references; there is no additional trajectory store.
+
+Custom Verifiers judge/scoring plugins own rubric preparation, assessment parsing
+and task-specific extraction. They use injected inference clients; they do not
+allocate GPUs, launch engines or import capability packages. One plugin may do
+both judging and extraction. Composition owns inference lifecycle; training owns
+validated turn-to-original-token mapping and algorithm credit. Generic native
+record compatibility belongs in `posttrain.environment`, without concrete
+Verifiers types in its public contracts.
+
+Composition may satisfy a judge dependency with a managed local model, an
+attached deployment, or an API-only external service. A hosted model has no
+framework-owned weight artifact and therefore never becomes a `ModelVariant` or
+model-lineage node. The host records the exact hosted-model selection, service
+revision, explicitly requested provider slug, resolved provider endpoint,
+capability probe and usage evidence. Model and provider are mandatory inputs;
+the host rejects an absent, unavailable, or incompatible pair instead of
+selecting one automatically. A provider route may not change silently within one
+optimizer run.
+
+`HostedModel` is the hosted-model profile: it records intrinsic interface facts
+such as context and reasoning behavior, not properties of one serving route.
+`HostedInferenceBinding` selects the exact provider and carries that endpoint's
+transport profile. Composition validates and probes the pair, then creates one
+internal immutable judge-client view containing the endpoint, sampling policy,
+protocol, requested structured-output contract, effective transport, and local
+validation strategy. A JSON-object-only route may therefore satisfy a judge's
+JSON Schema request through schema-preserving instruction adaptation plus local
+validation, without changing the judge plugin. This resolved view is runtime
+plumbing rather than another user-authored selection.
+
+Chat templates remain model-token serialization contracts. Verifiers prompts,
+rubrics, and response schemas remain environment-owned scoring semantics. A
+model-native wording profile, when one is qualified, is referenced by the
+environment or hosted-model metadata and does not become a chat template or a
+provider transport setting.
+
+For API-paid auxiliary inference, composition also owns cost admission and
+enforcement. It derives the maximum paid call and token population from the
+resolved training loop, group size, bounded collection attempts, judge attempts,
+and judge token budgets. It rejects a projection over the selected run ceiling
+before the paid readiness probe. Admitted calls pass through a run-local guard
+that atomically reserves worst-case request cost before dispatch and reconciles
+reported usage afterward, so concurrent calls and retries cannot race past the
+ceiling. Missing usage is charged conservatively rather than treated as free.
+This mechanism does not enter trainer or Verifiers reward contracts.
+It applies whenever a paid judge is composed with training or evaluation,
+including scalar-reward GRPO, DAPO, and OLMo-style GRPO as well as SAMPO,
+GDPO, and CAPO.
+
 | Layer | Developer writes / publishes | Example |
 | --- | --- | --- |
 | Framework core (`common` + contracts) | Rarely; extend carefully | Run status, artifact reference types |

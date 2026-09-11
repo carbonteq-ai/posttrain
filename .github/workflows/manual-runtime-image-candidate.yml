@@ -99,14 +99,23 @@ jobs:
           )
           PY
 
-      - name: Build and publish candidate runtime images
+      - name: Plan candidate runtime image work
         run: |
           mkdir -p .release/image-receipts
+          uv run --no-sync posttrain-release images plan \
+            --registry "${JOB_REGISTRY}" \
+            --receipt-root .release/image-receipts \
+            --trust-bundle /usr/local/share/ca-certificates/carbonteq-local-ai-caddy.crt \
+            | tee .release/runtime-image-plan.json
+          jq -e '.blocked == false' .release/runtime-image-plan.json >/dev/null
+
+      - name: Build and publish candidate runtime images
+        run: |
           uv run --no-sync posttrain-release images publish \
             --registry "${JOB_REGISTRY}" \
             --framework-version "${{ inputs.framework_version }}" \
             --receipt-root .release/image-receipts \
-            --trust-bundle /etc/ssl/certs/ca-certificates.crt
+            --trust-bundle /usr/local/share/ca-certificates/carbonteq-local-ai-caddy.crt
           uv run --no-sync posttrain-release check
 
       - name: Retain generated image manifest and receipts
@@ -117,5 +126,6 @@ jobs:
             packages/runtime-images/src/posttrain/runtime_images/published.toml
             packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/*.lock.txt
             uv.lock
+            .release/runtime-image-plan.json
             .release/image-receipts/**
           if-no-files-found: error

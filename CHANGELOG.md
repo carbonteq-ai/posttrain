@@ -4,6 +4,63 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.4.0 - Unreleased
+
+This release line adds structured-credit online RL and the native foundations
+for overlapping agent rollout collection with learner updates. It also makes
+model, inference, training, and hardware compatibility visible before remote
+submission.
+
+### Added
+
+- First-class `train.gdpo` and `train.capo` operations with typed reward
+  projection, exact sampled-token masks, complete-group admission, checkpoint
+  identity, and TRL/veRL backend adapters.
+- Native asynchronous Verifiers group production for TRL's async GRPO learner,
+  including policy-version spans, behavior log probabilities, bounded stale
+  sample admission, explicit cancellation, and recovery of generated but
+  unconsumed groups.
+- Model- and hardware-aware configuration diagnostics covering update method,
+  training and rollout topology, serving features, memory pressure, and
+  controlled readiness-preflight bypass.
+- Source-capsule packing for local backend checkouts so development GPU jobs
+  can qualify exact local changes without publishing temporary wheels.
+
+### Changed
+
+- veRL agent loops preserve phase and row sampling controls while using native
+  asynchronous request handling and bounded environment-worker capacity.
+- Verifiers integration isolates recoverable episode defects to complete prompt
+  groups while keeping infrastructure, identity, and cancellation failures
+  fatal to the affected collection.
+- Hardware inventory is resolved through explicit dstack targets and live
+  admission evidence rather than implicit workstation assumptions.
+- Trackio multipart publication retries transient idempotent control requests,
+  while failed and cancelled jobs flush their terminal status before an
+  artifact-drain error is surfaced. Candidate materialization also refreshes
+  the independently locked transform environment instead of carrying a stale
+  tracking client into that job kind.
+- Work execution delegates the bounded artifact-drain timeout to the selected
+  tracking backend instead of imposing a shorter framework-wide constant, so
+  large model artifacts honor Trackio's configured finalization window.
+- Provider cleanup distinguishes a durably queued exact-worker cleanup from a
+  fatal cleanup error. Queued dstack cleanup receives highest scheduling
+  priority while terminal-marker-based infrastructure retention remains the
+  fallback when a single-slot worker is occupied.
+
+### Release gates still open
+
+- Public async selection remains disabled until checkpoint/resume, live failure
+  paths, packaged publication, and the bounded 2B learner qualification pass.
+- GDPO and CAPO remain release candidates until all selected TRL/veRL cells pass
+  packaged GPU update, checkpoint/reload, exported inference, and scorer
+  qualification. Existing numerical and five-step toy evidence is not promoted
+  into a broader support claim.
+- The generated runtime-image manifest must be produced from the final
+  accepted `0.4.0rcN` candidate source; older dev-only `0.4.0` package bytes
+  and the earlier runtime graph predate the current release-candidate commits
+  and are not reusable as release evidence.
+
 ## 0.3.26 - 2026-09-03
 
 This release makes the infrastructure-owned remote image builder a first-class

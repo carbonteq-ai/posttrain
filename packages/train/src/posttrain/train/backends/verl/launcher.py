@@ -27,7 +27,7 @@ from posttrain.common import (
 
 from ...bindings import FullParameterUpdate, LoRAUpdate
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
-from ...requests import GRPORequest, OnPolicyDistillationRequest, SAMPORequest
+from ...requests import CAPORequest, GDPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
 from .contracts import (
@@ -96,6 +96,8 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
 
 
 def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaunchPlan:
+    from ...reward_recovery import reward_contract_digest
+
     _validate_backend(request.training.backend)
     _validate_model(request.policy, "policy")
     return _plan(
@@ -107,12 +109,18 @@ def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaun
             "reference": _model(request.reference) if request.reference is not None else None,
             "algorithm": {
                 "advantage_estimator": "sampo",
+                "reward_contract_digest": (
+                    reward_contract_digest(request)
+                    if getattr(request.bridge, "reward_projection", None) is not None
+                    else None
+                ),
                 "beta": request.settings.beta,
                 "num_prompts_per_step": request.settings.num_prompts_per_step,
                 "num_generations": request.settings.num_generations,
                 "max_prompt_length": request.settings.max_prompt_length,
                 "max_completion_length": request.settings.max_completion_length,
                 "online_rl_algorithm": "sampo",
+                "shuffle_prompts": request.settings.shuffle_prompts,
                 "clip_epsilon_low": request.settings.clip_epsilon_low,
                 "clip_epsilon_high": request.settings.clip_epsilon_high,
                 "dynamic_sampling": True,
@@ -127,6 +135,61 @@ def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaun
             "environment": _environment(request, output_dir),
         },
     )
+
+
+def build_structured_launch_plan(request: GDPORequest | CAPORequest, output_dir: Path) -> VerlLaunchPlan:
+    from ...reward_recovery import reward_contract_digest
+
+    _validate_backend(request.training.backend)
+    _validate_model(request.policy, "policy")
+    technique = "gdpo" if isinstance(request, GDPORequest) else "capo"
+    settings = request.settings
+    algorithm: dict[str, Any] = {
+        "advantage_estimator": technique,
+        "reward_contract_digest": reward_contract_digest(request),
+        "online_rl_algorithm": technique,
+        "shuffle_prompts": settings.shuffle_prompts,
+        "beta": settings.beta,
+        "num_prompts_per_step": settings.num_prompts_per_step,
+        "num_generations": settings.num_generations,
+        "max_prompt_length": settings.max_prompt_length,
+        "max_completion_length": settings.max_completion_length,
+        "clip_epsilon_low": settings.clip_epsilon_low,
+        "clip_epsilon_high": settings.clip_epsilon_high,
+        "dynamic_sampling": False,
+        "mask_truncated_completions": False,
+        "overlong_penalty_factor": 1.0,
+        "normalization_epsilon": settings.epsilon,
+        "max_admission_attempts": settings.max_admission_attempts,
+    }
+    if isinstance(request, GDPORequest):
+        algorithm.update(
+            component_names=request.settings.component_names, component_weights=request.settings.component_weights
+        )
+    else:
+        algorithm.update(
+            outcome_component=request.settings.outcome_component,
+            outcome_weight=request.settings.outcome_weight,
+            process_weight=request.settings.process_weight,
+        )
+    return _plan(
+        request,
+        output_dir,
+        technique,
+        {
+            "policy": _model(request.policy),
+            "reference": _model(request.reference) if request.reference else None,
+            "algorithm": algorithm,
+            "rollout": _inference(request.inference),
+            "environment": _environment(request, output_dir),
+        },
+    )
+
+
+def run_structured_rl(
+    context: RunContext, request: GDPORequest | CAPORequest, output_dir: Path
+) -> BackendTrainingResult:
+    return _launch(context, request, build_structured_launch_plan(request, output_dir), output_dir)
 
 
 def build_distillation_launch_plan(
@@ -178,9 +241,9 @@ def run_distillation(
 
 
 def _plan(
-    request: GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
+    request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest | OnPolicyDistillationRequest,
     output_dir: Path,
-    operation: Literal["grpo", "sampo", "distill"],
+    operation: Literal["grpo", "sampo", "gdpo", "capo", "distill"],
     operation_payload: dict[str, object],
 ) -> VerlLaunchPlan:
     runtime = request.training.runtime
@@ -266,7 +329,7 @@ def _plan(
 
 def _launch(
     context: RunContext,
-    request: GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
+    request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest | OnPolicyDistillationRequest,
     plan: VerlLaunchPlan,
     output_dir: Path,
 ) -> BackendTrainingResult:
@@ -288,7 +351,7 @@ def _launch(
             "supported_model_families": ",".join(sorted(_SUPPORTED_MODEL_FAMILIES)),
         },
     )
-    if isinstance(request, GRPORequest | SAMPORequest):
+    if isinstance(request, GRPORequest | SAMPORequest | GDPORequest | CAPORequest):
         context.event("grpo_runtime_resolved", _grpo_runtime_attributes(request, plan))
     timeout = _runtime_timeout(request)
     trace_tailer = _verifiers_trace_tailer(context, request)
@@ -352,7 +415,7 @@ def _launch(
         raise RuntimeError(f"veRL process completed without its result contract: {result_path}")
     result = VerlWorkerResult.read(result_path)
     backend, records = _backend_result(result, output_dir)
-    if isinstance(request, GRPORequest | SAMPORequest):
+    if isinstance(request, GRPORequest | SAMPORequest | GDPORequest | CAPORequest):
         _replay_grpo_metrics(context, request, records)
         _replay_trace_fact_updates(
             context,
@@ -363,7 +426,7 @@ def _launch(
 
 def _verifiers_trace_tailer(
     context: RunContext,
-    request: GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
+    request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest | OnPolicyDistillationRequest,
 ) -> AppendOnlyJsonlTailer | None:
     """Tail isolated native traces from the trusted parent process only."""
 
@@ -572,7 +635,7 @@ def _output_path(value: Path, output_dir: Path, field: str) -> Path:
 
 def _replay_grpo_metrics(
     context: RunContext,
-    request: GRPORequest | SAMPORequest,
+    request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
     records: tuple[VerlMetricRecord, ...],
 ) -> None:
     environment_category = getattr(request.environment, "category", "")
@@ -668,11 +731,15 @@ def _isolated_environment(python_executable: Path) -> dict[str, str]:
     return environment
 
 
-def _runtime_timeout(request: GRPORequest | SAMPORequest | OnPolicyDistillationRequest) -> float | None:
+def _runtime_timeout(
+    request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest | OnPolicyDistillationRequest,
+) -> float | None:
     return request.training.runtime.timeout_seconds
 
 
-def _grpo_runtime_attributes(request: GRPORequest | SAMPORequest, plan: VerlLaunchPlan) -> dict[str, Any]:
+def _grpo_runtime_attributes(
+    request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest, plan: VerlLaunchPlan
+) -> dict[str, Any]:
     engine = request.inference.engine
     speculative = engine.get("speculative_config")
     attributes: dict[str, Any] = {
@@ -690,7 +757,7 @@ def _grpo_runtime_attributes(request: GRPORequest | SAMPORequest, plan: VerlLaun
             "max_model_len",
             request.settings.max_prompt_length + request.settings.max_completion_length,
         ),
-        "online_rl_algorithm": request.settings.algorithm if isinstance(request, GRPORequest) else "sampo",
+        "online_rl_algorithm": request.settings.algorithm if isinstance(request, GRPORequest) else plan.operation,
         "clip_epsilon_low": request.settings.clip_epsilon_low,
         "clip_epsilon_high": (
             request.settings.resolved_clip_epsilon_high
@@ -698,12 +765,12 @@ def _grpo_runtime_attributes(request: GRPORequest | SAMPORequest, plan: VerlLaun
             else request.settings.clip_epsilon_high
         ),
         "mask_truncated_completions": request.settings.mask_truncated_completions,
-        "shuffle_prompts": request.settings.shuffle_prompts if isinstance(request, GRPORequest) else False,
+        "shuffle_prompts": request.settings.shuffle_prompts,
     }
     if isinstance(request, GRPORequest):
         attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
         attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
-    else:
+    elif isinstance(request, SAMPORequest):
         attributes["discount_gamma"] = request.settings.discount_gamma
         attributes["step_advantage_weight"] = request.settings.step_advantage_weight
         attributes["advantage_normalization"] = request.settings.advantage_normalization
@@ -757,7 +824,7 @@ def _inference(binding: Any) -> VerlInference:
 
 
 def _environment(
-    request: GRPORequest | SAMPORequest | OnPolicyDistillationRequest,
+    request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest | OnPolicyDistillationRequest,
     output_dir: Path,
 ) -> VerlEnvironment:
     return VerlEnvironment(
@@ -766,6 +833,7 @@ def _environment(
         dataset_id=request.bridge.dataset.id,
         dataset_revision=request.bridge.dataset.revision,
         bridge_snapshot=(output_dir / "verifiers-bridge.pkl").resolve(),
+        max_concurrent=getattr(request.bridge, "max_concurrent", None),
         examples=tuple(
             VerlEnvironmentExample(id=example.id, prompt=example.prompt, metadata=dict(example.metadata))
             for example in request.bridge.dataset.examples

@@ -25,6 +25,8 @@ _KIND_PROFILES = {
     "train.dpo": "supervised",
     "train.grpo": "online-rl",
     "train.sampo": "online-rl",
+    "train.gdpo": "online-rl",
+    "train.capo": "online-rl",
     "train.distill": "online-rl",
     "eval.general": "eval",
     "eval.domain": "eval",
@@ -440,6 +442,7 @@ class JobPackageManifest:
     universal_image: RuntimeImageRef
     kind_image: RuntimeImageRef
     runtime_variant: str
+    backend_source_digest: str | None = None
     runtime_dependency_locks: tuple[RuntimeDependencyLock, ...] = ()
     backend_runtime: BackendRuntimeLock | None = None
     environment_packages: tuple[EnvironmentPackageLock, ...] = ()
@@ -470,6 +473,10 @@ class JobPackageManifest:
         _digest(self.code_requirements_digest, "code requirements")
         _digest(self.resolved_config_digest, "resolved config")
         _digest(self.project_config_digest, "project config")
+        if self.backend_source_digest is not None:
+            _digest(self.backend_source_digest, "backend source")
+            if self.runtime_variant not in {"online-rl-trl-py312", "online-rl-verl-py313"}:
+                raise ContractError("backend source is only supported by the TRL and veRL online-RL runtime variants")
         roles = tuple(lock.role for lock in self.runtime_dependency_locks)
         if len(set(roles)) != len(roles) or roles != tuple(sorted(roles)):
             raise ContractError("runtime dependency locks must have unique, canonical roles")
@@ -537,6 +544,7 @@ class JobPackageManifest:
             "universal_image": self.universal_image.value,
             "kind_image": self.kind_image.value,
             "runtime_variant": self.runtime_variant,
+            "backend_source_digest": self.backend_source_digest,
             "runtime_dependency_locks": [item.to_payload() for item in self.runtime_dependency_locks],
             "backend_runtime": (self.backend_runtime.to_payload() if self.backend_runtime is not None else None),
             "environment_packages": [item.to_payload() for item in self.environment_packages],
@@ -570,6 +578,7 @@ class JobPackageManifest:
             "universal_image",
             "kind_image",
             "runtime_variant",
+            "backend_source_digest",
             "runtime_dependency_locks",
             "backend_runtime",
             "environment_packages",
@@ -612,6 +621,9 @@ class JobPackageManifest:
                 universal_image=RuntimeImageRef(str(payload["universal_image"])),
                 kind_image=RuntimeImageRef(str(payload["kind_image"])),
                 runtime_variant=str(payload["runtime_variant"]),
+                backend_source_digest=(
+                    str(payload["backend_source_digest"]) if payload.get("backend_source_digest") is not None else None
+                ),
                 runtime_dependency_locks=tuple(_runtime_dependency_lock(item) for item in runtime_dependency_locks),
                 backend_runtime=_backend_runtime_lock(payload.get("backend_runtime")),
                 environment_packages=tuple(_environment_package_lock(item) for item in environment_packages),

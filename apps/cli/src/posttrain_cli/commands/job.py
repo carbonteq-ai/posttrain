@@ -60,6 +60,14 @@ def register(app: typer.Typer) -> None:
                 help="report the selected developer actual-job builder without packing",
             ),
         ] = None,
+        explain: Annotated[
+            bool,
+            typer.Option("--explain", help="include resolved model-setting origins and validation findings"),
+        ] = False,
+        skip_preflight: Annotated[
+            bool,
+            typer.Option("--skip-preflight", help="skip only an optional host readiness probe"),
+        ] = False,
         provider: Annotated[
             _ProviderChoice | None,
             typer.Option(
@@ -167,6 +175,8 @@ def register(app: typer.Typer) -> None:
             project_packages=(tuple(project_packages) if project_packages is not None else None),
             source_includes=(tuple(source_includes) if source_includes is not None else None),
             builder=(builder.value if builder is not None else None),
+            explain=explain,
+            skip_preflight=skip_preflight,
         )
 
     @job_app.command(
@@ -311,6 +321,13 @@ def register(app: typer.Typer) -> None:
                 help="waive offline Taskset.load for environments explicitly marked deferred",
             ),
         ] = False,
+        backend_source: Annotated[
+            Path | None,
+            typer.Option(
+                "--backend-source",
+                help="local TRL or veRL checkout copied into a local development capsule; requires --local",
+            ),
+        ] = None,
     ) -> None:
         state: CliState = ctx.obj
         pack_work_package_cmd(
@@ -332,6 +349,7 @@ def register(app: typer.Typer) -> None:
             framework_wheelhouse=framework_wheelhouse,
             allow_deferred_qualification=allow_deferred_qualification,
             builder=(builder.value if builder is not None else None),
+            backend_source=backend_source,
         )
 
     @job_app.command("run", help="pack if needed and submit one selected job")
@@ -514,6 +532,13 @@ def register(app: typer.Typer) -> None:
                 help="waive offline Taskset.load for environments explicitly marked deferred",
             ),
         ] = False,
+        backend_source: Annotated[
+            Path | None,
+            typer.Option(
+                "--backend-source",
+                help="local TRL or veRL checkout copied into a local development capsule; never published",
+            ),
+        ] = None,
     ) -> None:
         state: CliState = ctx.obj
         run_work_package_cmd(
@@ -545,4 +570,5 @@ def register(app: typer.Typer) -> None:
             framework_wheelhouse=framework_wheelhouse,
             allow_deferred_qualification=allow_deferred_qualification,
             builder=(builder.value if builder is not None else None),
+            backend_source=backend_source,
         )

@@ -7,6 +7,7 @@ FROM ${JOB_CONTEXT_REF} AS packaged-context
 FROM ${POSTTRAIN_KIND_IMAGE} AS runtime
 
 ARG FRAMEWORK_SOURCE_DIGEST
+ARG BACKEND_SOURCE_DIGEST
 ARG ALLOW_DEFERRED_QUALIFICATION=0
 ARG CODE_REQUIREMENTS_DIGEST
 ARG JOB_KIND
@@ -93,6 +94,60 @@ RUN if [ "${RUNTIME_VARIANT}" = "online-rl-verl-py313" ]; then \
 # sources/project, so installing it without dependency resolution cannot
 # silently fetch or select another package version.
 COPY --from=packaged-context /sources/ sources/
+
+# A local development capsule may carry a content-addressed backend checkout.
+# It is deliberately a copied source snapshot, never a mutable host mount. The
+# published kind image remains the dependency owner; this only replaces the
+# backend's own Python sources for a local qualification run.
+RUN python - "${BACKEND_SOURCE_DIGEST}" <<'PY'
+import hashlib
+import json
+import stat
+import sys
+from pathlib import Path
+
+
+def file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def tree_digest(root: Path) -> str:
+    entries = []
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root).as_posix()
+        mode = path.lstat().st_mode
+        if path.is_symlink():
+            raise SystemExit(f"staged backend source contains a symlink: {relative}")
+        if stat.S_ISDIR(mode):
+            entries.append({"path": relative, "type": "directory"})
+        elif stat.S_ISREG(mode):
+            entries.append({"path": relative, "type": "file", "sha256": file_digest(path), "executable": bool(mode & 0o111)})
+        else:
+            raise SystemExit(f"staged backend source contains a special file: {relative}")
+    return hashlib.sha256(json.dumps({"entries": entries}, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+expected = sys.argv[1]
+source = Path("sources/backend")
+if not expected:
+    if source.exists():
+        raise SystemExit("unrecorded backend source is staged")
+elif not source.is_dir() or tree_digest(source) != expected:
+    raise SystemExit("staged backend source differs from its package digest")
+PY
+RUN if [ -n "${BACKEND_SOURCE_DIGEST}" ]; then \
+      if [ "${RUNTIME_VARIANT}" = "online-rl-trl-py312" ]; then \
+        uv pip install --python "${VIRTUAL_ENV}" --no-build-isolation --no-deps --reinstall sources/backend; \
+      elif [ "${RUNTIME_VARIANT}" = "online-rl-verl-py313" ]; then \
+        rm -rf /opt/posttrain-verl/workdir && cp -a sources/backend /opt/posttrain-verl/workdir; \
+      else \
+        echo "backend source is unsupported for ${RUNTIME_VARIANT}" >&2; exit 1; \
+      fi; \
+    fi
 
 # Framework distributions are deliberately never installed into the backend
 # environment: doing so would drag their dependencies in, and those conflict

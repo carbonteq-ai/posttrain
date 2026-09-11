@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Annotated, Literal, cast
 
-from posttrain.common import CatalogRef, ContractError, JsonValue
+from posttrain.common import CatalogRef, ContractError, ExternalInferenceService, HostedModel, JsonValue
 from posttrain.common.catalog import SelectionDecoder
 from posttrain.common.selections import Selection, SelectionFamily
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -19,10 +19,8 @@ from .requests import (
     EvaluationPlan,
     EvaluationSignalRef,
     EvaluationSuccessDefinition,
-    ExternalInferenceService,
     PythonFactoryActivation,
     RemoteEvaluationBinding,
-    RemotePolicy,
     VerifiersV1ConfigActivation,
 )
 
@@ -142,6 +140,7 @@ class ExternalInferenceServiceSchema(EvalCatalogSchema):
     api_key_var: str
     headers: dict[str, str] = Field(default_factory=dict)
     request_defaults: dict[str, JsonValue] = Field(default_factory=dict)
+    provider_policy: dict[str, JsonValue] = Field(default_factory=dict)
     protocol: Literal["openai-chat@1"] = "openai-chat@1"
 
 
@@ -205,7 +204,7 @@ def evaluation_catalog_decoders(
         return RemoteEvaluationBinding(
             id=payload.id,
             revision=payload.revision,
-            policy=RemotePolicy(**payload.policy.model_dump()),
+            policy=HostedModel(**payload.policy.model_dump()),
             service=ExternalInferenceService(**payload.service.model_dump()),
             purpose=payload.purpose,
         )

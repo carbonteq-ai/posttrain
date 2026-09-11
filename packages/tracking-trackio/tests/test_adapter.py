@@ -758,6 +758,20 @@ def _verifiers_trace() -> dict:
     }
 
 
+def test_trackio_writer_accepts_verifiers_v1_weighted_rewards(trackio_dir: Path) -> None:
+    backend = TrackioBackend(TrackioSettings(project="trackio-v1-rewards"))
+    tracked = backend.start_run(_spec("00000000-0000-4000-8000-000000000120"))
+    record = _verifiers_trace()
+    record["rewards"] = {
+        "partial_credit": {"score": 0.75, "weight": 0.8},
+        "task_completed": {"score": 1.0, "weight": 0.2},
+    }
+
+    tracked.trace(TraceObservation("verifiers", "rollout-1", record))
+
+    tracked.finish(RunOutcome("succeeded", STARTED, STARTED + timedelta(seconds=1)))
+
+
 @pytest.mark.asyncio
 async def test_trackio_round_trips_timing_only_inference_trace(trackio_dir: Path) -> None:
     backend = TrackioBackend(TrackioSettings(project="trackio-inference-timing"))
@@ -984,6 +998,48 @@ async def test_trackio_shared_terminal_outcomes(
     assert detail.summary.error is not None if status == "failed" else detail.summary.error is None
 
 
+def test_failed_outcome_is_flushed_before_failed_artifact_is_reraised(
+    monkeypatch: pytest.MonkeyPatch,
+    trackio_dir: Path,
+) -> None:
+    del trackio_dir
+    tracked = TrackioBackend(TrackioSettings(project="trackio-terminal-artifact-failure")).start_run(
+        _spec("00000000-0000-4000-8000-000000000109")
+    )
+    calls: list[object] = []
+    failure = RuntimeError("artifact transport failed")
+    monkeypatch.setattr(
+        tracked,
+        "flush_artifacts",
+        lambda *, timeout=None: (_ for _ in ()).throw(failure),
+    )
+    monkeypatch.setattr(tracked._run, "log", lambda values: calls.append(values))
+    monkeypatch.setattr(tracked._run, "flush", lambda: calls.append("flush"))
+    monkeypatch.setattr(tracked._run, "finish", lambda: calls.append("finish"))
+    outcome = RunOutcome(
+        "failed",
+        STARTED,
+        STARTED + timedelta(seconds=1),
+        RunError("ArtifactUploadError", "required artifact publication failed"),
+    )
+
+    with pytest.raises(RuntimeError, match="artifact transport failed"):
+        tracked.finish(outcome)
+
+    assert calls == [
+        {
+            "run/status": "failed",
+            "run/started_at": STARTED.isoformat(),
+            "run/finished_at": (STARTED + timedelta(seconds=1)).isoformat(),
+            "run/error_type": "ArtifactUploadError",
+            "run/error_message": "required artifact publication failed",
+        },
+        "flush",
+        "finish",
+    ]
+    tracked.finish(outcome)
+
+
 @pytest.mark.asyncio
 async def test_trackio_write_read_conformance(trackio_dir: Path) -> None:
     backend = TrackioBackend(TrackioSettings(project="trackio-conformance"))
@@ -1186,7 +1242,70 @@ def test_trackio_artifact_queue_backpressure_drains_before_retry(
     )
 
     assert attempts == [True, True]
-    assert drains == [30]
+    assert drains == [600.0]
+
+
+def test_trackio_artifact_queue_wait_uses_declared_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    trackio_dir: Path,
+) -> None:
+    tracked = TrackioBackend(
+        TrackioSettings(
+            project="trackio-artifact-queue-wait",
+            artifact_publication_timeout_seconds=725,
+        )
+    ).start_run(_spec("00000000-0000-4000-8000-000000000110"))
+    output = trackio_dir / "diagnostic.log"
+    output.write_text("diagnostic\n", encoding="utf-8")
+    calls: list[dict[str, Any]] = []
+
+    def log_artifact(
+        artifact: Any,
+        *,
+        background: bool = False,
+        queue_timeout: float | None = None,
+    ) -> Any:
+        calls.append({"background": background, "queue_timeout": queue_timeout})
+        return artifact
+
+    monkeypatch.setattr(tracked._run, "log_artifact", log_artifact)
+    tracked.artifact(
+        ProducedArtifact(
+            "training/diagnostics/log",
+            "training-runtime-log",
+            LocalArtifactRef(output.resolve(), hashlib.sha256(output.read_bytes()).hexdigest()),
+        )
+    )
+
+    assert calls == [{"background": True, "queue_timeout": 725}]
+
+
+def test_trackio_artifact_drain_uses_declared_timeout_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+    trackio_dir: Path,
+) -> None:
+    del trackio_dir
+    tracked = TrackioBackend(
+        TrackioSettings(
+            project="trackio-artifact-drain-timeout",
+            artifact_publication_timeout_seconds=725,
+        )
+    ).start_run(_spec("00000000-0000-4000-8000-000000000111"))
+    calls: list[float | None] = []
+    monkeypatch.setattr(
+        tracked._run,
+        "flush_artifacts",
+        lambda *, timeout=None: calls.append(timeout) or (),
+    )
+
+    assert tracked.flush_artifacts() == ()
+    assert calls == [725]
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan")])
+def test_trackio_artifact_publication_timeout_must_be_positive_finite(timeout: float) -> None:
+    with pytest.raises(ValueError, match="artifact publication timeout"):
+        TrackioSettings(artifact_publication_timeout_seconds=timeout)
 
 
 @pytest.mark.asyncio

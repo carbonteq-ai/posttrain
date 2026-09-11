@@ -45,13 +45,17 @@ acceptable, and use an exact hostname only when qualification requires that
 specific machine.
 
 Production runs the matching CarbonTeq server, runner, and shim release from
-commit `85cab941fb4f8e243c7014c278ea01705f89651e` on the CarbonTeq `master`
-branch. This selected release includes regional
+commit `fcf257da683879bd93d863c1d870ae8b549ff8fb`. It makes live RunPod
+discovery authoritative for single-node on-demand GPUs and invalidates cached
+offers after provider capacity rejection. The immutable server/component
+readback, rolling worker gate, graceful-cancellation canary, live on-demand
+A100 plan, and independent preservation of the active cloud GRPO job passed.
+This selected release includes regional
 failover, bounded retry budgets, and failed-region cooldowns and passed the
 immutable release, component, idle-worker rolling, and scheduler-cancellation
 gates.
 The branch includes exact-host server credential injection and live RunPod GPU
-spot discovery, exact-digest image-readiness admission, a bounded RunPod
+discovery, exact-digest image-readiness admission, a bounded RunPod
 provisioning-timeout override for large cold image pulls, and immediate
 provider-absence reporting while a Pod is provisioning or running. It also
 supports opt-in, per-logical-run RunPod network storage for single-node spot
@@ -64,6 +68,13 @@ RunPod backend supplies either adjusted or full offers. Production keeps Low
 stock eligible as a fallback after High and Medium because RunPod's Low signal
 means scarce rather than unavailable; provider create races still use bounded
 retry and failed-region cooldown.
+
+Single-node GPU planning must never infer on-demand availability from the
+offline hardware catalog. Live discovery applies to both on-demand and spot
+requests, while the requested spot policy filters the returned prices. RunPod's
+Pod mutation remains final authority because Low stock can disappear between
+discovery and creation. An authoritative `SUPPLY_CONSTRAINT` response clears
+the provider's filtered-offer cache before the next bounded retry.
 
 ## Maintained fork behavior
 

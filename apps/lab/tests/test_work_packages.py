@@ -9,13 +9,17 @@ from types import SimpleNamespace
 from typing import cast
 
 import pytest
-from posttrain.common import Catalog, CatalogRef, ContractError
+from posttrain.catalog import open_catalog as open_framework_catalog
+from posttrain.common import Catalog, CatalogRef, ContractError, HostedInferenceBinding, HubModelRef, InferenceBinding
 from posttrain.common.variants import QWEN_35_2B
 from posttrain.eval import EnvironmentBinding, EvaluateRequest, EvaluationBudget, EvaluationEndpoint
-from posttrain.serve import ServeBenchmarkRequest
+from posttrain.serve import ServeBenchmarkRequest, ServeLaunchRequest
+from posttrain.serve.backends.vllm.server import build_vllm_command
 from posttrain.train import (
     QWEN35_SFT_SMOKE,
+    GDPOSettings,
     GRPOSettings,
+    RewardProjection,
     SFTRequest,
     SFTSettings,
     SFTValidationSettings,
@@ -43,6 +47,113 @@ from posttrain_lab.work_packages import (
 
 WORKSPACE = Path(__file__).resolve().parents[3]
 WORK_PACKAGES = WORKSPACE / "apps" / "lab" / ".posttrain" / "work_packages"
+
+
+def test_default_judged_gdpo_resolves_openrouter_without_a_gpu_judge_target() -> None:
+    package = load_work_package(WORK_PACKAGES / "lfm26_automationbench_gdpo_episode_50.yaml")
+    catalog = open_framework_catalog(
+        scope=package.project_id,
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    resolved = resolve_work_package(catalog, package)
+
+    judge = resolved.seats["judge_inference"].value
+    assert isinstance(judge, HostedInferenceBinding)
+    assert judge.model.model == "deepseek/deepseek-v4-flash-0731"
+    assert judge.provider == "open-inference/fp8"
+    assert judge.service.origin == "https://openrouter.ai"
+    judge_snapshot = cast(dict[str, object], resolved.snapshot["judge_inference"])
+    details = cast(dict[str, object], judge_snapshot["resolved"])
+    assert details["api_model"] == "deepseek/deepseek-v4-flash-0731"
+    assert details["provider"] == "open-inference/fp8"
+    assert "secret-value" not in str(resolved.snapshot)
+    targets = resolved.snapshot["execution_targets"]
+    assert isinstance(targets, dict)
+    roles = {
+        role
+        for target in cast(list[dict[str, object]], targets["targets"])
+        for role in cast(list[str], target["roles"])
+    }
+    assert "judge_inference" not in roles
+
+
+def test_twenty_update_deepseek_arm_uses_local_policy_and_fixed_hosted_judge() -> None:
+    package = load_work_package(WORK_PACKAGES / "lfm26_automationbench_gdpo_episode_20_deepseek_flash_local.yaml")
+    catalog = open_framework_catalog(
+        scope=package.project_id,
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    resolved = resolve_work_package(catalog, package)
+
+    settings = resolved.seats["settings"].value
+    assert isinstance(settings, GDPOSettings)
+    assert settings.loop.max_steps == 20
+    assert settings.num_prompts_per_step == 8
+    assert settings.num_generations == 4
+
+    judge = resolved.seats["judge_inference"].value
+    assert isinstance(judge, HostedInferenceBinding)
+    assert judge.model.model == "deepseek/deepseek-v4.1-flash"
+    assert judge.model.revision == "20260910"
+    assert judge.provider == "deepseek"
+    assert judge.service.origin == "https://openrouter.ai"
+    assert judge.service.api_key_var == "OPENROUTER_API_KEY"
+    assert judge.sampling["extra_body"] == {"reasoning": {"enabled": False}}
+
+    targets = cast(dict[str, object], resolved.snapshot["execution_targets"])
+    resolved_targets = cast(list[dict[str, object]], targets["targets"])
+    assert len(resolved_targets) == 1
+    assert resolved_targets[0]["selection_id"] == "targets/carbonteq-rtx-pro-6000-96gb"
+    assert set(cast(list[str], resolved_targets[0]["roles"])) == {
+        "rollout_inference",
+        "training",
+    }
+
+
+def test_gdpo_resolves_self_hosted_gemma_on_the_declared_server() -> None:
+    package = load_work_package(WORK_PACKAGES / "lfm26_automationbench_gdpo_episode_50_gemma.yaml")
+    catalog = open_framework_catalog(
+        scope=package.project_id,
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    resolved = resolve_work_package(catalog, package)
+
+    judge = resolved.seats["judge_inference"].value
+    assert isinstance(judge, InferenceBinding)
+    command = build_vllm_command(ServeLaunchRequest(judge))
+    assert "--tensor-parallel-size" in command
+    assert "--speculative-config" in command
+    assert "--reasoning-parser" in command
+    assert command[command.index("--gpu-memory-utilization") + 1] == "0.35"
+
+    settings = resolved.seats["settings"].value
+    assert isinstance(settings, GDPOSettings)
+    assert settings.loop.max_steps == 50
+    assert settings.num_prompts_per_step == 16
+    assert settings.num_generations == 4
+
+    projection = resolved.seats["reward_projection"].value
+    assert isinstance(projection, RewardProjection)
+    assert projection.id == "reward/automationbench-episode-gdpo@1"
+    assert projection.scorer_digest is None
+
+    judge = resolved.seats["judge_inference"].value
+    assert isinstance(judge, InferenceBinding)
+    assert isinstance(judge.model.artifact, HubModelRef)
+    assert judge.model.artifact.repo_id == "google/gemma-4-12B-it"
+    assert judge.target.id == "targets/runpod-rtx-pro-6000-96gb-secure-ondemand"
+    assert judge.engine["speculative_config"]["num_speculative_tokens"] == 2  # type: ignore[index]
+
+    targets = resolved.snapshot["execution_targets"]
+    assert isinstance(targets, dict)
+    resolved_targets = cast(list[dict[str, object]], targets["targets"])
+    assert len(resolved_targets) == 1
+    assert resolved_targets[0]["selection_id"] == "targets/runpod-rtx-pro-6000-96gb-secure-ondemand"
+    assert set(cast(list[str], resolved_targets[0]["roles"])) == {
+        "judge_inference",
+        "rollout_inference",
+        "training",
+    }
 
 
 def test_reference_yaml_runs_screen_and_skips_optional_eval() -> None:
@@ -73,8 +184,9 @@ def test_reference_yaml_runs_screen_and_skips_optional_eval() -> None:
 
 def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
     pytest.importorskip("verifiers")
+    pytest.importorskip("gsm8k_v1")
     package = load_work_package(WORK_PACKAGES / "gsm8k_distillation.yaml")
-    catalog = open_catalog(scope=package.project_id)
+    catalog = open_catalog(scope=package.project_id, overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
     resolved = resolve_work_package(catalog, package)
     definition = distillation_definition(
         lambda context, request: request,
@@ -100,8 +212,8 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
         "kind": "lora",
     }
     assert training["resolved"]["backend_options"] == {  # type: ignore[index]
-        "dependency_lock": "trl-fork@1.9.2.post11",
-        "source_revision": "69cf80a7319079ec5523841553467e119ebc1cec",
+        "dependency_lock": "trl-fork@current",
+        "source_revision": "6dfc69db939144d270cbcbbed17294262b5ac6f4",
         "dependency_lock_sha256": hashlib.sha256((WORKSPACE / "uv.lock").read_bytes()).hexdigest(),
         "bf16": False,
         "model_dtype": "float32",

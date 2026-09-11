@@ -1,0 +1,36 @@
+type: task
+name: posttrain-nanbeige-r12-matrix-d
+
+image: registry.carbonteq.com/carbonteq/posttrain/nanbeige-vllm@sha256:bfbeee151fb59c687f7e27d5e5e287716a7c1c6dd58ebf0a4ffe99b13702a3aa
+shell: /bin/bash
+commands:
+  - >-
+    python3 /opt/posttrain/qualification/nanbeige_inference_matrix.py
+    /opt/posttrain/evidence/matrix-4
+    --runtime-image
+    registry.carbonteq.com/carbonteq/posttrain/nanbeige-vllm@sha256:bfbeee151fb59c687f7e27d5e5e287716a7c1c6dd58ebf0a4ffe99b13702a3aa
+
+files:
+  - ./nanbeige_inference_matrix.py:/opt/posttrain/qualification/nanbeige_inference_matrix.py
+
+volumes:
+  - /var/lib/posttrain/cache/huggingface:/root/.cache/huggingface
+  - /var/lib/posttrain/qualifications/nanbeige-r12-20260906:/opt/posttrain/evidence
+
+resources:
+  cpu: 8..
+  memory: 32GB..
+  gpu:
+    vendor: nvidia
+    count: 1
+    memory: 96GB..
+
+fleets:
+  - local-gpu-workers
+max_duration: 3h
+stop_duration: 2m
+retry: false
+tags:
+  purpose: nanbeige-inference-qualification
+  matrix: standard-turboquant-dspark-composed
+  bounded: "true"

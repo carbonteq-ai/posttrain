@@ -442,7 +442,7 @@ evidence. It adds no new job kind, selection, or project decision.
   `shape_online_reward(...)` calculates the algorithm reward. The isolated
   veRL path similarly tails native trace rows independently of the later
   agent-loop reward fields.
-  Evidence: `packages/train/src/posttrain/train/backends/trl/grpo.py` observes
+  Evidence: `packages/train/src/posttrain/train/backends/trl/policy_optimization.py` observes
   traces around lines 385-405 and shapes rewards around lines 440-454;
   `packages/train/src/posttrain/train/backends/verl/launcher.py` tails native
   traces while `agent_loop.py` later emits `algorithm_reward` keyed by

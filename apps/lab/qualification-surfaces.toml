@@ -149,3 +149,412 @@ parity = [
   "prove no ordinary generated project imports posttrain_lab",
 ]
 deletion_condition = "The renamed Lab fixture is installed from built wheels on a clean remote GPU host and the product-facing examples use posttrain init instead."
+
+[[surfaces]]
+id = "automationbench-structured-toy"
+path = "scripts/qualification/automationbench_structured_toy.py"
+kind = "direct-launcher"
+owner = "lab"
+transition = "retire"
+replacement = "a Lab-owned structured-reward qualification work package"
+tests = []
+parity = [
+  "retain the five-step mechanism check and structured reward projection as a reproducible qualification artifact",
+  "run the replacement through the public Lab training lifecycle without importing a root script",
+]
+deletion_condition = "The structured reward projection and five-step acceptance checks pass through a retained Lab work package."
+
+[[surfaces]]
+id = "automationbench-native-judges"
+path = "scripts/qualification/automationbench_native_judges.py"
+kind = "direct-launcher"
+owner = "lab"
+transition = "retire"
+replacement = "the Lab native-judge qualification work package and provider-neutral judge binding"
+tests = []
+parity = [
+  "bind the declared judge inference profile independently from the policy trainer",
+  "retain source-revision, task-mix, and complete trajectory evidence for each comparison arm",
+]
+deletion_condition = "Native judge composition and comparison-arm provenance are exercised through the public Lab work-package lifecycle."
+
+[[surfaces]]
+id = "general-episode-prompt-calibration"
+path = "scripts/qualification/calibrate_general_episode_prompt.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the maintained environment judge calibration contract"
+tests = ["scripts/qualification/test_calibrate_general_episode_prompt.py"]
+parity = [
+  "evaluate frozen calibration cases with the declared episode rubric and schema",
+  "retain invalid-output and expectation failures without silently accepting a malformed verdict",
+]
+deletion_condition = "The maintained judge calibration contract owns the frozen cases and its schema/expectation tests pass."
+
+[[surfaces]]
+id = "trl-async-verifiers-qualification"
+path = "scripts/qualification/qualify_trl_async_verifiers_update.py"
+kind = "direct-launcher"
+owner = "lab"
+transition = "retire"
+replacement = "a retained Lab async training qualification work package"
+tests = []
+parity = [
+  "exercise collection, consumption acknowledgement, and model-version activation ordering over native Verifiers traces",
+  "retain optimizer-update and weight-publication evidence through the public training lifecycle",
+]
+deletion_condition = "The async Verifiers update contract passes through a retained work package and no root script is required for qualification."
+
+[[surfaces]]
+id = "lfm26-algorithm-comparison"
+path = "scripts/qualification/compare_lfm26_algorithm_runs.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the Observatory comparison report over retained run evidence"
+tests = []
+parity = [
+  "compare matched held-out task indices and training audit evidence across all declared LFM2.5 arms",
+  "report deltas from the base arm without treating an engineering comparison as a benchmark claim",
+]
+deletion_condition = "The Observatory comparison report reproduces matched-arm checks and delta calculations from retained run views."
+
+[[surfaces]]
+id = "episode-replay-gate"
+path = "scripts/qualification/validate_episode_replay_gate.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the maintained episode-judge replay acceptance contract"
+tests = []
+parity = [
+  "reject incomplete or invalid replay manifests before they can qualify a multireward run",
+  "require differentiated per-dimension scores instead of accepting saturated judge output",
+]
+deletion_condition = "The maintained replay acceptance contract owns this gate and its differentiated-score checks pass."
+
+[[surfaces]]
+id = "audit-deterministic-inputs"
+path = "scripts/qualification/audit_deterministic_inputs.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the retained Lab input-integrity acceptance contract"
+tests = []
+parity = ["audit deterministic qualification inputs before execution", "retain a fail-closed result for invalid inputs"]
+deletion_condition = "The Lab acceptance contract performs the same deterministic input audit."
+
+[[surfaces]]
+id = "audit-scalar-grpo"
+path = "scripts/qualification/audit_scalar_grpo.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the retained Lab scalar-training acceptance contract"
+tests = []
+parity = ["check scalar GRPO training evidence", "reject incomplete or non-updating runs"]
+deletion_condition = "Scalar GRPO evidence is checked by the public Lab qualification path."
+
+[[surfaces]]
+id = "audit-structured-toy"
+path = "scripts/qualification/audit_structured_toy.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the retained Lab structured-reward acceptance contract"
+tests = []
+parity = ["check structured toy reward evidence", "reject missing or collapsed reward signals"]
+deletion_condition = "Structured reward evidence is checked by the public Lab qualification path."
+
+[[surfaces]]
+id = "audit-verl-deterministic"
+path = "scripts/qualification/audit_verl_deterministic.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the retained Lab veRL acceptance contract"
+tests = []
+parity = ["check deterministic veRL evidence", "reject incomplete optimizer or rollout evidence"]
+deletion_condition = "veRL deterministic evidence is checked by the public Lab qualification path."
+
+[[surfaces]]
+id = "automationbench-deterministic"
+path = "scripts/qualification/automationbench_deterministic.py"
+kind = "direct-launcher"
+owner = "lab"
+transition = "retire"
+replacement = "the retained AutomationBench Lab qualification work package"
+tests = []
+parity = ["run the deterministic AutomationBench control", "retain task and trajectory evidence"]
+deletion_condition = "The AutomationBench control runs through a retained Lab work package."
+
+[[surfaces]]
+id = "compare-episode-judges"
+path = "scripts/qualification/compare_episode_judges.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "a public service-neutral judge replay qualification command"
+tests = []
+parity = [
+  "replay byte-identical reviewed inputs through managed or external judge services",
+  "retain model, provider, usage, cost-limit, and rubric provenance without credentials",
+]
+deletion_condition = "The public qualification command owns service-neutral replay and cost-controlled evidence."
+
+[[surfaces]]
+id = "deterministic-turn-fixture"
+path = "scripts/qualification/deterministic_turn_fixture.py"
+kind = "provider-fixture"
+owner = "lab"
+transition = "retire"
+replacement = "the maintained turn-level reward fixture"
+tests = []
+parity = ["produce deterministic multi-turn fixture data", "preserve turn boundaries and reward variation"]
+deletion_condition = "The maintained fixture is used by the public qualification tests."
+
+[[surfaces]]
+id = "episode-reward-profile"
+path = "scripts/qualification/episode_reward_profile.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the maintained episode reward projection contract"
+tests = []
+parity = ["define the episode reward component profile", "validate task-completion credit and auxiliary signals"]
+deletion_condition = "The maintained reward projection owns component weights and validation."
+
+[[surfaces]]
+id = "evaluate-automationbench-adapter"
+path = "scripts/qualification/evaluate_automationbench_adapter.py"
+kind = "direct-launcher"
+owner = "lab"
+transition = "retire"
+replacement = "the AutomationBench environment qualification work package"
+tests = []
+parity = ["exercise the pinned AutomationBench adapter", "retain complete native Verifiers trace evidence"]
+deletion_condition = "Adapter qualification runs through the public Lab work-package lifecycle."
+
+[[surfaces]]
+id = "nanbeige-inference-matrix"
+path = "scripts/qualification/nanbeige_inference_matrix.py"
+kind = "direct-launcher"
+owner = "lab"
+transition = "retire"
+replacement = "the maintained judge inference qualification work package"
+tests = []
+parity = ["exercise the Nanbeige inference profile", "record runtime and model revision provenance"]
+deletion_condition = "Judge inference qualification runs through the public Lab lifecycle."
+
+[[surfaces]]
+id = "reload-deterministic-export"
+path = "scripts/qualification/reload_deterministic_export.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the public artifact reload acceptance contract"
+tests = []
+parity = ["reload deterministic qualification exports", "reject exports with mismatched provenance"]
+deletion_condition = "Artifact reload validation is owned by the public acceptance contract."
+
+[[surfaces]]
+id = "replay-episode-judge"
+path = "scripts/qualification/replay_episode_judge.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the maintained episode-judge replay contract"
+tests = []
+parity = ["replay frozen episodes through the declared judge", "retain differentiated multidimensional scores"]
+deletion_condition = "Episode replay runs through the maintained judge contract."
+
+[[surfaces]]
+id = "structured-trl-lifecycle"
+path = "scripts/qualification/structured_trl_lifecycle.py"
+kind = "direct-launcher"
+owner = "lab"
+transition = "retire"
+replacement = "the retained structured TRL qualification work package"
+tests = []
+parity = ["exercise the structured TRL lifecycle", "retain optimizer and reward evidence"]
+deletion_condition = "Structured TRL qualification runs through the public Lab lifecycle."
+
+[[surfaces]]
+id = "test-calibrate-general-episode-prompt"
+path = "scripts/qualification/test_calibrate_general_episode_prompt.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the maintained general episode judge test suite"
+tests = []
+parity = ["keep general episode prompt calibration checks executable", "preserve schema and expectation validation"]
+deletion_condition = "General episode calibration tests are owned by the maintained judge contract."
+
+[[surfaces]]
+id = "test-deterministic-turn-fixture"
+path = "scripts/qualification/test_deterministic_turn_fixture.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the maintained turn-fixture test suite"
+tests = []
+parity = ["verify deterministic turn fixture construction", "preserve stable turn and token identities"]
+deletion_condition = "Turn fixture tests are owned by the maintained qualification contract."
+
+[[surfaces]]
+id = "test-episode-reward-audit"
+path = "scripts/qualification/test_episode_reward_audit.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the maintained episode reward audit test suite"
+tests = []
+parity = ["verify episode reward audit checks", "reject uniform or incomplete component evidence"]
+deletion_condition = "Episode reward audit tests are owned by the maintained reward contract."
+
+[[surfaces]]
+id = "test-episode-reward-profile"
+path = "scripts/qualification/test_episode_reward_profile.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the maintained episode reward profile test suite"
+tests = []
+parity = ["verify episode reward component weights", "preserve task-completion priority"]
+deletion_condition = "Episode reward profile tests are owned by the maintained reward contract."
+
+[[surfaces]]
+id = "test-nanbeige-inference-matrix"
+path = "scripts/qualification/test_nanbeige_inference_matrix.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the maintained judge inference matrix test suite"
+tests = []
+parity = ["verify Nanbeige inference matrix construction", "preserve declared runtime constraints"]
+deletion_condition = "Judge inference matrix tests are owned by the maintained inference contract."
+
+[[surfaces]]
+id = "test-replay-episode-judge"
+path = "scripts/qualification/test_replay_episode_judge.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the maintained episode replay test suite"
+tests = []
+parity = ["verify episode replay validation", "reject incomplete and saturated verdicts"]
+deletion_condition = "Episode replay tests are owned by the maintained judge contract."
+
+[[surfaces]]
+id = "test-compare-episode-judges"
+path = "scripts/qualification/test_compare_episode_judges.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "the public service-neutral judge replay contract tests"
+tests = []
+parity = [
+  "verify managed and external judge selections map to the same replay lifecycle",
+  "verify the environment remains authoritative for rubric and sampling configuration",
+]
+deletion_condition = "The public judge replay test suite covers both service lifecycle variants."
+
+[[surfaces]]
+id = "validate-context-preflight"
+path = "scripts/qualification/validate_context_preflight.py"
+kind = "operator-preflight"
+owner = "lab"
+transition = "retire"
+replacement = "the public model and judge context admission checks"
+tests = []
+parity = ["validate declared context budgets before execution", "fail before provider submission on impossible budgets"]
+deletion_condition = "Context admission is enforced by the public planning and qualification path."
+
+[[surfaces]]
+id = "author-openrouter-episode-prompt"
+path = "scripts/qualification/author_openrouter_episode_prompt.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "the public provider-neutral episode-judge prompt authoring command"
+tests = []
+parity = ["author a domain-general assessment frame through the selected hosted model", "retain prompt, model, provider, and content digests without credentials"]
+deletion_condition = "The public judge tooling owns model-native prompt authoring and immutable calibration evidence."
+
+[[surfaces]]
+id = "calibrate-openrouter-episode-judge"
+path = "scripts/qualification/calibrate_openrouter_episode_judge.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "the public hosted episode-judge calibration command"
+tests = []
+parity = ["calibrate frozen episodes through an explicit hosted provider binding", "fail closed on malformed, saturated, or over-budget verdicts"]
+deletion_condition = "The public judge qualification surface owns hosted calibration and its retained evidence schema."
+
+[[surfaces]]
+id = "compare-episode-judge-vllm-benchmarks"
+path = "scripts/qualification/compare_episode_judge_vllm_benchmarks.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "the Observatory judge benchmark comparison report"
+tests = []
+parity = ["compare only byte-identical replay inputs across judge models", "report validity, latency, truncation, and score differences from saved evidence"]
+deletion_condition = "Observatory reproduces the same digest-matched judge comparison from retained run evidence."
+
+[[surfaces]]
+id = "debug-openrouter-gpt5mini-transport"
+path = "scripts/qualification/debug_openrouter_gpt5mini_transport.py"
+kind = "direct-launcher"
+owner = "lab"
+transition = "retire"
+replacement = "provider-neutral transport fixtures in packages/jobs tests"
+tests = []
+parity = ["exercise one bounded structured-output request without logging credentials", "distinguish provider transport rejection from rubric or parser failure"]
+deletion_condition = "The jobs provider test suite covers the same transport failure with a maintained fixture."
+
+[[surfaces]]
+id = "episode-judge-vllm-benchmark"
+path = "scripts/qualification/episode_judge_vllm_benchmark.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "the public OpenAI-compatible episode-judge replay benchmark"
+tests = ["scripts/qualification/test_episode_judge_vllm_benchmark.py"]
+parity = ["replay retained judge messages concurrently against a local compatible endpoint", "retain structured validity, token use, latency, truncation, and normalized verdict evidence"]
+deletion_condition = "The public qualification package owns local and hosted replay through one provider-neutral interface."
+
+[[surfaces]]
+id = "optimize-episode-judge-prompt"
+path = "scripts/qualification/optimize_episode_judge_prompt.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "the maintained model-native judge prompt calibration command"
+tests = ["scripts/qualification/test_optimize_episode_judge_prompt.py"]
+parity = ["elicit and compare model-native assessment vocabulary on frozen current-policy episodes", "select a prompt only from explicit validity, discrimination, and output-budget gates"]
+deletion_condition = "The maintained judge calibration API owns prompt candidate materialization, evaluation, and explicit promotion."
+
+[[surfaces]]
+id = "test-episode-judge-vllm-benchmark"
+path = "scripts/qualification/test_episode_judge_vllm_benchmark.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "tests for the public OpenAI-compatible judge replay benchmark"
+tests = []
+parity = ["verify strict structured-output transport and fallback behavior", "verify normalized verdict and failure evidence remain deterministic"]
+deletion_condition = "Equivalent tests live beside the promoted public replay benchmark."
+
+[[surfaces]]
+id = "test-optimize-episode-judge-prompt"
+path = "scripts/qualification/test_optimize_episode_judge_prompt.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "tests for the maintained judge prompt calibration API"
+tests = []
+parity = ["verify model-native candidate construction and selection", "reject candidates that violate frozen labels or output constraints"]
+deletion_condition = "Equivalent tests live beside the promoted public calibration API."

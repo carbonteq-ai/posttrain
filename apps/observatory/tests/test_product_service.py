@@ -602,6 +602,88 @@ def test_trace_summary_projects_bounded_provider_scalars() -> None:
     assert detail.summary.latency_ms == 48617.406
 
 
+def test_trace_summary_projects_native_verifiers_reward_objects() -> None:
+    detail = project_trace(
+        TraceRecord(
+            trace_type="verifiers",
+            external_id="trace-native-rewards",
+            payload={
+                "rewards": {
+                    "partial_credit": {"score": 0.25, "weight": 1.0},
+                    "quality_bonus": {"score": 0.5, "weight": 0.2},
+                },
+                "stop_condition": "agent_completed",
+                "nodes": [],
+                "calls": [],
+            },
+        ),
+        RedactionPolicy(),
+    )
+
+    assert detail.summary.reward == pytest.approx(0.35)
+    assert detail.summary.reward_components == {
+        "partial_credit": 0.25,
+        "quality_bonus": pytest.approx(0.1),
+    }
+    assert detail.summary.metrics == {
+        "partial_credit": 0.25,
+        "quality_bonus": pytest.approx(0.1),
+    }
+    assert [(component.name, component.value) for component in detail.reward_components] == [
+        ("partial_credit", 0.25),
+        ("quality_bonus", pytest.approx(0.1)),
+    ]
+
+
+def test_trace_projects_structured_episode_judge_rewards_and_evidence() -> None:
+    detail = project_trace(
+        TraceRecord(
+            trace_type="verifiers",
+            external_id="trace-episode-judge",
+            payload={
+                "rewards": {"partial_credit": {"score": 0.5, "weight": 1.0}},
+                "info": {
+                    "episode_reward/logical_correctness": 0.75,
+                    "episode_reward/action_quality": 0.25,
+                    "posttrain_episode_rewards": {
+                        "scope": "episode",
+                        "assessments": {
+                            "logical_correctness": {
+                                "score": 0.75,
+                                "reason": "One inference was not supported by the observation.",
+                                "evidence": ["message-2", "message-3"],
+                            },
+                            "action_quality": {
+                                "score": 0.25,
+                                "reason": "The action omitted a required argument.",
+                                "evidence": ["message-2"],
+                            },
+                        },
+                    },
+                },
+                "nodes": [],
+                "calls": [],
+            },
+        ),
+        RedactionPolicy(),
+    )
+
+    assert detail.summary.reward_components == {
+        "partial_credit": 0.5,
+        "logical_correctness": 0.75,
+        "action_quality": 0.25,
+    }
+    assert [(component.name, component.source) for component in detail.reward_components] == [
+        ("partial_credit", "verifier"),
+        ("logical_correctness", "episode_judge"),
+        ("action_quality", "episode_judge"),
+    ]
+    logical = detail.reward_components[1]
+    assert logical.scope == "episode"
+    assert logical.reason == "One inference was not supported by the observation."
+    assert logical.evidence == ("message-2", "message-3")
+
+
 def test_ifeval_task_metadata_uses_instruction_families_not_numeric_key() -> None:
     record = TraceRecord(
         trace_type="verifiers",

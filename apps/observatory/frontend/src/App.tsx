@@ -165,6 +165,16 @@ const jobCopy: Record<string, { eyebrow: string; title: string; question: string
     title: 'Policy learning evidence',
     question: 'Does reward improve while rollout coverage, update stability, policy freshness, and runtime efficiency remain healthy?',
   },
+  'train.gdpo': {
+    eyebrow: 'GROUP-WISE MULTI-REWARD POLICY OPTIMIZATION',
+    title: 'Policy learning evidence',
+    question: 'Do weighted reward dimensions improve while rollout groups retain useful variation and policy updates remain controlled?',
+  },
+  'train.capo': {
+    eyebrow: 'CREDIT-ASSIGNED POLICY OPTIMIZATION',
+    title: 'Policy learning evidence',
+    question: 'Does outcome and process credit improve the policy while rollout coverage, update stability, and policy freshness remain healthy?',
+  },
   'train.sampo': {
     eyebrow: 'STEP-AWARE MULTI-TURN POLICY OPTIMIZATION',
     title: 'Hierarchical policy-learning evidence',
@@ -317,6 +327,12 @@ const evaluationConfigGroups: ConfigGroupDefinition[] = [
   { title: 'Package context', description: 'The job definition and work-package identity that placed this run in the larger workflow.', keys: ['job_definition', 'work_package'] },
 ];
 
+const groupPolicyConfigGroups: ConfigGroupDefinition[] = [
+  { title: 'Policy & task inputs', description: 'The policy, task population, and environment against which rollouts were produced.', keys: ['model', 'dataset', 'validation_dataset', 'environment'] },
+  { title: 'Rollout & optimization', description: 'The inference, reward projection, training, and runtime selections governing policy updates.', keys: ['recipe', 'inference', 'rollout_inference', 'reward_projection', 'judge_inference', 'settings', 'training'] },
+  { title: 'Package context', description: 'The job definition and work-package identity that placed this run in the larger workflow.', keys: ['job_definition', 'work_package'] },
+];
+
 const jobConfigGroups: Record<string, ConfigGroupDefinition[]> = {
   'train.sft': [
     { title: 'Training population', description: 'The model and the disjoint data partitions used to fit and monitor supervised learning.', keys: ['model', 'dataset', 'validation_dataset'] },
@@ -328,11 +344,9 @@ const jobConfigGroups: Record<string, ConfigGroupDefinition[]> = {
     { title: 'Preference optimization', description: 'The DPO objective, settings, and concrete training backend selected for this run.', keys: ['recipe', 'settings', 'training'] },
     { title: 'Package context', description: 'The job definition and work-package identity that placed this run in the larger workflow.', keys: ['job_definition', 'work_package'] },
   ],
-  'train.grpo': [
-    { title: 'Policy & task inputs', description: 'The policy, task population, and environment against which rollouts were produced.', keys: ['model', 'dataset', 'validation_dataset', 'environment'] },
-    { title: 'Rollout & optimization', description: 'The inference, training, and runtime selections governing policy updates.', keys: ['recipe', 'inference', 'settings', 'training'] },
-    { title: 'Package context', description: 'The job definition and work-package identity that placed this run in the larger workflow.', keys: ['job_definition', 'work_package'] },
-  ],
+  'train.grpo': groupPolicyConfigGroups,
+  'train.gdpo': groupPolicyConfigGroups,
+  'train.capo': groupPolicyConfigGroups,
   'train.distill': [
     { title: 'Student, teacher & data', description: 'The trainable student, scoring teacher, and task population used for distillation.', keys: ['student', 'student_model', 'teacher', 'teacher_model', 'dataset', 'validation_dataset'] },
     { title: 'Generation & scoring', description: 'The environment and inference selections used to generate and score student responses.', keys: ['environment', 'inference', 'teacher_inference'] },
@@ -499,7 +513,7 @@ function methodParameters(
         ['Steps', common.maxSteps],
         ['Global batch', common.globalBatch],
       ]
-    : jobKind === 'train.grpo'
+    : ['train.grpo', 'train.gdpo', 'train.capo'].includes(jobKind)
       ? [
           ['Update', common.update],
           ['KL beta', methodValue(nestedValue(settings, 'beta'))],
@@ -1665,8 +1679,9 @@ function GenericOverview({
     [view.metric_help],
   );
   const baseChart = charts[Math.min(activeChart, Math.max(charts.length - 1, 0))];
-  const isGrpo = selected.run.job_kind === 'train.grpo';
-  const rolloutSeries: MetricSeries[] = isGrpo && baseChart?.key === 'optimization'
+  const isGroupPolicy = ['train.grpo', 'train.gdpo', 'train.capo'].includes(selected.run.job_kind);
+  const groupPolicyLabel = isGroupPolicy ? selected.run.job_kind.slice('train.'.length).toUpperCase() : null;
+  const rolloutSeries: MetricSeries[] = isGroupPolicy && baseChart?.key === 'optimization'
     ? [
       ['trace/rollout/avg_thinking_tokens', 'thinking_tokens'],
       ['trace/rollout/avg_output_tokens', 'output_tokens'],
@@ -1722,7 +1737,7 @@ function GenericOverview({
   const isServeSmoke = selected.run.job_kind === 'serve.smoke';
   const isDataPrepare = selected.run.job_kind === 'data.prepare';
   const method = methodParameters(selected.run.job_kind, dataset, validationDataset, settings, training);
-  const rolloutSetup = isGrpo
+  const rolloutSetup = isGroupPolicy
     ? grpoRolloutParameters(environment, settings, training, rolloutInference)
     : [];
   const completeness = view.completeness;
@@ -1780,8 +1795,8 @@ function GenericOverview({
       </div>
       {response.fallback_reason && <div className="mt-5 flex items-center gap-2 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"><Warning size={16} weight="fill" />{response.fallback_reason}</div>}
       {healthAlert && <div className="obs-card mt-5 flex items-center gap-3 border-amber-200 bg-[#fffaf1] px-3 py-2 text-[11px]"><Warning size={16} weight="fill" className="text-amber-500" /><strong>Live health</strong><span className="text-secondary">{healthAlert.message}</span><button className="ml-auto text-violet-700">View evidence</button></div>}
-      {(isDpo || isGrpo || isSampo || isDistill) && completeness && (
-        <section aria-label={`${isGrpo ? 'GRPO' : isSampo ? 'SAMPO' : isDistill ? 'Distillation' : 'DPO'} evidence completeness`} className="obs-card mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 text-[11px]">
+      {(isDpo || isGroupPolicy || isSampo || isDistill) && completeness && (
+        <section aria-label={`${groupPolicyLabel ?? (isSampo ? 'SAMPO' : isDistill ? 'Distillation' : 'DPO')} evidence completeness`} className="obs-card mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 text-[11px]">
           <div className="flex items-center gap-2">
             <Circle size={9} weight="fill" className={completeness.state === 'complete' ? 'text-emerald-600' : completeness.state === 'partial' ? 'text-amber-500' : 'text-rose-600'} />
             <span className="type-label">EVIDENCE</span>
@@ -1801,8 +1816,8 @@ function GenericOverview({
         <section className="min-w-0">
           {lead ? (
             <section className="obs-card overflow-hidden">
-              {isGrpo ? (
-                <div role="group" aria-label="GRPO headline metrics" className="grid grid-cols-2 border-b border-divider sm:grid-cols-3 xl:grid-cols-5">
+              {isGroupPolicy ? (
+                <div role="group" aria-label={`${groupPolicyLabel} headline metrics`} className="grid grid-cols-2 border-b border-divider sm:grid-cols-3 xl:grid-cols-5">
                   <HeadlineMetric
                     label="Mean reward"
                     value={formatValue(grpoReward?.value, grpoReward?.unit)}
@@ -1859,8 +1874,8 @@ function GenericOverview({
                 {selectedSeries.map((item) => <span key={item.name} className="inline-flex items-center text-secondary"><MetricLabel label={chartLabels[item.name] ?? helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} className="text-muted" /> <strong className="ml-1 font-medium text-ink">{formatValue(item.value, chartUnits[item.name] ?? metricUnits[item.name] ?? helpByMetric.get(item.name)?.unit)}</strong></span>)}
               </div>
               {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
-              {isGrpo && chart?.key === 'optimization' && rolloutBehaviorLoading && <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">Reading retained rollout evidence…</p>}
-              {isGrpo && chart?.key === 'optimization' && rolloutBehavior?.state === 'partial' && rolloutBehavior.points.length > 0 && (
+              {isGroupPolicy && chart?.key === 'optimization' && rolloutBehaviorLoading && <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">Reading retained rollout evidence…</p>}
+              {isGroupPolicy && chart?.key === 'optimization' && rolloutBehavior?.state === 'partial' && rolloutBehavior.points.length > 0 && (
                 <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
                   Rollout behavior is partial: {rolloutBehavior.included.toLocaleString()} of {(rolloutBehavior.expected ?? rolloutBehavior.scanned).toLocaleString()} retained training traces were read (steps {rolloutBehavior.points[0]?.step}–{rolloutBehavior.points.at(-1)?.step}).
                 </p>
@@ -2125,7 +2140,7 @@ function TraceView({
   const pageTraces = page?.items ?? [];
   const metricColumns = useMemo(() => {
     if (evaluation) return traceSignalColumns(evaluation);
-    const names = [...new Set(pageTraces.flatMap((trace) => Object.keys(trace.reward_components)))].slice(0, 4);
+    const names = [...new Set(pageTraces.flatMap((trace) => Object.keys(trace.reward_components)))].slice(0, 8);
     return names.map((name) => ({
       name,
       label: name.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()),
@@ -2249,10 +2264,17 @@ function TraceInspector({
       <div className="flex items-center justify-between gap-3"><h3 id="reward-components-heading" className="type-label">Reward components</h3><span className="text-[10px] text-muted">{detail.reward_components.length ? `${detail.reward_components.length} signals` : 'Not exposed'}</span></div>
       {detail.reward_components.length ? <div className="mt-3 space-y-2.5">{detail.reward_components.map((item) => {
         const width = Math.abs(item.value) / componentScale * 50;
-        return <div key={item.name} className="grid grid-cols-[minmax(90px,1fr)_1.4fr_48px] items-center gap-2 text-[10px]">
-          <span className="truncate text-secondary" title={item.name}>{humanizeKey(item.name)}</span>
-          <div className="relative h-1.5 rounded-full bg-subtle" aria-label={`${humanizeKey(item.name)} ${item.value.toFixed(3)}`} role="img"><span className="absolute left-1/2 top-0 h-full w-px bg-divider" /><span className={`absolute top-0 h-full rounded-full ${item.value < 0 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ left: `${item.value < 0 ? 50 - width : 50}%`, width: `${width}%` }} /></div>
-          <strong className="text-right tabular-nums">{item.value.toFixed(3)}</strong>
+        return <div key={item.name} className="text-[10px]">
+          <div className="grid grid-cols-[minmax(90px,1fr)_1.4fr_48px] items-center gap-2">
+            <span className="truncate text-secondary" title={item.name}>{humanizeKey(item.name)}</span>
+            <div className="relative h-1.5 rounded-full bg-subtle" aria-label={`${humanizeKey(item.name)} ${item.value.toFixed(3)}`} role="img"><span className="absolute left-1/2 top-0 h-full w-px bg-divider" /><span className={`absolute top-0 h-full rounded-full ${item.value < 0 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ left: `${item.value < 0 ? 50 - width : 50}%`, width: `${width}%` }} /></div>
+            <strong className="text-right tabular-nums">{item.value.toFixed(3)}</strong>
+          </div>
+          {item.source === 'episode_judge' && <div className="mt-1.5 rounded-[4px] bg-subtle px-2.5 py-2 leading-4 text-secondary">
+            <span className="font-medium text-violet-700">Episode judge</span>
+            {item.reason && <p className="mt-0.5">{item.reason}</p>}
+            {item.evidence.length > 0 && <p className="mt-0.5 text-muted">Evidence: {item.evidence.join(', ')}</p>}
+          </div>}
         </div>;
       })}</div> : <p className="mt-2 text-[11px] leading-4 text-muted">This trace exposes a primary reward without named underlying components.</p>}
     </section>}

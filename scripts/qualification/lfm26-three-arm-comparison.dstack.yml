@@ -1,0 +1,198 @@
+type: task
+name: posttrain-lfm26-three-arm-r7
+image: registry.carbonteq.com/carbonteq/posttrain/nanbeige-vllm@sha256:bfbeee151fb59c687f7e27d5e5e287716a7c1c6dd58ebf0a4ffe99b13702a3aa
+shell: /bin/bash
+commands:
+  - >-
+    /opt/posttrain/uv pip install --no-deps --reinstall
+    --python /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/candidate/posttrain_common-0.0.0-py3-none-any.whl
+    /opt/posttrain/candidate/posttrain_catalog-0.0.0-py3-none-any.whl
+    /opt/posttrain/candidate/posttrain_train-0.0.0-py3-none-any.whl
+  - >-
+    cp /opt/posttrain/environment-overlay/episode_prompt.py
+    /opt/posttrain/environment-overlay/judge.py
+    /opt/posttrain/environment-overlay/limited_tools.py
+    /opt/posttrain/environment-overlay/taskset.py
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/lib/python3.13/site-packages/automationbench_v1/
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    POSTTRAIN_UV_EXECUTABLE=/opt/posttrain/uv
+    PIP_INDEX_URL=https://pypi.lan/simple UV_DEFAULT_INDEX=https://pypi.lan/simple
+    UV_EXTRA_INDEX_URL=https://pypi.org/simple UV_SYSTEM_CERTS=true
+    HF_HUB_CACHE=/root/.cache/huggingface/hub OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/automationbench_native_judges.py
+    --backend trl --algorithm grpo --policy-profile lfm26b --max-steps 50
+    --policy-context-window 12288 --rollout-concurrency 64 --judge-concurrency 32
+    --prompts-per-step 16 --generations-per-prompt 4
+    --train-micro-batch-size 2 --checkpoint-steps 10
+    --task-mix /opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
+    --judge-code-revision 0dd354d929821174f6cbd8eaa90d82d488df6ff7
+    --environment-wheel-sha256 1e62968347bed34b53161596bb89f505ed1b8844e36f07dcdd7549224d81573a
+    --output /opt/posttrain/evidence/lfm26-grpo-50-r7
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 HF_HUB_CACHE=/root/.cache/huggingface/hub
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/audit_scalar_grpo.py
+    /opt/posttrain/evidence/lfm26-grpo-50-r7 --require-nonzero-update
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 HF_HUB_CACHE=/root/.cache/huggingface/hub
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/reload_deterministic_export.py
+    /opt/posttrain/evidence/lfm26-grpo-50-r7 --device cuda
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    POSTTRAIN_UV_EXECUTABLE=/opt/posttrain/uv
+    PIP_INDEX_URL=https://pypi.lan/simple UV_DEFAULT_INDEX=https://pypi.lan/simple
+    UV_EXTRA_INDEX_URL=https://pypi.org/simple UV_SYSTEM_CERTS=true
+    HF_HUB_CACHE=/root/.cache/huggingface/hub OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/evaluate_automationbench_adapter.py
+    --task-mix /opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
+    --rollouts-per-task 2 --context-window 12288 --max-concurrent 64 --port 8130
+    --training-output /opt/posttrain/evidence/lfm26-grpo-50-r7
+    --output /opt/posttrain/evidence/lfm26-grpo-eval-r7
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    POSTTRAIN_UV_EXECUTABLE=/opt/posttrain/uv
+    PIP_INDEX_URL=https://pypi.lan/simple UV_DEFAULT_INDEX=https://pypi.lan/simple
+    UV_EXTRA_INDEX_URL=https://pypi.org/simple UV_SYSTEM_CERTS=true
+    HF_HUB_CACHE=/root/.cache/huggingface/hub OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/automationbench_native_judges.py
+    --backend trl --algorithm olmo3 --policy-profile lfm26b --max-steps 50
+    --policy-context-window 12288 --rollout-concurrency 64 --judge-concurrency 32
+    --prompts-per-step 16 --generations-per-prompt 4
+    --train-micro-batch-size 2 --checkpoint-steps 10
+    --task-mix /opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
+    --judge-code-revision 0dd354d929821174f6cbd8eaa90d82d488df6ff7
+    --environment-wheel-sha256 1e62968347bed34b53161596bb89f505ed1b8844e36f07dcdd7549224d81573a
+    --output /opt/posttrain/evidence/lfm26-olmo3-50-r7
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 HF_HUB_CACHE=/root/.cache/huggingface/hub
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/audit_scalar_grpo.py
+    /opt/posttrain/evidence/lfm26-olmo3-50-r7 --require-nonzero-update
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 HF_HUB_CACHE=/root/.cache/huggingface/hub
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/reload_deterministic_export.py
+    /opt/posttrain/evidence/lfm26-olmo3-50-r7 --device cuda
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    POSTTRAIN_UV_EXECUTABLE=/opt/posttrain/uv
+    PIP_INDEX_URL=https://pypi.lan/simple UV_DEFAULT_INDEX=https://pypi.lan/simple
+    UV_EXTRA_INDEX_URL=https://pypi.org/simple UV_SYSTEM_CERTS=true
+    HF_HUB_CACHE=/root/.cache/huggingface/hub OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/evaluate_automationbench_adapter.py
+    --task-mix /opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
+    --rollouts-per-task 2 --context-window 12288 --max-concurrent 64 --port 8130
+    --training-output /opt/posttrain/evidence/lfm26-olmo3-50-r7
+    --output /opt/posttrain/evidence/lfm26-olmo3-eval-r7
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    POSTTRAIN_UV_EXECUTABLE=/opt/posttrain/uv
+    PIP_INDEX_URL=https://pypi.lan/simple UV_DEFAULT_INDEX=https://pypi.lan/simple
+    UV_EXTRA_INDEX_URL=https://pypi.org/simple UV_SYSTEM_CERTS=true
+    HF_HUB_CACHE=/root/.cache/huggingface/hub OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/automationbench_native_judges.py
+    --backend trl --algorithm gdpo --episode-rewards --policy-profile lfm26b --max-steps 50
+    --policy-context-window 12288 --rollout-concurrency 64 --judge-concurrency 32
+    --judge-speculative-tokens 2 --judge-timeout-seconds 900
+    --prompts-per-step 16 --generations-per-prompt 4
+    --train-micro-batch-size 2 --checkpoint-steps 10
+    --task-mix /opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
+    --judge-profile gemma12b --judge-vllm-executable vllm
+    --judge-vllm-version 0.26.1rc1.dev1235+g62f6de733
+    --judge-code-revision 0dd354d929821174f6cbd8eaa90d82d488df6ff7
+    --environment-wheel-sha256 1e62968347bed34b53161596bb89f505ed1b8844e36f07dcdd7549224d81573a
+    --output /opt/posttrain/evidence/lfm26-gdpo-50-r7
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    HF_HUB_CACHE=/root/.cache/huggingface/hub
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/audit_structured_toy.py
+    /opt/posttrain/evidence/lfm26-gdpo-50-r7 --mechanics --reload-export
+  - >-
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/posttrain/qualification
+    POSTTRAIN_UV_EXECUTABLE=/opt/posttrain/uv
+    PIP_INDEX_URL=https://pypi.lan/simple UV_DEFAULT_INDEX=https://pypi.lan/simple
+    UV_EXTRA_INDEX_URL=https://pypi.org/simple UV_SYSTEM_CERTS=true
+    HF_HUB_CACHE=/root/.cache/huggingface/hub OMP_NUM_THREADS=8
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/evaluate_automationbench_adapter.py
+    --task-mix /opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
+    --rollouts-per-task 2 --context-window 12288 --max-concurrent 64 --port 8130
+    --training-output /opt/posttrain/evidence/lfm26-gdpo-50-r7
+    --output /opt/posttrain/evidence/lfm26-gdpo-eval-r7
+  - >-
+    /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl/verl-venv-r12-fresh/bin/python
+    /opt/posttrain/qualification/compare_lfm26_algorithm_runs.py
+    --base /opt/posttrain/evidence/lfm26-budget-base-preflight-r4
+    --grpo /opt/posttrain/evidence/lfm26-grpo-eval-r7
+    --olmo3 /opt/posttrain/evidence/lfm26-olmo3-eval-r7
+    --gdpo /opt/posttrain/evidence/lfm26-gdpo-eval-r7
+    --grpo-training /opt/posttrain/evidence/lfm26-grpo-50-r7
+    --olmo3-training /opt/posttrain/evidence/lfm26-olmo3-50-r7
+    --gdpo-training /opt/posttrain/evidence/lfm26-gdpo-50-r7
+    --task-mix /opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
+    --output /opt/posttrain/evidence/lfm26-three-arm-r7/comparison.json
+files:
+  - ../../artifacts/qualification/lfm26-comparison/posttrain_common-0.0.0-py3-none-any.whl:/opt/posttrain/candidate/posttrain_common-0.0.0-py3-none-any.whl
+  - ../../artifacts/qualification/lfm26-comparison/posttrain_catalog-0.0.0-py3-none-any.whl:/opt/posttrain/candidate/posttrain_catalog-0.0.0-py3-none-any.whl
+  - ../../artifacts/qualification/lfm26-comparison/posttrain_train-0.0.0-py3-none-any.whl:/opt/posttrain/candidate/posttrain_train-0.0.0-py3-none-any.whl
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/episode_prompt.py:/opt/posttrain/environment-overlay/episode_prompt.py
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/judge.py:/opt/posttrain/environment-overlay/judge.py
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/limited_tools.py:/opt/posttrain/environment-overlay/limited_tools.py
+  - ../../../verifiers-environments-turns/environments/automationbench_v1/src/automationbench_v1/taskset.py:/opt/posttrain/environment-overlay/taskset.py
+  - ./automationbench_native_judges.py:/opt/posttrain/qualification/automationbench_native_judges.py
+  - ./automationbench_structured_toy.py:/opt/posttrain/qualification/automationbench_structured_toy.py
+  - ./episode_reward_profile.py:/opt/posttrain/qualification/episode_reward_profile.py
+  - ./evaluate_automationbench_adapter.py:/opt/posttrain/qualification/evaluate_automationbench_adapter.py
+  - ./audit_scalar_grpo.py:/opt/posttrain/qualification/audit_scalar_grpo.py
+  - ./audit_structured_toy.py:/opt/posttrain/qualification/audit_structured_toy.py
+  - ./reload_deterministic_export.py:/opt/posttrain/qualification/reload_deterministic_export.py
+  - ./compare_lfm26_algorithm_runs.py:/opt/posttrain/qualification/compare_lfm26_algorithm_runs.py
+  - ./fixtures/lfm26_automationbench_mix_v1.json:/opt/posttrain/qualification/lfm26_automationbench_mix_v1.json
+volumes:
+  - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt
+  - /home/carbonteq-ai-workstation/.local/bin/uv:/opt/posttrain/uv
+  - /home/carbonteq-ai-workstation/.local/bin/uv:/root/.local/bin/uv
+  - /var/lib/posttrain/cache/huggingface:/root/.cache/huggingface
+  - /var/lib/posttrain/qualifications/nanbeige-r12-20260906:/opt/posttrain/evidence
+  - /home/carbonteq-ai-workstation/posttrain-qualification.2iyErl:/home/carbonteq-ai-workstation/posttrain-qualification.2iyErl
+  - /home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu:/home/carbonteq-ai-workstation/.local/share/uv/python/cpython-3.13.12-linux-x86_64-gnu
+resources:
+  cpu: 8..
+  memory: 48GB..
+  gpu:
+    vendor: nvidia
+    count: 1
+    memory: 96GB..
+fleets:
+  - local-gpu-workers
+max_duration: 48h
+stop_duration: 5m
+retry:
+  on_events: [no-capacity]
+  duration: 48h
+tags:
+  purpose: lfm26-three-arm-comparison
+  policy: lfm2.5-2.6b
+  algorithms: grpo-olmo3-gdpo
+  training_steps: "50"
+  train_tasks: "20"
+  heldout_tasks: "20"
+  heldout_rollouts_per_task: "2"
+  policy_context_window: "12288"
+  eval_concurrency: "64"
+  train_concurrency: "64"
+  judge_concurrency: "32"
+  judge_speculation: mtp-2
+  judge_timeout_seconds: "900"
+  prompt_groups_per_update: "16"
+  generations_per_prompt: "4"
+  checkpoint_interval: "10"

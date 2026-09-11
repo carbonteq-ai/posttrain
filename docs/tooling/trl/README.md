@@ -1,6 +1,194 @@
 # TRL
 
+## GDPO/CAPO follow-on qualification
+
+`scripts/qualification/structured_trl_lifecycle.py` exercises installed TRL
+1.12.0.post2 on an immutable tiny Qwen fixture with masked precomputed GDPO/CAPO
+advantages and beta=0.1. Both complete two finite nonzero-gradient CUDA updates,
+resume checkpoint 1 to matching uninterrupted weights, and generate from the
+export. This is deterministic full-parameter fixture evidence, not live Verifiers,
+judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
+
+Latest candidate: `1.12.0.post8`, release commit
+`6dfc69db939144d270cbcbbed17294262b5ac6f4`, tag
+`carbonteq-v1.12.0.post8`. It publishes the continuous-batched colocated vLLM
+request path, session-owned LoRA refresh, and async parity-probe routing on top
+of the post6 async lifecycle and post5 complete-group admission behavior. It
+consumes retained source-row
+identities before reward calculation, validates complete groups, and keeps
+single-process GRPO accumulation normalized over admitted samples. OLMo active
+sampling accepts partial and empty candidate rounds within its existing bound.
+Padding exists only in trainer tensors after scoring; no synthetic rewards or
+episodes are created. Partial distributed, multimodal, fixed alternate-loss,
+fused-loss, entropy-bonus and auxiliary-loss cases remain unqualified/rejected.
+The post8 async-vLLM slice passes 26 focused tests with one runtime capability
+skip; its clean installed wheel imports the async GRPO, asynchronous vLLM
+session, IW-OPD, and OLMo3 surfaces. Wheel SHA-256:
+`aabf5a52b9f8a20db32e9da5847fd2584e18ba8cfb12f2e79ec7db146db8ffa4`;
+sdist: `74ff559792ee20df94b2576a09c8962508ee66e2571e7b353ec516b9320ac721`.
+Posttrain retained-asset workflow `34393365885` published and read back those
+exact bytes from `carbonteq/dev`.
+Live RTX PRO qualification remains pending. Harness optimization is deferred.
+
+The post8 candidate connects `GRPOConfig.vllm_request_mode`
+to a lazily owned colocated `AsyncLLM`. Posttrain selects it only together with
+an explicit bounded `rollout_execution` topology; `batch` remains the legacy
+default. During each synchronous GRPO/OLMo collection round, native Verifiers
+workers may submit independent model turns to vLLM's continuous scheduler.
+Posttrain then closes admission, drains all requests, suspends inference, and
+only then returns control for the optimizer update. The initial supported
+shape is single-process LoRA/QLoRA. Deterministic TRL and Posttrain tests pass;
+a changed-weight GPU update remains required before stable promotion.
+
+The async rollout lifecycle is published in post6 from consolidated fork branch
+`codex/posttrain-v04-dev`; ledger follow-up commit
+`3ab670f3611f381b373b7e97267879a4afde37ff` records its development
+publication. The current pushed development head is
+`1deb8d0191b8a2a70be615f2348d16936bb33dc3`; functional commit
+`e3f49dc796d1013ff735bc383103ca552be51a34` adds the unpadded
+hybrid-model parity correction described below and is not yet a published
+distribution. It includes corrected
+learner-consumption acknowledgement and native-agent qualification. Against
+the selected vLLM 0.25.1 runtime, its
+bounded Qwen 0.5B gate passes independent request completion, explicit abort,
+sampled-token logprobs, drain, staged weights/KV-cache wake, sleep, and clean
+shutdown on the local RTX 3070 Ti. The first attempt found that restoring only
+weights leaves vLLM scheduling paused and that shutting down while allocations
+remain asleep produces a CuMem cleanup error; both lifecycle transitions are
+covered by the fork tests and the repeated real-engine gate. Changed actor
+weight synchronization and actor/sampler parity now also pass in a distinct-host
+GPU topology. The passing implementation was
+`2308ab41aeedc082e154734f33cfe44809b1fdea`: an RTX 3070 Ti actor transferred a
+changed normalization tensor over the production NCCL client to an RTX PRO
+6000 vLLM server. Base selected-token log-prob delta was `0.0022419691`; after
+transfer it was exactly `0.0`, while the server value moved by
+`10.6749088764`. The live failure-boundary gate now injects an invalid native
+`finish_weight_update` into the real trainer synchronization path and proves
+the server keeps version 0 authoritative with unchanged selected-token
+log-probability. It is a single-rank control-path result only; repeated NCCL
+group initialization on a long-lived vLLM server remains an unqualified
+distributed failure-propagation case. A controlled asynchronous
+Verifiers-to-learner optimizer update now passes locally; real environment
+serving, a 2B learner update, an immutable candidate package, and
+checkpoint/resume remain open. See
+`docs/plan/async-continuous-rollout-workers.md` for the exact command and gates.
+
+The local candidate also adds an acknowledged model-request drain to native
+async GRPO and async distillation. Before weight transfer, the trainer closes
+group and model-request admission and waits for every already-admitted request
+to finish. Tool-running episodes remain alive and wait before their next model
+turn. After vLLM resumes, the trainer publishes the new policy version and
+reopens admission. This is a trainer lifecycle seam; Verifiers still owns
+environment execution and exact sampled evidence, while stale-sample policy
+and importance correction remain trainer-owned. Deterministic fork tests pass
+for ordering and the cross-process drain handshake. A transfer-failure regression additionally
+proves that the prior model version remains authoritative and inference is
+neither resumed nor reopened when weight publication fails.
+
+The candidate includes `scripts/qualify_async_vllm_changed_weight.py` and two
+dstack task descriptions for the native NCCL actor/sampler parity gate. The
+passing server used immutable runtime image
+`registry.carbonteq.com/carbonteq/posttrain-kind-online-rl-trl-py312@sha256:8230413ea572158e59e3f4099b218474d339869fb3eb1676ebaf23e35d35d03d`.
+Its slim runtime has no CUDA compiler, so the task explicitly selects vLLM's
+native sampler. This is already required for `processed_logprobs` because the
+FlashInfer sampler cannot return post-top-k/top-p log probabilities; FlashInfer
+attention and NCCL transfer remain enabled. Rollout-only sampling performance
+with FlashInfer remains a separate benchmark, not a reason to invalidate the
+correctness gate.
+
+The same candidate adds optional recovery hooks for custom rollout workers.
+TRL's collator transports one group identity per sample, but acknowledgement
+occurs only when `training_step` receives that batch. This distinction matters
+because dataloader prefetch can collate a later group that the learner never
+uses. TRL saves or restores worker-declared JSON scheduling metadata with the
+trainer checkpoint; it does not serialize live queues, environments, requests,
+or processes. Posttrain uses this seam to keep generated/enqueued work distinct
+from learner-consumed work and fails closed on a partially consumed
+relative-reward group. Whole-group batching and a real resume must still be
+qualified before the mode can be selected.
+
+The original native `AsyncRolloutWorker` also passed a local tool-calling
+throughput gate with Qwen3.5-2B on one RTX 3070 Ti. Sixteen groups of four
+produced 64/64 successful tool calls and zero tool failures. Holding the
+workload and sampling controls constant, concurrency 32 completed in 18.7395
+seconds (3.4152 samples/s), compared with 46.7045 seconds (1.3703 samples/s)
+at concurrency one, a 2.49x speedup. The gate found and fixed standalone
+Accelerate-logger coupling and a false failure on normal Python 3.13 task
+cancellation. It is rollout evidence, not a 2B optimizer-update qualification.
+
+A composed 2.6B LFM canary on the local 8 GiB target is intentionally rejected.
+TRL sleep mode releases vLLM during optimization, but actor and vLLM weights
+coexist during rollout; two BF16 policy copies have a 10.02 GiB weight-only
+floor before KV cache, activations, adapter state, and workspaces. Run
+`lfm26-local-lifecycle-unpadded-20260909` confirmed this at startup when the
+loaded actor left only 1.66/7.63 GiB free. Posttrain now rejects that provable
+cross-seat conflict before packaging. The composed changed-weight gate selects
+the 96 GiB RTX PRO target; 8 GiB lifecycle qualification must use a smaller
+policy rather than a startup-only offload workaround.
+
+Posttrain now has an unselected run-scoped token gateway for this candidate.
+It forwards native Verifiers requests to the trainer-owned vLLM server while
+gating model turns around the fork's two-phase weight publication. It records
+the served version of each request by Verifiers trace session and persists the
+resulting span in the native episode before projection. This avoids deriving
+provenance from wall-clock completion or asking Verifiers to own trainer state.
+Deterministic two-turn and shared-upstream-failure tests pass; changed-weight
+actor/sampler parity passes, while the corresponding live failure path remains
+a release gate.
+
+Previous candidate: `1.12.0.post4`, commit
+`19e6c89a18617f1bd6e6385212705a67f5434962`, supersedes post3 below without
+overwriting its immutable assets. Post4 initializes the bounded diagnostic
+configuration on the trainer and includes the post3 change that bounds the one-time actor/vLLM raw
+policy-parity probe to selected rows and a 4,096-token prompt-plus-completion
+window without changing rollout or optimizer-update sequences. Its retained
+wheel SHA-256 is `53214b7a6a58114d542ba319df519fb7942ef4a1e906727c6a866ee06244ecf8`;
+sdist SHA-256 is `27d8849a72e6c3aae4612630e469645e0aa6450817c04e6a0afd33ef23a7dd5b`.
+Development publication workflow `34220248742` passed exact-byte readback and
+clean installation. Live GRPO/OLMo GPU qualification remains open.
+
+Post2 repairs IW-OPD checkpoint skipping
+losing Accelerate device placement and batch repetition. The installed wheel
+passes native CUDA two-update training, matching checkpoint resume, and
+exported-model generation with accumulation 1 and 2. The clean framework
+candidate contains reproducible `scripts/qualification/trl_retained_fork_lifecycle.py`
+and JSON receipts. Development publisher: `34007394648`; vLLM/runtime-image
+qualification and stable/main adoption remain open.
+
 TRL is the execution library behind `packages/train`.
+
+## 2026-09-06 upstream audit: candidate, not a pin update
+
+The user subsequently prioritized the full upgrade. The retained fork is now
+integrated on v1.12.0, committed and pushed as
+`6a5532e2f51e4e1cdc8a891582514a50f68a775a`, and released as candidate
+`carbonteq-v1.12.0.post1`. Its wheel SHA-256 is
+`cf242fafdfe476b7b8a250b300d6cbd52f502410a4053f4a9bac3366287727c5`;
+sdist SHA-256 is `1e7bae5ee846972be7763e66dbd0b1149d99fb44c51125e2499adf4773d2e127`.
+Validation: 140 focused source checks, 45 installed-wheel checks, and 26
+framework adapter checks pass. Upstream Liger >=0.8.2 normalization replaces
+the older compatibility adaptation; full-weight wake restores the trained
+actor. Posttrain Actions `34006220244` publishes the retained bytes to dev.
+Stable consumer adoption remains gated on runtime-image/GPU qualification.
+
+The selected source remains `69cf80a7319079ec5523841553467e119ebc1cec`
+(`1.9.2.post11`). Upstream v1.12.0 is available, but is an accidental duplicate
+of v1.11.0 according to its release notes. The full vLLM lifecycle/API migration
+must retain our exact-token IW-OPD, bounded admission, precomputed advantages,
+raw actor/sampler parity, LoRA synchronization, and memory-bounded projection
+before a version change is admitted.
+
+An isolated `/home/hammad/projects/trl-gdpo-capo` candidate fixes Liger's
+microbatch versus generation-window token normalization using the retained
+Liger 0.8.0 API. Nineteen CPU tests pass, including native Liger loss/gradients,
+positive-beta KL, and two-rank Gloo parity. The first 18 tests produce 14
+failures against the installed pin; the unchanged GRPO cases pass. This is
+source regression evidence, not a GPU optimizer or release qualification.
+The fork ledger records the adaptation and upstream replacement procedure.
+
+The framework explicitly preserves `use_bias_correction_kl=False`; adopting
+the newer upstream default would change KL gradients, not just configuration.
+See `docs/plan/gdpo-capo-dual-backend-support.md` for the inventory and gates.
 
 The rebuilt `train` package will expose reusable SFT, DPO, and RL operations.
 TRL is an internal adapter selected by a typed TRL config, not the object other
@@ -93,6 +281,23 @@ candidate now teacher-forces a bounded prompt/completion probe through vLLM
 prompt-logprob collection and compares it with raw actor values at temperature
 one. Processed sampled log probabilities remain the independent TIS signal.
 The candidate also records raw parity mean, maximum, and token count.
+
+The LFM2.5 AutomationBench R9 qualification then exposed a second false-parity
+path. The bounded vLLM rows were unpadded, while actor probe prompts and
+completions were padded independently across heterogeneous tasks. That made the
+actor input nearly twice the configured per-row bound and injected thousands of
+leading pad tokens into LFM's recurrent/convolutional stack. Exact retained
+trace replay measured `0.00658` mean selected-token delta without padding and
+`0.06207` with 2,700 leading pad tokens. The fork now scores the one-time actor
+probe row by row without padding. The LFM rollout bindings also omit
+`weight_name_prefix`: native LFM vLLM modules use `model.layers...`, unlike the
+Qwen3.5 composite `language_model.model.layers...` namespace.
+The corrected native LFM adapter was also exercised with 166 deliberately
+nonzero LoRA-B tensors: vLLM showed a `0.00910` mean selected-token adapter
+effect and remained within `0.00894` mean actor/vLLM delta. A separate local
+AsyncLLM probe completed two policy rounds around cancellation, drain, sleep,
+and wake. These are source-level component gates; one composed optimizer update
+and post-update rollout remain required before immutable release qualification.
 
 This repair is in immutable `trl==1.9.2.post11` bytes, tagged at
 `carbonteq-v1.9.2.post11`. Posttrain's candidate consumes it from

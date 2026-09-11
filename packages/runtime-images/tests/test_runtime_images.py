@@ -37,12 +37,16 @@ def test_shipped_dockerfile_input_paths_resolve_against_the_definition_root() ->
     """
     copied = re.compile(r"^COPY\s+(containers/\S+)", re.MULTILINE)
     with definition_root() as root:
-        for level in ("posttrain-base", "posttrain-job-kinds"):
-            dockerfile = root / "containers" / level / "Dockerfile"
+        dockerfiles = (
+            root / "containers/posttrain-base/Dockerfile",
+            root / "containers/posttrain-job-kinds/Dockerfile",
+            root / "containers/posttrain-job-kinds/Dockerfile.vllm",
+        )
+        for dockerfile in dockerfiles:
             referenced = copied.findall(dockerfile.read_text())
-            assert referenced, f"expected context inputs in {level}/Dockerfile"
+            assert referenced, f"expected context inputs in {dockerfile}"
             for path in referenced:
-                assert (root / path).exists(), f"{level}/Dockerfile copies missing {path}"
+                assert (root / path).exists(), f"{dockerfile} copies missing {path}"
 
 
 def test_actual_job_from_arguments_are_declared_in_global_scope() -> None:
@@ -68,13 +72,47 @@ def test_actual_job_verifies_source_before_package_build_backends_run() -> None:
     assert copied < verified < installed
 
 
+def test_actual_job_can_apply_only_a_digest_bound_backend_development_source() -> None:
+    with definition_root() as root:
+        dockerfile = (root / "containers/posttrain-job/Dockerfile").read_text()
+
+    assert "ARG BACKEND_SOURCE_DIGEST" in dockerfile
+    assert "staged backend source differs from its package digest" in dockerfile
+    assert "online-rl-trl-py312" in dockerfile
+    assert "online-rl-verl-py313" in dockerfile
+    with definition_root() as root:
+        bake = (root / "containers/posttrain-job/docker-bake.hcl").read_text()
+    assert 'variable "BACKEND_SOURCE_DIGEST"' in bake
+    assert "BACKEND_SOURCE_DIGEST = BACKEND_SOURCE_DIGEST" in bake
+
+
 def test_eval_kind_installs_one_locked_runtime_and_marks_it_preinstalled() -> None:
     with definition_root() as root:
-        dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile").read_text()
+        dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile.vllm").read_text()
     assert "null_harness_warmup.py" not in dockerfile
     assert "uv sync --script" not in dockerfile
     assert "--constraint /opt/posttrain/locks/eval.lock.txt" in dockerfile
     assert 'POSTTRAIN_VERIFIERS_PREINSTALLED="1"' in dockerfile
+
+
+def test_compatible_vllm_kinds_share_one_locked_parent_layer() -> None:
+    with definition_root() as root:
+        dockerfile = (root / "containers/posttrain-job-kinds/Dockerfile.vllm").read_text()
+        vllm_lock = root / "containers/posttrain-job-kinds/locks/vllm-common.lock.txt"
+        vllm_profile = root / "containers/posttrain-job-kinds/profiles/vllm-common.txt"
+
+    shared_start = dockerfile.index("FROM kind-common AS vllm-kind-common")
+    first_variant = dockerfile.index("FROM vllm-kind-common AS online-rl-trl-py312-dependencies", shared_start)
+    shared_stage = dockerfile[shared_start:first_variant]
+    assert "vllm-common.lock.txt" in shared_stage
+    assert "profiles/vllm-common.txt" in shared_stage
+    assert "--requirement /opt/posttrain/profiles/vllm-common.txt" in shared_stage
+    assert 'VLLM_USE_FLASHINFER_SAMPLER="0"' not in shared_stage
+    assert dockerfile.count('ENV VLLM_USE_FLASHINFER_SAMPLER="0"') == 3
+    assert vllm_lock.is_file()
+    assert "vllm==0.25.1" in vllm_profile.read_text(encoding="utf-8")
+    for stage in ("online-rl-trl-py312-dependencies", "eval-dependencies", "serve-dependencies"):
+        assert f"FROM vllm-kind-common AS {stage}" in dockerfile
 
 
 def test_base_accepts_a_build_secret_ca_bundle_without_disabling_tls() -> None:
@@ -185,10 +223,28 @@ def test_narrow_runtime_locks_pin_every_profile_root_and_artifact() -> None:
     expected_roots = {
         BASE_LOCK: {"torch", "triton"},
         constraint_lock("supervised"): {"carbonteq-trackio", "pydantic", "pyyaml", "trl"},
-        constraint_lock("online-rl-trl-py312"): {"carbonteq-trackio", "trl", "vllm", "verifiers"},
+        constraint_lock("online-rl-trl-py312"): {
+            "carbonteq-trackio",
+            "trl",
+            "verifiers",
+            "vllm",
+            "vllm-spark2-5-plugin",
+        },
         constraint_lock("online-rl-verl-py313"): {"carbonteq-trackio", "verifiers"},
-        constraint_lock("eval"): {"carbonteq-trackio", "datasets", "vllm", "verifiers"},
-        constraint_lock("serve"): {"carbonteq-trackio", "vllm", "torchvision", "torchaudio"},
+        constraint_lock("eval"): {
+            "carbonteq-trackio",
+            "datasets",
+            "verifiers",
+            "vllm",
+            "vllm-spark2-5-plugin",
+        },
+        constraint_lock("serve"): {
+            "carbonteq-trackio",
+            "torchaudio",
+            "torchvision",
+            "vllm",
+            "vllm-spark2-5-plugin",
+        },
         TRANSFORM_LOCK: {
             "carbonteq-trackio",
             "datasets",

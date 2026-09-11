@@ -72,10 +72,13 @@ class IdentityContractTests(unittest.TestCase):
                 "qwen3.5-0.8b",
                 "qwen3.5-2b",
                 "lfm2.5-1.2b-thinking",
+                "lfm2.5-2.6b",
+                "nanbeige4.2-3b",
                 "gemma4-e2b-it",
                 "gemma4-e4b-it",
                 "gemma4-12b-it",
                 "gemma4-31b-it",
+                "spark-x2.5-4b",
             },
         )
         for variant in FOUNDATION_VARIANTS.values():

@@ -192,8 +192,8 @@ wheels = [
 
 [[package]]
 name = "carbonteq-trackio"
-version = "0.31.5.post14.dev19"
-source = { registry = "https://pypi.lan/carbonteq/stable/+simple/" }
+version = "0.31.5.post14.dev23"
+source = { url = "https://pypi.lan/carbonteq/dev/+f/046/0ba6a4d531595/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl" }
 dependencies = [
     { name = "boto3" },
     { name = "brotli" },
@@ -208,10 +208,39 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://pypi.lan/carbonteq/stable/+f/b31/0e9ed1220ce13/carbonteq_trackio-0.31.5.post14.dev19.tar.gz", hash = "sha256:b310e9ed1220ce1327229bf8370b90efb6cbee578c42866435cb8c10c7c99501" }
 wheels = [
-    { url = "https://pypi.lan/carbonteq/stable/+f/e92/436100adc6579/carbonteq_trackio-0.31.5.post14.dev19-py3-none-any.whl", hash = "sha256:e92436100adc657993f7fc1e51008a4c5f6a63786c97afb2899962c872c8d5ea" },
+    { url = "https://pypi.lan/carbonteq/dev/+f/046/0ba6a4d531595/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl", hash = "sha256:0460ba6a4d531595a1caba1c6d340f13d4ba490be149308138b695b0a03512a6" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.35.0,<2.0.0" },
+    { name = "brotli", specifier = ">=1.0.0,<2.0.0" },
+    { name = "gradio-client", specifier = ">=2.0.0,<3.0.0" },
+    { name = "huggingface-hub", specifier = ">=1.10.0,<2" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0.0,<2.0.0" },
+    { name = "numpy", specifier = "<3.0.0" },
+    { name = "nvidia-ml-py", marker = "extra == 'gpu'", specifier = ">=12.0.0" },
+    { name = "orjson", specifier = ">=3.0,<4.0.0" },
+    { name = "pillow", specifier = "<13.0.0" },
+    { name = "playwright", marker = "extra == 'dev'", specifier = "==1.60.0" },
+    { name = "psutil", marker = "extra == 'apple-gpu'", specifier = ">=5.9.0" },
+    { name = "psutil", marker = "extra == 'cpu'", specifier = ">=5.9.0" },
+    { name = "psutil", marker = "extra == 'gpu'", specifier = ">=5.9.0" },
+    { name = "pyarrow", marker = "extra == 'spaces'", specifier = ">=21.0" },
+    { name = "pymysql", specifier = ">=1.1.0,<2.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0,<9.0.0" },
+    { name = "pytest-playwright", marker = "extra == 'dev'", specifier = ">=0.7.0,<1.0.0" },
+    { name = "python-multipart", specifier = ">=0.0.9,<1.0.0" },
+    { name = "pyturso", specifier = ">=0.7.0,<1.0.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = "==0.9.3" },
+    { name = "starlette", specifier = "<2.0.0" },
+    { name = "tbparse", marker = "extra == 'tensorboard'", specifier = "==0.0.9" },
+    { name = "tensorboardx", marker = "extra == 'tensorboard'", specifier = ">=2.0.0,<3.0.0" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0,<1.0.0" },
+]
+provides-extras = ["apple-gpu", "cpu", "dev", "gpu", "mcp", "spaces", "tensorboard"]
 
 [[package]]
 name = "certifi"
@@ -1008,7 +1037,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "carbonteq-trackio", specifier = "==0.31.5.post14.dev19", index = "https://pypi.lan/carbonteq/stable/+simple/" },
+    { name = "carbonteq-trackio", url = "https://pypi.lan/carbonteq/dev/+f/046/0ba6a4d531595/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl" },
     { name = "datasets", specifier = ">=4.8.4,<5" },
     { name = "llmcompressor", git = "https://github.com/vllm-project/llm-compressor.git?rev=655b83d1240c37920a603b747bbfb6c218f66383" },
     { name = "pydantic", specifier = "==2.13.4" },

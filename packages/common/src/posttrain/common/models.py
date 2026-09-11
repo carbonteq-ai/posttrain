@@ -69,7 +69,7 @@ class ReasoningMode:
 
 @dataclass(frozen=True, slots=True)
 class ToolCallProtocol:
-    id: Literal["qwen3_xml", "lfm2_pythonic", "gemma4_structured"]
+    id: Literal["qwen3_xml", "lfm2_pythonic", "gemma4_structured", "nanbeige_xml", "spark25_xml"]
     assistant_format: str
     start_token: str
     end_token: str

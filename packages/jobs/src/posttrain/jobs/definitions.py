@@ -9,7 +9,9 @@ from typing import Any, Literal
 from posttrain.common import (
     ContractError,
     ExecutionTarget,
+    HostedInferenceBinding,
     InferenceBinding,
+    JudgeInferenceBinding,
     LocalArtifactRef,
     ModelVariant,
     RunContext,
@@ -47,13 +49,18 @@ from posttrain.serve import (
     probe,
 )
 from posttrain.train import (
+    CAPORequest,
+    CAPOSettings,
     DPORequest,
     DPOSettings,
+    GDPORequest,
+    GDPOSettings,
     GRPORequest,
     GRPOSettings,
     OnPolicyDistillationRequest,
     OnPolicyDistillationSettings,
     QuantizationPlan,
+    RewardProjection,
     SAMPORequest,
     SAMPOSettings,
     SFTRequest,
@@ -64,8 +71,11 @@ from posttrain.train import (
     build_verifiers_distillation_request,
     build_verifiers_grpo_request,
     build_verifiers_sampo_request,
+    build_verifiers_structured_request,
+    capo,
     distill,
     dpo,
+    gdpo,
     grpo,
     run_llm_compressor,
     sampo,
@@ -74,6 +84,16 @@ from posttrain.train import (
     validate_verifiers_policy_sampling,
 )
 from posttrain.work import JobDefinition, ResolvedSeats
+
+from .inference_services import (
+    ExternalInferenceServiceRequest,
+    ExternalInferenceUsageProjection,
+    ExternalServiceResolver,
+    InferenceServiceRequest,
+    ManagedInferenceService,
+    bind_inference_services,
+)
+from .native_judges import bind_native_judge_services, project_native_judge_usage
 
 _DEFAULT_EVALUATION_BUDGET = EvaluationBudget()
 
@@ -213,24 +233,44 @@ def grpo_definition(
     *,
     tasks: Mapping[int, Any] | None = None,
     definition_id: str = "train/trl-grpo@1",
+    judge_inference_seats: Mapping[str, tuple[str, int]] | None = None,
+    judge_service_bindings: Mapping[str, str] | None = None,
+    external_service_resolver: ExternalServiceResolver | None = None,
 ) -> JobDefinition:
+    judge_seats = _judge_seats(judge_inference_seats)
+    judge_services = _judge_service_bindings(judge_seats, judge_service_bindings)
+
     def run(context: RunContext, seats: ResolvedSeats) -> object:
-        policy, inference = _materialize_grpo_policy(
+        environment = _seat(seats, "environment", EnvironmentBinding)
+        settings = _seat(seats, "settings", GRPOSettings)
+        service_requests = _judge_requests(
             context,
-            _seat(seats, "model", ModelVariant),
-            _seat(seats, "rollout_inference", InferenceBinding),
+            seats,
+            judge_seats,
+            project_native_judge_usage(environment, _maximum_trajectories(settings), judge_services),
         )
-        request = build_verifiers_grpo_request(
-            policy=policy,
-            environment=_seat(seats, "environment", EnvironmentBinding),
-            settings=_seat(seats, "settings", GRPOSettings),
-            training=_seat(seats, "training", TrainingBinding),
-            inference=inference,
-            trace_path=context.workspace / "training" / "grpo" / "verifiers-traces.jsonl",
-            run_id=context.run_id,
-            tasks=tasks,
-        )
-        return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
+        with bind_inference_services(
+            context,
+            service_requests,
+            external_resolver=external_service_resolver,
+        ) as services:
+            with bind_native_judge_services(environment, services, judge_services) as bound_environment:
+                policy, inference = _materialize_grpo_policy(
+                    context,
+                    _seat(seats, "model", ModelVariant),
+                    _seat(seats, "rollout_inference", InferenceBinding),
+                )
+                request = build_verifiers_grpo_request(
+                    policy=policy,
+                    environment=bound_environment,
+                    settings=settings,
+                    training=_seat(seats, "training", TrainingBinding),
+                    inference=inference,
+                    trace_path=context.workspace / "training" / "grpo" / "verifiers-traces.jsonl",
+                    run_id=context.run_id,
+                    tasks=tasks,
+                )
+                return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
 
     return JobDefinition(
         definition_id,
@@ -241,6 +281,7 @@ def grpo_definition(
             "settings": GRPOSettings,
             "training": TrainingBinding,
             "rollout_inference": InferenceBinding,
+            **{seat: JudgeInferenceBinding for seat, _ in judge_seats.values()},
         },
         run,
         "Generate grouped Verifiers rollouts and update the selected policy with the selected GRPO-family objective.",
@@ -322,23 +363,53 @@ def sampo_definition(
     operation: Callable[[RunContext, SAMPORequest], object] = sampo,
     *,
     tasks: Mapping[int, Any] | None = None,
-    definition_id: str = "train/trl-sampo@1",
+    definition_id: str | None = None,
+    turn_rewards: bool = False,
+    judge_inference_seats: Mapping[str, tuple[str, int]] | None = None,
+    judge_service_bindings: Mapping[str, str] | None = None,
+    external_service_resolver: ExternalServiceResolver | None = None,
 ) -> JobDefinition:
+    judge_seats = _judge_seats(judge_inference_seats)
+    judge_services = _judge_service_bindings(judge_seats, judge_service_bindings)
+
     def run(context: RunContext, seats: ResolvedSeats) -> object:
-        request = build_verifiers_sampo_request(
-            policy=_seat(seats, "model", ModelVariant),
-            environment=_seat(seats, "environment", EnvironmentBinding),
-            settings=_seat(seats, "settings", SAMPOSettings),
-            training=_seat(seats, "training", TrainingBinding),
-            inference=_seat(seats, "rollout_inference", InferenceBinding),
-            trace_path=context.workspace / "training" / "sampo" / "verifiers-traces.jsonl",
-            run_id=context.run_id,
-            tasks=tasks,
+        environment = _seat(seats, "environment", EnvironmentBinding)
+        settings = _seat(seats, "settings", SAMPOSettings)
+        service_requests = _judge_requests(
+            context,
+            seats,
+            judge_seats,
+            project_native_judge_usage(environment, _maximum_trajectories(settings), judge_services),
         )
-        return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
+        with bind_inference_services(
+            context,
+            service_requests,
+            external_resolver=external_service_resolver,
+        ) as services:
+            with bind_native_judge_services(
+                environment,
+                services,
+                judge_services,
+            ) as environment:
+                projection = _seat(seats, "reward_projection", RewardProjection) if turn_rewards else None
+                if projection is not None and projection.turn_reward_key is None:
+                    raise ValueError("turn-reward SAMPO requires an explicit direct turn reward selection")
+                request = build_verifiers_sampo_request(
+                    policy=_materialize_selected_model_variant(context, _seat(seats, "model", ModelVariant)),
+                    environment=environment,
+                    settings=settings,
+                    training=_seat(seats, "training", TrainingBinding),
+                    inference=_seat(seats, "rollout_inference", InferenceBinding),
+                    trace_path=context.workspace / "training" / "sampo" / "verifiers-traces.jsonl",
+                    run_id=context.run_id,
+                    tasks=tasks,
+                    reward_projection=projection,
+                )
+                return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
 
     return JobDefinition(
-        definition_id,
+        definition_id
+        or ("train/sampo-turns@1" if turn_rewards else "train/sampo-judged@1" if judge_seats else "train/trl-sampo@1"),
         "train.sampo",
         {
             "model": ModelVariant,
@@ -346,9 +417,136 @@ def sampo_definition(
             "settings": SAMPOSettings,
             "training": TrainingBinding,
             "rollout_inference": InferenceBinding,
+            **({"reward_projection": RewardProjection} if turn_rewards else {}),
+            **{seat: JudgeInferenceBinding for seat, _ in judge_seats.values()},
         },
         run,
         "Train a multi-turn tool policy with sequence clipping and hierarchical episode/turn advantages.",
+        required_artifact_roles=("model", "summary"),
+    )
+
+
+def _judge_seats(selections: Mapping[str, tuple[str, int]] | None) -> dict[str, tuple[str, int]]:
+    values = dict(selections or {})
+    if len({seat for seat, _ in values.values()}) != len(values):
+        raise ValueError("managed judge inference seats must be distinct")
+    reserved = {"model", "environment", "settings", "reward_projection", "training", "rollout_inference"}
+    if any(seat in reserved for seat, _ in values.values()):
+        raise ValueError("managed judge inference seats cannot replace training seats")
+    if any(not name or not seat or not 0 < port < 65536 for name, (seat, port) in values.items()):
+        raise ValueError("managed judges require nonempty names/seats and valid ports")
+    return values
+
+
+def _judge_requests(
+    context: RunContext,
+    seats: ResolvedSeats,
+    selected: Mapping[str, tuple[str, int]],
+    usage: Mapping[str, ExternalInferenceUsageProjection],
+) -> dict[str, InferenceServiceRequest]:
+    requests: dict[str, InferenceServiceRequest] = {}
+    for service_name, (seat, port) in selected.items():
+        inference = _seat(seats, seat, JudgeInferenceBinding)
+        if isinstance(inference, HostedInferenceBinding):
+            requests[service_name] = ExternalInferenceServiceRequest(inference, usage[service_name])
+            continue
+        if not isinstance(inference, InferenceBinding):
+            raise TypeError(f"judge service seat {seat!r} has an unsupported inference selection")
+        _, inference = _materialize_selected_model(context, inference.model, inference, role=seat)
+        requests[service_name] = ManagedInferenceService(ServeLaunchRequest(inference, port=port))
+    return requests
+
+
+def _maximum_trajectories(settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings) -> int:
+    """Project the trainer's generic maximum trajectory consumption."""
+
+    return (
+        settings.loop.max_steps
+        * settings.num_prompts_per_step
+        * settings.num_generations
+        * settings.max_collection_attempts
+    )
+
+
+def _judge_service_bindings(
+    services: Mapping[str, tuple[str, int]],
+    bindings: Mapping[str, str] | None,
+) -> dict[str, str]:
+    resolved = dict(bindings) if bindings is not None else {name: name for name in services}
+    if any(not plugin or not service for plugin, service in resolved.items()):
+        raise ValueError("judge plugin and service names cannot be empty")
+    referenced = set(resolved.values())
+    if referenced != set(services):
+        raise ValueError("judge service bindings must reference every selected service exactly by name")
+    return resolved
+
+
+def structured_rl_definition(
+    technique: Literal["gdpo", "capo"],
+    *,
+    tasks: Mapping[int, Any] | None = None,
+    definition_id: str | None = None,
+    operation: Callable[[RunContext, GDPORequest | CAPORequest], object] | None = None,
+    judge_inference_seats: Mapping[str, tuple[str, int]] | None = None,
+    judge_service_bindings: Mapping[str, str] | None = None,
+    external_service_resolver: ExternalServiceResolver | None = None,
+) -> JobDefinition:
+    """Backend-neutral composition with an explicit, reproducible evidence selection."""
+    if technique not in {"gdpo", "capo"}:
+        raise ValueError("structured RL definition requires gdpo or capo")
+    settings_type = GDPOSettings if technique == "gdpo" else CAPOSettings
+    judge_seats = _judge_seats(judge_inference_seats)
+    judge_services = _judge_service_bindings(judge_seats, judge_service_bindings)
+
+    def run(context: RunContext, seats: ResolvedSeats) -> object:
+        environment = _seat(seats, "environment", EnvironmentBinding)
+        settings = _seat(seats, "settings", settings_type)
+        service_requests = _judge_requests(
+            context,
+            seats,
+            judge_seats,
+            project_native_judge_usage(environment, _maximum_trajectories(settings), judge_services),
+        )
+        with bind_inference_services(
+            context,
+            service_requests,
+            external_resolver=external_service_resolver,
+        ) as services:
+            with bind_native_judge_services(
+                environment,
+                services,
+                judge_services,
+            ) as environment:
+                request = build_verifiers_structured_request(
+                    policy=_materialize_selected_model_variant(context, _seat(seats, "model", ModelVariant)),
+                    environment=environment,
+                    settings=settings,
+                    reward_projection=_seat(seats, "reward_projection", RewardProjection),
+                    training=_seat(seats, "training", TrainingBinding),
+                    inference=_seat(seats, "rollout_inference", InferenceBinding),
+                    trace_path=context.workspace / "training" / technique / "verifiers-traces.jsonl",
+                    run_id=context.run_id,
+                    tasks=tasks,
+                )
+                request = replace(request, resume_from=_recovery_checkpoint(context))
+                if operation is not None:
+                    return operation(context, request)
+                return gdpo(context, request) if isinstance(request, GDPORequest) else capo(context, request)
+
+    return JobDefinition(
+        definition_id or f"train/{technique}{'-judged' if judge_seats else ''}@1",
+        "train.gdpo" if technique == "gdpo" else "train.capo",
+        {
+            "model": ModelVariant,
+            "environment": EnvironmentBinding,
+            "settings": settings_type,
+            "reward_projection": RewardProjection,
+            "training": TrainingBinding,
+            "rollout_inference": InferenceBinding,
+            **{seat: JudgeInferenceBinding for seat, _ in judge_seats.values()},
+        },
+        run,
+        "Train from explicitly selected retained outcome and process evidence.",
         required_artifact_roles=("model", "summary"),
     )
 
@@ -397,27 +595,38 @@ def _materialize_selected_model(
     context: RunContext,
     model: ModelVariant,
     inference: InferenceBinding,
+    *,
+    role: str = "model",
 ) -> tuple[ModelVariant, InferenceBinding]:
     """Use a run-selected model view while retaining the catalog interface facts."""
 
-    model = _materialize_selected_model_variant(context, model)
+    model = _materialize_selected_model_variant(context, model, role=role)
     return model, replace(inference, model=model)
 
 
-def _materialize_selected_model_variant(context: RunContext, model: ModelVariant) -> ModelVariant:
+def _materialize_selected_model_variant(
+    context: RunContext,
+    model: ModelVariant,
+    *,
+    role: str = "model",
+) -> ModelVariant:
+    """Materialize only the artifact explicitly assigned to this model role."""
+
+    adapter_name = "model_adapter" if role == "model" else f"{role}_adapter"
+    weights_name = "model_weights" if role == "model" else f"{role}_weights"
     input_name = (
-        "model_adapter"
-        if "model_adapter" in context.input_artifacts
-        else ("model_weights" if "model_weights" in context.input_artifacts else None)
+        adapter_name
+        if adapter_name in context.input_artifacts
+        else (weights_name if weights_name in context.input_artifacts else None)
     )
     if input_name is None:
         if model.form not in {"adapter", "peft-adapter"} or not isinstance(
             model.artifact, (StoredArtifactRef, TrackioArtifactRef)
         ):
             return model
-        input_name = "model_adapter"
+        input_name = adapter_name
     local = context.input_artifact(input_name)
-    form = "adapter" if input_name == "model_adapter" else "full-finetuned"
+    form = "adapter" if input_name == adapter_name else "full-finetuned"
     return replace(
         model,
         artifact=local,
@@ -653,7 +862,13 @@ def standard_definitions() -> dict[str, JobDefinition]:
         sft_definition(),
         dpo_definition(),
         grpo_definition(),
+        grpo_definition(
+            definition_id="train/grpo-family-judged@1",
+            judge_inference_seats={"quality": ("judge_inference", 8123)},
+        ),
         sampo_definition(),
+        structured_rl_definition("gdpo"),
+        structured_rl_definition("capo"),
         distillation_definition(),
         serve_benchmark_definition(),
         serve_smoke_definition(),
@@ -812,6 +1027,7 @@ __all__ = [
     "general_evaluation_definition",
     "grpo_definition",
     "sampo_definition",
+    "structured_rl_definition",
     "managed_evaluation_definition",
     "managed_general_evaluation_definition",
     "model_transform_definition",

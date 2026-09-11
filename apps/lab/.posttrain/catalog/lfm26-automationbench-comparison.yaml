@@ -1,0 +1,1351 @@
+# Matched 50-update LFM2.5-2.6B AutomationBench comparison. The task-owned
+# episode judge emits seven independent annotations; only GDPO consumes them.
+environment:
+  automationbench-lfm12-local-five-step-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          task_names:
+            - simple.sf_create_account_note
+            - simple.gmail_invoice_email
+            - simple.asana_team_offsite
+            - simple.jira_mobile_redesign_epic
+            - simple.airtable_create_contact
+          task: {toolset: limited_zapier, search_top_k: 20}
+        retries: {max_retries: 0}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 600, rollout: 300, finalize: 60, scoring: 120}
+          max_turns: 4
+          max_total_tokens: 2048
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    num_tasks: 5
+    num_rollouts: 4
+    max_concurrent: 2
+    parameters:
+      task_names:
+        - simple.sf_create_account_note
+        - simple.gmail_invoice_email
+        - simple.asana_team_offsite
+        - simple.jira_mobile_redesign_epic
+        - simple.airtable_create_contact
+      toolset: limited_zapier
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+
+  automationbench-lfm26-changed-weight-canary-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          task_names: [simple.jira_mobile_redesign_epic]
+          task: {toolset: limited_zapier, search_top_k: 20}
+        retries: {max_retries: 0}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          # The first subprocess prepares the shared PEP 723 chat environment;
+          # later rollouts reuse it. This is a cold-start budget, not a rollout
+          # retry allowance.
+          timeout: {setup: 600, rollout: 300, finalize: 60, scoring: 120}
+          max_turns: 4
+          max_total_tokens: 1024
+    sampling: {max_tokens: 512, temperature: 0.8, top_p: 0.95}
+    num_tasks: 1
+    num_rollouts: 2
+    max_concurrent: 2
+    parameters: {task_names: [simple.jira_mobile_redesign_epic], toolset: limited_zapier}
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+
+  automationbench-lfm26-train-mix-v2: &automationbench_train_mix_v2
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 8192
+    sampling: &policy_sampling
+      max_tokens: 3072
+      temperature: 0.8
+      top_p: 0.95
+    num_tasks: 160
+    num_rollouts: 4
+    max_concurrent: 32
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 8192
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
+  automationbench-lfm26-train-mix-v3:
+    <<: *automationbench_train_mix_v2
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 12288
+    sampling: &policy_sampling_4k
+      max_tokens: 4096
+      temperature: 0.8
+      top_p: 0.95
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 12288
+
+  automationbench-lfm26-train-mix-episode-judged-v2: &automationbench_train_mix_episode_judged_v2
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            judges:
+              - id: automationbench-v1
+                name: quality
+                weight: 0.0
+                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
+                model: google/gemma-4-12B-it
+                model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
+                attempts: 2
+                timeout_seconds: 900
+                input_budget_tokens: 8192
+                sampling: &judge_sampling
+                  temperature: 0.0
+                  max_tokens: 16384
+                  extra_body:
+                    chat_template_kwargs: {enable_thinking: true}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 8192
+    sampling: *policy_sampling
+    num_tasks: 160
+    num_rollouts: 4
+    max_concurrent: 32
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 8192
+      judge_input_budget_tokens: 8192
+      judge_output_budget_tokens: 16384
+      judge_context_window: 24576
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
+  automationbench-lfm26-train-mix-episode-judged-v3:
+    <<: *automationbench_train_mix_episode_judged_v2
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            judges:
+              - id: automationbench-v1
+                name: quality
+                weight: 0.0
+                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
+                model: google/gemma-4-12B-it
+                model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
+                attempts: 2
+                timeout_seconds: 900
+                input_budget_tokens: 12288
+                sampling: *judge_sampling
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 12288
+    sampling: *policy_sampling_4k
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 12288
+      judge_input_budget_tokens: 12288
+      judge_output_budget_tokens: 16384
+      judge_context_window: 32768
+
+  automationbench-lfm26-train-mix-episode-spark-nothink-v1:
+    <<: *automationbench_train_mix_episode_judged_v2
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            judges:
+              - id: automationbench-v1
+                name: quality
+                weight: 0.0
+                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
+                model: XHToken/Spark-X2.5-4B
+                model_revision: 5e10fcc0286756aebf7c41dc52c1e42d95c70281
+                attempts: 2
+                timeout_seconds: 300
+                input_budget_tokens: 12288
+                assessment_protocol: model-native-frame@1
+                assessment_frame_max_tokens: 4096
+                sampling:
+                  temperature: 0.0
+                  max_tokens: 4096
+                  extra_body:
+                    chat_template_kwargs: {enable_thinking: false}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 300}
+          max_turns: 12
+          max_output_tokens: 12288
+    sampling: *policy_sampling_4k
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 12288
+      judge_input_budget_tokens: 12288
+      judge_output_budget_tokens: 4096
+      judge_context_window: 32768
+
+  # Matched hosted-judge arm for the two-update speed experiment. It differs
+  # from the Spark arm only at the judge model/provider boundary; policy,
+  # tasks, episode budgets, scorer protocol, and generation shape are fixed.
+  automationbench-lfm26-train-mix-episode-deepseek-v41-flash-nothink-v1:
+    <<: *automationbench_train_mix_episode_judged_v2
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            judges:
+              - id: automationbench-v1
+                name: quality
+                weight: 0.0
+                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
+                model: deepseek/deepseek-v4.1-flash
+                model_revision: "20260910"
+                attempts: 2
+                timeout_seconds: 900
+                input_budget_tokens: 12288
+                assessment_protocol: model-native-frame@1
+                assessment_frame_max_tokens: 4096
+                sampling:
+                  temperature: 0.0
+                  max_tokens: 4096
+                  extra_body:
+                    reasoning: {enabled: false}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 12288
+    sampling: *policy_sampling_4k
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 12288
+      judge_input_budget_tokens: 12288
+      judge_output_budget_tokens: 4096
+      judge_context_window: 32768
+      judge_service: openrouter
+      judge_retention: allowed
+
+  automationbench-lfm26-train-mix-episode-openrouter-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            judges:
+              - id: automationbench-v1
+                name: quality
+                weight: 0.0
+                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
+                model: deepseek/deepseek-v4-flash-0731
+                model_revision: "0731"
+                attempts: 2
+                timeout_seconds: 900
+                input_budget_tokens: 8192
+                sampling:
+                  temperature: 0.0
+                  max_tokens: 16384
+                  extra_body:
+                    reasoning: {enabled: true}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 8192
+    sampling: *policy_sampling
+    num_tasks: 160
+    num_rollouts: 4
+    max_concurrent: 32
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 8192
+      judge_input_budget_tokens: 8192
+      judge_output_budget_tokens: 16384
+      judge_context_window: 24576
+      judge_service: openrouter
+      judge_retention: allowed
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
+  automationbench-lfm26-heldout-mix-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task_names:
+            - simple.sf_create_account_note
+            - simple.gmail_invoice_email
+            - simple.zoom_sales_pipeline_review
+            - simple.sheets_read_then_email
+            - simple.gcal_product_review_from_email
+            - simple.sprint_retro_jira_slack
+            - simple.email_jira_bug_slack
+            - simple.email_jira_story_reply
+            - sales.recency_selection
+            - sales.zoom_attendance_pipeline
+            - marketing.conversion_tracking
+            - marketing.landing_page_optimization
+            - operations.hubspot_payment_failure
+            - operations.server_capacity_threshold_alerts
+            - support.freshdesk_onboarding_automation
+            - support.reamaze_knowledge_routing
+            - finance.ap_aging_report
+            - finance.cash_flow_forecast
+            - hr.slack_benefits_inquiry
+            - hr.i9_verification_tracking
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 300}
+          max_turns: 12
+          max_output_tokens: 8192
+    sampling:
+      max_tokens: 2048
+      temperature: 0.0
+      top_p: 1.0
+    num_tasks: 20
+    num_rollouts: 1
+    max_concurrent: 20
+    parameters:
+      task_mix_id: lfm26-automationbench-mix-v1-heldout
+      task_mix_sha256: 4526f8a12081555b9061fa5c45924fa2d2b635dee832c27e6bb72cb9234941d7
+      sampling_seed: 43
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 8192
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
+training:
+  lfm2.5-1.2b/automationbench-changed-weight-local-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      # Later collections run after the first nonzero optimizer update and are
+      # the changed-weight qualification surface.
+      max_steps: 5
+      max_length: 3072
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 4
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 1
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+    num_prompts_per_step: 1
+    num_generations: 4
+    max_prompt_length: 2048
+    max_completion_length: 1024
+    shuffle_prompts: false
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
+  lfm2.5-2.6b/automationbench-changed-weight-canary-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      # Step 1 performs the first optimizer update. Step 2 must collect again
+      # so qualification observes rollout inference after changed LoRA weights
+      # have been synchronized into vLLM.
+      max_steps: 2
+      max_length: 2048
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 2
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 1
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+    num_prompts_per_step: 1
+    num_generations: 2
+    max_prompt_length: 1536
+    max_completion_length: 512
+    shuffle_prompts: false
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
+  lfm2.5-2.6b/automationbench-grpo-50-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop: &comparison_loop
+      max_steps: 50
+      max_length: 13312
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 64
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 6
+    num_prompts_per_step: 16
+    num_generations: 4
+    max_prompt_length: 10240
+    max_completion_length: 3072
+    shuffle_prompts: true
+    mask_truncated_completions: false
+
+  lfm2.5-2.6b/automationbench-olmo3-50-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop: *comparison_loop
+    num_prompts_per_step: 16
+    num_generations: 4
+    max_prompt_length: 10240
+    max_completion_length: 3072
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    shuffle_prompts: true
+    mask_truncated_completions: false
+
+  lfm2.5-2.6b/automationbench-grpo-20-local-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop: &comparison_local_20_loop
+      max_steps: 20
+      max_length: 13312
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 10240
+    max_completion_length: 3072
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
+  lfm2.5-2.6b/automationbench-olmo3-20-local-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop: *comparison_local_20_loop
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 10240
+    max_completion_length: 3072
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
+  lfm2.5-2.6b/automationbench-olmo3-3-local-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop: &comparison_local_3_loop
+      max_steps: 3
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      # This is a runtime qualification, so retain the final adapter without
+      # paying checkpoint finalization cost after every optimizer update.
+      checkpoint_steps: 3
+      checkpoint_limit: 1
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
+  # Matched two-update qualification profile. This intentionally keeps the
+  # 12K episode environment and 8x4 collection shape used by the paired GDPO
+  # arm; only the optimizer-step count is reduced for the qualification run.
+  lfm2.5-2.6b/automationbench-olmo3-2-local-v2:
+    selection_type: grpo-settings
+    revision: "2"
+    loop: &comparison_local_2_loop
+      max_steps: 2
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 2
+      checkpoint_limit: 1
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
+  # Thirty-update comparison profile scaled directly from the qualified 8x4,
+  # 12K-episode local recipe. Checkpoints at 10-update intervals bound recovery
+  # loss without adding finalization work to every optimizer update.
+  lfm2.5-2.6b/automationbench-olmo3-30-local-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop: &comparison_local_30_loop
+      max_steps: 30
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
+  lfm2.5-2.6b/automationbench-gdpo-episode-50-v1:
+    selection_type: gdpo-settings
+    revision: "1"
+    loop: *comparison_loop
+    num_prompts_per_step: 16
+    num_generations: 4
+    max_prompt_length: 10240
+    max_completion_length: 3072
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 3
+
+  lfm2.5-2.6b/automationbench-gdpo-episode-2-local-v1:
+    selection_type: gdpo-settings
+    revision: "1"
+    loop:
+      # Two collections prove the second rollout uses the adapter produced by
+      # the first optimizer update. Checkpointing each update also exercises
+      # bounded artifact finalization in this development qualification.
+      max_steps: 2
+      max_length: 13312
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 64
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 1
+      checkpoint_limit: 2
+    num_prompts_per_step: 16
+    num_generations: 4
+    max_prompt_length: 10240
+    max_completion_length: 3072
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 3
+
+  lfm2.5-2.6b/automationbench-gdpo-episode-3-local-v1:
+    selection_type: gdpo-settings
+    revision: "1"
+    loop: *comparison_local_3_loop
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 3
+
+  lfm2.5-2.6b/automationbench-gdpo-episode-2-local-v2:
+    selection_type: gdpo-settings
+    revision: "2"
+    loop: *comparison_local_2_loop
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 3
+
+  # Two-update judge-speed cell: identical GDPO math and 8x4 collection, but
+  # one collection admission attempt keeps the official DeepSeek provider's
+  # peak time-window price inside the unchanged $4.99 run ceiling.
+  lfm2.5-2.6b/automationbench-gdpo-episode-2-judge-speed-local-v1:
+    selection_type: gdpo-settings
+    revision: "1"
+    loop: *comparison_local_2_loop
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 1
+
+  # Matched 30-update GDPO arm. A single admission attempt prevents judge
+  # retries from silently multiplying paid requests; invalid groups are dropped
+  # atomically while complete groups remain eligible for the update.
+  lfm2.5-2.6b/automationbench-gdpo-episode-30-judge-speed-local-v1:
+    selection_type: gdpo-settings
+    revision: "1"
+    loop: *comparison_local_30_loop
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 1
+
+  # Twenty-update paid-judge comparison profile. It retains the qualified
+  # 8x4 collection shape and 12K episode budget while bounding paid requests
+  # to 20 optimizer updates.
+  lfm2.5-2.6b/automationbench-gdpo-episode-20-judge-speed-local-v1:
+    selection_type: gdpo-settings
+    revision: "1"
+    loop:
+      max_steps: 20
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 2
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 1
+
+  training/lfm2.5-2.6b-trl-lora-automationbench@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post8
+    renderer:
+      id: lfm2.5-tools-thinking@2
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update:
+      kind: lora
+      rank: 4
+      alpha: 8
+      target_modules: all-linear
+    target: targets/runpod-rtx-pro-6000-96gb-secure-ondemand
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 64
+      devices_per_node: 1
+      timeout_seconds: 43200
+    backend_options:
+      rollout_execution: {env_workers: 4, episodes_per_worker: 8, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      vllm_policy_parity_max_sequence_tokens: 4096
+      dependency_lock: trl-fork@current
+      source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
+      dependency_lock_sha256: 095981e4bcb9deff27c215f0b0b47ee0f0350204aea10816a0119b05359f2b55
+
+  training/lfm2.5-2.6b-trl-lora-automationbench-local@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post8
+    renderer:
+      id: lfm2.5-tools-thinking@2
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update:
+      kind: lora
+      rank: 4
+      alpha: 8
+      target_modules: all-linear
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 32
+      devices_per_node: 1
+      timeout_seconds: 43200
+    backend_options:
+      rollout_execution: {env_workers: 4, episodes_per_worker: 8, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      vllm_policy_parity_max_sequence_tokens: 4096
+      dependency_lock: trl-fork@current
+      source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
+      dependency_lock_sha256: 095981e4bcb9deff27c215f0b0b47ee0f0350204aea10816a0119b05359f2b55
+
+  training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post8
+    renderer:
+      id: lfm2.5-tools-thinking@2
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update:
+      kind: lora
+      rank: 4
+      alpha: 8
+      target_modules: all-linear
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 64
+      devices_per_node: 1
+      timeout_seconds: 43200
+    backend_options:
+      rollout_execution: {env_workers: 4, episodes_per_worker: 8, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      vllm_policy_parity_max_sequence_tokens: 4096
+      dependency_lock: trl-fork@current
+
+  training/lfm2.5-2.6b-trl-lora-changed-weight-canary@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post8
+    renderer:
+      id: lfm2.5-tools-thinking@2
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 2, devices_per_node: 1, timeout_seconds: 1800}
+    backend_options:
+      rollout_execution: {env_workers: 1, episodes_per_worker: 2, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      vllm_policy_parity_max_sequence_tokens: 1024
+      dependency_lock: trl-fork@current
+      source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
+      dependency_lock_sha256: 095981e4bcb9deff27c215f0b0b47ee0f0350204aea10816a0119b05359f2b55
+
+  training/lfm2.5-1.2b-trl-lora-changed-weight-local@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post8
+    renderer:
+      id: lfm2.5-tools@1
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/local-cuda-8gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 4, devices_per_node: 1, timeout_seconds: 1800}
+    backend_options:
+      rollout_execution: {env_workers: 1, episodes_per_worker: 2, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      vllm_policy_parity_max_sequence_tokens: 1024
+      dependency_lock: trl-fork@current
+      source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
+      dependency_lock_sha256: 095981e4bcb9deff27c215f0b0b47ee0f0350204aea10816a0119b05359f2b55
+
+  reward/automationbench-episode-gdpo@1:
+    selection_type: reward-projection
+    revision: "1"
+    components:
+      - {name: partial_credit, source: scalar}
+      - {name: problem_understanding_planning, source: annotation, key: episode_reward/problem_understanding_planning}
+      - {name: logical_correctness, source: annotation, key: episode_reward/logical_correctness}
+      - {name: verification_self_correction, source: annotation, key: episode_reward/verification_self_correction}
+      - {name: progress_efficiency, source: annotation, key: episode_reward/progress_efficiency}
+      - {name: action_quality, source: annotation, key: episode_reward/action_quality}
+      - {name: answer_quality, source: annotation, key: episode_reward/answer_quality}
+
+hosted-inference:
+  # Explicitly approved ceiling for the 20-update DeepSeek judge run. This is
+  # deliberately a separate binding so the universal $4.99 default remains
+  # unchanged for every other paid-judge workload.
+  hosted-inference/deepseek-v4.1-flash-openrouter-deepseek-judge-20-step@1:
+    revision: "1"
+    model: hosted-models/deepseek-v4.1-flash-20260910@1
+    service: external-services/openrouter@1
+    provider: deepseek
+    provider_profile:
+      structured_output: json-object
+    max_cost_usd_micros: 24000000
+    purpose: [judge]
+    sampling:
+      temperature: 0.0
+      max_tokens: 4096
+      extra_body:
+        reasoning:
+          enabled: false
+
+inference:
+  inference/lfm2.5-1.2b-vllm-changed-weight-local@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.25.1
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.55
+      tensor_parallel_size: 1
+      max_model_len: 3072
+      max_num_seqs: 2
+      max_num_batched_tokens: 512
+      kv_cache_memory_bytes: 134217728
+      weight_sync_mode: lora
+      enforce_eager: true
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    target: targets/local-cuda-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-2.6b-vllm-changed-weight-canary@1:
+    revision: "1"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.25.1
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.80
+      tensor_parallel_size: 1
+      max_model_len: 2048
+      max_num_seqs: 2
+      max_num_batched_tokens: 512
+      kv_cache_memory_bytes: 134217728
+      weight_sync_mode: lora
+      enforce_eager: true
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: {max_tokens: 512, temperature: 0.8, top_p: 0.95}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout@1:
+    revision: "1"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.25.1
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.20
+      tensor_parallel_size: 1
+      max_model_len: 13312
+      max_num_seqs: 32
+      # Four GiB gives this eight-attention-layer GQA model roughly 262K KV
+      # token slots: enough for about 8K resident tokens at concurrency 32.
+      # Chunked prefill keeps the larger aggregate scheduler budget bounded.
+      max_num_batched_tokens: 32768
+      kv_cache_memory_bytes: 4294967296
+      weight_sync_mode: lora
+      enforce_eager: true
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: *policy_sampling
+    target: targets/runpod-rtx-pro-6000-96gb-secure-ondemand
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32@1:
+    revision: "1"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.25.1
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.20
+      tensor_parallel_size: 1
+      max_model_len: 13312
+      max_num_seqs: 32
+      # Keep local qualification identical to the matched remote rollout
+      # profile so algorithm comparisons do not change serving capacity.
+      max_num_batched_tokens: 32768
+      kv_cache_memory_bytes: 4294967296
+      weight_sync_mode: lora
+      enforce_eager: true
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: *policy_sampling
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@1:
+    revision: "1"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.25.1
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.20
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 32
+      max_num_batched_tokens: 32768
+      kv_cache_memory_bytes: 4294967296
+      weight_sync_mode: lora
+      enforce_eager: true
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: *policy_sampling_4k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-2.6b-vllm-automationbench-eval@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.25.1
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      gpu_memory_utilization: 0.80
+      tensor_parallel_size: 1
+      max_model_len: 12288
+      max_num_seqs: 20
+      max_num_batched_tokens: 12288
+      enforce_eager: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 2048
+      temperature: 0.0
+      top_p: 1.0
+    target: targets/runpod-rtx-pro-4500-32gb-secure-ondemand
+    purpose: [eval]
+    capabilities: [tool-calling]
+
+  inference/gemma4-12b-vllm-automationbench-judge-mtp2@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      gpu_memory_utilization: 0.35
+      dtype: bfloat16
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 16
+      max_num_batched_tokens: 24576
+      enforce_eager: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: gemma4
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 2
+        draft_model:
+          repo_id: google/gemma-4-12B-it-assistant
+          revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
+    sampling: *judge_sampling
+    target: targets/runpod-rtx-pro-6000-96gb-secure-ondemand
+    purpose: [eval]
+
+  inference/gemma4-12b-vllm-automationbench-judge-mtp2-local@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      # Live RTX PRO qualification needs 7.88 GiB of KV cache at the full
+      # 8,192-input + 16,384-output judge budget. A 0.35 allocation exposed
+      # only 6.60 GiB; 0.37 preserves the budget with a narrow safety margin.
+      gpu_memory_utilization: 0.37
+      dtype: bfloat16
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 16
+      max_num_batched_tokens: 24576
+      enforce_eager: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: gemma4
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 2
+        draft_model:
+          repo_id: google/gemma-4-12B-it-assistant
+          revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
+    sampling: *judge_sampling
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+
+  inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      # The v3 episode contract allows 12K policy output and must not compact
+      # below that before retrospective scoring. Keep a separate 16K judge
+      # response allowance inside the 32K context envelope.
+      gpu_memory_utilization: 0.40
+      dtype: bfloat16
+      tensor_parallel_size: 1
+      max_model_len: 32768
+      max_num_seqs: 16
+      max_num_batched_tokens: 32768
+      enforce_eager: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: gemma4
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 2
+        draft_model:
+          repo_id: google/gemma-4-12B-it-assistant
+          revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
+    sampling: *judge_sampling
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+
+  inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@2:
+    revision: "2"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.25.1
+    renderer: gemma4-tools@1
+    engine:
+      # Revision 1 exposed only 10.41 GiB of KV cache where vLLM requires
+      # 10.50 GiB for one 32K request. Use deliberate headroom rather than an
+      # allocation tuned to the observed minimum.
+      gpu_memory_utilization: 0.45
+      dtype: bfloat16
+      tensor_parallel_size: 1
+      max_model_len: 32768
+      max_num_seqs: 16
+      max_num_batched_tokens: 32768
+      enforce_eager: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: gemma4
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 2
+        draft_model:
+          repo_id: google/gemma-4-12B-it-assistant
+          revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
+    sampling: *judge_sampling
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+
+  inference/spark-x2.5-4b-vllm-automationbench-judge-nothink-local@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/spark-x2.5-4b@bf16
+    backend: vllm@0.25.1
+    renderer: spark2.5-tools-thinking@1
+    reasoning_mode: "off"
+    engine:
+      gpu_memory_utilization: 0.30
+      dtype: bfloat16
+      tensor_parallel_size: 1
+      max_model_len: 32768
+      max_num_seqs: 16
+      max_num_batched_tokens: 32768
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      trust_remote_code: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      temperature: 0.0
+      max_tokens: 4096
+      extra_body:
+        chat_template_kwargs: {enable_thinking: false}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+
+evaluation:
+  lfm26-automationbench-heldout-v1:
+    revision: "1"
+    kind: general
+    environments: [automationbench-lfm26-heldout-mix-v1]
+    success:
+      automationbench-lfm26-heldout-mix-v1:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}

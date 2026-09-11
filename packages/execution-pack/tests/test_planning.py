@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from posttrain.common import ContractError
@@ -33,6 +33,21 @@ KIND = RuntimeImageRef(f"registry.lan/posttrain/online-rl@sha256:{'c' * 64}")
 PUBLICATION = ImagePublicationSpec("registry.lan/posttrain/jobs")
 
 
+@pytest.mark.parametrize("job_kind", ["train.grpo", "train.sampo", "train.gdpo", "train.capo"])
+def test_policy_optimization_kinds_share_the_online_rl_image_profile(job_kind: str) -> None:
+    plan = plan_job_pack(
+        _prepared(cast(ResolvedSeats, {}), job_kind=job_kind),
+        framework_source_digest=DIGEST,
+        project_source_digest="d" * 64,
+        universal_image=BASE,
+        kind_image=KIND,
+        publication=PUBLICATION,
+        runtime_variant="online-rl-trl-py312",
+    )
+
+    assert plan.spec.kind_profile == "online-rl"
+
+
 def _environment(
     environment_id: str,
     package: str,
@@ -60,13 +75,14 @@ def _prepared(
     seats: ResolvedSeats,
     *,
     run_id: str = "run-a",
+    job_kind: str = "train.grpo",
     source_metadata: dict[str, str] | None = None,
 ) -> PreparedWorkPackageJob:
     spec = RunSpec(
         project_id="project",
         work_package_id="train/grpo",
         stage="train",
-        job_kind="train.grpo",
+        job_kind=cast(Any, job_kind),
         job_definition_version="train/trl-grpo@1",
         run_id=run_id,
         resolved_inputs={"selection": {"id": "stable", "revision": "1"}},
@@ -75,7 +91,7 @@ def _prepared(
     value = SimpleNamespace(
         seats=seats,
         spec=spec,
-        recipe_job=SimpleNamespace(id="grpo", kind="train.grpo"),
+        recipe_job=SimpleNamespace(id="policy-optimization", kind=job_kind),
         definition=SimpleNamespace(
             id="train/trl-grpo@1",
             required_artifact_roles=("summary", "model"),

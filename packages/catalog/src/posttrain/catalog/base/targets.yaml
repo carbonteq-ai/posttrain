@@ -3,23 +3,87 @@ target:
     revision: "1"
     device_class: nvidia-cuda
     memory_gb: 8
+    hardware:
+      accelerator_count: 1
+      supports_bf16: true
     placement:
       world_size: 1
   targets/local-cuda-24gb:
     revision: "1"
     device_class: nvidia-cuda
     memory_gb: 24
+    hardware:
+      accelerator_count: 1
+      supports_bf16: true
     placement:
       world_size: 1
   targets/local-cuda-rollout-8gb:
     revision: "1"
     device_class: nvidia-cuda
     memory_gb: 8
+    hardware:
+      accelerator_count: 1
+      supports_bf16: true
     placement:
       world_size: 1
   targets/local-cuda-teacher-8gb:
     revision: "1"
     device_class: nvidia-cuda
     memory_gb: 8
+    hardware:
+      accelerator_count: 1
+      supports_bf16: true
+    placement:
+      world_size: 1
+  targets/rtx-pro-6000-96gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 96
+    hardware:
+      accelerator_count: 1
+      accelerator_model: RTXPRO6000
+      gpu_architecture: blackwell
+      supports_bf16: true
+      supports_mtp: true
+      supports_turboquant: true
+    placement:
+      world_size: 1
+  targets/rtx-pro-4500-32gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 32
+    hardware:
+      accelerator_count: 1
+      accelerator_model: RTXPRO4500
+      gpu_architecture: blackwell
+      supports_bf16: true
+      supports_mtp: true
+      supports_turboquant: true
+    placement:
+      world_size: 1
+  targets/h100-80gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 80
+    hardware:
+      accelerator_count: 1
+      accelerator_model: H100
+      gpu_architecture: hopper
+      supports_bf16: true
+      supports_mtp: true
+      supports_turboquant: true
+    placement:
+      world_size: 1
+  targets/h200-141gb:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 141
+    hardware:
+      accelerator_count: 1
+      accelerator_model: H200
+      gpu_architecture: hopper
+      supports_bf16: true
+      supports_mtp: true
+      supports_turboquant: true
     placement:
       world_size: 1

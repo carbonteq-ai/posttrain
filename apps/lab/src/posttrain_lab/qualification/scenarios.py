@@ -9,7 +9,7 @@ from types import MappingProxyType
 from typing import Any
 
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@+-]*$")
-_ONLINE_JOBS = {"train.grpo", "train.sampo", "train.distill"}
+_ONLINE_JOBS = {"train.grpo", "train.sampo", "train.gdpo", "train.capo", "train.distill"}
 _DATASET_JOBS = {"train.sft", "train.dpo"}
 _TRAINING_JOBS = _ONLINE_JOBS | _DATASET_JOBS
 _EVALUATION_JOBS = {"eval.general", "eval.domain"}

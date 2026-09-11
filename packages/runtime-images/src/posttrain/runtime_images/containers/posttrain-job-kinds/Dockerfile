@@ -9,11 +9,6 @@ RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locke
       --python "${VIRTUAL_ENV}" \
       --require-hashes \
       --requirement /opt/posttrain/locks/build-tools.lock.txt
-FROM kind-common AS vllm-kind-common
-RUN apt-get update && \
-    apt-get install --yes --no-install-recommends g++ && \
-    rm -rf /var/lib/apt/lists/*
-
 FROM kind-common AS supervised-dependencies
 COPY containers/posttrain-job-kinds/locks/supervised.lock.txt /opt/posttrain/locks/supervised.lock.txt
 COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
@@ -24,44 +19,6 @@ RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locke
       --constraint /opt/posttrain/locks/supervised.lock.txt \
       --requirement /opt/posttrain/profiles/common.txt \
       --requirement /opt/posttrain/profiles/supervised.txt
-
-FROM vllm-kind-common AS online-rl-trl-py312-dependencies
-WORKDIR /opt/posttrain/profiles
-COPY containers/posttrain-job-kinds/locks/online-rl-trl-py312.lock.txt \
-     /opt/posttrain/locks/online-rl-trl-py312.lock.txt
-COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
-COPY containers/posttrain-job-kinds/profiles/supervised.txt /opt/posttrain/profiles/supervised.txt
-COPY containers/posttrain-job-kinds/profiles/online-rl-trl-py312.txt \
-     /opt/posttrain/profiles/online-rl-trl-py312.txt
-RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
-    SKIP_FRONTEND_BUILD=1 uv pip install --python "${VIRTUAL_ENV}" \
-      --index-strategy unsafe-best-match \
-      --constraint /opt/posttrain/locks/online-rl-trl-py312.lock.txt \
-      --requirement /opt/posttrain/profiles/common.txt \
-      --requirement /opt/posttrain/profiles/online-rl-trl-py312.txt
-
-FROM vllm-kind-common AS eval-dependencies
-COPY containers/posttrain-job-kinds/locks/eval.lock.txt /opt/posttrain/locks/eval.lock.txt
-COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
-COPY containers/posttrain-job-kinds/profiles/serve.txt /opt/posttrain/profiles/serve.txt
-COPY containers/posttrain-job-kinds/profiles/eval.txt /opt/posttrain/profiles/eval.txt
-RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
-    SKIP_FRONTEND_BUILD=1 uv pip install --python "${VIRTUAL_ENV}" \
-      --index-strategy unsafe-best-match \
-      --constraint /opt/posttrain/locks/eval.lock.txt \
-      --requirement /opt/posttrain/profiles/common.txt \
-      --requirement /opt/posttrain/profiles/eval.txt
-
-FROM vllm-kind-common AS serve-dependencies
-COPY containers/posttrain-job-kinds/locks/serve.lock.txt /opt/posttrain/locks/serve.lock.txt
-COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
-COPY containers/posttrain-job-kinds/profiles/serve.txt /opt/posttrain/profiles/serve.txt
-RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
-    SKIP_FRONTEND_BUILD=1 uv pip install --python "${VIRTUAL_ENV}" \
-      --index-strategy unsafe-best-match \
-      --constraint /opt/posttrain/locks/serve.lock.txt \
-      --requirement /opt/posttrain/profiles/common.txt \
-      --requirement /opt/posttrain/profiles/serve.txt
 
 FROM kind-common AS transform-dependencies
 COPY containers/posttrain-job-kinds/locks/transform.lock.txt /opt/posttrain/locks/transform.lock.txt
@@ -91,56 +48,6 @@ LABEL org.opencontainers.image.created="${CREATED}" \
       org.carbonteq.posttrain.lock-digest="${LOCK_DIGEST}"
 WORKDIR /opt/posttrain/job
 
-FROM online-rl-trl-py312-dependencies AS online-rl-trl-py312
-ARG CREATED
-ARG LOCK_DIGEST
-ARG SOURCE_REVISION
-ARG VERSION
-LABEL org.opencontainers.image.created="${CREATED}" \
-      org.opencontainers.image.description="Python 3.13 TRL runtime for online reinforcement-learning jobs" \
-      org.opencontainers.image.revision="${SOURCE_REVISION}" \
-      org.opencontainers.image.source="https://github.com/carbonteq-ai/posttrain" \
-      org.opencontainers.image.title="posttrain-kind-online-rl-trl-py312" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.carbonteq.posttrain.image-level="job-kind" \
-      org.carbonteq.posttrain.job-kind="online-rl" \
-      org.carbonteq.posttrain.runtime-variant="online-rl-trl-py312" \
-      org.carbonteq.posttrain.lock-digest="${LOCK_DIGEST}"
-WORKDIR /opt/posttrain/job
-
-FROM eval-dependencies AS eval
-ARG CREATED
-ARG LOCK_DIGEST
-ARG SOURCE_REVISION
-ARG VERSION
-LABEL org.opencontainers.image.created="${CREATED}" \
-      org.opencontainers.image.description="Framework runtime for evaluation jobs" \
-      org.opencontainers.image.revision="${SOURCE_REVISION}" \
-      org.opencontainers.image.source="https://github.com/carbonteq-ai/posttrain" \
-      org.opencontainers.image.title="posttrain-kind-eval" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.carbonteq.posttrain.image-level="job-kind" \
-      org.carbonteq.posttrain.job-kind="eval" \
-      org.carbonteq.posttrain.lock-digest="${LOCK_DIGEST}"
-ENV POSTTRAIN_VERIFIERS_PREINSTALLED="1"
-WORKDIR /opt/posttrain/job
-
-FROM serve-dependencies AS serve
-ARG CREATED
-ARG LOCK_DIGEST
-ARG SOURCE_REVISION
-ARG VERSION
-LABEL org.opencontainers.image.created="${CREATED}" \
-      org.opencontainers.image.description="Framework runtime for serving and capacity jobs" \
-      org.opencontainers.image.revision="${SOURCE_REVISION}" \
-      org.opencontainers.image.source="https://github.com/carbonteq-ai/posttrain" \
-      org.opencontainers.image.title="posttrain-kind-serve" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.carbonteq.posttrain.image-level="job-kind" \
-      org.carbonteq.posttrain.job-kind="serve" \
-      org.carbonteq.posttrain.lock-digest="${LOCK_DIGEST}"
-WORKDIR /opt/posttrain/job
-
 FROM transform-dependencies AS transform
 ARG CREATED
 ARG LOCK_DIGEST
@@ -160,15 +67,6 @@ WORKDIR /opt/posttrain/job
 
 FROM supervised AS supervised-smoke
 RUN python -c "import peft, torch, transformers, trl; print(torch.__version__, transformers.__version__)"
-
-FROM online-rl-trl-py312 AS online-rl-trl-py312-smoke
-RUN python -c "from importlib.metadata import distributions, version; from shutil import which; import torch, trl, verifiers, vllm; direct_urls=[dist.read_text('direct_url.json') or '' for dist in distributions()]; assert which('c++'); assert not any('subdirectory' in value and 'environments/' in value for value in direct_urls); print(torch.__version__, version('verifiers'), vllm.__version__)"
-
-FROM eval AS eval-smoke
-RUN python -c "from importlib.metadata import version; from shutil import which; import verifiers, vllm; assert which('c++'); print(version('verifiers'), vllm.__version__)"
-
-FROM serve AS serve-smoke
-RUN python -c "from shutil import which; import vllm; assert which('c++'); print(vllm.__version__)"
 
 FROM transform AS transform-smoke
 RUN python -c "import os; from importlib.metadata import version; import compressed_tensors, llmcompressor, pydantic, trackio, yaml; assert os.environ['POSTTRAIN_QUANTIZATION_PYTHON'] == '/opt/posttrain/venv/bin/python'; print(version('llmcompressor'), version('carbonteq-trackio'))"

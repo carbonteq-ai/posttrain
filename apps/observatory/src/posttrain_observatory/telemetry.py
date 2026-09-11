@@ -13,6 +13,7 @@ from .models import AlertSeverity, MetricHelp, ObservatoryModel
 type Reducer = Literal["last", "min", "max", "mean", "sum"]
 type HealthRuleKind = Literal["threshold", "non_finite"]
 type ThresholdOperator = Literal["gt", "gte", "lt", "lte", "eq"]
+GROUP_POLICY_JOB_KINDS = frozenset({"train.grpo", "train.gdpo", "train.capo"})
 type EvidenceCondition = Literal[
     "validation_configured",
     "gradient_clipping_enabled",
@@ -1756,6 +1757,47 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
     ),
 )
 
+
+def _group_policy_telemetry_variant(
+    source: JobTelemetryDefinition,
+    *,
+    job_kind: str,
+    display_name: str,
+    acronym: str,
+) -> JobTelemetryDefinition:
+    """Reuse the common group-policy evidence contract without GRPO labels."""
+    source_acronym = "GRPO"
+    return source.model_copy(
+        update={
+            "job_kind": job_kind,
+            "display_name": display_name,
+            "health_rules": tuple(
+                rule.model_copy(
+                    update={
+                        "id": rule.id.replace("grpo-", f"{acronym.lower()}-", 1),
+                        "message": rule.message.replace(source_acronym, acronym),
+                    }
+                )
+                for rule in source.health_rules
+            ),
+        }
+    )
+
+
+GDPO_TELEMETRY = _group_policy_telemetry_variant(
+    GRPO_TELEMETRY,
+    job_kind="train.gdpo",
+    display_name="GDPO policy optimization",
+    acronym="GDPO",
+)
+
+CAPO_TELEMETRY = _group_policy_telemetry_variant(
+    GRPO_TELEMETRY,
+    job_kind="train.capo",
+    display_name="CAPO policy optimization",
+    acronym="CAPO",
+)
+
 SAMPO_TELEMETRY = JobTelemetryDefinition(
     job_kind="train.sampo",
     display_name="Step-aware multi-turn policy optimization",
@@ -2427,6 +2469,8 @@ DEFAULT_TELEMETRY_DEFINITIONS: Mapping[str, JobTelemetryDefinition] = MappingPro
             SFT_TELEMETRY,
             DPO_TELEMETRY,
             GRPO_TELEMETRY,
+            GDPO_TELEMETRY,
+            CAPO_TELEMETRY,
             SAMPO_TELEMETRY,
             DISTILL_TELEMETRY,
             DATA_PREPARE_TELEMETRY,
@@ -2453,6 +2497,7 @@ def telemetry_registry(
 __all__ = [
     "ArtifactRoleDefinition",
     "ChartDefinition",
+    "CAPO_TELEMETRY",
     "DATA_PREPARE_TELEMETRY",
     "DEFAULT_TELEMETRY_DEFINITIONS",
     "DISTILL_TELEMETRY",
@@ -2461,6 +2506,8 @@ __all__ = [
     "EvidenceCondition",
     "EvidenceRequirementDefinition",
     "GENERAL_EVAL_TELEMETRY",
+    "GDPO_TELEMETRY",
+    "GROUP_POLICY_JOB_KINDS",
     "GRPO_TELEMETRY",
     "HealthRuleDefinition",
     "JobTelemetryDefinition",

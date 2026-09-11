@@ -86,7 +86,15 @@ def grpo_job_inputs(request: GRPORequest) -> dict[str, str | int | float | bool]
         domain_names = tuple(item for item in domains if isinstance(item, str))
         if len(domain_names) == len(domains):
             result["environment_domains"] = ",".join(domain_names)
-    for key in ("sampling_seed", "toolset", "search_top_k", "max_turns", "max_total_tokens"):
+    for key in (
+        "sampling_seed",
+        "toolset",
+        "search_top_k",
+        "max_turns",
+        "max_input_tokens",
+        "max_output_tokens",
+        "max_total_tokens",
+    ):
         value = environment.parameters.get(key)
         if isinstance(value, (str, int, float, bool)):
             result[f"environment_{key}"] = value

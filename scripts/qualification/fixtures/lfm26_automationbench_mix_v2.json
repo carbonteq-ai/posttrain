@@ -1,0 +1,20 @@
+{
+  "id": "lfm26-automationbench-mix-v2",
+  "selection_method": "Seeded sample without replacement from all 800 tasks in the pinned simple, sales, marketing, operations, support, finance, and hr domains. The seed was selected before training to produce a balanced 160-task population with no overlap with the frozen 20-task held-out set.",
+  "source_revision": "7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41",
+  "sampling_seed": 172846,
+  "available_tasks": 800,
+  "num_tasks": 160,
+  "selected_indices_sha256": "ae1bcd586b5729265fb69e4abb119003c6a0932feb595515194034cf7a6a4eb1",
+  "selected_names_sha256": "40f361499bab854b254be2080c42486bb3e178788216b4bff02b8e81046ebd20",
+  "domain_counts": {
+    "simple": 40,
+    "sales": 19,
+    "marketing": 21,
+    "operations": 20,
+    "support": 20,
+    "finance": 19,
+    "hr": 21
+  },
+  "heldout_overlap": []
+}

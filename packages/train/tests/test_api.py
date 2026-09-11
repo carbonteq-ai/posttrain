@@ -43,11 +43,13 @@ from posttrain.train import (
     QWEN35_RENDERER,
     QWEN35_SFT_SMOKE,
     ActiveGroupSampling,
+    CAPOSettings,
     DPORequest,
     DynamicGroupSampling,
     EnvironmentRollout,
     EnvironmentRolloutEvidence,
     FullParameterUpdate,
+    GDPOSettings,
     GRPOObservationFeatures,
     GRPORequest,
     GRPOSettings,
@@ -56,6 +58,7 @@ from posttrain.train import (
     OnPolicyDistillationSettings,
     QLoRAUpdate,
     QuantizationPlan,
+    SAMPOSettings,
     SFTRequest,
     SFTSettings,
     SFTValidationSettings,
@@ -78,15 +81,28 @@ from posttrain.train.backends.trl.distillation import (
 from posttrain.train.backends.trl.distillation import (
     _rollout_function as _distillation_rollout_function,
 )
-from posttrain.train.backends.trl.grpo import (
-    _actor_update_callback_type,
-    _actor_update_trainer_type,
-    _ActorUpdateTelemetry,
+from posttrain.train.backends.trl.policy_config import (
     _configure_liger_loss,
     _grpo_arguments,
     _grpo_runtime_attributes,
-    _normalize_live_grpo_metrics,
-    _rollout_function,
+)
+from posttrain.train.backends.trl.policy_rollouts import (
+    _validate_group_relative_examples,
+)
+from posttrain.train.backends.trl.policy_rollouts import (
+    rollout_function as _rollout_function,
+)
+from posttrain.train.backends.trl.policy_telemetry import (
+    ActorUpdateTelemetry as _ActorUpdateTelemetry,
+)
+from posttrain.train.backends.trl.policy_telemetry import (
+    actor_update_callback_type as _actor_update_callback_type,
+)
+from posttrain.train.backends.trl.policy_telemetry import (
+    actor_update_trainer_type as _actor_update_trainer_type,
+)
+from posttrain.train.backends.trl.policy_telemetry import (
+    normalize_live_metrics as _normalize_live_grpo_metrics,
 )
 from posttrain.train.catalog_schema import TrainingRuntimeSchema, decode_training_selection
 from posttrain.train.results import TrainingSummary
@@ -485,6 +501,19 @@ def test_trainer_lifecycle_closes_distributed_runtime_after_failure() -> None:
     assert closed == [True]
 
 
+def test_trainer_lifecycle_closes_async_collection_before_distributed_runtime() -> None:
+    closed: list[str] = []
+    trainer = SimpleNamespace(
+        accelerator=SimpleNamespace(end_training=lambda: closed.append("accelerator")),
+        _posttrain_async_collection_runtime=SimpleNamespace(close=lambda: closed.append("rollouts")),
+    )
+
+    with trainer_lifecycle(trainer):
+        pass
+
+    assert closed == ["rollouts", "accelerator"]
+
+
 def test_sft_operation_separates_adapter_recovery_and_summary_artifacts() -> None:
     observer = Observer()
     with tempfile.TemporaryDirectory() as raw:
@@ -500,9 +529,9 @@ def test_sft_operation_separates_adapter_recovery_and_summary_artifacts() -> Non
     assert result.model_artifact.name.endswith("/sft/qlora/adapter")
     assert result.summary.global_step == 2
     assert [artifact.kind for artifact in observer.artifacts] == [
+        "training-summary",
         "model-adapter",
         "training-checkpoint",
-        "training-summary",
     ]
     assert observer.events[-1].name == "training_completed"
 
@@ -523,10 +552,10 @@ def test_training_operation_records_retention_manifest(tmp_path: Path) -> None:
     )
 
     assert [artifact.kind for artifact in observer.artifacts] == [
-        "model-adapter",
-        "training-checkpoint",
         "training-summary",
         "training-retention-manifest",
+        "model-adapter",
+        "training-checkpoint",
     ]
 
 
@@ -1317,7 +1346,7 @@ def test_grpo_actor_update_phase_starts_after_retained_rollouts_and_ends_at_opti
         lambda *args: object(),
     )
     monotonic = iter((10.0, 12.0, 15.0, 18.5))
-    monkeypatch.setattr("posttrain.train.backends.trl.grpo.time.perf_counter", lambda: next(monotonic))
+    monkeypatch.setattr("posttrain.train.backends.trl.policy_telemetry.time.perf_counter", lambda: next(monotonic))
     actor_update = _ActorUpdateTelemetry(context)
     rollout = _rollout_function(context, request, object())
 
@@ -1424,7 +1453,7 @@ def test_grpo_actor_throughput_aggregates_updates_between_log_records(
         run_id="runs/grpo-actor-update-throughput",
     )
     monotonic = iter((10.0, 12.0, 20.0, 23.0))
-    monkeypatch.setattr("posttrain.train.backends.trl.grpo.time.perf_counter", lambda: next(monotonic))
+    monkeypatch.setattr("posttrain.train.backends.trl.policy_telemetry.time.perf_counter", lambda: next(monotonic))
     actor_update = _ActorUpdateTelemetry(context)
     actor_update.start(1)
     actor_update.complete(1)
@@ -1613,6 +1642,7 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
             "liger_loss_compiled": False,
             "logits_chunk_size": 128,
             "vllm_policy_parity_max_mean_logp_delta": 0.075,
+            "vllm_policy_parity_max_sequence_tokens": 4096,
         },
     )
     optimized_request = replace(request, training=optimized_training)
@@ -1624,11 +1654,13 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert optimized_arguments["use_liger_kernel"] is True
     assert optimized_arguments["logits_chunk_size"] == 128
     assert optimized_arguments["vllm_policy_parity_max_mean_logp_delta"] == 0.075
+    assert optimized_arguments["vllm_policy_parity_max_sequence_tokens"] == 4096
     trainer = SimpleNamespace(liger_loss=SimpleNamespace(compiled=True))
     _configure_liger_loss(trainer, optimized_request)
     assert trainer.liger_loss.compiled is False
     assert _grpo_runtime_attributes(optimized_request)["liger_loss_compiled"] is False
     assert _grpo_runtime_attributes(optimized_request)["vllm_policy_parity_max_mean_logp_delta"] == 0.075
+    assert _grpo_runtime_attributes(optimized_request)["vllm_policy_parity_max_sequence_tokens"] == 4096
     invalid_liger_request = replace(
         request,
         training=replace(
@@ -1645,6 +1677,13 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     )
     with pytest.raises(ValueError, match="policy parity limit must be a finite positive number"):
         _grpo_arguments(invalid_parity_request, tmp_path, {"enable_thinking": False})
+
+    invalid_parity_sequence_request = replace(
+        request,
+        training=replace(_training(), backend_options={"vllm_policy_parity_max_sequence_tokens": 1}),
+    )
+    with pytest.raises(ValueError, match="policy parity sequence limit must be an integer greater than one"):
+        _grpo_arguments(invalid_parity_sequence_request, tmp_path, {"enable_thinking": False})
 
     mtp_request = GRPORequest(
         model,
@@ -1760,6 +1799,43 @@ def test_catalog_decodes_seeded_grpo_prompt_shuffle() -> None:
     assert settings.shuffle_prompts is True
 
 
+@pytest.mark.parametrize(
+    ("selection_type", "selection_id", "extra", "settings_type"),
+    [
+        ("sampo-settings", "tests/sampo-shuffled", {}, SAMPOSettings),
+        (
+            "gdpo-settings",
+            "tests/gdpo-shuffled",
+            {"component_names": ["outcome"], "component_weights": [1.0]},
+            GDPOSettings,
+        ),
+        ("capo-settings", "tests/capo-shuffled", {}, CAPOSettings),
+    ],
+)
+def test_catalog_decodes_prompt_shuffle_for_all_policy_algorithms(
+    selection_type: str,
+    selection_id: str,
+    extra: dict[str, object],
+    settings_type: type[SAMPOSettings | GDPOSettings | CAPOSettings],
+) -> None:
+    settings = decode_training_selection(
+        CatalogRef("training", selection_id),
+        {
+            "selection_type": selection_type,
+            "id": selection_id,
+            "loop": {"max_steps": 1, "per_device_batch_size": 2},
+            "num_prompts_per_step": 1,
+            "num_generations": 2,
+            "shuffle_prompts": True,
+            **extra,
+        },
+        {},
+    )
+
+    assert isinstance(settings, settings_type)
+    assert settings.shuffle_prompts is True
+
+
 def test_grpo_runtime_event_attributes_describe_selected_acceleration_without_claiming_results() -> None:
     model = QWEN_35_2B
     request = GRPORequest(
@@ -1783,6 +1859,8 @@ def test_grpo_runtime_event_attributes_describe_selected_acceleration_without_cl
     assert attributes["speculative_method"] == "mtp"
     assert attributes["num_speculative_tokens"] == 1
     assert attributes["kv_cache_dtype"] == "turboquant_k8v4"
+    assert attributes["rollout_sleep_during_optimization"] is True
+    assert attributes["rollout_gpu_memory_utilization"] == 0.2
     assert attributes["rollout_reasoning_mode"] == "off"
     assert attributes["rollout_temperature"] == 0.8
     assert attributes["rollout_top_p"] == 1.0
@@ -1824,6 +1902,58 @@ def test_grpo_settings_use_effective_batch_across_gradient_accumulation() -> Non
 
     assert settings.loop.per_device_batch_size == 1
     assert settings.loop.gradient_accumulation_steps == 2
+
+
+def test_olmo3_active_sampling_accepts_complete_group_refills() -> None:
+    settings = GRPOSettings(
+        "qwen3.5/olmo-active-refill-test@1",
+        TrainingLoop(max_steps=1, per_device_batch_size=1, gradient_accumulation_steps=32),
+        num_prompts_per_step=8,
+        num_generations=4,
+        algorithm="olmo3",
+        advantage_scaling="none",
+        clip_epsilon_high=0.272,
+        importance_sampling_mode="token_truncate",
+        importance_sampling_clip_min=None,
+        importance_sampling_clip_max=2.0,
+        active_sampling=ActiveGroupSampling(max_candidate_batches=10),
+    )
+    refill = [example for name in ("a", "b", "c") for example in (name,) * 4]
+
+    _validate_group_relative_examples(settings, refill)
+
+    with pytest.raises(ValueError, match="complete prompt groups"):
+        _validate_group_relative_examples(settings, refill[:-1])
+
+
+def test_ordinary_grpo_still_requires_the_complete_logical_batch() -> None:
+    settings = GRPOSettings(
+        "qwen3.5/grpo-complete-batch-test@1",
+        TrainingLoop(max_steps=1, per_device_batch_size=1, gradient_accumulation_steps=32),
+        num_prompts_per_step=8,
+        num_generations=4,
+    )
+    refill = [example for name in ("a", "b", "c") for example in (name,) * 4]
+
+    with pytest.raises(ValueError, match="complete logical batch"):
+        _validate_group_relative_examples(settings, refill)
+
+
+def test_gdpo_requires_a_complete_batch_without_active_sampling() -> None:
+    settings = GDPOSettings(
+        id="qwen3.5/gdpo-complete-batch-test@1",
+        loop=TrainingLoop(max_steps=1, per_device_batch_size=1, gradient_accumulation_steps=32),
+        num_prompts_per_step=8,
+        num_generations=4,
+        component_names=("outcome", "quality"),
+        component_weights=(0.8, 0.2),
+    )
+    complete = [example for name in tuple("abcdefgh") for example in (name,) * 4]
+
+    _validate_group_relative_examples(settings, complete)
+
+    with pytest.raises(ValueError, match="complete logical batch"):
+        _validate_group_relative_examples(settings, complete[:-4])
 
 
 def test_algorithm_settings_reject_embedded_backend_and_update_knobs() -> None:

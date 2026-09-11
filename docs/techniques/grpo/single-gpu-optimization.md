@@ -572,7 +572,7 @@ but remains **candidate** because:
   `packages/catalog/src/posttrain/catalog/base/inference.yaml`, and
   `packages/catalog/src/posttrain/catalog/base/environments.yaml`
 - TRL adapter:
-  `packages/train/src/posttrain/train/backends/trl/grpo.py`
+  `packages/train/src/posttrain/train/backends/trl/policy_optimization.py`
 - veRL adapter:
   `packages/train/src/posttrain/train/backends/verl/`
 - Research and Observatory execution plan:

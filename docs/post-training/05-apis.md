@@ -161,6 +161,24 @@ posttrain run checkpoint diff RUN_ID --from-step STEP --to-step STEP
 posttrain observatory up [--port PORT]
 ```
 
+`job plan --explain` adds effective model, job-type, and algorithm settings,
+their origins, compatibility findings, hardware advice, and checks deferred to
+the selected runtime. It performs no model download, image build, provider
+contact, or run creation. The existing global `--json` surface returns the same
+stable report.
+
+Exact hardware profiles declare a scheduler-facing `accelerator_model` in
+addition to accelerator count, usable memory, architecture, and qualified
+capabilities. Provider placement names must resolve to that model; generic
+memory-only targets omit it and cannot authorize model-specific defaults.
+
+`job run --skip-preflight` skips only additional bounded readiness probes that
+may inspect cached metadata or an already-running endpoint. It never skips
+schema validation, known cross-seat incompatibilities, immutable source/image
+integrity, security policy, or selected-runtime validation. The run receipt
+records skipped probes. This option is independent of deferred qualification
+and does not change job meaning.
+
 Project and catalog commands load the same `ProjectLayout`, `CatalogRef`, and
 composed `Catalog` values used by Python callers. Work-package commands validate
 all seats and catalog references before opening a run or invoking an operation.
@@ -401,6 +419,7 @@ is a **field** (`engine`), not its own catalog family. See
 | `target` | `ExecutionTarget` |
 | `purpose` | screen \| eval \| rollout \| teacher-score \| smoke \| handoff |
 | `capabilities` | Portable interaction capabilities this complete model/backend binding is qualified to provide |
+| `reasoning_mode` | Optional per-use reasoning mode; omission resolves to the renderer's versioned default |
 
 `engine` schema is owned by the `serve` (or colocated train) adapter for that
 `backend`. Changing engine or sampling → new binding revision; same model
@@ -415,6 +434,21 @@ the backend parser from the model's `ToolCallProtocol` and emits
 `--enable-auto-tool-choice` plus `--tool-call-parser`. A conflicting explicit
 backend override is rejected. An MCP client or stdio tool server is part of
 environment execution and is not an inference capability.
+
+Model, job-type, and algorithm settings are resolved before packaging and are
+explainable with their origins. An omitted value may receive a versioned
+default; an explicit value is preserved when valid and is never silently
+repaired. Hardware-aware advice may recommend a different versioned binding,
+but it does not change update kind, adapter rank, learning batch, context or
+output budgets, parallelism, or hardware. A configured engine memory fraction
+is a per-instance memory budget, not a prediction of GPU compute utilization.
+
+Acceleration eligibility and qualification are distinct. MTP and TurboQuant
+are selected independently, and TurboQuant eligibility is independent of
+full-weight, LoRA, or QLoRA training. A versioned default enables either only
+for a qualified model/backend/hardware/operation combination; an explicit
+disable remains valid. Known adverse quality evidence blocks default promotion
+without turning every explicit use into a schema error.
 
 Illustrative composition:
 
@@ -468,6 +502,33 @@ Request seats assemble model, data/env, settings, training binding, and (for
 online RL) inference binding. Train target and rollout target **may differ**.
 
 Async GRPO policies are **out of MVP scope**.
+
+`GDPOSettings` and `GDPORequest` belong to `train.gdpo`; `CAPOSettings` and
+`CAPORequest` belong to `train.capo`. Each request binds policy, environment,
+algorithm settings, training binding, and rollout inference. Scorer selection
+is serializable and versioned independently of settings. GDPO declares ordered
+component names and weights, normalization epsilon and population, group size,
+token clipping, KL policy, and loop. CAPO declares outcome/process weights,
+normalization epsilon, group size, token clipping, KL policy, and loop.
+
+Structured reward evidence is additive to the existing scalar rollout reward.
+It identifies the prompt group, rollout, native trace/branch, and source
+projection. Values distinguish valid, inapplicable, abstained, and failed.
+Critique error spans address original completion-token coordinates and may
+affect only sampled policy positions. Overlapping spans form a union. Adapters
+validate complete logical populations before advantage construction, preserving
+alignment through padding, sharding, buffering, and gradient accumulation.
+Unsupported configurations fail before launch; operation registration alone
+does not establish backend qualification.
+
+Optional turn reward evidence addresses native episode/trace/branch and turn
+identities, a generic reward name, value/status and scorer/assessment provenance.
+No rubric dimension names are built in. Required turn coverage must be complete
+and unambiguous before admission; missing evidence is not zero. SAMPO retains its
+explicit-turn and all-absent sparse-terminal paths. CAPO's `assistant-turns@1`
+error projection maps to eligible original policy positions; GDPO reduces turn
+scores to trajectory components under explicit selection before normalization.
+Neither projection changes the algorithm loss. Semantic segmentation is deferred.
 
 ### `EvaluationPlan`
 
@@ -719,13 +780,35 @@ this operation.
 Do not require `training.target == inference.target`. Colocation is a work-package
 choice.
 
-Evaluation has a second, evaluation-only subject path for a remote policy. It
-binds a remote model selector to a versioned external service descriptor rather
-than forcing an API model into `ModelVariant`. The descriptor carries an
-OpenAI-compatible protocol revision, secret-variable name, safe headers, and
-safe request defaults. It is not accepted by train, serve, or token-level
-rollout APIs. The service and policy remain separate because the same policy
-can be served locally, directly by a provider, or through a router.
+Evaluation has a second subject path for an API-only hosted model. It binds a
+hosted-model selector to a versioned external service descriptor rather than
+forcing an API model into `ModelVariant`. The descriptor carries an
+OpenAI-compatible protocol revision, secret-variable name, safe headers, safe
+request defaults, and provider policy. The binding also carries a required exact
+provider slug. Runtime composition may also use this model-service-provider
+triple to satisfy an auxiliary judge dependency. Missing model or provider
+selection is invalid configuration; runtime must verify the exact pair and must
+not silently choose a provider. It is never accepted as the
+trainable model, rollout inference, ordinary serving input, or model artifact.
+The service and hosted model remain separate because the same hosted model may
+be called directly or through a router and the same service can expose several
+models.
+
+`HostedModel.capabilities` contains only intrinsic model behavior. It must not
+contain endpoint transport fields such as `structured-output`.
+`HostedInferenceBinding.provider_profile` records transport behavior for the
+explicit provider endpoint; its initial required field is
+`structured_output: json-schema | json-object`. The binding remains the only
+user-authored combination of model, service, and exact provider.
+
+After the live capability probe, composition exposes an internal immutable
+resolved judge client. Its evidence records `protocol`, the requested
+structured-output contract, the effective provider transport, and the
+validation strategy. Judge plugins always request JSON Schema and receive the
+same OpenAI-compatible endpoint API. For a JSON-object route the provider
+adapter preserves the schema in the instruction and local Pydantic validation
+remains mandatory. The resolved client is not a catalog family, job seat, or
+user configuration object.
 
 Do not pass a `GenerationHandle` as a public seat across packages. If local eval
 or train needs live generation, the **host** (or work-package runner) may start
@@ -734,6 +817,27 @@ satisfies the inference seat — capability packages still speak
 `InferenceBinding`, not foreign handles. Remote evaluation instead uses the
 typed evaluation-only remote binding described above; its client remains inside
 Verifiers and does not become a cross-package generation handle.
+
+Judged training likewise receives no external generation handle as a train
+seat. The composition host resolves a named managed, attached, or external
+judge service, proves its declared capabilities, injects an ephemeral
+credential reference into the environment-owned judge plugin, and retains a
+secret-free service receipt. External provider fallback must not change the
+judge implementation silently inside one optimizer run; a changed route is a
+new explicit provider attempt.
+
+`HostedInferenceBinding.max_cost_usd_micros` is the exact run-wide paid-service
+ceiling in millionths of one US dollar. Its framework default is `4_990_000`.
+`ExternalInferenceServiceRequest` carries a conservative run usage projection:
+maximum request count plus aggregate input and output token ceilings. The
+external resolver must reject a live-price estimate above the binding ceiling
+before a paid probe and must expose only a run-local metered endpoint to the
+judge plugin. Increasing the ceiling requires selecting a different explicit
+binding value; retry code, provider adapters, and trainer settings cannot do it.
+The same optional named judge-service composition is available to the
+`train.grpo` family; the selected Verifiers plugin determines whether it emits
+a scalar reward or annotations, while the selected algorithm determines only
+how admitted reward evidence is consumed.
 
 ### Package surfaces
 

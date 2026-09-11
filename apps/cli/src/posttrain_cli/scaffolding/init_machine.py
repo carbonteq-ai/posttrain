@@ -67,6 +67,7 @@ def initialize_machine(
         ),
         "dstack.env": "# DSTACK_TOKEN=\n",
         "job-builder.env": "# POSTTRAIN_JOB_BUILDER_TOKEN=\n",
+        "openrouter.env": "# OPENROUTER_API_KEY=\n",
     }
     credential_files: list[Path] = []
     for filename, contents in credential_specs.items():
@@ -155,6 +156,9 @@ def initialize_machine(
     lines.extend(
         (
             "",
+            "[services.runtime_credentials]",
+            'OPENROUTER_API_KEY = "openrouter-default"',
+            "",
             "[credentials.trackio-default]",
             'file = "credentials/trackio.env"',
             "",
@@ -169,6 +173,9 @@ def initialize_machine(
             "",
             "[credentials.job-builder-default]",
             'file = "credentials/job-builder.env"',
+            "",
+            "[credentials.openrouter-default]",
+            'file = "credentials/openrouter.env"',
             "",
         )
     )
