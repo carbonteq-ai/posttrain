@@ -209,7 +209,7 @@ def test_multiple_native_judges_can_share_one_resolved_service(selections):
     assert judges[0]["api_key_var"] not in os.environ
 
 
-def test_external_judge_injects_the_explicit_provider_route_without_a_model_artifact(selections):
+def test_external_judge_uses_provider_neutral_endpoint_without_leaking_route_into_plugin(selections):
     context, environment, _ = selections
     binding = cast(
         HostedInferenceBinding,
@@ -242,8 +242,10 @@ def test_external_judge_injects_the_explicit_provider_route_without_a_model_arti
 
     with bind_native_judge_services(environment, {"judge/quality": service}, {"quality": "judge/quality"}) as bound:
         config = cast(Any, bound.activation).config["taskset"]["task"]["judges"][0]
-        assert config["sampling"]["extra_body"]["provider"] == route
+        assert config["sampling"] == dict(binding.sampling)
+        assert "provider" not in config["sampling"].get("extra_body", {})
         identity = cast(Any, bound.parameters)["inference_services"]["judge/quality"]
         assert identity["requested_provider"] == "open-inference/fp8"
+        assert identity["protocol"] == "openai-chat@1"
         assert "artifact_digest" not in identity
         assert "external-secret" not in json.dumps(bound.activation.to_payload())

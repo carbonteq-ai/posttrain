@@ -78,3 +78,38 @@ def test_grpo_family_exposes_only_a_generic_collection_ceiling() -> None:
 
     assert settings.max_collection_attempts == 10
     assert _maximum_trajectories(settings) == 5 * 8 * 4 * 10
+
+
+def test_model_native_frame_projection_counts_both_calls_and_final_frame_context() -> None:
+    environment = EnvironmentBinding(
+        "environments/test-paid-frame-judge",
+        "tool-use",
+        EnvironmentSource("test", "https://example.test/environment", "b" * 40),
+        VerifiersV1ConfigActivation(
+            {
+                "taskset": {
+                    "task": {
+                        "judges": [
+                            {
+                                "name": "quality",
+                                "attempts": 2,
+                                "input_budget_tokens": 8_192,
+                                "assessment_protocol": "model-native-frame@1",
+                                "assessment_frame_max_tokens": 2_048,
+                                "sampling": {"max_tokens": 16_384},
+                            }
+                        ]
+                    }
+                },
+                "agent": {"max_turns": 1},
+            }
+        ),
+        SamplingPolicy(max_tokens=128),
+        num_tasks=1,
+    )
+
+    usage = project_native_judge_usage(environment, 10, {"quality": "judge/shared"})["judge/shared"]
+
+    assert usage.requests == 10 * 2 * 2
+    assert usage.input_tokens == 10 * 2 * (2 * 8_192 + 2_048)
+    assert usage.output_tokens == 10 * 2 * (2_048 + 16_384)

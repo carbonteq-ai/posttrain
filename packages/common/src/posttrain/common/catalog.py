@@ -22,7 +22,7 @@ from .catalog_schema import (
     WorkloadSchema,
 )
 from .errors import ContractError
-from .hosted import ExternalInferenceService, HostedInferenceBinding, HostedModel
+from .hosted import ExternalInferenceService, HostedInferenceBinding, HostedModel, ProviderEndpointProfile
 from .models import ModelCapabilities, ModelVariant
 from .selections import (
     ExecutionTarget,
@@ -285,7 +285,8 @@ def _decode_selection(
         values = payload.model_dump()
         model = _linked(known, "hosted-model", values.pop("model"), HostedModel)
         service = _linked(known, "external-service", values.pop("service"), ExternalInferenceService)
-        return HostedInferenceBinding(model=model, service=service, **values)
+        profile = ProviderEndpointProfile(**values.pop("provider_profile"))
+        return HostedInferenceBinding(model=model, service=service, provider_profile=profile, **values)
     raise ContractError(f"catalog loader for family {ref.family!r} is not available in slice 0")
 
 

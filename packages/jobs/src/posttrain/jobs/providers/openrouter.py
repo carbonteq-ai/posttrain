@@ -92,7 +92,15 @@ class OpenRouterResolver:
             provider_slug = _provider_slug(selected)
             route = _route_policy(service.provider_policy, requested_provider)
             probe_evidence = (
-                _probe_capabilities(client, service.base_url, binding.model.model, route)
+                _probe_capabilities(
+                    client,
+                    service.base_url,
+                    binding.model.model,
+                    route,
+                    _probe_reasoning(binding),
+                    _probe_temperature(binding),
+                    _structured_output_transport(binding),
+                )
                 if self._capability_probe
                 else {}
             )
@@ -125,7 +133,12 @@ class OpenRouterResolver:
                 "context_length": _optional_int(selected.get("context_length")),
                 "max_completion_tokens": _optional_int(selected.get("max_completion_tokens")),
                 "supported_parameters": cast(JsonValue, _string_list(selected.get("supported_parameters"))),
-                "pricing": _safe_pricing(selected.get("pricing")),
+                # Retain the effective worst-case rates used by admission,
+                # including any provider-declared time-window overrides.
+                "pricing": {
+                    "prompt": f"{prices.prompt:f}",
+                    "completion": f"{prices.completion:f}",
+                },
                 "route": route,
                 "capability_probe": probe_evidence,
                 "cost_control": {
@@ -148,12 +161,14 @@ class OpenRouterResolver:
             maximum_output_tokens = binding.sampling.get("max_tokens")
             assert isinstance(maximum_output_tokens, int)
             try:
+                structured_output_transport = _structured_output_transport(binding)
                 with metered_openai_gateway(
                     upstream=client,
                     upstream_base_url=service.base_url,
                     model=binding.model.model,
                     maximum_output_tokens=maximum_output_tokens,
                     ledger=ledger,
+                    request_transform=_openrouter_transport(route, structured_output_transport),
                 ) as endpoint:
                     yield ResolvedInferenceService(
                         name,
@@ -163,6 +178,7 @@ class OpenRouterResolver:
                         owned=False,
                         lifecycle="external",
                         provider=provider,
+                        protocol=service.protocol,
                     )
             finally:
                 context.event(
@@ -192,11 +208,40 @@ def _inventory(client: httpx.Client, base_url: str, model: str) -> Mapping[str, 
 
 def _required_parameters(binding: Any) -> frozenset[str]:
     required = {"max_tokens"}
-    if binding.model.capabilities.get("reasoning") is True:
+    if _probe_reasoning(binding) is not None:
         required.add("reasoning")
-    if binding.model.capabilities.get("structured-output") is True:
+    if _structured_output_transport(binding) is not None:
         required.add("response_format")
     return frozenset(required)
+
+
+def _structured_output_transport(binding: Any) -> str | None:
+    return binding.provider_profile.structured_output
+
+
+def _probe_reasoning(binding: Any) -> dict[str, JsonValue] | None:
+    """Probe the selected reasoning policy instead of overriding it.
+
+    A readiness request must exercise the same provider feature set as the
+    judged workload. In particular, enabling low-effort reasoning for a
+    no-thinking binding can consume the tiny probe completion budget before
+    its structured response is emitted.
+    """
+
+    extra = binding.sampling.get("extra_body")
+    configured = extra.get("reasoning") if isinstance(extra, Mapping) else None
+    if isinstance(configured, Mapping):
+        enabled = configured.get("enabled")
+        if isinstance(enabled, bool):
+            return {"enabled": enabled}
+    return None
+
+
+def _probe_temperature(binding: Any) -> float | None:
+    """Return only an explicitly selected temperature for the readiness call."""
+
+    value = binding.sampling.get("temperature")
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def _select_endpoint(inventory: Mapping[str, Any], binding: Any) -> Mapping[str, Any]:
@@ -238,8 +283,20 @@ def _token_prices(endpoint: Mapping[str, Any]) -> TokenPrices:
     pricing = endpoint.get("pricing")
     if not isinstance(pricing, Mapping):
         raise OpenRouterResolutionError("OpenRouter endpoint has no usable pricing")
-    prompt = _decimal(pricing.get("prompt"))
-    completion = _decimal(pricing.get("completion"))
+    # Provider prices may vary by time window. Admission must reserve against
+    # the most expensive declared rate because a run can cross a pricing
+    # boundary after endpoint resolution.
+    prompt_rates = [_decimal(pricing.get("prompt"))]
+    completion_rates = [_decimal(pricing.get("completion"))]
+    overrides = pricing.get("overrides")
+    if isinstance(overrides, list):
+        for override in overrides:
+            if not isinstance(override, Mapping):
+                continue
+            prompt_rates.append(_decimal(override.get("prompt")))
+            completion_rates.append(_decimal(override.get("completion")))
+    prompt = max(prompt_rates)
+    completion = max(completion_rates)
     try:
         return TokenPrices(prompt, completion)
     except ValueError as error:
@@ -289,33 +346,45 @@ def _probe_capabilities(
     base_url: str,
     model: str,
     route: Mapping[str, JsonValue],
+    reasoning: Mapping[str, JsonValue] | None,
+    temperature: float | None,
+    structured_output_transport: str | None,
 ) -> dict[str, JsonValue]:
-    response = client.post(
-        f"{base_url.rstrip('/')}/chat/completions",
-        json={
-            "model": model,
-            "messages": [
-                {"role": "system", "content": "Return the requested JSON object and nothing else."},
-                {"role": "user", "content": 'Return {"ready": true}.'},
-            ],
-            "temperature": 0,
-            "max_tokens": 64,
-            "reasoning": {"effort": "low"},
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "posttrain_readiness",
-                    "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "properties": {"ready": {"type": "boolean", "const": True}},
-                        "required": ["ready"],
-                        "additionalProperties": False,
-                    },
+    request: dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "Return the requested JSON object and nothing else."},
+            {"role": "user", "content": 'Return {"ready": true}.'},
+        ],
+        # A readiness check must admit enough output for providers that spend
+        # a small internal budget before emitting a strict JSON object. This
+        # is not the judge generation ceiling (which remains binding-owned).
+        "max_tokens": 512,
+        "provider": dict(route),
+    }
+    if structured_output_transport == "json-object":
+        request["response_format"] = {"type": "json_object"}
+    elif structured_output_transport == "json-schema":
+        request["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "posttrain_readiness",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {"ready": {"type": "boolean", "const": True}},
+                    "required": ["ready"],
+                    "additionalProperties": False,
                 },
             },
-            "provider": dict(route),
-        },
+        }
+    if temperature is not None:
+        request["temperature"] = temperature
+    if reasoning is not None:
+        request["reasoning"] = dict(reasoning)
+    response = client.post(
+        f"{base_url.rstrip('/')}/chat/completions",
+        json=request,
     )
     _raise_for_status(response, "capability probe")
     payload = _response_json(response, "capability probe")
@@ -323,8 +392,15 @@ def _probe_capabilities(
     if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
         raise OpenRouterResolutionError("OpenRouter capability probe returned no completion")
     first = choices[0]
-    if first.get("finish_reason") not in {None, "stop"}:
-        raise OpenRouterResolutionError("OpenRouter capability probe did not finish normally")
+    finish_reason = first.get("finish_reason")
+    if finish_reason not in {None, "stop"}:
+        usage = payload.get("usage")
+        completion_tokens = usage.get("completion_tokens") if isinstance(usage, dict) else None
+        detail = f" (finish_reason={finish_reason!r}"
+        if isinstance(completion_tokens, int):
+            detail += f", completion_tokens={completion_tokens}"
+        detail += ")"
+        raise OpenRouterResolutionError(f"OpenRouter capability probe did not finish normally{detail}")
     message = first.get("message")
     content = message.get("content") if isinstance(message, dict) else None
     try:
@@ -342,6 +418,69 @@ def _probe_capabilities(
     }
 
 
+def _openrouter_transport(
+    route: Mapping[str, JsonValue],
+    structured_output_transport: str | None,
+) -> Callable[[dict[str, Any]], dict[str, Any]]:
+    """Freeze routing and adapt structured output at the OpenRouter boundary."""
+
+    def transform(payload: dict[str, Any]) -> dict[str, Any]:
+        transformed = dict(payload)
+        # Callers talk to a provider-neutral local OpenAI endpoint. The route
+        # is therefore an infrastructure concern and must be injected here,
+        # not repeated in every judge implementation.
+        transformed["provider"] = dict(route)
+        response_format = transformed.get("response_format")
+        if (
+            structured_output_transport == "json-object"
+            and isinstance(response_format, Mapping)
+            and response_format.get("type") == "json_schema"
+        ):
+            transformed["response_format"] = {"type": "json_object"}
+            messages = transformed.get("messages")
+            if isinstance(messages, list):
+                transformed["messages"] = _with_json_schema_instruction(messages, response_format)
+        return transformed
+
+    return transform
+
+
+def _with_json_schema_instruction(messages: list[object], response_format: Mapping[str, Any]) -> list[object]:
+    """Preserve the caller's schema when a route supports only JSON-object mode.
+
+    OpenAI-compatible clients validate the returned object locally, but a
+    JSON-object-only provider does not otherwise see the schema carried in
+    ``response_format``. Dropping it would turn a typed judge request into an
+    unconstrained JSON request and make valid multi-field verdicts accidental.
+    """
+
+    descriptor = response_format.get("json_schema")
+    schema = descriptor.get("schema") if isinstance(descriptor, Mapping) else None
+    if not isinstance(schema, Mapping):
+        instruction = "Return only one valid JSON object, with no Markdown or surrounding text."
+    else:
+        encoded = json.dumps(schema, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        instruction = (
+            "Return only one valid JSON object that conforms exactly to this JSON Schema. "
+            "Include every required field, obey additionalProperties, and emit no Markdown or "
+            f"surrounding text. JSON Schema: {encoded}"
+        )
+
+    updated: list[object] = []
+    appended = False
+    for message in messages:
+        if not appended and isinstance(message, Mapping) and message.get("role") == "system":
+            content = message.get("content")
+            if isinstance(content, str):
+                updated.append({**message, "content": f"{content}\n\n{instruction}"})
+                appended = True
+                continue
+        updated.append(message)
+    if not appended:
+        updated.insert(0, {"role": "system", "content": instruction})
+    return updated
+
+
 def _raise_for_status(response: httpx.Response, operation: str) -> None:
     try:
         response.raise_for_status()
@@ -354,7 +493,26 @@ def _raise_for_status(response: httpx.Response, operation: str) -> None:
             if status in {429, 500, 502, 503, 504}
             else "configuration"
         )
-        raise OpenRouterResolutionError(f"OpenRouter {operation} failed ({category}, HTTP {status})") from error
+        detail = _safe_error_detail(response)
+        suffix = f": {detail}" if detail else ""
+        raise OpenRouterResolutionError(f"OpenRouter {operation} failed ({category}, HTTP {status}){suffix}") from error
+
+
+def _safe_error_detail(response: httpx.Response) -> str | None:
+    """Expose a bounded provider diagnosis without leaking request credentials."""
+
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    if not isinstance(payload, Mapping):
+        return None
+    error = payload.get("error")
+    value = error.get("message") if isinstance(error, Mapping) else error
+    if not isinstance(value, str):
+        return None
+    normalized = " ".join(value.split())
+    return normalized[:300] or None
 
 
 def _response_json(response: httpx.Response, operation: str) -> Any:
@@ -376,12 +534,6 @@ def _optional_int(value: object) -> int | None:
 
 def _string_list(value: object) -> list[str]:
     return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
-
-
-def _safe_pricing(value: object) -> dict[str, JsonValue]:
-    if not isinstance(value, dict):
-        return {}
-    return {str(key): item for key, item in value.items() if isinstance(item, str | int | float | bool) or item is None}
 
 
 __all__ = ["OpenRouterResolutionError", "OpenRouterResolver"]

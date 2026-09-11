@@ -290,28 +290,6 @@ parity = ["run the deterministic AutomationBench control", "retain task and traj
 deletion_condition = "The AutomationBench control runs through a retained Lab work package."
 
 [[surfaces]]
-id = "calibrate-automationbench-judge"
-path = "scripts/qualification/calibrate_automationbench_judge.py"
-kind = "evidence-validator"
-owner = "lab"
-transition = "retire"
-replacement = "the maintained AutomationBench judge calibration contract"
-tests = []
-parity = ["calibrate the task-specific judge against frozen cases", "reject invalid or saturated judge verdicts"]
-deletion_condition = "Judge calibration is owned by the maintained environment contract."
-
-[[surfaces]]
-id = "compare-automationbench-judges"
-path = "scripts/qualification/compare_automationbench_judges.py"
-kind = "evidence-validator"
-owner = "lab"
-transition = "retire"
-replacement = "the Observatory judge comparison report"
-tests = []
-parity = ["compare judge outputs on the same frozen trajectories", "retain model and rubric provenance"]
-deletion_condition = "The Observatory report owns judge comparison and provenance checks."
-
-[[surfaces]]
 id = "compare-episode-judges"
 path = "scripts/qualification/compare_episode_judges.py"
 kind = "evidence-validator"
@@ -403,17 +381,6 @@ parity = ["exercise the structured TRL lifecycle", "retain optimizer and reward 
 deletion_condition = "Structured TRL qualification runs through the public Lab lifecycle."
 
 [[surfaces]]
-id = "test-calibrate-automationbench-judge"
-path = "scripts/qualification/test_calibrate_automationbench_judge.py"
-kind = "evidence-validator"
-owner = "lab"
-transition = "retire"
-replacement = "the maintained judge calibration test suite"
-tests = []
-parity = ["keep calibration expectation checks executable", "fail closed on malformed judge output"]
-deletion_condition = "Calibration tests are owned by the maintained judge contract."
-
-[[surfaces]]
 id = "test-calibrate-general-episode-prompt"
 path = "scripts/qualification/test_calibrate_general_episode_prompt.py"
 kind = "evidence-validator"
@@ -503,3 +470,91 @@ replacement = "the public model and judge context admission checks"
 tests = []
 parity = ["validate declared context budgets before execution", "fail before provider submission on impossible budgets"]
 deletion_condition = "Context admission is enforced by the public planning and qualification path."
+
+[[surfaces]]
+id = "author-openrouter-episode-prompt"
+path = "scripts/qualification/author_openrouter_episode_prompt.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "the public provider-neutral episode-judge prompt authoring command"
+tests = []
+parity = ["author a domain-general assessment frame through the selected hosted model", "retain prompt, model, provider, and content digests without credentials"]
+deletion_condition = "The public judge tooling owns model-native prompt authoring and immutable calibration evidence."
+
+[[surfaces]]
+id = "calibrate-openrouter-episode-judge"
+path = "scripts/qualification/calibrate_openrouter_episode_judge.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "the public hosted episode-judge calibration command"
+tests = []
+parity = ["calibrate frozen episodes through an explicit hosted provider binding", "fail closed on malformed, saturated, or over-budget verdicts"]
+deletion_condition = "The public judge qualification surface owns hosted calibration and its retained evidence schema."
+
+[[surfaces]]
+id = "compare-episode-judge-vllm-benchmarks"
+path = "scripts/qualification/compare_episode_judge_vllm_benchmarks.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "the Observatory judge benchmark comparison report"
+tests = []
+parity = ["compare only byte-identical replay inputs across judge models", "report validity, latency, truncation, and score differences from saved evidence"]
+deletion_condition = "Observatory reproduces the same digest-matched judge comparison from retained run evidence."
+
+[[surfaces]]
+id = "debug-openrouter-gpt5mini-transport"
+path = "scripts/qualification/debug_openrouter_gpt5mini_transport.py"
+kind = "direct-launcher"
+owner = "lab"
+transition = "retire"
+replacement = "provider-neutral transport fixtures in packages/jobs tests"
+tests = []
+parity = ["exercise one bounded structured-output request without logging credentials", "distinguish provider transport rejection from rubric or parser failure"]
+deletion_condition = "The jobs provider test suite covers the same transport failure with a maintained fixture."
+
+[[surfaces]]
+id = "episode-judge-vllm-benchmark"
+path = "scripts/qualification/episode_judge_vllm_benchmark.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "the public OpenAI-compatible episode-judge replay benchmark"
+tests = ["scripts/qualification/test_episode_judge_vllm_benchmark.py"]
+parity = ["replay retained judge messages concurrently against a local compatible endpoint", "retain structured validity, token use, latency, truncation, and normalized verdict evidence"]
+deletion_condition = "The public qualification package owns local and hosted replay through one provider-neutral interface."
+
+[[surfaces]]
+id = "optimize-episode-judge-prompt"
+path = "scripts/qualification/optimize_episode_judge_prompt.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "promote"
+replacement = "the maintained model-native judge prompt calibration command"
+tests = ["scripts/qualification/test_optimize_episode_judge_prompt.py"]
+parity = ["elicit and compare model-native assessment vocabulary on frozen current-policy episodes", "select a prompt only from explicit validity, discrimination, and output-budget gates"]
+deletion_condition = "The maintained judge calibration API owns prompt candidate materialization, evaluation, and explicit promotion."
+
+[[surfaces]]
+id = "test-episode-judge-vllm-benchmark"
+path = "scripts/qualification/test_episode_judge_vllm_benchmark.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "tests for the public OpenAI-compatible judge replay benchmark"
+tests = []
+parity = ["verify strict structured-output transport and fallback behavior", "verify normalized verdict and failure evidence remain deterministic"]
+deletion_condition = "Equivalent tests live beside the promoted public replay benchmark."
+
+[[surfaces]]
+id = "test-optimize-episode-judge-prompt"
+path = "scripts/qualification/test_optimize_episode_judge_prompt.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "tests for the maintained judge prompt calibration API"
+tests = []
+parity = ["verify model-native candidate construction and selection", "reject candidates that violate frozen labels or output constraints"]
+deletion_condition = "Equivalent tests live beside the promoted public calibration API."

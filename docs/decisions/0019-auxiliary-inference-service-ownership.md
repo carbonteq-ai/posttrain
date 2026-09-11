@@ -42,6 +42,24 @@ failure attribution, and cleanup ambiguous.
 - Environment judge plugins continue to own prompts, rubrics, schemas, retries,
   parsing, and named reward annotations. GDPO, CAPO, SAMPO, TRL, and veRL see only
   the existing validated reward-evidence contract.
+- Judge plugins call one narrow `openai-chat@1` structured-completion contract.
+  Managed vLLM, attached endpoints, and API providers all resolve to that same
+  contract. Provider adapters must normalize routing and capability differences
+  before exposing the endpoint; provider names and router payloads do not enter
+  judge prompts, schemas, algorithms, or plugin sampling configuration.
+- The implementation uses Verifiers `Judge.complete()` and the official
+  `AsyncOpenAI` client as the wire adapter. Posttrain owns endpoint resolution,
+  capability admission, credentials, cost controls, and request adaptation. A
+  general agent framework or multi-provider proxy is not part of this boundary.
+- Hosted-model profiles contain intrinsic model/interface facts only. Provider
+  endpoint profiles contain route-dependent transport facts such as whether
+  structured output is accepted as JSON Schema or JSON object. Composition
+  probes the selected model-provider pair and resolves both profiles into one
+  internal immutable judge client; jobs do not author that resolved value.
+- Chat templates remain token-serialization contracts. Verifiers plugins retain
+  prompts, rubrics, and response schemas. Model-native wording may be retained
+  as versioned model or environment metadata, but it does not change provider
+  transport or create another chat template.
 - Managed child-process inference remains valid for explicitly qualified local
   or partitioned compositions. Remote colocation is rejected unless the host
   supplies an explicit resource partition and lifecycle controller covering all
@@ -95,6 +113,12 @@ population or explicitly select a higher ceiling. The selected limit and final
 metering receipt make that choice auditable without coupling dollars to reward
 weights.
 
+Provider transport declarations become explicit catalog data. This adds one
+small required nested profile to hosted-inference bindings, but removes the
+misleading practice of attaching endpoint behavior to a reusable hosted model.
+Service receipts make the requested contract, effective transport, and
+validation strategy inspectable.
+
 ## Alternatives Considered
 
 ### Launch the judge in the training process allocation
@@ -114,6 +138,15 @@ trainer backend.
 Rejected because those are inference/composition concerns and would prevent
 multiple rubrics or algorithms from sharing one service safely.
 
+### Add LiteLLM or PydanticAI inside judge plugins
+
+Rejected for the current OpenRouter and vLLM services because both already expose
+the same OpenAI-compatible Chat Completions protocol used by Verifiers. LiteLLM
+would duplicate Posttrain's route, retry, spend, and usage ownership; PydanticAI
+would add an agent abstraction above a scorer that needs only one typed
+completion. Reconsider a broader adapter only when an admitted provider cannot
+implement `openai-chat@1` without lossy behavior.
+
 ### Trust a caller-supplied URL and model alias
 
 Rejected for qualification because it cannot prove which weights or engine
@@ -131,7 +164,23 @@ identity mismatch, readiness failure, consumer cleanup that leaves attached
 services running, and interrupted reattachment. The live GDPO comparison remains
 blocked until service placement and teardown are observed on RunPod.
 
+`HostedModel`, `ProviderEndpointProfile`, and `HostedInferenceBinding` live in
+`posttrain.common`. `ResolvedInferenceService.judge_client` is the internal
+composition view and is intentionally not a catalog family. OpenRouter resolves
+`json-schema` directly or adapts `json-object` with the exact schema preserved
+in the system instruction; the caller's typed local validation remains the
+acceptance authority.
+
 ## Revision History
+
+- 2026-09-11: Separated intrinsic hosted-model behavior from provider-endpoint
+  transport capabilities and defined the internal resolved judge-client
+  contract. Kept chat templates and Verifiers rubric semantics outside this
+  service-resolution boundary.
+
+- 2026-09-10: Standardized judge invocation on `openai-chat@1`, assigned
+  capability adaptation to service resolvers, and explicitly declined an
+  additional multi-provider agent SDK at the scoring boundary.
 
 - 2026-09-09: Added the USD 4.99 default hard ceiling, live-price admission,
   and concurrency-safe run-local enforcement for API-paid judges.

@@ -790,7 +790,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
         "8d4736461fbc3bf72075b4d84417208b3c5fc9ffc6f48bf26cbe9ef955cf307b"
     )
-    assert entries["automationbench"].artifacts["environment_revision"] == ("b14dfe0ba9d60184f36d78786a543242fabfb765")
+    assert entries["automationbench"].artifacts["environment_revision"] == ("1181585ea66c6f89432864a476b5110794afc9fe")
     assert entries["dstack"].required is False
     assert entries["dstack"].deployed_image and "@sha256:" in entries["dstack"].deployed_image
     assert render_fork_ledger(repository_root)["schema"] == "posttrain.fork-ledger.v1"
@@ -819,12 +819,33 @@ def test_readiness_runs_the_fixed_deterministic_check_set(monkeypatch: pytest.Mo
 def test_promotion_receipt_binds_candidate_bytes_to_the_merged_tree(tmp_path: Path) -> None:
     receipt_path = tmp_path / "candidate.json"
     receipt_path.write_text(
-        json.dumps({"schema": "posttrain.python-release-receipt.v1", "version": "0.3.8"}),
+        json.dumps(
+            {
+                "schema": "posttrain.python-release-receipt.v1",
+                "version": "0.3.8rc2",
+                "packages": ["posttrain"],
+                "image_manifest_sha256": "e" * 64,
+            }
+        ),
+        encoding="utf-8",
+    )
+    final_receipt = tmp_path / "final.json"
+    final_receipt.write_text(
+        json.dumps(
+            {
+                "schema": "posttrain.python-release-receipt.v1",
+                "version": "0.3.8",
+                "packages": ["posttrain"],
+                "image_manifest_sha256": "e" * 64,
+            }
+        ),
         encoding="utf-8",
     )
 
     receipt = create_promotion_receipt(
         receipt_path,
+        final_receipt=final_receipt,
+        target_version="0.3.8",
         candidate_run_id="123456",
         candidate_source_sha="a" * 40,
         candidate_source_tree="b" * 40,
@@ -833,29 +854,67 @@ def test_promotion_receipt_binds_candidate_bytes_to_the_merged_tree(tmp_path: Pa
     )
 
     assert receipt["version"] == "0.3.8"
+    assert receipt["candidate_version"] == "0.3.8rc2"
     assert receipt["candidate_run_id"] == "123456"
     assert receipt["candidate_receipt_sha256"] == __import__("hashlib").sha256(receipt_path.read_bytes()).hexdigest()
 
 
-def test_candidate_builds_the_final_version_and_final_only_restores_it() -> None:
+def test_promotion_receipt_rejects_non_rc_or_different_materialization(tmp_path: Path) -> None:
+    candidate = tmp_path / "candidate.json"
+    final = tmp_path / "final.json"
+    common = {
+        "schema": "posttrain.python-release-receipt.v1",
+        "packages": ["posttrain"],
+        "image_manifest_sha256": "a" * 64,
+    }
+    candidate.write_text(json.dumps({**common, "version": "0.4.0"}), encoding="utf-8")
+    final.write_text(json.dumps({**common, "version": "0.4.0"}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="is not an RC"):
+        create_promotion_receipt(
+            candidate,
+            final_receipt=final,
+            target_version="0.4.0",
+            candidate_run_id="1",
+            candidate_source_sha="a" * 40,
+            candidate_source_tree="b" * 40,
+            merged_sha="c" * 40,
+            merged_tree="d" * 40,
+        )
+
+    candidate.write_text(json.dumps({**common, "version": "0.4.0rc1"}), encoding="utf-8")
+    final.write_text(
+        json.dumps({**common, "version": "0.4.0", "image_manifest_sha256": "b" * 64}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="runtime image manifests differ"):
+        create_promotion_receipt(
+            candidate,
+            final_receipt=final,
+            target_version="0.4.0",
+            candidate_run_id="1",
+            candidate_source_sha="a" * 40,
+            candidate_source_tree="b" * 40,
+            merged_sha="c" * 40,
+            merged_tree="d" * 40,
+        )
+
+
+def test_candidate_builds_an_rc_and_final_rebuilds_the_accepted_materialization() -> None:
     repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
     candidate = (repository_root / ".github/workflows/release-candidate.yml").read_text(encoding="utf-8")
     final = (repository_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
     assert "scripts/release/build-python-distributions" in candidate
-    assert "candidate-version --simple-url" not in candidate
-    assert "Resolve the immutable final version" in candidate
+    assert "candidate-version" in candidate
+    assert "Allocate the next immutable release candidate" in candidate
     assert "PYPI_STABLE_SIMPLE" in candidate
     assert "already immutable in stable" in candidate
-    assert "retire_failed_candidate_run_id:" in candidate
-    assert "candidate-retirement-check" in candidate
-    assert "candidate-retirement-complete" in candidate
-    assert '"${DEVPI_CLIENT}" remove -y --index carbonteq/dev' in candidate
-    assert "REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt" in candidate
-    assert ".release/candidate-retirement.json" in candidate
-    assert "scripts/release/build-python-distributions" not in final
-    assert "Materialize and verify the candidate wheelhouse" in final
-    assert "Verify the candidate bytes remain intact in development" in final
+    assert "retire_failed_candidate_run_id:" not in candidate
+    assert "candidate-retirement-check" not in candidate
+    assert "scripts/release/build-python-distributions" in final
+    assert "Build final-version Python artifacts from the accepted materialization" in final
+    assert "Verify the accepted RC remains intact in development" in final
     builder = (repository_root / "scripts/release/build-python-distributions").read_text(encoding="utf-8")
     assert "uv build" in builder
     assert "--all-packages" in builder
@@ -1034,7 +1093,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'qualification_host="pop-os.lan"' in candidate
     assert 'qualification_target="targets/carbonteq-rtx-pro-6000-96gb"' not in candidate
 
-    assert "candidate-version --simple-url" not in candidate
+    assert "posttrain-release candidate-version" in candidate
     assert "preflight:" in candidate
     assert "runs-on: ubuntu-latest" in candidate
     assert 'test "${GITHUB_REF_NAME}" = "${SOURCE_REF}"' in candidate
@@ -1042,7 +1101,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "git check-ref-format --branch" in candidate
     assert "needs: preflight" in candidate
     assert "QUALITY_RUN_ID: ${{ needs.preflight.outputs.quality_run_id }}" in candidate
-    assert "Reject occupied development versions before image work" in candidate
+    assert "Allocate the next immutable release candidate" in candidate
     assert "Verify qualification capacity before image publication" in candidate
     assert candidate.index("Verify qualification capacity before image publication") < candidate.index(
         "Plan immutable runtime image work"
@@ -1068,20 +1127,17 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         in candidate
     )
     assert 'git ls-remote --exit-code origin "refs/tags/v${POSTTRAIN_RELEASE_VERSION}"' in final
-    assert '"${DEVPI_CLIENT}" push -y' in final
+    assert 'uv publish --publish-url "${PYPI_STABLE_UPLOAD}"' in final
     assert "exact final bytes are already present in the stable index" in final
-    assert final.index("exact final bytes are already present in the stable index") < final.index(
-        '"${DEVPI_CLIENT}" push -y'
-    )
+    assert final.index("exact final bytes are already present in the stable index") < final.index("uv publish")
     assert final.index("Capture bounded cache evidence") < final.index("Tag and create the GitHub release last")
     assert final.index("Retain final receipt and cache evidence") < final.index(
         "Tag and create the GitHub release last"
     )
     assert "for attempt in $(seq 1 120)" not in final
     assert "Verify the merge target" in final
-    assert "REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt" in final
-    assert "Verify the candidate bytes remain intact in development" in final
-    assert "scripts/release/build-python-distributions" not in final
+    assert "Verify the accepted RC remains intact in development" in final
+    assert "scripts/release/build-python-distributions" in final
     assert "Run the final packed GPU canary through dstack" not in final
     assert "Prove a clean index-only consumer install" not in final
     assert "Verify committed runtime image digests in the private registry" not in final
@@ -1092,14 +1148,15 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "uv run --no-sync ruff check ." not in final
     assert "uv run --no-sync pytest" not in final
     assert "Restore the accepted candidate runtime image manifest" in final
-    assert 'if git merge-base --is-ancestor "${candidate_sha}" "${RELEASE_SOURCE_SHA}"; then' in final
     assert '"repos/${GITHUB_REPOSITORY}/commits/${candidate_sha}"' in final
     assert "--jq '.commit.tree.sha'" in final
     assert 'release_tree="$(git rev-parse "${RELEASE_SOURCE_SHA}^{tree}")"' in final
     assert 'if [[ "${candidate_tree}" = "${release_tree}" ]]; then' in final
+    assert "Ancestry alone is insufficient" in final
     assert 'candidate_ref="refs/remotes/origin/release-candidate-${CANDIDATE_RUN_ID}"' in final
     assert 'git fetch --no-tags origin "${candidate_sha}:${candidate_ref}"' in final
     assert 'test "$(git rev-parse "${candidate_ref}")" = "${candidate_sha}"' in final
+    assert final.count('candidate_artifact="$(gh api') == 1
     assert 'git diff --name-only "${candidate_sha}" "${RELEASE_SOURCE_SHA}"' in final
     assert 'release_tag_sha="${candidate_sha}"' not in final
     assert 'echo "RELEASE_TAG_SHA=${RELEASE_SOURCE_SHA}" >> "$GITHUB_ENV"' in final
@@ -1108,14 +1165,16 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert ".github/*|apps/release/tests/*|docs/plan/*|docs/publishing.md" in final
     assert "packages/runtime-images/src/posttrain/runtime_images/published.toml) ;;" in final
     assert "candidate build inputs changed:" in final
-    assert 'test "${candidate_version}" = "${release_version}"' in final
+    assert "Prove a clean stable-index consumer install" in final
+    assert '[[ "${candidate_version}" =~ ^${release_version' in final
+    assert "rc[1-9][0-9]*$ ]]" in final
     assert 'test "$(jq -r \'.source_sha // empty\' "${candidate_readiness}")" = "${candidate_sha}"' in final
     assert 'test "$(jq -r \'.source_tree // empty\' "${candidate_readiness}")" = "${candidate_tree}"' in final
     assert 'cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml' in final
     assert "committed runtime image manifest differs from the accepted candidate" in final
     assert 'if ! cmp -s \\\n            "${candidate_manifest}"' in final
     assert 'candidate_checksums="$(find .release/candidate -type f -name release-SHA256SUMS -print -quit)"' in final
-    assert 'cp "${candidate_checksums}" .release/release-SHA256SUMS' in final
+    assert 'cp "${candidate_checksums}" .release/candidate-SHA256SUMS' in final
     assert 'gh release upload "v${POSTTRAIN_RELEASE_VERSION}" "${release_assets[@]}" --clobber' in final
     assert "resume_from_run_id" in final
     assert 'gh run view "${RESUME_FROM_RUN_ID}"' in final
@@ -1124,7 +1183,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "gh run download" in final
     assert 'git merge-base --is-ancestor "${source_sha}"' in final
     assert 'git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_TAG_SHA}"' in final
-    assert "Materialize and verify the candidate wheelhouse" in final
+    assert "Build final-version Python artifacts from the accepted materialization" in final
     assert "receipt-check .release/python-release-receipt.json" in final
 
 
@@ -1525,9 +1584,7 @@ def test_kind_source_selection_is_variant_local() -> None:
     assert Path("containers/posttrain-job-kinds/profiles/supervised.txt") in set(
         publish._kind_source_paths("online-rl-trl-py312")
     )
-    assert Path("containers/posttrain-job-kinds/profiles/serve.txt") in set(
-        publish._kind_source_paths("eval")
-    )
+    assert Path("containers/posttrain-job-kinds/profiles/serve.txt") in set(publish._kind_source_paths("eval"))
     assert Path("containers/posttrain-job-kinds/verl-py313") in verl
     assert Path("containers/posttrain-job-kinds/Dockerfile") not in verl
     assert Path("containers/posttrain-job-kinds/docker-bake.hcl") not in verl

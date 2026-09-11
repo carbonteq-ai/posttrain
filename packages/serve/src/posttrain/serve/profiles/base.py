@@ -214,8 +214,7 @@ class VllmSamplingConfig:
         ):
             raise ValueError("presence_penalty must be finite")
         if self.extra_body is not None and (
-            not isinstance(self.extra_body, Mapping)
-            or any(not isinstance(key, str) for key in self.extra_body)
+            not isinstance(self.extra_body, Mapping) or any(not isinstance(key, str) for key in self.extra_body)
         ):
             raise ValueError("extra_body must be an object with string keys")
         if self.min_tokens is not None and (

@@ -137,12 +137,13 @@ def rollout_function(
 
                 from ...reward_admission import admit_rollout_groups
 
-                # OLMo3 owns bounded active sampling above this bridge. A
-                # Verifiers failure therefore excludes its complete prompt
-                # group from this candidate round; OLMo3 draws another group
-                # from its reserved pool. Retrying the same failed occurrence
-                # here both wastes the candidate budget and can terminate the
-                # entire optimizer step despite healthy surplus groups.
+                # Admission is group-atomic: an invalid occurrence excludes its
+                # complete prompt group, while healthy complete groups remain
+                # trainable. OLMo3 may refill the missing group from its reserved
+                # candidate pool; structured RL instead trains the smaller valid
+                # population. Retrying is controlled independently by the
+                # settings profile and is never required merely to avoid a
+                # batch-wide failure.
                 active_sampling = (
                     isinstance(request, GRPORequest)
                     and request.settings.algorithm == "olmo3"
@@ -154,7 +155,7 @@ def rollout_function(
                     collect,
                     gather_object,
                     max_attempts=1 if active_sampling else None,
-                    retain_complete_on_exhaustion=isinstance(request, GRPORequest),
+                    retain_complete_on_exhaustion=True,
                 )
                 rollouts = admission.rollouts
             else:
@@ -284,23 +285,19 @@ def rollout_function(
                 if item is None:
                     raise ValueError("local structured evidence was lost after gathering")
                 local_advantages.append(list(by_id[item.rollout_id]))
-                measures = {
-                    f"raw_component/{component.name}": component.value
-                    for component in item.components
-                    if component.value is not None
-                }
                 sampled = [
                     value for value, include in zip(by_id[item.rollout_id], rollout.env_mask, strict=True) if include
                 ]
-                measures["sampled_advantage_mean"] = math.fsum(sampled) / len(sampled)
+                algorithm_reward = math.fsum(sampled) / len(sampled)
                 context.trace_fact_update(
                     TraceFactUpdateObservation(
                         trace_type="verifiers",
                         external_id=rollout.trace.external_id,
                         facts=TraceFactSet(
-                            namespace="posttrain.train.structured_reward",
+                            namespace="posttrain.train.reward",
                             calculator_version=request.settings.numerical_profile,
-                            measures=measures,
+                            measures={"algorithm_reward": algorithm_reward},
+                            provenance={"algorithm_reward": f"{technique(request)}_sampled_token_advantage_mean"},
                         ),
                         attributes={"optimizer_step": optimizer_step, "reward_projection": item.projection_id},
                     )

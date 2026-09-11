@@ -135,9 +135,7 @@ async def test_fixed_native_pool_dispatches_and_fences_collection_identity():
         )
         assert outcome.status is EpisodeStatus.COMPLETED
         assert cast(Any, outcome.rollout).native_value == 11
-        assert next(iter(client.task_configs.values())) == {
-            "allowed_tools": ["salesforce_note_create"]
-        }
+        assert next(iter(client.task_configs.values())) == {"allowed_tools": ["salesforce_note_create"]}
         native = FakePool.instances[-1]
         assert native.kwargs["max_workers"] == 2
         assert native.kwargs["multiplex"] == 2

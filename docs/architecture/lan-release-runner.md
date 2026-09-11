@@ -1,7 +1,7 @@
 # LAN release runner
 
 **Status:** the LAN runner and Posttrain candidate/final workflows are
-implemented. The dependency-to-platform promotion contract below is proposed
+implemented. The dependency-to-platform promotion contract below is accepted
 by [ADR 0014](../decisions/0014-attested-release-promotion-graph.md) and must be
 implemented before the next production release is accepted.
 
@@ -48,15 +48,12 @@ credential value is committed to the repository or passed as a workflow input.
 
 The internal index owns two distinct states:
 
-- `carbonteq/dev` is the qualification index. A candidate run publishes the
-  authored final version, such as `0.3.17`, so an accepted wheel can be promoted
-  without rebuilding or renaming it. Failed bytes are retained by the workflow
-  receipt. They may be removed from development only as a complete coordinated
-  version after proving stable is empty and every indexed hash matches that
-  failed receipt. Accepted candidate bytes are never removed or overwritten.
-- `carbonteq/stable` is the non-volatile consumer index. A candidate reaches it
-  only by server-side promotion after qualification. It is never rebuilt or
-  uploaded independently.
+- `carbonteq/dev` is the qualification index. Candidate runs publish immutable
+  PEP 440 RCs such as `0.4.0rc2`. A failed attempt consumes its RC number; it is
+  never removed or overwritten as a retry mechanism.
+- `carbonteq/stable` is the non-volatile consumer index. The protected final
+  workflow publishes `X.Y.Z` only after verifying the accepted RC, source tree,
+  locks, and OCI materialization and recording the RC-to-final transition.
 
 The OCI registry is a separate artifact plane. A protected release-candidate
 workflow builds runtime images only when their inputs changed, pushes directly
@@ -202,25 +199,26 @@ candidate is immutable: a repair produces `rc2`, not replacement bytes under
    evaluation or serving kinds require their corresponding bounded canary;
    untested kinds are reported as unqualified.
 7. A failure creates no final tag and never writes to stable. Its workflow
-   artifact remains the immutable failure receipt. If corrected source keeps
-   the same authored final version, the old development version must pass the
-   audited whole-version retirement gate before the next candidate uploads.
+   artifact and RC remain immutable failure evidence. Corrected source keeps
+   the same authored target and automatically allocates the next unused RC.
 8. After one candidate passes, the release PR is merged. The accepted
    materialization remains a retained workflow artifact; generated OCI state
    does not need to be committed to bridge the two workflows. A maintainer
    dispatches **Publish release** for the exact merged default-branch commit and
    accepted candidate receipt.
-9. The final workflow verifies the accepted candidate wheelhouse, dependency
-   and OCI receipts, merged source tree, and development-index hashes without
-   rebuilding, reinstalling, redeploying, or running a second GPU canary.
-10. It promotes the exact candidate Python files server-side from
-    `carbonteq/dev` to `carbonteq/stable`, then verifies stable readback hashes.
+9. The final workflow verifies the accepted RC, dependency and OCI receipts,
+   merged source tree, and development-index hashes. It rejects any package
+   build-input change, then renders final-version Python metadata from the
+   accepted materialization without rerunning the GPU canary.
+10. It publishes the final files directly to `carbonteq/stable`, verifies
+    stable readback hashes, and proves a clean stable-index installation.
 11. Only after stable readback succeeds does the workflow create annotated tag
    `v0.3.1` and a GitHub Release containing the final bundle and receipt.
 
-The build-once invariant applies independently to every candidate and to the
-final version. A receipt is the byte-level contract connecting each build to
-its index files, qualification evidence, source commit, and release record.
+The build-once invariant applies independently to every RC and the final
+metadata rendering. A promotion receipt binds both byte-level receipts to the
+same package set, source/materialization boundary, OCI manifest, qualification
+evidence, and release record.
 
 ## OCI qualification
 

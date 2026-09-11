@@ -32,10 +32,13 @@ from posttrain.data import DatasetDescriptor
 from posttrain.environment import EnvironmentBinding
 from posttrain.eval import EvaluationPlan
 from posttrain.train import (
+    CAPOSettings,
     DPOSettings,
+    GDPOSettings,
     GRPOSettings,
     OnPolicyDistillationSettings,
     QuantizationPlan,
+    SAMPOSettings,
     SFTSettings,
     TrainingBinding,
     parameter_update_digest,
@@ -1035,6 +1038,7 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "external_service_revision": value.service.revision,
             "service_origin": value.service.origin,
             "provider": value.provider,
+            "provider_profile": value.provider_profile.trace_identity(),
             "sampling": dict(value.sampling),
             "purpose": list(value.purpose),
             "credential_variable": value.service.api_key_var,
@@ -1056,7 +1060,18 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             },
             "runtime": asdict(value.runtime),
         }
-    if isinstance(value, (SFTSettings, DPOSettings, GRPOSettings, OnPolicyDistillationSettings)):
+    if isinstance(
+        value,
+        (
+            SFTSettings,
+            DPOSettings,
+            GRPOSettings,
+            SAMPOSettings,
+            GDPOSettings,
+            CAPOSettings,
+            OnPolicyDistillationSettings,
+        ),
+    ):
         loop = value.loop
         details: dict[str, JsonValue] = {
             "max_steps": loop.max_steps,
@@ -1097,6 +1112,19 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
                     "mask_truncated_completions": value.mask_truncated_completions,
                     "overlong_buffer_tokens": value.overlong_buffer_tokens,
                     "overlong_penalty_factor": value.overlong_penalty_factor,
+                }
+            )
+        if isinstance(value, (SAMPOSettings, GDPOSettings, CAPOSettings)):
+            details.update(
+                {
+                    "beta": value.beta,
+                    "num_prompts_per_step": value.num_prompts_per_step,
+                    "num_generations": value.num_generations,
+                    "max_prompt_length": value.max_prompt_length,
+                    "max_completion_length": value.max_completion_length,
+                    "clip_epsilon_low": value.clip_epsilon_low,
+                    "clip_epsilon_high": value.clip_epsilon_high,
+                    "shuffle_prompts": value.shuffle_prompts,
                 }
             )
         if isinstance(value, OnPolicyDistillationSettings):

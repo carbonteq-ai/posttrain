@@ -136,6 +136,57 @@ def test_render_plan_includes_only_safe_tombstone_outcomes() -> None:
     assert "Plane outcomes: provider=completed, registry=failed, tracking=pending, local=pending" in rendered
 
 
+@pytest.mark.parametrize(
+    ("provider_state", "tracking_status"),
+    (("cancelled", "failed"), ("failed", "cancelled")),
+)
+def test_purge_accepts_identified_terminal_failure_disagreement(
+    provider_state: str,
+    tracking_status: str,
+) -> None:
+    assert purge_surface._reconciliation_allows_purge(
+        {
+            "state": "inconsistent",
+            "provider_record": {"state": provider_state},
+            "tracking_status": tracking_status,
+            "tracking_provider_run_id": "trackio-1",
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        {
+            "state": "pending",
+            "provider_record": {"state": "cancelled"},
+            "tracking_status": None,
+            "tracking_provider_run_id": None,
+        },
+        {
+            "state": "inconsistent",
+            "provider_record": {"state": "succeeded"},
+            "tracking_status": "failed",
+            "tracking_provider_run_id": "trackio-1",
+        },
+        {
+            "state": "inconsistent",
+            "provider_record": {"state": "cancelled"},
+            "tracking_status": "running",
+            "tracking_provider_run_id": "trackio-1",
+        },
+        {
+            "state": "inconsistent",
+            "provider_record": {"state": "cancelled"},
+            "tracking_status": "failed",
+            "tracking_provider_run_id": None,
+        },
+    ),
+)
+def test_purge_rejects_unsettled_or_unidentified_disagreement(payload: dict[str, object]) -> None:
+    assert not purge_surface._reconciliation_allows_purge(payload)
+
+
 def test_project_preview_uses_the_real_cross_plane_plan(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,

@@ -794,6 +794,22 @@ The service and hosted model remain separate because the same hosted model may
 be called directly or through a router and the same service can expose several
 models.
 
+`HostedModel.capabilities` contains only intrinsic model behavior. It must not
+contain endpoint transport fields such as `structured-output`.
+`HostedInferenceBinding.provider_profile` records transport behavior for the
+explicit provider endpoint; its initial required field is
+`structured_output: json-schema | json-object`. The binding remains the only
+user-authored combination of model, service, and exact provider.
+
+After the live capability probe, composition exposes an internal immutable
+resolved judge client. Its evidence records `protocol`, the requested
+structured-output contract, the effective provider transport, and the
+validation strategy. Judge plugins always request JSON Schema and receive the
+same OpenAI-compatible endpoint API. For a JSON-object route the provider
+adapter preserves the schema in the instruction and local Pydantic validation
+remains mandatory. The resolved client is not a catalog family, job seat, or
+user configuration object.
+
 Do not pass a `GenerationHandle` as a public seat across packages. If local eval
 or train needs live generation, the **host** (or work-package runner) may start
 serve-side generation and pass an opaque, host-owned endpoint descriptor that

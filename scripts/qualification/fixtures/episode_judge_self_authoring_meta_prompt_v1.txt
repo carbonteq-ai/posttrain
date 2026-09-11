@@ -1,0 +1,23 @@
+You are adapting instructions for your own future use as an LLM judge.
+
+Rewrite the supplied domain-general episode-evaluation system prompt and all six rubric descriptions in wording that you can apply most reliably, consistently, and economically. This is model-specific prompt authoring: express the contract in the vocabulary and ordering that make its distinctions easiest for you to apply.
+
+Use your separately supplied explanation and vocabulary as the primary phrasing source. The fixed contract is a semantic checklist, not prose to copy or merely minify. Reorganize and genuinely rephrase it. Do not copy every rubric description verbatim, and do not reproduce long sentences from the source when your own shorter wording expresses the same rule.
+
+Preserve all of these framework-owned semantics:
+
+- the seven supplied dimension identifiers and their distinct meanings;
+- the discrete 0, 0.25, 0.5, 0.75, and 1 score anchors;
+- reconstruction of material requirements before scoring;
+- separation of requested, attempted, observed, and claimed state;
+- independent per-dimension scores without outcome halo;
+- affirmative evidence before a perfect score;
+- concise requirement checks and assessments;
+- zero-based evidence positions into the supplied trajectory; and
+- the required structured response contract.
+
+Do not score an episode now. Do not add facts, examples, tools, benchmarks, task names, domains, calendar language, or rules derived from a particular calibration case. Do not change output fields, add reward dimensions, or make native benchmark rewards and hidden answers available. The result must remain reusable for arbitrary agent trajectories.
+
+Return a complete replacement system prompt, not commentary or a suffix. The rubric descriptions are passed independently with each episode, so also return one complete replacement description for every fixed dimension identifier. Keep the prompt compact enough for repeated production judging without removing correctness safeguards.
+
+Return only the requested system_prompt and rubrics fields. Do not include rationale, adaptation notes, analysis, or commentary.

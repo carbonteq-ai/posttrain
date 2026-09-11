@@ -110,7 +110,7 @@ def _online_rl_arguments(
             # Prompt order is part of a reproducible RL population. Historic
             # selections preserve their fixed order; new campaigns can opt
             # into a seed-recorded permutation for each data epoch.
-            "shuffle_dataset": settings.shuffle_prompts if isinstance(settings, GRPOSettings) else False,
+            "shuffle_dataset": settings.shuffle_prompts,
             "num_generations": request.settings.num_generations,
             "generation_batch_size": (request.settings.num_prompts_per_step * request.settings.num_generations),
             "max_completion_length": request.settings.max_completion_length,
@@ -325,7 +325,7 @@ def _online_rl_runtime_attributes(
             else request.settings.clip_epsilon_high
         ),
         "mask_truncated_completions": request.settings.mask_truncated_completions,
-        "shuffle_prompts": request.settings.shuffle_prompts if isinstance(request, GRPORequest) else False,
+        "shuffle_prompts": request.settings.shuffle_prompts,
         "dynamic_sampling": request.settings.dynamic_sampling is not None,
         "dynamic_sampling_max_candidate_batches": (
             request.settings.dynamic_sampling.max_candidate_batches

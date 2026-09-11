@@ -20,11 +20,6 @@ on:
         required: false
         default: true
         type: boolean
-      retire_failed_candidate_run_id:
-        description: Optional failed candidate run whose complete development version may be retired after receipt verification
-        required: false
-        default: ""
-        type: string
 
 permissions:
   contents: read
@@ -160,30 +155,23 @@ jobs:
           uv run --no-sync posttrain-release readiness-check "${readiness_receipt}"
           cp "${readiness_receipt}" .release/readiness.json
 
-      - name: Resolve the immutable final version
+      - name: Allocate the next immutable release candidate
         id: version
         run: |
-          version="$(sed -n 's/^version = "\([^" ]*\)"$/\1/p' release/manifest.toml)"
-          test -n "${version}"
+          target_version="$(sed -n 's/^version = "\([^" ]*\)"$/\1/p' release/manifest.toml)"
+          test -n "${target_version}"
           if curl --fail --silent --show-error --max-time 20 \
             "${PYPI_STABLE_SIMPLE}posttrain/" \
-            | grep -Eq -- "posttrain-${version}(-py3-none-any[.]whl|[.]tar[.]gz)([<#])"; then
-            echo "release/manifest.toml version ${version} is already immutable in stable; advance the release manifest before preparing a candidate" >&2
+            | grep -Eq -- "posttrain-${target_version}(-py3-none-any[.]whl|[.]tar[.]gz)([<#])"; then
+            echo "release/manifest.toml version ${target_version} is already immutable in stable; advance the release manifest before preparing a candidate" >&2
             exit 1
           fi
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "final development candidate=${version}"
-
-      - name: Reject occupied development versions before image work
-        if: inputs.retire_failed_candidate_run_id == ''
-        run: |
-          version="${{ steps.version.outputs.version }}"
-          if curl --fail --silent --show-error --max-time 20 \
-            "${PYPI_DEV_PROJECT_SIMPLE}" \
-            | grep -Eq -- "posttrain-${version}(-py3-none-any[.]whl|[.]tar[.]gz)([<#])"; then
-            echo "development already contains ${version}; provide the failed candidate run for audited retirement or advance the version" >&2
-            exit 1
-          fi
+          candidate_version="$(uv run --no-sync posttrain-release candidate-version \
+            --simple-url "${PYPI_DEV_PROJECT_SIMPLE}")"
+          test -n "${candidate_version}"
+          echo "target_version=${target_version}" >> "$GITHUB_OUTPUT"
+          echo "version=${candidate_version}" >> "$GITHUB_OUTPUT"
+          echo "development candidate=${candidate_version}; stable target=${target_version}"
 
       - name: Verify qualification capacity before image publication
         if: ${{ inputs.run_gpu_qualification }}
@@ -260,75 +248,11 @@ jobs:
           uv run --no-sync posttrain-release receipt-check .release/python-release-receipt.json \
             --distribution-root .release/distributions
 
-      - name: Verify failed candidate retirement authority
-        if: inputs.retire_failed_candidate_run_id != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-          FAILED_CANDIDATE_RUN_ID: ${{ inputs.retire_failed_candidate_run_id }}
-        run: |
-          failed_run="$(gh run view "${FAILED_CANDIDATE_RUN_ID}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --json workflowName,event,status,conclusion,headSha)"
-          test "$(jq -r '.workflowName // empty' <<<"${failed_run}")" = "Prepare release candidate"
-          test "$(jq -r '.event // empty' <<<"${failed_run}")" = "workflow_dispatch"
-          test "$(jq -r '.status // empty' <<<"${failed_run}")" = "completed"
-          test "$(jq -r '.conclusion // empty' <<<"${failed_run}")" = "failure"
-          failed_source_sha="$(jq -r '.headSha // empty' <<<"${failed_run}")"
-          test -n "${failed_source_sha}"
-          mkdir -p .release/failed-candidate
-          gh run download "${FAILED_CANDIDATE_RUN_ID}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --name "posttrain-${{ steps.version.outputs.version }}-evidence" \
-            --dir .release/failed-candidate
-          failed_receipt="$(find .release/failed-candidate -type f -name python-release-receipt.json -print -quit)"
-          test -n "${failed_receipt}"
-          test "$(jq -r '.version // empty' "${failed_receipt}")" = "${{ steps.version.outputs.version }}"
-          test "$(jq -r '.revision // empty' "${failed_receipt}")" = "${failed_source_sha}"
-          cp "${failed_receipt}" .release/failed-candidate-receipt.json
-          uv run --no-sync posttrain-release candidate-retirement-check \
-            .release/failed-candidate-receipt.json \
-            .release/python-release-receipt.json \
-            --failed-run-id "${FAILED_CANDIDATE_RUN_ID}" \
-            --development-simple-url "${PYPI_DEV_SIMPLE}" \
-            --stable-simple-url "${PYPI_STABLE_SIMPLE}" \
-            --destination .release/candidate-retirement-preflight.json
-
-      - name: Retire the verified failed development candidate
-        if: inputs.retire_failed_candidate_run_id != ''
-        env:
-          DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi
-          REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
-        run: |
-          test -x "${DEVPI_CLIENT}"
-          "${DEVPI_CLIENT}" use https://pypi.lan/carbonteq/dev
-          "${DEVPI_CLIENT}" login "${UV_PUBLISH_USERNAME}" --password "${UV_PUBLISH_PASSWORD}"
-          while read -r package; do
-            removed=false
-            for attempt in 1 2 3; do
-              if "${DEVPI_CLIENT}" remove -y --index carbonteq/dev \
-                "${package}==${{ steps.version.outputs.version }}"; then
-                removed=true
-                break
-              fi
-              echo "retrying retirement of ${package}: attempt ${attempt}/3" >&2
-            done
-            if [[ "${removed}" != true ]]; then
-              echo "could not retire ${package}; completion verification will report remaining files" >&2
-            fi
-          done < <(jq -r '.packages[]' .release/candidate-retirement-preflight.json)
-          uv run --no-sync posttrain-release candidate-retirement-complete \
-            .release/failed-candidate-receipt.json \
-            .release/python-release-receipt.json \
-            --preflight .release/candidate-retirement-preflight.json \
-            --development-simple-url "${PYPI_DEV_SIMPLE}" \
-            --stable-simple-url "${PYPI_STABLE_SIMPLE}" \
-            --destination .release/candidate-retirement.json
-
-      - name: Publish the final candidate only to the development index
+      - name: Publish the immutable RC only to the development index
         run: |
           if uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
             --simple-base-url "${PYPI_DEV_SIMPLE}"; then
-            echo "exact final bytes are already present in the development index; reusing them"
+            echo "exact RC bytes are already present in the development index; reusing them"
           else
             while read -r package; do
               normalized="$(printf '%s' "${package}" | tr '[:upper:]' '[:lower:]' | sed 's/[_.]/-/g')"
@@ -497,9 +421,6 @@ jobs:
             .release/dstack-capacity.json
             .release/dstack-capacity-preflight.json
             .release/buildkit-cache-after.txt
-            .release/failed-candidate-receipt.json
-            .release/candidate-retirement-preflight.json
-            .release/candidate-retirement.json
 
       - name: Remove only this run's temporary release material
         if: always()

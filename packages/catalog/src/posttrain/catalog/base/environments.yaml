@@ -4,7 +4,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -54,7 +54,7 @@ environment:
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
@@ -94,7 +94,7 @@ environment:
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
@@ -128,7 +128,7 @@ environment:
     source:
       package: mmlu-pro-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/mmlu_pro_v1
     activation:
       kind: verifiers-config
@@ -188,7 +188,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -230,7 +230,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -280,7 +280,7 @@ environment:
     source:
       package: math-python-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/math_python_v1
     activation:
       kind: verifiers-config
@@ -326,7 +326,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -378,7 +378,7 @@ environment:
     source:
       package: math-python-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/math_python_v1
     activation:
       kind: verifiers-config

@@ -258,6 +258,23 @@ the host rejects an absent, unavailable, or incompatible pair instead of
 selecting one automatically. A provider route may not change silently within one
 optimizer run.
 
+`HostedModel` is the hosted-model profile: it records intrinsic interface facts
+such as context and reasoning behavior, not properties of one serving route.
+`HostedInferenceBinding` selects the exact provider and carries that endpoint's
+transport profile. Composition validates and probes the pair, then creates one
+internal immutable judge-client view containing the endpoint, sampling policy,
+protocol, requested structured-output contract, effective transport, and local
+validation strategy. A JSON-object-only route may therefore satisfy a judge's
+JSON Schema request through schema-preserving instruction adaptation plus local
+validation, without changing the judge plugin. This resolved view is runtime
+plumbing rather than another user-authored selection.
+
+Chat templates remain model-token serialization contracts. Verifiers prompts,
+rubrics, and response schemas remain environment-owned scoring semantics. A
+model-native wording profile, when one is qualified, is referenced by the
+environment or hosted-model metadata and does not become a chat template or a
+provider transport setting.
+
 For API-paid auxiliary inference, composition also owns cost admission and
 enforcement. It derives the maximum paid call and token population from the
 resolved training loop, group size, bounded collection attempts, judge attempts,

@@ -20,6 +20,7 @@ from posttrain.common import (
     ExternalInferenceService,
     HostedInferenceBinding,
     HostedModel,
+    ProviderEndpointProfile,
     RunContext,
 )
 from posttrain.execution import (
@@ -775,6 +776,7 @@ def test_hosted_inference_declares_only_its_credential_name_as_a_runtime_require
             "ROUTER_API_KEY",
         ),
         "provider",
+        ProviderEndpointProfile("json-schema"),
         {"max_tokens": 128},
     )
 
@@ -940,11 +942,11 @@ def test_init_grpo_template_declares_environment_and_selected_extras(
     work_package = (project / ".posttrain" / "work_packages" / "grpo.yaml").read_text(encoding="utf-8")
     assert '"posttrain[observatory,trackio,trl,verifiers]' in pyproject
     assert "carbonteq-ai/verifiers.git@1f6793f7" in pyproject
-    assert "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@b14dfe0b" in pyproject
+    assert "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@1181585e" in pyproject
     environment = (project / ".posttrain" / "catalog" / "environments.yaml").read_text(encoding="utf-8")
     assert "starter-gsm8k-train" in work_package
     assert "package: gsm8k-v1" in environment
-    assert "revision: b14dfe0ba9d60184f36d78786a543242fabfb765" in environment
+    assert "revision: 1181585ea66c6f89432864a476b5110794afc9fe" in environment
     from posttrain.catalog import load_project_layout
     from posttrain.project import load_project_pack_config
 

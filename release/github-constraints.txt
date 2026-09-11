@@ -3,10 +3,10 @@ trl @ git+https://github.com/carbonteq-ai/trl.git@19e6c89a18617f1bd6e6385212705a
 verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@1f6793f7d46e8a650a54b2a585193b4010578fa6
 alphabet-sort @ git+https://github.com/PrimeIntellect-ai/verifiers.git@b2e4e8157783b2c0dffc7821044c87f29f1c3ccf#subdirectory=environments/alphabet_sort
 code-golf @ git+https://github.com/PrimeIntellect-ai/verifiers.git@b2e4e8157783b2c0dffc7821044c87f29f1c3ccf#subdirectory=environments/code_golf
-gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@b14dfe0ba9d60184f36d78786a543242fabfb765#subdirectory=environments/gsm8k_v1
-automationbench-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@b14dfe0ba9d60184f36d78786a543242fabfb765#subdirectory=environments/automationbench_v1
-mmlu-pro-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@b14dfe0ba9d60184f36d78786a543242fabfb765#subdirectory=environments/mmlu_pro_v1
-ifeval-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@b14dfe0ba9d60184f36d78786a543242fabfb765#subdirectory=environments/ifeval_v1
-reasoning-gym-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@b14dfe0ba9d60184f36d78786a543242fabfb765#subdirectory=environments/reasoning_gym_v1
-math-python-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@b14dfe0ba9d60184f36d78786a543242fabfb765#subdirectory=environments/math_python_v1
+gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@1181585ea66c6f89432864a476b5110794afc9fe#subdirectory=environments/gsm8k_v1
+automationbench-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@1181585ea66c6f89432864a476b5110794afc9fe#subdirectory=environments/automationbench_v1
+mmlu-pro-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@1181585ea66c6f89432864a476b5110794afc9fe#subdirectory=environments/mmlu_pro_v1
+ifeval-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@1181585ea66c6f89432864a476b5110794afc9fe#subdirectory=environments/ifeval_v1
+reasoning-gym-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@1181585ea66c6f89432864a476b5110794afc9fe#subdirectory=environments/reasoning_gym_v1
+math-python-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@1181585ea66c6f89432864a476b5110794afc9fe#subdirectory=environments/math_python_v1
 reverse-text @ git+https://github.com/PrimeIntellect-ai/verifiers.git@b2e4e8157783b2c0dffc7821044c87f29f1c3ccf#subdirectory=environments/reverse_text

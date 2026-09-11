@@ -17,6 +17,7 @@ from posttrain.common import (
     InferenceBinding,
     ModelVariant,
     NullObserver,
+    ProviderEndpointProfile,
     RunContext,
 )
 from posttrain.jobs import (
@@ -174,7 +175,7 @@ def test_external_service_uses_resolver_without_inventing_model_artifact(service
             "0731",
             "deepseek/deepseek-v4-flash-0731",
             1_310_720,
-            {"structured-output": True, "reasoning": True},
+            {"reasoning": True},
         ),
         ExternalInferenceService(
             "external-services/openrouter@1",
@@ -184,6 +185,7 @@ def test_external_service_uses_resolver_without_inventing_model_artifact(service
             provider_policy={"allow_fallbacks": False},
         ),
         "open-inference",
+        ProviderEndpointProfile("json-schema"),
         {"temperature": 0.0, "max_tokens": 16_384},
     )
     request = ExternalInferenceServiceRequest(
@@ -213,7 +215,18 @@ def test_external_service_uses_resolver_without_inventing_model_artifact(service
         identity = resolved.trace_identity()
         assert resolved.lifecycle == "external"
         assert resolved.owned is False
+        assert resolved.judge_client.capabilities.structured_output_requested == "json-schema"
+        assert resolved.judge_client.capabilities.structured_output_transport == "json-schema"
+        assert resolved.judge_client.capabilities.structured_output_validation == "provider-and-local"
         assert cast(dict[str, Any], identity["model"])["api_model"] == "deepseek/deepseek-v4-flash-0731"
+        assert identity["judge_client"] == {
+            "protocol": "openai-chat@1",
+            "structured_output": {
+                "requested": "json-schema",
+                "transport": "json-schema",
+                "validation": "provider-and-local",
+            },
+        }
         assert "artifact_digest" not in identity
         assert "external-secret" not in str(identity)
     assert closed == ["judge/quality"]
@@ -227,6 +240,7 @@ def test_external_service_rejects_an_unregistered_provider(service_selection):
         HostedModel("hosted-models/test@1", "1", "provider/model", 4096),
         ExternalInferenceService("external-services/test@1", "1", "https://provider.example/v1", "TEST_API_KEY"),
         "provider",
+        ProviderEndpointProfile("json-schema"),
         {"max_tokens": 128},
     )
     with pytest.raises(ValueError, match="no external inference provider adapter"):

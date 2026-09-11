@@ -97,9 +97,7 @@ async def execute(cases: list[dict[str, Any]], args: argparse.Namespace) -> list
     return await execute_with_judge(cases, judge)
 
 
-async def execute_with_judge(
-    cases: list[dict[str, Any]], judge: AutomationBenchEpisodeJudge
-) -> list[dict[str, Any]]:
+async def execute_with_judge(cases: list[dict[str, Any]], judge: AutomationBenchEpisodeJudge) -> list[dict[str, Any]]:
     rows = []
     for case in cases:
         response = None

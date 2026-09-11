@@ -78,6 +78,7 @@ class IdentityContractTests(unittest.TestCase):
                 "gemma4-e4b-it",
                 "gemma4-12b-it",
                 "gemma4-31b-it",
+                "spark-x2.5-4b",
             },
         )
         for variant in FOUNDATION_VARIANTS.values():

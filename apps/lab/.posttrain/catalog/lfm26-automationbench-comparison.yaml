@@ -6,7 +6,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -47,7 +47,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -79,7 +79,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -156,7 +156,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -171,7 +171,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 0dd354d929821174f6cbd8eaa90d82d488df6ff7
+                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
                 model: google/gemma-4-12B-it
                 model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
                 attempts: 2
@@ -227,7 +227,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 0dd354d929821174f6cbd8eaa90d82d488df6ff7
+                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
                 model: google/gemma-4-12B-it
                 model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
                 attempts: 2
@@ -269,15 +269,17 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 0dd354d929821174f6cbd8eaa90d82d488df6ff7
+                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
                 model: XHToken/Spark-X2.5-4B
                 model_revision: 5e10fcc0286756aebf7c41dc52c1e42d95c70281
                 attempts: 2
                 timeout_seconds: 300
                 input_budget_tokens: 12288
+                assessment_protocol: model-native-frame@1
+                assessment_frame_max_tokens: 4096
                 sampling:
                   temperature: 0.0
-                  max_tokens: 16384
+                  max_tokens: 4096
                   extra_body:
                     chat_template_kwargs: {enable_thinking: false}
         retries: {max_retries: 2}
@@ -297,15 +299,68 @@ environment:
       max_turns: 12
       max_output_tokens: 12288
       judge_input_budget_tokens: 12288
-      judge_output_budget_tokens: 16384
+      judge_output_budget_tokens: 4096
       judge_context_window: 32768
+
+  # Matched hosted-judge arm for the two-update speed experiment. It differs
+  # from the Spark arm only at the judge model/provider boundary; policy,
+  # tasks, episode budgets, scorer protocol, and generation shape are fixed.
+  automationbench-lfm26-train-mix-episode-deepseek-v41-flash-nothink-v1:
+    <<: *automationbench_train_mix_episode_judged_v2
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            judges:
+              - id: automationbench-v1
+                name: quality
+                weight: 0.0
+                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
+                model: deepseek/deepseek-v4.1-flash
+                model_revision: "20260910"
+                attempts: 2
+                timeout_seconds: 900
+                input_budget_tokens: 12288
+                assessment_protocol: model-native-frame@1
+                assessment_frame_max_tokens: 4096
+                sampling:
+                  temperature: 0.0
+                  max_tokens: 4096
+                  extra_body:
+                    reasoning: {enabled: false}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 12288
+    sampling: *policy_sampling_4k
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 12288
+      judge_input_budget_tokens: 12288
+      judge_output_budget_tokens: 4096
+      judge_context_window: 32768
+      judge_service: openrouter
+      judge_retention: allowed
 
   automationbench-lfm26-train-mix-episode-openrouter-v1:
     category: agentic-tool-use
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -320,7 +375,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 0dd354d929821174f6cbd8eaa90d82d488df6ff7
+                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
                 model: deepseek/deepseek-v4-flash-0731
                 model_revision: "0731"
                 attempts: 2
@@ -368,7 +423,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b14dfe0ba9d60184f36d78786a543242fabfb765
+      revision: 1181585ea66c6f89432864a476b5110794afc9fe
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -620,6 +675,38 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
+  # Thirty-update comparison profile scaled directly from the qualified 8x4,
+  # 12K-episode local recipe. Checkpoints at 10-update intervals bound recovery
+  # loss without adding finalization work to every optimizer update.
+  lfm2.5-2.6b/automationbench-olmo3-30-local-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop: &comparison_local_30_loop
+      max_steps: 30
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
   lfm2.5-2.6b/automationbench-gdpo-episode-50-v1:
     selection_type: gdpo-settings
     revision: "1"
@@ -632,12 +719,11 @@ training:
       - partial_credit
       - problem_understanding_planning
       - logical_correctness
-      - evidence_state_grounding
       - verification_self_correction
       - progress_efficiency
       - action_quality
       - answer_quality
-    component_weights: [0.50, 0.05, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
     max_admission_attempts: 3
 
   lfm2.5-2.6b/automationbench-gdpo-episode-2-local-v1:
@@ -663,12 +749,11 @@ training:
       - partial_credit
       - problem_understanding_planning
       - logical_correctness
-      - evidence_state_grounding
       - verification_self_correction
       - progress_efficiency
       - action_quality
       - answer_quality
-    component_weights: [0.50, 0.05, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
     max_admission_attempts: 3
 
   lfm2.5-2.6b/automationbench-gdpo-episode-3-local-v1:
@@ -683,12 +768,11 @@ training:
       - partial_credit
       - problem_understanding_planning
       - logical_correctness
-      - evidence_state_grounding
       - verification_self_correction
       - progress_efficiency
       - action_quality
       - answer_quality
-    component_weights: [0.50, 0.05, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
     max_admission_attempts: 3
 
   lfm2.5-2.6b/automationbench-gdpo-episode-2-local-v2:
@@ -703,13 +787,86 @@ training:
       - partial_credit
       - problem_understanding_planning
       - logical_correctness
-      - evidence_state_grounding
       - verification_self_correction
       - progress_efficiency
       - action_quality
       - answer_quality
-    component_weights: [0.50, 0.05, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
     max_admission_attempts: 3
+
+  # Two-update judge-speed cell: identical GDPO math and 8x4 collection, but
+  # one collection admission attempt keeps the official DeepSeek provider's
+  # peak time-window price inside the unchanged $4.99 run ceiling.
+  lfm2.5-2.6b/automationbench-gdpo-episode-2-judge-speed-local-v1:
+    selection_type: gdpo-settings
+    revision: "1"
+    loop: *comparison_local_2_loop
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 1
+
+  # Matched 30-update GDPO arm. A single admission attempt prevents judge
+  # retries from silently multiplying paid requests; invalid groups are dropped
+  # atomically while complete groups remain eligible for the update.
+  lfm2.5-2.6b/automationbench-gdpo-episode-30-judge-speed-local-v1:
+    selection_type: gdpo-settings
+    revision: "1"
+    loop: *comparison_local_30_loop
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 1
+
+  # Twenty-update paid-judge comparison profile. It retains the qualified
+  # 8x4 collection shape and 12K episode budget while bounding paid requests
+  # to 20 optimizer updates.
+  lfm2.5-2.6b/automationbench-gdpo-episode-20-judge-speed-local-v1:
+    selection_type: gdpo-settings
+    revision: "1"
+    loop:
+      max_steps: 20
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 2
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 1
 
   training/lfm2.5-2.6b-trl-lora-automationbench@1:
     selection_type: training-binding
@@ -847,11 +1004,30 @@ training:
       - {name: partial_credit, source: scalar}
       - {name: problem_understanding_planning, source: annotation, key: episode_reward/problem_understanding_planning}
       - {name: logical_correctness, source: annotation, key: episode_reward/logical_correctness}
-      - {name: evidence_state_grounding, source: annotation, key: episode_reward/evidence_state_grounding}
       - {name: verification_self_correction, source: annotation, key: episode_reward/verification_self_correction}
       - {name: progress_efficiency, source: annotation, key: episode_reward/progress_efficiency}
       - {name: action_quality, source: annotation, key: episode_reward/action_quality}
       - {name: answer_quality, source: annotation, key: episode_reward/answer_quality}
+
+hosted-inference:
+  # Explicitly approved ceiling for the 20-update DeepSeek judge run. This is
+  # deliberately a separate binding so the universal $4.99 default remains
+  # unchanged for every other paid-judge workload.
+  hosted-inference/deepseek-v4.1-flash-openrouter-deepseek-judge-20-step@1:
+    revision: "1"
+    model: hosted-models/deepseek-v4.1-flash-20260910@1
+    service: external-services/openrouter@1
+    provider: deepseek
+    provider_profile:
+      structured_output: json-object
+    max_cost_usd_micros: 24000000
+    purpose: [judge]
+    sampling:
+      temperature: 0.0
+      max_tokens: 4096
+      extra_body:
+        reasoning:
+          enabled: false
 
 inference:
   inference/lfm2.5-1.2b-vllm-changed-weight-local@1:
@@ -1156,7 +1332,7 @@ inference:
       skip_mm_profiling: true
     sampling:
       temperature: 0.0
-      max_tokens: 16384
+      max_tokens: 4096
       extra_body:
         chat_template_kwargs: {enable_thinking: false}
     target: targets/carbonteq-rtx-pro-6000-96gb

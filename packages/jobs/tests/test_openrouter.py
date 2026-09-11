@@ -12,6 +12,7 @@ from posttrain.common import (
     HostedInferenceBinding,
     HostedModel,
     NullObserver,
+    ProviderEndpointProfile,
     RunContext,
 )
 from posttrain.jobs import ExternalInferenceServiceRequest, ExternalInferenceUsageProjection
@@ -27,7 +28,7 @@ def _binding() -> HostedInferenceBinding:
             "0731",
             "deepseek/deepseek-v4-flash-0731",
             1_048_576,
-            {"reasoning": True, "structured-output": True},
+            {"reasoning": True},
         ),
         ExternalInferenceService(
             "external-services/openrouter@1",
@@ -43,6 +44,7 @@ def _binding() -> HostedInferenceBinding:
             },
         ),
         "open-inference/fp8",
+        ProviderEndpointProfile("json-schema"),
         {"temperature": 0.0, "max_tokens": 16_384},
     )
 
@@ -119,6 +121,9 @@ def test_resolver_freezes_explicit_provider_route_and_retains_no_secret(tmp_path
             "data_collection": "allow",
         }
         assert payload["response_format"]["type"] in {"json_schema", "json_object"}
+        if payload["response_format"]["type"] == "json_schema":
+            assert payload["max_tokens"] == 512
+            assert "reasoning" not in payload
         return httpx.Response(
             200,
             json={
@@ -160,6 +165,42 @@ def test_resolver_freezes_explicit_provider_route_and_retains_no_secret(tmp_path
         )
         assert response.status_code == 200
     assert [request.method for request in requests] == ["GET", "POST", "POST"]
+
+
+def test_resolver_probe_honors_disabled_reasoning(tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_OPENROUTER_API_KEY", "secret-value")
+    binding = _binding()
+    binding = HostedInferenceBinding(
+        binding.id,
+        binding.revision,
+        binding.model,
+        binding.service,
+        binding.provider,
+        binding.provider_profile,
+        {"temperature": 0.0, "max_tokens": 16_384, "extra_body": {"reasoning": {"enabled": False}}},
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=_inventory())
+        payload = __import__("json").loads(request.content)
+        assert payload["reasoning"] == {"enabled": False}
+        return httpx.Response(
+            200,
+            json={
+                "id": "gen-1",
+                "model": "deepseek/deepseek-v4-flash-0731",
+                "provider": "OpenInference",
+                "choices": [{"message": {"content": '{"ready":true}'}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 20, "completion_tokens": 4},
+            },
+        )
+
+    resolver = OpenRouterResolver(
+        client_factory=lambda **kwargs: httpx.Client(transport=httpx.MockTransport(handler), **kwargs)
+    )
+    with resolver(_context(tmp_path), "judge/quality", _request(binding)):
+        pass
 
 
 def test_resolver_fails_before_network_when_credential_is_missing(tmp_path, monkeypatch):
@@ -216,6 +257,34 @@ def test_resolver_rejects_a_probe_that_ignores_the_structured_output_contract(tm
             pytest.fail("invalid capability probe admitted")
 
 
+def test_resolver_reports_non_normal_probe_finish_reason(tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_OPENROUTER_API_KEY", "secret-value")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=_inventory())
+        return httpx.Response(
+            200,
+            json={
+                "id": "gen-length",
+                "model": "deepseek/deepseek-v4-flash-0731",
+                "provider": "OpenInference",
+                "choices": [{"message": {"content": ""}, "finish_reason": "length"}],
+                "usage": {"completion_tokens": 64},
+            },
+        )
+
+    resolver = OpenRouterResolver(
+        client_factory=lambda **kwargs: httpx.Client(transport=httpx.MockTransport(handler), **kwargs)
+    )
+    with pytest.raises(
+        OpenRouterResolutionError,
+        match=r"finish_reason='length', completion_tokens=64",
+    ):
+        with resolver(_context(tmp_path), "judge/quality", _request()):
+            pytest.fail("non-normal probe finish admitted")
+
+
 def test_resolver_rejects_endpoint_without_required_parameters(tmp_path, monkeypatch):
     monkeypatch.setenv("TEST_OPENROUTER_API_KEY", "secret-value")
     inventory = _inventory()
@@ -237,6 +306,7 @@ def test_resolver_rejects_an_unavailable_explicit_provider(tmp_path, monkeypatch
         binding.model,
         binding.service,
         "provider-not-in-inventory",
+        binding.provider_profile,
         binding.sampling,
     )
     transport = httpx.MockTransport(lambda _: httpx.Response(200, json=_inventory()))
@@ -255,6 +325,7 @@ def test_resolver_does_not_replace_the_explicit_provider_with_a_cheaper_one(tmp_
         binding.model,
         binding.service,
         "slow",
+        binding.provider_profile,
         binding.sampling,
     )
 
@@ -308,6 +379,191 @@ def test_resolver_rejects_projected_run_cost_before_paid_probe(tmp_path, monkeyp
     assert methods == ["GET"]
 
 
+def test_resolver_prices_time_window_overrides_conservatively(tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_OPENROUTER_API_KEY", "secret-value")
+    inventory = _inventory()
+    selected = inventory["data"]["endpoints"][1]
+    selected["pricing"]["overrides"] = [
+        {"utc_start": 600, "utc_end": 1000, "prompt": "0.00000030", "completion": "0.00000120"}
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=inventory)
+        return httpx.Response(
+            200,
+            json={
+                "id": "gen-override",
+                "model": "deepseek/deepseek-v4-flash-0731",
+                "provider": "OpenInference",
+                "choices": [{"message": {"content": '{"ready":true}'}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 20, "completion_tokens": 4},
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    resolver = OpenRouterResolver(client_factory=lambda **kwargs: httpx.Client(transport=transport, **kwargs))
+    with resolver(_context(tmp_path), "judge/quality", _request()) as resolved:
+        assert resolved.provider["pricing"] == {
+            "prompt": "0.00000030",
+            "completion": "0.00000120",
+        }
+
+
+def test_json_object_transport_preserves_local_schema_request_but_downgrades_upstream(tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_OPENROUTER_API_KEY", "secret-value")
+    binding = _binding()
+    binding = HostedInferenceBinding(
+        binding.id,
+        binding.revision,
+        binding.model,
+        binding.service,
+        binding.provider,
+        ProviderEndpointProfile("json-object"),
+        binding.sampling,
+    )
+    upstream_payloads: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=_inventory())
+        payload = __import__("json").loads(request.content)
+        upstream_payloads.append(payload)
+        return httpx.Response(
+            200,
+            json={
+                "id": "gen-json-object",
+                "model": binding.model.model,
+                "provider": "OpenInference",
+                "choices": [{"message": {"content": '{"ready":true}'}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 20, "completion_tokens": 4},
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    resolver = OpenRouterResolver(client_factory=lambda **kwargs: httpx.Client(transport=transport, **kwargs))
+    with resolver(_context(tmp_path), "judge/quality", _request(binding)) as resolved:
+        assert resolved.judge_client.capabilities.structured_output_transport == "json-object"
+        assert resolved.judge_client.capabilities.structured_output_validation == "schema-instruction-and-local"
+        response = httpx.post(
+            f"{resolved.endpoint.base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {resolved.endpoint.api_key}"},
+            json={
+                "model": binding.model.model,
+                "messages": [{"role": "user", "content": "Return ready."}],
+                "max_tokens": 64,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "ready",
+                        "strict": True,
+                        "schema": {"type": "object"},
+                    },
+                },
+            },
+        )
+        assert response.status_code == 200
+    assert [payload["response_format"]["type"] for payload in upstream_payloads] == [
+        "json_object",
+        "json_object",
+    ]
+    runtime_payload = upstream_payloads[1]
+    assert runtime_payload["provider"] == {
+        "order": ["open-inference/fp8"],
+        "allow_fallbacks": False,
+        "require_parameters": True,
+        "zdr": False,
+        "data_collection": "allow",
+    }
+    schema_instruction = runtime_payload["messages"][0]
+    assert schema_instruction["role"] == "system"
+    assert "conforms exactly to this JSON Schema" in schema_instruction["content"]
+    assert '"type":"object"' in schema_instruction["content"]
+    assert runtime_payload["messages"][1] == {"role": "user", "content": "Return ready."}
+
+
+def test_json_object_downgrade_appends_schema_to_existing_system_instruction(tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_OPENROUTER_API_KEY", "secret-value")
+    binding = _binding()
+    binding = HostedInferenceBinding(
+        binding.id,
+        binding.revision,
+        binding.model,
+        binding.service,
+        binding.provider,
+        ProviderEndpointProfile("json-object"),
+        binding.sampling,
+    )
+    upstream_payloads: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=_inventory())
+        payload = __import__("json").loads(request.content)
+        upstream_payloads.append(payload)
+        return httpx.Response(
+            200,
+            json={
+                "id": "gen-json-object",
+                "model": binding.model.model,
+                "provider": "OpenInference",
+                "choices": [{"message": {"content": '{"ready":true}'}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 20, "completion_tokens": 4},
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    resolver = OpenRouterResolver(client_factory=lambda **kwargs: httpx.Client(transport=transport, **kwargs))
+    with resolver(_context(tmp_path), "judge/quality", _request(binding)) as resolved:
+        response = httpx.post(
+            f"{resolved.endpoint.base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {resolved.endpoint.api_key}"},
+            json={
+                "model": binding.model.model,
+                "messages": [
+                    {"role": "system", "content": "Judge the episode."},
+                    {"role": "user", "content": "Input"},
+                ],
+                "max_tokens": 64,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "verdict",
+                        "strict": True,
+                        "schema": {
+                            "type": "object",
+                            "properties": {"assessments": {"type": "object"}},
+                            "required": ["assessments"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+            },
+        )
+        assert response.status_code == 200
+
+    runtime = upstream_payloads[1]
+    assert len(runtime["messages"]) == 2
+    assert runtime["messages"][0]["content"].startswith("Judge the episode.\n\n")
+    assert '"required":["assessments"]' in runtime["messages"][0]["content"]
+    assert runtime["messages"][1] == {"role": "user", "content": "Input"}
+
+
+def test_resolver_surfaces_a_bounded_provider_error_detail(tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_OPENROUTER_API_KEY", "secret-value")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=_inventory())
+        return httpx.Response(404, json={"error": {"message": "selected endpoint is unavailable"}})
+
+    transport = httpx.MockTransport(handler)
+    resolver = OpenRouterResolver(client_factory=lambda **kwargs: httpx.Client(transport=transport, **kwargs))
+    with pytest.raises(OpenRouterResolutionError, match="selected endpoint is unavailable"):
+        with resolver(_context(tmp_path), "judge/quality", _request()):
+            pytest.fail("404 route admitted")
+
+
 def test_hosted_binding_requires_an_explicit_provider():
     binding = _binding()
     with pytest.raises(ValueError, match="provider cannot be empty"):
@@ -317,5 +573,6 @@ def test_hosted_binding_requires_an_explicit_provider():
             binding.model,
             binding.service,
             "",
+            binding.provider_profile,
             binding.sampling,
         )

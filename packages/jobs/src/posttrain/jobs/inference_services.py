@@ -82,6 +82,47 @@ type InferenceServiceRequest = ManagedInferenceService | AttachedInferenceServic
 
 
 @dataclass(frozen=True, slots=True)
+class ResolvedJudgeCapabilities:
+    """Negotiated structured-completion behavior exposed to judge plugins."""
+
+    protocol: Literal["openai-chat@1"]
+    structured_output_requested: Literal["json-schema"]
+    structured_output_transport: Literal["json-schema", "json-object"]
+    structured_output_validation: Literal["provider-and-local", "schema-instruction-and-local"]
+
+    def __post_init__(self) -> None:
+        expected = (
+            "provider-and-local"
+            if self.structured_output_transport == "json-schema"
+            else "schema-instruction-and-local"
+        )
+        if self.structured_output_validation != expected:
+            raise ValueError("resolved judge validation must match its structured-output transport")
+
+    def trace_identity(self) -> dict[str, JsonValue]:
+        return {
+            "protocol": self.protocol,
+            "structured_output": {
+                "requested": self.structured_output_requested,
+                "transport": self.structured_output_transport,
+                "validation": self.structured_output_validation,
+            },
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedJudgeClient:
+    """Internal immutable client view passed across the judge composition seam."""
+
+    endpoint: Endpoint = field(repr=False)
+    sampling: Mapping[str, JsonValue]
+    capabilities: ResolvedJudgeCapabilities
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "sampling", MappingProxyType(dict(self.sampling)))
+
+
+@dataclass(frozen=True, slots=True)
 class ResolvedInferenceService:
     """One ready ephemeral connection and its exact secret-free selection."""
 
@@ -92,15 +133,31 @@ class ResolvedInferenceService:
     owned: bool
     lifecycle: Literal["managed", "attached", "external"] | None = None
     provider: Mapping[str, JsonValue] = field(default_factory=dict)
+    protocol: Literal["openai-chat@1"] = "openai-chat@1"
+    judge_capabilities: ResolvedJudgeCapabilities | None = None
 
     def __post_init__(self) -> None:
         lifecycle = self.lifecycle or ("managed" if self.owned else "attached")
         if self.owned != (lifecycle == "managed"):
             raise ValueError("only managed inference services may be owned")
+        if self.protocol != "openai-chat@1":
+            raise ValueError(f"unsupported resolved inference protocol: {self.protocol!r}")
+        capabilities = self.judge_capabilities or _resolve_judge_capabilities(self.inference, self.protocol)
+        if capabilities.protocol != self.protocol:
+            raise ValueError("resolved judge capabilities use a different protocol than the service")
         object.__setattr__(self, "lifecycle", lifecycle)
         object.__setattr__(self, "provider", MappingProxyType(dict(self.provider)))
+        object.__setattr__(self, "judge_capabilities", capabilities)
+
+    @property
+    def judge_client(self) -> ResolvedJudgeClient:
+        """Return the single provider-neutral client contract consumed by judges."""
+
+        assert self.judge_capabilities is not None
+        return ResolvedJudgeClient(self.endpoint, self.inference.sampling, self.judge_capabilities)
 
     def trace_identity(self) -> dict[str, JsonValue]:
+        assert self.judge_capabilities is not None
         identity: dict[str, JsonValue] = {
             "service_name": self.name,
             "lifecycle": self.lifecycle,
@@ -116,6 +173,8 @@ class ResolvedInferenceService:
                 "models": list(self.readiness.models),
             },
             "provider": dict(self.provider),
+            "protocol": self.protocol,
+            "judge_client": self.judge_capabilities.trace_identity(),
         }
         if isinstance(self.inference, InferenceBinding):
             identity.update(
@@ -137,7 +196,21 @@ class ResolvedInferenceService:
         else:
             identity["external_service"] = self.inference.service.trace_identity()
             identity["requested_provider"] = self.inference.provider
+            identity["provider_profile"] = self.inference.provider_profile.trace_identity()
         return identity
+
+
+def _resolve_judge_capabilities(
+    inference: InferenceSelection,
+    protocol: Literal["openai-chat@1"],
+) -> ResolvedJudgeCapabilities:
+    transport: Literal["json-schema", "json-object"] = (
+        inference.provider_profile.structured_output if isinstance(inference, HostedInferenceBinding) else "json-schema"
+    )
+    validation: Literal["provider-and-local", "schema-instruction-and-local"] = (
+        "provider-and-local" if transport == "json-schema" else "schema-instruction-and-local"
+    )
+    return ResolvedJudgeCapabilities(protocol, "json-schema", transport, validation)
 
 
 type ServiceProvisioner = Callable[[RunContext, ServeLaunchRequest], AbstractContextManager[Endpoint]]

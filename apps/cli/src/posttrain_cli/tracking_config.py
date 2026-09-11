@@ -19,7 +19,10 @@ from .execution_config import (
 def project_tracking_environment(layout: ProjectLayout) -> dict[str, str]:
     """Load service bindings and install the host's verified CA path for SDKs."""
 
-    local = load_local_execution_config(layout)
+    # Tracking lifecycle operations need machine credentials and trust, but
+    # they do not consume runtime images.  Keep cleanup and reconciliation
+    # available when an unrelated published job-kind lock is stale.
+    local = load_local_execution_config(layout, verify_published_locks=False)
     environment = load_execution_environment(local)
     verify_paths = ssl.get_default_verify_paths()
     default_ca = next(

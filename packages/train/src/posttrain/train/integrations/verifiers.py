@@ -77,6 +77,23 @@ def _native_record(value: Any) -> dict[str, Any]:
     return to_record()
 
 
+def _native_failure_detail(episode: Any) -> str | None:
+    """Return the most specific already-sanitized native failure summary."""
+
+    errors = list(getattr(episode, "errors", ()))
+    for trace in getattr(episode, "traces", ()):
+        error = getattr(trace, "last_error", None)
+        if error is not None:
+            errors.append(error)
+    if not errors:
+        return None
+    error = errors[-1]
+    error_type = str(getattr(error, "type", type(error).__name__))
+    message = " ".join(str(getattr(error, "message", error)).split())
+    detail = f"{error_type}: {message}" if message else error_type
+    return detail[:700]
+
+
 def _apply_verifiers_runtime_compatibility() -> None:
     """Apply bounded compatibility fixes for the pinned Verifiers runtime."""
 
@@ -892,10 +909,13 @@ class VerifiersEnvironmentRolloutBridge:
                 )
         traces = [trace for trace in episode.traces if trace.agent.trainable]
         if not episode.ok or len(traces) != 1:
+            failure_detail = _native_failure_detail(episode)
             reason = (
                 "native episode is not trainable "
                 f"(ok={episode.ok}, total_traces={len(episode.traces)}, trainable_traces={len(traces)})"
             )
+            if failure_detail is not None:
+                reason += f"; native_error={failure_detail}"
             for native_trace in episode.traces:
                 native_trace.info.update(posttrain_admission_error=reason)
             self._preserve_episode(episode)

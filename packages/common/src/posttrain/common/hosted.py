@@ -13,6 +13,7 @@ from .artifacts import JsonValue
 from .selections import validate_selection_id
 
 _EXTERNAL_PROTOCOL = "openai-chat@1"
+_SERVICE_CAPABILITIES = frozenset({"structured-output"})
 _SECRET_HEADERS = frozenset({"authorization", "cookie", "proxy-authorization", "x-api-key"})
 _CALL_OWNED_FIELDS = frozenset(
     {
@@ -82,7 +83,14 @@ class HostedModel:
             raise ValueError("hosted model API identifier cannot be empty")
         if self.context_window < 1:
             raise ValueError("hosted model context_window must be positive")
-        object.__setattr__(self, "capabilities", _json_mapping(self.capabilities, "hosted model capabilities"))
+        capabilities = _json_mapping(self.capabilities, "hosted model capabilities")
+        misplaced = sorted(set(capabilities).intersection(_SERVICE_CAPABILITIES))
+        if misplaced:
+            raise ValueError(
+                "hosted model capabilities must describe intrinsic model behavior; "
+                "declare service transport capabilities on the provider endpoint profile: " + ", ".join(misplaced)
+            )
+        object.__setattr__(self, "capabilities", capabilities)
 
     def trace_identity(self) -> dict[str, JsonValue]:
         return {
@@ -161,6 +169,20 @@ class ExternalInferenceService:
 
 
 @dataclass(frozen=True, slots=True)
+class ProviderEndpointProfile:
+    """Transport capabilities of one explicitly selected provider endpoint."""
+
+    structured_output: Literal["json-schema", "json-object"]
+
+    def __post_init__(self) -> None:
+        if self.structured_output not in {"json-schema", "json-object"}:
+            raise ValueError(f"unsupported provider structured-output transport: {self.structured_output!r}")
+
+    def trace_identity(self) -> dict[str, JsonValue]:
+        return {"structured_output": self.structured_output}
+
+
+@dataclass(frozen=True, slots=True)
 class HostedInferenceBinding:
     """An API-only hosted model bound to an external service for judging."""
 
@@ -169,6 +191,7 @@ class HostedInferenceBinding:
     model: HostedModel
     service: ExternalInferenceService
     provider: str
+    provider_profile: ProviderEndpointProfile
     sampling: Mapping[str, JsonValue]
     purpose: tuple[Literal["judge"], ...] = ("judge",)
     max_cost_usd_micros: int = 4_990_000
@@ -181,6 +204,8 @@ class HostedInferenceBinding:
             raise ValueError("hosted inference binding provider cannot be empty")
         if self.provider != self.provider.strip() or any(character.isspace() for character in self.provider):
             raise ValueError("hosted inference binding provider must be an exact provider slug")
+        if not isinstance(self.provider_profile, ProviderEndpointProfile):
+            raise TypeError("hosted inference binding provider_profile must be a ProviderEndpointProfile")
         if self.purpose != ("judge",):
             raise ValueError("hosted inference binding is supported only for judge inference")
         if (
@@ -225,5 +250,6 @@ __all__ = [
     "HostedInferenceBinding",
     "HostedModel",
     "JudgeInferenceBinding",
+    "ProviderEndpointProfile",
     "validate_secret_free_http_url",
 ]

@@ -191,6 +191,34 @@ def test_active_sampling_drops_failed_complete_group_for_outer_refill(algorithm)
     assert [rollout.example_id for rollout in result.rollouts] == ["b", "b"]
 
 
+def test_structured_admission_drops_failed_complete_group_without_retry():
+    selected = batch()
+
+    def collect(current):
+        result_rows = rows(current)
+        raise PartialRolloutBatchError(
+            "one structured occurrence failed",
+            completed={0: result_rows[0], 2: result_rows[2], 3: result_rows[3]},
+            failures={1: "judge_timeout"},
+        )
+
+    result = admit_rollout_groups(
+        selected,
+        settings(),
+        collect,
+        lambda failures: failures,
+        max_attempts=1,
+        retain_complete_on_exhaustion=True,
+    )
+
+    assert result.rounds == 1
+    assert result.attempted_rollouts == 4
+    assert result.failed_rollouts == 1
+    assert result.rejected_groups == 1
+    assert result.retained_positions == (2, 3)
+    assert [rollout.example_id for rollout in result.rollouts] == ["b", "b"]
+
+
 def test_rank_without_pending_rows_still_participates_in_failure_exchange():
     calls = []
     exchanges = []

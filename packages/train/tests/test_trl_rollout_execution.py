@@ -41,7 +41,7 @@ def test_trl_rollout_execution_is_opt_in_and_capacity_bounded():
                     "episodes_per_worker": 8,
                     "worker_native_threads": 1,
                 }
-            }
+            },
         )
     )
     assert execution is not None

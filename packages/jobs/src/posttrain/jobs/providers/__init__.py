@@ -25,4 +25,9 @@ def resolve_external_service(
     with OpenRouterResolver()(context, name, request) as resolved:
         yield resolved
 
-__all__ = ["OpenRouterResolutionError", "OpenRouterResolver", "resolve_external_service"]
+
+__all__ = [
+    "OpenRouterResolutionError",
+    "OpenRouterResolver",
+    "resolve_external_service",
+]

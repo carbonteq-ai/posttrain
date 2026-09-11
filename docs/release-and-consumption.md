@@ -98,11 +98,12 @@ and record the reason.
 
 ## Release evidence
 
-The wheelhouse `SHA256SUMS`, Python release receipt, dependency constraints, and
-the published runtime image digests are the release evidence. Keep them with
-the project qualification record. The release workflow promotes the exact
-candidate bytes after the candidate gates pass; rebuilding distributions on a
-consumer machine is not equivalent evidence.
+The RC and final wheelhouse `SHA256SUMS`, both Python release receipts, the
+promotion receipt, dependency constraints, and published runtime image digests
+are the release evidence. Keep them with the project qualification record. The
+protected final workflow alone may render final metadata from the accepted RC
+materialization; rebuilding distributions on a consumer machine is not
+equivalent evidence.
 
 For the complete installation and remote-server procedures, see
 `docs/install.md`, `docs/getting-started.md`, and

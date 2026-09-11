@@ -73,7 +73,7 @@ def test_training_parameters_replace_total_token_limit_with_output_budget() -> N
     )
     payload = {"agent": {"max_turns": 4, "max_total_tokens": 8192}}
 
-    _apply_training_parameters(environment, payload)
+    _apply_training_parameters(cast(Any, environment), payload)
 
     assert payload["agent"] == {"max_turns": 12, "max_output_tokens": 8192}
 
@@ -85,7 +85,7 @@ def test_training_parameters_reject_ambiguous_token_budgets() -> None:
     )
 
     with pytest.raises(ValueError, match="output-token or total-token limits"):
-        _apply_training_parameters(environment, {"agent": {}})
+        _apply_training_parameters(cast(Any, environment), {"agent": {}})
 
 
 def test_verifiers_runtime_compatibility_prefers_selected_uv(monkeypatch, tmp_path) -> None:

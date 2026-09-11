@@ -34,7 +34,6 @@ def native_reward(record):
 DIMENSION_NAMES = (
     "understanding_planning",
     "logical_correctness",
-    "evidence_state_grounding",
     "verification_self_correction",
     "progress_efficiency",
 )

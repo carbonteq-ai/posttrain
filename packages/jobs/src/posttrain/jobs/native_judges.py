@@ -123,20 +123,16 @@ def bind_native_judge_services(
             credential_vars[service_name] = key
         for judge_name, service_name in judge_services.items():
             service = services[service_name]
-            sampling = dict(service.inference.sampling)
+            client = service.judge_client
+            sampling = dict(client.sampling)
             headers: dict[str, str] = {}
             if isinstance(service.inference, HostedInferenceBinding):
                 headers.update(service.inference.service.headers)
-                extra_body = sampling.get("extra_body", {})
-                if not isinstance(extra_body, dict):
-                    raise ValueError(f"judge {judge_name!r} sampling extra_body must be an object")
-                route = service.provider.get("route")
-                if not isinstance(route, dict):
-                    raise ValueError(f"external judge {judge_name!r} has no resolved provider route")
-                sampling["extra_body"] = {**extra_body, "provider": route}
+            if client.capabilities.protocol != "openai-chat@1":
+                raise ValueError(f"judge {judge_name!r} requires openai-chat@1, got {client.capabilities.protocol!r}")
             judges[judge_name].update(
-                model=service.endpoint.model,
-                base_url=service.endpoint.base_url,
+                model=client.endpoint.model,
+                base_url=client.endpoint.base_url,
                 api_key_var=credential_vars[service_name],
                 sampling=sampling,
                 headers=headers,
@@ -217,11 +213,7 @@ def project_native_judge_usage(
     entries = task.get("judges", []) if isinstance(task, Mapping) else []
     if not isinstance(entries, list):
         raise ValueError("native judges must be a list")
-    by_name = {
-        str(entry.get("name") or entry.get("id")): entry
-        for entry in entries
-        if isinstance(entry, Mapping)
-    }
+    by_name = {str(entry.get("name") or entry.get("id")): entry for entry in entries if isinstance(entry, Mapping)}
     agent = raw.get("agent", {})
     max_turns = agent.get("max_turns", 1) if isinstance(agent, Mapping) else 1
     if isinstance(max_turns, bool) or not isinstance(max_turns, int) or max_turns < 1:
@@ -244,11 +236,34 @@ def project_native_judge_usage(
         input_tokens = cast(int, input_tokens_value)
         output_tokens = cast(int, output_tokens_value)
         calls_per_trajectory = max_turns if judge.get("context_scope") == "prefix" else 1
-        requests = maximum_trajectories * calls_per_trajectory * attempts
+        protocol = judge.get("assessment_protocol", "direct@1")
+        if protocol not in {"direct@1", "model-native-frame@1"}:
+            raise ValueError(f"external judge {judge_name!r} declares unknown assessment protocol")
+        if protocol == "model-native-frame@1":
+            frame_output_value = judge.get("assessment_frame_max_tokens")
+            if (
+                isinstance(frame_output_value, bool)
+                or not isinstance(frame_output_value, int)
+                or frame_output_value < 1
+            ):
+                raise ValueError(f"external judge {judge_name!r} must declare a positive assessment_frame_max_tokens")
+            frame_output_tokens = frame_output_value
+            # Two calls share one attempt. The final request includes the
+            # bounded frame, so its input can be the original episode budget
+            # plus the entire frame. Count both calls rather than assuming the
+            # first stage is free.
+            requests_per_attempt = 2
+            input_tokens_per_attempt = 2 * input_tokens + frame_output_tokens
+            output_tokens_per_attempt = frame_output_tokens + output_tokens
+        else:
+            requests_per_attempt = 1
+            input_tokens_per_attempt = input_tokens
+            output_tokens_per_attempt = output_tokens
+        requests = maximum_trajectories * calls_per_trajectory * attempts * requests_per_attempt
         total = totals[service_name]
         total[0] += requests
-        total[1] += requests * input_tokens
-        total[2] += requests * output_tokens
+        total[1] += maximum_trajectories * calls_per_trajectory * attempts * input_tokens_per_attempt
+        total[2] += maximum_trajectories * calls_per_trajectory * attempts * output_tokens_per_attempt
     return {
         name: ExternalInferenceUsageProjection(requests, input_tokens, output_tokens)
         for name, (requests, input_tokens, output_tokens) in totals.items()
@@ -284,6 +299,15 @@ def _validate_judge_selection(
                     f"judge {name!r} input and output budgets exceed selected inference context: "
                     f"{input_budget} + {output_budget} > {context_window}"
                 )
+            if judge.get("assessment_protocol", "direct@1") == "model-native-frame@1":
+                frame_tokens = judge.get("assessment_frame_max_tokens")
+                if isinstance(frame_tokens, int) and not isinstance(frame_tokens, bool):
+                    final_required_context = required_context + frame_tokens
+                    if final_required_context > cast(int, context_window):
+                        raise ValueError(
+                            f"judge {name!r} model-native frame exceeds selected inference context: "
+                            f"{input_budget} + {frame_tokens} + {output_budget} > {context_window}"
+                        )
 
 
 def _restore_environment(key: str, previous: str | None) -> None:

@@ -149,9 +149,7 @@ async def execute(inputs: list[dict[str, Any]], args: argparse.Namespace) -> lis
     return await execute_with_judge(inputs, judge)
 
 
-async def execute_with_judge(
-    inputs: list[dict[str, Any]], judge: AutomationBenchEpisodeJudge
-) -> list[dict[str, Any]]:
+async def execute_with_judge(inputs: list[dict[str, Any]], judge: AutomationBenchEpisodeJudge) -> list[dict[str, Any]]:
     results = []
     for item in inputs:
         response = None
@@ -163,9 +161,7 @@ async def execute_with_judge(
             ]
             response = await judge.complete(messages, schema=WireEpisodeVerdict)
             wire_verdict = WireEpisodeVerdict.model_validate_json(response.text)
-            message_ids = [
-                message["message_id"] for message in item["assessment_request"]["trajectory"]
-            ]
+            message_ids = [message["message_id"] for message in item["assessment_request"]["trajectory"]]
             verdict = normalize_wire_verdict(wire_verdict, message_ids)
             known = set(message_ids)
             validate_episode_verdict(verdict, known)

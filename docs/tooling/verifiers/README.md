@@ -83,7 +83,7 @@ reviewed delta ledger, pass fork and consumer compatibility suites, publish an
 immutable CarbonTeq revision, and update Posttrain pins only after qualification.
 
 The published external environment revision is
-`carbonteq-ai/verifiers-environments@b14dfe0ba9d60184f36d78786a543242fabfb765`
+`carbonteq-ai/verifiers-environments@1181585ea66c6f89432864a476b5110794afc9fe`
 (development branch `codex/verifiers-latest-support`). It migrates
 `Task.toolsets(config)` and `Toolset.register` and includes
 an optional native AutomationBench episode-judge plugin. The plugin uses a
@@ -117,7 +117,7 @@ branch and no assumption that upstream is the product authority.
 CarbonTeq's maintained Verifiers v1 environment packs live in the separate
 framework-neutral [verifiers-environments repository](https://github.com/carbonteq-ai/verifiers-environments).
 The current framework integration uses published commit
-`b14dfe0ba9d60184f36d78786a543242fabfb765` and keeps each package independently
+`1181585ea66c6f89432864a476b5110794afc9fe` and keeps each package independently
 installable:
 
 | Package | Taskset | Source data / generator revision |

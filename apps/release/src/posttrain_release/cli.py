@@ -95,6 +95,8 @@ def readiness_check_cmd(
 @app.command("promotion-receipt", help="bind a candidate distribution receipt to the merged stable-release tree")
 def promotion_receipt_cmd(
     candidate_receipt: Annotated[Path, typer.Argument(help="candidate Python distribution receipt")],
+    final_receipt: Annotated[Path, typer.Option("--final-receipt", help="final Python distribution receipt")],
+    target_version: Annotated[str, typer.Option("--target-version", help="authored stable release version")],
     destination: Annotated[Path, typer.Option("--destination", help="promotion receipt JSON destination")],
     candidate_run_id: Annotated[str, typer.Option("--candidate-run-id", help="successful candidate workflow run id")],
     candidate_source_sha: Annotated[str, typer.Option("--candidate-source-sha", help="candidate source commit")],
@@ -104,6 +106,8 @@ def promotion_receipt_cmd(
 ) -> None:
     receipt = create_promotion_receipt(
         candidate_receipt,
+        final_receipt=final_receipt,
+        target_version=target_version,
         candidate_run_id=candidate_run_id,
         candidate_source_sha=candidate_source_sha,
         candidate_source_tree=candidate_source_tree,

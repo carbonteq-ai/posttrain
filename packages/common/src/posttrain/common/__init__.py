@@ -32,6 +32,7 @@ from .hosted import (
     HostedInferenceBinding,
     HostedModel,
     JudgeInferenceBinding,
+    ProviderEndpointProfile,
     validate_secret_free_http_url,
 )
 from .jsonl_journal import AppendOnlyJsonlTailer, JsonlJournalStats
@@ -66,6 +67,7 @@ __all__ = [
     "HostedModel",
     "HostedInferenceBinding",
     "JudgeInferenceBinding",
+    "ProviderEndpointProfile",
     "HardwareCapabilities",
     "InferenceBinding",
     "JsonValue",

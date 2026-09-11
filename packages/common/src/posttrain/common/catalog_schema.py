@@ -135,12 +135,17 @@ class ExternalInferenceServiceSchema(CatalogSchema):
     protocol: Literal["openai-chat@1"] = "openai-chat@1"
 
 
+class ProviderEndpointProfileSchema(CatalogSchema):
+    structured_output: Literal["json-schema", "json-object"]
+
+
 class HostedInferenceBindingSchema(CatalogSchema):
     id: str
     revision: str
     model: str | CatalogLinkSchema
     service: str | CatalogLinkSchema
     provider: str
+    provider_profile: ProviderEndpointProfileSchema
     sampling: dict[str, JsonValue]
     purpose: tuple[Literal["judge"], ...] = ("judge",)
     max_cost_usd_micros: int = Field(default=4_990_000, gt=0)
@@ -151,6 +156,7 @@ __all__ = [
     "HardwareCapabilitiesSchema",
     "HostedInferenceBindingSchema",
     "HostedModelSchema",
+    "ProviderEndpointProfileSchema",
     "ExternalInferenceServiceSchema",
     "InferenceBindingSchema",
     "ModelVariantSchema",

@@ -249,6 +249,7 @@ class SAMPOSettings:
     clip_epsilon_low: float = 0.003
     clip_epsilon_high: float = 0.004
     dynamic_sampling: DynamicGroupSampling = field(default_factory=lambda: DynamicGroupSampling(3))
+    shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
     revision: str = "1"
 
@@ -298,6 +299,7 @@ class _StructuredRLSettings:
     clip_epsilon_low: float = 0.2
     clip_epsilon_high: float = 0.2
     max_admission_attempts: int = 3
+    shuffle_prompts: bool = False
     revision: str = "1"
 
     @property

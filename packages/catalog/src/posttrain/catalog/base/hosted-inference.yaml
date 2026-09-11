@@ -1,4 +1,12 @@
 hosted-model:
+  hosted-models/deepseek-v4.1-flash-20260910@1:
+    revision: "20260910"
+    model: deepseek/deepseek-v4.1-flash
+    context_window: 1048576
+    capabilities:
+      system-role: true
+      reasoning: true
+
   hosted-models/deepseek-v4-flash-0731@1:
     revision: "0731"
     model: deepseek/deepseek-v4-flash-0731
@@ -6,7 +14,43 @@ hosted-model:
     capabilities:
       system-role: true
       reasoning: true
-      structured-output: true
+
+  # Larger non-thinking candidate after DeepSeek V4 Flash failed the frozen
+  # semantic calibration.  The model and provider are explicit so a retained
+  # judge run never silently changes either one through OpenRouter routing.
+  hosted-models/qwen3-235b-a22b-instruct-2507@1:
+    revision: "2507"
+    model: qwen/qwen3-235b-a22b-2507
+    context_window: 262144
+    capabilities:
+      system-role: true
+      reasoning: false
+
+  hosted-models/gpt-5-mini@1:
+    revision: "openrouter-current"
+    model: openai/gpt-5-mini
+    context_window: 400000
+    capabilities:
+      system-role: true
+      reasoning: true
+
+  # Non-thinking-by-default cloud candidate. The route is frozen separately
+  # below, so these model capabilities never authorize router fallback.
+  hosted-models/gemini-2.5-flash-lite@1:
+    revision: "openrouter-current"
+    model: google/gemini-2.5-flash-lite
+    context_window: 1048576
+    capabilities:
+      system-role: true
+      reasoning: true
+
+  hosted-models/gpt-oss-120b@1:
+    revision: "openrouter-current"
+    model: openai/gpt-oss-120b
+    context_window: 131072
+    capabilities:
+      system-role: true
+      reasoning: true
 
 external-service:
   external-services/openrouter@1:
@@ -24,11 +68,31 @@ external-service:
       data_collection: allow
 
 hosted-inference:
+  # Official DeepSeek-operated endpoint exposed through OpenRouter. The exact
+  # provider tag is frozen and router fallback remains disabled by the service.
+  hosted-inference/deepseek-v4.1-flash-openrouter-deepseek-judge@1:
+    revision: "1"
+    model: hosted-models/deepseek-v4.1-flash-20260910@1
+    service: external-services/openrouter@1
+    provider: deepseek
+    provider_profile:
+      structured_output: json-object
+    max_cost_usd_micros: 4990000
+    purpose: [judge]
+    sampling:
+      temperature: 0.0
+      max_tokens: 4096
+      extra_body:
+        reasoning:
+          enabled: false
+
   hosted-inference/deepseek-v4-flash-openrouter-judge@1:
     revision: "1"
     model: hosted-models/deepseek-v4-flash-0731@1
     service: external-services/openrouter@1
     provider: open-inference/fp8
+    provider_profile:
+      structured_output: json-schema
     # $4.99. A higher paid-judge ceiling requires another explicit selection.
     max_cost_usd_micros: 4990000
     purpose: [judge]
@@ -37,4 +101,127 @@ hosted-inference:
       max_tokens: 16384
       extra_body:
         reasoning:
-          enabled: true
+          enabled: false
+
+  # Candidate route for qualification only. It is intentionally a distinct
+  # binding rather than an OpenRouter fallback, so every run freezes exactly
+  # one provider in its receipt.
+  hosted-inference/deepseek-v4-flash-openrouter-deepinfra-judge@1:
+    revision: "1"
+    model: hosted-models/deepseek-v4-flash-0731@1
+    service: external-services/openrouter@1
+    provider: deepinfra/fp8
+    provider_profile:
+      structured_output: json-schema
+    # $4.99. A higher paid-judge ceiling requires another explicit selection.
+    max_cost_usd_micros: 4990000
+    purpose: [judge]
+    sampling:
+      temperature: 0.0
+      max_tokens: 16384
+      extra_body:
+        reasoning:
+          enabled: false
+
+  # Fireworks is the explicitly priced DeepSeek Flash route requested for
+  # hosted judging ($0.22/M input, $0.66/M output at qualification time).
+  hosted-inference/deepseek-v4-flash-openrouter-fireworks-judge@1:
+    revision: "1"
+    model: hosted-models/deepseek-v4-flash-0731@1
+    service: external-services/openrouter@1
+    provider: fireworks
+    provider_profile:
+      structured_output: json-schema
+    max_cost_usd_micros: 4990000
+    purpose: [judge]
+    sampling:
+      temperature: 0.0
+      max_tokens: 16384
+      extra_body:
+        reasoning:
+          enabled: false
+
+  # Separate fixed route for throughput qualification after Fireworks returned
+  # sustained 429s during an otherwise bounded scorer calibration.
+  hosted-inference/deepseek-v4-flash-openrouter-sail-judge@1:
+    revision: "1"
+    model: hosted-models/deepseek-v4-flash-0731@1
+    service: external-services/openrouter@1
+    provider: sail-research/fp4
+    provider_profile:
+      structured_output: json-schema
+    max_cost_usd_micros: 4990000
+    purpose: [judge]
+    sampling:
+      temperature: 0.0
+      max_tokens: 16384
+      extra_body:
+        reasoning:
+          enabled: false
+
+  hosted-inference/qwen3-235b-a22b-openrouter-deepinfra-judge@1:
+    revision: "1"
+    model: hosted-models/qwen3-235b-a22b-instruct-2507@1
+    service: external-services/openrouter@1
+    provider: deepinfra/fp8
+    provider_profile:
+      structured_output: json-schema
+    # $4.99 remains the universal qualification ceiling. At the observed
+    # endpoint prices, the 49-call model-native review ceiling is about $0.14.
+    max_cost_usd_micros: 4990000
+    purpose: [judge]
+    sampling:
+      temperature: 0.0
+      max_tokens: 16384
+
+  # Stronger cloud judge candidate after the open-weight DeepSeek/Qwen
+  # candidates failed semantic calibration. The standard OpenAI route is
+  # explicitly frozen rather than relying on router fallback. GPT-5 Mini
+  # defaults reasoning on, so `effort: none` is an explicit selected policy,
+  # not an inference from the model capability declaration.
+  hosted-inference/gpt-5-mini-openrouter-openai-judge@1:
+    revision: "1"
+    model: hosted-models/gpt-5-mini@1
+    service: external-services/openrouter@1
+    provider: openai
+    provider_profile:
+      structured_output: json-schema
+    max_cost_usd_micros: 4990000
+    purpose: [judge]
+    sampling:
+      max_tokens: 16384
+      extra_body:
+        reasoning:
+          effort: none
+
+  # Google documents Flash-Lite as non-thinking by default. Omit a reasoning
+  # field rather than inventing an off spelling; the frozen provider route
+  # remains explicit and all generated JSON is locally schema-validated.
+  hosted-inference/gemini-25-flash-lite-openrouter-google-ai-studio-judge@1:
+    revision: "1"
+    model: hosted-models/gemini-2.5-flash-lite@1
+    service: external-services/openrouter@1
+    provider: google-ai-studio
+    provider_profile:
+      structured_output: json-schema
+    max_cost_usd_micros: 4990000
+    purpose: [judge]
+    sampling:
+      temperature: 0.0
+      max_tokens: 16384
+
+  hosted-inference/gpt-oss-120b-openrouter-coreweave-judge@1:
+    revision: "1"
+    model: hosted-models/gpt-oss-120b@1
+    service: external-services/openrouter@1
+    provider: coreweave/fp4
+    provider_profile:
+      structured_output: json-schema
+    max_cost_usd_micros: 4990000
+    purpose: [judge]
+    sampling:
+      temperature: 0.0
+      max_tokens: 16384
+      extra_body:
+        reasoning:
+          effort: none

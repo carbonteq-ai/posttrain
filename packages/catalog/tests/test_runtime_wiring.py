@@ -72,6 +72,8 @@ def test_framework_catalog_exposes_openrouter_deepseek_judge_without_model_artif
     assert isinstance(binding, HostedInferenceBinding)
     assert binding.model.model == "deepseek/deepseek-v4-flash-0731"
     assert binding.provider == "open-inference/fp8"
+    assert binding.provider_profile.structured_output == "json-schema"
+    assert binding.model.capabilities == {"system-role": True, "reasoning": True}
     assert binding.max_cost_usd_micros == 4_990_000
     assert binding.service.origin == "https://openrouter.ai"
     assert binding.service.provider_policy["allow_fallbacks"] is False

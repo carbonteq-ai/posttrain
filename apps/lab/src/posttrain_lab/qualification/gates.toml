@@ -714,6 +714,32 @@ owner = "posttrain-training"
 replacement_condition = "Retire after the local GRPO and OLMo3 arms are either promoted into a retained comparison or superseded by the 50-update comparison family."
 
 [[gates]]
+id = "lfm26-automationbench-gdpo-episode-20-deepseek-local"
+work_package = ".posttrain/work_packages/lfm26_automationbench_gdpo_episode_20_deepseek_flash_local.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.gdpo"
+acceptance = "twenty-update-hosted-judge-comparison-arm"
+experiment_family = "lfm26-automationbench-20-local-v1"
+hypothesis = "The provider-neutral episode judge contract can supply differentiated GDPO components through the official DeepSeek OpenRouter route while the policy trains on local RTX PRO hardware."
+owner = "posttrain-training"
+replacement_condition = "Promote only after twenty finite updates retain differentiated judge components and bounded provider cost; retire when a successor hosted-judge comparison covers the same contract."
+
+[[gates]]
+id = "lfm26-automationbench-olmo3-30-local"
+work_package = ".posttrain/work_packages/lfm26_automationbench_olmo3_30_local.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.grpo"
+acceptance = "thirty-update-local-comparison-arm"
+experiment_family = "lfm26-automationbench-30-local-v1"
+hypothesis = "The OLMo3 active-sampling objective remains stable for a longer local AutomationBench run with the qualified eight-by-four collection shape."
+owner = "posttrain-training"
+replacement_condition = "Retire after this retained thirty-update arm is analyzed or superseded by a completed matched comparison family."
+
+[[gates]]
 id = "lfm26-automationbench-grpo-50"
 work_package = ".posttrain/work_packages/lfm26_automationbench_grpo_50.yaml"
 job_id = "train"

@@ -120,6 +120,7 @@ def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaun
                 "max_prompt_length": request.settings.max_prompt_length,
                 "max_completion_length": request.settings.max_completion_length,
                 "online_rl_algorithm": "sampo",
+                "shuffle_prompts": request.settings.shuffle_prompts,
                 "clip_epsilon_low": request.settings.clip_epsilon_low,
                 "clip_epsilon_high": request.settings.clip_epsilon_high,
                 "dynamic_sampling": True,
@@ -147,6 +148,7 @@ def build_structured_launch_plan(request: GDPORequest | CAPORequest, output_dir:
         "advantage_estimator": technique,
         "reward_contract_digest": reward_contract_digest(request),
         "online_rl_algorithm": technique,
+        "shuffle_prompts": settings.shuffle_prompts,
         "beta": settings.beta,
         "num_prompts_per_step": settings.num_prompts_per_step,
         "num_generations": settings.num_generations,
@@ -763,7 +765,7 @@ def _grpo_runtime_attributes(
             else request.settings.clip_epsilon_high
         ),
         "mask_truncated_completions": request.settings.mask_truncated_completions,
-        "shuffle_prompts": request.settings.shuffle_prompts if isinstance(request, GRPORequest) else False,
+        "shuffle_prompts": request.settings.shuffle_prompts,
     }
     if isinstance(request, GRPORequest):
         attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens

@@ -599,9 +599,15 @@ def test_structured_algorithms_select_explicit_native_loss_and_evidence_contract
     )
     loop = base.settings.loop
     settings = (
-        GDPOSettings(id="gdpo", loop=loop, component_names=("outcome", "quality"), component_weights=(1.0, 2.0))
+        GDPOSettings(
+            id="gdpo",
+            loop=loop,
+            component_names=("outcome", "quality"),
+            component_weights=(1.0, 2.0),
+            shuffle_prompts=True,
+        )
         if algorithm == "gdpo"
-        else CAPOSettings(id="capo", loop=loop)
+        else CAPOSettings(id="capo", loop=loop, shuffle_prompts=True)
     )
     request = (
         GDPORequest(base.policy, base.bridge, settings, base.environment, base.training, base.inference)
@@ -611,6 +617,7 @@ def test_structured_algorithms_select_explicit_native_loss_and_evidence_contract
     from posttrain.train.backends.trl.policy_config import _online_rl_arguments
 
     trl_arguments = _online_rl_arguments(request, tmp_path / "trl", {})
+    assert trl_arguments["shuffle_dataset"] is True
     assert trl_arguments["vllm_importance_sampling_mode"] == "token_truncate"
     assert trl_arguments["vllm_importance_sampling_clip_min"] is None
     assert trl_arguments["vllm_importance_sampling_clip_max"] == 3.0
@@ -618,9 +625,12 @@ def test_structured_algorithms_select_explicit_native_loss_and_evidence_contract
     from posttrain.train.backends.verl.launcher import _grpo_runtime_attributes
 
     assert _grpo_runtime_attributes(request, plan)["online_rl_algorithm"] == algorithm
+    assert _grpo_runtime_attributes(request, plan)["shuffle_prompts"] is True
+    assert plan.payload.algorithm.shuffle_prompts is True
     monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
     overrides = build_hydra_overrides(plan, tmp_path / "data", tmp_path / "agent", tmp_path / "checkpoints")
     assert f"algorithm.adv_estimator={algorithm}" in overrides
+    assert "data.shuffle=true" in overrides
     assert "actor_rollout_ref.actor.policy_loss.loss_mode=token_clip" in overrides
     assert "actor_rollout_ref.actor.kl_loss_type=k3_unclipped" in overrides
     assert "algorithm.filter_groups.enable=false" in overrides
@@ -635,7 +645,11 @@ def test_verl_sampo_maps_hierarchical_advantages_gspo_and_dynamic_sampling(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    request = _sampo_request()
+    base = _sampo_request()
+    request = replace(base, settings=replace(base.settings, shuffle_prompts=True))
+    from posttrain.train.backends.trl.policy_config import _online_rl_arguments
+
+    assert _online_rl_arguments(request, tmp_path / "trl", {})["shuffle_dataset"] is True
     plan = build_sampo_launch_plan(request, tmp_path)
     monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
 
@@ -651,7 +665,9 @@ def test_verl_sampo_maps_hierarchical_advantages_gspo_and_dynamic_sampling(
 
     assert plan.operation == "sampo"
     assert plan.payload.algorithm.advantage_estimator == "sampo"
+    assert plan.payload.algorithm.shuffle_prompts is True
     assert "algorithm.adv_estimator=sampo" in overrides
+    assert "data.shuffle=true" in overrides
     assert "algorithm.sampo.discount_gamma=0.95" in overrides
     assert "algorithm.sampo.step_advantage_weight=1.0" in overrides
     assert "algorithm.sampo.advantage_normalization=mean" in overrides

@@ -21,6 +21,17 @@ service policy, not reward weighting or an algorithm setting. Details:
 [02](./02-primitives.md), [04](./04-framework.md), [05](./05-apis.md),
 [06](./06-observation-and-lineage.md), and [ADR 0019](../decisions/0019-auxiliary-inference-service-ownership.md).
 
+**Amendment — resolved judge inference contracts (2026-09-11):** hosted-model
+profiles describe intrinsic model behavior, while provider-endpoint profiles
+describe transport behavior such as JSON Schema versus JSON-object structured
+output. Composition resolves their intersection into one internal immutable
+judge client before execution. Chat templates continue to own token
+serialization, and Verifiers plugins continue to own prompts, rubrics, and
+output schemas. Jobs select a model, service, and exact provider; they do not
+author the resolved contract. Details: [04](./04-framework.md),
+[05](./05-apis.md), and
+[ADR 0019](../decisions/0019-auxiliary-inference-service-ownership.md).
+
 **Amendment — GDPO and CAPO (2026-09-06):** the approved dual-backend plan
 adds separate `train.gdpo` and `train.capo` operations. Training owns component
 normalization and sampled-token credit; custom Verifiers judge/scoring plugins

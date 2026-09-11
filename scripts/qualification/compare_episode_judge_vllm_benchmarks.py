@@ -77,9 +77,7 @@ def _agreement(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
         "jointly_valid_inputs": valid_cases,
         "compared_scores": compared,
         "exact_score_agreement": exact / compared if compared else None,
-        "mean_absolute_score_error": (
-            sum(absolute_errors) / len(absolute_errors) if absolute_errors else None
-        ),
+        "mean_absolute_score_error": (sum(absolute_errors) / len(absolute_errors) if absolute_errors else None),
     }
 
 
@@ -93,10 +91,7 @@ def main() -> None:
         "schema_version": 1,
         "input_digests": sorted(digest_sets[0]),
         "runs": [_summary(run) for run in runs],
-        "pairwise_score_agreement": [
-            _agreement(left, right)
-            for left, right in itertools.combinations(runs, 2)
-        ],
+        "pairwise_score_agreement": [_agreement(left, right) for left, right in itertools.combinations(runs, 2)],
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")

@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed.
+Accepted.
 
 Date: 2026-08-09
 Deciders: Posttrain framework and AI infrastructure maintainers
@@ -65,11 +65,19 @@ promotions.
    readback, a provider-neutral artifact round trip through the deployed
    Trackio service, a bounded packed dstack job, and Observatory readback from
    that same run. Each layer reports its own failure.
-7. Final publication promotes exact retained bytes. Stable-index readback and
-   deployment/read-product checks happen before the final tag and GitHub
-   Release. A failed candidate allocates a new RC; an accepted stable version is
-   never overwritten.
-8. Framework runtime-image dependency profiles and Python package metadata
+7. Candidate Python distributions use the next unused PEP 440 `X.Y.ZrcN`
+   version and are published only to the development index. Runtime images use
+   the authored final `X.Y.Z` identity because their immutable digests are part
+   of the release materialization rather than Python package-version aliases.
+8. Final publication rebuilds `X.Y.Z` Python distributions only after proving
+   that the candidate and merged source trees are identical or differ solely in
+   allowlisted release plumbing. The promotion receipt binds both distribution
+   receipts, requires the same package set and runtime-image manifest digest,
+   and records the expected RC-to-final metadata transition. The final files
+   are published directly to stable and clean-installed before tagging.
+9. A failed candidate allocates a new RC. RC files and every stable version are
+   immutable; neither is overwritten or renamed.
+10. Framework runtime-image dependency profiles and Python package metadata
    derive from one resolved dependency lock. CI rejects duplicated Trackio or
    other maintained-fork versions that disagree.
 
@@ -88,8 +96,9 @@ promotions.
   wheelhouse. Its version/digest and run readback are retained with the release.
 - More receipts are retained, but they replace undocumented cross-system state
   and make retries deterministic.
-- Existing RCs and unreferenced OCI digests remain immutable failed evidence;
-  they are not repaired in place.
+- Existing RCs remain immutable evidence. Unreferenced OCI manifests are
+  eligible only for a later reachability-based registry cleanup; they are not
+  repaired in place or inferred obsolete from tags alone.
 
 ## Alternatives Considered
 
@@ -139,6 +148,10 @@ behavior.
 
 ## Revision History
 
+- 2026-09-11: Accepted the decision and restored genuine PEP 440 RCs on the
+  development index. Replaced same-version byte promotion with an attested
+  RC-to-final metadata transition, direct stable publication, strict source
+  input comparison, and clean stable-index installation.
 - 2026-08-09: Initial proposed decision after the `0.3.3` candidate exposed
   implicit generated inputs, missing dependency promotion evidence, and a live
   Trackio client/server artifact incompatibility.

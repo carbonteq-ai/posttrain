@@ -106,19 +106,17 @@ upgraded while its siblings stayed behind: an environment reporting `0.1.3`
 with ten packages still at `0.1.1` is individually satisfiable, matches no
 release, and gets packed into a job image as though coherent.
 
-The candidate workflow builds the authored final version once and publishes it
-only to `carbonteq/dev`. If the authored target is `0.3.18`, the candidate
-distributions already contain `0.3.18`; a successful final workflow promotes
-those exact bytes to `carbonteq/stable` without rebuilding. The candidate run
-and its receipt are the RC identity. A PEP 440 `0.3.17rcN` distribution would
-have different package metadata and therefore could not be renamed or promoted
-as final `0.3.18`.
+The candidate workflow allocates the next unused PEP 440 RC and publishes it
+only to `carbonteq/dev`. If the authored target is `0.4.0`, candidate attempts
+are `0.4.0rc1`, `0.4.0rc2`, and so on. RC files are immutable and are never
+renamed into final files. After one RC passes, the final workflow verifies the
+accepted source and generated materialization, renders final `0.4.0` metadata,
+and publishes those final artifacts only to `carbonteq/stable`.
 
-Development files are normally immutable. The only same-version retry is the
-audited whole-version retirement of a failed, never-accepted candidate: its
-retained receipt must match every development file, stable must contain none of
-the version, and the workflow must retain a deletion receipt. Any partial,
-unexplained, accepted or stable version requires a new framework version.
+The promotion receipt binds both builds. Candidate and final must have the same
+package set and runtime-image manifest digest, while source comparison rejects
+every non-release-only change. A failed attempt consumes its RC number; the
+next run allocates another without deleting or overwriting evidence.
 
 Three version traps, all important:
 
@@ -127,12 +125,11 @@ Three version traps, all important:
   its shipped catalog had changed in between — so that version would have named
   two different sets of bytes. The whole release moved to `0.2.1` rather than
   forking one package off again, which is what caused the drift originally.
-- The index is **non-volatile**. A published version can never be replaced
-  after acceptance or stable publication. The narrow failed-candidate
-  retirement exception above requires a complete receipt and deletion audit.
-  Check before uploading, not after.
-- A PEP 440 RC cannot be renamed into a final release. Candidate qualification
-  therefore uses the final-version bytes that promotion will expose.
+- The index is **non-volatile**. A published RC or stable version can never be
+  replaced. Check before uploading, not after.
+- A PEP 440 RC cannot be renamed into a final release. The final build is an
+  explicitly attested metadata transition from the same accepted source,
+  dependency locks, package set, and OCI manifest.
 
 ## Trust and release protocol
 
@@ -153,13 +150,13 @@ accepted release.
    request only means GitHub sees no conflicts — it is not “ready.”
 4. **Dispatch Prepare candidate** through the protected release environment,
    with the workflow ref and `source_ref` set to the same `codex/*` branch.
-   It builds the authored final version once, publishes only to
+   It allocates and builds the next `X.Y.ZrcN`, publishes only to
    `carbonteq/dev`, qualifies changed OCI images and real jobs, and generates
    receipts. It does not create the final tag or write Python artifacts to
    stable.
 5. **Repair failures on the same release branch.** Push the fix, wait for CI,
-   then dispatch a new candidate run. Reuse the authored version only through
-   verified whole-version retirement; otherwise advance it.
+   then dispatch a new candidate run. The next unused RC is allocated
+   automatically; do not delete or overwrite the failed RC.
 6. **If images changed, commit generated `published.toml` and image receipt
    references on the release branch.** Hand edits are forbidden. Wait for CI
    again so the exact generated manifest that will merge is verified.
@@ -168,8 +165,10 @@ accepted release.
    local tree.
 8. **Dispatch Publish release** only for the exact merged default-branch
    commit and the accepted candidate run. It restores and verifies the retained
-   final-version distributions, promotes them unchanged to stable, verifies
-   readback, and creates the final tag last. It does not rebuild or requalify.
+   RC receipt and accepted OCI materialization, rejects build-input drift,
+   builds final-version metadata, publishes directly to stable, verifies a
+   clean install, and creates the final tag last. It does not rerun the GPU
+   qualification.
 
 The final tag always names the reviewed, CI-green merged `main` commit. The
 promotion receipt binds that commit to the exact qualified candidate SHA, tree,
@@ -379,20 +378,20 @@ gh pr checks <n>
    matrix, retain Trackio evidence, and read it through Observatory. If any gate
    fails, fix the branch and return to step 6 with a new candidate run.
 9. **Commit required generated image records, rerun CI, and merge the passing
-   release PR.** The accepted candidate already contains the final Python
-   version and binds the source, OCI inputs and retained wheelhouse. A squash
-   merge may place the generated `published.toml` after the candidate-equivalent
-   commit; the final workflow permits that one generated record only when it is
-   byte-for-byte identical to the retained candidate manifest.
+   release PR.** The accepted RC binds the source, OCI inputs and retained
+   wheelhouse. A squash merge may place the generated `published.toml` after
+   the candidate-equivalent commit; the final workflow permits that generated
+   record only when it is byte-for-byte identical to the retained candidate
+   manifest.
 10. **Dispatch Publish release for the merged commit and successful candidate
-    run.** The runner validates source ancestry or tree equality, restores the
-    retained candidate wheelhouse, rechecks its hashes and verifies the same
-    files remain in `carbonteq/dev`. It does not rebuild or repeat the GPU
-    canary.
-11. **Promote those retained files from `carbonteq/dev` to
-    `carbonteq/stable`.** Promotion is server-side: do not rebuild or perform a
-    second upload. Read the stable files back and verify their hashes against
-    the candidate and promotion receipts.
+    run.** The runner compares exact source trees, rejects non-release build
+    changes, rechecks the RC in `carbonteq/dev`, restores the accepted OCI
+    materialization, and builds final-version Python metadata. It does not
+    repeat the GPU canary.
+11. **Publish the attested final files to `carbonteq/stable`.** Read them back,
+    verify their hashes, and perform a no-cache stable-index install. The
+    promotion receipt must bind the RC and final receipts to the same package
+    set and runtime-image manifest.
 12. **Tag last.** After stable readback, create `v<version>` on the exact merged
     commit and create the GitHub Release with the already-retained bundle and
     receipt. If this final step fails, retry it without rebuilding or
@@ -445,18 +444,15 @@ hashes. No promotion rebuilds, re-uploads, or runs fork source.
   over pruning when you can).
 - **Do not rewrite plan or decision records** to match a new version. They
   describe what was true when written.
-- **Do not upload directly to `stable`.** Qualification happens from `dev`, and
-  stable receives the same accepted files through promotion. A direct stable
-  upload bypasses the evidence gate and cannot be undone.
-- **Do not rebuild between channels.** The development index, stable index, and
-  GitHub Release must agree with one receipt. A locally rebuilt wheel is a new
-  artifact even when its version and source commit appear equal.
-- **Do not casually overwrite a failed candidate.** Reuse of the authored
-  version is allowed only through audited whole-version retirement before any
-  acceptance or stable publication. Otherwise advance the version.
-- **Do not build a PEP 440 RC and call it final.** Candidate package metadata
-  and exact first-party pins already name `X.Y.Z`; final publication promotes
-  those retained bytes unchanged.
+- **Do not upload directly to `stable` outside the protected final workflow.**
+  That workflow first verifies the accepted RC and materialization, then owns
+  the one final-version build and stable upload.
+- **Do not rebuild final artifacts locally.** Only the protected final workflow
+  may render `X.Y.Z`, and its promotion receipt must bind the RC and final
+  receipts.
+- **Do not overwrite a failed candidate.** Allocate the next immutable RC.
+- **Do not call an RC final or rename it.** `X.Y.ZrcN` remains development
+  evidence; `X.Y.Z` is a separately attested metadata rendering.
 - **Do not assume an older LAN tag is the new base.** Confirm the digest
   (`imagetools inspect registry.lan/carbonteq/posttrain-base@sha256:…`) before
   passing `--base-image`.

@@ -30,6 +30,8 @@ from posttrain.environment import (
 )
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9._/-]*$")
+
+
 def _stable_id(value: str, field: str) -> None:
     if not _ID.fullmatch(value):
         raise ValueError(f"{field} must be a lowercase stable identifier, got {value!r}")

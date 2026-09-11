@@ -43,6 +43,7 @@ from posttrain.train import (
     QWEN35_RENDERER,
     QWEN35_SFT_SMOKE,
     ActiveGroupSampling,
+    CAPOSettings,
     DPORequest,
     DynamicGroupSampling,
     EnvironmentRollout,
@@ -57,6 +58,7 @@ from posttrain.train import (
     OnPolicyDistillationSettings,
     QLoRAUpdate,
     QuantizationPlan,
+    SAMPOSettings,
     SFTRequest,
     SFTSettings,
     SFTValidationSettings,
@@ -1794,6 +1796,43 @@ def test_catalog_decodes_seeded_grpo_prompt_shuffle() -> None:
     )
 
     assert isinstance(settings, GRPOSettings)
+    assert settings.shuffle_prompts is True
+
+
+@pytest.mark.parametrize(
+    ("selection_type", "selection_id", "extra", "settings_type"),
+    [
+        ("sampo-settings", "tests/sampo-shuffled", {}, SAMPOSettings),
+        (
+            "gdpo-settings",
+            "tests/gdpo-shuffled",
+            {"component_names": ["outcome"], "component_weights": [1.0]},
+            GDPOSettings,
+        ),
+        ("capo-settings", "tests/capo-shuffled", {}, CAPOSettings),
+    ],
+)
+def test_catalog_decodes_prompt_shuffle_for_all_policy_algorithms(
+    selection_type: str,
+    selection_id: str,
+    extra: dict[str, object],
+    settings_type: type[SAMPOSettings | GDPOSettings | CAPOSettings],
+) -> None:
+    settings = decode_training_selection(
+        CatalogRef("training", selection_id),
+        {
+            "selection_type": selection_type,
+            "id": selection_id,
+            "loop": {"max_steps": 1, "per_device_batch_size": 2},
+            "num_prompts_per_step": 1,
+            "num_generations": 2,
+            "shuffle_prompts": True,
+            **extra,
+        },
+        {},
+    )
+
+    assert isinstance(settings, settings_type)
     assert settings.shuffle_prompts is True
 
 

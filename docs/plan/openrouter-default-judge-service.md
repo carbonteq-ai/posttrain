@@ -96,6 +96,15 @@ provenance, and an exported adapter.
   native dstack `${{ secrets.<name> }}` expressions, and does not forward a
   locally configured duplicate value. This path is backend-independent and
   therefore also applies when dstack places the worker on RunPod.
+- [x] (2026-09-10 18:50Z) Repair JSON-object provider adaptation so the
+  caller's JSON Schema is preserved as a model instruction and validated
+  locally; remove OpenRouter routing fields from judge plugin configuration;
+  retain bounded judge failure details; and pass a two-repetition live
+  DeepSeek V4.1 Flash frame-plus-verdict replay.
+- [x] (2026-09-11 00:35Z) Separate intrinsic hosted-model facts from typed
+  provider-endpoint transport capabilities, resolve them into one internal
+  immutable judge client, migrate the hosted inference catalog, and cover both
+  JSON Schema and schema-preserving JSON-object paths with focused tests.
 - [ ] Replace the one-off comparison scripts with a service-neutral local
   replay harness and qualify DeepSeek against the reviewed fixture and the
   retained multi-run corpus.
@@ -111,6 +120,32 @@ provenance, and an exported adapter.
   gates in `docs/releases/v0.4.md` remain binding.
 
 ## Surprises & Discoveries
+
+- Observation: structured-output mode was stored on `HostedModel`, even though
+  the same model can expose different response-format behavior through
+  different provider endpoints.
+  Evidence: the OpenRouter resolver previously read
+  `binding.model.capabilities["structured-output"]` to decide whether to send
+  JSON Schema or JSON object. `ProviderEndpointProfile` now owns that transport
+  fact, and the resolved service receipt records the requested contract,
+  effective transport, and validation strategy.
+
+- Observation: the official DeepSeek V4.1 Flash route accepts JSON-object mode
+  but not the schema-constrained transport expected by `AsyncOpenAI.parse`.
+  Evidence: the previous adapter changed `json_schema` to `json_object` while
+  discarding the schema, so production calls returned arbitrary JSON shapes and
+  all judged trajectories failed admission. The repaired adapter injects the
+  exact schema into the system instruction and keeps local Pydantic validation.
+
+- Observation: the qualification harness carried a stale handwritten copy of
+  the assessment-frame schema.
+  Evidence: `requirement_observations` existed in `properties` and was required
+  by `EpisodeAssessmentFrame`, but was absent from the transport schema's
+  `required` list. After aligning it and preserving schemas through the gateway,
+  the retained-case replay at
+  `outputs/qualification/openrouter-deepseek-v41-schema-contract-20260910/`
+  produced 2/2 valid frames and verdicts in 17.81 seconds total with all six
+  reward components present and thinking disabled.
 
 - Observation: the v0.4 development artifacts are already published, but the
   public `0.4.0` release is intentionally not tagged.
@@ -202,6 +237,16 @@ provenance, and an exported adapter.
   and `git diff --check` pass.
 
 ## Decision Log
+
+- Decision: standardize judge invocation on the narrow Verifiers
+  `Judge.complete()` / `openai-chat@1` contract rather than adding LiteLLM or
+  PydanticAI to scorer plugins. Provider adapters own capability normalization;
+  the same judge config receives only endpoint, model, credential reference,
+  headers, and sampling.
+  Rationale: both vLLM and OpenRouter expose OpenAI-compatible Chat Completions.
+  A second provider SDK would duplicate Posttrain's routing, retry, cost, usage,
+  and lifecycle policies without improving this boundary.
+  Date/Author: 2026-09-10 / Codex, based on user request for a portable judge API.
 
 - Decision: continue from v0.4 development commit `4bf6470a`, not from the
   older `codex/pre-rollout-optimization-baseline` branch.
@@ -295,6 +340,16 @@ provenance, and an exported adapter.
   when a native secret is configured.
   Date/Author: 2026-09-09 / user and Codex.
 
+- Decision: keep three concepts at the judge-inference boundary: the existing
+  hosted model profile, a small typed provider-endpoint profile, and one
+  internal resolved judge client. Do not make chat templates, rubrics, or the
+  resolved client into additional job configuration.
+  Rationale: model behavior, endpoint transport, and scoring semantics change
+  independently. Resolving them once gives provider switching a fail-fast
+  compatibility gate without adding provider or model branches to judge and
+  algorithm code.
+  Date/Author: 2026-09-11 / user and Codex.
+
 ## Outcomes & Retrospective
 
 Implementation outcome: the v0.4 development line now has a concrete boundary
@@ -307,6 +362,12 @@ qualification remain blocked on the protected runtime credential.
 The same service is now composable with the whole GRPO family, and the replay
 harness has a declared Lab ownership/exit path. Full release validation still
 has the two unrelated baseline failures described above.
+
+The model/provider boundary is now explicit as well: hosted models reject
+service transport fields, hosted inference bindings require a typed provider
+endpoint profile, service resolution records the negotiated judge contract,
+and native judge injection consumes that single client view. This refactor does
+not change chat templates, rubrics, reward vectors, or algorithm behavior.
 
 ## Context and Orientation
 

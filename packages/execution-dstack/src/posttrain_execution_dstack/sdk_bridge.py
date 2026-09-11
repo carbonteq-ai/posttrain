@@ -37,8 +37,7 @@ def _configuration(payload):
     ):
         raise RuntimeError("invalid posttrain runtime environment")
     if not isinstance(runtime_secret_references, dict) or not all(
-        isinstance(name, str) and isinstance(value, str)
-        for name, value in runtime_secret_references.items()
+        isinstance(name, str) and isinstance(value, str) for name, value in runtime_secret_references.items()
     ):
         raise RuntimeError("invalid posttrain runtime secret references")
     environment = configuration.get("env")
@@ -46,9 +45,7 @@ def _configuration(payload):
         if not all(isinstance(name, str) for name in environment):
             raise RuntimeError("invalid dstack execution environment")
         missing = [
-            name
-            for name in environment
-            if name not in runtime_environment and name not in runtime_secret_references
+            name for name in environment if name not in runtime_environment and name not in runtime_secret_references
         ]
         if missing:
             raise RuntimeError("required execution environment names are unavailable from posttrain.env")

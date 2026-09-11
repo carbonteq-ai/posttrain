@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import secrets
 import threading
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal
@@ -110,6 +110,7 @@ def metered_openai_gateway(
     model: str,
     maximum_output_tokens: int,
     ledger: CostLedger,
+    request_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> Iterator[Endpoint]:
     """Expose a loopback endpoint that reserves spend before forwarding calls."""
 
@@ -119,7 +120,7 @@ def metered_openai_gateway(
         server_version = "PosttrainCostGuard/1"
 
         def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
-            if self.path.rstrip("/") != "/chat/completions":
+            if self.path.rstrip("/") != "/v1/chat/completions":
                 self._json_error(404, "unsupported endpoint", "not_found")
                 return
             if self.headers.get("Authorization") != f"Bearer {local_key}":
@@ -144,9 +145,10 @@ def metered_openai_gateway(
                 return
             response: httpx.Response | None = None
             try:
+                upstream_payload = request_transform(payload) if request_transform is not None else payload
                 response = upstream.post(
                     f"{upstream_base_url.rstrip('/')}/chat/completions",
-                    content=body,
+                    content=json.dumps(upstream_payload, separators=(",", ":")).encode(),
                     headers={"Content-Type": "application/json"},
                 )
                 try:
@@ -164,7 +166,9 @@ def metered_openai_gateway(
             except httpx.HTTPError as error:
                 if response is None:
                     ledger.settle(reservation, None)
-                self._json_error(502, f"upstream paid inference request failed: {type(error).__name__}", "upstream_error")
+                self._json_error(
+                    502, f"upstream paid inference request failed: {type(error).__name__}", "upstream_error"
+                )
 
         def log_message(self, format: str, *args: object) -> None:
             del format, args
@@ -183,7 +187,9 @@ def metered_openai_gateway(
     try:
         host = str(server.server_address[0])
         port = int(server.server_address[1])
-        yield Endpoint(f"http://{host}:{port}", model, local_key)
+        # Endpoint.base_url is the OpenAI API root.  Keeping `/v1` here makes
+        # the guarded endpoint interchangeable with managed vLLM endpoints.
+        yield Endpoint(f"http://{host}:{port}/v1", model, local_key)
     finally:
         server.shutdown()
         server.server_close()

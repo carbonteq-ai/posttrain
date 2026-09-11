@@ -46,7 +46,6 @@ def test_summary_exposes_uniform_perfect_outputs_and_violations():
         for name in (
             "problem_understanding_planning",
             "logical_correctness",
-            "evidence_state_grounding",
             "verification_self_correction",
             "progress_efficiency",
             "action_quality",

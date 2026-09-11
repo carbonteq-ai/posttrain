@@ -32,7 +32,7 @@
       ],
       "expect": {
         "violated_dimensions": ["action_quality", "answer_quality"],
-        "score_max": {"action_quality": 0.75, "answer_quality": 0.75, "evidence_state_grounding": 0.75}
+        "score_max": {"action_quality": 0.75, "answer_quality": 0.75}
       }
     },
     {
@@ -66,7 +66,7 @@
         {"message_id": "message-3", "role": "assistant", "content": "I could not send the update because the provider is unavailable."}
       ],
       "expect": {
-        "score_min": {"evidence_state_grounding": 0.75, "answer_quality": 0.75}
+        "score_min": {"answer_quality": 0.75}
       }
     },
     {
@@ -99,8 +99,8 @@
         {"message_id": "message-3", "role": "assistant", "content": "The task was created with the correct due date of 2026-03-15."}
       ],
       "expect": {
-        "violated_dimensions": ["evidence_state_grounding", "verification_self_correction", "answer_quality"],
-        "score_max": {"evidence_state_grounding": 0.75, "verification_self_correction": 0.75, "answer_quality": 0.75}
+        "violated_dimensions": ["verification_self_correction", "answer_quality"],
+        "score_max": {"verification_self_correction": 0.75, "answer_quality": 0.75}
       }
     }
   ]

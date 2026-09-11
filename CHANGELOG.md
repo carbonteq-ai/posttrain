@@ -45,8 +45,9 @@ submission.
   qualification. Existing numerical and five-step toy evidence is not promoted
   into a broader support claim.
 - The generated runtime-image manifest must be produced from the final
-  `0.4.0` candidate source; the older `0.4.0.dev0` registry graph predates the
-  async release-candidate commits and is not reusable as release evidence.
+  accepted `0.4.0rcN` candidate source; older dev-only `0.4.0` package bytes
+  and the earlier runtime graph predate the current release-candidate commits
+  and are not reusable as release evidence.
 
 ## 0.3.26 - 2026-09-03
 

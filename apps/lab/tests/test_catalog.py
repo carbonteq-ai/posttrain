@@ -10,7 +10,7 @@ from typing import Any, cast
 
 import pytest
 from posttrain.catalog import load_catalog_layer, packaged_base_directory
-from posttrain.common import CatalogRef, ContractError, ExecutionTarget, InferenceBinding, ModelVariant
+from posttrain.common import CatalogRef, ContractError, ExecutionTarget, HubModelRef, InferenceBinding, ModelVariant
 from posttrain.environment import VerifiersV1ConfigActivation
 from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
 from posttrain.serve.backends.vllm.bindings import resolve_binding_configuration
@@ -160,7 +160,7 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert isinstance(environment.source, EnvironmentSource)
     assert environment.source.package == "automationbench-v1"
     assert environment.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-    assert environment.source.revision == "b14dfe0ba9d60184f36d78786a543242fabfb765"
+    assert environment.source.revision == "1181585ea66c6f89432864a476b5110794afc9fe"
     assert environment.source.subdirectory == "environments/automationbench_v1"
     assert environment.parameters["domains"] == ["simple"]
     assert environment.parameters["sampling_seed"] == 17
@@ -266,6 +266,7 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert isinstance(judge, InferenceBinding)
     assert isinstance(spark_judge, InferenceBinding)
     assert spark_judge.model.id == "models/spark-x2.5-4b@bf16"
+    assert isinstance(spark_judge.model.artifact, HubModelRef)
     assert spark_judge.model.artifact.revision == "5e10fcc0286756aebf7c41dc52c1e42d95c70281"
     assert spark_judge.resolved_reasoning_mode == "off"
     assert spark_judge.sampling["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
@@ -322,13 +323,9 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
 def test_lfm26_three_step_qualification_retains_a_12k_episode_budget() -> None:
     catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
     scalar = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-v3")).value
-    judged = catalog.resolve(
-        CatalogRef("environment", "automationbench-lfm26-train-mix-episode-judged-v3")
-    ).value
+    judged = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-episode-judged-v3")).value
     olmo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-3-local-v1")).value
-    gdpo = catalog.resolve(
-        CatalogRef("training", "lfm2.5-2.6b/automationbench-gdpo-episode-3-local-v1")
-    ).value
+    gdpo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-gdpo-episode-3-local-v1")).value
     rollout = catalog.resolve(
         CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@1")
     ).value
@@ -351,7 +348,7 @@ def test_lfm26_three_step_qualification_retains_a_12k_episode_budget() -> None:
     judged_task = cast(Mapping[str, Any], taskset["task"])
     judges = cast(list[Mapping[str, Any]], judged_task["judges"])
     assert judges[0]["input_budget_tokens"] == 12_288
-    assert judges[0]["code_revision"] == "0dd354d929821174f6cbd8eaa90d82d488df6ff7"
+    assert judges[0]["code_revision"] == "1181585ea66c6f89432864a476b5110794afc9fe"
     assert "assessment_scope" not in judges[0]
     assert "context_scope" not in judges[0]
 
@@ -380,12 +377,8 @@ def test_lfm26_three_step_qualification_retains_a_12k_episode_budget() -> None:
 
 def test_lfm26_two_step_qualification_is_matched() -> None:
     catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
-    olmo = catalog.resolve(
-        CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-2-local-v2")
-    ).value
-    gdpo = catalog.resolve(
-        CatalogRef("training", "lfm2.5-2.6b/automationbench-gdpo-episode-2-local-v2")
-    ).value
+    olmo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-2-local-v2")).value
+    gdpo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-gdpo-episode-2-local-v2")).value
     judge = catalog.resolve(
         CatalogRef("inference", "inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@2")
     ).value
@@ -402,10 +395,43 @@ def test_lfm26_two_step_qualification_is_matched() -> None:
         assert settings.max_completion_length == 4_096
 
     assert olmo.algorithm == "olmo3"
-    assert gdpo.component_weights == (0.50, 0.05, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10)
+    assert gdpo.component_weights == (0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10)
     assert isinstance(judge, InferenceBinding)
     assert judge.engine["gpu_memory_utilization"] == 0.45
     assert judge.engine["max_model_len"] == 32_768
+
+
+def test_lfm26_two_step_judge_speed_environments_are_matched() -> None:
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    spark = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-episode-spark-nothink-v1")).value
+    deepseek = catalog.resolve(
+        CatalogRef(
+            "environment",
+            "automationbench-lfm26-train-mix-episode-deepseek-v41-flash-nothink-v1",
+        )
+    ).value
+
+    assert isinstance(spark, EnvironmentBinding)
+    assert isinstance(deepseek, EnvironmentBinding)
+    for environment in (spark, deepseek):
+        assert environment.num_tasks == 160
+        assert environment.num_rollouts == 4
+        assert environment.max_concurrent == 32
+        assert environment.sampling.max_tokens == 4_096
+        assert isinstance(environment.activation, VerifiersV1ConfigActivation)
+        activation = cast(Mapping[str, Any], environment.activation.config)
+        agent = cast(Mapping[str, Any], activation["agent"])
+        taskset = cast(Mapping[str, Any], activation["taskset"])
+        task = cast(Mapping[str, Any], taskset["task"])
+        [judge_config] = cast(list[Mapping[str, Any]], task["judges"])
+        assert agent["max_output_tokens"] == 12_288
+        assert judge_config["input_budget_tokens"] == 12_288
+        assert judge_config["assessment_protocol"] == "model-native-frame@1"
+        assert judge_config["assessment_frame_max_tokens"] == 4_096
+        assert cast(Mapping[str, Any], judge_config["sampling"])["max_tokens"] == 4_096
+
+    assert spark.parameters["task_mix_sha256"] == deepseek.parameters["task_mix_sha256"]
+    assert spark.parameters["sampling_seed"] == deepseek.parameters["sampling_seed"]
 
 
 def test_qwen4b_automationbench_eval_binding_declares_tool_protocol() -> None:
@@ -446,7 +472,7 @@ def test_general_capability_catalog_and_library_qualification_are_pinned() -> No
     for item in plan.environments:
         assert isinstance(item.source, EnvironmentSource)
         assert item.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-        assert item.source.revision == "b14dfe0ba9d60184f36d78786a543242fabfb765"
+        assert item.source.revision == "1181585ea66c6f89432864a476b5110794afc9fe"
 
 
 def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:

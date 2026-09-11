@@ -1398,9 +1398,7 @@ def runtime_credential_status_for_seats(
         runtime_variable_names=required,
     )
     native_secret_names = (
-        local_config.dstack.runtime_secrets
-        if provider == "dstack" and local_config.dstack is not None
-        else {}
+        local_config.dstack.runtime_secrets if provider == "dstack" and local_config.dstack is not None else {}
     )
     return {
         name: "configured" if bool(environment.get(name)) or name in native_secret_names else "unavailable"

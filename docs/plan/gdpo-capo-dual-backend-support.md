@@ -1,5 +1,612 @@
 # Implement and qualify GDPO and CAPO on TRL and veRL
 
+Revision 85 — 2026-09-10. Replace the unavailable official-provider V4 Flash
+0731 selection with `deepseek/deepseek-v4.1-flash`. OpenRouter's live endpoint
+inventory exposes a healthy provider tag `deepseek` operated by DeepSeek for
+this model, with reasoning control, response-format support, 1,048,576-token
+context, and a 384,000-token completion limit. The comparison binding pins that
+provider tag and disables fallbacks and judge thinking. Because its pricing has
+time-window overrides, paid-service admission now reserves against the maximum
+declared input and output rates rather than only the base rate; this keeps the
+$4.99 ceiling valid even when a two-step run crosses a pricing boundary.
+
+Revision 84 — 2026-09-10. OpenRouter remains the required API gateway for the
+DeepSeek comparison arm. Live OpenRouter endpoint inventory for
+`deepseek/deepseek-v4-flash-0731` currently exposes no DeepSeek-operated
+inference endpoint; every selectable compute route is a third party. Do not
+mislabel a Sail, Fireworks, OpenInference, or other route as provider
+`deepseek`, and do not add a direct DeepSeek API adapter. The two-update
+experiment remains unsubmitted until the intended OpenRouter provider policy is
+resolved explicitly.
+
+Revision 83 — 2026-09-10. Replace the proposed 30-update judge experiment with
+a bounded, matched two-update speed comparison: official DeepSeek V4 Flash API
+first, then self-hosted Spark-X2.5-4B. Both arms use
+the same LFM2.5-2.6B policy, GDPO settings, six judge dimensions, native partial
+credit, task-mix digest and seed, 8 prompt groups x 4 trajectories, 12,288-token
+episode ceiling, 4,096-token per-call policy ceiling, and model-native frame
+protocol. Judge thinking is disabled in both arms. The comparison records
+end-to-end step time plus rollout, scoring, update, and finalization time; it is
+an operational experiment, not semantic qualification. Per the user's latest
+decision, `evidence_state_grounding` remains excluded as a reward dimension;
+evidence provenance remains a cross-cutting validation rule.
+
+Revision 82 — 2026-09-10. Spark R4 completed the six-dimension replay on the
+fixed eight-case, two-repeat corpus. It produced 15/16 valid verdicts, zero
+length stops, 34.62% labeled-bound agreement, 75% pairwise accuracy, and three
+false-perfect scores; it is rejected for training. The sole invalid request
+omitted the required `requirement_observations` frame field. Blank optional
+frame-list placeholders are now normalized away without inventing content.
+Across valid results, answer quality passed 2/4 labeled bounds, action,
+progress, and verification each passed 2/6, and logical correctness passed 1/4;
+planning has no independent labeled bound in this corpus. Spark now
+differentiates cases, but still over-credits repaired malformed actions,
+unverified schedule claims, and rejected actions without repair. The
+three-stage frame/verdict/review path averaged 3,964 generated tokens per
+episode and 31.86 seconds request latency at 457 aggregate generated tokens/s,
+so the next prompt revision must also remove redundant per-episode prose rather
+than only enlarging budgets.
+
+Revision 81 — 2026-09-10. The episode judge now exposes six reward dimensions;
+`evidence_state_grounding` is removed from the rubric, structured verdict,
+model-authored vocabulary/frame schemas, qualification labels, reward
+projection, and GDPO configuration. Evidence provenance remains a concise
+cross-cutting scoring rule: outcome-dependent claims require post-action
+environment evidence, while reasoning and action dimensions use the policy
+evidence appropriate to them. The removed 0.05 weight moves to native task
+partial credit, producing weights 0.55, 0.05, 0.05, 0.03, 0.07, 0.15, and
+0.10. Spark R2 was stopped because it used the obsolete seven-dimension
+contract. R3 is the fresh six-dimension, thinking-disabled qualification on the
+same frozen eight cases with two repetitions.
+
+Revision 80 — 2026-09-10. DeepSeek V4 Flash through the explicitly selected
+OpenRouter Sail FP4 route is rejected before replay. Even with the binding's
+explicit `reasoning.enabled: false` policy and a 1,536-token structured
+vocabulary ceiling, its provider returned a hidden reasoning trace and hit
+length before completing the vocabulary JSON. This is a provider-policy
+violation and incomplete-contract failure, not a reason to accept hidden
+thinking or enlarge the budget. The model-native vocabulary design remains
+valid; its transport must prove that reasoning is actually disabled and that
+the complete structured profile stops normally.
+
+Revision 79 — 2026-09-10. Qwen3-235B-A22B through the explicitly selected
+OpenRouter DeepInfra FP8 route successfully created the non-thinking,
+model-native structured vocabulary profile: it independently distinguished
+requested, attempted, observed, and claimed state while retaining every fixed
+wire concept. It is nevertheless rejected as the default episode judge before
+semantic admission. Its first two-stage replay pair remained incomplete after
+over 3½ minutes, making the route operationally incompatible with a 50-step
+GDPO job. The qualification transport now enforces an end-to-end wall-clock
+deadline with async cancellation rather than `urllib`'s misleading idle-socket
+timeout; focused regression tests cover that boundary. A calibration candidate
+must pass both the strict semantic gates and a practical throughput gate.
+
+Revision 78 — 2026-09-10. Gemini R7 was mechanically admissible only for six
+of sixteen final verdicts and failed every semantic calibration gate: 27.59%
+requirement-constraint pass rate, 25% pairwise accuracy, and two false-perfect
+verdicts. It is rejected as an episode judge. The first GPT-OSS-120B CoreWeave
+candidate also made no inference request: its provider rejects the explicit
+`reasoning.effort: none` policy with “Reasoning is mandatory for this endpoint
+and cannot be disabled.” The product requirement is a non-thinking judge with
+explanations, so neither hidden reasoning nor a provider-side default may be
+silently substituted. Its failure is recorded as a capability incompatibility,
+not a prompt or schema failure. The two-stage contract remains: the judge first
+creates a structured assessment frame using its own preferred vocabulary, then
+emits the fixed, locally validated episode verdict. Vocabulary is model-owned
+guidance; field names, types, and reward semantics remain framework-owned.
+
+Revision 77 — 2026-09-10. The direct strict-schema diagnostic shows Google AI
+Studio rejects the fully inlined final schema because its constrained-decoding
+automaton has too many states. This is a provider capacity limitation. The
+canonical local validator remains strict; final transport therefore uses
+JSON-object mode. The shared `MODEL_NATIVE_VERDICT_REQUEST` now names every
+fixed requirement-check and assessment field, explicitly forbids substitute
+keys, and is used by the qualification harness instead of divergent hand-written
+text. This is generic wire-contract guidance, not task-specific scoring prose.
+Gemini R7 combines strict-frame decoding with the strengthened portable final
+wire instruction.
+
+Revision 76 — 2026-09-10. Gemini R5 proved the stage split: all 16 frames
+were valid, but JSON-object final verdicts omitted wire-required evidence,
+status, and relevant-dimension fields. The generic strict transport now
+inlines Pydantic-local `$defs` references before sending a non-recursive schema
+to a provider. Canonical local Pydantic validation remains authoritative after
+generation. This preserves strict output for both stages while removing the
+Google AI Studio `$ref` incompatibility; a unit test asserts the emitted schema
+contains neither `$defs` nor `$ref`. Gemini R6 is the clean full strict replay.
+
+Revision 75 — 2026-09-10. The qualification harness now supports independent
+transport modes for the two model-native stages. A provider can use strict
+schema decoding for `EpisodeAssessmentFrame` (which prevents a final verdict
+from being substituted for the frame) and JSON-object transport for the final
+verdict when its strict schema implementation rejects Pydantic `$defs`.
+Both stages retain their original local validators, so this changes neither
+the wire contract nor admissibility. The option defaults to the existing single
+mode for every current caller. Gemini R5 is the first split-transport replay.
+
+Revision 74 — 2026-09-10. Gemini R3 exposed the actual strict-schema provider
+limit: Google AI Studio rejects the Pydantic wire schema's `$defs` reference
+at `properties.assessments` before it generates a frame. R1 already proved
+JSON-object transport works; with `general-agent-episode@12` now providing
+adequate local frame capacity, R4 returns to JSON-object transport and retains
+the exact local `EpisodeAssessmentFrame` and `WireEpisodeVerdict` validation.
+This is a provider compatibility choice, not a change to the structured wire
+contract or any scoring gate.
+
+Revision 73 — 2026-09-10. Gemini R2 confirmed strict-schema frame generation,
+but the model's normal explanations exceeded the inherited generic 160/320
+character limits in `EpisodeAssessmentFrame`. The independent adapter now
+defines `general-agent-episode@12`, raising only factual frame text to 480 and
+per-dimension wording to 320 characters. This preserves the exact fields,
+score grid, evidence indexes, rubric meanings, and validation behavior; it
+adds capacity for complete observable comparisons. The adapter's 14 focused
+tests pass. R3 is a fresh strict-schema control replay using this version.
+
+Revision 72 — 2026-09-10. Gemini R1 proved healthy non-thinking transport at
+about 3.9 seconds per frame request, but every unconstrained JSON-object frame
+used the stable final-verdict keys (`requirement_checks`, `assessments`) rather
+than `EpisodeAssessmentFrame` keys. This is a wire-shape failure, not a
+semantic result. Since the model's selected endpoint explicitly supports
+strict structured output, R2 returns to the existing strict frame and verdict
+schemas. That constrains the model to the exact machine contract without
+changing any evaluation vocabulary, rubric, labels, or gate.
+
+Revision 71 — 2026-09-10. Gemini 2.5 Flash-Lite is the next explicit cloud
+candidate. Live OpenRouter endpoint inventory shows healthy fixed
+Google-AI-Studio routes, a 1,048,576-token context, `reasoning`,
+`response_format`, and `max_tokens` support, and standard $0.10/M input,
+$0.40/M output pricing. Its provider documentation states thinking is disabled
+by default, meeting the selected non-thinking policy without an unsupported
+synthetic flag. R1 uses the same model-authored vocabulary, JSON-object
+transport with exact local wire validation, two-repeat eight-control suite,
+two-request concurrency, explicit `google-ai-studio` no-fallback route, and
+$4.99 hard ceiling. The projected maximum is below $0.20; no training is
+created by this qualification.
+
+Revision 70 — 2026-09-10. The bounded direct transport diagnostic resolved the
+remaining GPT-5 Mini ambiguity: its frozen OpenAI endpoint returns HTTP 400
+because reasoning is mandatory and cannot be disabled. This violates the
+selected non-thinking judge policy, so GPT-5 Mini is rejected for this role;
+it is not retried with hidden reasoning or silently substituted into GDPO.
+The direct diagnostic emitted only the status and a 512-character provider
+body, never credentials, prompts, or trajectory data. R9/R10 remain rejected
+transport evidence. Candidate selection returns to a stronger model that can
+explicitly satisfy non-thinking structured judging under the same gates.
+
+Revision 69 — 2026-09-10. R9 fixed the vLLM-only request-field leak, but the
+full replay still returned immediate HTTP 400s. Because the replay uses the
+run-local metered gateway, the existing status-only diagnostic cannot prove
+whether a cost reservation or OpenRouter rejected the request. R10 retains
+only bounded response provenance (`Server` and provider request ID) alongside
+the already bounded error detail. It does not retain an API key, model prompt,
+or trajectory. The control replay is otherwise unchanged.
+
+Revision 68 — 2026-09-10. R8 disproved the JSON-Schema-subset hypothesis:
+JSON-object transport still returned HTTP 400 before generation. Inspection
+found the generic defect—the harness computed the requested omission of
+vLLM-only `chat_template_kwargs`, then unconditionally reinserted it in each
+frame, verdict, and review request. The field is now emitted only by the shared
+sampling builder when explicitly selected, with direct regression coverage.
+R9 repeats the same JSON-object replay under the unchanged model-native prompt,
+wire validation, frozen route, and cost cap. No R6–R8 result is valid evidence.
+
+Revision 67 — 2026-09-10. The standard-route readiness schema succeeds, but
+the richer frame/verdict schemas return HTTP 400 before generation. The
+material difference is their stronger JSON-Schema constraints, which are
+locally enforced by the stable adapter but not necessarily supported by every
+provider's strict-schema subset. R8 therefore selects the existing
+provider-neutral `json_object` transport mode while retaining the exact same
+required fields, bounded values, evidence coordinates, and local
+`EpisodeAssessmentFrame`/`EpisodeVerdict` validation. “Structured” remains
+the fixed wire contract; provider constrained decoding is an optional transport
+optimization, not the definition of validity. R8 is a fresh full control
+replay, not a fallback or score repair.
+
+Revision 66 — 2026-09-10. R6 completed its 512-token readiness probe and
+model-native vocabulary generation, but all 16 verdict requests returned HTTP
+400 before completion. The harness had retained only the status class, so R7
+adds a bounded, credential-free provider error diagnostic for non-404 responses
+and repeats the same frozen controls. This is observability for a transport
+failure, not a retry or a scoring adjustment; no R6 verdict is accepted.
+
+Revision 65 — 2026-09-10. GPT-5 Mini R5 produced the first precise probe
+diagnosis: `finish_reason=length` at the framework’s universal 64-token
+readiness allowance, despite the explicit `reasoning.effort: none` selection.
+This is a generic probe-capacity defect, not an accepted score or a reason to
+change the judge schema. The shared readiness budget is raised to 512 tokens,
+which is still independent of—and far below—the binding’s 16,384-token judge
+ceiling. R6 repeats the full frozen control replay with only this capacity
+correction; cost projection remains comfortably inside the $4.99 hard cap.
+
+Revision 64 — 2026-09-10. Standard OpenAI GPT-5 Mini R4 reached the readiness
+probe but ended with a non-stop completion before it could score a trace. The
+provider’s current reasoning contract identifies a model default-on state and
+supports `reasoning.effort: none`; R5 therefore makes that explicit in the
+frozen binding. This is a selected non-thinking judge policy, not a generic
+capability-derived default. The shared resolver now records the returned finish
+reason and completion-token count when a readiness probe stops abnormally, so
+future diagnosis does not require a secret-bearing request dump. The same
+focused suite now has 24 passing tests. R4 is rejected as an incomplete probe;
+R5 is a clean control replay, still strictly bounded by the $4.99 ceiling.
+
+Revision 63 — 2026-09-10. GPT-5 Mini Flex R3 still returned the same
+zero-completion “no endpoint can handle requested parameters” response after
+the generic omission fix, so Flex is not a viable frozen route for this
+qualification. R4 selects the explicitly named standard OpenAI endpoint,
+which currently declares structured-output and reasoning support but not
+temperature or top-p. Its binding therefore deliberately supplies only the
+common 16,384-token ceiling: no temperature, top-p, or reasoning field is
+implied by capability metadata. This preserves the model-authored vocabulary,
+fixed assessment schema, no-fallback receipt, and the $4.99 hard ceiling. The
+standard-route full control replay is projected at roughly $0.34, and it must
+pass every frozen gate before the 50-step GDPO run exists.
+
+Revision 62 — 2026-09-10. GPT-5 Mini R2 exposed a generic hosted-sampling
+boundary defect before it consumed a judge completion: OpenRouter correctly
+rejected the fixed Flex endpoint because the generic readiness probe always
+sent `temperature=0`, while Flex declares neither temperature nor top-p as
+supported parameters. The issue also showed that capability support must not
+be confused with an enabled reasoning policy: a model may support reasoning
+while this judge run deliberately keeps it off. The corrected shared behavior
+now sends temperature, top-p, or reasoning only when the binding explicitly
+selects each one; the vocabulary calibration and replay use the identical
+omission policy, and reports retain which sampling fields were omitted. This
+is provider-neutral, preserves strict structured output and frozen routing,
+and is covered by 23 focused tests. GPT R3 is a fresh evidence path using this
+same corrected contract; no model output from R1/R2 was accepted.
+
+Revision 61 — 2026-09-10. Qwen3-235B-A22B-Instruct R3 completed and is
+rejected: 15/16 wire-valid verdicts, 48.28% constraint satisfaction, 62.5%
+pairwise ordering, and one false-perfect. Its sole invalid assessment frame
+stopped normally but contained an unterminated JSON string, so the strict local
+validator correctly rejected it. This rules out both the 30B and 235B Qwen
+instruct candidates under the same fixed protocol; no scoring threshold or
+normalization is changed. The next stronger candidate is GPT-5 Mini through
+the fixed OpenAI Flex endpoint. Live endpoint metadata reports 400K context,
+strict structured-output support, 100% recent availability, and approximately
+$0.125/M input / $1.00/M output. The explicit binding is still non-thinking,
+no-fallback, $4.99-capped and begins with the same two-request-concurrency
+frame/verdict replay. Its first Flex probe correctly failed before model use:
+the DeepSeek-specific `reasoning.enabled=false` field left no compatible Flex
+endpoint. R2 removes only that unsupported provider field—reasoning remains off
+by the model's default—and retains strict schema and every other admission
+constraint. It is selected because it is a materially stronger judgment model
+while its bounded projection remains about $0.17. The 50-step GDPO work remains
+blocked on its complete frozen control result.
+
+Revision 60 — 2026-09-10. R7 rejects the DeepSeek V4 Flash candidate rather
+than relaxing a frozen gate: `valid_rate=93.75%`,
+`constraint_pass_rate=72.41%`, `pairwise_accuracy=100%`, and one
+false-perfect. The explicit two-request provider concurrency eliminated R6's
+429, but the model-native review added latency (609.9 seconds total, 3,020.8
+mean completion tokens) and degraded semantic calibration. One frame stopped
+normally but was locally rejected because an observed-defect entry exceeded the
+generic 240-character `FrameText` ceiling. That is an independent protocol
+robustness issue, so `general-agent-episode@11` raises only this bounded
+factual-frame limit to 320 characters; it does not alter rubric, score, reward,
+or gate semantics. The external adapter's 14 tests and local harness tests
+pass with the new version. The next candidate is deliberately not another
+DeepSeek route or prompt rewrite: Qwen3-235B-A22B-Instruct-2507 via the fixed
+GMICloud FP8 endpoint (`gmicloud/fp8`). Its public endpoint metadata currently
+reports strict structured-output support, 262K context, 98%+ recent uptime,
+and roughly $0.0875/M input / $0.35/M output. Its first explicit GMICloud FP8
+binding stopped safely at the zero-cost capability probe with HTTP 404; no
+judge request or score was emitted. The follow-up R2 switches only the frozen
+provider endpoint to DeepInfra FP8, which advertises strict structured output
+and 99%+ recent uptime, at roughly $0.09/M input / $0.55/M output. That
+zero-cost probe also returned a bare 404, so R3 mounts the improved resolver
+diagnostic and repeats only its capability probe under a fresh evidence path;
+it still cannot send a judge request unless the endpoint resolves. The explicit
+catalog binding and CPU-only replay retain the same $4.99 ceiling, no fallbacks,
+thinking off, current production protocol, and two-request concurrency.
+Qwen3-30B's rejected result is not reused as evidence for this separate 235B
+candidate. Its frozen control result must pass before training work is created.
+
+Revision 59 — 2026-09-10. The first DeepSeek V4 Flash / Sail Research FP4
+replay (R6) proves the hosted provider bridge after the generic endpoint
+repair: 15 of 16 final wire verdicts were valid, 15 stopped normally, and the
+sole failed request was an explicit HTTP 429 rather than a hidden score or
+transport repair. The frozen controls reject R6 as an admission candidate:
+`valid_rate=93.75%`, `constraint_pass_rate=79.31%`,
+`pairwise_accuracy=100%`, `false_perfect_count=0`, and no length truncation.
+The six bound misses are retained evidence, not corrected by framework code.
+The endpoint adapter now tries the alternate OpenAI-compatible route only on a
+404, preserving authentication, quota, and provider errors; the replay harness
+also records frame/verdict schema-validation reasons. R7 is a fresh, bounded
+protocol comparison, not a score repair: it uses provider concurrency two to
+avoid the observed rate limit and the generic model-native frame-review stage,
+where the same judge reconciles its frame and provisional verdict before the
+admitted verdict. The service reservation accounts for all 49 requests and the
+additional review prompt/output budget, remaining below the user-authorized
+$5 cap. It must pass every frozen gate before any 8x4 or 50-step GDPO work
+package is created.
+
+Revision 56 — 2026-09-10. Qwen3-30B-A3B-Instruct-2507-FP8 is the next
+scorer-only candidate on the local RTX PRO 6000 Blackwell. R1 verified that
+the cached 29.03-GiB checkpoint loads correctly, but was stopped before the
+controls because an exhaustive DeepGEMM warm-up enumerated 2,129 shapes with
+an approximately thirty-minute forecast. R3 instead used vLLM's bounded
+`VLLM_DEEP_GEMM_WARMUP=skip` control: the same backend remains enabled and
+just-in-time compiles the few real request shapes. Its model-authored profile
+was structurally valid but not semantically usable: its shared frame-dimension
+field limit forced several definitions to end exactly at 160 characters.
+That profile and its in-flight control replay were aborted rather than used as
+qualification evidence. Vocabulary-only field types are now separate from the
+hot-path frame and verdict limits (320 characters per dimension, 900 for
+response guidance); the independent adapter's 14 relevant tests still pass.
+R4 is the clean two-repeat frozen-control replay using a complete profile;
+its result, not R3, determines whether Qwen can be promoted. No training,
+dependency pin, or acceptance gate has changed.
+
+Revision 57 — 2026-09-10. R4 completed with a full, non-truncated
+model-authored vocabulary profile but is rejected: 11/16 valid wire verdicts,
+27.6% constraint satisfaction, 12.5% pairwise ordering, and seven
+false-perfect dimensions. Inspection isolated one generic contract ambiguity,
+not a score repair opportunity: Qwen repeatedly emitted one-based-looking
+evidence arrays such as `[2,3,4,5]`, while the wire protocol requires
+zero-based positions. Normalization correctly rejects those out-of-range
+citations; it must never shift them. The current production request now adds
+an explicit `evidence_index` to each trajectory entry and the prompt requires
+copying that authoritative value. The replay harness gained an opt-in
+current-production-protocol mode that rehydrates retained traces using the
+same system prompt, contract version (`general-agent-episode@10`), and indexed
+request. R5 is the only valid retry of this candidate; it will retain the
+strict semantic gates and decides whether the coordinate clarification fixed
+mechanics without masking Qwen's independently observed scoring defects.
+
+Revision 58 — 2026-09-10. R5 completed the exact current
+`general-agent-episode@10` request with authoritative zero-based
+`evidence_index` fields. This fixed part of the mechanical ambiguity (valid
+wire verdicts improved from 68.75% to 75%), but decisively rejects the Qwen
+candidate on semantics: 24.1% constraint satisfaction, 37.5% pairwise
+ordering, and ten false-perfect dimensions across the frozen two-repeat
+controls. The profile/prompt protocol is therefore retained, while Qwen3
+30B-A3B-Instruct-2507-FP8 is not eligible for GDPO. No further prompt-only
+retry is justified; the next action is a stronger judge candidate evaluated
+through this unchanged protocol and gate. No 50-step work package is created.
+
+Revision 55 — 2026-09-10. The prompting design is corrected to match the
+model-vocabulary pattern rather than treating an LLM-generated evaluator
+prompt as the contract. `EpisodeVocabularyProfile` is a bounded,
+model-authored calibration artifact: it records a model's general explanation,
+decision inputs, distinctions, dimension wording, and preferred response
+order. The framework still owns the generic evaluator prompt, the seven
+dimension identifiers and meanings, score grid, evidence semantics, reward
+projection, and strict JSON wire schema. When supplied, the profile is added
+only as trusted phrasing guidance to the model-native assessment-frame request,
+is recorded in the scorer digest, and cannot add task facts or modify output
+fields. The local replay harness now invokes that exact production frame
+request rather than its stronger divergent wording. External adapter coverage
+(14 tests) and the local qualification harness (9 tests) pass. The historical
+"self-authored prompt/rubrics" results remain evidence of rejected candidates,
+not the protocol to promote. No existing scorer is newly qualified; the next
+candidate must first produce a vocabulary profile and pass the frozen controls
+before any 8x4/50-step GDPO work package is created.
+
+Revision 54 — 2026-09-10. R9 completes the model-native review experiment:
+all 48 calls stopped normally and all 16 final verdicts were structured-valid,
+but the added review did not repair semantic calibration. It retained 72.4%
+constraint satisfaction, 100% pairwise ordering, and seven false-perfect
+dimensions while increasing mean completion tokens from 1,627 to 2,330. The
+review protocol is mechanically sound and remains available as a generic
+option, but this evidence rejects Gemma 4 31B with this task/rubric as the
+GDPO judge. Further prompt-only iterations are not justified. A stronger
+scorer candidate must pass the frozen controls before the external environment
+change can be committed/pinned, before a new 8x4/50-step work package can be
+created, and before any 50-step run is submitted.
+
+Revision 53 — 2026-09-10. The independent environment now exposes
+`model-native-frame-review@1`. It obtains a model-authored frame, a
+machine-validatable provisional verdict, then a final verdict from the same
+judge after it reconciles those artifacts with the original trajectory. Only
+the final verdict can be admitted; the bridge retains the frame, provisional
+verdict, review messages, and final verdict but does not calculate or clamp
+any score. External adapter tests (13) and local qualification-harness tests
+(9) pass. R9 is the matching Gemma 4 31B MTP-2 replay on the frozen two-repeat
+controls. It has no policy training, no paid provider calls, and no immutable
+pin change; promotion still requires every control gate to pass.
+
+Revision 52 — 2026-09-10. R8 completed the exact same-model explain-back,
+rephrase, and fixed-JSON replay requested by the prompting design. The 31B
+model authored a domain-general prompt (0.461 normalized similarity to the
+source, no task-specific terms) and two candidates were replayed in full.
+Neither is admissible: the baseline had 100% valid and pairwise rates but only
+72.4% constraint satisfaction and six false-perfect dimensions; the
+self-authored prompt fell to 93.75% validity, 62.1% constraint satisfaction,
+and ten false-perfect dimensions. Thus model-native wording is working as a
+protocol but is insufficient by itself. The evidence isolates the needed
+third, still model-owned pass: have the judge review its own episode frame and
+provisional verdict against the original trace before returning the final fixed
+wire object. The bridge may validate shape and preserve evidence, but must not
+clamp or synthesize any score. No candidate, environment pin, work package, or
+50-step GDPO job is selected.
+
+Revision 51 — 2026-09-10. Gemma 4 31B R7 proves the revised hardware profile
+and model-native wire path: 16/16 structured-valid normal-stop verdicts, 100%
+pairwise ordering, 26,037 completion tokens in 279.1 seconds (93.3 tokens/s),
+and no thinking tokens. It still fails semantic admission: 72.4% frozen-bound
+satisfaction and eight false-perfect dimensions. The retained evidence shows
+the specific failure mode: the model sometimes records an unsupported claim or
+unresolved observation in its own frame, but its direct final verdict does not
+apply that frame consistently; on other traces it omits material success
+conditions from the frame. R8 therefore tests the actual model-native
+explain-back pattern end to end: the same 31B model first authors a
+domain-general evaluator prompt and dimension prose in its own vocabulary,
+then applies the resulting frozen artifact and per-episode frame to the same
+fixed JSON wire contract. No static task patch, code-side score clamp, or
+relaxed control is permitted. This is the final prompt-shape experiment before
+the scorer/model choice is revisited; it remains a no-training qualification.
+
+Revision 50 — 2026-09-10. The first Gemma 4 31B qualification launcher was
+stopped before scoring after vLLM's retained engine log proved that its 32K
+context reservation needed 27.51 GiB of KV cache while the 96 GiB workstation
+had only 16.48 GiB available under the 0.85 reservation. This is a capacity
+calculation, not an OOM during inference and not judge evidence. The retry is
+therefore sized from the planned 12K episode budget: 24,576 total context
+tokens (trajectory, bounded 2,048-token frame, 4,096-token verdict, and
+prompt margin) with 0.92 GPU memory utilization, four engine slots and two
+replay callers. The readiness loop now observes the recorded vLLM PID and
+fails immediately if it exits, rather than burning the whole 900-second
+readiness ceiling after an engine-init error. This configuration remains an
+isolated no-training qualification and must still pass all controls before a
+GDPO work package is created or a 50-step job is submitted.
+
+Revision 49 — 2026-09-10. The explicit no-fallback Sail Research FP4 route
+for DeepSeek V4 Flash completed the full two-repetition, eight-control replay
+under the ordinary metered OpenRouter gateway. Its bounded projection was
+$0.053903360, below the $4.99 run ceiling. The new requirement-comparison
+frame removed false-perfect verdicts (zero), but the candidate is rejected:
+three of sixteen replays were not valid (two HTTP 429 responses and one
+invalid assessment frame), constraint satisfaction was 72.4%, and pairwise
+accuracy was 75%. A single-control serial replay then demonstrated that the
+previously problematic `normal-0` trace can produce two valid, discrepancy
+aware frames and verdicts when it is not competing for provider capacity. The
+qualification harness now retains an invalid first-stage frame and its finish
+reason as evidence while still refusing to request a direct or second-stage
+verdict. Thus the remaining failures are separately attributable to provider
+admission and semantic reliability; neither justifies retrying an entire
+training group, weakening the gates, or selecting this route for GDPO. No
+50-step job has been submitted.
+
+Revision 48 — 2026-09-10. Two self-hosted Gemma 4 12B MTP-2 replays reject
+this judge for reward admission under the frozen eight-control suite. R3's
+model-native frame had no length stops, but only 87.5% schema-valid verdicts,
+48.3% constraint satisfaction, 75% pairwise accuracy, and 12 false-perfect
+ratings. R4 added explicit model-authored requested/attempted/observed
+comparisons in the assessment frame: pairwise accuracy reached 100% and
+constraint satisfaction reached 55.2%, but schema validity was 93.75% and
+nine false-perfect ratings remained. The cleanup trap correctly released the
+GPU when this expected gate failure returned nonzero.
+
+R5 then exercised the actual on-policy prompting pattern: the same Gemma
+instance explained the domain-general evaluator problem in its own vocabulary,
+authored a reusable frozen system prompt and rubrics, and was compared with the
+baseline with the per-episode model-native frame still enabled. The baseline
+reproduced R4. The self-authored candidate reached 58.6% constraint
+satisfaction and six false-perfect ratings, but only 62.5% structured-valid
+verdicts and 75% pairwise accuracy. Neither candidate may be selected, pinned,
+or used by GDPO. This is evidence that the selected no-thinking judge model is
+not sufficiently reliable for the requested reward source—not a reason to
+relax observable-control gates or add code-side score clamps. No 50-step job
+has been submitted; select and qualify a stronger model before promotion.
+
+Revision 47 — 2026-09-10. The self-hosted judge route is now being qualified
+on the idle local RTX PRO 6000 rather than bypassing the hosted-route failures
+or raising the paid-service cap. `pt-gemma-model-native-frame-r3` serves the
+immutable Gemma 4 12B revision with MTP-2, xgrammar structured decoding,
+thinking disabled, and a 32,768-token context. It replays the frozen eight
+observable controls twice at four concurrent requests. Each completed episode
+must first produce its bounded 2,048-token assessment frame in the judge's own
+vocabulary; only then may it emit the fixed verdict. The corresponding replay
+harness now has a regression test proving a length-stopped or invalid frame
+raises and cannot fall through to a direct verdict. This is a judge-only
+qualification: it does not alter policy weights, submit a training job, or
+claim the unpublished environment source as an immutable production pin.
+
+Revision 46 — 2026-09-10. The model-native scorer protocol is now implemented
+in the independent `automationbench-v1` environment source, not merely in a
+calibration harness. `model-native-frame@1` makes a bounded first call using
+only generic instructions: the selected judge describes the particular episode
+in its own vocabulary, then that unmodified frame is supplied to the existing
+strict `WireEpisodeVerdict` call. The stable seven identifiers, evidence-index
+wire shape, and discrete score grid remain fixed; neither code nor a project
+rewrites the judge's prose. The protocol is in the scorer digest and its frame
+is retained per attempt. The frame cap is 2,048 tokens. Paid-service admission
+now counts both calls and the final prompt's included frame; a self-hosted
+context check likewise includes that frame. OpenRouter readiness probes now
+honor the selected binding's reasoning mode, so a no-thinking route is not
+silently tested with a low-effort hidden trace.
+
+The DeepSeek Flash Fireworks route successfully authored a reusable,
+domain-general prompt artifact at
+`outputs/qualification/episode-judge-deepseek-fireworks-authoring-20260910-r2/`
+from its own explain-back vocabulary. Its full R20 replay is rejected: seven
+of sixteen verdicts received sustained HTTP 429 errors even at serial
+concurrency, and the nine admitted verdicts failed the frozen observable
+control gates. Fireworks is therefore not a viable 50-update judge route.
+`hosted-inference/deepseek-v4-flash-openrouter-sail-judge@1` is an explicit
+no-fallback throughput candidate only; it must complete the retained controls
+and pass semantic calibration before any work package or immutable environment
+pin changes. No 50-step GDPO job has been submitted.
+
+Revision 45 — 2026-09-10. Hosted-judge calibration admission is now explicit:
+the reviewed eight-control manifest selects replay rows by source digest and
+must find every digest exactly once before the OpenRouter resolver opens a paid
+connection. This corrected a mistaken 14-row capture choice; the authoritative
+replay is `outputs/qualification/episode-judge-pathological-replay-20260910/selected-4-truncated-4-normal-v6.jsonl`.
+The exact DeepSeek Flash OpenInference and DeepInfra FP8 routes both passed a
+tiny strict-JSON probe but failed to return a response for even one retained
+episode within the 60-second preflight ceiling, including JSON-object mode.
+They are not yet admissible for a 50-update rollout judge. Per-request errors
+are now retained in calibration evidence rather than aborting an entire batch.
+No prompt or hosted-provider candidate is promoted from these preflights.
+
+Revision 44 — 2026-09-10. The local OpenRouter calibration harness now resolves
+the selected provider through the ordinary metered gateway and replays the
+frozen corpus using the model-authored per-episode assessment frame. In doing
+so it found and fixed a generic endpoint bug: the cost gateway must expose an
+OpenAI `/v1` API root, not a server root. Unit coverage now verifies the
+interchangeable endpoint contract. The first live four-way DeepSeek calibration
+was deliberately stopped after over three minutes with four established TLS
+connections and no response bytes; this is a hosted-provider responsiveness
+failure, not a prompt score. It must pass a small bounded latency probe before
+the full 32-call semantic replay can be retried. The metered ceiling remains
+$4.99; no report or promotion was produced.
+
+Revision 43 — 2026-09-10. Clarify the model-native prompting contract from the
+concrete explain-back examples: each episode first receives a strict
+`EpisodeAssessmentFrame` generated by the selected judge. It preserves the
+fixed dimension identifiers and wire schema but lets that model describe the
+episode objective, success conditions, observed state, claims, discrepancies,
+and the meaning of each dimension in its own vocabulary. The same unmodified
+model then produces the `EpisodeVerdict`, consuming that assistant-authored
+frame verbatim. This is a two-pass prompt interaction, not code-side rewriting,
+not a human-written task-specific suffix, and not a change to scorer semantics.
+The R2 report also proved Revision 42's launcher-cleanup claim too optimistic:
+the child vLLM process survived after the shell exited. The next local or GPU
+cell must use a shell `trap` that terminates and waits for the recorded child on
+every exit path before any live replay; no new GPU calibration has yet been
+submitted under this corrected contract.
+
+Revision 42 — 2026-09-10. Gemma R1 proved that a one-time model-authored
+rubric rewrite alone does not cure optimistic episode scoring: both baseline
+and rewritten prompts had zero truncation but violated the frozen controls.
+R2 therefore adds a model-authored, structured per-episode restatement before
+the same model produces the fixed verdict. The restatement contains only the
+objective, requirements, observed state, claims requiring verification, and
+unresolved discrepancies; it is retained with the verdict and never replaces
+the raw trajectory. This implements explain-back/re-ask without hidden
+thinking, task-specific examples, or code-side rubric rewriting. R1 also
+exposed a launcher-cleanup defect; Revision 43 supersedes the attempted R2
+repair with a required process trap.
+
+Revision 41 — 2026-09-10. The model-native prompting gate now runs against the
+actual planned GDPO judge rather than treating the smaller Spark diagnostic as
+representative. `pt-gemma-self-authored-judge-r1` was submitted to the idle
+RTX PRO 6000 with the immutable Gemma 4 12B revision, MTP-2 assistant revision,
+32,768-token context, compact xgrammar JSON, and judge thinking explicitly
+disabled. It compares the baseline and self-authored prompt/rubric candidates
+on the same frozen eight-case corpus (two deterministic repetitions each). It
+is an isolated calibration run with no policy rollouts or optimizer updates.
+Only a candidate that satisfies all schema, control, pairwise, and false-perfect
+gates may replace the fixed judge prompt for the subsequent bounded GDPO
+qualification and 50-update run.
+
+Revision 40 — 2026-09-10. Semantic calibration now uses model-native
+prompting rather than human-authored task patches. The selected judge first
+explains the fixed, domain-general episode-evaluation problem and rubric
+dimensions in its own vocabulary; a second call asks the same exact model and
+revision to synthesize a complete system prompt and seven rubric descriptions
+from that elicitation. The strict episode verdict schema, dimension identifiers,
+discrete score anchors, explanations, evidence indexes, and code-side reward
+projection remain framework-owned. Generated instructions are calibration
+artifacts, not runtime mutations: compare them with the baseline on labeled
+current-policy traces, promote only a passing candidate under a new prompt
+version and digest, and freeze it for the entire training run. No
+AutomationBench-specific example or assertion may enter the generated prompt.
+This refines task-owned scorer qualification and does not amend the frozen
+Posttrain product baseline.
+
 Revision 39 — 2026-09-10. Exact localhost request capture from R7 proved that
 the active AutomationBench judge still combined its former turn-level default
 rubric with the episode-level response schema. Spark consequently interpreted
@@ -11,7 +618,7 @@ whole-episode rubric and one compact wire schema. Integer evidence indexes are
 validated and normalized to stable native message IDs before reward admission;
 turn scope, prefix/retrospective selection, and turn annotation namespaces are
 removed from the public runtime. The candidate is committed and published at
-`carbonteq-ai/verifiers-environments@b14dfe0ba9d60184f36d78786a543242fabfb765`;
+`carbonteq-ai/verifiers-environments@1181585ea66c6f89432864a476b5110794afc9fe`;
 its 21 tests, Ruff, formatting, Pyright, lock check, and wheel build pass.
 On 14 exact captured requests, the corrected prompt changed Spark from 13/14
 length stops and 1/14 schema-valid responses in 85.13 seconds to 14/14 normal
@@ -277,6 +884,24 @@ objective. This plan does not claim benchmark reproduction or superiority.
 
 ## Progress
 
+- [x] (2026-09-10) Evaluate same-model explain-then-rephrase prompting for the
+  Spark episode judge. The reusable harness is
+  `scripts/qualification/optimize_episode_judge_prompt.py`; its separately
+  reviewable elicitation and synthesis instructions are under
+  `scripts/qualification/fixtures/episode_judge_*_v1.txt`. Eight retained
+  current-policy traces and failure controls have explicit per-dimension bounds
+  and pairwise expectations in
+  `episode_judge_on_policy_labels_v1.json`. RTX PRO run
+  `pt-spark-self-authored-judge-r8` compared the baseline and self-authored
+  prompt twice per case with thinking disabled but concise structured
+  explanations retained. Compact xgrammar made the baseline 16/16 valid with
+  zero length stops, but it passed only 57.1% of bounds and emitted 12
+  false-perfect bounded scores. The genuinely rephrased candidate reduced mean
+  output from 943 to 789 tokens, but after benign duplicate-evidence
+  normalization it was only 14/16 valid, passed 42.9% of bounds and 66.7% of
+  pairwise orderings, and retained the same 12 false-perfect scores. It is
+  rejected; no prompt version or production scorer changes.
+
 - [x] (2026-09-10) Remove the dual turn/episode AutomationBench judge contract.
   The external v0.4 package now has one episode rubric, one schema, and one
   exported judge. Exact captured-request replay eliminates the pathological
@@ -284,9 +909,10 @@ objective. This plan does not claim benchmark reproduction or superiority.
   every Posttrain source pin and active judge code revision to that commit/blob;
   retain historical turn evidence only as read-only compatibility input.
 
-- [ ] (2026-09-10) Complete the two-update Spark-no-thinking GDPO qualification.
-  The new work package is
-  `apps/lab/.posttrain/work_packages/lfm26_automationbench_gdpo_episode_2_spark_nothink_local.yaml`.
+- [x] (2026-09-11) Retire the two-update Spark-no-thinking GDPO smoke package
+  after the judge qualification was rejected and its sub-five-step run evidence
+  was purged. Keep the replay evidence below as historical diagnosis, but do not
+  retain a runnable package for a rejected judge path.
   Static composition and catalog validation pass; 40 focused common, catalog,
   and vLLM-binding tests pass. The actual-job dependency closure pins the Spark
   architecture plugin and records the current `uv.lock` digest. Acceptance
@@ -329,12 +955,11 @@ objective. This plan does not claim benchmark reproduction or superiority.
   GDPO attempt `lfm26-gdpo3-gemma12-local-20260910-r1` was cancelled while
   queued and never consumed GPU. Superseding runs must use fresh identities.
 
-- [ ] (2026-09-10) Run matched bounded OLMo3 and self-hosted-Gemma GDPO
-  qualifications before the remote two-machine topology. The exact work
-  packages are
-  `apps/lab/.posttrain/work_packages/lfm26_automationbench_olmo3_2_local_v2.yaml`
-  and
-  `apps/lab/.posttrain/work_packages/lfm26_automationbench_gdpo_episode_2_gemma_local_v2.yaml`.
+- [x] (2026-09-11) Retire the matched bounded two-update OLMo3 and duplicate
+  self-hosted-Gemma GDPO smoke packages after the campaign moved to longer
+  representative runs. The original two-update contracts and results remain
+  described below for historical diagnosis; the runnable 20/30/50-step
+  packages are the maintained comparison surface.
   Each performs two optimizer updates over eight prompt groups by four
   trajectories (32 trajectories per update, 64 nominal trajectories per arm)
   with the same LFM2.5 2.6B LoRA policy, AutomationBench task mix and rollout
@@ -901,11 +1526,12 @@ The existing canonical ownership remains unchanged: external AutomationBench
 owns seven episode rubrics; composition owns judge inference; GDPO owns credit.
 
 - [x] User approved independent whole-episode planning, logical correctness,
-  grounding, verification/self-correction, progress/efficiency, action quality,
-  and answer quality, alongside native task partial credit.
-- [x] User retained explicit relative weights: native partial credit 0.50;
-  planning 0.05; logic 0.05; grounding 0.05; verification 0.03; efficiency 0.07;
-  action 0.15; answer 0.10. The project-owned qualification profile aligns these
+  verification/self-correction, progress/efficiency, action quality, and answer
+  quality, alongside native task partial credit. Evidence grounding is a
+  cross-cutting evaluation rule rather than a reward dimension.
+- [x] User retained explicit relative weights: native partial credit 0.55;
+  planning 0.05; logic 0.05; verification 0.03; efficiency 0.07; action 0.15;
+  answer 0.10. The project-owned qualification profile aligns these
   by name and rejects schema drift. They weight normalized advantages; they are
   not percentages of actual gradient influence or guaranteed task dominance.
 - [x] External candidate plugin preserves seven scores and exact prompt strings,
@@ -2021,6 +2647,34 @@ new artifacts pass qualification.
 
 ## Surprises & Discoveries
 
+2026-09-10 prompt-calibration baseline: structural repair alone does not make a
+judge semantically useful for GDPO. On the eight labeled retained traces, the
+v6 Spark report has 87.5% valid responses, 12.5% length stops, 50% bound
+agreement, 66.7% pairwise accuracy, and ten false-perfect scores. Hand-written
+generic suffixes were discarded before qualification after clarifying the
+intended model-native prompting method. The first one-pass self-rewrite also
+exhausted 4,096 tokens; this motivated a bounded explain-then-rephrase pipeline
+whose intermediate vocabulary is retained as evidence rather than included in
+each judgment.
+
+2026-09-10 model-native elicitation: Spark's thinking-disabled response has an
+empty reasoning field, so its repeated length stops are visible-output behavior,
+not hidden reasoning. Raw capture showed the strict JSON prefix spending tokens
+on optional whitespace because vLLM's structured-output engine defaulted to
+`disable_any_whitespace=false`. The next immutable cell enables that supported
+structured-output setting. This changes serialization efficiency only; it does
+not remove the required requirement explanations, dimension reasons, evidence,
+or schema validation.
+
+The first `@6` candidate produced under compact xgrammar was only a minified
+copy of the source and was rejected as an invalid model-native experiment. A
+second elicitation exposed only an abstract objective, fixed IDs, anchors, and
+wire shape before synthesis; its resulting prompt had 0.697 normalized
+similarity, changed every rubric and shortened the system prompt from 3,917 to
+2,604 characters. Despite the genuine vocabulary change, semantic calibration
+worsened. Two repeated citations per evidence array are safely deduplicable,
+but two rows also invented out-of-range evidence index 3 and must remain invalid.
+
 2026-09-10 exact judge replay: the apparent need for ever-larger Spark output
 budgets was caused by incompatible instructions and structured output, not by
 the episode input size. R7 requests carried a turn rubric demanding a `turns`
@@ -2372,6 +3026,16 @@ The local fork checkouts do not match selected release revisions; veRL also has
 unrelated uncommitted work. Pinned-object inspection was necessary.
 
 ## Decision Log
+
+2026-09-10: Use model-native prompt calibration, not task-specific rubric
+patching. For each judge model and exact revision, elicit its own explanation,
+decision inputs, distinctions, per-dimension language, and preferred traversal
+of the fixed structured response; then ask the same model to synthesize the
+complete generic prompt and rubric text. Do not let the model change dimension
+IDs or the `EpisodeVerdict` wire contract, do not let it perform reward
+aggregation, and do not regenerate prompts during training. Code validates and
+projects scores. A new model, model revision, or accepted prompt creates a new
+immutable scorer identity and requires replay calibration.
 
 2026-09-10: AutomationBench exposes one whole-episode judge API. Rubric detail
 is task-owned scorer policy and does not change trainer algorithm semantics, but
@@ -2726,6 +3390,15 @@ algorithm reproduction, and policy quality are different claims.
 
 ## Outcomes & Retrospective
 
+2026-09-10 model-native-prompting checkpoint: the calibration harness,
+model-independent meta-prompts, labeled current-policy corpus, unit tests, and
+local dstack replay definition are present. The baseline is formally rejected;
+no generated candidate is promoted and no training qualification is claimed
+until a live two-pass replay passes every semantic and structural gate. The
+Spark candidate did not: it was materially cheaper but worse on validity,
+defect-sensitive bounds, and pairwise ordering, so no prompt was selected and
+GDPO training must not use this experiment as judge qualification.
+
 2026-09-10 judge-contract checkpoint: the production-request reproducer and
 three-pair input/output artifact make the failure inspectable without rerunning
 training. The v0.4 external environment candidate removes the old runtime path
@@ -2897,7 +3570,7 @@ The current isolated fork worktree is `/home/hammad/projects/verifiers`, branch
 `5304495a246e174683f5932377703e9a0a4a6926`. The current environments worktree
 is `/home/hammad/projects/verifiers-environments`, branch
 `codex/verifiers-latest-support`, published at
-`b14dfe0ba9d60184f36d78786a543242fabfb765`. This environment revision aligns
+`1181585ea66c6f89432864a476b5110794afc9fe`. This environment revision aligns
 all six standalone packages on the selected Verifiers fork and passes a
 combined wheel activation gate. Neither development branch is a release tag;
 package artifacts and the complete release-readiness receipt remain explicit

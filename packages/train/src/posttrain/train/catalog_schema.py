@@ -220,6 +220,7 @@ class SAMPOSettingsSchema(TrainCatalogSchema):
     dynamic_sampling: DynamicGroupSamplingSchema = Field(
         default_factory=lambda: DynamicGroupSamplingSchema(max_candidate_batches=3)
     )
+    shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
 
 
@@ -235,6 +236,7 @@ class StructuredRLSettingsSchema(TrainCatalogSchema):
     clip_epsilon_low: float = Field(default=0.2, gt=0, lt=1, allow_inf_nan=False)
     clip_epsilon_high: float = Field(default=0.2, gt=0, allow_inf_nan=False)
     max_admission_attempts: int = Field(default=3, gt=0)
+    shuffle_prompts: bool = False
 
 
 class GDPOSettingsSchema(StructuredRLSettingsSchema):

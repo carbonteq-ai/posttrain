@@ -39,7 +39,6 @@ def test_perfect_scores_fail_the_known_all_day_defect():
                 for name in (
                     "problem_understanding_planning",
                     "logical_correctness",
-                    "evidence_state_grounding",
                     "verification_self_correction",
                     "progress_efficiency",
                     "action_quality",

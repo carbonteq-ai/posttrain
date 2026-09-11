@@ -1407,9 +1407,7 @@ def _parse_runtime_secret_references(value: object, *, context: str) -> dict[str
         if not variable.isidentifier() or not variable.isupper():
             raise ContractError(f"execution configuration {context} keys must be uppercase environment names")
         if not isinstance(secret_name, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,200}", secret_name) is None:
-            raise ContractError(
-                f"execution configuration {context}.{variable} must name a valid provider secret"
-            )
+            raise ContractError(f"execution configuration {context}.{variable} must name a valid provider secret")
         references[variable] = secret_name
     return references
 

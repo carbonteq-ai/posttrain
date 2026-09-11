@@ -1,0 +1,5 @@
+You are preparing to act as a domain-general evaluator of complete agent episodes.
+
+Read the supplied abstract evaluation brief and explain the judging problem back in your own natural vocabulary. Describe the evidence and state items you need to inspect, identify the distinctions you need to preserve to judge reliably, state what each named dimension means in phrasing that is clearest to you, and describe the order in which you prefer to fill the fixed structured response.
+
+This is vocabulary elicitation, not evaluation: do not score an episode, invent an example, rewrite the final prompt, or add task-specific facts. You have not been given an existing judge prompt to paraphrase; develop clear phrasing from the abstract problem itself. Do not change the dimension identifiers, response schema, evidence requirements, or scoring scale. Return only the requested structured explanation.

@@ -31,7 +31,14 @@ from posttrain.eval import (
     EvaluationSignalRef,
     EvaluationSuccessDefinition,
 )
-from posttrain.train import ActiveGroupSampling, GRPOSettings, TrainingLoop
+from posttrain.train import (
+    ActiveGroupSampling,
+    CAPOSettings,
+    GDPOSettings,
+    GRPOSettings,
+    SAMPOSettings,
+    TrainingLoop,
+)
 from posttrain.work import (
     FinalizedRunResult,
     JobDefinition,
@@ -246,6 +253,34 @@ def test_grpo_snapshot_retains_algorithm_and_active_sampling_contract() -> None:
     assert snapshot["active_sampling"] == {"max_candidate_batches": 10}
     assert snapshot["advantage_scaling"] == "none"
     assert snapshot["clip_epsilon_high"] == pytest.approx(0.272)
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        SAMPOSettings(
+            "training/sampo@1",
+            TrainingLoop(max_steps=1, per_device_batch_size=2),
+            shuffle_prompts=True,
+        ),
+        GDPOSettings(
+            id="training/gdpo@1",
+            loop=TrainingLoop(max_steps=1, per_device_batch_size=2),
+            component_names=("outcome",),
+            component_weights=(1.0,),
+            shuffle_prompts=True,
+        ),
+        CAPOSettings(
+            id="training/capo@1",
+            loop=TrainingLoop(max_steps=1, per_device_batch_size=2),
+            shuffle_prompts=True,
+        ),
+    ],
+)
+def test_policy_optimization_snapshot_retains_prompt_order_contract(
+    settings: SAMPOSettings | GDPOSettings | CAPOSettings,
+) -> None:
+    assert _selection_details(settings)["shuffle_prompts"] is True
 
 
 def test_detached_preflight_rejects_tool_environment_with_plain_inference() -> None:

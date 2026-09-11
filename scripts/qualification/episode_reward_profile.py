@@ -5,10 +5,9 @@ They express relative priorities, not guaranteed shares of optimizer influence.
 """
 
 EPISODE_COMPONENT_WEIGHTS = {
-    "partial_credit": 0.50,
+    "partial_credit": 0.55,
     "problem_understanding_planning": 0.05,
     "logical_correctness": 0.05,
-    "evidence_state_grounding": 0.05,
     "verification_self_correction": 0.03,
     "progress_efficiency": 0.07,
     "action_quality": 0.15,

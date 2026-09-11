@@ -785,6 +785,7 @@ def _seat_attributes(
                 "step_advantage_weight": request.settings.step_advantage_weight,
                 "advantage_normalization": request.settings.advantage_normalization,
                 "mask_truncated_completions": request.settings.mask_truncated_completions,
+                "shuffle_prompts": request.settings.shuffle_prompts,
                 "dynamic_sampling_max_candidate_batches": (request.settings.dynamic_sampling.max_candidate_batches),
                 "environment_id": request.environment.id,
                 "environment_revision": request.environment.revision,
@@ -796,6 +797,8 @@ def _seat_attributes(
         if request.quantization is not None:
             attributes["quantization_plan_id"] = request.quantization.id
             attributes["quantization_recipe_digest"] = request.quantization.recipe_digest
+    if isinstance(request, GDPORequest | CAPORequest):
+        attributes["shuffle_prompts"] = request.settings.shuffle_prompts
     if isinstance(request, OnPolicyDistillationRequest):
         attributes.update(
             {
