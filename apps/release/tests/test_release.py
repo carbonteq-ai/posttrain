@@ -25,7 +25,7 @@ from posttrain.runtime_images.manifest import ManifestError, PublishedImage, Pub
 from posttrain_release.artifacts import create_distribution_receipt, verify_distribution_receipt
 from posttrain_release.candidate import next_candidate_version
 from posttrain_release.cli import main
-from posttrain_release.fork_ledger import load_fork_ledger, render_fork_ledger
+from posttrain_release.fork_ledger import load_fork_ledger, render_fork_ledger, verify_required_fork_index
 from posttrain_release.manifest_render import render_manifest
 from posttrain_release.promotion import create_promotion_receipt
 from posttrain_release.readiness import (
@@ -1180,6 +1180,11 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "packages/runtime-images/src/posttrain/runtime_images/published.toml) ;;" in final
     assert "candidate build inputs changed:" in final
     assert "Prove a clean stable-index consumer install" in final
+    assert "Verify required maintained forks are stable" in final
+    assert "posttrain-release fork-index-check" in final
+    assert final.index("Verify required maintained forks are stable") < final.index(
+        "Publish the final version only to the stable index"
+    )
     assert '[[ "${candidate_version}" =~ ^${release_version' in final
     assert "rc[1-9][0-9]*$ ]]" in final
     assert 'test "$(jq -r \'.source_sha // empty\' "${candidate_readiness}")" = "${candidate_sha}"' in final
@@ -1194,6 +1199,8 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'gh run view "${RESUME_FROM_RUN_ID}"' in final
     assert "workflowName // empty" in final
     assert "conclusion // empty" in final
+    assert "success|failure" in final
+    assert "release resume source must be a completed success or failure" in final
     assert "gh run download" in final
     assert 'git merge-base --is-ancestor "${source_sha}"' in final
     assert 'git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_TAG_SHA}"' in final
@@ -1249,6 +1256,36 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
     assert "/usr/local/share/ca-certificates/carbonteq-local-ai-caddy.crt" in runtime_candidate
     assert "--trust-bundle /etc/ssl/certs/ca-certificates.crt" not in runtime_candidate
     assert "            uv.lock" in runtime_candidate
+
+
+def test_required_fork_index_check_uses_every_python_fork_hash(monkeypatch: pytest.MonkeyPatch) -> None:
+    import posttrain_release.fork_ledger as fork_ledger
+
+    captured: dict[str, object] = {}
+
+    def verify(packages: object, artifacts: object, simple_base_url: str) -> None:
+        captured.update(packages=packages, artifacts=artifacts, simple_base_url=simple_base_url)
+
+    monkeypatch.setattr(fork_ledger, "verify_index_artifacts", verify)
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+
+    assert verify_required_fork_index(root, "https://stable.example/+simple/") == (
+        "carbonteq-trackio",
+        "trl",
+        "verl",
+    )
+    assert captured["packages"] == ["carbonteq-trackio", "trl", "verl"]
+    assert captured["simple_base_url"] == "https://stable.example/+simple/"
+    artifacts = captured["artifacts"]
+    assert isinstance(artifacts, list)
+    assert {item["filename"] for item in artifacts} == {
+        "carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl",
+        "carbonteq_trackio-0.31.5.post14.dev23.tar.gz",
+        "trl-1.12.0.post8-py3-none-any.whl",
+        "trl-1.12.0.post8.tar.gz",
+        "verl-0.9.0.post2-py3-none-any.whl",
+        "verl-0.9.0.post2.tar.gz",
+    }
 
 
 @pytest.mark.skipif(which("uv") is None, reason="requires uv to validate the staged workspace lock")

@@ -16,6 +16,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from .artifacts import verify_index_artifacts
+
 _LEDGER = Path("release/forks.toml")
 _TRACKIO = Path("packages/tracking-trackio/pyproject.toml")
 _TRAIN = Path("packages/train/pyproject.toml")
@@ -83,6 +85,43 @@ def render_fork_ledger(repository_root: Path) -> dict[str, object]:
         "schema": "posttrain.fork-ledger.v1",
         "entries": [entry.to_dict() for entry in load_fork_ledger(repository_root)],
     }
+
+
+def verify_required_fork_index(repository_root: Path, simple_base_url: str) -> tuple[str, ...]:
+    """Prove every required Python fork is byte-identical in one index."""
+
+    selected: list[ForkLedgerEntry] = []
+    packages: list[str] = []
+    artifacts: list[dict[str, str]] = []
+    for entry in load_fork_ledger(repository_root):
+        wheel_sha256 = entry.artifacts.get("wheel_sha256")
+        sdist_sha256 = entry.artifacts.get("sdist_sha256")
+        if (
+            not entry.required
+            or entry.scope not in {"direct-package", "runtime-kind"}
+            or wheel_sha256 is None
+            or sdist_sha256 is None
+        ):
+            continue
+        if entry.version is None:
+            raise ValueError(f"required Python fork {entry.id!r} has no version")
+        distribution = entry.id.replace("-", "_")
+        packages.append(entry.id)
+        artifacts.extend(
+            (
+                {
+                    "filename": f"{distribution}-{entry.version}-py3-none-any.whl",
+                    "sha256": wheel_sha256,
+                },
+                {
+                    "filename": f"{distribution}-{entry.version}.tar.gz",
+                    "sha256": sdist_sha256,
+                },
+            )
+        )
+        selected.append(entry)
+    verify_index_artifacts(packages, artifacts, simple_base_url)
+    return tuple(entry.id for entry in selected)
 
 
 def _declared_entries(root: Path) -> tuple[dict[str, Any], ...]:
