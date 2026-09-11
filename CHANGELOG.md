@@ -43,6 +43,10 @@ submission.
 - Work execution delegates the bounded artifact-drain timeout to the selected
   tracking backend instead of imposing a shorter framework-wide constant, so
   large model artifacts honor Trackio's configured finalization window.
+- Provider cleanup distinguishes a durably queued exact-worker cleanup from a
+  fatal cleanup error. Queued dstack cleanup receives highest scheduling
+  priority while terminal-marker-based infrastructure retention remains the
+  fallback when a single-slot worker is occupied.
 
 ### Release gates still open
 

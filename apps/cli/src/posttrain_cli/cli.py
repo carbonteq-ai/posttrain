@@ -10,6 +10,7 @@ from collections.abc import Sequence
 
 import click
 from posttrain.common import ContractError
+from posttrain.execution import ProviderCleanupDeferred
 
 from .app import create_app
 from .errors import error_message
@@ -37,6 +38,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return int(exc.exit_code)
     except click.Abort:
         return 1
+    except ProviderCleanupDeferred as error:
+        if want_traceback:
+            traceback.print_exc(file=sys.stderr)
+        print(f"deferred: {error_message(error)}", file=sys.stderr)
+        return 75
     except (
         ContractError,
         FileExistsError,

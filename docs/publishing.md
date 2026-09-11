@@ -237,9 +237,13 @@ and defeats stale runner cache state.
 After the real job reaches a terminal state, candidate cleanup is also a gate.
 The exact-worker purge may remain submitted briefly while dstack releases the
 worker. The workflow retries the same immutable cleanup request for up to three
-minutes and accepts the candidate only after cleanup evidence is terminal; it
-does not create parallel purge tasks or silently turn pending cleanup into a
-successful release.
+minutes. A fatal scope, identity, or cleanup-command error rejects the
+candidate. If the exact provider task is still durably queued because another
+workload occupies the single-slot worker, the CLI returns temporary-failure
+status 75 and the candidate records the deferral without relabeling it as a
+workload failure. The cleanup task has highest dstack scheduling priority and
+the terminal-marker-validated infrastructure retention timer remains the
+bounded final authority; no parallel purge task is created.
 
 Do not dispatch until maintained-fork assets have immutable release hashes and
 their required server revisions are deployed. Private-CA validation, live

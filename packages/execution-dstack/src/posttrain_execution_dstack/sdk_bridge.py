@@ -315,6 +315,10 @@ def cleanup_workspace(payload):
         "name": str(payload["cleanup_run_name"]),
         "image": str(payload["image"]),
         "commands": [_cleanup_command()],
+        # Cleanup is short control-plane work that releases run-scoped worker
+        # storage. Give an already-queued cleanup precedence over new workload
+        # without preempting a workload that is already running.
+        "priority": 100,
         "instances": [{"hostname": expected_hostname}],
         "volumes": [
             {

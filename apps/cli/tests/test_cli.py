@@ -39,6 +39,7 @@ from posttrain.execution import (
     JobPackageManifest,
     LogCursor,
     LogPage,
+    ProviderCleanupDeferred,
     RuntimeImageRef,
     TrackingCancellationRecovery,
 )
@@ -1334,6 +1335,27 @@ def test_expected_errors_do_not_print_tracebacks(tmp_path: Path, capsys) -> None
     captured = capsys.readouterr()
     assert "error:" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_deferred_provider_cleanup_has_temporary_failure_exit_code(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    def deferred_app(*, json_stream):
+        del json_stream
+
+        def invoke(*, args, standalone_mode):
+            del args, standalone_mode
+            raise ProviderCleanupDeferred("exact cleanup is durably queued")
+
+        return invoke
+
+    monkeypatch.setattr("posttrain_cli.cli.create_app", deferred_app)
+
+    assert main(["run", "cleanup", "run-1"]) == 75
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "deferred: exact cleanup is durably queued\n"
 
 
 def test_work_package_validate_resolves_project_catalog_seats(

@@ -1081,6 +1081,8 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert 'run reconcile \\\n            "release-' in workflow
         assert "for cleanup_attempt in $(seq 1 18)" in workflow
         assert "waiting for exact-worker cleanup evidence" in workflow
+        assert 'if [[ "${cleanup_status}" -eq 75 ]]' in workflow
+        assert "bounded worker retention remains authoritative" in workflow
         assert 'if [[ "${status}" -eq 0 && "${cleanup_status}" -ne 0 ]]' in workflow
 
     assert 'framework_wheelhouse="$(realpath .release/wheelhouse)"' in candidate

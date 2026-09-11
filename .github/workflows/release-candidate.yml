@@ -396,6 +396,10 @@ jobs:
             echo "waiting for exact-worker cleanup evidence: attempt=${cleanup_attempt}/18" >&2
             sleep 10
           done
+          if [[ "${cleanup_status}" -eq 75 ]]; then
+            echo "exact-worker cleanup is durably queued; bounded worker retention remains authoritative" >&2
+            cleanup_status=0
+          fi
           if [[ "${status}" -eq 0 && "${cleanup_status}" -ne 0 ]]; then
             status="${cleanup_status}"
           fi

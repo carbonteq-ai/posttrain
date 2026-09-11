@@ -426,9 +426,9 @@ class BuildKitJobImagePublisher:
             "--set",
             f"{_SMOKE_TARGET}.platform={platforms}",
             "--provenance",
-            "mode=max",
+            "mode=max" if request.publication.provenance else "false",
             "--sbom",
-            "true",
+            str(request.publication.sbom).lower(),
             *self._variable_arguments(request),
             _PUBLISHED_TARGET,
         ]

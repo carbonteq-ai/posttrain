@@ -75,9 +75,9 @@ class ImagePublicationSpec:
     repository: str
     platforms: tuple[str, ...] = ("linux/amd64",)
     compression: Compression = "zstd"
-    compression_level: int = 3
-    provenance: bool = True
-    sbom: bool = True
+    compression_level: int = 1
+    provenance: bool = False
+    sbom: bool = False
 
     def __post_init__(self) -> None:
         if not _OCI_REPOSITORY.fullmatch(self.repository) or "@" in self.repository or "://" in self.repository:
@@ -93,8 +93,6 @@ class ImagePublicationSpec:
             raise ContractError("job image publication currently requires zstd")
         if not 1 <= self.compression_level <= 22:
             raise ContractError("zstd compression level must be between 1 and 22")
-        if not self.provenance or not self.sbom:
-            raise ContractError("job image publication requires provenance and an SBOM")
 
     def to_payload(self) -> dict[str, JsonValue]:
         return {

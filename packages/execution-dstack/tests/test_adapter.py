@@ -494,6 +494,7 @@ def test_sdk_cleanup_returns_deferred_evidence_for_queued_exact_worker_task(
         "reclaimed_bytes": 0,
     }
     assert configurations[0]["retry"] == {"on_events": ["no-capacity"], "duration": 86_400}
+    assert configurations[0]["priority"] == 100
 
 
 @pytest.mark.parametrize(
