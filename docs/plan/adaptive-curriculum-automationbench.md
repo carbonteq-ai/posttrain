@@ -37,6 +37,7 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 - [x] (2026-09-12) Replaced the reward-mean proxy with a posterior over the actual positive-variance admission event, bounded class shrinkage to two pseudo-observations, exposed current task variance and pre-selection task priority in controller audit records, and advanced the adaptive selection revision to `3`.
 - [x] (2026-09-12) Added distinct-task uncertainty to class discovery, cumulative class-coverage accounting, adaptive discovery above the 20% floor, and a task score that predicts the next mixed group from both recent reward level and observed variance; advanced the adaptive selection revision to `4`.
 - [x] (2026-09-12) Qualified the selection machinery offline over 400 paired synthetic runs and preserved row-level CSV/JSONL, aggregate paired intervals, and an analytical report. Adaptive sampling used fewer candidates in four profiles and more in the deliberately adverse fast-saturation profile.
+- [x] (2026-09-12) Committed and pushed revision 4 as `30e1daf8`, built immutable job image `sha256:4b5b42c36408bb5a345e857c2f30d3be2a017a241722bc7a0508c539cd395c96`, and submitted run `lfm26-olmo3-adaptive20-discovery-v4-20260912-r1` (`pt-7a96839c766b4ca72a2baa71`).
 
 ## Surprises & Discoveries
 
@@ -192,6 +193,8 @@ The revised treatment run is `lfm26-olmo3-adaptive20-discovery-v2-20260912-r1`; 
 The live Trackio event stream confirms that the treatment process constructed the controller with 160 tasks, seven classes, `class_exploration=0.2`, and `task_discovery=0.2`. Its first step selected eight distinct unseen task identities and recorded `duplicate_fallbacks=0`. The first rollout population was still running when this evidence was recorded, so reward and optimizer comparisons remain pending.
 
 The offline controller experiment is reproducible with `uv run python docs/research/proposals/simulations/controller_policy_experiment.py`. Its row-level outputs and analysis are under `docs/research/proposals/simulations/`. They qualify controller selection and accounting only; the next revision-4 AutomationBench run remains the model-learning qualification.
+
+Revision 4 is scheduled as `lfm26-olmo3-adaptive20-discovery-v4-20260912-r1`, provider run `pt-7a96839c766b4ca72a2baa71`. It uses immutable image `registry.lan/carbonteq/posttrain-lab/posttrain-job@sha256:4b5b42c36408bb5a345e857c2f30d3be2a017a241722bc7a0508c539cd395c96`. The earlier revision-2 run is cancelled and its provider state is terminated.
 
 ## Validation and Acceptance
 
