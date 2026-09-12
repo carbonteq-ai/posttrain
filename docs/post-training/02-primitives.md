@@ -594,10 +594,12 @@ not DAPO flags.
 policy rather than an update objective. It names a class field already carried
 by the resolved environment tasks and uses completed rollout evidence to choose
 future classes and tasks. The environment still owns the task population and
-reward meaning. `class_exploration` mixes a nonzero base component into class
-choice. `task_discovery` separately reserves a cumulative fraction of candidate
-groups for task identities not yet selected in the run; fractional obligations
-carry across initial and refill requests. The controller remembers every task
+reward meaning. `class_exploration` reserves a cumulative fraction of candidate
+groups for base-distribution class coverage. `task_discovery` independently
+reserves a cumulative fraction for task identities not yet selected in the run;
+fractional obligations carry across initial and refill requests. That discovery
+fraction is a floor: other slots may also select unseen tasks when their
+predicted yield exceeds the familiar pool. The controller remembers every task
 identity proposed in the current optimizer step, including rejected refill
 groups, and excludes them while distinct candidates remain. Exhausted
 inventory degrades to recorded repeat selection instead of failing training. The

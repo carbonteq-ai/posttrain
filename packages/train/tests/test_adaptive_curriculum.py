@@ -46,13 +46,15 @@ def _controller(
     history_groups: int = 2,
     task_classes: Mapping[str, str] | None = None,
     restored_state: Mapping[str, object] | None = None,
+    class_exploration: float = 0.2,
+    task_discovery: float = 0.2,
 ) -> AdaptiveCurriculumController:
     return AdaptiveCurriculumController(
         task_classes or {**{f"a{i}": "a" for i in range(1, 7)}, **{f"b{i}": "b" for i in range(1, 7)}},
         AdaptiveCurriculum(
             "domain",
-            class_exploration=0.2,
-            task_discovery=0.2,
+            class_exploration=class_exploration,
+            task_discovery=task_discovery,
             history_groups=history_groups,
             seed=7,
         ),
@@ -67,7 +69,8 @@ def test_controller_starts_equal_without_reading_hidden_task_difficulty() -> Non
 
     initial = controller.select(8, step=1)
 
-    assert initial.class_probabilities == {"a": 0.5, "b": 0.5}
+    assert initial.class_discovery_priorities["a"] == initial.class_discovery_priorities["b"]
+    assert sum(initial.class_probabilities.values()) == pytest.approx(1.0)
     assert set(initial.task_priorities) == set(initial.task_ids)
     assert len(initial.task_ids) == len(set(initial.task_ids)) == 8
     assert initial.discovery_reserved == 1
@@ -135,6 +138,40 @@ def test_class_evidence_is_a_bounded_prior_not_a_replacement_for_task_history() 
     assert controller.task_priority("positive") > controller.task_priority("zero")
 
 
+def test_class_discovery_uses_sample_uncertainty_without_counting_repeat_groups_as_tasks() -> None:
+    task_classes = {
+        **{f"few-{index}": "few" for index in range(5)},
+        **{f"many-{index}": "many" for index in range(100)},
+    }
+    controller = _controller(RecordingBackend(), task_classes=task_classes)
+    useful = [0.0, 1.0, 0.0, 1.0]
+    constant = [1.0, 1.0, 1.0, 1.0]
+    controller.observe(
+        [
+            *((f"few-{index}", useful if index < 2 else constant) for index in range(5)),
+            *((f"many-{index}", useful if index < 2 else constant) for index in range(100)),
+        ],
+        step=1,
+    )
+
+    decision = controller.select(1, step=2)
+
+    assert decision.class_discovery_priorities["few"] > decision.class_discovery_priorities["many"]
+
+
+def test_recent_task_outcomes_have_more_weight_than_older_outcomes() -> None:
+    older_useful = _controller(RecordingBackend(), task_classes={"task": "shared"}, history_groups=4)
+    newer_useful = _controller(RecordingBackend(), task_classes={"task": "shared"}, history_groups=4)
+    useful = [0.0, 1.0, 0.0, 1.0]
+    constant = [1.0, 1.0, 1.0, 1.0]
+    older_useful.observe([("task", useful)], step=1)
+    older_useful.observe([("task", constant)], step=2)
+    newer_useful.observe([("task", constant)], step=1)
+    newer_useful.observe([("task", useful)], step=2)
+
+    assert newer_useful.task_priority("task") > older_useful.task_priority("task")
+
+
 def test_representative_class_evidence_guides_unseen_tasks_without_marking_them_solved() -> None:
     controller = _controller(RecordingBackend())
     controller.observe(
@@ -190,6 +227,38 @@ def test_cumulative_discovery_reserve_survives_small_requests() -> None:
     assert [decision.discovery_reserved for decision in decisions] == [0, 0, 0, 0, 1]
     assert decisions[-1].discovery_shortfall == 0
     assert "reserved_discovery" in decisions[-1].selection_reasons
+
+
+def test_cumulative_class_coverage_survives_small_requests() -> None:
+    controller = _controller(
+        RecordingBackend(),
+        class_exploration=0.2,
+        task_discovery=0.0,
+    )
+
+    decisions = [controller.select(1, step=index + 1) for index in range(5)]
+
+    assert [decision.class_coverage_reserved for decision in decisions] == [0, 0, 0, 0, 1]
+    assert decisions[-1].class_coverage_fulfilled == 1
+    assert decisions[-1].selection_components == ("coverage",)
+
+
+def test_discovery_fraction_is_a_floor_when_familiar_tasks_predict_no_contrast() -> None:
+    controller = _controller(
+        RecordingBackend(),
+        task_classes={f"task-{index}": "shared" for index in range(40)},
+    )
+    initial = controller.select(10, step=1)
+    controller.observe(
+        [(task_id, [1.0, 1.0, 1.0, 1.0]) for task_id in initial.task_ids],
+        step=1,
+    )
+
+    adapted = controller.select(10, step=2)
+
+    assert adapted.discovery_reserved == 2
+    assert adapted.new_tasks_selected > adapted.discovery_reserved
+    assert "additional_discovery" in adapted.selection_reasons
 
 
 def test_fresh_mixed_evidence_changes_later_selection_probabilities() -> None:

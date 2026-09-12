@@ -35,6 +35,8 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 - [x] (2026-09-12) Separated standard GRPO, OLMo active-sampling, and adaptive-controller evidence in Observatory; added controller-owned projection metrics and a per-step class allocation view beside traces.
 - [x] (2026-09-12) Diagnosed the first six adaptive steps: reused tasks with prior positive variance yielded usable groups 61.1% of the time, while reused tasks with prior zero variance yielded 18.4%; the controller nevertheless divided reuse almost evenly because its reward-mean proxy and unbounded class prior overwhelmed task variance history.
 - [x] (2026-09-12) Replaced the reward-mean proxy with a posterior over the actual positive-variance admission event, bounded class shrinkage to two pseudo-observations, exposed current task variance and pre-selection task priority in controller audit records, and advanced the adaptive selection revision to `3`.
+- [x] (2026-09-12) Added distinct-task uncertainty to class discovery, cumulative class-coverage accounting, adaptive discovery above the 20% floor, and a task score that predicts the next mixed group from both recent reward level and observed variance; advanced the adaptive selection revision to `4`.
+- [x] (2026-09-12) Qualified the selection machinery offline over 400 paired synthetic runs and preserved row-level CSV/JSONL, aggregate paired intervals, and an analytical report. Adaptive sampling used fewer candidates in four profiles and more in the deliberately adverse fast-saturation profile.
 
 ## Surprises & Discoveries
 
@@ -52,6 +54,12 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 
 - Observation: the live revision-2 controller history predicts OLMo admission, but the implemented priority did not use that prediction directly.
   Evidence: across 118 reconstructed candidate groups from one live snapshot, 36 reused tasks with prior positive variance produced another positive-variance group 61.1% of the time; 38 reused tasks with prior zero variance did so 18.4% of the time. The reuse population was therefore divided almost evenly despite a large observed yield difference. Constant fractional rewards reveal the mismatch: OLMo rejects `[0.2, 0.2, 0.2, 0.2]`, while a Beta-Bernoulli model fitted to reward mean predicts mixed binary outcomes.
+
+- Observation: a fixed 20% discovery ceiling is inefficient when familiar tasks saturate, while a fixed 20% floor alone does not guarantee that adaptive reuse beats broad without-replacement sampling.
+  Evidence: the final 40-seed paired simulation lets additional discovery compete with familiar practice by predicted yield. It reduced candidate groups in normal, regression, persistent-noise, and rare-geometry profiles. In the fast-saturation profile it still used 14.25 more candidate groups on average because every fresh task was useful and reused tasks lost contrast almost immediately.
+
+- Observation: uncertainty must depend on the number of distinct tasks supporting a class estimate.
+  Evidence: two useful tasks among five produce a much wider Beta posterior and a higher optimistic discovery index than two useful tasks among one hundred. Repeated groups from one task update that task but cannot multiply the class sample size.
 
 - Observation: the machine config contains a retired `[providers.dstack.runtime_secrets]` table while this checkout reads runtime credentials from `[services.runtime_credentials]`.
   Evidence: `posttrain machine show` rejected `providers.dstack.runtime_secrets` as an unknown field. Qualification commands use an ephemeral config copy with only the retired duplicate table removed; the user's config remains unchanged.
@@ -100,8 +108,12 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
   Rationale: the pinned fork already projects only requested JSON fields and attributes and drops unrelated rows. The controller emits eight low-cardinality series; Observatory requests those series and reconstructs the class distribution. Trackio remains generic and the current run remains readable through event fallback because its image predates these metrics.
   Date/Author: 2026-09-12 / Codex
 
-- Decision: Estimate task utility as a smoothed empirical probability of positive within-group variance, using recent task groups as Bernoulli admission observations and class evidence as a fixed-strength prior.
-  Rationale: this target matches both vanilla GRPO's need for relative signal and OLMo 3's actual retain predicate. A fixed two-observation class prior transfers evidence to unseen or sparse tasks without allowing a large class to erase contradictory task history. Coverage and cumulative discovery continue to revisit low-scoring tasks as the student changes.
+- Decision: Estimate familiar-task utility as the posterior probability that the next reward group is mixed, multiplied by a recency-weighted empirical useful-group rate. Use separate fixed-strength class priors for success level and useful-group yield.
+  Rationale: reward level makes the score fall as a task approaches all-success or all-failure, while the empirical factor prevents constant continuous rewards at an intermediate value from being mistaken for likely contrast. A fixed two-observation class prior transfers evidence without allowing a large class to erase contradictory recent task history.
+  Date/Author: 2026-09-12 / Codex
+
+- Decision: Treat 20% task discovery as a cumulative floor. On nonreserved slots, let unseen-class yield compete with familiar-task yield so the controller may discover more tasks when known tasks have weak predicted contrast.
+  Rationale: the controller should need no fixed run length or fixed batch size, and a saturated familiar pool should release budget automatically. The floor still guarantees breadth when reuse appears attractive.
   Date/Author: 2026-09-12 / Codex
 
 - Decision: Qualify the first implementation on one training process.
@@ -178,6 +190,8 @@ The exact run and log inspection commands will be added here after launch becaus
 The revised treatment run is `lfm26-olmo3-adaptive20-discovery-v2-20260912-r1`; its dstack provider id is `pt-315a5edf6ca3a900440b5af2`.
 
 The live Trackio event stream confirms that the treatment process constructed the controller with 160 tasks, seven classes, `class_exploration=0.2`, and `task_discovery=0.2`. Its first step selected eight distinct unseen task identities and recorded `duplicate_fallbacks=0`. The first rollout population was still running when this evidence was recorded, so reward and optimizer comparisons remain pending.
+
+The offline controller experiment is reproducible with `uv run python docs/research/proposals/simulations/controller_policy_experiment.py`. Its row-level outputs and analysis are under `docs/research/proposals/simulations/`. They qualify controller selection and accounting only; the next revision-4 AutomationBench run remains the model-learning qualification.
 
 ## Validation and Acceptance
 

@@ -17,8 +17,9 @@ from typing import Protocol, cast
 
 from .profiles import AdaptiveCurriculum
 
-_STATE_VERSION = 3
+_STATE_VERSION = 4
 _CLASS_PRIOR_STRENGTH = 2.0
+_CLASS_UNCERTAINTY_WEIGHT = 1.0
 
 
 class CurriculumStateBackend(Protocol):
@@ -41,6 +42,7 @@ class CurriculumDecision:
     class_probabilities: Mapping[str, float]
     task_probabilities: Mapping[str, float]
     task_priorities: Mapping[str, float]
+    class_discovery_priorities: Mapping[str, float]
     selected_classes: Mapping[str, int]
     selected_tasks: Mapping[str, int]
     selection_kind: str = "initial_batch"
@@ -49,6 +51,8 @@ class CurriculumDecision:
     discovery_fulfilled: int = 0
     new_tasks_selected: int = 0
     discovery_shortfall: int = 0
+    class_coverage_reserved: int = 0
+    class_coverage_fulfilled: int = 0
     duplicate_fallbacks: int = 0
     selection_reasons: tuple[str, ...] = ()
     selection_components: tuple[str, ...] = ()
@@ -64,6 +68,7 @@ class CurriculumDecision:
             "class_probabilities": dict(self.class_probabilities),
             "task_probabilities": dict(self.task_probabilities),
             "task_priorities": dict(self.task_priorities),
+            "class_discovery_priorities": dict(self.class_discovery_priorities),
             "selected_classes": dict(self.selected_classes),
             "selected_tasks": dict(self.selected_tasks),
             "selection_kind": self.selection_kind,
@@ -72,6 +77,8 @@ class CurriculumDecision:
             "discovery_fulfilled": self.discovery_fulfilled,
             "new_tasks_selected": self.new_tasks_selected,
             "discovery_shortfall": self.discovery_shortfall,
+            "class_coverage_reserved": self.class_coverage_reserved,
+            "class_coverage_fulfilled": self.class_coverage_fulfilled,
             "duplicate_fallbacks": self.duplicate_fallbacks,
             "selection_reasons": list(self.selection_reasons),
             "selection_components": list(self.selection_components),
@@ -334,6 +341,12 @@ class AdaptiveCurriculumController:
             group_count,
             self.settings.task_discovery,
         )
+        class_coverage_reserved = _cumulative_quota(
+            self._candidate_count,
+            group_count,
+            self.settings.class_exploration,
+        )
+        class_coverage_offsets = set(rng.sample(range(group_count), class_coverage_reserved))
         selected: list[str] = []
         reasons: list[str] = []
         components: list[str] = []
@@ -343,11 +356,14 @@ class AdaptiveCurriculumController:
         class_probability_sums = {class_id: 0.0 for class_id in self.tasks_by_class}
         duplicate_fallbacks = 0
         reserved_fulfilled = 0
+        class_coverage_fulfilled = 0
         new_selected = 0
         for offset in range(group_count):
             wants_discovery = offset < discovery_reserved
+            wants_class_coverage = offset in class_coverage_offsets
             task_id, probability, class_probabilities, reason, component, repeated = self._select_one(
                 wants_discovery=wants_discovery,
+                wants_class_coverage=wants_class_coverage,
                 rng=rng,
             )
             was_seen = task_id in self._seen
@@ -366,6 +382,8 @@ class AdaptiveCurriculumController:
                 self._seen.add(task_id)
                 if wants_discovery:
                     reserved_fulfilled += 1
+            if component == "coverage":
+                class_coverage_fulfilled += 1
             self._step_selected.add(task_id)
             self._last_selected[task_id] = self._candidate_count
             self._candidate_count += 1
@@ -382,6 +400,10 @@ class AdaptiveCurriculumController:
             class_probabilities=class_probabilities,
             task_probabilities=task_probabilities,
             task_priorities=task_priorities,
+            class_discovery_priorities={
+                class_id: self._class_discovery_priority(class_id)
+                for class_id in self.tasks_by_class
+            },
             selected_classes=selected_classes,
             selected_tasks=selected_tasks,
             selection_kind=selection_kind,
@@ -390,6 +412,8 @@ class AdaptiveCurriculumController:
             discovery_fulfilled=reserved_fulfilled,
             new_tasks_selected=new_selected,
             discovery_shortfall=discovery_reserved - reserved_fulfilled,
+            class_coverage_reserved=class_coverage_reserved,
+            class_coverage_fulfilled=class_coverage_fulfilled,
             duplicate_fallbacks=duplicate_fallbacks,
             selection_reasons=tuple(reasons),
             selection_components=tuple(components),
@@ -403,15 +427,34 @@ class AdaptiveCurriculumController:
         self,
         *,
         wants_discovery: bool,
+        wants_class_coverage: bool,
         rng: random.Random,
     ) -> tuple[str, float, dict[str, float], str, str, bool]:
         unseen = [task_id for task_id in self.task_classes if task_id not in self._seen]
         familiar = [task_id for task_id in self.task_classes if task_id in self._seen]
         unseen_available = [task_id for task_id in unseen if task_id not in self._step_selected]
         familiar_available = [task_id for task_id in familiar if task_id not in self._step_selected]
+        pool_probability = 1.0
         if wants_discovery and unseen_available:
             pool = unseen_available
             reason = "reserved_discovery"
+        elif familiar_available and unseen_available:
+            unseen_classes = {self.task_classes[task_id] for task_id in unseen_available}
+            unseen_score = sum(self._class_discovery_priority(class_id) for class_id in unseen_classes) / len(
+                unseen_classes
+            )
+            familiar_score = sum(self.task_priority(task_id) for task_id in familiar_available) / len(
+                familiar_available
+            )
+            discovery_probability = unseen_score / (unseen_score + familiar_score)
+            if rng.random() < discovery_probability:
+                pool = unseen_available
+                reason = "additional_discovery"
+                pool_probability = discovery_probability
+            else:
+                pool = familiar_available
+                reason = "adaptive_practice"
+                pool_probability = 1 - discovery_probability
         elif familiar_available:
             pool = familiar_available
             reason = "adaptive_practice"
@@ -445,7 +488,7 @@ class AdaptiveCurriculumController:
             for class_id, task_ids in tasks_by_class.items()
         }
         adaptive = _normalized_scores(class_ids, class_scores)
-        use_coverage = rng.random() < self.settings.class_exploration or adaptive is None
+        use_coverage = wants_class_coverage or adaptive is None
         if use_coverage:
             route_class_probabilities = base
             component = "coverage"
@@ -453,14 +496,7 @@ class AdaptiveCurriculumController:
             assert adaptive is not None
             route_class_probabilities = adaptive
             component = "adaptive"
-        if adaptive is None:
-            class_probabilities = base
-        else:
-            class_probabilities = {
-                class_id: self.settings.class_exploration * base[class_id]
-                + (1 - self.settings.class_exploration) * adaptive[class_id]
-                for class_id in class_ids
-            }
+        class_probabilities = route_class_probabilities
         class_id = _draw(route_class_probabilities, rng)
         class_tasks = tasks_by_class[class_id]
 
@@ -478,20 +514,10 @@ class AdaptiveCurriculumController:
             ) or {task_id: 1.0 / len(class_tasks) for task_id in class_tasks}
             route_within = reassessment if use_coverage else adaptive_within
             task_id = _draw(route_within, rng)
-            if adaptive is None:
-                probability = base[class_id] * reassessment.get(task_id, 0.0)
-            else:
-                probability = (
-                    self.settings.class_exploration
-                    * base[class_id]
-                    * reassessment.get(task_id, 0.0)
-                    + (1 - self.settings.class_exploration)
-                    * adaptive[class_id]
-                    * adaptive_within.get(task_id, 0.0)
-                )
+            probability = route_class_probabilities[class_id] * route_within.get(task_id, 0.0)
         if use_coverage and reason == "adaptive_practice":
             reason = "reassessment"
-        return task_id, probability, class_probabilities, reason, component, repeated
+        return task_id, pool_probability * probability, class_probabilities, reason, component, repeated
 
     def observe(
         self,
@@ -546,31 +572,60 @@ class AdaptiveCurriculumController:
         return sum(item.mean for item in history) / len(history) if history else None
 
     def task_priority(self, task_id: str) -> float:
-        alpha, beta = self._class_prior(self.task_classes[task_id], omit=task_id)
-        for evidence in self._history[task_id]:
+        success_alpha, success_beta = self._class_success_prior(self.task_classes[task_id], omit=task_id)
+        yield_alpha, yield_beta = self._class_yield_prior(self.task_classes[task_id], omit=task_id)
+        history = self._history[task_id]
+        for weight, evidence in zip(_recency_weights(len(history)), history, strict=True):
+            success_alpha += weight * evidence.reward_sum
+            success_beta += weight * (evidence.count - evidence.reward_sum)
             useful = float(evidence.variance > 0)
-            alpha += useful
-            beta += 1 - useful
-        return alpha / (alpha + beta)
+            yield_alpha += weight * useful
+            yield_beta += weight * (1 - useful)
+        predicted_mixed = _beta_mixed_group_probability(
+            success_alpha,
+            success_beta,
+            self.group_size,
+        )
+        empirical_yield = yield_alpha / (yield_alpha + yield_beta)
+        return predicted_mixed * empirical_yield
 
     def _class_discovery_priority(self, class_id: str) -> float:
-        alpha, beta = self._class_prior(class_id)
-        return alpha / (alpha + beta)
+        alpha, beta = self._class_posterior(class_id)
+        total = alpha + beta
+        mean = alpha / total
+        variance = alpha * beta / (total * total * (total + 1))
+        return min(1.0, mean + _CLASS_UNCERTAINTY_WEIGHT * math.sqrt(variance))
 
-    def _class_prior(self, class_id: str, *, omit: str | None = None) -> tuple[float, float]:
-        useful_groups = 0
-        observed_groups = 0
-        for task_id in self.tasks_by_class[class_id]:
-            if task_id == omit or task_id not in self._first_evidence:
-                continue
-            evidence = self._first_evidence[task_id]
-            observed_groups += 1
-            useful_groups += int(evidence.variance > 0)
-        class_rate = (1 + useful_groups) / (2 + observed_groups)
+    def _class_success_prior(self, class_id: str, *, omit: str | None = None) -> tuple[float, float]:
+        means = [
+            evidence.mean
+            for task_id in self.tasks_by_class[class_id]
+            if task_id != omit and (evidence := self._first_evidence.get(task_id)) is not None
+        ]
+        class_rate = (1 + sum(means)) / (2 + len(means))
         return (
             class_rate * _CLASS_PRIOR_STRENGTH,
             (1 - class_rate) * _CLASS_PRIOR_STRENGTH,
         )
+
+    def _class_yield_prior(self, class_id: str, *, omit: str | None = None) -> tuple[float, float]:
+        alpha, beta = self._class_posterior(class_id, omit=omit)
+        class_rate = alpha / (alpha + beta)
+        return (
+            class_rate * _CLASS_PRIOR_STRENGTH,
+            (1 - class_rate) * _CLASS_PRIOR_STRENGTH,
+        )
+
+    def _class_posterior(self, class_id: str, *, omit: str | None = None) -> tuple[float, float]:
+        alpha = 1.0
+        beta = 1.0
+        for task_id in self.tasks_by_class[class_id]:
+            if task_id == omit or task_id not in self._first_evidence:
+                continue
+            useful = float(self._first_evidence[task_id].variance > 0)
+            alpha += useful
+            beta += 1 - useful
+        return alpha, beta
 
     def class_signals(self) -> dict[str, float | None]:
         result: dict[str, float | None] = {}
@@ -694,6 +749,20 @@ def _draw(probabilities: Mapping[str, float], rng: random.Random) -> str:
 
 def _cumulative_quota(previous: int, requested: int, fraction: float) -> int:
     return math.floor((previous + requested) * fraction) - math.floor(previous * fraction)
+
+
+def _recency_weights(count: int) -> tuple[float, ...]:
+    if count < 1:
+        return ()
+    denominator = count * (count + 1) / 2
+    return tuple(rank * count / denominator for rank in range(1, count + 1))
+
+
+def _beta_mixed_group_probability(alpha: float, beta: float, group_size: int) -> float:
+    total = alpha + beta
+    all_success = math.prod((alpha + offset) / (total + offset) for offset in range(group_size))
+    all_failure = math.prod((beta + offset) / (total + offset) for offset in range(group_size))
+    return max(0.0, min(1.0, 1 - all_success - all_failure))
 
 
 def _decode_evidence(value: object) -> _Evidence:

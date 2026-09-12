@@ -495,9 +495,10 @@ semantics rather than approximating DAPO with another objective.
 the algorithm update. Its initial contract contains `class_field`,
 `class_exploration`, `task_discovery`, `history_groups`, and `seed`. The named
 field must exist on every resolved rollout task. Class exploration is a
-probability mixture; task discovery is a cumulative counted reserve for unseen
-task identities. They are independent settings and can overlap in one
-selection. Evidence windows advance when that task produces a completed group,
+counted cumulative reserve for base-distribution class coverage; task discovery
+is an independent cumulative floor for unseen task identities. Nonreserved
+slots may also discover tasks when the unseen pool has greater predicted yield.
+The settings can overlap in one selection. Evidence windows advance when that task produces a completed group,
 not merely when an optimizer step passes. Controller state, cumulative
 discovery accounting, current-step exclusions, and write position are recovery
 state and must be retained with a model checkpoint.
