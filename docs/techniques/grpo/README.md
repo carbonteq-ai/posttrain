@@ -10,5 +10,6 @@ Group Relative Policy Optimization (online RL with group-relative advantages).
 ## Contents
 
 - [Single-GPU optimization](./single-gpu-optimization.md)
+- [Adaptive OLMo 3 curriculum: interim 14-step results](./olmo3-adaptive-curriculum-interim-results.md)
 - [heuristics.md](./heuristics.md)
 - [recipes/](./recipes/)
