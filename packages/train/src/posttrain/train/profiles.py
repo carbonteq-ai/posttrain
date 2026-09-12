@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from typing import Literal
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9._/@:-]*$")
@@ -122,18 +122,29 @@ class ActiveGroupSampling:
 
 @dataclass(frozen=True, slots=True)
 class AdaptiveCurriculum:
-    """Select rollout tasks from recent within-task reward variation."""
+    """Select distinct rollout tasks from observed class and task evidence."""
 
     class_field: str
-    exploration: float = 0.2
+    class_exploration: float = 0.2
+    task_discovery: float = 0.2
     history_groups: int = 4
     seed: int = 42
+    exploration: InitVar[float | None] = None
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, exploration: float | None) -> None:
         if not self.class_field or not self.class_field.strip():
             raise ValueError("adaptive curriculum class field is required")
-        if not math.isfinite(self.exploration) or not 0 < self.exploration <= 1:
-            raise ValueError("adaptive curriculum exploration must be in (0, 1]")
+        if exploration is not None:
+            if self.class_exploration != 0.2 or self.task_discovery != 0.2:
+                raise ValueError("legacy exploration cannot be combined with class exploration or task discovery")
+            if not math.isfinite(exploration) or not 0 < exploration <= 1:
+                raise ValueError("adaptive curriculum exploration must be in (0, 1]")
+            object.__setattr__(self, "class_exploration", exploration)
+            object.__setattr__(self, "task_discovery", exploration)
+        if not math.isfinite(self.class_exploration) or not 0 < self.class_exploration <= 1:
+            raise ValueError("adaptive curriculum class exploration must be in (0, 1]")
+        if not math.isfinite(self.task_discovery) or not 0 <= self.task_discovery <= 1:
+            raise ValueError("adaptive curriculum task discovery must be in [0, 1]")
         if self.history_groups < 1:
             raise ValueError("adaptive curriculum history groups must be positive")
 

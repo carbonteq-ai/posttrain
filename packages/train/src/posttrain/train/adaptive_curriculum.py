@@ -17,7 +17,7 @@ from typing import Protocol, cast
 
 from .profiles import AdaptiveCurriculum
 
-_STATE_VERSION = 1
+_STATE_VERSION = 2
 
 
 class CurriculumStateBackend(Protocol):
@@ -43,6 +43,14 @@ class CurriculumDecision:
     selected_tasks: Mapping[str, int]
     selection_kind: str = "initial_batch"
     round_index: int | None = None
+    discovery_reserved: int = 0
+    discovery_fulfilled: int = 0
+    new_tasks_selected: int = 0
+    discovery_shortfall: int = 0
+    duplicate_fallbacks: int = 0
+    selection_reasons: tuple[str, ...] = ()
+    selection_components: tuple[str, ...] = ()
+    selection_probabilities: tuple[float, ...] = ()
 
     def as_record(self) -> dict[str, object]:
         return {
@@ -57,6 +65,14 @@ class CurriculumDecision:
             "selected_tasks": dict(self.selected_tasks),
             "selection_kind": self.selection_kind,
             "round_index": self.round_index,
+            "discovery_reserved": self.discovery_reserved,
+            "discovery_fulfilled": self.discovery_fulfilled,
+            "new_tasks_selected": self.new_tasks_selected,
+            "discovery_shortfall": self.discovery_shortfall,
+            "duplicate_fallbacks": self.duplicate_fallbacks,
+            "selection_reasons": list(self.selection_reasons),
+            "selection_components": list(self.selection_components),
+            "selection_probabilities": list(self.selection_probabilities),
         }
 
 
@@ -67,6 +83,7 @@ class CurriculumObservation:
     invalid_groups: int
     task_signals: Mapping[str, float | None]
     class_signals: Mapping[str, float | None]
+    task_rewards: Mapping[str, float]
 
     def as_record(self) -> dict[str, object]:
         return {
@@ -77,6 +94,25 @@ class CurriculumObservation:
             "invalid_groups": self.invalid_groups,
             "task_signals": dict(self.task_signals),
             "class_signals": dict(self.class_signals),
+            "task_rewards": dict(self.task_rewards),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class _Evidence:
+    step: int
+    reward_sum: float
+    count: int
+    mean: float
+    variance: float
+
+    def as_record(self) -> dict[str, object]:
+        return {
+            "step": self.step,
+            "reward_sum": self.reward_sum,
+            "count": self.count,
+            "mean": self.mean,
+            "variance": self.variance,
         }
 
 
@@ -215,7 +251,7 @@ class QueuedJsonlCurriculumStateBackend:
 
 
 class AdaptiveCurriculumController:
-    """Choose classes and tasks using recent observed reward variance."""
+    """Choose classes and tasks from observed reward and coverage evidence."""
 
     def __init__(
         self,
@@ -223,6 +259,7 @@ class AdaptiveCurriculumController:
         settings: AdaptiveCurriculum,
         backend: CurriculumStateBackend,
         *,
+        group_size: int = 4,
         restored_state: Mapping[str, object] | None = None,
     ) -> None:
         if not task_classes:
@@ -230,8 +267,11 @@ class AdaptiveCurriculumController:
         normalized = {str(task_id): str(class_id) for task_id, class_id in task_classes.items()}
         if any(not task_id or not class_id for task_id, class_id in normalized.items()):
             raise ValueError("adaptive curriculum task and class identities must be non-empty")
+        if group_size < 2:
+            raise ValueError("adaptive curriculum group size must be at least two")
         self.settings = settings
         self.backend = backend
+        self.group_size = group_size
         self.task_classes = dict(sorted(normalized.items()))
         grouped: defaultdict[str, list[str]] = defaultdict(list)
         for task_id, class_id in self.task_classes.items():
@@ -240,6 +280,12 @@ class AdaptiveCurriculumController:
         self._history = {
             task_id: deque(maxlen=settings.history_groups) for task_id in self.task_classes
         }
+        self._first_evidence: dict[str, _Evidence] = {}
+        self._seen: set[str] = set()
+        self._last_selected = {task_id: -1 for task_id in self.task_classes}
+        self._active_step: int | None = None
+        self._step_selected: set[str] = set()
+        self._candidate_count = 0
         self._decision_index = 0
         self._inventory_digest = _inventory_digest(self.task_classes)
         if restored_state is not None:
@@ -271,25 +317,55 @@ class AdaptiveCurriculumController:
     ) -> CurriculumDecision:
         if group_count < 1:
             raise ValueError("adaptive curriculum group count must be positive")
-        class_signals = self.class_signals()
-        class_ids = tuple(self.tasks_by_class)
-        class_probabilities = _mixed_probabilities(class_ids, class_signals, self.settings.exploration)
-        rng = random.Random(_decision_seed(self.settings.seed, self._decision_index))
-        class_counts = _apportion(class_probabilities, group_count, rng)
+        if self._active_step is None or step > self._active_step:
+            self._active_step = step
+            self._step_selected.clear()
+        elif step < self._active_step:
+            raise ValueError("adaptive curriculum step cannot move backwards")
 
+        rng = random.Random(_decision_seed(self.settings.seed, self._decision_index))
+        discovery_reserved = _cumulative_quota(
+            self._candidate_count,
+            group_count,
+            self.settings.task_discovery,
+        )
         selected: list[str] = []
+        reasons: list[str] = []
+        components: list[str] = []
+        selection_probabilities: list[float] = []
         task_probabilities: dict[str, float] = {}
-        for class_id in class_ids:
-            task_ids = self.tasks_by_class[class_id]
-            task_signals = {task_id: self.task_signal(task_id) for task_id in task_ids}
-            within_class = _mixed_probabilities(task_ids, task_signals, self.settings.exploration)
-            task_probabilities.update(
-                {task_id: class_probabilities[class_id] * probability for task_id, probability in within_class.items()}
+        class_probability_sums = {class_id: 0.0 for class_id in self.tasks_by_class}
+        duplicate_fallbacks = 0
+        reserved_fulfilled = 0
+        new_selected = 0
+        for offset in range(group_count):
+            wants_discovery = offset < discovery_reserved
+            task_id, probability, class_probabilities, reason, component, repeated = self._select_one(
+                wants_discovery=wants_discovery,
+                rng=rng,
             )
-            counts = _apportion(within_class, class_counts[class_id], rng)
-            for task_id, count in counts.items():
-                selected.extend([task_id] * count)
-        rng.shuffle(selected)
+            was_seen = task_id in self._seen
+            selected.append(task_id)
+            reasons.append(reason)
+            components.append(component)
+            selection_probabilities.append(probability)
+            task_probabilities[task_id] = probability
+            for class_id, value in class_probabilities.items():
+                class_probability_sums[class_id] += value
+            if repeated:
+                duplicate_fallbacks += 1
+            if not was_seen:
+                new_selected += 1
+                self._seen.add(task_id)
+                if wants_discovery:
+                    reserved_fulfilled += 1
+            self._step_selected.add(task_id)
+            self._last_selected[task_id] = self._candidate_count
+            self._candidate_count += 1
+
+        class_probabilities = {
+            class_id: value / group_count for class_id, value in class_probability_sums.items()
+        }
         selected_classes = _counts(self.task_classes[task_id] for task_id in selected)
         selected_tasks = _counts(selected)
         decision = CurriculumDecision(
@@ -302,10 +378,112 @@ class AdaptiveCurriculumController:
             selected_tasks=selected_tasks,
             selection_kind=selection_kind,
             round_index=round_index,
+            discovery_reserved=discovery_reserved,
+            discovery_fulfilled=reserved_fulfilled,
+            new_tasks_selected=new_selected,
+            discovery_shortfall=discovery_reserved - reserved_fulfilled,
+            duplicate_fallbacks=duplicate_fallbacks,
+            selection_reasons=tuple(reasons),
+            selection_components=tuple(components),
+            selection_probabilities=tuple(selection_probabilities),
         )
         self._decision_index += 1
         self.backend.append(decision.as_record())
         return decision
+
+    def _select_one(
+        self,
+        *,
+        wants_discovery: bool,
+        rng: random.Random,
+    ) -> tuple[str, float, dict[str, float], str, str, bool]:
+        unseen = [task_id for task_id in self.task_classes if task_id not in self._seen]
+        familiar = [task_id for task_id in self.task_classes if task_id in self._seen]
+        unseen_available = [task_id for task_id in unseen if task_id not in self._step_selected]
+        familiar_available = [task_id for task_id in familiar if task_id not in self._step_selected]
+        if wants_discovery and unseen_available:
+            pool = unseen_available
+            reason = "reserved_discovery"
+        elif familiar_available:
+            pool = familiar_available
+            reason = "adaptive_practice"
+        elif unseen_available:
+            pool = unseen_available
+            reason = "additional_discovery"
+        else:
+            pool = familiar or unseen or list(self.task_classes)
+            reason = "duplicate_fallback"
+
+        eligible = [task_id for task_id in pool if task_id not in self._step_selected]
+        repeated = False
+        if not eligible:
+            eligible = pool
+            repeated = True
+            reason = "duplicate_fallback"
+
+        tasks_by_class = {
+            class_id: [task_id for task_id in eligible if self.task_classes[task_id] == class_id]
+            for class_id in self.tasks_by_class
+        }
+        tasks_by_class = {class_id: task_ids for class_id, task_ids in tasks_by_class.items() if task_ids}
+        class_ids = tuple(tasks_by_class)
+        base = {class_id: 1.0 / len(class_ids) for class_id in class_ids}
+        class_scores = {
+            class_id: (
+                self._class_discovery_priority(class_id)
+                if reason in {"reserved_discovery", "additional_discovery"}
+                else sum(self.task_priority(task_id) for task_id in task_ids) / len(task_ids)
+            )
+            for class_id, task_ids in tasks_by_class.items()
+        }
+        adaptive = _normalized_scores(class_ids, class_scores)
+        use_coverage = rng.random() < self.settings.class_exploration or adaptive is None
+        if use_coverage:
+            route_class_probabilities = base
+            component = "coverage"
+        else:
+            assert adaptive is not None
+            route_class_probabilities = adaptive
+            component = "adaptive"
+        if adaptive is None:
+            class_probabilities = base
+        else:
+            class_probabilities = {
+                class_id: self.settings.class_exploration * base[class_id]
+                + (1 - self.settings.class_exploration) * adaptive[class_id]
+                for class_id in class_ids
+            }
+        class_id = _draw(route_class_probabilities, rng)
+        class_tasks = tasks_by_class[class_id]
+
+        if reason in {"reserved_discovery", "additional_discovery"}:
+            route_within = {task_id: 1.0 / len(class_tasks) for task_id in class_tasks}
+            task_id = _draw(route_within, rng)
+            probability = class_probabilities[class_id] * route_within[task_id]
+        else:
+            oldest = min(self._last_selected[task_id] for task_id in class_tasks)
+            choices = [task_id for task_id in class_tasks if self._last_selected[task_id] == oldest]
+            reassessment = {task_id: 1.0 / len(choices) for task_id in choices}
+            adaptive_within = _normalized_scores(
+                class_tasks,
+                {task_id: self.task_priority(task_id) for task_id in class_tasks},
+            ) or {task_id: 1.0 / len(class_tasks) for task_id in class_tasks}
+            route_within = reassessment if use_coverage else adaptive_within
+            task_id = _draw(route_within, rng)
+            if adaptive is None:
+                probability = base[class_id] * reassessment.get(task_id, 0.0)
+            else:
+                probability = (
+                    self.settings.class_exploration
+                    * base[class_id]
+                    * reassessment.get(task_id, 0.0)
+                    + (1 - self.settings.class_exploration)
+                    * adaptive[class_id]
+                    * adaptive_within.get(task_id, 0.0)
+                )
+        if use_coverage and reason == "adaptive_practice":
+            reason = "reassessment"
+        return task_id, probability, class_probabilities, reason, component, repeated
 
     def observe(
         self,
@@ -315,17 +493,27 @@ class AdaptiveCurriculumController:
     ) -> CurriculumObservation:
         invalid = 0
         observed_task_ids: set[str] = set()
+        task_rewards: dict[str, float] = {}
         for task_id, rewards in groups:
             if task_id not in self.task_classes:
                 raise ValueError(f"adaptive curriculum observed unknown task {task_id!r}")
             finite = [float(value) for value in rewards if math.isfinite(float(value))]
-            if len(finite) < 2:
+            if len(finite) < 2 or any(value < 0 or value > 1 for value in finite):
                 invalid += 1
                 continue
             mean = sum(finite) / len(finite)
             variance = sum((value - mean) ** 2 for value in finite) / len(finite)
-            self._history[task_id].append(variance)
+            evidence = _Evidence(
+                step=step,
+                reward_sum=sum(finite),
+                count=len(finite),
+                mean=mean,
+                variance=variance,
+            )
+            self._history[task_id].append(evidence)
+            self._first_evidence.setdefault(task_id, evidence)
             observed_task_ids.add(task_id)
+            task_rewards[task_id] = mean
         task_signals = {task_id: self.task_signal(task_id) for task_id in sorted(observed_task_ids)}
         observation = CurriculumObservation(
             step=step,
@@ -333,13 +521,40 @@ class AdaptiveCurriculumController:
             invalid_groups=invalid,
             task_signals=task_signals,
             class_signals=self.class_signals(),
+            task_rewards=task_rewards,
         )
         self.backend.append(observation.as_record())
         return observation
 
     def task_signal(self, task_id: str) -> float | None:
         history = self._history[task_id]
-        return sum(history) / len(history) if history else None
+        return sum(item.variance for item in history) / len(history) if history else None
+
+    def task_reward(self, task_id: str) -> float | None:
+        history = self._history[task_id]
+        return sum(item.mean for item in history) / len(history) if history else None
+
+    def task_priority(self, task_id: str) -> float:
+        alpha, beta = self._class_prior(self.task_classes[task_id], omit=task_id)
+        for evidence in self._history[task_id]:
+            alpha += evidence.reward_sum
+            beta += evidence.count - evidence.reward_sum
+        return _mixed_group_probability(alpha, beta, self.group_size)
+
+    def _class_discovery_priority(self, class_id: str) -> float:
+        alpha, beta = self._class_prior(class_id)
+        return _mixed_group_probability(alpha, beta, self.group_size)
+
+    def _class_prior(self, class_id: str, *, omit: str | None = None) -> tuple[float, float]:
+        alpha = 1.0
+        beta = 1.0
+        for task_id in self.tasks_by_class[class_id]:
+            if task_id == omit or task_id not in self._first_evidence:
+                continue
+            evidence = self._first_evidence[task_id]
+            alpha += evidence.reward_sum
+            beta += evidence.count - evidence.reward_sum
+        return alpha, beta
 
     def class_signals(self) -> dict[str, float | None]:
         result: dict[str, float | None] = {}
@@ -354,7 +569,19 @@ class AdaptiveCurriculumController:
             "inventory_digest": self._inventory_digest,
             "settings": self._settings_record(),
             "decision_index": self._decision_index,
-            "history": {task_id: list(values) for task_id, values in self._history.items()},
+            "group_size": self.group_size,
+            "candidate_count": self._candidate_count,
+            "seen": sorted(self._seen),
+            "active_step": self._active_step,
+            "step_selected": sorted(self._step_selected),
+            "last_selected": dict(self._last_selected),
+            "history": {
+                task_id: [item.as_record() for item in values]
+                for task_id, values in self._history.items()
+            },
+            "first_evidence": {
+                task_id: evidence.as_record() for task_id, evidence in self._first_evidence.items()
+            },
         }
 
     def snapshot(self, path: Path) -> None:
@@ -369,7 +596,8 @@ class AdaptiveCurriculumController:
     def _settings_record(self) -> dict[str, object]:
         return {
             "class_field": self.settings.class_field,
-            "exploration": self.settings.exploration,
+            "class_exploration": self.settings.class_exploration,
+            "task_discovery": self.settings.task_discovery,
             "history_groups": self.settings.history_groups,
             "seed": self.settings.seed,
         }
@@ -381,54 +609,107 @@ class AdaptiveCurriculumController:
             raise ValueError("adaptive curriculum snapshot inventory does not match")
         if state.get("settings") != self._settings_record():
             raise ValueError("adaptive curriculum snapshot settings do not match")
+        if state.get("group_size") != self.group_size:
+            raise ValueError("adaptive curriculum snapshot group size does not match")
         decision_index = state.get("decision_index")
+        candidate_count = state.get("candidate_count")
         history = state.get("history")
-        if not isinstance(decision_index, int) or decision_index < 0 or not isinstance(history, dict):
+        seen = state.get("seen")
+        active_step = state.get("active_step")
+        step_selected = state.get("step_selected")
+        last_selected = state.get("last_selected")
+        first_evidence = state.get("first_evidence")
+        if (
+            not isinstance(decision_index, int)
+            or decision_index < 0
+            or not isinstance(candidate_count, int)
+            or candidate_count < 0
+            or not isinstance(history, dict)
+            or not isinstance(seen, list)
+            or (active_step is not None and (not isinstance(active_step, int) or active_step < 1))
+            or not isinstance(step_selected, list)
+            or not isinstance(last_selected, dict)
+            or not isinstance(first_evidence, dict)
+        ):
             raise ValueError("adaptive curriculum snapshot state is malformed")
+        if any(task_id not in self.task_classes for task_id in [*seen, *step_selected]):
+            raise ValueError("adaptive curriculum snapshot contains an unknown task")
         for task_id, values in history.items():
             if task_id not in self._history or not isinstance(values, list):
                 raise ValueError("adaptive curriculum snapshot history is malformed")
-            numeric = [float(value) for value in values]
-            if any(not math.isfinite(value) or value < 0 for value in numeric):
-                raise ValueError("adaptive curriculum snapshot contains an invalid signal")
-            self._history[task_id].extend(numeric[-self.settings.history_groups :])
+            self._history[task_id].extend(
+                _decode_evidence(value) for value in values[-self.settings.history_groups :]
+            )
+        for task_id, value in first_evidence.items():
+            if task_id not in self.task_classes:
+                raise ValueError("adaptive curriculum snapshot first evidence is malformed")
+            self._first_evidence[task_id] = _decode_evidence(value)
+        for task_id, value in last_selected.items():
+            if task_id not in self._last_selected or not isinstance(value, int):
+                raise ValueError("adaptive curriculum snapshot selection history is malformed")
+            self._last_selected[task_id] = value
         self._decision_index = decision_index
+        self._candidate_count = candidate_count
+        self._seen = {str(task_id) for task_id in seen}
+        self._active_step = active_step
+        self._step_selected = {str(task_id) for task_id in step_selected}
 
 
-def _mixed_probabilities(
+def _normalized_scores(
     identities: Sequence[str],
-    signals: Mapping[str, float | None],
-    exploration: float,
-) -> dict[str, float]:
-    if not identities:
-        return {}
-    base = 1.0 / len(identities)
-    priorities = {identity: max(float(signals.get(identity) or 0.0), 0.0) for identity in identities}
-    total = sum(priorities.values())
+    scores: Mapping[str, float],
+) -> dict[str, float] | None:
+    positive = {identity: max(float(scores.get(identity, 0.0)), 0.0) for identity in identities}
+    total = sum(positive.values())
     if total <= 0:
-        return {identity: base for identity in identities}
-    return {
-        identity: exploration * base + (1 - exploration) * priorities[identity] / total
-        for identity in identities
-    }
+        return None
+    return {identity: positive[identity] / total for identity in identities}
 
 
-def _apportion(probabilities: Mapping[str, float], total: int, rng: random.Random) -> dict[str, int]:
-    if total < 0:
-        raise ValueError("allocation total cannot be negative")
-    counts = {identity: math.floor(total * probability) for identity, probability in probabilities.items()}
-    remaining = total - sum(counts.values())
-    remainders = defaultdict(list)
+def _draw(probabilities: Mapping[str, float], rng: random.Random) -> str:
+    threshold = rng.random()
+    last = tuple(probabilities)[-1]
     for identity, probability in probabilities.items():
-        remainders[total * probability - counts[identity]].append(identity)
-    ordered: list[str] = []
-    for remainder in sorted(remainders, reverse=True):
-        ties = remainders[remainder]
-        rng.shuffle(ties)
-        ordered.extend(ties)
-    for identity in ordered[:remaining]:
-        counts[identity] += 1
-    return counts
+        threshold -= probability
+        if threshold <= 0:
+            return identity
+    return last
+
+
+def _cumulative_quota(previous: int, requested: int, fraction: float) -> int:
+    return math.floor((previous + requested) * fraction) - math.floor(previous * fraction)
+
+
+def _mixed_group_probability(alpha: float, beta: float, group_size: int) -> float:
+    denominator = math.prod(alpha + beta + offset for offset in range(group_size))
+    all_success = math.prod(alpha + offset for offset in range(group_size)) / denominator
+    all_failure = math.prod(beta + offset for offset in range(group_size)) / denominator
+    return max(0.0, min(1.0, 1.0 - all_success - all_failure))
+
+
+def _decode_evidence(value: object) -> _Evidence:
+    if not isinstance(value, dict):
+        raise ValueError("adaptive curriculum snapshot evidence is malformed")
+    try:
+        step = value["step"]
+        count = value["count"]
+        reward_sum = float(value["reward_sum"])
+        mean = float(value["mean"])
+        variance = float(value["variance"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("adaptive curriculum snapshot evidence is malformed") from error
+    if (
+        not isinstance(step, int)
+        or step < 1
+        or not isinstance(count, int)
+        or count < 2
+        or any(not math.isfinite(number) for number in (reward_sum, mean, variance))
+        or not 0 <= reward_sum <= count
+        or not 0 <= mean <= 1
+        or variance < 0
+    ):
+        raise ValueError("adaptive curriculum snapshot evidence is malformed")
+    return _Evidence(step=step, reward_sum=reward_sum, count=count, mean=mean, variance=variance)
 
 
 def _counts(values: Iterable[str]) -> dict[str, int]:

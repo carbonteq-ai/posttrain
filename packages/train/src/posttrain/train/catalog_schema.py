@@ -165,9 +165,11 @@ class ActiveGroupSamplingSchema(TrainCatalogSchema):
 
 class AdaptiveCurriculumSchema(TrainCatalogSchema):
     class_field: str = Field(min_length=1)
-    exploration: float = Field(default=0.2, gt=0, le=1, allow_inf_nan=False)
+    class_exploration: float = Field(default=0.2, gt=0, le=1, allow_inf_nan=False)
+    task_discovery: float = Field(default=0.2, ge=0, le=1, allow_inf_nan=False)
     history_groups: int = Field(default=4, gt=0)
     seed: int = 42
+    exploration: float | None = Field(default=None, gt=0, le=1, allow_inf_nan=False)
 
 
 class GRPOSettingsSchema(TrainCatalogSchema):

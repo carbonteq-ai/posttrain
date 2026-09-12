@@ -493,14 +493,22 @@ semantics rather than approximating DAPO with another objective.
 
 `GRPOSettings.adaptive_curriculum` optionally selects rollout exposure before
 the algorithm update. Its initial contract contains `class_field`,
-`exploration`, `history_groups`, and `seed`. The named field must exist on every
-resolved rollout task. Evidence windows advance when that task produces a
-completed group, not merely when an optimizer step passes. Controller state and
-write position are recovery state and must be retained with a model checkpoint.
+`class_exploration`, `task_discovery`, `history_groups`, and `seed`. The named
+field must exist on every resolved rollout task. Class exploration is a
+probability mixture; task discovery is a cumulative counted reserve for unseen
+task identities. They are independent settings and can overlap in one
+selection. Evidence windows advance when that task produces a completed group,
+not merely when an optimizer step passes. Controller state, cumulative
+discovery accounting, current-step exclusions, and write position are recovery
+state and must be retained with a model checkpoint.
 Algorithms without bounded refill sampling call the controller once for the
 initial generation batch. OLMo 3 calls it for every active-sampling refill, so
 evidence from an earlier round can change later task identities while policy
-weights remain fixed. Each decision records its sampling stage and refill round.
+weights remain fixed. The controller avoids task identities already proposed in
+the optimizer step while distinct candidates remain. If that eligible inventory
+is exhausted, it may reuse a task, records the duplicate fallback, and does not
+fail the run for loss of diversity alone. Each decision records its sampling
+stage, refill round, selection reasons, and fulfilled or unmet discovery reserve.
 Resolved runtime evidence reports `adaptive_curriculum_sampling_mode` as
 `initial_batch` or `active_sampling_refill`; this is derived from the selected
 algorithm capability rather than exposed as another tuning parameter.

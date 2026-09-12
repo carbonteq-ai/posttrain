@@ -72,6 +72,7 @@ class AdaptiveCurriculumRuntime:
                 task_classes,
                 settings,
                 backend,
+                group_size=num_generations,
                 restored_state=restored_state,
             )
         except BaseException:
@@ -81,7 +82,8 @@ class AdaptiveCurriculumRuntime:
             "adaptive_curriculum_started",
             {
                 "class_field": settings.class_field,
-                "exploration": settings.exploration,
+                "class_exploration": settings.class_exploration,
+                "task_discovery": settings.task_discovery,
                 "history_groups": settings.history_groups,
                 "seed": settings.seed,
                 "task_count": len(task_rows),

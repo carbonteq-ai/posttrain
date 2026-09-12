@@ -359,8 +359,13 @@ def _online_rl_runtime_attributes(
             if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
             else None
         ),
-        "adaptive_curriculum_exploration": (
-            request.settings.adaptive_curriculum.exploration
+        "adaptive_curriculum_class_exploration": (
+            request.settings.adaptive_curriculum.class_exploration
+            if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
+            else None
+        ),
+        "adaptive_curriculum_task_discovery": (
+            request.settings.adaptive_curriculum.task_discovery
             if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
             else None
         ),

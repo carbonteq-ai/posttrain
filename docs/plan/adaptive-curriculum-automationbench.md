@@ -27,6 +27,9 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 - [x] (2026-09-12) Moved OLMo curriculum decisions into each active-sampling refill while retaining one initial selection for algorithms without refill sampling; added decision-stage evidence and a fixed-policy refill test.
 - [x] (2026-09-12) Passed the full repository validation after the refill change: 1,712 tests passed with 25 expected skips, plus Ruff, Pyright, import boundaries, and diff checks.
 - [x] (2026-09-12) Committed refill-time selection as `fd154ed7` and submitted replacement adaptive run `lfm26-olmo3-adaptive20-20260912-r4` (`pt-66c1c609dfa568471a62b4b9`); it is queued for the RTX PRO worker behind the running control.
+- [x] (2026-09-12) Replaced the interim variance-mixture controller with separate class coverage, cumulative task discovery, best-effort step-wide task diversity, and reward-aware predictive evidence.
+- [x] (2026-09-12) Validated the revised implementation: the full suite reached 1,674 passing tests with only the new registry-count assertion remaining; after correcting that expected inventory, 109 focused controller, catalog, API, and registry tests passed with Ruff, Pyright, import boundaries, package composition, and diff checks.
+- [ ] (2026-09-12) Submit versioned work package `lfm26_automationbench_olmo3_adaptive_20_local_v2.yaml` for a new matched 20-update AutomationBench OLMo 3 run.
 - [ ] Run both 20-update training jobs.
 - [ ] Compare run evidence and record the result here.
 
@@ -54,6 +57,10 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 
 - Decision: Put adaptive curriculum configuration on `GRPOSettings` as an optional profile capability, independent of `GRPOSettings.algorithm`.
   Rationale: task selection is a reusable training capability, while `grpo`, `dapo`, and `olmo3` name different update rules. The requested qualification composes the capability with OLMo 3 without making it an OLMo-only feature.
+- Decision: Replace the single `exploration` setting with `class_exploration` and `task_discovery`, both set to 0.2 for this qualification.
+  Rationale: class coverage is a probability mixture over eligible classes, while task discovery is a cumulative counted obligation over candidate groups. Treating them as one mixture neither guarantees unseen-task coverage nor prevents repeated task identities.
+- Decision: Keep every committed task identity in a current-step exclusion set and sample outside it while distinct candidates remain. If the eligible inventory is exhausted, allow and record a repeat rather than failing the training run.
+  Rationale: four generations of one prompt are the intended reward group, so avoiding repeats uses candidate compute better. Diversity is a controller policy and observability concern, not a validity condition for an optimizer update.
   Date/Author: 2026-09-12 / Codex
 
 - Decision: Use the environment-provided `domain` field as the AutomationBench class and `example_id` as task identity.
@@ -102,15 +109,15 @@ Implementation is validated on the v0.4 branch. R1 runs `lfm26-grpo20-random-202
 
 A task class is the category used by the sampler. For this experiment it is an AutomationBench domain such as `sales` or `support`; internally they are all classes. A task is one concrete rollout example. A prompt group is one task repeated for four fresh student attempts, which GRPO compares to compute relative advantages.
 
-The adaptive controller will own an inventory of tasks, a bounded recent evidence window for each task, the current class and task probabilities, a deterministic decision counter, and a persistence backend. Its learning signal is within-group reward variance. For binary rewards, population variance lies between zero and `0.25`. Zero is ambiguous: it can mean every attempt failed or every attempt succeeded. The controller therefore never removes a task solely because its variance is zero; a configured exploration reserve keeps it eligible and allows later model updates to change its state.
+The adaptive controller owns an inventory of tasks, a bounded recent evidence window for each task, current-step exclusions, cumulative discovery accounting, a deterministic decision counter, and a persistence backend. It records reward mean and within-group variance, then predicts whether another group is likely to contain mixed outcomes. An all-failure group and an all-success group both have zero variance but imply different student performance; neither permanently removes a task. Class coverage supplies reassessment, while task discovery spends a counted share on unseen identities.
 
-The existing `apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml` owns the model, environment, inference, and training selections for this comparison. The control work package is `apps/lab/.posttrain/work_packages/lfm26_automationbench_olmo3_20_local.yaml`. The treatment work package is `apps/lab/.posttrain/work_packages/lfm26_automationbench_olmo3_adaptive_20_local.yaml`. Their settings are identical except for the treatment arm's `adaptive_curriculum` block.
+The existing `apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml` owns the model, environment, inference, and training selections for this comparison. The control work package is `apps/lab/.posttrain/work_packages/lfm26_automationbench_olmo3_20_local.yaml`. The revised treatment is `apps/lab/.posttrain/work_packages/lfm26_automationbench_olmo3_adaptive_20_local_v2.yaml`. Their model, environment, inference, OLMo 3 algorithm, and optimization settings match; the treatment adds the versioned `adaptive_curriculum` block.
 
 ## Plan of Work
 
 First amend the canonical training-settings contract in `docs/post-training/02-primitives.md` and `docs/post-training/05-apis.md` so an optional curriculum capability may select rollout examples before an algorithm consumes them. The amendment must keep environment task ownership and algorithm identity unchanged.
 
-Add `AdaptiveCurriculum` to `profiles.py` and a matching strict Pydantic schema to `catalog_schema.py`. Its small public surface will name the class field, recent groups retained per task, exploration fraction, and seed. The controller derives equal base weights from the resolved inventory; users do not configure per-class weights for this first profile.
+Add `AdaptiveCurriculum` to `profiles.py` and a matching strict Pydantic schema to `catalog_schema.py`. Its small public surface names the class field, class exploration probability, cumulative task-discovery fraction, recent groups retained per task, and seed. The controller derives equal base weights from the resolved inventory; users do not configure per-class weights for this first profile.
 
 Create a train-owned adaptive curriculum module containing the pure selection/state logic and a persistence protocol. The file implementation will append versioned records to JSONL through one bounded queue. It will expose `flush`, `snapshot`, and `close`; errors raised by the writer thread must surface on the next public operation. Snapshots use write-then-rename so a model checkpoint either has a complete matching controller state or no controller state.
 
@@ -137,9 +144,9 @@ Implement and test incrementally:
 Validate and launch each work package from `apps/lab`:
 
     uv run --package posttrain posttrain work-package validate .posttrain/work_packages/lfm26_automationbench_olmo3_20_local.yaml
-    uv run --package posttrain posttrain work-package validate .posttrain/work_packages/lfm26_automationbench_olmo3_adaptive_20_local.yaml
+    uv run --package posttrain posttrain work-package validate .posttrain/work_packages/lfm26_automationbench_olmo3_adaptive_20_local_v2.yaml
     uv run --package posttrain posttrain job run .posttrain/work_packages/lfm26_automationbench_olmo3_20_local.yaml --job train --provider dstack
-    uv run --package posttrain posttrain job run .posttrain/work_packages/lfm26_automationbench_olmo3_adaptive_20_local.yaml --job train --provider dstack
+    uv run --package posttrain posttrain job run .posttrain/work_packages/lfm26_automationbench_olmo3_adaptive_20_local_v2.yaml --job train --provider dstack
 
 The exact run and log inspection commands will be added here after launch because the CLI returns the durable run identifiers.
 

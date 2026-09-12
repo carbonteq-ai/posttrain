@@ -227,6 +227,9 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     local_adaptive = catalog.resolve(
         CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-adaptive-20-local-v1")
     ).value
+    local_adaptive_v2 = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-adaptive-20-local-v2")
+    ).value
     local_rollout = catalog.resolve(
         CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32@1")
     ).value
@@ -254,10 +257,17 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_adaptive.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
     assert local_adaptive.adaptive_curriculum == AdaptiveCurriculum(
         "domain",
-        exploration=0.2,
         history_groups=4,
         seed=172846,
+        exploration=0.2,
     )
+    assert isinstance(local_adaptive_v2, GRPOSettings)
+    assert local_adaptive_v2.revision == "2"
+    assert local_adaptive_v2.algorithm == local_adaptive.algorithm
+    assert local_adaptive_v2.loop == local_adaptive.loop
+    assert local_adaptive_v2.adaptive_curriculum is not None
+    assert local_adaptive_v2.adaptive_curriculum.class_exploration == 0.2
+    assert local_adaptive_v2.adaptive_curriculum.task_discovery == 0.2
     assert isinstance(local_rollout, InferenceBinding)
     assert isinstance(local_training, TrainingBinding)
     assert local_rollout.engine["max_num_seqs"] == 32

@@ -594,8 +594,16 @@ not DAPO flags.
 policy rather than an update objective. It names a class field already carried
 by the resolved environment tasks and uses completed rollout evidence to choose
 future classes and tasks. The environment still owns the task population and
-reward meaning. The curriculum must retain a nonzero base allocation, record
-proposed and observed task identities, and checkpoint its state with the model.
+reward meaning. `class_exploration` mixes a nonzero base component into class
+choice. `task_discovery` separately reserves a cumulative fraction of candidate
+groups for task identities not yet selected in the run; fractional obligations
+carry across initial and refill requests. The controller remembers every task
+identity proposed in the current optimizer step, including rejected refill
+groups, and excludes them while distinct candidates remain. Exhausted
+inventory degrades to recorded repeat selection instead of failing training. The
+curriculum records proposed and observed task identities, discovery accounting,
+step exclusions, recent reward means and within-group variation, and
+checkpoints that state with the model.
 It composes with `grpo`, `dapo`, or `olmo3`. An algorithm without a refill
 boundary receives one curriculum decision before its generation batch. When an
 algorithm such as OLMo 3 requests another candidate group before updating model
