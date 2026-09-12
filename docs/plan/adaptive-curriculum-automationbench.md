@@ -29,7 +29,7 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 - [x] (2026-09-12) Committed refill-time selection as `fd154ed7` and submitted replacement adaptive run `lfm26-olmo3-adaptive20-20260912-r4` (`pt-66c1c609dfa568471a62b4b9`); it is queued for the RTX PRO worker behind the running control.
 - [x] (2026-09-12) Replaced the interim variance-mixture controller with separate class coverage, cumulative task discovery, best-effort step-wide task diversity, and reward-aware predictive evidence.
 - [x] (2026-09-12) Validated the revised implementation: the full suite reached 1,674 passing tests with only the new registry-count assertion remaining; after correcting that expected inventory, 109 focused controller, catalog, API, and registry tests passed with Ruff, Pyright, import boundaries, package composition, and diff checks.
-- [ ] (2026-09-12) Submit versioned work package `lfm26_automationbench_olmo3_adaptive_20_local_v2.yaml` for a new matched 20-update AutomationBench OLMo 3 run.
+- [x] (2026-09-12) Submitted versioned work package `lfm26_automationbench_olmo3_adaptive_20_local_v2.yaml` as run `lfm26-olmo3-adaptive20-discovery-v2-20260912-r1` (`pt-315a5edf6ca3a900440b5af2`); it is queued for `carbonteq-ai-workstation.lan`.
 - [ ] Run both 20-update training jobs.
 - [ ] Compare run evidence and record the result here.
 
@@ -149,6 +149,8 @@ Validate and launch each work package from `apps/lab`:
     uv run --package posttrain posttrain job run .posttrain/work_packages/lfm26_automationbench_olmo3_adaptive_20_local_v2.yaml --job train --provider dstack
 
 The exact run and log inspection commands will be added here after launch because the CLI returns the durable run identifiers.
+
+The revised treatment run is `lfm26-olmo3-adaptive20-discovery-v2-20260912-r1`; its dstack provider id is `pt-315a5edf6ca3a900440b5af2`.
 
 ## Validation and Acceptance
 
