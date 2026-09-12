@@ -33,6 +33,7 @@ from posttrain.eval import (
 )
 from posttrain.train import (
     ActiveGroupSampling,
+    AdaptiveCurriculum,
     CAPOSettings,
     GDPOSettings,
     GRPOSettings,
@@ -243,6 +244,13 @@ def test_grpo_snapshot_retains_algorithm_and_active_sampling_contract() -> None:
         importance_sampling_clip_min=None,
         importance_sampling_clip_max=2,
         active_sampling=ActiveGroupSampling(max_candidate_batches=10),
+        adaptive_curriculum=AdaptiveCurriculum(
+            "domain",
+            class_exploration=0.2,
+            task_discovery=0.2,
+            history_groups=4,
+            seed=19,
+        ),
     )
 
     snapshot = _selection_details(settings)
@@ -251,6 +259,13 @@ def test_grpo_snapshot_retains_algorithm_and_active_sampling_contract() -> None:
     assert snapshot["num_prompts_per_step"] == 32
     assert snapshot["num_generations"] == 4
     assert snapshot["active_sampling"] == {"max_candidate_batches": 10}
+    assert snapshot["adaptive_curriculum"] == {
+        "class_field": "domain",
+        "class_exploration": 0.2,
+        "task_discovery": 0.2,
+        "history_groups": 4,
+        "seed": 19,
+    }
     assert snapshot["advantage_scaling"] == "none"
     assert snapshot["clip_epsilon_high"] == pytest.approx(0.272)
 
