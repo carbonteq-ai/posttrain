@@ -152,6 +152,8 @@ The exact run and log inspection commands will be added here after launch becaus
 
 The revised treatment run is `lfm26-olmo3-adaptive20-discovery-v2-20260912-r1`; its dstack provider id is `pt-315a5edf6ca3a900440b5af2`.
 
+The live Trackio event stream confirms that the treatment process constructed the controller with 160 tasks, seven classes, `class_exploration=0.2`, and `task_discovery=0.2`. Its first step selected eight distinct unseen task identities and recorded `duplicate_fallbacks=0`. The first rollout population was still running when this evidence was recorded, so reward and optimizer comparisons remain pending.
+
 ## Validation and Acceptance
 
 The capability is accepted when profile decoding rejects malformed settings, the pure controller tests pass, the queued backend produces an ordered replayable journal, and a checkpoint contains an atomic controller snapshot that restores the same evidence windows and next allocation.
@@ -194,3 +196,5 @@ Change note, 2026-09-12: moved qualification to the stable v0.4/post8 code line 
 Change note, 2026-09-12: corrected the qualification design to compare normal-mixture OLMo 3 with adaptive-curriculum OLMo 3, holding the update algorithm and active sampling constant.
 
 Change note, 2026-09-12: moved adaptive OLMo task choice from an eagerly selected candidate pool to each fixed-policy refill boundary; retained initial-only selection for algorithms without refill sampling.
+
+Change note, 2026-09-12: made within-step uniqueness controller-owned, including across OLMo refill rounds. Exhausting the distinct eligible inventory now records a nonfatal duplicate fallback instead of failing generation. Confirmed the live treatment run entered this path and selected eight unique tasks in its first decision.
