@@ -298,9 +298,30 @@ def test_catalog_decodes_adaptive_curriculum_independently_of_algorithm() -> Non
 class EventContext:
     def __init__(self) -> None:
         self.events: list[tuple[str, Mapping[str, object]]] = []
+        self.metric_points: list[tuple[str, float, int | None, Mapping[str, object]]] = []
 
     def event(self, name: str, attributes: Mapping[str, object]) -> None:
         self.events.append((name, attributes))
+
+    def metric(
+        self,
+        name: str,
+        value: float,
+        *,
+        step: int | None = None,
+        attributes: Mapping[str, object] | None = None,
+    ) -> None:
+        self.metric_points.append((name, float(value), step, dict(attributes or {})))
+
+    def metrics(
+        self,
+        values: Mapping[str, float],
+        *,
+        step: int | None = None,
+        attributes: Mapping[str, object] | None = None,
+    ) -> None:
+        for name, value in values.items():
+            self.metric(name, value, step=step, attributes=attributes)
 
 
 def _runtime(tmp_path: Path, context: EventContext) -> AdaptiveCurriculumRuntime:
@@ -380,6 +401,18 @@ def test_trainer_composition_selects_before_generation_and_observes_raw_rewards(
         decisions = [event for event in context.events if event[0] == "adaptive_curriculum_allocation_selected"]
         assert decisions[-1][1]["selection_kind"] == "initial_batch"
         assert decisions[-1][1]["round_index"] is None
+        metric_values = {name: value for name, value, _, _ in context.metric_points}
+        assert metric_values["train/rl/curriculum/candidate_groups"] == 4
+        assert metric_values["train/rl/curriculum/unique_tasks"] == 4
+        assert metric_values["train/rl/curriculum/new_tasks"] == 4
+        class_points = [
+            (value, step, attributes["class_id"])
+            for name, value, step, attributes in context.metric_points
+            if name == "train/rl/curriculum/class_candidate_groups"
+        ]
+        assert sum(value for value, _, _ in class_points) == 4
+        assert len({step for _, step, _ in class_points}) == 1
+        assert {class_id for _, _, class_id in class_points} <= {"a", "b"}
     finally:
         runtime.close()
 

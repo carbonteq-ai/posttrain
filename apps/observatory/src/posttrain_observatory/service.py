@@ -44,6 +44,8 @@ from .models import (
     GRPOAccelerationEvidence,
     GRPOProjection,
     GRPORolloutPopulation,
+    GRPOSamplingEvidence,
+    GRPOSamplingStep,
     InferenceTimingStageSummary,
     InferenceTimingSummary,
     LocatedRunSummary,
@@ -498,7 +500,10 @@ def _logical_metric_series(series: MetricSeries) -> MetricSeries:
     retained: list[MetricPoint] = []
     for point in series.points:
         if point.step is not None and any(
-            existing.step == point.step and existing.value == point.value for existing in retained
+            existing.step == point.step
+            and existing.value == point.value
+            and existing.attributes == point.attributes
+            for existing in retained
         ):
             continue
         retained.append(point)
@@ -604,7 +609,37 @@ def _metric_summary(
 def _grpo_projection(
     resolved_inputs: Mapping[str, JsonValue],
     series: Mapping[str, MetricSeries],
+    events: tuple[EventRecord, ...],
 ) -> GRPOProjection:
+    algorithm = next(
+        (
+            value.lower()
+            for value in _config_values(dict(resolved_inputs), "algorithm")
+            if isinstance(value, str) and value
+        ),
+        None,
+    )
+    olmo_active = _condition_active("olmo3_algorithm_enabled", resolved_inputs, series)
+    dynamic = any(
+        series.get(metric, MetricSeries(name=metric)).points
+        for metric in (
+            "train/rl/dynamic_sampling_candidate_batches",
+            "train/rl/dynamic_sampling_retained_fraction",
+        )
+    )
+    strategy: Literal["standard", "dynamic", "olmo3_active"] = (
+        "olmo3_active" if olmo_active else "dynamic" if dynamic else "standard"
+    )
+    controller_steps = _adaptive_sampling_steps(series, events)
+    num_generations = _config_positive_int(resolved_inputs, "num_generations") or 1
+
+    def active_group_summary(*, key: str, label: str, metric: str) -> SummaryValue:
+        raw = _metric_summary(series, key=key, label=label, metric=metric)
+        value = raw.value
+        return raw.model_copy(
+            update={"value": float(value) / num_generations if isinstance(value, int | float) else None}
+        )
+
     return GRPOProjection(
         rollout_population=GRPORolloutPopulation(
             requested=_metric_summary(
@@ -654,6 +689,178 @@ def _grpo_projection(
                 unit="ratio",
             ),
         ),
+        sampling=GRPOSamplingEvidence(
+            strategy=strategy,
+            algorithm=algorithm,
+            adaptive_controller=bool(controller_steps),
+            zero_variance_scope="candidate" if olmo_active else "training",
+            zero_variance=_metric_summary(
+                series,
+                key="candidate_zero_variance" if olmo_active else "training_zero_variance",
+                label="Candidate zero-variance groups" if olmo_active else "Training zero-variance groups",
+                metric="train/rl/group_zero_variance_fraction",
+                unit="ratio",
+            ),
+            retained_fraction=_metric_summary(
+                series,
+                key="retained_fraction",
+                label="Candidate retention",
+                metric=(
+                    "train/rl/active_sampling_retained_fraction"
+                    if olmo_active
+                    else "train/rl/dynamic_sampling_retained_fraction"
+                ),
+                unit="ratio",
+            ),
+            generation_rounds=_metric_summary(
+                series,
+                key="generation_rounds",
+                label="Refill rounds",
+                metric="train/rl/active_sampling_generation_rounds",
+            ),
+            generated_groups=active_group_summary(
+                key="generated_groups",
+                label="Candidate task groups",
+                metric="train/rl/active_sampling_candidate_groups_generated",
+            ),
+            retained_groups=active_group_summary(
+                key="retained_groups",
+                label="Retained task groups",
+                metric="train/rl/active_sampling_candidate_groups_retained",
+            ),
+            steps=controller_steps,
+        ),
+    )
+
+
+_CURRICULUM_METRIC_FIELDS = {
+    "train/rl/curriculum/candidate_groups": "candidate_groups",
+    "train/rl/curriculum/unique_tasks": "unique_tasks",
+    "train/rl/curriculum/new_tasks": "new_tasks",
+    "train/rl/curriculum/discovery_reserved": "discovery_reserved",
+    "train/rl/curriculum/discovery_fulfilled": "discovery_fulfilled",
+    "train/rl/curriculum/duplicate_fallbacks": "duplicate_fallbacks",
+}
+
+
+def _adaptive_sampling_steps(
+    series: Mapping[str, MetricSeries],
+    events: tuple[EventRecord, ...],
+) -> tuple[GRPOSamplingStep, ...]:
+    metric_steps = _adaptive_sampling_metric_steps(series)
+    if metric_steps:
+        return metric_steps
+    return _adaptive_sampling_event_steps(events)
+
+
+def _adaptive_sampling_metric_steps(series: Mapping[str, MetricSeries]) -> tuple[GRPOSamplingStep, ...]:
+    rows: dict[int, dict[str, object]] = {}
+
+    def row_for(step: int) -> dict[str, object]:
+        return rows.setdefault(
+            step,
+            {
+                "candidate_groups": 0,
+                "unique_tasks": 0,
+                "new_tasks": 0,
+                "discovery_reserved": 0,
+                "discovery_fulfilled": 0,
+                "duplicate_fallbacks": 0,
+                "refill_rounds": 0,
+                "class_counts": defaultdict(int),
+            },
+        )
+
+    for metric, field in _CURRICULUM_METRIC_FIELDS.items():
+        for point in series.get(metric, MetricSeries(name=metric)).points:
+            if point.step is None or point.step < 0:
+                continue
+            row = row_for(point.step)
+            row[field] = cast(int, row[field]) + max(0, int(point.value))
+
+    refill_metric = "train/rl/curriculum/refill_round"
+    for point in series.get(refill_metric, MetricSeries(name=refill_metric)).points:
+        if point.step is None or point.step < 0:
+            continue
+        row = row_for(point.step)
+        row["refill_rounds"] = max(cast(int, row["refill_rounds"]), max(0, int(point.value)))
+
+    class_metric = "train/rl/curriculum/class_candidate_groups"
+    for point in series.get(class_metric, MetricSeries(name=class_metric)).points:
+        class_id = point.attributes.get("class_id")
+        if point.step is None or point.step < 0 or not isinstance(class_id, str) or not class_id:
+            continue
+        row = row_for(point.step)
+        cast(defaultdict[str, int], row["class_counts"])[class_id] += max(0, int(point.value))
+
+    return tuple(
+        GRPOSamplingStep(
+            step=step,
+            candidate_groups=cast(int, row["candidate_groups"]),
+            unique_tasks=cast(int, row["unique_tasks"]),
+            new_tasks=cast(int, row["new_tasks"]),
+            discovery_reserved=cast(int, row["discovery_reserved"]),
+            discovery_fulfilled=cast(int, row["discovery_fulfilled"]),
+            duplicate_fallbacks=cast(int, row["duplicate_fallbacks"]),
+            refill_rounds=cast(int, row["refill_rounds"]),
+            class_counts=dict(sorted(cast(defaultdict[str, int], row["class_counts"]).items())),
+        )
+        for step, row in sorted(rows.items())
+    )
+
+
+def _adaptive_sampling_event_steps(events: tuple[EventRecord, ...]) -> tuple[GRPOSamplingStep, ...]:
+    rows: dict[int, dict[str, object]] = {}
+    for event in events:
+        if event.name != "adaptive_curriculum_allocation_selected":
+            continue
+        attributes = event.attributes
+        step = attributes.get("step")
+        task_ids = attributes.get("task_ids")
+        if not isinstance(step, int) or isinstance(step, bool) or step < 0 or not isinstance(task_ids, list):
+            continue
+        valid_task_ids = [task_id for task_id in task_ids if isinstance(task_id, str)]
+        row = rows.setdefault(
+            step,
+            {
+                "task_ids": [],
+                "new_tasks": 0,
+                "discovery_reserved": 0,
+                "discovery_fulfilled": 0,
+                "duplicate_fallbacks": 0,
+                "refill_rounds": 0,
+                "class_counts": defaultdict(int),
+            },
+        )
+        cast(list[str], row["task_ids"]).extend(valid_task_ids)
+        for key in ("new_tasks_selected", "discovery_reserved", "discovery_fulfilled", "duplicate_fallbacks"):
+            value = attributes.get(key)
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                target = "new_tasks" if key == "new_tasks_selected" else key
+                row[target] = cast(int, row[target]) + value
+        round_index = attributes.get("round_index")
+        if isinstance(round_index, int) and not isinstance(round_index, bool) and round_index >= 0:
+            row["refill_rounds"] = max(cast(int, row["refill_rounds"]), round_index)
+        class_counts = attributes.get("selected_classes")
+        if isinstance(class_counts, Mapping):
+            stored = cast(defaultdict[str, int], row["class_counts"])
+            for class_id, count in class_counts.items():
+                if isinstance(class_id, str) and isinstance(count, int) and not isinstance(count, bool) and count >= 0:
+                    stored[class_id] += count
+    return tuple(
+        GRPOSamplingStep(
+            step=step,
+            candidate_groups=len(task_ids),
+            unique_tasks=len(set(task_ids)),
+            new_tasks=cast(int, row["new_tasks"]),
+            discovery_reserved=cast(int, row["discovery_reserved"]),
+            discovery_fulfilled=cast(int, row["discovery_fulfilled"]),
+            duplicate_fallbacks=cast(int, row["duplicate_fallbacks"]),
+            refill_rounds=cast(int, row["refill_rounds"]),
+            class_counts=dict(sorted(cast(defaultdict[str, int], row["class_counts"]).items())),
+        )
+        for step, row in sorted(rows.items())
+        for task_ids in [cast(list[str], row["task_ids"])]
     )
 
 
@@ -1183,7 +1390,7 @@ class ObservatoryService:
             metric_help=definition.metric_help,
             completeness=completeness,
             grpo=(
-                _grpo_projection(detail.resolved_inputs, by_name)
+                _grpo_projection(detail.resolved_inputs, by_name, detail.events)
                 if definition.job_kind in GROUP_POLICY_JOB_KINDS
                 else None
             ),

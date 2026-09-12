@@ -173,11 +173,37 @@ class GRPOAccelerationEvidence(ObservatoryModel):
     kv_cache_peak_usage: SummaryValue
 
 
+class GRPOSamplingStep(ObservatoryModel):
+    step: int = Field(ge=0)
+    candidate_groups: int = Field(ge=0)
+    unique_tasks: int = Field(ge=0)
+    new_tasks: int = Field(ge=0)
+    discovery_reserved: int = Field(ge=0)
+    discovery_fulfilled: int = Field(ge=0)
+    duplicate_fallbacks: int = Field(ge=0)
+    refill_rounds: int = Field(ge=0)
+    class_counts: dict[str, int]
+
+
+class GRPOSamplingEvidence(ObservatoryModel):
+    strategy: Literal["standard", "dynamic", "olmo3_active"]
+    algorithm: str | None = None
+    adaptive_controller: bool
+    zero_variance_scope: Literal["training", "candidate"]
+    zero_variance: SummaryValue
+    retained_fraction: SummaryValue
+    generation_rounds: SummaryValue
+    generated_groups: SummaryValue
+    retained_groups: SummaryValue
+    steps: tuple[GRPOSamplingStep, ...] = ()
+
+
 class GRPOProjection(ObservatoryModel):
     """GRPO-specific evidence consumed identically by HTTP, MCP, Python, and UI."""
 
     rollout_population: GRPORolloutPopulation
     acceleration: GRPOAccelerationEvidence
+    sampling: GRPOSamplingEvidence
 
 
 class RunAlert(ObservatoryModel):
@@ -1035,6 +1061,8 @@ __all__ = [
     "GRPOAccelerationEvidence",
     "GRPOProjection",
     "GRPORolloutPopulation",
+    "GRPOSamplingEvidence",
+    "GRPOSamplingStep",
     "JobDefinitionSummary",
     "JobKindGroup",
     "InferenceTimingStageSummary",

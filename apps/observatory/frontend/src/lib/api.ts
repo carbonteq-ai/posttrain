@@ -46,6 +46,31 @@ export type SummaryMetric = {
   unit: string | null;
 };
 
+export type GRPOSamplingStep = {
+  step: number;
+  candidate_groups: number;
+  unique_tasks: number;
+  new_tasks: number;
+  discovery_reserved: number;
+  discovery_fulfilled: number;
+  duplicate_fallbacks: number;
+  refill_rounds: number;
+  class_counts: Record<string, number>;
+};
+
+export type GRPOSamplingEvidence = {
+  strategy: 'standard' | 'dynamic' | 'olmo3_active';
+  algorithm: string | null;
+  adaptive_controller: boolean;
+  zero_variance_scope: 'training' | 'candidate';
+  zero_variance: SummaryMetric;
+  retained_fraction: SummaryMetric;
+  generation_rounds: SummaryMetric;
+  generated_groups: SummaryMetric;
+  retained_groups: SummaryMetric;
+  steps: GRPOSamplingStep[];
+};
+
 export type MetricHelp = {
   metric: string;
   label: string;
@@ -469,6 +494,7 @@ export type RunView = {
         accepted_speculative_length: SummaryMetric;
         kv_cache_peak_usage: SummaryMetric;
       };
+      sampling: GRPOSamplingEvidence;
     } | null;
     alerts?: Array<{ id: string; severity: string; message: string; field: string | null }>;
     metric_catalog?: MetricCatalog;

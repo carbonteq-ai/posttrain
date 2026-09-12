@@ -186,6 +186,30 @@ class AdaptiveCurriculumRuntime:
             "adaptive_curriculum_allocation_selected",
             cast(Mapping[str, JsonValue], decision.as_record()),
         )
+        attributes: dict[str, JsonValue] = {
+            "selection_kind": decision.selection_kind,
+            "round_index": decision.round_index,
+        }
+        self.context.metrics(
+            {
+                "train/rl/curriculum/candidate_groups": len(decision.task_ids),
+                "train/rl/curriculum/unique_tasks": len(decision.task_ids) - decision.duplicate_fallbacks,
+                "train/rl/curriculum/new_tasks": decision.new_tasks_selected,
+                "train/rl/curriculum/discovery_reserved": decision.discovery_reserved,
+                "train/rl/curriculum/discovery_fulfilled": decision.discovery_fulfilled,
+                "train/rl/curriculum/duplicate_fallbacks": decision.duplicate_fallbacks,
+                "train/rl/curriculum/refill_round": decision.round_index or 0,
+            },
+            step=decision.step,
+            attributes=attributes,
+        )
+        for class_id, count in decision.selected_classes.items():
+            self.context.metric(
+                "train/rl/curriculum/class_candidate_groups",
+                count,
+                step=decision.step,
+                attributes={**attributes, "class_id": class_id},
+            )
 
 
 def adaptive_curriculum_trainer_type(parent: type[Any], runtime: AdaptiveCurriculumRuntime) -> type[Any]:

@@ -1588,11 +1588,15 @@
           },
           "rollout_population": {
             "$ref": "#/components/schemas/GRPORolloutPopulation"
+          },
+          "sampling": {
+            "$ref": "#/components/schemas/GRPOSamplingEvidence"
           }
         },
         "required": [
           "rollout_population",
-          "acceleration"
+          "acceleration",
+          "sampling"
         ],
         "title": "GRPOProjection",
         "type": "object"
@@ -1632,6 +1636,143 @@
           "missing"
         ],
         "title": "GRPORolloutPopulation",
+        "type": "object"
+      },
+      "GRPOSamplingEvidence": {
+        "additionalProperties": false,
+        "properties": {
+          "adaptive_controller": {
+            "title": "Adaptive Controller",
+            "type": "boolean"
+          },
+          "algorithm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Algorithm"
+          },
+          "generated_groups": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "generation_rounds": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "retained_fraction": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "retained_groups": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "steps": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/GRPOSamplingStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "strategy": {
+            "enum": [
+              "standard",
+              "dynamic",
+              "olmo3_active"
+            ],
+            "title": "Strategy",
+            "type": "string"
+          },
+          "zero_variance": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "zero_variance_scope": {
+            "enum": [
+              "training",
+              "candidate"
+            ],
+            "title": "Zero Variance Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "strategy",
+          "adaptive_controller",
+          "zero_variance_scope",
+          "zero_variance",
+          "retained_fraction",
+          "generation_rounds",
+          "generated_groups",
+          "retained_groups"
+        ],
+        "title": "GRPOSamplingEvidence",
+        "type": "object"
+      },
+      "GRPOSamplingStep": {
+        "additionalProperties": false,
+        "properties": {
+          "candidate_groups": {
+            "minimum": 0.0,
+            "title": "Candidate Groups",
+            "type": "integer"
+          },
+          "class_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Class Counts",
+            "type": "object"
+          },
+          "discovery_fulfilled": {
+            "minimum": 0.0,
+            "title": "Discovery Fulfilled",
+            "type": "integer"
+          },
+          "discovery_reserved": {
+            "minimum": 0.0,
+            "title": "Discovery Reserved",
+            "type": "integer"
+          },
+          "duplicate_fallbacks": {
+            "minimum": 0.0,
+            "title": "Duplicate Fallbacks",
+            "type": "integer"
+          },
+          "new_tasks": {
+            "minimum": 0.0,
+            "title": "New Tasks",
+            "type": "integer"
+          },
+          "refill_rounds": {
+            "minimum": 0.0,
+            "title": "Refill Rounds",
+            "type": "integer"
+          },
+          "step": {
+            "minimum": 0.0,
+            "title": "Step",
+            "type": "integer"
+          },
+          "unique_tasks": {
+            "minimum": 0.0,
+            "title": "Unique Tasks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "step",
+          "candidate_groups",
+          "unique_tasks",
+          "new_tasks",
+          "discovery_reserved",
+          "discovery_fulfilled",
+          "duplicate_fallbacks",
+          "refill_rounds",
+          "class_counts"
+        ],
+        "title": "GRPOSamplingStep",
         "type": "object"
       },
       "GenericRunView": {

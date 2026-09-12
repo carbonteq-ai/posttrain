@@ -29,6 +29,7 @@ import {
 
 import { FilterPopover } from './components/FilterPopover';
 import { PhaseMemoryTimeline } from './components/PhaseMemoryTimeline';
+import { SamplingDistribution, SamplingSummary } from './components/SamplingEvidence';
 import { ServingBenchmarkOverview } from './features/serving/ServingBenchmarkOverview';
 import { ServingCapacityWorkPackageView } from './features/serving/ServingCapacityWorkPackage';
 
@@ -1748,6 +1749,7 @@ function GenericOverview({
     (item) => !item.id.startsWith('evidence-') && !item.id.startsWith('missing-'),
   );
   const summaryByKey = new Map(summary.map((item) => [item.key, item]));
+  const sampling = view.grpo?.sampling;
   const grpoReward = summaryByKey.get('reward_mean');
   const grpoEntropy = summaryByKey.get('entropy');
   const grpoZeroVariance = summaryByKey.get('zero_variance');
@@ -1756,7 +1758,11 @@ function GenericOverview({
   const grpoClipLow = summaryByKey.get('clip_fraction_low');
   const grpoClipHigh = summaryByKey.get('clip_fraction_high');
   const zeroVarianceValue = typeof grpoZeroVariance?.value === 'number' ? grpoZeroVariance.value : null;
-  const usableGroupValue = zeroVarianceValue == null ? null : Math.max(0, Math.min(1, 1 - zeroVarianceValue));
+  const retainedFractionValue = typeof sampling?.retained_fraction.value === 'number' ? sampling.retained_fraction.value : null;
+  const olmoSampling = sampling?.strategy === 'olmo3_active';
+  const usableGroupValue = olmoSampling
+    ? retainedFractionValue
+    : zeroVarianceValue == null ? null : Math.max(0, Math.min(1, 1 - zeroVarianceValue));
   const hasAsymmetricClip = grpoClipLow?.state === 'available' || grpoClipHigh?.state === 'available';
   const clipMetric = hasAsymmetricClip ? grpoClipLow : grpoClip;
   const clipValue = hasAsymmetricClip
@@ -1835,12 +1841,14 @@ function GenericOverview({
                     note="exploration"
                   />
                   <HeadlineMetric
-                    label="Usable groups"
+                    label={olmoSampling ? 'Candidate yield' : 'Usable groups'}
                     value={formatValue(usableGroupValue, 'ratio')}
-                    metric={grpoZeroVariance?.metric ?? null}
-                    help={grpoZeroVariance?.metric ? helpByMetric.get(grpoZeroVariance.metric) : undefined}
-                    state={grpoZeroVariance?.state ?? 'missing'}
-                    note="groups with reward variance"
+                    metric={olmoSampling ? sampling.retained_fraction.metric : grpoZeroVariance?.metric ?? null}
+                    help={olmoSampling && sampling.retained_fraction.metric
+                      ? helpByMetric.get(sampling.retained_fraction.metric)
+                      : grpoZeroVariance?.metric ? helpByMetric.get(grpoZeroVariance.metric) : undefined}
+                    state={olmoSampling ? sampling.retained_fraction.state : grpoZeroVariance?.state ?? 'missing'}
+                    note={olmoSampling ? 'generated candidates retained' : 'training groups with reward variance'}
                   />
                   <HeadlineMetric
                     label="Clip pressure"
@@ -1882,6 +1890,9 @@ function GenericOverview({
               )}
             </section>
           ) : <EmptyState title="No registered job summary" body="Use Metrics for raw, bounded evidence. Observatory will not infer job semantics that are not registered." />}
+          {isGroupPolicy && sampling && (sampling.strategy !== 'standard' || sampling.adaptive_controller) && (
+            <SamplingSummary sampling={sampling} />
+          )}
           {dataSummary.length > 0 && (
             <section className="obs-card mt-3 overflow-hidden" aria-labelledby="data-profile-heading">
               <div className="flex flex-wrap items-end justify-between gap-3 border-b border-divider px-4 py-3">
@@ -2206,6 +2217,9 @@ function TraceView({
         <span className="mt-1 block truncate text-[9px] text-muted" title={item.note}>{item.note}</span>
       </div>)}
     </div>
+    {response.view.grpo?.sampling?.adaptive_controller && (
+      <SamplingDistribution sampling={response.view.grpo.sampling} />
+    )}
     <div className="obs-card mt-3 flex flex-wrap items-center gap-2 px-2.5 py-2 text-xs">
       <SlidersHorizontal size={15} className="mx-0.5 text-muted" />
       <FilterPopover label={evaluation?.facets.length ? 'Slice / facet' : 'Slice'} value={slice} onChange={setSlice} options={filterOptions} />

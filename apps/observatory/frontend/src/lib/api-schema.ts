@@ -994,6 +994,7 @@ export interface components {
         GRPOProjection: {
             acceleration: components["schemas"]["GRPOAccelerationEvidence"];
             rollout_population: components["schemas"]["GRPORolloutPopulation"];
+            sampling: components["schemas"]["GRPOSamplingEvidence"];
         };
         /** GRPORolloutPopulation */
         GRPORolloutPopulation: {
@@ -1004,6 +1005,56 @@ export interface components {
             requested: components["schemas"]["SummaryValue"];
             truncated: components["schemas"]["SummaryValue"];
             unscorable: components["schemas"]["SummaryValue"];
+        };
+        /** GRPOSamplingEvidence */
+        GRPOSamplingEvidence: {
+            /** Adaptive Controller */
+            adaptive_controller: boolean;
+            /** Algorithm */
+            algorithm?: string | null;
+            generated_groups: components["schemas"]["SummaryValue"];
+            generation_rounds: components["schemas"]["SummaryValue"];
+            retained_fraction: components["schemas"]["SummaryValue"];
+            retained_groups: components["schemas"]["SummaryValue"];
+            /**
+             * Steps
+             * @default []
+             */
+            steps: components["schemas"]["GRPOSamplingStep"][];
+            /**
+             * Strategy
+             * @enum {string}
+             */
+            strategy: "standard" | "dynamic" | "olmo3_active";
+            zero_variance: components["schemas"]["SummaryValue"];
+            /**
+             * Zero Variance Scope
+             * @enum {string}
+             */
+            zero_variance_scope: "training" | "candidate";
+        };
+        /** GRPOSamplingStep */
+        GRPOSamplingStep: {
+            /** Candidate Groups */
+            candidate_groups: number;
+            /** Class Counts */
+            class_counts: {
+                [key: string]: number;
+            };
+            /** Discovery Fulfilled */
+            discovery_fulfilled: number;
+            /** Discovery Reserved */
+            discovery_reserved: number;
+            /** Duplicate Fallbacks */
+            duplicate_fallbacks: number;
+            /** New Tasks */
+            new_tasks: number;
+            /** Refill Rounds */
+            refill_rounds: number;
+            /** Step */
+            step: number;
+            /** Unique Tasks */
+            unique_tasks: number;
         };
         /** GenericRunView */
         GenericRunView: {

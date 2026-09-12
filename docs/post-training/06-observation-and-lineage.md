@@ -258,6 +258,13 @@ Includes SFT-like series plus:
 | `train/rl/clip_fraction` | When applicable |
 | `train/rl/rollouts_per_step` | |
 
+An adaptive curriculum emits a compact run-level projection of its own
+selection decisions. Scalar points record candidate, unique, new, discovery,
+fallback, and refill counts. `train/rl/curriculum/class_candidate_groups`
+adds the bounded `class_id` tag so a reader can reconstruct per-step class
+allocation. Task identities remain in controller state and audit events; they
+are not metric tags.
+
 Per-rollout rewards also live on `VerifiersTrace`; do not require duplicating
 every rollout reward into `train/rl/*` unless the trainer only exposes aggregates.
 

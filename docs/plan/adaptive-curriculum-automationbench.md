@@ -32,6 +32,7 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 - [x] (2026-09-12) Submitted versioned work package `lfm26_automationbench_olmo3_adaptive_20_local_v2.yaml` as run `lfm26-olmo3-adaptive20-discovery-v2-20260912-r1` (`pt-315a5edf6ca3a900440b5af2`); it is queued for `carbonteq-ai-workstation.lan`.
 - [ ] Run both 20-update training jobs.
 - [ ] Compare run evidence and record the result here.
+- [x] (2026-09-12) Separated standard GRPO, OLMo active-sampling, and adaptive-controller evidence in Observatory; added controller-owned projection metrics and a per-step class allocation view beside traces.
 
 ## Surprises & Discoveries
 
@@ -43,6 +44,9 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 
 - Observation: a step count is not a sound evidence horizon because a class may receive no examples during a step.
   Evidence: the rollout dataset is sampled by prompt group; evidence freshness must therefore be counted per task from completed groups rather than inferred from optimizer steps.
+
+- Observation: the pinned Trackio fork already supports bounded, named-field Doris reads with per-point attributes and preserves multiple attributed points at one logical step.
+  Evidence: framework pin `03ff6e0d7c7458b26a23a69242f519bc700ff920` projects requested metric and attribute keys, applies step bounds and empty-row filtering in Doris, and passed a regression test with equal-valued class points at the same step. A new Trackio table or controller trace type would duplicate existing capability.
 
 - Observation: the machine config contains a retired `[providers.dstack.runtime_secrets]` table while this checkout reads runtime credentials from `[services.runtime_credentials]`.
   Evidence: `posttrain machine show` rejected `providers.dstack.runtime_secrets` as an unknown field. Qualification commands use an ephemeral config copy with only the retired duplicate table removed; the user's config remains unchanged.
@@ -77,6 +81,18 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 
 - Decision: Persist an ordered JSONL journal through one bounded writer queue and write an atomic controller snapshot when the model checkpoint callback runs.
   Rationale: ordinary evidence writes stay off the rollout critical path, writer failures remain visible, and resume pairs controller state with the exact model checkpoint instead of replaying newer evidence against older weights.
+  Date/Author: 2026-09-12 / Codex
+
+- Decision: Project sampling semantics in Observatory from resolved algorithm settings, active-sampling metrics, and compact controller-owned metrics, with controller events as a compatibility fallback for older runs.
+  Rationale: under standard GRPO, zero-variance groups describe the optimizer population; under OLMo 3, the currently emitted zero-variance fraction describes generated candidates that active sampling may discard. Named metric reads avoid scanning high-cardinality event payloads, while the event and state journal remain audit and recovery evidence.
+  Date/Author: 2026-09-12 / Codex
+
+- Decision: Show adaptive class allocation as one stacked bar per optimizer step in the trace view, paired with compact new-task, revisit, discovery, and fallback counts.
+  Rationale: controller decisions are candidate-selection evidence and belong beside rollout traces for debugging. Aggregating controller metrics on the server keeps high-cardinality task identities out of chart payloads and prevents the frontend from inventing event semantics.
+  Date/Author: 2026-09-12 / Codex
+
+- Decision: Reuse Trackio's existing sparse metric history path instead of adding controller-specific Trackio storage.
+  Rationale: the pinned fork already projects only requested JSON fields and attributes and drops unrelated rows. The controller emits eight low-cardinality series; Observatory requests those series and reconstructs the class distribution. Trackio remains generic and the current run remains readable through event fallback because its image predates these metrics.
   Date/Author: 2026-09-12 / Codex
 
 - Decision: Qualify the first implementation on one training process.
