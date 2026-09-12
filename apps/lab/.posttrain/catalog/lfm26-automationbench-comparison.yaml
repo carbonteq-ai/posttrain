@@ -735,7 +735,7 @@ training:
 
   lfm2.5-2.6b/automationbench-olmo3-adaptive-20-local-v2:
     selection_type: grpo-settings
-    revision: "2"
+    revision: "3"
     loop: *comparison_local_20_loop
     num_prompts_per_step: 8
     num_generations: 4

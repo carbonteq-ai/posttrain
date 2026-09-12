@@ -262,7 +262,7 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
         exploration=0.2,
     )
     assert isinstance(local_adaptive_v2, GRPOSettings)
-    assert local_adaptive_v2.revision == "2"
+    assert local_adaptive_v2.revision == "3"
     assert local_adaptive_v2.algorithm == local_adaptive.algorithm
     assert local_adaptive_v2.loop == local_adaptive.loop
     assert local_adaptive_v2.adaptive_curriculum is not None

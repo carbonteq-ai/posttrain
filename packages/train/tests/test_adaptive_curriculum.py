@@ -68,6 +68,7 @@ def test_controller_starts_equal_without_reading_hidden_task_difficulty() -> Non
     initial = controller.select(8, step=1)
 
     assert initial.class_probabilities == {"a": 0.5, "b": 0.5}
+    assert set(initial.task_priorities) == set(initial.task_ids)
     assert len(initial.task_ids) == len(set(initial.task_ids)) == 8
     assert initial.discovery_reserved == 1
     assert initial.discovery_fulfilled == 1
@@ -97,6 +98,41 @@ def test_low_and_high_reward_have_less_predicted_contrast_than_mixed_reward() ->
     assert controller.task_signal("b1") == 0.25
     assert controller.task_priority("b1") > controller.task_priority("a1")
     assert controller.task_priority("b1") > controller.task_priority("a2")
+
+
+def test_constant_fractional_reward_is_not_mistaken_for_future_variance() -> None:
+    controller = _controller(
+        RecordingBackend(),
+        task_classes={"constant": "shared", "mixed": "shared"},
+    )
+    observation = controller.observe(
+        [
+            ("constant", [0.2, 0.2, 0.2, 0.2]),
+            ("mixed", [0.0, 0.4, 0.0, 0.4]),
+        ],
+        step=1,
+    )
+
+    assert observation.task_rewards == {"constant": 0.2, "mixed": 0.2}
+    assert observation.task_variances["constant"] == pytest.approx(0.0)
+    assert observation.task_variances["mixed"] == pytest.approx(0.04)
+    assert controller.task_priority("mixed") > controller.task_priority("constant")
+
+
+def test_class_evidence_is_a_bounded_prior_not_a_replacement_for_task_history() -> None:
+    task_classes = {"zero": "shared", "positive": "shared"}
+    task_classes.update({f"class-positive-{index}": "shared" for index in range(20)})
+    controller = _controller(RecordingBackend(), task_classes=task_classes)
+    controller.observe(
+        [
+            ("zero", [0.2, 0.2, 0.2, 0.2]),
+            ("positive", [0.0, 0.4, 0.0, 0.4]),
+            *((f"class-positive-{index}", [0.0, 1.0, 0.0, 1.0]) for index in range(20)),
+        ],
+        step=1,
+    )
+
+    assert controller.task_priority("positive") > controller.task_priority("zero")
 
 
 def test_representative_class_evidence_guides_unseen_tasks_without_marking_them_solved() -> None:

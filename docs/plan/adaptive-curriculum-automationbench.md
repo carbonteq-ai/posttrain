@@ -33,6 +33,8 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 - [ ] Run both 20-update training jobs.
 - [ ] Compare run evidence and record the result here.
 - [x] (2026-09-12) Separated standard GRPO, OLMo active-sampling, and adaptive-controller evidence in Observatory; added controller-owned projection metrics and a per-step class allocation view beside traces.
+- [x] (2026-09-12) Diagnosed the first six adaptive steps: reused tasks with prior positive variance yielded usable groups 61.1% of the time, while reused tasks with prior zero variance yielded 18.4%; the controller nevertheless divided reuse almost evenly because its reward-mean proxy and unbounded class prior overwhelmed task variance history.
+- [x] (2026-09-12) Replaced the reward-mean proxy with a posterior over the actual positive-variance admission event, bounded class shrinkage to two pseudo-observations, exposed current task variance and pre-selection task priority in controller audit records, and advanced the adaptive selection revision to `3`.
 
 ## Surprises & Discoveries
 
@@ -47,6 +49,9 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 
 - Observation: the pinned Trackio fork already supports bounded, named-field Doris reads with per-point attributes and preserves multiple attributed points at one logical step.
   Evidence: framework pin `03ff6e0d7c7458b26a23a69242f519bc700ff920` projects requested metric and attribute keys, applies step bounds and empty-row filtering in Doris, and passed a regression test with equal-valued class points at the same step. A new Trackio table or controller trace type would duplicate existing capability.
+
+- Observation: the live revision-2 controller history predicts OLMo admission, but the implemented priority did not use that prediction directly.
+  Evidence: across 118 reconstructed candidate groups from one live snapshot, 36 reused tasks with prior positive variance produced another positive-variance group 61.1% of the time; 38 reused tasks with prior zero variance did so 18.4% of the time. The reuse population was therefore divided almost evenly despite a large observed yield difference. Constant fractional rewards reveal the mismatch: OLMo rejects `[0.2, 0.2, 0.2, 0.2]`, while a Beta-Bernoulli model fitted to reward mean predicts mixed binary outcomes.
 
 - Observation: the machine config contains a retired `[providers.dstack.runtime_secrets]` table while this checkout reads runtime credentials from `[services.runtime_credentials]`.
   Evidence: `posttrain machine show` rejected `providers.dstack.runtime_secrets` as an unknown field. Qualification commands use an ephemeral config copy with only the retired duplicate table removed; the user's config remains unchanged.
@@ -93,6 +98,10 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 
 - Decision: Reuse Trackio's existing sparse metric history path instead of adding controller-specific Trackio storage.
   Rationale: the pinned fork already projects only requested JSON fields and attributes and drops unrelated rows. The controller emits eight low-cardinality series; Observatory requests those series and reconstructs the class distribution. Trackio remains generic and the current run remains readable through event fallback because its image predates these metrics.
+  Date/Author: 2026-09-12 / Codex
+
+- Decision: Estimate task utility as a smoothed empirical probability of positive within-group variance, using recent task groups as Bernoulli admission observations and class evidence as a fixed-strength prior.
+  Rationale: this target matches both vanilla GRPO's need for relative signal and OLMo 3's actual retain predicate. A fixed two-observation class prior transfers evidence to unseen or sparse tasks without allowing a large class to erase contradictory task history. Coverage and cumulative discovery continue to revisit low-scoring tasks as the student changes.
   Date/Author: 2026-09-12 / Codex
 
 - Decision: Qualify the first implementation on one training process.

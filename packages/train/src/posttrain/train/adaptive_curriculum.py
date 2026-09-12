@@ -17,7 +17,8 @@ from typing import Protocol, cast
 
 from .profiles import AdaptiveCurriculum
 
-_STATE_VERSION = 2
+_STATE_VERSION = 3
+_CLASS_PRIOR_STRENGTH = 2.0
 
 
 class CurriculumStateBackend(Protocol):
@@ -39,6 +40,7 @@ class CurriculumDecision:
     task_ids: tuple[str, ...]
     class_probabilities: Mapping[str, float]
     task_probabilities: Mapping[str, float]
+    task_priorities: Mapping[str, float]
     selected_classes: Mapping[str, int]
     selected_tasks: Mapping[str, int]
     selection_kind: str = "initial_batch"
@@ -61,6 +63,7 @@ class CurriculumDecision:
             "task_ids": list(self.task_ids),
             "class_probabilities": dict(self.class_probabilities),
             "task_probabilities": dict(self.task_probabilities),
+            "task_priorities": dict(self.task_priorities),
             "selected_classes": dict(self.selected_classes),
             "selected_tasks": dict(self.selected_tasks),
             "selection_kind": self.selection_kind,
@@ -84,6 +87,7 @@ class CurriculumObservation:
     task_signals: Mapping[str, float | None]
     class_signals: Mapping[str, float | None]
     task_rewards: Mapping[str, float]
+    task_variances: Mapping[str, float]
 
     def as_record(self) -> dict[str, object]:
         return {
@@ -95,6 +99,7 @@ class CurriculumObservation:
             "task_signals": dict(self.task_signals),
             "class_signals": dict(self.class_signals),
             "task_rewards": dict(self.task_rewards),
+            "task_variances": dict(self.task_variances),
         }
 
 
@@ -334,6 +339,7 @@ class AdaptiveCurriculumController:
         components: list[str] = []
         selection_probabilities: list[float] = []
         task_probabilities: dict[str, float] = {}
+        task_priorities: dict[str, float] = {}
         class_probability_sums = {class_id: 0.0 for class_id in self.tasks_by_class}
         duplicate_fallbacks = 0
         reserved_fulfilled = 0
@@ -350,6 +356,7 @@ class AdaptiveCurriculumController:
             components.append(component)
             selection_probabilities.append(probability)
             task_probabilities[task_id] = probability
+            task_priorities[task_id] = self.task_priority(task_id)
             for class_id, value in class_probabilities.items():
                 class_probability_sums[class_id] += value
             if repeated:
@@ -374,6 +381,7 @@ class AdaptiveCurriculumController:
             task_ids=tuple(selected),
             class_probabilities=class_probabilities,
             task_probabilities=task_probabilities,
+            task_priorities=task_priorities,
             selected_classes=selected_classes,
             selected_tasks=selected_tasks,
             selection_kind=selection_kind,
@@ -494,6 +502,7 @@ class AdaptiveCurriculumController:
         invalid = 0
         observed_task_ids: set[str] = set()
         task_rewards: dict[str, float] = {}
+        task_variances: dict[str, float] = {}
         for task_id, rewards in groups:
             if task_id not in self.task_classes:
                 raise ValueError(f"adaptive curriculum observed unknown task {task_id!r}")
@@ -514,6 +523,7 @@ class AdaptiveCurriculumController:
             self._first_evidence.setdefault(task_id, evidence)
             observed_task_ids.add(task_id)
             task_rewards[task_id] = mean
+            task_variances[task_id] = variance
         task_signals = {task_id: self.task_signal(task_id) for task_id in sorted(observed_task_ids)}
         observation = CurriculumObservation(
             step=step,
@@ -522,6 +532,7 @@ class AdaptiveCurriculumController:
             task_signals=task_signals,
             class_signals=self.class_signals(),
             task_rewards=task_rewards,
+            task_variances=task_variances,
         )
         self.backend.append(observation.as_record())
         return observation
@@ -537,24 +548,29 @@ class AdaptiveCurriculumController:
     def task_priority(self, task_id: str) -> float:
         alpha, beta = self._class_prior(self.task_classes[task_id], omit=task_id)
         for evidence in self._history[task_id]:
-            alpha += evidence.reward_sum
-            beta += evidence.count - evidence.reward_sum
-        return _mixed_group_probability(alpha, beta, self.group_size)
+            useful = float(evidence.variance > 0)
+            alpha += useful
+            beta += 1 - useful
+        return alpha / (alpha + beta)
 
     def _class_discovery_priority(self, class_id: str) -> float:
         alpha, beta = self._class_prior(class_id)
-        return _mixed_group_probability(alpha, beta, self.group_size)
+        return alpha / (alpha + beta)
 
     def _class_prior(self, class_id: str, *, omit: str | None = None) -> tuple[float, float]:
-        alpha = 1.0
-        beta = 1.0
+        useful_groups = 0
+        observed_groups = 0
         for task_id in self.tasks_by_class[class_id]:
             if task_id == omit or task_id not in self._first_evidence:
                 continue
             evidence = self._first_evidence[task_id]
-            alpha += evidence.reward_sum
-            beta += evidence.count - evidence.reward_sum
-        return alpha, beta
+            observed_groups += 1
+            useful_groups += int(evidence.variance > 0)
+        class_rate = (1 + useful_groups) / (2 + observed_groups)
+        return (
+            class_rate * _CLASS_PRIOR_STRENGTH,
+            (1 - class_rate) * _CLASS_PRIOR_STRENGTH,
+        )
 
     def class_signals(self) -> dict[str, float | None]:
         result: dict[str, float | None] = {}
@@ -678,13 +694,6 @@ def _draw(probabilities: Mapping[str, float], rng: random.Random) -> str:
 
 def _cumulative_quota(previous: int, requested: int, fraction: float) -> int:
     return math.floor((previous + requested) * fraction) - math.floor(previous * fraction)
-
-
-def _mixed_group_probability(alpha: float, beta: float, group_size: int) -> float:
-    denominator = math.prod(alpha + beta + offset for offset in range(group_size))
-    all_success = math.prod(alpha + offset for offset in range(group_size)) / denominator
-    all_failure = math.prod(beta + offset for offset in range(group_size)) / denominator
-    return max(0.0, min(1.0, 1.0 - all_success - all_failure))
 
 
 def _decode_evidence(value: object) -> _Evidence:
