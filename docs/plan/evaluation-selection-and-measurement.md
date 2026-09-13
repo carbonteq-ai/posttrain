@@ -6,19 +6,20 @@ This ExecPlan follows `docs/templates/PLAN.md`. Revision 2, 2026-09-13. Maintain
 
 Developers should be able to choose an evaluation population, allocate a task budget, request repeated executions, and declare how results are weighted without writing environment-specific reporting scripts. Observatory should explain exactly which tasks and attempts support each score. Two checkpoints should be comparable using the same resolved selection, while still acknowledging that backends differ in reproducibility support.
 
-This is a production framework design, not an AutomationBench-only experiment. The present request authorizes planning only. This plan does not launch jobs or change existing evaluation behavior. Implementation includes public Python and catalog interfaces, standard jobs, native Verifiers integration, durable evidence, Observatory HTTP/MCP/export/UI, migration, and real integration qualification. Precision-driven adaptive evaluation and automatic statistical stopping are deferred: they require an additional estimator design. All five basic allocation policies and minimum-coverage allocation are in scope.
+This is a production framework design, not an AutomationBench-only experiment. Implementation is now authorized and proceeds in isolated worktrees; no evaluation job is launched until the local contracts and tests are ready. The work includes public Python and catalog interfaces, standard jobs, native Verifiers integration, durable evidence, Observatory HTTP/MCP/export/UI, migration, and real integration qualification. Precision-driven adaptive evaluation and automatic statistical stopping are deferred: they require an additional estimator design. All five basic allocation policies and minimum-coverage allocation are in scope.
 
 ## Progress
 
 - [x] 2026-09-13: Inspected evaluation request, environment facet, native adapter, Observatory aggregation, and frontend contracts; wrote revision 1.
 - [x] 2026-09-13: Extended the plan with the Observatory evaluation journey, projection contracts, comparison behavior, query boundaries, migration, and acceptance evidence.
 - [x] 2026-09-13: Amended the canonical evaluation contracts for manifest-backed selection, task-weighted measurement, and rebuildable Observatory projections.
-- [x] 2026-09-13: Added and published generic exact task-key dispatch in CarbonTeq Verifiers commit `89e90cf2c9e942f74cd73874e1a18cd4a4e45f73`; the complete v1 suite passes with credential-gated Prime tests skipped.
+- [x] 2026-09-13: Added and published generic exact task-key dispatch in CarbonTeq Verifiers commit `0e5b04258b899150dd4555a0acacda0c58cdb6bb`; the complete v1 suite passes with credential-gated Prime tests skipped.
 - [x] 2026-09-13: Implemented provider-neutral task descriptors, native finite inventory projection, typed filters and allocation policies, deterministic immutable manifests, catalog decoding, and manifest-to-Verifiers dispatch.
-- [ ] Implement repetitions, optional reproducibility controls, generation resolution, and retry accounting.
-- [ ] Implement explicit aggregation, denominators, and paired comparison.
+- [x] 2026-09-13: Integrated automatic manifest resolution into standard evaluation execution and added typed measurement plus the first Observatory population/task view. The affected backend suites report 289 passing tests with four credential-gated skips; the frontend reports 73 passing tests and a successful production build.
+- [ ] Implement repetitions, optional reproducibility controls, generation resolution, and retry accounting. Stable repetition identities are now emitted; explicit retry-attempt envelopes and seed controls remain.
+- [ ] Implement explicit aggregation, denominators, and paired comparison. Typed task-mean/target-weighted measurement, strict/available missing policy, denominators, and a first Observatory projection are implemented; paired comparison remains.
 - [ ] Integrate standard jobs, catalog authoring, preview, and portable artifacts.
-- [ ] Implement Observatory reporting, migrations, and documentation.
+- [ ] Implement Observatory reporting, migrations, and documentation. The overview now separates tasks, repetitions, execution attempts, retries, and task-level scores for manifest-backed single-trace episodes; cached projections, task detail, reliability, and compatibility views remain.
 - [ ] Complete deterministic tests, real backend qualification, and browser acceptance.
 
 ## Surprises & Discoveries
@@ -35,9 +36,15 @@ The current frontend presents facets in preference to task groups when facet evi
 
 Native evaluation currently receives `num_tasks`, `num_rollouts`, and `shuffle`. The local Verifiers runner selects a head or shuffled taskset. `SamplingPolicy` exposes generation controls but no typed per-attempt seed schedule. The adapter reads environment sampling explicitly, so changing only an inference binding may not change actual request settings.
 
-The primary checkout is dirty with unrelated release and curriculum work. Planning inspected HEAD `756f943d41db8c7c469e24a4034d196be2071d8f`; preserve all existing changes. Implementation started from Verifiers pin `36eac9d5e04ef29b584b6fa4f027af00cd76ea19` and now selects published exact-dispatch commit `89e90cf2c9e942f74cd73874e1a18cd4a4e45f73`. Sibling checkout HEADs remain non-authoritative unless selected by an immutable consumer pin.
+The primary checkout is dirty with unrelated release and curriculum work. Planning inspected HEAD `756f943d41db8c7c469e24a4034d196be2071d8f`; preserve all existing changes. Implementation started from Verifiers pin `36eac9d5e04ef29b584b6fa4f027af00cd76ea19` and now selects published exact-dispatch commit `0e5b04258b899150dd4555a0acacda0c58cdb6bb`. Sibling checkout HEADs remain non-authoritative unless selected by an immutable consumer pin.
 
 Implementation uses isolated worktrees `/tmp/rl-evaluation-selection` on `codex/evaluation-selection-measurement` and `/tmp/verifiers-evaluation-task-selection` on `codex/evaluation-task-selection`; the original dirty checkout remains untouched. The pinned Verifiers runner had only fixed shuffle/head selection, but native tasks already exposed stable `key` and content `hash` values. The maintained fork now accepts exact ordered `task_keys` and validates them before episode dispatch.
+
+Verifiers evaluation episodes previously had no repetition slot in their retained run identity. Concurrent completion order therefore could not recover which planned repetition produced a trace. The maintained fork now records `repetition_index`; whole-episode retry history remains compressed and cannot yet support attempt-level drill-down.
+
+One Verifiers episode can contain several agent traces. Observatory only constructs the new task/repetition measurement when each episode slot maps unambiguously to one trace; multi-agent episodes require an environment-owned episode reducer rather than a first-trace heuristic.
+
+Repository-wide Pyright currently reports 24 errors in existing catalog, CLI, environment, runtime-image, and training test paths. The changed evaluation and Observatory modules pass targeted Pyright, repository-wide Ruff passes, and all eight import contracts pass. Do not claim the unrelated type-check debt was introduced or resolved by this plan.
 
 Target weight and inclusion probability are separate quantities. If a stratum represents one third of the target population and two of its tasks are selected, each selected representative receives one sixth of the estimator weight; its inclusion probability still records two divided by the number of eligible tasks in that stratum.
 
@@ -59,9 +66,11 @@ Decision: raw traces and the resolved evaluation manifest remain replay authorit
 
 Decision: evaluation comparison begins with a compatibility assessment and then reports both full-run and common-task results where meaningful. Rationale: a single delta can hide different populations, generation policies, or missing coverage. Date: 2026-09-13.
 
+Decision: new manifest-backed plans default to a strict equal task mean; target-weighted measurement and available-case missing handling require typed policy. Rationale: repeated traces must not silently give one task extra influence, and incomplete evidence must not inherit a complete-looking legacy rollout mean. Date: 2026-09-13.
+
 ## Outcomes & Retrospective
 
-Implementation has begun in revision 2. The selection and exact-dispatch foundation is implemented and focused tests pass; repetitions, measurement, complete Observatory product work, standard-job/CLI preparation, real model qualification, and checkpoint evaluations remain pending. Future updates must distinguish tested behavior from proposed interfaces and record exact backend pins and evidence links.
+Implementation has begun in revision 2. Selection, exact dispatch, stable repetition identity, typed task-level measurement, and the first Observatory overview are implemented and tested. Retry-attempt preservation, seed controls, prepared CLI artifacts, paired comparison, cached projections, full product views, real model qualification, and checkpoint evaluations remain pending. Future updates must distinguish tested behavior from proposed interfaces and record exact backend pins and evidence links.
 
 ## Context and Orientation
 

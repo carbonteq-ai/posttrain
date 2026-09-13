@@ -8,12 +8,14 @@ from collections import defaultdict
 from collections.abc import Awaitable, Callable, Mapping
 from itertools import product
 from statistics import fmean
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from posttrain.common import JsonValue
 from posttrain.tracking import RunDataSource, TraceFactAggregate, TraceFactsQuery, TraceQuery, TraceRecord
 
+from .evaluation_measurement import measure_evaluation
 from .models import (
+    EvaluationAttemptEvidence,
     EvaluationBreakdown,
     EvaluationBreakdownGroup,
     EvaluationBreakdownSpec,
@@ -21,6 +23,10 @@ from .models import (
     EvaluationDistribution,
     EvaluationFacet,
     EvaluationFacetSpec,
+    EvaluationMeasurementFacet,
+    EvaluationMeasurementPolicyView,
+    EvaluationMeasurementTask,
+    EvaluationMeasurementView,
     EvaluationMetadata,
     EvaluationMetricDefinition,
     EvaluationPerformance,
@@ -54,6 +60,135 @@ _TRUNCATED_STOP_CONDITIONS = frozenset(
 # which lets historical traces recover a precise thinking-token count even when
 # the OpenAI-compatible usage block did not report ``reasoning_tokens``.
 _QWEN35_THINKING_END_TOKEN_ID = 248069
+
+
+def _manifest_measurement(
+    records: list[TraceRecord],
+    summaries: tuple[TraceSummary, ...],
+) -> EvaluationMeasurementView | None:
+    """Project a manifest-backed single-trace episode without guessing missing identities."""
+
+    if not records:
+        return None
+    manifest_digests = {
+        value
+        for record in records
+        if isinstance((value := record.attributes.get("evaluation_manifest_digest")), str) and value
+    }
+    repetition_counts = {
+        value
+        for record in records
+        if isinstance((value := record.attributes.get("num_rollouts")), int)
+        and not isinstance(value, bool)
+        and value > 0
+    }
+    selected_counts = {
+        value
+        for record in records
+        if isinstance((value := record.attributes.get("evaluation_selected_tasks")), int)
+        and not isinstance(value, bool)
+        and value > 0
+    }
+    estimators = {
+        value
+        for record in records
+        if (value := record.attributes.get("evaluation_estimator")) in {"task_mean", "target_weighted"}
+    }
+    missing_policies = {
+        value
+        for record in records
+        if (value := record.attributes.get("evaluation_missing_policy")) in {"strict", "available"}
+    }
+    if (
+        len(manifest_digests) != 1
+        or len(repetition_counts) != 1
+        or len(selected_counts) != 1
+        or len(estimators) > 1
+        or len(missing_policies) > 1
+    ):
+        return None
+    manifest_digest = next(iter(manifest_digests))
+    repetitions = next(iter(repetition_counts))
+    selected_count = next(iter(selected_counts))
+    tasks: dict[str, EvaluationMeasurementTask] = {}
+    attempts: list[EvaluationAttemptEvidence] = []
+    slots: set[tuple[str, int]] = set()
+    for record, summary in zip(records, summaries, strict=True):
+        task_key = summary.task
+        repetition_index = record.attributes.get("evaluation_repetition_index")
+        attempt_index = record.attributes.get("evaluation_execution_attempt_index", 0)
+        target_weight = record.attributes.get("evaluation_task_target_weight")
+        if (
+            not task_key
+            or not isinstance(repetition_index, int)
+            or isinstance(repetition_index, bool)
+            or repetition_index < 0
+            or not isinstance(attempt_index, int)
+            or isinstance(attempt_index, bool)
+            or attempt_index < 0
+            or not isinstance(target_weight, int | float)
+            or isinstance(target_weight, bool)
+            or target_weight <= 0
+        ):
+            return None
+        slot = (task_key, repetition_index)
+        # Several traces from one episode require an environment-owned episode
+        # reducer. Choosing the first would silently change the evaluation unit.
+        if slot in slots:
+            return None
+        slots.add(slot)
+        raw_facets = record.attributes.get("evaluation_task_facets", [])
+        facets = tuple(
+            EvaluationMeasurementFacet(
+                dimension=str(item["dimension"]),
+                value=str(item["value"]),
+                label=str(item["value"]),
+            )
+            for item in raw_facets
+            if isinstance(item, Mapping)
+            and isinstance(item.get("dimension"), str)
+            and isinstance(item.get("value"), str)
+        ) if isinstance(raw_facets, list) else ()
+        candidate = EvaluationMeasurementTask(
+            key=task_key,
+            label=summary.task_label or task_key,
+            target_weight=float(target_weight),
+            facets=facets,
+        )
+        existing = tasks.get(task_key)
+        if existing is not None and existing != candidate:
+            return None
+        tasks[task_key] = candidate
+        attempts.append(
+            EvaluationAttemptEvidence(
+                task_key=task_key,
+                repetition_index=repetition_index,
+                attempt_index=attempt_index,
+                reward=summary.reward,
+                success=summary.success,
+                execution_error=summary.error,
+                truncated=summary.truncated,
+                trace_id=summary.external_id,
+            )
+        )
+    if len(tasks) != selected_count:
+        return None
+    return measure_evaluation(
+        manifest_digest=manifest_digest,
+        tasks=tuple(tasks.values()),
+        repetitions_per_task=repetitions,
+        attempts=attempts,
+        policy=EvaluationMeasurementPolicyView(
+            estimator=cast(
+                Literal["task_mean", "target_weighted"],
+                next(iter(estimators), "task_mean"),
+            ),
+            missing=cast(
+                Literal["strict", "available"],
+                next(iter(missing_policies), "strict"),
+            ),
+        ),
+    )
 
 
 def _number(value: object) -> float | None:
@@ -1117,6 +1252,7 @@ async def trace_evaluation_view(
         traces=summaries if include_traces else (),
         next_cursor=cursor,
         live=live,
+        measurement=_manifest_measurement(records, summaries),
     )
 
 

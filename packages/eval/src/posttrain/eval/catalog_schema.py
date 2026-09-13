@@ -15,6 +15,7 @@ from .requests import (
     EnvironmentBinding,
     EnvironmentFactory,
     EvaluationBreakdownDefinition,
+    EvaluationMeasurementPolicy,
     EvaluationNumericPredicate,
     EvaluationPlan,
     EvaluationSignalRef,
@@ -143,6 +144,11 @@ class EvaluationSelectionPolicySchema(EvalCatalogSchema):
     exhaustion: Literal["error", "use_all"] = "error"
 
 
+class EvaluationMeasurementPolicySchema(EvalCatalogSchema):
+    estimator: Literal["task_mean", "target_weighted"] = "task_mean"
+    missing: Literal["strict", "available"] = "strict"
+
+
 class EvaluationPlanSchema(EvalCatalogSchema):
     id: str
     kind: Literal["general", "domain"]
@@ -153,6 +159,7 @@ class EvaluationPlanSchema(EvalCatalogSchema):
     success: dict[str, EvaluationSuccessDefinitionSchema] = Field(default_factory=dict)
     breakdowns: dict[str, tuple[EvaluationBreakdownDefinitionSchema, ...]] = Field(default_factory=dict)
     selection: dict[str, EvaluationSelectionPolicySchema] = Field(default_factory=dict)
+    measurement: dict[str, EvaluationMeasurementPolicySchema] = Field(default_factory=dict)
     aggregation: dict[str, JsonValue] = Field(default_factory=dict)
     comparison: dict[str, JsonValue] = Field(default_factory=dict)
 
@@ -237,6 +244,10 @@ def evaluation_catalog_decoders(
                 ),
             )
             for environment_id, policy in payload.selection.items()
+        }
+        values["measurement"] = {
+            environment_id: EvaluationMeasurementPolicy(**policy.model_dump())
+            for environment_id, policy in payload.measurement.items()
         }
         return EvaluationPlan(environments=tuple(environments), **values)
 

@@ -565,7 +565,8 @@ Neither projection changes the algorithm loss. Semantic segmentation is deferred
 | `selection` | Per-environment population filter and distinct-task allocation policy |
 | `sampling` | Repetition, initialization controls, generation limits, and retries |
 | `metrics_and_slices` | Required measures (projected from traces) |
-| `aggregation` | Coverage / missing-evidence rules |
+| `measurement` | Per-environment task estimator and missing-evidence policy |
+| `aggregation` | Legacy extension settings retained during migration |
 | `comparison` | Parent / foundation / baseline policy |
 
 The model under test is **not** part of the plan; it is a seat on the eval
@@ -580,6 +581,11 @@ per stratum followed by proportional remainder. Resolution produces a
 `ResolvedEvaluationManifest`; execution consumes that manifest rather than
 reselecting positional rows. Exhaustion, missing allocation facets, and
 overlapping memberships follow explicit policy rather than backend defaults.
+`EvaluationMeasurementPolicy` independently selects an equal task mean or the
+manifest's target-weighted task mean and declares whether missing repetitions
+make the headline unavailable or permit an explicitly partial available-case
+estimate. Repetitions are reduced within each task before either estimator is
+applied.
 
 Verifiers mapping (implementation target): each enabled plan cell becomes an
 `EnvConfig` from the env package, merged with client/sampling/budget from the

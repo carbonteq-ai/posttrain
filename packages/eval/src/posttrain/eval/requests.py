@@ -118,6 +118,14 @@ class EvaluationBreakdownDefinition:
 
 
 @dataclass(frozen=True, slots=True)
+class EvaluationMeasurementPolicy:
+    """How repeated task results become the evaluation headline."""
+
+    estimator: Literal["task_mean", "target_weighted"] = "task_mean"
+    missing: Literal["strict", "available"] = "strict"
+
+
+@dataclass(frozen=True, slots=True)
 class EvaluationPlan:
     """Reusable selection and interpretation policy for environment cells."""
 
@@ -130,6 +138,7 @@ class EvaluationPlan:
     success: Mapping[str, EvaluationSuccessDefinition] = field(default_factory=dict)
     breakdowns: Mapping[str, tuple[EvaluationBreakdownDefinition, ...]] = field(default_factory=dict)
     selection: Mapping[str, EvaluationSelectionPolicy] = field(default_factory=dict)
+    measurement: Mapping[str, EvaluationMeasurementPolicy] = field(default_factory=dict)
     aggregation: Mapping[str, JsonValue] = field(default_factory=dict)
     comparison: Mapping[str, JsonValue] = field(default_factory=dict)
 
@@ -176,6 +185,15 @@ class EvaluationPlan:
         if any(not isinstance(policy, EvaluationSelectionPolicy) for policy in self.selection.values()):
             raise TypeError("evaluation selection policies must be EvaluationSelectionPolicy values")
         object.__setattr__(self, "selection", MappingProxyType(dict(self.selection)))
+        unknown_measurement = set(self.measurement) - set(ids)
+        if unknown_measurement:
+            raise ValueError(
+                "evaluation measurement policies reference unknown environments: "
+                + ", ".join(sorted(unknown_measurement))
+            )
+        if any(not isinstance(policy, EvaluationMeasurementPolicy) for policy in self.measurement.values()):
+            raise TypeError("evaluation measurement policies must be EvaluationMeasurementPolicy values")
+        object.__setattr__(self, "measurement", MappingProxyType(dict(self.measurement)))
         object.__setattr__(self, "aggregation", MappingProxyType(dict(self.aggregation)))
         object.__setattr__(self, "comparison", MappingProxyType(dict(self.comparison)))
 
@@ -215,6 +233,12 @@ class EvaluationPlan:
 
         self.environment(environment_id)
         return self.selection.get(environment_id)
+
+    def measurement_for(self, environment_id: str) -> EvaluationMeasurementPolicy:
+        """Return explicit score semantics, defaulting to an equal task mean."""
+
+        self.environment(environment_id)
+        return self.measurement.get(environment_id, EvaluationMeasurementPolicy())
 
 
 RemotePolicy = HostedModel
@@ -418,6 +442,7 @@ __all__ = [
     "EvaluateRequest",
     "EvaluationBudget",
     "EvaluationEndpoint",
+    "EvaluationMeasurementPolicy",
     "EvaluationPlan",
     "EvaluationNumericPredicate",
     "ResolvedEvaluationManifest",

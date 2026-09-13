@@ -5,13 +5,15 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from posttrain.common import LocalArtifactRef, ProducedArtifact, RunContext
 
-from .backends.verifiers import VerifiersRunResult, run_verifiers
+from .backends.verifiers import VerifiersRunResult, inventory_verifiers_tasks, run_verifiers
 from .requests import EvaluateRequest, RemoteEvaluationBinding, RemotePolicy
 from .results import EvaluationResult, TraceSynchronization
+from .selection import resolve_evaluation_selection
 
 type EvaluationContext = RunContext
 type EvaluationRunner = Callable[[EvaluationContext, EvaluateRequest, Path], VerifiersRunResult]
@@ -35,6 +37,16 @@ def evaluate(
     runner: EvaluationRunner = run_verifiers,
 ) -> EvaluationResult:
     """Evaluate one model/environment cell and retain its native result bundle."""
+
+    selection = request.plan.selection_for(request.environment_id)
+    if request.manifest is None and selection is not None:
+        request = replace(
+            request,
+            manifest=resolve_evaluation_selection(
+                inventory_verifiers_tasks(request.environment),
+                selection,
+            ),
+        )
 
     environment = request.environment
     num_tasks, num_rollouts, max_concurrent = request.resolved_budget
@@ -163,12 +175,15 @@ def domain(
 
 
 def _attributes(request: EvaluateRequest) -> dict[str, str | int]:
+    measurement = request.plan.measurement_for(request.environment_id)
     attributes: dict[str, str | int] = {
         "evaluation_subject_id": request.model.id,
         "evaluation_plan_id": request.plan.id,
         "evaluation_plan_kind": request.plan.kind,
         "inference_binding_id": request.inference.id,
         "execution_target_id": request.target.id,
+        "evaluation_estimator": measurement.estimator,
+        "evaluation_missing_policy": measurement.missing,
     }
     if isinstance(request.model, RemotePolicy):
         assert isinstance(request.inference, RemoteEvaluationBinding)

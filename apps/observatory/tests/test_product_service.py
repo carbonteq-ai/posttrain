@@ -602,6 +602,56 @@ async def test_eval_population_is_trace_derived_and_drillable(service: Observato
 
 
 @pytest.mark.asyncio
+async def test_manifest_backed_evaluation_projects_task_weighted_measurement() -> None:
+    source = FixtureRunDataSource()
+    run_id = "runs/eval-manifest-measurement"
+    shared = {
+        "evaluation_manifest_digest": "sha256:manifest",
+        "evaluation_selected_tasks": 2,
+        "num_rollouts": 2,
+        "evaluation_execution_attempt_index": 0,
+        "evaluation_task_inclusion_probability": 1.0,
+        "evaluation_task_facets": [{"dimension": "subject", "value": "math"}],
+    }
+    source._traces[run_id] = tuple(  # noqa: SLF001 - deterministic fixture mutation
+        TraceRecord(
+            trace_type="verifiers",
+            external_id=f"trace-{task_key}-{repetition}",
+            payload={
+                "task": {"type": "Task", "key": task_key, "data": {"name": task_key}},
+                "rewards": {"reward": reward},
+                "metrics": {},
+                "errors": [],
+                "nodes": [],
+            },
+            attributes={
+                **shared,
+                "episode_id": f"episode-{task_key}-{repetition}",
+                "evaluation_repetition_index": repetition,
+                "evaluation_task_target_weight": 0.5,
+            },
+        )
+        for task_key, repetition, reward in (
+            ("task-a", 0, 1.0),
+            ("task-a", 1, 1.0),
+            ("task-b", 0, 0.0),
+            ("task-b", 1, 0.0),
+        )
+    )
+
+    evaluation = await trace_evaluation_view(source, run_id, expected=4)
+
+    assert evaluation.measurement is not None
+    assert evaluation.measurement.state == "complete"
+    assert evaluation.measurement.estimate.value == pytest.approx(0.5)
+    assert evaluation.measurement.coverage.selected_tasks == 2
+    assert evaluation.measurement.coverage.planned_repetitions == 4
+    assert evaluation.measurement.coverage.execution_attempts == 4
+    assert len(evaluation.measurement.tasks) == 2
+    assert evaluation.measurement.facets[0].selected_tasks == 2
+
+
+@pytest.mark.asyncio
 async def test_eval_population_projects_verifiers_v1_wire_trace_fields() -> None:
     source = FixtureRunDataSource()
     run_id = "runs/eval-wire-trace"

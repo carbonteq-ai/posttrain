@@ -658,8 +658,44 @@ def test_evaluate_retains_manifest_and_records_its_identity(tmp_path: Path) -> N
 
     manifest_path = result.native_artifact.reference.path / "evaluation-manifest.json"  # type: ignore[union-attr]
     assert json.loads(manifest_path.read_text()) == manifest.to_payload()
-    assert observer.events[0].attributes["task_selection"] == "resolved-manifest"
     assert observer.events[0].attributes["evaluation_manifest_digest"] == manifest.digest
+
+
+def test_evaluate_resolves_plan_selection_before_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = request()
+    policy = EvaluationSelectionPolicy(kind="uniform", num_tasks=1, seed=4)
+    selected = replace(base, plan=replace(base.plan, selection={"math": policy}))
+    observer = RecordingObserver()
+    population = (
+        TaskDescriptor(key="task-a", fingerprint="sha256:" + "a" * 64),
+        TaskDescriptor(key="task-b", fingerprint="sha256:" + "b" * 64),
+    )
+    monkeypatch.setattr("posttrain.eval.api.inventory_verifiers_tasks", lambda environment: population)
+
+    def fake_runner(
+        execution: RunContext,
+        evaluation: EvaluateRequest,
+        output: Path,
+    ) -> VerifiersRunResult:
+        del execution
+        assert evaluation.manifest is not None
+        assert len(evaluation.manifest.tasks) == 1
+        (output / "traces.jsonl").write_text('{"id":"trace-1"}\n', encoding="utf-8")
+        return VerifiersRunResult(
+            ("trace-1",),
+            TraceSyncStats(observed_records=1, emitted_records=1),
+            EvaluationPopulation(attempted=1, complete=1, failed=0, truncated=0, coverage_missing=0),
+        )
+
+    result = evaluate(context(tmp_path, observer), selected, runner=fake_runner)
+
+    assert result.native_artifact.metadata["task_selection"] == "resolved-manifest"
+    assert (result.native_artifact.reference.path / "evaluation-manifest.json").exists()  # type: ignore[union-attr]
+    assert observer.events[0].attributes["task_selection"] == "resolved-manifest"
+    assert isinstance(observer.events[0].attributes["evaluation_manifest_digest"], str)
 
 
 def test_evaluate_emits_direct_sync_metrics_and_native_artifact(tmp_path: Path) -> None:
@@ -735,6 +771,51 @@ def test_verifiers_eval_emits_shared_trace_facts() -> None:
     assert trace.facts[0].dimensions["rollout_step"] is None
     assert isinstance(evaluation.model, ModelVariant)
     assert trace.facts[0].dimensions["model_family"] == evaluation.model.family
+
+
+def test_manifest_trace_attributes_preserve_repetition_and_selection_evidence() -> None:
+    from posttrain.eval.backends.verifiers.adapter import _emit_batch
+
+    base = request()
+    policy = EvaluationSelectionPolicy(kind="uniform", num_tasks=1, seed=4)
+    plan = replace(base.plan, selection={"math": policy})
+    manifest = resolve_evaluation_selection(
+        (
+            TaskDescriptor(
+                key="task-a",
+                fingerprint="sha256:" + "a" * 64,
+                facets=(),
+            ),
+        ),
+        policy,
+    )
+    evaluation = replace(base, plan=plan, manifest=manifest)
+    observer = RecordingObserver()
+    record = {
+        "id": "episode-1",
+        "ok": True,
+        "task": {"key": "task-a"},
+        "run": {"type": "eval", "id": "run-1", "repetition_index": 2},
+        "traces": [
+            {
+                "id": "trace-1",
+                "version": 2,
+                "task": {"key": "task-a", "type": "Task", "data": {}},
+                "agent": {"model": "models/future-2b"},
+                "nodes": [],
+                "calls": [],
+            }
+        ],
+    }
+
+    _emit_batch(context(Path.cwd(), observer), evaluation, [record])
+
+    [trace] = observer.traces
+    assert trace.attributes["evaluation_repetition_index"] == 2
+    assert trace.attributes["evaluation_execution_attempt_index"] == 0
+    assert trace.attributes["evaluation_task_target_weight"] == 1
+    assert trace.attributes["evaluation_task_inclusion_probability"] == 1
+    assert trace.attributes["evaluation_selected_tasks"] == 1
 
 
 def test_evaluate_records_shuffled_subset_policy(tmp_path: Path) -> None:

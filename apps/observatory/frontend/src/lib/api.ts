@@ -359,6 +359,59 @@ export type TraceEvaluation = {
     thinking_tokens: EvaluationDistribution | null;
     tool_calls: EvaluationDistribution | null;
   };
+  measurement?: {
+    calculator_version: string;
+    manifest_digest: string;
+    state: 'complete' | 'partial' | 'unavailable';
+    policy: { estimator: 'task_mean' | 'target_weighted'; missing: 'strict' | 'available' };
+    coverage: {
+      selected_tasks: number;
+      observed_tasks: number;
+      planned_repetitions: number;
+      completed_repetitions: number;
+      valid_repetitions: number;
+      execution_attempts: number;
+      retries: number;
+      execution_failures: number;
+      truncations: number;
+      missing_repetitions: number;
+    };
+    estimate: {
+      estimator: 'task_mean' | 'target_weighted';
+      state: 'complete' | 'partial' | 'unavailable';
+      value: number | null;
+      available_case_value: number | null;
+      task_denominator: number;
+      target_weight_observed: number;
+    };
+    tasks: Array<{
+      key: string;
+      label: string;
+      target_weight: number;
+      planned_repetitions: number;
+      valid_repetitions: number;
+      execution_attempts: number;
+      retries: number;
+      execution_failures: number;
+      truncations: number;
+      mean_reward: number | null;
+      success_frequency: number | null;
+      any_of_k: boolean | null;
+      all_of_k: boolean | null;
+      facets: Array<{ dimension: string; value: string; label: string }>;
+      trace_ids: string[];
+    }>;
+    facets: Array<{
+      dimension: string;
+      value: string;
+      label: string;
+      selected_tasks: number;
+      observed_tasks: number;
+      valid_repetitions: number;
+      mean_reward: number | null;
+      success_rate: number | null;
+    }>;
+  } | null;
   traces: TraceSummary[];
   next_cursor: string | null;
   live: boolean;

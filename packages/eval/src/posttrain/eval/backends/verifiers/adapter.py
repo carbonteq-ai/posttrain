@@ -144,7 +144,8 @@ def _build_native(request: EvaluateRequest, output_dir: Path) -> tuple[Any, Any,
 
 
 def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: list[dict[str, Any]]) -> None:
-    num_tasks, _, _ = request.resolved_budget
+    num_tasks, num_rollouts, _ = request.resolved_budget
+    measurement = request.plan.measurement_for(request.environment_id)
     attributes = {
         "evaluation_subject_id": request.model.id,
         "evaluation_plan_id": request.plan.id,
@@ -154,6 +155,9 @@ def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: l
         "inference_binding_id": request.inference.id,
         "execution_target_id": request.target.id,
         "num_tasks": num_tasks,
+        "num_rollouts": num_rollouts,
+        "evaluation_estimator": measurement.estimator,
+        "evaluation_missing_policy": measurement.missing,
         "task_selection": "verifiers-fixed-shuffle" if request.resolved_shuffle else "head",
     }
     if request.manifest is not None:
@@ -162,8 +166,14 @@ def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: l
                 "task_selection": "resolved-manifest",
                 "evaluation_manifest_digest": request.manifest.digest,
                 "evaluation_inventory_digest": request.manifest.inventory_digest,
+                "evaluation_selected_tasks": len(request.manifest.tasks),
             }
         )
+    selected_tasks = (
+        {item.task.key: item for item in request.manifest.tasks}
+        if request.manifest is not None
+        else {}
+    )
     if isinstance(request.model, RemotePolicy):
         assert request.remote_service is not None
         attributes.update(
@@ -188,6 +198,22 @@ def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: l
     expanded: list[tuple[dict[str, Any], dict[str, JsonValue]]] = []
     for record in records:
         if "traces" in record:
+            run = record.get("run")
+            repetition_index = run.get("repetition_index") if isinstance(run, dict) else None
+            task = record.get("task")
+            task_key = task.get("key") if isinstance(task, dict) else None
+            selected = selected_tasks.get(task_key) if isinstance(task_key, str) else None
+            selection_attributes: dict[str, JsonValue] = {}
+            if selected is not None:
+                selection_attributes = {
+                    "evaluation_task_target_weight": selected.target_weight,
+                    "evaluation_task_inclusion_probability": selected.inclusion_probability,
+                    "evaluation_task_stratum": selected.stratum,
+                    "evaluation_task_facets": [
+                        {"dimension": facet.dimension, "value": facet.value}
+                        for facet in selected.task.facets
+                    ],
+                }
             for trace in record["traces"]:
                 expanded.append(
                     (
@@ -195,6 +221,13 @@ def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: l
                         {
                             "episode_id": record["id"],
                             "episode_ok": record["ok"],
+                            **(
+                                {"evaluation_repetition_index": repetition_index}
+                                if isinstance(repetition_index, int) and repetition_index >= 0
+                                else {}
+                            ),
+                            "evaluation_execution_attempt_index": 0,
+                            **selection_attributes,
                             "projection": "verifiers-episode-traces@1",
                         },
                     )

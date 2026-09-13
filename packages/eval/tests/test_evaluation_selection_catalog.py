@@ -51,6 +51,9 @@ def test_catalog_decodes_typed_selection_policy() -> None:
                             },
                         }
                     },
+                    "measurement": {
+                        "math": {"estimator": "target_weighted", "missing": "available"}
+                    },
                 }
             },
         },
@@ -65,6 +68,8 @@ def test_catalog_decodes_typed_selection_policy() -> None:
     assert policy.num_tasks == 20
     assert policy.minimum_per_stratum == 2
     assert policy.task_filter.all_of[0].values == ("test",)
+    assert plan.measurement_for("math").estimator == "target_weighted"
+    assert plan.measurement_for("math").missing == "available"
 
 
 def test_legacy_plan_has_no_manifest_backed_selection() -> None:

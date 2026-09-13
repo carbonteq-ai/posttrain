@@ -699,6 +699,97 @@ class EvaluationPerformance(ObservatoryModel):
     tool_calls: EvaluationDistribution | None = None
 
 
+class EvaluationMeasurementFacet(ObservatoryModel):
+    dimension: str = Field(min_length=1)
+    value: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+
+
+class EvaluationMeasurementTask(ObservatoryModel):
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    target_weight: float = Field(gt=0)
+    facets: tuple[EvaluationMeasurementFacet, ...] = ()
+
+
+class EvaluationAttemptEvidence(ObservatoryModel):
+    task_key: str = Field(min_length=1)
+    repetition_index: int = Field(ge=0)
+    attempt_index: int = Field(ge=0)
+    reward: float | None = None
+    success: bool | None = None
+    execution_error: str | None = None
+    truncated: bool = False
+    trace_id: str | None = Field(default=None, min_length=1)
+
+
+class EvaluationMeasurementPolicyView(ObservatoryModel):
+    estimator: Literal["task_mean", "target_weighted"] = "task_mean"
+    missing: Literal["strict", "available"] = "strict"
+
+
+class EvaluationCoverage(ObservatoryModel):
+    selected_tasks: int = Field(ge=0)
+    observed_tasks: int = Field(ge=0)
+    planned_repetitions: int = Field(ge=0)
+    completed_repetitions: int = Field(ge=0)
+    valid_repetitions: int = Field(ge=0)
+    execution_attempts: int = Field(ge=0)
+    retries: int = Field(ge=0)
+    execution_failures: int = Field(ge=0)
+    truncations: int = Field(ge=0)
+    missing_repetitions: int = Field(ge=0)
+
+
+class EvaluationEstimatorResult(ObservatoryModel):
+    estimator: Literal["task_mean", "target_weighted"]
+    state: Literal["complete", "partial", "unavailable"]
+    value: float | None = None
+    available_case_value: float | None = None
+    task_denominator: int = Field(ge=0)
+    target_weight_observed: float = Field(ge=0, le=1)
+
+
+class EvaluationTaskResult(ObservatoryModel):
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    target_weight: float = Field(gt=0)
+    planned_repetitions: int = Field(ge=1)
+    valid_repetitions: int = Field(ge=0)
+    execution_attempts: int = Field(ge=0)
+    retries: int = Field(ge=0)
+    execution_failures: int = Field(ge=0)
+    truncations: int = Field(ge=0)
+    mean_reward: float | None = None
+    success_frequency: float | None = None
+    any_of_k: bool | None = None
+    all_of_k: bool | None = None
+    facets: tuple[EvaluationMeasurementFacet, ...] = ()
+    trace_ids: tuple[str, ...] = ()
+
+
+class EvaluationFacetResult(ObservatoryModel):
+    dimension: str = Field(min_length=1)
+    value: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    selected_tasks: int = Field(ge=0)
+    observed_tasks: int = Field(ge=0)
+    valid_repetitions: int = Field(ge=0)
+    mean_reward: float | None = None
+    success_rate: float | None = None
+
+
+class EvaluationMeasurementView(ObservatoryModel):
+    calculator_version: str = Field(min_length=1)
+    manifest_digest: str = Field(min_length=1)
+    state: Literal["complete", "partial", "unavailable"]
+    policy: EvaluationMeasurementPolicyView
+    coverage: EvaluationCoverage
+    estimate: EvaluationEstimatorResult
+    tasks: tuple[EvaluationTaskResult, ...] = ()
+    facets: tuple[EvaluationFacetResult, ...] = ()
+
+
 class TraceEvaluationView(ObservatoryModel):
     state: Literal["complete", "partial", "unavailable"]
     metadata: EvaluationMetadata | None = None
@@ -719,6 +810,7 @@ class TraceEvaluationView(ObservatoryModel):
     traces: tuple[TraceSummary, ...] = ()
     next_cursor: str | None = None
     live: bool = False
+    measurement: EvaluationMeasurementView | None = None
 
 
 class RolloutBehaviorPoint(ObservatoryModel):
@@ -1043,11 +1135,20 @@ __all__ = [
     "EvaluationBreakdownGroup",
     "EvaluationBreakdownSpec",
     "EvaluationBreakdownValue",
+    "EvaluationAttemptEvidence",
+    "EvaluationCoverage",
+    "EvaluationEstimatorResult",
+    "EvaluationFacetResult",
+    "EvaluationMeasurementFacet",
+    "EvaluationMeasurementPolicyView",
+    "EvaluationMeasurementTask",
+    "EvaluationMeasurementView",
     "EvaluationMetadata",
     "EvaluationMetricDefinition",
     "ErrorResponse",
     "EvaluationRunView",
     "EvaluationSlice",
+    "EvaluationTaskResult",
     "EvaluationFacet",
     "EvidenceCitation",
     "EvidenceCompleteness",

@@ -683,7 +683,8 @@ comparison policy. Each cell runs through Verifiers v1; see
 | Inference requirements | Compatible generation binding or required behavior |
 | Sampling and repetition | Seeds, sample counts, generation limits, retry policy |
 | Metrics and slices | Required measures and failure categories (projected from traces) |
-| Aggregation | Coverage, missing-evidence rules, summary calculations |
+| Measurement | Task-level estimator and missing-evidence policy |
+| Aggregation | Legacy extension settings during migration |
 | Comparison policy | Parent, foundation, sibling, or published baseline references |
 
 ### Examples

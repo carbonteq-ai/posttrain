@@ -637,6 +637,29 @@ export interface components {
             /** Value */
             value: string;
         };
+        /** EvaluationCoverage */
+        EvaluationCoverage: {
+            /** Completed Repetitions */
+            completed_repetitions: number;
+            /** Execution Attempts */
+            execution_attempts: number;
+            /** Execution Failures */
+            execution_failures: number;
+            /** Missing Repetitions */
+            missing_repetitions: number;
+            /** Observed Tasks */
+            observed_tasks: number;
+            /** Planned Repetitions */
+            planned_repetitions: number;
+            /** Retries */
+            retries: number;
+            /** Selected Tasks */
+            selected_tasks: number;
+            /** Truncations */
+            truncations: number;
+            /** Valid Repetitions */
+            valid_repetitions: number;
+        };
         /**
          * EvaluationDistribution
          * @description Observed distribution for one request-level evaluation signal.
@@ -652,6 +675,27 @@ export interface components {
             p95: number;
             /** Samples */
             samples: number;
+        };
+        /** EvaluationEstimatorResult */
+        EvaluationEstimatorResult: {
+            /** Available Case Value */
+            available_case_value?: number | null;
+            /**
+             * Estimator
+             * @enum {string}
+             */
+            estimator: "task_mean" | "target_weighted";
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "complete" | "partial" | "unavailable";
+            /** Target Weight Observed */
+            target_weight_observed: number;
+            /** Task Denominator */
+            task_denominator: number;
+            /** Value */
+            value?: number | null;
         };
         /**
          * EvaluationFacet
@@ -673,6 +717,25 @@ export interface components {
             /** Success Rate */
             success_rate?: number | null;
         };
+        /** EvaluationFacetResult */
+        EvaluationFacetResult: {
+            /** Dimension */
+            dimension: string;
+            /** Label */
+            label: string;
+            /** Mean Reward */
+            mean_reward?: number | null;
+            /** Observed Tasks */
+            observed_tasks: number;
+            /** Selected Tasks */
+            selected_tasks: number;
+            /** Success Rate */
+            success_rate?: number | null;
+            /** Valid Repetitions */
+            valid_repetitions: number;
+            /** Value */
+            value: string;
+        };
         /**
          * EvaluationFacetSpec
          * @description Resolved environment declaration for one native task-data facet.
@@ -690,6 +753,55 @@ export interface components {
              * @enum {string}
              */
             transform: "identity" | "prefix_before_colon";
+        };
+        /** EvaluationMeasurementFacet */
+        EvaluationMeasurementFacet: {
+            /** Dimension */
+            dimension: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /** EvaluationMeasurementPolicyView */
+        EvaluationMeasurementPolicyView: {
+            /**
+             * Estimator
+             * @default task_mean
+             * @enum {string}
+             */
+            estimator: "task_mean" | "target_weighted";
+            /**
+             * Missing
+             * @default strict
+             * @enum {string}
+             */
+            missing: "strict" | "available";
+        };
+        /** EvaluationMeasurementView */
+        EvaluationMeasurementView: {
+            /** Calculator Version */
+            calculator_version: string;
+            coverage: components["schemas"]["EvaluationCoverage"];
+            estimate: components["schemas"]["EvaluationEstimatorResult"];
+            /**
+             * Facets
+             * @default []
+             */
+            facets: components["schemas"]["EvaluationFacetResult"][];
+            /** Manifest Digest */
+            manifest_digest: string;
+            policy: components["schemas"]["EvaluationMeasurementPolicyView"];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "complete" | "partial" | "unavailable";
+            /**
+             * Tasks
+             * @default []
+             */
+            tasks: components["schemas"]["EvaluationTaskResult"][];
         };
         /**
          * EvaluationMetadata
@@ -868,6 +980,45 @@ export interface components {
             upper?: number | null;
             /** Value */
             value: number;
+        };
+        /** EvaluationTaskResult */
+        EvaluationTaskResult: {
+            /** All Of K */
+            all_of_k?: boolean | null;
+            /** Any Of K */
+            any_of_k?: boolean | null;
+            /** Execution Attempts */
+            execution_attempts: number;
+            /** Execution Failures */
+            execution_failures: number;
+            /**
+             * Facets
+             * @default []
+             */
+            facets: components["schemas"]["EvaluationMeasurementFacet"][];
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Mean Reward */
+            mean_reward?: number | null;
+            /** Planned Repetitions */
+            planned_repetitions: number;
+            /** Retries */
+            retries: number;
+            /** Success Frequency */
+            success_frequency?: number | null;
+            /** Target Weight */
+            target_weight: number;
+            /**
+             * Trace Ids
+             * @default []
+             */
+            trace_ids: string[];
+            /** Truncations */
+            truncations: number;
+            /** Valid Repetitions */
+            valid_repetitions: number;
         };
         /** EventRecord */
         EventRecord: {
@@ -1700,6 +1851,7 @@ export interface components {
             live: boolean;
             /** Mean Reward */
             mean_reward?: number | null;
+            measurement?: components["schemas"]["EvaluationMeasurementView"] | null;
             metadata?: components["schemas"]["EvaluationMetadata"] | null;
             /** Next Cursor */
             next_cursor?: string | null;

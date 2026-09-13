@@ -4,6 +4,7 @@ from posttrain.environment import EnvironmentBindingSchema
 
 from .api import domain, evaluate, general
 from .catalog_schema import (
+    EvaluationMeasurementPolicySchema,
     EvaluationPlanSchema,
     EvaluationSelectionPolicySchema,
     RemoteEvaluationBindingSchema,
@@ -18,6 +19,7 @@ from .requests import (
     EvaluationBreakdownDefinition,
     EvaluationBudget,
     EvaluationEndpoint,
+    EvaluationMeasurementPolicy,
     EvaluationNumericPredicate,
     EvaluationPlan,
     EvaluationSignalRef,
@@ -52,8 +54,10 @@ __all__ = [
     "EvaluationBreakdownDefinition",
     "EvaluationEndpoint",
     "EvaluationFilterClause",
+    "EvaluationMeasurementPolicy",
     "EvaluationNumericPredicate",
     "EvaluationPlan",
+    "EvaluationMeasurementPolicySchema",
     "EvaluationPlanSchema",
     "EvaluationPopulation",
     "EvaluationResult",
