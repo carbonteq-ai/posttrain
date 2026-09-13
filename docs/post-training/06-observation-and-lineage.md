@@ -227,6 +227,21 @@ truncations alongside reward and configured pass rate. Missing or multi-valued
 dimensions follow the snapshotted breakdown policy rather than an
 Observatory-specific heuristic.
 
+For manifest-backed evaluation, Observatory distinguishes eligible tasks,
+selected tasks, planned repetitions, execution attempts, retries, valid
+results, and missing coverage. Overall task-mean aggregation first reduces
+valid repetitions within each selected task, then applies the manifest's
+declared task weights. Reporting facets may overlap without duplicating a task
+in the overall estimator. A retry remains an execution attempt for one planned
+repetition and is not an additional population observation.
+
+The resolved manifest and native traces are replay authority. A finalized
+Observatory projection may cache derived coverage, task, facet, compound,
+reliability, and comparison results when it records the manifest digest,
+evidence revision, measurement policy, and calculator revision and remains
+fully rebuildable. Live or transport-bounded projections are visibly partial;
+missing tasks or positive-weight strata are never silently renormalized away.
+
 ### Train metrics (SFT / DPO)
 
 **Run / step series (`train/*`):**

@@ -32,6 +32,7 @@ from .requests import (
     VerifiersV1ConfigActivation,
     environment_source_payload,
 )
+from .task_inventory import TaskDescriptor, TaskFacetValue, task_inventory_digest
 from .verifiers_evidence import (
     DEFAULT_THINKING_TOKEN_RULES,
     QWEN35_THINKING_END_TOKEN_ID,
@@ -71,6 +72,8 @@ __all__ = [
     "SamplingPolicy",
     "SamplingPolicySchema",
     "SignalSourceSchema",
+    "TaskDescriptor",
+    "TaskFacetValue",
     "DEFAULT_THINKING_TOKEN_RULES",
     "QWEN35_THINKING_END_TOKEN_ID",
     "Qwen35ThinkingTokenRule",
@@ -83,6 +86,7 @@ __all__ = [
     "environment_catalog_decoders",
     "environment_source_payload",
     "project_verifiers_trace_facts",
+    "task_inventory_digest",
     "verifiers_trace_attributes",
     "verifiers_trace_has_error",
     "verifiers_trace_is_truncated",

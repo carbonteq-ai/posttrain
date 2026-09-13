@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Callable
 from pathlib import Path
 
@@ -46,12 +47,33 @@ def evaluate(
             "num_tasks": num_tasks,
             "num_rollouts": num_rollouts,
             "max_concurrent": max_concurrent,
-            "task_selection": "verifiers-fixed-shuffle" if request.resolved_shuffle else "head",
+            "task_selection": (
+                "resolved-manifest"
+                if request.manifest is not None
+                else "verifiers-fixed-shuffle"
+                if request.resolved_shuffle
+                else "head"
+            ),
         }
     )
+    if request.manifest is not None:
+        attributes.update(
+            {
+                "evaluation_manifest_digest": request.manifest.digest,
+                "evaluation_inventory_digest": request.manifest.inventory_digest,
+                "evaluation_eligible_tasks": request.manifest.eligible_count,
+                "evaluation_selected_tasks": len(request.manifest.tasks),
+                "evaluation_selection_shortfall": request.manifest.shortfall,
+            }
+        )
     context.event("evaluation_started", attributes)
     output_dir = context.workspace / "evaluation" / environment.id
     output_dir.mkdir(parents=True, exist_ok=False)
+    if request.manifest is not None:
+        (output_dir / "evaluation-manifest.json").write_text(
+            json.dumps(request.manifest.to_payload(), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     backend = runner(context, request, output_dir)
     artifact = ProducedArtifact(
         name=f"evaluation/{_model_id(request)}/{_plan_id(request)}/{environment.id}",

@@ -562,13 +562,24 @@ Neither projection changes the algorithm loss. Semantic segmentation is deferred
 | `id` / `revision` | Plan identity |
 | `environments` | Env bindings / suite composition (one cell → one Verifiers run) |
 | `inference_requirements` | Compatible binding constraints |
-| `sampling` | Repetition, seeds, limits |
+| `selection` | Per-environment population filter and distinct-task allocation policy |
+| `sampling` | Repetition, initialization controls, generation limits, and retries |
 | `metrics_and_slices` | Required measures (projected from traces) |
 | `aggregation` | Coverage / missing-evidence rules |
 | `comparison` | Parent / foundation / baseline policy |
 
 The model under test is **not** part of the plan; it is a seat on the eval
 request.
+
+`TaskDescriptor` is the environment-owned inventory value. It contains a
+source-scoped stable key, content fingerprint, optional split, semantic facet
+values, and a native source reference sufficient for exact dispatch.
+`EvaluationSelectionPolicy` supports full population, uniform distinct-task
+sampling, proportional or balanced strata, custom stratum weights, and minimum
+per stratum followed by proportional remainder. Resolution produces a
+`ResolvedEvaluationManifest`; execution consumes that manifest rather than
+reselecting positional rows. Exhaustion, missing allocation facets, and
+overlapping memberships follow explicit policy rather than backend defaults.
 
 Verifiers mapping (implementation target): each enabled plan cell becomes an
 `EnvConfig` from the env package, merged with client/sampling/budget from the

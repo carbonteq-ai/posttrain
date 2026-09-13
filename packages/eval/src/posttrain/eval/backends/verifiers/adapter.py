@@ -99,8 +99,7 @@ def _build_native(request: EvaluateRequest, output_dir: Path) -> tuple[Any, Any,
         if not isinstance(agent, dict):
             raise ValueError("evaluation context limits currently require a single-agent environment")
         agent["max_total_tokens"] = min(request.context_window, agent.get("max_total_tokens") or request.context_window)
-        config = EvalConfig.model_validate(
-            {
+        config_values: dict[str, Any] = {
                 "env": raw,
                 "model": endpoint.served_model,
                 "client": client,
@@ -114,8 +113,10 @@ def _build_native(request: EvaluateRequest, output_dir: Path) -> tuple[Any, Any,
                 "push": False,
                 "rich": None,
                 "serve": None,
-            }
-        )
+        }
+        if request.manifest is not None:
+            config_values["task_keys"] = [item.task.key for item in request.manifest.tasks]
+        config = EvalConfig.model_validate(config_values)
         return Environment(config.env), config, run_eval
     raw.update(
         {
@@ -136,6 +137,8 @@ def _build_native(request: EvaluateRequest, output_dir: Path) -> tuple[Any, Any,
             "server": False,
         }
     )
+    if request.manifest is not None:
+        raw["task_keys"] = [item.task.key for item in request.manifest.tasks]
     config = EvalConfig.model_validate(raw)
     return Environment(config), config, run_eval
 
@@ -153,6 +156,14 @@ def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: l
         "num_tasks": num_tasks,
         "task_selection": "verifiers-fixed-shuffle" if request.resolved_shuffle else "head",
     }
+    if request.manifest is not None:
+        attributes.update(
+            {
+                "task_selection": "resolved-manifest",
+                "evaluation_manifest_digest": request.manifest.digest,
+                "evaluation_inventory_digest": request.manifest.inventory_digest,
+            }
+        )
     if isinstance(request.model, RemotePolicy):
         assert request.remote_service is not None
         attributes.update(

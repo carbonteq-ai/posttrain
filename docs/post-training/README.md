@@ -172,6 +172,17 @@ reuse the native traces but do not inherit this evaluation-only requirement.
 Details: [05 · APIs](./05-apis.md),
 [06 · Observation](./06-observation-and-lineage.md), and the
 [evaluation Overview plan](../plan/observatory-evaluation-overview.md).
+**Amendment — reproducible evaluation selection and measurement (2026-09-13):**
+an evaluation environment may expose a finite inventory of stable task
+identities and facets before inference. An `EvaluationPlan` may filter that
+inventory, allocate a distinct-task budget through a typed policy, and resolve
+an immutable evaluation manifest reused across subjects. Selection,
+repetitions, generation, retries, and score weighting remain separate
+contracts. Native traces remain replay authority; Observatory computes
+coverage-aware task, facet, compound, reliability, and comparison views from
+the manifest and trace evidence. Details: [02](./02-primitives.md),
+[05](./05-apis.md), [06](./06-observation-and-lineage.md), and the
+[implementation plan](../plan/evaluation-selection-and-measurement.md).
 **Amendment — tool-using environment compatibility (2026-08-04):** an
 environment that requires model tool calls declares that requirement as an
 inference capability. Local and remote inference bindings advertise compatible

@@ -23,6 +23,7 @@ from .requests import (
     RemoteEvaluationBinding,
     VerifiersV1ConfigActivation,
 )
+from .selection import EvaluationFilterClause, EvaluationSelectionPolicy, EvaluationTaskFilter
 
 
 class EvalCatalogSchema(BaseModel):
@@ -112,6 +113,36 @@ class EvaluationBreakdownDefinitionSchema(EvalCatalogSchema):
     missing: Literal["exclude", "bucket"] = "exclude"
 
 
+class EvaluationFilterClauseSchema(EvalCatalogSchema):
+    dimension: str
+    operator: Literal["eq", "in"]
+    values: tuple[str, ...] = Field(min_length=1)
+
+
+class EvaluationTaskFilterSchema(EvalCatalogSchema):
+    all_of: tuple[EvaluationFilterClauseSchema, ...] = ()
+    any_of: tuple[EvaluationFilterClauseSchema, ...] = ()
+
+
+class EvaluationSelectionPolicySchema(EvalCatalogSchema):
+    kind: Literal[
+        "full",
+        "uniform",
+        "proportional",
+        "balanced",
+        "custom",
+        "minimum_then_proportional",
+    ] = "full"
+    num_tasks: int | None = Field(default=None, gt=0)
+    dimensions: tuple[str, ...] = ()
+    task_filter: EvaluationTaskFilterSchema = EvaluationTaskFilterSchema()
+    weights: dict[str, float] = Field(default_factory=dict)
+    minimum_per_stratum: int = Field(default=0, ge=0)
+    seed: int = 0
+    missing: Literal["error", "bucket", "exclude"] = "error"
+    exhaustion: Literal["error", "use_all"] = "error"
+
+
 class EvaluationPlanSchema(EvalCatalogSchema):
     id: str
     kind: Literal["general", "domain"]
@@ -121,6 +152,7 @@ class EvaluationPlanSchema(EvalCatalogSchema):
     metrics_and_slices: tuple[str, ...] = ()
     success: dict[str, EvaluationSuccessDefinitionSchema] = Field(default_factory=dict)
     breakdowns: dict[str, tuple[EvaluationBreakdownDefinitionSchema, ...]] = Field(default_factory=dict)
+    selection: dict[str, EvaluationSelectionPolicySchema] = Field(default_factory=dict)
     aggregation: dict[str, JsonValue] = Field(default_factory=dict)
     comparison: dict[str, JsonValue] = Field(default_factory=dict)
 
@@ -192,6 +224,20 @@ def evaluation_catalog_decoders(
             )
             for environment_id, definitions in payload.breakdowns.items()
         }
+        values["selection"] = {
+            environment_id: EvaluationSelectionPolicy(
+                **policy.model_dump(exclude={"task_filter"}),
+                task_filter=EvaluationTaskFilter(
+                    all_of=tuple(
+                        EvaluationFilterClause(**clause.model_dump()) for clause in policy.task_filter.all_of
+                    ),
+                    any_of=tuple(
+                        EvaluationFilterClause(**clause.model_dump()) for clause in policy.task_filter.any_of
+                    ),
+                ),
+            )
+            for environment_id, policy in payload.selection.items()
+        }
         return EvaluationPlan(environments=tuple(environments), **values)
 
     def decode_remote_evaluation(
@@ -252,6 +298,7 @@ __all__ = [
     "EnvironmentActivationSchema",
     "EnvironmentBindingSchema",
     "EvaluationPlanSchema",
+    "EvaluationSelectionPolicySchema",
     "PythonFactoryActivationSchema",
     "RemoteEvaluationBindingSchema",
     "RemotePolicySchema",

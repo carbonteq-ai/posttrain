@@ -678,7 +678,8 @@ comparison policy. Each cell runs through Verifiers v1; see
 
 | Field | Meaning |
 | --- | --- |
-| Environments and tasksets | Exact evaluation content and held-out splits (via env bindings) |
+| Environments and task inventory | Environment-owned finite tasks, stable identities, facets, and held-out splits |
+| Selection | Population filter, distinct-task budget, allocation strata, quotas, and selection seed |
 | Inference requirements | Compatible generation binding or required behavior |
 | Sampling and repetition | Seeds, sample counts, generation limits, retry policy |
 | Metrics and slices | Required measures and failure categories (projected from traces) |
@@ -703,6 +704,15 @@ evals/memory-heldout@2
 Running a plan against a particular model creates one or more **runs** (typically
 one run per environment cell) and evaluation evidence. It does not mint a new
 evaluation-plan identity.
+
+When an environment exposes a finite inventory, selection resolves before
+model inference into an immutable evaluation manifest. The manifest records the
+eligible population revision, selected task identities, disjoint allocation
+strata, inclusion probabilities where defined, target weights, and selection
+algorithm version. Facets used for reporting may overlap; allocation operates
+on declared disjoint strata or canonical membership sets so one task is not
+scheduled twice by accident. The same manifest can be consumed by several
+subjects for matched comparison.
 
 The request subject is either a local `ModelVariant` with an
 `InferenceBinding`, or an evaluation-only remote policy with a remote evaluation
