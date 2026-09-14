@@ -1,5 +1,6 @@
 """Tests for vLLM inference-binding translation."""
 
+import json
 from dataclasses import replace
 
 import pytest
@@ -14,6 +15,23 @@ from posttrain.serve.backends.vllm.bindings import (
 )
 from posttrain.serve.benchmarks import CORE_INFERENCE_V1
 from posttrain.serve.profiles import VllmEngineConfig, VllmSpeculativeConfig
+
+
+def test_structured_backend_and_adapter_rank_reach_both_vllm_paths(qwen_screen_binding: InferenceBinding) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        engine={**qwen_screen_binding.engine, "max_lora_rank": 32, "structured_outputs_backend": "xgrammar"},
+    )
+    engine = engine_config(binding)
+    assert engine.as_vllm_kwargs()["max_lora_rank"] == 32
+    assert engine.as_vllm_kwargs()["structured_outputs_config"] == {"backend": "xgrammar"}
+    args = engine.as_cli_args()
+    assert args[args.index("--max-lora-rank") + 1] == "32"
+    assert json.loads(args[args.index("--structured-outputs-config") + 1]) == {"backend": "xgrammar"}
+    with pytest.raises(ValueError, match="max_lora_rank"):
+        replace(engine, max_lora_rank=0)
+    with pytest.raises(ValueError, match="structured outputs"):
+        replace(engine, structured_outputs_backend="unknown")
 
 
 def test_qwen_screen_binding_captures_tested_8gb_constraints(qwen_screen_binding: InferenceBinding) -> None:
