@@ -234,6 +234,7 @@ def load_local_execution_config(
     path: Path | None = None,
     env_file: Path | None = None,
     verify_published_locks: bool = True,
+    resolve_registry: bool = True,
 ) -> LocalExecutionConfig:
     """Resolve machine defaults plus one project's protected runtime values."""
 
@@ -258,11 +259,15 @@ def load_local_execution_config(
         # candidate by declaring only [registry] in its protected local state.
         # That selection is digest-pinned and project-scoped, so it must not
         # require mutating every job on the workstation.
-        project_registry = _load_project_registry_override(
-            configured,
-            environ=runtime_values,
-            project_id=layout.project_id,
-            verify_published_locks=verify_published_locks,
+        project_registry = (
+            _load_project_registry_override(
+                configured,
+                environ=runtime_values,
+                project_id=layout.project_id,
+                verify_published_locks=verify_published_locks,
+            )
+            if resolve_registry
+            else None
         )
         return LocalExecutionConfig(
             path=machine.path,
@@ -270,11 +275,15 @@ def load_local_execution_config(
             environment_file=runtime_environment.path,
             local=machine.local,
             dstack=machine.dstack,
-            registry=project_registry
-            or derived_registry(
-                environ=runtime_values,
-                project_id=layout.project_id,
-                verify_published_locks=verify_published_locks,
+            registry=(
+                project_registry
+                or derived_registry(
+                    environ=runtime_values,
+                    project_id=layout.project_id,
+                    verify_published_locks=verify_published_locks,
+                )
+                if resolve_registry
+                else None
             ),
             machine=machine,
         )
@@ -285,10 +294,14 @@ def load_local_execution_config(
         return LocalExecutionConfig(
             configured,
             environment_file=runtime_environment.path,
-            registry=derived_registry(
-                environ=runtime_environment.for_execution(),
-                project_id=layout.project_id,
-                verify_published_locks=verify_published_locks,
+            registry=(
+                derived_registry(
+                    environ=runtime_environment.for_execution(),
+                    project_id=layout.project_id,
+                    verify_published_locks=verify_published_locks,
+                )
+                if resolve_registry
+                else None
             ),
         )
     if not configured.is_file():
@@ -354,17 +367,26 @@ def load_local_execution_config(
         dstack=dstack,
     )
     runtime_values = load_execution_environment(provisional)
-    parsed_registry = _parse_registry(
-        payload.get("registry"),
-        base=configured.parent,
-        environ=runtime_values,
-        project_id=layout.project_id,
-        verify_published_locks=verify_published_locks,
+    parsed_registry = (
+        _parse_registry(
+            payload.get("registry"),
+            base=configured.parent,
+            environ=runtime_values,
+            project_id=layout.project_id,
+            verify_published_locks=verify_published_locks,
+        )
+        if resolve_registry
+        else None
     )
-    registry = parsed_registry or derived_registry(
-        environ=runtime_values,
-        project_id=layout.project_id,
-        verify_published_locks=verify_published_locks,
+    registry = (
+        parsed_registry
+        or derived_registry(
+            environ=runtime_values,
+            project_id=layout.project_id,
+            verify_published_locks=verify_published_locks,
+        )
+        if resolve_registry
+        else None
     )
     return LocalExecutionConfig(
         path=configured,

@@ -455,7 +455,11 @@ def _apply_executors(layout: Any, plan: PurgePlan) -> dict[PurgePlane, PurgeActi
     }
     local_roots = [layout.state, cache_path(layout, "runs")]
     try:
-        local_binding = load_local_execution_config(layout).local
+        local_binding = load_local_execution_config(
+            layout,
+            verify_published_locks=False,
+            resolve_registry=False,
+        ).local
     except Exception:
         local_binding = None
     if local_binding is not None and local_binding.storage is not None:
