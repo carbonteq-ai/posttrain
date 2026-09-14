@@ -15,9 +15,14 @@ class _TaskData(Protocol):
 
 
 class _Task(Protocol):
-    key: str
-    hash: str
-    data: _TaskData
+    @property
+    def key(self) -> str: ...
+
+    @property
+    def hash(self) -> str: ...
+
+    @property
+    def data(self) -> _TaskData: ...
 
 
 def _values(value: object, transform: str) -> tuple[str, ...]:
