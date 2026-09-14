@@ -16,7 +16,12 @@ from pathlib import Path
 from typing import Protocol
 
 from posttrain.common import ContractError
-from posttrain.execution_pack import EnvironmentWheelRequest, ProjectEnvironmentSourceRequest
+from posttrain.execution_pack import (
+    EnvironmentWheelRequest,
+    ImmutableSourceSnapshotter,
+    ProjectEnvironmentSourceRequest,
+    SourceSnapshotRequest,
+)
 
 from .git_sources import (
     LockedGitSubdirectory,
@@ -225,7 +230,14 @@ class ImmutableEnvironmentWheelBuilder:
                 raise ContractError(f"project environment source was not materialized: {request.path}") from error
             if not package_root.is_absolute() or package_root.is_symlink() or not package_root.is_dir():
                 raise ContractError(f"project environment source is not a regular directory: {request.path}")
-            if _tree_digest(package_root) != request.tree_digest:
+            snapshot_root = package_root
+            for _ in Path(request.path).parts:
+                snapshot_root = snapshot_root.parent
+            snapshot_request = SourceSnapshotRequest(
+                root=snapshot_root, includes=(request.path,), install_roots=(request.path,)
+            )
+            snapshotter = ImmutableSourceSnapshotter(cache_root=self._output_root / "source-check")
+            if snapshotter.inspect(snapshot_request) != request.tree_digest:
                 raise ContractError(f"project environment source differs from its planned digest: {request.path}")
             pyproject = package_root / "pyproject.toml"
             if not pyproject.is_file() or pyproject.is_symlink():
@@ -233,7 +245,7 @@ class ImmutableEnvironmentWheelBuilder:
             _verify_project_name(pyproject, request.package)
             wheel = self._build_one(package_root)
             try:
-                if _tree_digest(package_root) != request.tree_digest:
+                if snapshotter.inspect(snapshot_request) != request.tree_digest:
                     raise ContractError(f"project environment source changed during wheel build: {request.path}")
                 wheel_digest = _file_digest(wheel)
                 wheel_size = wheel.stat().st_size
