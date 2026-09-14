@@ -232,6 +232,10 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     local_training = catalog.resolve(
         CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench-local@1")
     ).value
+    heldout_environment = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-heldout-mix-v1")).value
+    heldout_local_inference = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-eval-local@1")
+    ).value
 
     assert isinstance(local_grpo, GRPOSettings)
     assert local_grpo.loop.max_steps == 20
@@ -273,6 +277,11 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_rollout.engine["kv_cache_memory_bytes"] == 4 * 1024**3
     assert "weight_name_prefix" not in local_rollout.engine
     assert local_rollout.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
+    assert isinstance(heldout_environment, EnvironmentBinding)
+    assert heldout_environment.parameters["max_output_tokens"] == 8192
+    assert heldout_environment.sampling.max_tokens == 8192
+    assert isinstance(heldout_local_inference, InferenceBinding)
+    assert heldout_local_inference.sampling["max_tokens"] == 8192
 
     remote_training = catalog.resolve(CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench@1")).value
     remote_rollout = catalog.resolve(

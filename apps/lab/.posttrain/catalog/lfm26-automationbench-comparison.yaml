@@ -463,7 +463,7 @@ environment:
           max_turns: 12
           max_output_tokens: 8192
     sampling:
-      max_tokens: 2048
+      max_tokens: 8192
       temperature: 0.1
       top_p: 1.0
       top_k: 50
@@ -1261,7 +1261,7 @@ inference:
       text_only: true
       skip_mm_profiling: true
     sampling:
-      max_tokens: 2048
+      max_tokens: 8192
       temperature: 0.1
       top_p: 1.0
       top_k: 50

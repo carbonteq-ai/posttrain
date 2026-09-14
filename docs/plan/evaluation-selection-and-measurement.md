@@ -20,6 +20,7 @@ This is a production framework design, not an AutomationBench-only experiment. I
 - [x] 2026-09-14: Added structured reward normalization in Observatory and a stable AutomationBench task-name identity in published environment commit `1229dca847c63081b363c59c9f4119619b217e88`; focused suites pass.
 - [x] 2026-09-14: Re-pinned all six maintained environment packages and their locks to Verifiers `84ab782391bbfe1ac4f4ca32fa612e56d01b5b81` in published environment commit `a6d779fc1fdfde23f86e297125b3381b140cec2f`. A clean external-consumer resolution had exposed that mixing distinct immutable Verifiers Git URLs is invalid even when only one environment changed behavior.
 - [x] 2026-09-14: Named the qualification family `lfm26-automationbench-heldout20x3-lfmrec-v2` and reserved explicit base, random-20, and adaptive-20 run identities so the subject and retry are visible without opening the run.
+- [x] 2026-09-14: Ran the first base and adaptive qualification cells. Both retained all 60 episode records without execution failures, but a locally imposed 2,048-token cap truncated 9 and 8 episodes respectively, so strict task-mean measurement correctly remained partial. Cancelled the queued random cell and raised the held-out evaluation cap to the environment's declared 8,192-token output budget; Liquid's model configuration defines temperature, top-k, and repetition penalty but no lower generation cap.
 - [ ] Implement repetitions, optional reproducibility controls, generation resolution, and retry accounting. Stable repetition identities are now emitted; explicit retry-attempt envelopes and seed controls remain.
 - [ ] Implement explicit aggregation, denominators, and paired comparison. Typed task-mean/target-weighted measurement, strict/available missing policy, denominators, and a first Observatory projection are implemented; paired comparison remains.
 - [ ] Integrate standard jobs, catalog authoring, preview, and portable artifacts.
@@ -195,6 +196,12 @@ Use these run identities for the release gate:
     eval-lfm26-automationbench-heldout20x3-base-lfmrec-20260914-r1
     eval-lfm26-automationbench-heldout20x3-olmo3-random20-lfmrec-20260914-r1
     eval-lfm26-automationbench-heldout20x3-olmo3-adaptive20-v4-lfmrec-20260914-r1
+
+The `r1` cells above are diagnostic evidence because the 2,048-token ceiling made their strict estimator partial. The corrected release-gate cells use the same manifest, repetitions, model lineage, and model-recommended sampling parameters with an 8,192-token benchmark output budget:
+
+    eval-lfm26-automationbench-heldout20x3-base-lfmrec-20260914-r2
+    eval-lfm26-automationbench-heldout20x3-olmo3-random20-lfmrec-20260914-r2
+    eval-lfm26-automationbench-heldout20x3-olmo3-adaptive20-v4-lfmrec-20260914-r2
 
 The shared prefix identifies the model family, benchmark, 20-task population, three repetitions, and generation preset. The subject segment identifies the base or exact training arm; the date and retry suffix distinguish reruns. Resolved model lineage remains the authority for the checkpoint rather than the readable name.
 
