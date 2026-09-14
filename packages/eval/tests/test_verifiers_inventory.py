@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import cast
 
 from posttrain.environment import (
     EnvironmentBinding,
@@ -10,7 +12,7 @@ from posttrain.environment import (
     PythonFactoryActivation,
     SamplingPolicy,
 )
-from posttrain.eval.backends.verifiers.inventory import _inventory_from_taskset
+from posttrain.eval.backends.verifiers.inventory import _Task, _inventory_from_taskset
 
 
 class Data:
@@ -53,7 +55,7 @@ def test_native_inventory_retains_identity_facets_and_source_reference() -> None
         Task("stable-b", "2" * 64, Data(idx=8, subject="geometry", skill="draw:plane", split="heldout")),
     )
 
-    inventory = _inventory_from_taskset(binding(), tasks)
+    inventory = _inventory_from_taskset(binding(), cast(Iterable[_Task], tasks))
 
     assert [item.key for item in inventory] == ["stable-a", "stable-b"]
     assert inventory[0].values("skill") == ("solve", "verify")
