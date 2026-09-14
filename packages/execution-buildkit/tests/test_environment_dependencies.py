@@ -150,7 +150,7 @@ def test_compiles_all_wheels_together_into_a_portable_deterministic_lock(
         "provided_packages": ["verifiers"],
         "role": "control",
         "environment_wheel_lock_sha256": wheels.lock.digest,
-        "python_version": "3.12",
+        "python_version": "3.13.12",
         "python_platform": "x86_64-unknown-linux-gnu",
         "python_executable": "/opt/posttrain/venv/bin/python",
         "wheel_directory": "wheels/environments",
@@ -161,7 +161,7 @@ def test_compiles_all_wheels_together_into_a_portable_deterministic_lock(
     }
     assert len(first.lock.digest) == 64
     call = first_gateway.calls[0]
-    assert call["python_version"] == "3.12"
+    assert call["python_version"] == "3.13.12"
     assert call["python_platform"] == "x86_64-unknown-linux-gnu"
     assert call["provided_packages"] == ("verifiers",)
     assert first_gateway.requirement_inputs[0].splitlines() == [
