@@ -235,12 +235,8 @@ def evaluation_catalog_decoders(
             environment_id: EvaluationSelectionPolicy(
                 **policy.model_dump(exclude={"task_filter"}),
                 task_filter=EvaluationTaskFilter(
-                    all_of=tuple(
-                        EvaluationFilterClause(**clause.model_dump()) for clause in policy.task_filter.all_of
-                    ),
-                    any_of=tuple(
-                        EvaluationFilterClause(**clause.model_dump()) for clause in policy.task_filter.any_of
-                    ),
+                    all_of=tuple(EvaluationFilterClause(**clause.model_dump()) for clause in policy.task_filter.all_of),
+                    any_of=tuple(EvaluationFilterClause(**clause.model_dump()) for clause in policy.task_filter.any_of),
                 ),
             )
             for environment_id, policy in payload.selection.items()

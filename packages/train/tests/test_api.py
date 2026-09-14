@@ -1776,10 +1776,7 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
             adaptive_curriculum=AdaptiveCurriculum("domain"),
         ),
     )
-    assert (
-        _grpo_runtime_attributes(adaptive_grpo_request)["adaptive_curriculum_sampling_mode"]
-        == "initial_batch"
-    )
+    assert _grpo_runtime_attributes(adaptive_grpo_request)["adaptive_curriculum_sampling_mode"] == "initial_batch"
 
     shuffled_request = replace(olmo3_request, settings=replace(olmo3_request.settings, shuffle_prompts=True))
     shuffled_arguments = _grpo_arguments(shuffled_request, tmp_path, {"enable_thinking": False})

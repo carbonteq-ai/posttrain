@@ -495,8 +495,7 @@ def test_trainer_composition_selects_before_generation_and_observes_raw_rewards(
         selected = trainer.prepared
         assert len(selected) == 8
         assert all(
-            selected[index]["example_id"] == selected[index + 1]["example_id"]
-            for index in range(0, len(selected), 2)
+            selected[index]["example_id"] == selected[index + 1]["example_id"] for index in range(0, len(selected), 2)
         )
 
         trainer._calculate_rewards(selected, [], [], [])

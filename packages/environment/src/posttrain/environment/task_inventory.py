@@ -73,10 +73,7 @@ class TaskDescriptor:
         payload: dict[str, JsonValue] = {
             "key": self.key,
             "fingerprint": f"sha256:{self.normalized_fingerprint}",
-            "facets": [
-                {"dimension": item.dimension, "value": item.value}
-                for item in self.facets
-            ],
+            "facets": [{"dimension": item.dimension, "value": item.value} for item in self.facets],
             "source_reference": dict(self.source_reference),
         }
         if self.split is not None:

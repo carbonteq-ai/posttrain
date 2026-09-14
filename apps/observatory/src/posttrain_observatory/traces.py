@@ -138,17 +138,21 @@ def _manifest_measurement(
             return None
         slots.add(slot)
         raw_facets = record.attributes.get("evaluation_task_facets", [])
-        facets = tuple(
-            EvaluationMeasurementFacet(
-                dimension=str(item["dimension"]),
-                value=str(item["value"]),
-                label=str(item["value"]),
+        facets = (
+            tuple(
+                EvaluationMeasurementFacet(
+                    dimension=str(item["dimension"]),
+                    value=str(item["value"]),
+                    label=str(item["value"]),
+                )
+                for item in raw_facets
+                if isinstance(item, Mapping)
+                and isinstance(item.get("dimension"), str)
+                and isinstance(item.get("value"), str)
             )
-            for item in raw_facets
-            if isinstance(item, Mapping)
-            and isinstance(item.get("dimension"), str)
-            and isinstance(item.get("value"), str)
-        ) if isinstance(raw_facets, list) else ()
+            if isinstance(raw_facets, list)
+            else ()
+        )
         candidate = EvaluationMeasurementTask(
             key=task_key,
             label=summary.task_label or task_key,

@@ -21,9 +21,7 @@ def test_catalog_decodes_typed_selection_policy() -> None:
                     "activation": {"kind": "python-factory", "reference": "math_env:create"},
                     "sampling": {"max_tokens": 256},
                     "num_tasks": 100,
-                    "observation": {
-                        "facets": [{"field": "subject", "dimension": "subject", "label": "Subject"}]
-                    },
+                    "observation": {"facets": [{"field": "subject", "dimension": "subject", "label": "Subject"}]},
                 }
             },
             "evaluation": {
@@ -46,14 +44,10 @@ def test_catalog_decodes_typed_selection_policy() -> None:
                             "dimensions": ["subject"],
                             "minimum_per_stratum": 2,
                             "seed": 7,
-                            "task_filter": {
-                                "all_of": [{"dimension": "split", "operator": "eq", "values": ["test"]}]
-                            },
+                            "task_filter": {"all_of": [{"dimension": "split", "operator": "eq", "values": ["test"]}]},
                         }
                     },
-                    "measurement": {
-                        "math": {"estimator": "target_weighted", "missing": "available"}
-                    },
+                    "measurement": {"math": {"estimator": "target_weighted", "missing": "available"}},
                 }
             },
         },

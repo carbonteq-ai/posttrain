@@ -15,9 +15,7 @@ def task(key: str, content: str = "a") -> TaskDescriptor:
 
 
 def test_inventory_digest_is_order_independent() -> None:
-    assert task_inventory_digest((task("b", "b"), task("a"))) == task_inventory_digest(
-        (task("a"), task("b", "b"))
-    )
+    assert task_inventory_digest((task("b", "b"), task("a"))) == task_inventory_digest((task("a"), task("b", "b")))
 
 
 def test_inventory_rejects_duplicate_keys_and_content_collisions() -> None:

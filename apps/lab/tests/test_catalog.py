@@ -218,12 +218,8 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert scalar.max_concurrent == 32
     assert judged.max_concurrent == 32
 
-    local_grpo = catalog.resolve(
-        CatalogRef("training", "lfm2.5-2.6b/automationbench-grpo-20-local-v1")
-    ).value
-    local_olmo = catalog.resolve(
-        CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-20-local-v1")
-    ).value
+    local_grpo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-grpo-20-local-v1")).value
+    local_olmo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-20-local-v1")).value
     local_adaptive = catalog.resolve(
         CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-adaptive-20-local-v1")
     ).value

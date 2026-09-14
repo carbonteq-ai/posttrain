@@ -500,9 +500,7 @@ def _logical_metric_series(series: MetricSeries) -> MetricSeries:
     retained: list[MetricPoint] = []
     for point in series.points:
         if point.step is not None and any(
-            existing.step == point.step
-            and existing.value == point.value
-            and existing.attributes == point.attributes
+            existing.step == point.step and existing.value == point.value and existing.attributes == point.attributes
             for existing in retained
         ):
             continue

@@ -338,9 +338,7 @@ def _online_rl_runtime_attributes(
             if isinstance(request, GRPORequest) and request.settings.active_sampling is not None
             else None
         ),
-        "adaptive_curriculum": (
-            isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
-        ),
+        "adaptive_curriculum": (isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None),
         "adaptive_curriculum_sampling_mode": (
             "active_sampling_refill"
             if (

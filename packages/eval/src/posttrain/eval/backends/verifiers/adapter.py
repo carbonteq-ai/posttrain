@@ -100,19 +100,19 @@ def _build_native(request: EvaluateRequest, output_dir: Path) -> tuple[Any, Any,
             raise ValueError("evaluation context limits currently require a single-agent environment")
         agent["max_total_tokens"] = min(request.context_window, agent.get("max_total_tokens") or request.context_window)
         config_values: dict[str, Any] = {
-                "env": raw,
-                "model": endpoint.served_model,
-                "client": client,
-                "sampling": _native_sampling(request),
-                "num_tasks": num_tasks,
-                "num_rollouts": num_rollouts,
-                "max_concurrent": max_concurrent,
-                "shuffle": request.resolved_shuffle,
-                "output_dir": output_dir,
-                "run": {"name": "posttrain", "dir": "."},
-                "push": False,
-                "rich": None,
-                "serve": None,
+            "env": raw,
+            "model": endpoint.served_model,
+            "client": client,
+            "sampling": _native_sampling(request),
+            "num_tasks": num_tasks,
+            "num_rollouts": num_rollouts,
+            "max_concurrent": max_concurrent,
+            "shuffle": request.resolved_shuffle,
+            "output_dir": output_dir,
+            "run": {"name": "posttrain", "dir": "."},
+            "push": False,
+            "rich": None,
+            "serve": None,
         }
         if request.manifest is not None:
             config_values["task_keys"] = [item.task.key for item in request.manifest.tasks]
@@ -169,11 +169,7 @@ def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: l
                 "evaluation_selected_tasks": len(request.manifest.tasks),
             }
         )
-    selected_tasks = (
-        {item.task.key: item for item in request.manifest.tasks}
-        if request.manifest is not None
-        else {}
-    )
+    selected_tasks = {item.task.key: item for item in request.manifest.tasks} if request.manifest is not None else {}
     if isinstance(request.model, RemotePolicy):
         assert request.remote_service is not None
         attributes.update(
@@ -210,8 +206,7 @@ def _emit_batch(context: EvaluationContext, request: EvaluateRequest, records: l
                     "evaluation_task_inclusion_probability": selected.inclusion_probability,
                     "evaluation_task_stratum": selected.stratum,
                     "evaluation_task_facets": [
-                        {"dimension": facet.dimension, "value": facet.value}
-                        for facet in selected.task.facets
+                        {"dimension": facet.dimension, "value": facet.value} for facet in selected.task.facets
                     ],
                 }
             for trace in record["traces"]:

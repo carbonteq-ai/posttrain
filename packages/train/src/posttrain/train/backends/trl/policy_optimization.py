@@ -208,7 +208,9 @@ def _run_online_rl(
             try:
                 train_output = trainer.train(resume_from_checkpoint=resume)
                 if actor_update.active:
-                    raise RuntimeError("TRL training completed before the active actor update reached an optimizer step")
+                    raise RuntimeError(
+                        "TRL training completed before the active actor update reached an optimizer step"
+                    )
                 if curriculum is not None:
                     state_path = curriculum.save_final_state()
                     context.artifact(

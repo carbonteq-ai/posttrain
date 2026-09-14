@@ -55,12 +55,8 @@ def test_preinstalled_bootstrap_uses_the_packed_job_interpreter_without_uv() -> 
 def test_preinstalled_bootstrap_accepts_verifiers_activation_mode() -> None:
     runtime = _Runtime()
 
-    activated = asyncio.run(
-        prepare_preinstalled_uv_script(runtime, "print('ok')", activate=True)
-    )
-    direct = asyncio.run(
-        prepare_preinstalled_uv_script(runtime, "print('ok')", activate=False)
-    )
+    activated = asyncio.run(prepare_preinstalled_uv_script(runtime, "print('ok')", activate=True))
+    direct = asyncio.run(prepare_preinstalled_uv_script(runtime, "print('ok')", activate=False))
 
     assert activated == direct
     assert activated[0] == "/opt/posttrain/venv/bin/python"

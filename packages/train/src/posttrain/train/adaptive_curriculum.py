@@ -289,9 +289,7 @@ class AdaptiveCurriculumController:
         for task_id, class_id in self.task_classes.items():
             grouped[class_id].append(task_id)
         self.tasks_by_class = {class_id: tuple(sorted(task_ids)) for class_id, task_ids in sorted(grouped.items())}
-        self._history = {
-            task_id: deque(maxlen=settings.history_groups) for task_id in self.task_classes
-        }
+        self._history = {task_id: deque(maxlen=settings.history_groups) for task_id in self.task_classes}
         self._first_evidence: dict[str, _Evidence] = {}
         self._seen: set[str] = set()
         self._last_selected = {task_id: -1 for task_id in self.task_classes}
@@ -388,9 +386,7 @@ class AdaptiveCurriculumController:
             self._last_selected[task_id] = self._candidate_count
             self._candidate_count += 1
 
-        class_probabilities = {
-            class_id: value / group_count for class_id, value in class_probability_sums.items()
-        }
+        class_probabilities = {class_id: value / group_count for class_id, value in class_probability_sums.items()}
         selected_classes = _counts(self.task_classes[task_id] for task_id in selected)
         selected_tasks = _counts(selected)
         decision = CurriculumDecision(
@@ -401,8 +397,7 @@ class AdaptiveCurriculumController:
             task_probabilities=task_probabilities,
             task_priorities=task_priorities,
             class_discovery_priorities={
-                class_id: self._class_discovery_priority(class_id)
-                for class_id in self.tasks_by_class
+                class_id: self._class_discovery_priority(class_id) for class_id in self.tasks_by_class
             },
             selected_classes=selected_classes,
             selected_tasks=selected_tasks,
@@ -646,13 +641,8 @@ class AdaptiveCurriculumController:
             "active_step": self._active_step,
             "step_selected": sorted(self._step_selected),
             "last_selected": dict(self._last_selected),
-            "history": {
-                task_id: [item.as_record() for item in values]
-                for task_id, values in self._history.items()
-            },
-            "first_evidence": {
-                task_id: evidence.as_record() for task_id, evidence in self._first_evidence.items()
-            },
+            "history": {task_id: [item.as_record() for item in values] for task_id, values in self._history.items()},
+            "first_evidence": {task_id: evidence.as_record() for task_id, evidence in self._first_evidence.items()},
         }
 
     def snapshot(self, path: Path) -> None:
@@ -708,9 +698,7 @@ class AdaptiveCurriculumController:
         for task_id, values in history.items():
             if task_id not in self._history or not isinstance(values, list):
                 raise ValueError("adaptive curriculum snapshot history is malformed")
-            self._history[task_id].extend(
-                _decode_evidence(value) for value in values[-self.settings.history_groups :]
-            )
+            self._history[task_id].extend(_decode_evidence(value) for value in values[-self.settings.history_groups :])
         for task_id, value in first_evidence.items():
             if task_id not in self.task_classes:
                 raise ValueError("adaptive curriculum snapshot first evidence is malformed")

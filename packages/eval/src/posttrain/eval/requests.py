@@ -179,8 +179,7 @@ class EvaluationPlan:
         unknown_selection = set(self.selection) - set(ids)
         if unknown_selection:
             raise ValueError(
-                "evaluation selection policies reference unknown environments: "
-                + ", ".join(sorted(unknown_selection))
+                "evaluation selection policies reference unknown environments: " + ", ".join(sorted(unknown_selection))
             )
         if any(not isinstance(policy, EvaluationSelectionPolicy) for policy in self.selection.values()):
             raise TypeError("evaluation selection policies must be EvaluationSelectionPolicy values")

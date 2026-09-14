@@ -102,11 +102,7 @@ class Learner:
 
 
 def task_classes() -> dict[str, str]:
-    return {
-        f"{class_id}/{task_index:03d}": class_id
-        for class_id in CLASSES
-        for task_index in range(TASKS_PER_CLASS)
-    }
+    return {f"{class_id}/{task_index:03d}": class_id for class_id in CLASSES for task_index in range(TASKS_PER_CLASS)}
 
 
 def has_variance(rewards: Sequence[float]) -> bool:
@@ -195,8 +191,7 @@ def run(seed: int, scenario: str, policy: str) -> dict[str, object]:
         "unique_tasks": len(seen),
         "duplicate_fallbacks": duplicates,
         "class_candidate_share": {
-            class_id: class_candidates[class_id] / candidates if candidates else 0
-            for class_id in CLASSES
+            class_id: class_candidates[class_id] / candidates if candidates else 0 for class_id in CLASSES
         },
     }
 
@@ -264,11 +259,7 @@ def summarize(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
                     },
                 }
             )
-        by_policy_seed = {
-            (str(row["policy"]), int(row["seed"])): row
-            for row in rows
-            if row["scenario"] == scenario
-        }
+        by_policy_seed = {(str(row["policy"]), int(row["seed"])): row for row in rows if row["scenario"] == scenario}
         paired_deltas.append(
             {
                 "scenario": scenario,
@@ -309,7 +300,9 @@ def summarize(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
 
 def main() -> None:
     scenarios = ("normal", "fast_saturation", "rare_geometry", "regression", "persistent_noise")
-    rows = [run(seed, scenario, policy) for scenario in scenarios for policy in ("random", "adaptive") for seed in SEEDS]
+    rows = [
+        run(seed, scenario, policy) for scenario in scenarios for policy in ("random", "adaptive") for seed in SEEDS
+    ]
     validate(rows, scenarios)
     result = summarize(rows)
     directory = Path(__file__).parent
@@ -323,9 +316,16 @@ def main() -> None:
     )
     with raw_csv.open("w", encoding="utf-8", newline="") as stream:
         fieldnames = [
-            "scenario", "policy", "seed", "candidate_groups", "useful_groups",
-            "retained_fraction", "completed_steps", "candidate_groups_per_completed_step",
-            "unique_tasks", "duplicate_fallbacks",
+            "scenario",
+            "policy",
+            "seed",
+            "candidate_groups",
+            "useful_groups",
+            "retained_fraction",
+            "completed_steps",
+            "candidate_groups_per_completed_step",
+            "unique_tasks",
+            "duplicate_fallbacks",
             *(f"{class_id}_candidate_share" for class_id in CLASSES),
         ]
         writer = csv.DictWriter(stream, fieldnames=fieldnames, lineterminator="\n")

@@ -89,7 +89,9 @@ class EvaluationSelectionPolicy:
             raise ValueError(f"{self.kind} evaluation selection requires num_tasks")
         if self.kind in {"proportional", "balanced", "custom", "minimum_then_proportional"} and not self.dimensions:
             raise ValueError(f"{self.kind} evaluation selection requires allocation dimensions")
-        if len(self.dimensions) != len(set(self.dimensions)) or any(not _ID.fullmatch(value) for value in self.dimensions):
+        if len(self.dimensions) != len(set(self.dimensions)) or any(
+            not _ID.fullmatch(value) for value in self.dimensions
+        ):
             raise ValueError("allocation dimensions must be unique lowercase stable identifiers")
         if self.minimum_per_stratum < 0:
             raise ValueError("minimum_per_stratum must be non-negative")
@@ -289,7 +291,9 @@ def resolve_evaluation_selection(
 
     complete_inventory = tuple(inventory)
     inventory_digest = task_inventory_digest(complete_inventory)
-    filtered = tuple(sorted((task for task in complete_inventory if policy.task_filter.matches(task)), key=lambda item: item.key))
+    filtered = tuple(
+        sorted((task for task in complete_inventory if policy.task_filter.matches(task)), key=lambda item: item.key)
+    )
     grouped: defaultdict[str, list[TaskDescriptor]] = defaultdict(list)
     for task in filtered:
         key = _stratum(task, policy)
@@ -303,7 +307,9 @@ def resolve_evaluation_selection(
     assert requested_count is not None
     if requested_count > eligible_count:
         if policy.exhaustion == "error":
-            raise ValueError(f"evaluation selection requests {requested_count} tasks from {eligible_count} eligible tasks")
+            raise ValueError(
+                f"evaluation selection requests {requested_count} tasks from {eligible_count} eligible tasks"
+            )
         selected_count = eligible_count
     else:
         selected_count = requested_count

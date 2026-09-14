@@ -124,11 +124,7 @@ class AdaptiveCurriculumRuntime:
             selection_kind=selection_kind,
             round_index=round_index,
         )
-        selected = [
-            dict(self.task_rows[task_id])
-            for task_id in decision.task_ids
-            for _ in range(self.num_generations)
-        ]
+        selected = [dict(self.task_rows[task_id]) for task_id in decision.task_ids for _ in range(self.num_generations)]
         self._emit_decision(decision)
         return selected
 
@@ -144,9 +140,7 @@ class AdaptiveCurriculumRuntime:
             raise RuntimeError("adaptive curriculum reward rows do not align with rollout inputs")
         if len(inputs) % self.num_generations != 0:
             raise RuntimeError("adaptive curriculum rewards do not contain complete prompt groups")
-        total_rewards = [
-            _weighted_reward(rewards, reward_weights) for rewards in rewards_per_function
-        ]
+        total_rewards = [_weighted_reward(rewards, reward_weights) for rewards in rewards_per_function]
         groups: list[tuple[str, Sequence[float]]] = []
         for offset in range(0, len(inputs), self.num_generations):
             rows = inputs[offset : offset + self.num_generations]
@@ -221,9 +215,8 @@ def adaptive_curriculum_trainer_type(parent: type[Any], runtime: AdaptiveCurricu
                 if getattr(self.accelerator, "num_processes", 1) != 1:
                     raise RuntimeError("adaptive curriculum currently requires one training process")
                 generate_every = self.args.steps_per_generation * self.num_iterations
-                if (
-                    not getattr(self, "active_sampling", False)
-                    and (self._step % generate_every == 0 or self._buffered_inputs is None)
+                if not getattr(self, "active_sampling", False) and (
+                    self._step % generate_every == 0 or self._buffered_inputs is None
                 ):
                     generation_batch = runtime.select_generation_batch(
                         cast(Sequence[Mapping[str, object]], generation_batch),
@@ -290,9 +283,7 @@ def _prepare_adaptive_active_sampling_inputs(
     generation_rounds = 0
     for round_index in range(1, max_batches + 1):
         local_missing = max(target_size - retained_count, 0)
-        missing_by_process = trainer.accelerator.gather(
-            torch.tensor(local_missing, device=trainer.accelerator.device)
-        )
+        missing_by_process = trainer.accelerator.gather(torch.tensor(local_missing, device=trainer.accelerator.device))
         synchronized_missing = int(missing_by_process.max().item())
         if synchronized_missing == 0:
             break
@@ -357,7 +348,9 @@ def _prepare_adaptive_active_sampling_inputs(
 def _weighted_reward(rewards: Sequence[float], weights: Sequence[float]) -> float:
     if len(rewards) != len(weights):
         raise RuntimeError("adaptive curriculum reward functions do not align with their weights")
-    values = [float(reward) * weight for reward, weight in zip(rewards, weights, strict=True) if math.isfinite(float(reward))]
+    values = [
+        float(reward) * weight for reward, weight in zip(rewards, weights, strict=True) if math.isfinite(float(reward))
+    ]
     return sum(values) if values else float("nan")
 
 

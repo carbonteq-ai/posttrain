@@ -85,9 +85,7 @@ def test_proportional_and_minimum_allocation_have_expected_integer_quotas() -> N
 
 
 def test_filter_and_missing_facet_policies_are_explicit() -> None:
-    inventory = population() + (
-        TaskDescriptor(key="task-g", fingerprint="sha256:" + "9" * 64, split="train"),
-    )
+    inventory = population() + (TaskDescriptor(key="task-g", fingerprint="sha256:" + "9" * 64, split="train"),)
     filtered = resolve_evaluation_selection(
         inventory,
         EvaluationSelectionPolicy(
