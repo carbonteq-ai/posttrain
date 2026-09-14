@@ -88,7 +88,7 @@ reviewed delta ledger, pass fork and consumer compatibility suites, publish an
 immutable CarbonTeq revision, and update Posttrain pins only after qualification.
 
 The published AutomationBench environment revision is
-`carbonteq-ai/verifiers-environments@1229dca847c63081b363c59c9f4119619b217e88`.
+`carbonteq-ai/verifiers-environments@a6d779fc1fdfde23f86e297125b3381b140cec2f`.
 It retains the earlier package compatibility work and gives each
 AutomationBench task its durable dataset task name as the selection identity;
 the content hash remains separate provenance. It also migrates
@@ -123,9 +123,10 @@ branch and no assumption that upstream is the product authority.
 
 CarbonTeq's maintained Verifiers v1 environment packs live in the separate
 framework-neutral [verifiers-environments repository](https://github.com/carbonteq-ai/verifiers-environments).
-The framework keeps each package independently installable. AutomationBench
-uses `1229dca847c63081b363c59c9f4119619b217e88`; unchanged packages remain on
-`1181585ea66c6f89432864a476b5110794afc9fe`:
+The framework keeps each package independently installable. All six packages
+use `a6d779fc1fdfde23f86e297125b3381b140cec2f`, whose package-local locks select
+the same Verifiers revision as the framework. This prevents a single runtime
+from resolving conflicting immutable Verifiers sources:
 
 | Package | Taskset | Source data / generator revision |
 | --- | --- | --- |

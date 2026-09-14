@@ -292,7 +292,7 @@ def test_agentic_and_domain_programs_share_the_native_port() -> None:
     source = AGENTIC_SMOKE.environments[0].source
     assert isinstance(source, EnvironmentSource)
     assert source.repository == ("https://github.com/carbonteq-ai/verifiers-environments")
-    assert source.revision == ("1229dca847c63081b363c59c9f4119619b217e88")
+    assert source.revision == ("a6d779fc1fdfde23f86e297125b3381b140cec2f")
     assert source.subdirectory == "environments/automationbench_v1"
     assert AGENTIC_SMOKE.environments[0].max_concurrent == 1
     assert AUTOMATIONBENCH_PUBLIC.kind == "domain"

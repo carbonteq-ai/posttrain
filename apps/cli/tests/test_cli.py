@@ -947,7 +947,7 @@ def test_init_grpo_template_declares_environment_and_selected_extras(
     environment = (project / ".posttrain" / "catalog" / "environments.yaml").read_text(encoding="utf-8")
     assert "starter-gsm8k-train" in work_package
     assert "package: gsm8k-v1" in environment
-    assert "revision: 1181585ea66c6f89432864a476b5110794afc9fe" in environment
+    assert "revision: a6d779fc1fdfde23f86e297125b3381b140cec2f" in environment
     from posttrain.catalog import load_project_layout
     from posttrain.project import load_project_pack_config
 

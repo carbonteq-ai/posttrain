@@ -6,7 +6,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1229dca847c63081b363c59c9f4119619b217e88
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -47,7 +47,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1229dca847c63081b363c59c9f4119619b217e88
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -79,7 +79,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1229dca847c63081b363c59c9f4119619b217e88
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -156,7 +156,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1229dca847c63081b363c59c9f4119619b217e88
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -171,7 +171,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
+                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
                 model: google/gemma-4-12B-it
                 model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
                 attempts: 2
@@ -227,7 +227,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
+                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
                 model: google/gemma-4-12B-it
                 model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
                 attempts: 2
@@ -269,7 +269,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
+                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
                 model: XHToken/Spark-X2.5-4B
                 model_revision: 5e10fcc0286756aebf7c41dc52c1e42d95c70281
                 attempts: 2
@@ -320,7 +320,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
+                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
                 model: deepseek/deepseek-v4.1-flash
                 model_revision: "20260910"
                 attempts: 2
@@ -360,7 +360,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1229dca847c63081b363c59c9f4119619b217e88
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -375,7 +375,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 1181585ea66c6f89432864a476b5110794afc9fe
+                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
                 model: deepseek/deepseek-v4-flash-0731
                 model_revision: "0731"
                 attempts: 2
@@ -423,7 +423,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1229dca847c63081b363c59c9f4119619b217e88
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
