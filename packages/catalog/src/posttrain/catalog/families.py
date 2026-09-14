@@ -165,6 +165,7 @@ def core_catalog_family_descriptors(
         "training",
         "quantization",
         "evaluation",
+        "remote-evaluation",
         "workload",
         "target",
         "recipe",

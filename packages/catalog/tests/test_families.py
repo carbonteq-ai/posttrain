@@ -102,3 +102,8 @@ def test_required_provider_distribution_fails_before_catalog_decoding() -> None:
             registry=registry,
             required_plugin_distributions=("example-plugin>=1",),
         )
+
+
+def test_remote_evaluation_family_is_available_to_installed_decoders() -> None:
+    registry = family_registry(entry_point_values=())
+    assert "remote-evaluation" in {entry.name for entry in registry.lock.entries}
