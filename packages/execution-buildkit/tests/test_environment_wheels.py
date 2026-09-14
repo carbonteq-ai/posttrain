@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from posttrain.common import ContractError
-from posttrain.execution_pack import ProjectEnvironmentSourceRequest
+from posttrain.execution_pack import ImmutableSourceSnapshotter, ProjectEnvironmentSourceRequest, SourceSnapshotRequest
 from posttrain_execution_buildkit import (
     EnvironmentWheelRequest,
     GitSourceLock,
@@ -136,13 +136,25 @@ def test_deduplicates_exact_requests(tmp_path: Path) -> None:
     assert len(gateway.calls) == 1
 
 
-def test_builds_a_project_snapshot_without_git_metadata(tmp_path: Path) -> None:
-    root = (tmp_path / "toy_env").absolute()
-    root.mkdir()
+@pytest.mark.parametrize("mutate", [False, True])
+def test_builds_a_project_snapshot_without_git_metadata(tmp_path: Path, mutate: bool) -> None:
+    root = (tmp_path / "environments/toy_env").absolute()
+    root.mkdir(parents=True)
     (root / "pyproject.toml").write_text('[project]\nname = "toy-env"\nversion = "1.0.0"\n')
     gateway = FakeWheelGateway({"toy_env": {"toy_env-1.0.0-py3-none-any.whl": b"wheel"}})
     builder = ImmutableEnvironmentWheelBuilder(output_root=(tmp_path / "wheels").absolute(), gateway=gateway)
-    request = ProjectEnvironmentSourceRequest("toy-env", "environments/toy_env", _tree_digest(root))
+    snapshot = ImmutableSourceSnapshotter(cache_root=tmp_path / "snapshots").materialize(
+        SourceSnapshotRequest(
+            root=tmp_path, includes=("environments/toy_env",), install_roots=("environments/toy_env",)
+        )
+    )
+    request = ProjectEnvironmentSourceRequest("toy-env", "environments/toy_env", snapshot.digest)
+    root = snapshot.package.root / request.path
+    if mutate:
+        (root / "pyproject.toml").write_text('[project]\nname = "changed"\nversion = "1.0.0"\n')
+        with pytest.raises(ContractError, match="differs from its planned digest"):
+            builder.build_project_sources({request.path: root}, (request,))
+        return
 
     result = builder.build_project_sources({request.path: root}, (request,))
 
