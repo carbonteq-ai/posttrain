@@ -1,7 +1,7 @@
 project_id: posttrain-lab
 work_package_id: eval/lfm2.5-2.6b/automationbench-heldout-comparison
 stage: qualify
-description: Shared held-out AutomationBench evaluation using the LFM2.5-2.6B recommended sampling preset for matched base, OLMo random, and adaptive checkpoints.
+description: Matched 20-task, three-repetition held-out AutomationBench evaluation using the LFM2.5-2.6B recommended generation preset for base, OLMo random, and adaptive checkpoints.
 recipe:
   type: inline
   id: recipes/lfm2.5-2.6b-automationbench-heldout-comparison@1
@@ -26,6 +26,9 @@ bindings:
   environment: {type: ref, family: environment, id: automationbench-lfm26-heldout-mix-v1}
 enabled_optional_jobs: []
 metadata:
-  comparison_family: lfm26-automationbench-50-v1
+  comparison_family: lfm26-automationbench-heldout20x3-lfmrec-v2
   task_mix: lfm26-automationbench-mix-v1-heldout
-  labels: [qualification, evaluation, automationbench, lfm2.5]
+  evaluation_population: heldout20
+  repetitions_per_task: "3"
+  generation_preset: lfm2.5-2.6b-recommended
+  labels: [qualification, evaluation, automationbench, lfm2.5, heldout, task-mean, repeated-3]

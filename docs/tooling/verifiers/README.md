@@ -8,7 +8,7 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 ## Install / pin
 
 The selected independently maintained CarbonTeq distribution is
-`carbonteq-ai/verifiers@1f6793f7d46e8a650a54b2a585193b4010578fa6`, based on
+`carbonteq-ai/verifiers@84ab782391bbfe1ac4f4ca32fa612e56d01b5b81`, based on
 upstream main commit `27bbd216df0af719a43705866b2cf6139bcc95de` and retaining
 the CarbonTeq host-client, selected-template, and cancellation seams. It adds
 optional host-client injection through native serving/interception. The fork
@@ -23,10 +23,15 @@ cannot inject the already-loaded policy; runtime-image publication and the
 corrected cloud retry remain open.
 
 The selected synchronization commit is pushed on
-`codex/carbonteq-verifiers-latest`. Its complete v1 suite passes, with only
+`codex/evaluation-task-selection-v04`. Its complete v1 suite passes, with only
 credential-dependent Prime cases skipped. Verifiers is consumed directly by
 immutable Git revision rather than as a private-index wheel; the Posttrain
 manifests and runtime locks therefore constitute its development selection.
+
+The selected commit adds exact ordered task-key selection and records the
+repetition index on native evaluation episodes. These generic seams let a host
+reuse one reviewed task manifest and distinguish planned repetitions without
+moving allocation or measurement policy into Verifiers.
 
 Prime-RL demonstrates the intended asynchronous ownership boundary. Verifiers
 executes environments and carries the neutral episode `PolicySpan`; the
@@ -35,7 +40,7 @@ publication, staleness admission, group advantages, and learner coordination.
 Posttrain follows the same split for its TRL asynchronous prototype rather than
 putting trainer state or update policy inside Verifiers.
 
-Selected commit `1f6793f7d46e8a650a54b2a585193b4010578fa6` additionally lets a native
+Selected commit `84ab782391bbfe1ac4f4ca32fa612e56d01b5b81` additionally lets a native
 `TrainClientConfig` carry the exact selected chat template and fences the
 shared renderer cache by that template. This is required for LFM because the
 framework's versioned package template intentionally differs from the model
@@ -82,9 +87,11 @@ optional and is never a release gate. Every synchronization must preserve a
 reviewed delta ledger, pass fork and consumer compatibility suites, publish an
 immutable CarbonTeq revision, and update Posttrain pins only after qualification.
 
-The published external environment revision is
-`carbonteq-ai/verifiers-environments@1181585ea66c6f89432864a476b5110794afc9fe`
-(development branch `codex/verifiers-latest-support`). It migrates
+The published AutomationBench environment revision is
+`carbonteq-ai/verifiers-environments@1229dca847c63081b363c59c9f4119619b217e88`.
+It retains the earlier package compatibility work and gives each
+AutomationBench task its durable dataset task name as the selection identity;
+the content hash remains separate provenance. It also migrates
 `Task.toolsets(config)` and `Toolset.register` and includes
 an optional native AutomationBench episode-judge plugin. The plugin uses a
 supplied hosted endpoint, retains bounded attempts and scorer identity, and
@@ -116,9 +123,9 @@ branch and no assumption that upstream is the product authority.
 
 CarbonTeq's maintained Verifiers v1 environment packs live in the separate
 framework-neutral [verifiers-environments repository](https://github.com/carbonteq-ai/verifiers-environments).
-The current framework integration uses published commit
-`1181585ea66c6f89432864a476b5110794afc9fe` and keeps each package independently
-installable:
+The framework keeps each package independently installable. AutomationBench
+uses `1229dca847c63081b363c59c9f4119619b217e88`; unchanged packages remain on
+`1181585ea66c6f89432864a476b5110794afc9fe`:
 
 | Package | Taskset | Source data / generator revision |
 | --- | --- | --- |

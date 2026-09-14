@@ -13,11 +13,12 @@ This is a production framework design, not an AutomationBench-only experiment. I
 - [x] 2026-09-13: Inspected evaluation request, environment facet, native adapter, Observatory aggregation, and frontend contracts; wrote revision 1.
 - [x] 2026-09-13: Extended the plan with the Observatory evaluation journey, projection contracts, comparison behavior, query boundaries, migration, and acceptance evidence.
 - [x] 2026-09-13: Amended the canonical evaluation contracts for manifest-backed selection, task-weighted measurement, and rebuildable Observatory projections.
-- [x] 2026-09-13: Added and published generic exact task-key dispatch in CarbonTeq Verifiers commit `0e5b04258b899150dd4555a0acacda0c58cdb6bb`; the complete v1 suite passes with credential-gated Prime tests skipped.
+- [x] 2026-09-13: Added exact task-key dispatch and stable repetition identity, then rebased them onto the v0.4 Verifiers line as published commit `84ab782391bbfe1ac4f4ca32fa612e56d01b5b81`; the complete v1 suite passes with credential-gated Prime tests skipped.
 - [x] 2026-09-13: Implemented provider-neutral task descriptors, native finite inventory projection, typed filters and allocation policies, deterministic immutable manifests, catalog decoding, and manifest-to-Verifiers dispatch.
 - [x] 2026-09-13: Integrated automatic manifest resolution into standard evaluation execution and added typed measurement plus the first Observatory population/task view. The affected backend suites report 289 passing tests with four credential-gated skips; the frontend reports 73 passing tests and a successful production build.
 - [x] 2026-09-14: Qualified the corrected LFM sampling settings and three-repetition dispatch with two 60-episode AutomationBench runs. Both completed without episode failures, but the release audit rejected their aggregate evidence because structured Verifiers rewards were not projected and transformed tasks changed content-derived keys.
 - [x] 2026-09-14: Added structured reward normalization in Observatory and a stable AutomationBench task-name identity in published environment commit `1229dca847c63081b363c59c9f4119619b217e88`; focused suites pass.
+- [x] 2026-09-14: Named the qualification family `lfm26-automationbench-heldout20x3-lfmrec-v2` and reserved explicit base, random-20, and adaptive-20 run identities so the subject and retry are visible without opening the run.
 - [ ] Implement repetitions, optional reproducibility controls, generation resolution, and retry accounting. Stable repetition identities are now emitted; explicit retry-attempt envelopes and seed controls remain.
 - [ ] Implement explicit aggregation, denominators, and paired comparison. Typed task-mean/target-weighted measurement, strict/available missing policy, denominators, and a first Observatory projection are implemented; paired comparison remains.
 - [ ] Integrate standard jobs, catalog authoring, preview, and portable artifacts.
@@ -38,9 +39,9 @@ The current frontend presents facets in preference to task groups when facet evi
 
 Native evaluation currently receives `num_tasks`, `num_rollouts`, and `shuffle`. The local Verifiers runner selects a head or shuffled taskset. `SamplingPolicy` exposes generation controls but no typed per-attempt seed schedule. The adapter reads environment sampling explicitly, so changing only an inference binding may not change actual request settings.
 
-The primary checkout is dirty with unrelated release and curriculum work. Planning inspected HEAD `756f943d41db8c7c469e24a4034d196be2071d8f`; preserve all existing changes. Implementation started from Verifiers pin `36eac9d5e04ef29b584b6fa4f027af00cd76ea19` and now selects published exact-dispatch commit `0e5b04258b899150dd4555a0acacda0c58cdb6bb`. Sibling checkout HEADs remain non-authoritative unless selected by an immutable consumer pin.
+The primary checkout is dirty with unrelated release and curriculum work. Planning inspected HEAD `756f943d41db8c7c469e24a4034d196be2071d8f`; preserve all existing changes. Implementation started from Verifiers pin `36eac9d5e04ef29b584b6fa4f027af00cd76ea19` and now selects published v0.4-compatible commit `84ab782391bbfe1ac4f4ca32fa612e56d01b5b81`. Sibling checkout HEADs remain non-authoritative unless selected by an immutable consumer pin.
 
-Implementation uses isolated worktrees `/tmp/rl-evaluation-selection` on `codex/evaluation-selection-measurement` and `/tmp/verifiers-evaluation-task-selection` on `codex/evaluation-task-selection`; the original dirty checkout remains untouched. The pinned Verifiers runner had only fixed shuffle/head selection, but native tasks already exposed stable `key` and content `hash` values. The maintained fork now accepts exact ordered `task_keys` and validates them before episode dispatch.
+Implementation uses isolated worktrees `/tmp/rl-evaluation-selection` on `codex/evaluation-selection-measurement` and `/home/hammad/projects/verifiers` on `codex/evaluation-task-selection-v04`; the original dirty checkout remains untouched. The pinned Verifiers runner had only fixed shuffle/head selection, but native tasks already exposed stable `key` and content `hash` values. The maintained fork now accepts exact ordered `task_keys`, validates them before episode dispatch, and records repetition identity.
 
 Verifiers evaluation episodes previously had no repetition slot in their retained run identity. Concurrent completion order therefore could not recover which planned repetition produced a trace. The maintained fork now records `repetition_index`; whole-episode retry history remains compressed and cannot yet support attempt-level drill-down.
 
@@ -186,7 +187,15 @@ Introduce versioned response fields additively for one release. Legacy evaluatio
 
 Use a real pinned Verifiers evaluation with a small no-tool taskset and a tool-using taskset exposing multiple facets, each with three repetitions. Exercise one managed local inference binding and one supported remote OpenAI-compatible test endpoint; the remote endpoint can be a controlled local service for protocol tests, but live model inference remains a separate required gate. Capture actual task IDs, state reset evidence, seed support, resolved request parameters, retry identity, artifacts, and Observatory results. Credentials come from existing environment/service configuration and are never stored in the plan or fixtures. GPU/backend unavailability means qualification remains incomplete, not that fake tests establish support.
 
-After generic qualification, configure matched final-checkpoint evaluations as a separate application of the framework. Confirm held-out task identity exclusion against both training populations before calling the result held-out. Reuse published model-adapter/model-weights artifacts, not training recovery artifacts. This plan does not itself authorize submission now; the user explicitly paused launches to discuss framework design.
+After generic qualification, configure matched final-checkpoint evaluations as a separate application of the framework. Confirm held-out task identity exclusion against both training populations before calling the result held-out. Reuse published model-adapter/model-weights artifacts, not training recovery artifacts. The user authorized the matched evaluation and release qualification on 2026-09-14 after cleanup of superseded evaluations and training runs configured for fewer than ten updates.
+
+Use these run identities for the release gate:
+
+    eval-lfm26-automationbench-heldout20x3-base-lfmrec-20260914-r1
+    eval-lfm26-automationbench-heldout20x3-olmo3-random20-lfmrec-20260914-r1
+    eval-lfm26-automationbench-heldout20x3-olmo3-adaptive20-v4-lfmrec-20260914-r1
+
+The shared prefix identifies the model family, benchmark, 20-task population, three repetitions, and generation preset. The subject segment identifies the base or exact training arm; the date and retry suffix distinguish reruns. Resolved model lineage remains the authority for the checkpoint rather than the readable name.
 
 ## Concrete Steps
 
