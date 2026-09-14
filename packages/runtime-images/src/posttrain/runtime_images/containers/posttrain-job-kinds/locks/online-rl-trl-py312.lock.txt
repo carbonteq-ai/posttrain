@@ -3,7 +3,6 @@
 
 --index-url https://pypi.org/simple
 --extra-index-url https://download.pytorch.org/whl/cu130
---extra-index-url https://pypi.lan/carbonteq/stable/+simple/
 --extra-index-url https://pypi.lan/carbonteq/dev/+simple/
 
 accelerate==1.14.0 \
