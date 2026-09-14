@@ -52,6 +52,20 @@ def test_preinstalled_bootstrap_uses_the_packed_job_interpreter_without_uv() -> 
     assert runtime.commands[0][1] == {}
 
 
+def test_preinstalled_bootstrap_accepts_verifiers_activation_mode() -> None:
+    runtime = _Runtime()
+
+    activated = asyncio.run(
+        prepare_preinstalled_uv_script(runtime, "print('ok')", activate=True)
+    )
+    direct = asyncio.run(
+        prepare_preinstalled_uv_script(runtime, "print('ok')", activate=False)
+    )
+
+    assert activated == direct
+    assert activated[0] == "/opt/posttrain/venv/bin/python"
+
+
 def test_preinstalled_bootstrap_fails_closed_when_image_was_not_warmed() -> None:
     runtime = _Runtime()
     runtime.commands.clear()

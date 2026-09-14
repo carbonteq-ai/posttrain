@@ -1,6 +1,6 @@
 # Reproducible evaluation selection and explicit measurement
 
-This ExecPlan follows `docs/templates/PLAN.md`. Revision 2, 2026-09-13. Maintain Progress, Surprises & Discoveries, Decision Log, and Outcomes & Retrospective throughout implementation. `.agents/PLAN.md`, referenced by the planning skill, is absent; the repository's complete plan template governs this document.
+This ExecPlan follows `docs/templates/PLAN.md`. Revision 3, 2026-09-14. Maintain Progress, Surprises & Discoveries, Decision Log, and Outcomes & Retrospective throughout implementation. `.agents/PLAN.md`, referenced by the planning skill, is absent; the repository's complete plan template governs this document.
 
 ## Purpose / Big Picture
 
@@ -16,6 +16,8 @@ This is a production framework design, not an AutomationBench-only experiment. I
 - [x] 2026-09-13: Added and published generic exact task-key dispatch in CarbonTeq Verifiers commit `0e5b04258b899150dd4555a0acacda0c58cdb6bb`; the complete v1 suite passes with credential-gated Prime tests skipped.
 - [x] 2026-09-13: Implemented provider-neutral task descriptors, native finite inventory projection, typed filters and allocation policies, deterministic immutable manifests, catalog decoding, and manifest-to-Verifiers dispatch.
 - [x] 2026-09-13: Integrated automatic manifest resolution into standard evaluation execution and added typed measurement plus the first Observatory population/task view. The affected backend suites report 289 passing tests with four credential-gated skips; the frontend reports 73 passing tests and a successful production build.
+- [x] 2026-09-14: Qualified the corrected LFM sampling settings and three-repetition dispatch with two 60-episode AutomationBench runs. Both completed without episode failures, but the release audit rejected their aggregate evidence because structured Verifiers rewards were not projected and transformed tasks changed content-derived keys.
+- [x] 2026-09-14: Added structured reward normalization in Observatory and a stable AutomationBench task-name identity in published environment commit `1229dca847c63081b363c59c9f4119619b217e88`; focused suites pass.
 - [ ] Implement repetitions, optional reproducibility controls, generation resolution, and retry accounting. Stable repetition identities are now emitted; explicit retry-attempt envelopes and seed controls remain.
 - [ ] Implement explicit aggregation, denominators, and paired comparison. Typed task-mean/target-weighted measurement, strict/available missing policy, denominators, and a first Observatory projection are implemented; paired comparison remains.
 - [ ] Integrate standard jobs, catalog authoring, preview, and portable artifacts.
@@ -48,6 +50,8 @@ Repository-wide Pyright currently reports 24 errors in existing catalog, CLI, en
 
 Target weight and inclusion probability are separate quantities. If a stratum represents one third of the target population and two of its tasks are selected, each selected representative receives one sixth of the estimator weight; its inclusion probability still records two divided by the number of eligible tasks in that stratum.
 
+The first corrected-temperature qualification exposed two compatibility defects that provider success did not reveal. Modern Verifiers reward components use `{score, weight}` records, while Observatory accepted only scalar component values. In addition, renderer transforms can change a task's content hash after selection; AutomationBench had inherited that hash as its identity even though its dataset supplies a durable unique task name. The two runs contain the intended 20 names three times each, but their recorded content-derived keys split into 32 apparent identities. These runs validate execution and sampling configuration, but they cannot qualify strict task-level measurement.
+
 ## Decision Log
 
 Decision: extend existing environment task semantics, evaluation plans, and artifact lineage; do not add a competing dataset store or reporting service. Rationale: environments own task meaning and Observatory owns computed evidence. Date: 2026-09-13.
@@ -68,9 +72,13 @@ Decision: evaluation comparison begins with a compatibility assessment and then 
 
 Decision: new manifest-backed plans default to a strict equal task mean; target-weighted measurement and available-case missing handling require typed policy. Rationale: repeated traces must not silently give one task extra influence, and incomplete evidence must not inherit a complete-looking legacy rollout mean. Date: 2026-09-13.
 
+Decision: an environment with a durable dataset identity must override Verifiers' content-hash task key when runtime transforms can change task content. Keep the content hash as provenance and use the durable key for selection, repetitions, and measurement. Rationale: task identity must survive renderer and world-state transforms. Date: 2026-09-14.
+
+Decision: Observatory normalizes both scalar and structured Verifiers reward components. A named component exposes its raw score; aggregate fallback reward uses the component's weighted contribution. Rationale: metric selection and total reward have distinct meanings in the native schema. Date: 2026-09-14.
+
 ## Outcomes & Retrospective
 
-Implementation has begun in revision 2. Selection, exact dispatch, stable repetition identity, typed task-level measurement, and the first Observatory overview are implemented and tested. Retry-attempt preservation, seed controls, prepared CLI artifacts, paired comparison, cached projections, full product views, real model qualification, and checkpoint evaluations remain pending. Future updates must distinguish tested behavior from proposed interfaces and record exact backend pins and evidence links.
+Implementation has begun in revision 3. Selection, exact dispatch, stable repetition slots, typed task-level measurement, and the first Observatory overview are implemented and tested. The first real checkpoint evaluations found and drove fixes for runtime activation compatibility, structured reward projection, and environment-owned task identity. A fresh matched evaluation on the corrected environment pin remains the release qualification gate. Retry-attempt preservation, seed controls, prepared CLI artifacts, paired comparison, cached projections, and full product views remain pending. Future updates must distinguish tested behavior from proposed interfaces and record exact backend pins and evidence links.
 
 ## Context and Orientation
 

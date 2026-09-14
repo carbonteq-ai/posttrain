@@ -1,7 +1,7 @@
 project_id: posttrain-lab
 work_package_id: eval/lfm2.5-2.6b/automationbench-heldout-comparison
 stage: qualify
-description: Shared deterministic held-out AutomationBench evaluation for the base and three trained arms.
+description: Shared held-out AutomationBench evaluation using the LFM2.5-2.6B recommended sampling preset for matched base, OLMo random, and adaptive checkpoints.
 recipe:
   type: inline
   id: recipes/lfm2.5-2.6b-automationbench-heldout-comparison@1
@@ -20,8 +20,8 @@ recipe:
   expected_artifacts: [native evaluation result]
 bindings:
   model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
-  evaluation_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-eval@1}
-  target: {type: ref, family: target, id: targets/runpod-rtx-pro-4500-32gb-secure-ondemand}
+  evaluation_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-eval-local@1}
+  target: {type: ref, family: target, id: targets/carbonteq-rtx-pro-6000-96gb}
   evaluation_plan: {type: ref, family: evaluation, id: lfm26-automationbench-heldout-v1}
   environment: {type: ref, family: environment, id: automationbench-lfm26-heldout-mix-v1}
 enabled_optional_jobs: []

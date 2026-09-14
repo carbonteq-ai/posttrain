@@ -6,7 +6,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      revision: 1229dca847c63081b363c59c9f4119619b217e88
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -464,10 +464,12 @@ environment:
           max_output_tokens: 8192
     sampling:
       max_tokens: 2048
-      temperature: 0.0
+      temperature: 0.1
       top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
     num_tasks: 20
-    num_rollouts: 1
+    num_rollouts: 3
     max_concurrent: 20
     parameters:
       task_mix_id: lfm26-automationbench-mix-v1-heldout
@@ -1242,6 +1244,32 @@ inference:
     purpose: [eval]
     capabilities: [tool-calling]
 
+  inference/lfm2.5-2.6b-vllm-automationbench-eval-local@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.25.1
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      gpu_memory_utilization: 0.80
+      tensor_parallel_size: 1
+      max_model_len: 12288
+      max_num_seqs: 20
+      max_num_batched_tokens: 12288
+      enforce_eager: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 2048
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+
   inference/gemma4-12b-vllm-automationbench-judge-mtp2@1:
     revision: "1"
     startup_timeout_seconds: 900
@@ -1402,3 +1430,10 @@ evaluation:
         label: Task completed correctly
         source: {namespace: metric, name: task_completed_correctly}
         predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-lfm26-heldout-mix-v1:
+        kind: full
+    measurement:
+      automationbench-lfm26-heldout-mix-v1:
+        estimator: task_mean
+        missing: strict
