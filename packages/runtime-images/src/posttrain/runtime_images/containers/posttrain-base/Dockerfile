@@ -32,7 +32,9 @@ RUN apt-get update && \
 # tooling supplies them as a BuildKit secret so the host path never enters the
 # build context or image metadata. Append rather than replace: public PyPI and
 # the private index must remain verifiable in the same build and runtime.
+ARG POSTTRAIN_CA_BUNDLE_SHA256=none
 RUN --mount=type=secret,id=posttrain_ca_bundle,required=false \
+    test -n "${POSTTRAIN_CA_BUNDLE_SHA256}" && \
     if [ -f /run/secrets/posttrain_ca_bundle ]; then \
       cat /run/secrets/posttrain_ca_bundle >> /etc/ssl/certs/ca-certificates.crt; \
     fi

@@ -375,7 +375,14 @@ def test_runtime_trust_bundle_is_mounted_and_hashed_not_path_identified(
     assert f"fs.read={first_bundle.resolve()}" in build_call
     assert f"{request.target}.secrets=id=posttrain_ca_bundle,src={first_bundle.resolve()}" in build_call
 
+    import hashlib
+
+    expected = hashlib.sha256(first_bundle.read_bytes()).hexdigest()
+    assert f"{request.target}.args.POSTTRAIN_CA_BUNDLE_SHA256={expected}" in build_call
+
     second_bundle.write_text("different public CA\n", encoding="utf-8")
+    changed = builder._trust_arguments(replace(request, trust_bundle=second_bundle.resolve()))
+    assert f"{request.target}.args.POSTTRAIN_CA_BUNDLE_SHA256={expected}" not in changed
     assert request.build_key != replace(request, trust_bundle=second_bundle.resolve()).build_key
 
 

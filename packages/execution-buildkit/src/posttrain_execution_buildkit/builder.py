@@ -391,6 +391,8 @@ class BuildKitRuntimeBuilder:
             f"fs.read={request.trust_bundle}",
             "--set",
             f"{request.target}.secrets=id=posttrain_ca_bundle,src={request.trust_bundle}",
+            "--set",
+            f"{request.target}.args.POSTTRAIN_CA_BUNDLE_SHA256={_file_digest(request.trust_bundle)}",
         ]
 
     def _reproducibility_arguments(self, request: RuntimeBuildRequest) -> list[str]:
