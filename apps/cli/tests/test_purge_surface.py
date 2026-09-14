@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -32,6 +33,49 @@ def _plan(reference: str) -> PurgePlan:
         ),
         reason=PurgeReason(category="disposable-fixture"),
     )
+
+
+def test_provider_terminal_cleanup_marks_missing_tracking_plane_complete(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    state = (tmp_path / "state").resolve()
+    run_id = "startup-failed-before-tracking"
+    run_root = state / "executions" / run_id
+    run_root.mkdir(parents=True)
+    (run_root / "cleanup.json").write_text(
+        json.dumps({"evidence_state": "provider-terminal"}),
+        encoding="utf-8",
+    )
+    submission = SimpleNamespace(
+        run_id=run_id,
+        evidence_source=SimpleNamespace(provider="trackio", project="fixture", source_id="trackio-fixture"),
+        provider="dstack",
+        provider_id="provider-1",
+        job_image="not-an-image",
+        run_workspace=None,
+        evidence_retention="standard",
+    )
+
+    class Store:
+        def list_submissions(self):
+            return (submission,)
+
+        def cleaned_result(self, _run_id):
+            return SimpleNamespace(record=SimpleNamespace(state="failed"))
+
+        def run_root(self, _run_id):
+            return run_root
+
+    monkeypatch.setattr(purge_surface, "ExecutionSubmissionStore", lambda _state: Store())
+    monkeypatch.setattr(purge_surface, "_plan_stores", lambda _layout: ())
+    monkeypatch.setattr(purge_surface, "_populate_trackio_lineage", lambda *_args, **_kwargs: None)
+
+    candidate = purge_surface.candidate_catalog(SimpleNamespace(state=state, project_id="fixture"))[run_id]
+
+    assert candidate.reconciled is True
+    assert candidate.evidence_provider == "trackio"
+    assert candidate.completed_planes == ("tracking",)
 
 
 def test_apply_time_registry_revalidation_allows_only_selected_owner(

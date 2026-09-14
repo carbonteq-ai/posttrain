@@ -67,14 +67,37 @@ def candidate_catalog(
             cleaned = store.cleaned_result(submission.run_id)
         except Exception:
             cleaned = None
+        cleanup_evidence_state: str | None = None
+        if cleaned is not None:
+            try:
+                cleanup_payload = json.loads(
+                    (store.run_root(submission.run_id) / "cleanup.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+                if isinstance(cleanup_payload, dict):
+                    value = cleanup_payload.get("evidence_state")
+                    cleanup_evidence_state = value if isinstance(value, str) else None
+            except (OSError, json.JSONDecodeError):
+                cleanup_evidence_state = None
+        provider_terminal_without_tracking = bool(
+            cleaned is not None
+            and cleanup_evidence_state == "provider-terminal"
+        )
         if cleaned is not None:
             state = cleaned.record.state
+        if provider_terminal_without_tracking:
+            # Cleanup already performed the guarded remote lookup and retained
+            # the fact that no tracking run exists. Treat that plane as
+            # completed so purge does not turn the source id into a fictitious
+            # provider run id.
+            reconciled = True
         snapshot = store.run_root(submission.run_id) / "reconciliation.json"
         if snapshot.is_file():
             try:
                 payload = json.loads(snapshot.read_text(encoding="utf-8"))
                 if isinstance(payload, dict):
-                    reconciled = _reconciliation_allows_purge(payload)
+                    reconciled = reconciled or _reconciliation_allows_purge(payload)
                     value = payload.get("tracking_provider_run_id")
                     tracking_provider_run_id = value if isinstance(value, str) else None
             except (OSError, json.JSONDecodeError):
@@ -98,6 +121,13 @@ def candidate_catalog(
         workspace = submission.run_workspace if submission.provider == "local" else None
         if workspace is not None and workspace not in local_paths:
             local_paths.append(workspace)
+        completed_planes = _completed_purge_planes(
+            purge_stores,
+            run_id=submission.run_id,
+            project_id=layout.project_id,
+        )
+        if provider_terminal_without_tracking and "tracking" not in completed_planes:
+            completed_planes = (*completed_planes, "tracking")
         candidates[submission.run_id] = PurgeRunCandidate(
             run_id=submission.run_id,
             project_id=layout.project_id,
@@ -112,11 +142,7 @@ def candidate_catalog(
             image=image,
             workspace=workspace,
             local_paths=tuple(local_paths),
-            completed_planes=_completed_purge_planes(
-                purge_stores,
-                run_id=submission.run_id,
-                project_id=layout.project_id,
-            ),
+            completed_planes=completed_planes,
             lineage_complete=False,
             evidence_retention=submission.evidence_retention,
         )
