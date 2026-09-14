@@ -12,7 +12,7 @@ from posttrain.environment import (
     PythonFactoryActivation,
     SamplingPolicy,
 )
-from posttrain.eval.backends.verifiers.inventory import _Task, _inventory_from_taskset
+from posttrain.eval.backends.verifiers.inventory import _inventory_from_taskset, _Task
 
 
 class Data:
