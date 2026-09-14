@@ -24,7 +24,8 @@ RUN apt-get update && \
       ca-certificates \
       gcc \
       git \
-      libc6-dev && \
+      libc6-dev \
+      openssh-server && \
     rm -rf /var/lib/apt/lists/* && \
     update-ca-certificates
 
@@ -64,4 +65,5 @@ LABEL org.opencontainers.image.created="${CREATED}" \
 WORKDIR /opt/posttrain/job
 
 FROM runtime AS smoke
-RUN python -c "import ssl, torch; assert torch.__version__ == '2.11.0+cu130'; print(ssl.get_default_verify_paths().cafile, torch.__version__)"
+RUN command -v sshd && \
+    python -c "import ssl, torch; assert torch.__version__ == '2.11.0+cu130'; print(ssl.get_default_verify_paths().cafile, torch.__version__)"

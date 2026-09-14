@@ -135,6 +135,14 @@ def test_base_package_cache_is_scoped_to_the_immutable_lock() -> None:
     assert "id=posttrain-base-uv-${LOCK_DIGEST}" in dockerfile
 
 
+def test_base_preinstalls_sshd_for_offline_worker_bootstrap() -> None:
+    with definition_root() as root:
+        dockerfile = (root / "containers/posttrain-base/Dockerfile").read_text()
+
+    assert "openssh-server" in dockerfile
+    assert "command -v sshd" in dockerfile
+
+
 def test_runtime_variants_match_the_published_bake_targets() -> None:
     published = re.compile(r'^target "posttrain-kind-([a-z0-9-]+)" \{', re.MULTILINE)
     with definition_root() as root:

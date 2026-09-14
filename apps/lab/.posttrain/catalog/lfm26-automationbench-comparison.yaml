@@ -461,9 +461,9 @@ environment:
           runtime: {type: subprocess}
           timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 300}
           max_turns: 12
-          max_output_tokens: 8192
+          max_output_tokens: 12288
     sampling:
-      max_tokens: 8192
+      max_tokens: 12288
       temperature: 0.1
       top_p: 1.0
       top_k: 50
@@ -477,7 +477,7 @@ environment:
       sampling_seed: 43
       toolset: limited_zapier
       max_turns: 12
-      max_output_tokens: 8192
+      max_output_tokens: 12288
     reward_components: [partial_credit]
     required_inference_capabilities: [tool-calling]
     observation:
@@ -1253,15 +1253,15 @@ inference:
     engine:
       gpu_memory_utilization: 0.80
       tensor_parallel_size: 1
-      max_model_len: 12288
+      max_model_len: 16384
       max_num_seqs: 20
-      max_num_batched_tokens: 12288
+      max_num_batched_tokens: 16384
       enforce_eager: true
       enable_chunked_prefill: true
       text_only: true
       skip_mm_profiling: true
     sampling:
-      max_tokens: 8192
+      max_tokens: 12288
       temperature: 0.1
       top_p: 1.0
       top_k: 50
