@@ -278,10 +278,10 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert "weight_name_prefix" not in local_rollout.engine
     assert local_rollout.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
     assert isinstance(heldout_environment, EnvironmentBinding)
-    assert heldout_environment.parameters["max_output_tokens"] == 8192
-    assert heldout_environment.sampling.max_tokens == 8192
+    assert heldout_environment.parameters["max_output_tokens"] == 12_288
+    assert heldout_environment.sampling.max_tokens == 12_288
     assert isinstance(heldout_local_inference, InferenceBinding)
-    assert heldout_local_inference.sampling["max_tokens"] == 8192
+    assert heldout_local_inference.sampling["max_tokens"] == 12_288
 
     remote_training = catalog.resolve(CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench@1")).value
     remote_rollout = catalog.resolve(
