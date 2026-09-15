@@ -226,9 +226,7 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     local_adaptive_v2 = catalog.resolve(
         CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-adaptive-20-local-v2")
     ).value
-    vortex = catalog.resolve(
-        CatalogRef("training", "lfm2.5-2.6b/automationbench-vortex-20-local-v1")
-    ).value
+    vortex = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-vortex-20-local-v1")).value
     adaptive_oversample_environment = catalog.resolve(
         CatalogRef("environment", "automationbench-lfm26-train-mix-v4")
     ).value
