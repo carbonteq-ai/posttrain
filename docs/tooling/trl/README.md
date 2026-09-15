@@ -9,18 +9,20 @@ resume checkpoint 1 to matching uninterrupted weights, and generate from the
 export. This is deterministic full-parameter fixture evidence, not live Verifiers,
 judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
 
-Latest candidate: `1.12.0.post5`, commit
-`b9f3a09369d9cfa21950feef3e110e1fdf779c54`. It consumes retained source-row
+Latest candidate: `1.12.0.post7`, release commit
+`69012155b4a3fb2d8296692d0962a821273e650a`, tag
+`carbonteq-v1.12.0.post7`. It includes the post6 async lifecycle and post5
+complete-group admission behavior and consumes retained source-row
 identities before reward calculation, validates complete groups, and keeps
 single-process GRPO accumulation normalized over admitted samples. OLMo active
 sampling accepts partial and empty candidate rounds within its existing bound.
 Padding exists only in trainer tensors after scoring; no synthetic rewards or
 episodes are created. Partial distributed, multimodal, fixed alternate-loss,
 fused-loss, entropy-bonus and auxiliary-loss cases remain unqualified/rejected.
-43 focused fork checks pass, including actual tiny-model updates in both paths
-and retained-gradient equivalence across microbatch sizes. Wheel SHA-256:
-`1f42571c28e178bb292eb7b904940f0d0e4b0ccdf936b23b8bec9704190b6ecb`;
-sdist: `ceb581cc5a3d7a4a8a34cbc1b7fbc64e7aba9e3c55a6508b4a14ce257d341bc9`.
+The post7 rollout and async slice passes 139 focused tests with 36 capability
+skips. Wheel SHA-256:
+`6ba30192638c3d30cdd933558aa1684f5946684d1f5d843e88ead39fbf9a1efd`;
+sdist: `6cae6e84014d45e458e48966ec121efede6173ef29b34cf8dd8e66f55d804b52`.
 Live RTX PRO qualification remains pending. Harness optimization is deferred.
 
 The async rollout lifecycle is under development on fork branch

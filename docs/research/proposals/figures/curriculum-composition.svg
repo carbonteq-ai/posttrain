@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 570" role="img" aria-label="Profile plus algorithm">
+<title>Profile plus algorithm</title><desc>A profile configures reusable data selection, sampling and evidence capabilities; the learning algorithm is selected separately. Evidence supports observation alone or optional adaptation.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#817a83"/></marker></defs>
+<style>text{font-family:Inter Variable,Inter,Arial,sans-serif;fill:#28252a}.title{font-size:22px;font-weight:700}.label{font-size:17px;font-weight:700}.body{font-size:16px}.small{font-size:14px;fill:#5f5a62}</style>
+<rect width="1100" height="570" rx="16" fill="#fcfbf8"/>
+<text x="550" y="44" text-anchor="middle" class="title">Shared data capabilities, composed by a profile</text>
+<rect x="45" y="85" width="645" height="103" rx="12" fill="#e9ede4" stroke="#e5e1da"/>
+<text x="367.5" y="117" text-anchor="middle" class="label">Selected profile or compatible extension</text>
+<text x="367.5" y="146" text-anchor="middle" class="body">Fixed baseline, observation only, or adaptive practice</text>
+<rect x="735" y="85" width="320" height="103" rx="12" fill="#f4ecdc" stroke="#e5e1da"/>
+<text x="895.0" y="117" text-anchor="middle" class="label">Selected algorithm</text>
+<text x="895.0" y="146" text-anchor="middle" class="body">GRPO or a named math variant</text>
+<rect x="45" y="275" width="205" height="130" rx="12" fill="#eee9fa" stroke="#e5e1da"/>
+<text x="147.5" y="307" text-anchor="middle" class="label">Select population</text>
+<text x="147.5" y="336" text-anchor="middle" class="body">Eligible tasks and classes</text>
+<text x="147.5" y="361" text-anchor="middle" class="body">Versioned source and split</text>
+<path d="M 147 188 V 275" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="275" y="275" width="205" height="130" rx="12" fill="#eee9fa" stroke="#e5e1da"/>
+<text x="377.5" y="307" text-anchor="middle" class="label">Sample practice</text>
+<text x="377.5" y="336" text-anchor="middle" class="body">Choose classes and tasks</text>
+<text x="377.5" y="361" text-anchor="middle" class="body">Fixed or adaptive policy</text>
+<path d="M 377 188 V 275" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="505" y="275" width="205" height="130" rx="12" fill="#eee9fa" stroke="#e5e1da"/>
+<text x="607.5" y="307" text-anchor="middle" class="label">Track evidence</text>
+<text x="607.5" y="336" text-anchor="middle" class="body">Success and variance</text>
+<text x="607.5" y="361" text-anchor="middle" class="body">Coverage and uncertainty</text>
+<path d="M 607 188 V 275" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="760" y="275" width="295" height="130" rx="12" fill="#f4ecdc" stroke="#e5e1da"/>
+<text x="907.5" y="307" text-anchor="middle" class="label">Apply learning rule</text>
+<text x="907.5" y="336" text-anchor="middle" class="body">Advantages, loss and credit</text>
+<text x="907.5" y="361" text-anchor="middle" class="body">Declared normalization and KL</text>
+<path d="M 895 188 V 275" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="550" y="461" text-anchor="middle" class="body">The profile and algorithm are resolved together, with explicit compatibility checks.</text>
+<text x="550" y="505" text-anchor="middle" class="small">Changing task exposure is a sampling-policy change. Changing the update math is an algorithm change.</text>
+<text x="550" y="537" text-anchor="middle" class="small">Tracking can remain enabled while the sampling distribution stays fixed.</text>
+</svg>

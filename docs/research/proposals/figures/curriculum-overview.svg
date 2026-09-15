@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1020" role="img" aria-label="Curriculum controller and training architecture">
+<title>Curriculum controller and training architecture</title><desc>The controller owns persistent class state and issues allocation to a sampler. The training loop generates, verifies and updates the student. An evidence ledger receives all attempts and separate current-student reference probes. The controller reviews this evidence every H steps; recovery aligns controller and model state.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#817a83"/></marker></defs>
+<style>text{font-family:Inter Variable,Inter,Arial,sans-serif;fill:#28252a}.title{font-size:22px;font-weight:700}.label{font-size:17px;font-weight:700}.body{font-size:16px}.small{font-size:14px;fill:#5f5a62}</style>
+<rect width="1200" height="1020" rx="16" fill="#fcfbf8"/>
+<style>.arch-heading{font-size:24px;font-weight:600}.arch-text{font-size:18px}.arch-note{font-size:16px;fill:#5f5a62}.arch-eyebrow{font-size:14px;font-weight:600;letter-spacing:1.4px;fill:#6d55d8}</style>
+<text x="40" y="43" text-anchor="start" class="arch-heading">Practice policy and model learning have separate owners</text>
+<text x="40" y="73" text-anchor="start" class="arch-note">Allocation flows into training. Evidence flows back into a persistent controller.</text>
+<defs><marker id="control-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#6d55d8"/></marker></defs>
+<rect x="40" y="107" width="1120" height="100" rx="10" fill="#f6f4ef" stroke="#e5e1da"/>
+<text x="62" y="140" text-anchor="start" class="arch-eyebrow">TASK INVENTORY + RESOLVED PROFILE</text>
+<text x="62" y="171" text-anchor="start" class="arch-text">Class mapping · eligible tasks · sampling rules · verifier and algorithm settings</text>
+<path d="M 240 207 V 246" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M 800 207 V 246" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="40" y="246" width="400" height="394" rx="10" fill="#f0ecfa" stroke="#d3c8ee"/>
+<text x="62" y="281" text-anchor="start" class="arch-eyebrow">CURRICULUM CONTROLLER</text>
+<text x="62" y="318" text-anchor="start" class="arch-heading">Decides future practice</text>
+<rect x="62" y="343" width="356" height="128" rx="10" fill="#fffefa" stroke="#d3c8ee"/>
+<text x="80" y="373" text-anchor="start" class="arch-text">Persistent run state</text>
+<text x="80" y="402" text-anchor="start" class="arch-note">Recent evidence and policy estimates</text>
+<text x="80" y="427" text-anchor="start" class="arch-note">Window boundaries and observation budget</text>
+<text x="80" y="452" text-anchor="start" class="arch-note">Current allocation and decision history</text>
+<text x="62" y="512" text-anchor="start" class="arch-text">Review at the configured cadence</text>
+<text x="62" y="544" text-anchor="start" class="arch-note">Update estimates from completed evidence</text>
+<text x="62" y="572" text-anchor="start" class="arch-note">Apply policy within coverage and scope</text>
+<text x="62" y="600" text-anchor="start" class="arch-note">Publish the next versioned allocation</text>
+<rect x="560" y="246" width="600" height="394" rx="10" fill="#fffefa" stroke="#e5e1da"/>
+<text x="582" y="281" text-anchor="start" class="arch-eyebrow">TRAINING LOOP</text>
+<text x="582" y="318" text-anchor="start" class="arch-heading">Learns from sampled experience</text>
+<rect x="582" y="346" width="556" height="58" rx="10" fill="#eee9fa" stroke="#e5e1da"/>
+<text x="603" y="381" text-anchor="start" class="arch-text">Sampler: class → task → rollout group</text>
+<rect x="582" y="435" width="258" height="91" rx="10" fill="#f6f4ef" stroke="#e5e1da"/>
+<text x="598" y="465" text-anchor="start" class="arch-text">Generate + verify</text>
+<text x="598" y="495" text-anchor="start" class="arch-note">Fresh student attempts</text>
+<rect x="880" y="435" width="258" height="91" rx="10" fill="#f4ecdc" stroke="#e5e1da"/>
+<text x="896" y="465" text-anchor="start" class="arch-text">Algorithm update</text>
+<text x="896" y="495" text-anchor="start" class="arch-note">Credit, loss, optimizer</text>
+<path d="M 711 404 V 435" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M 840 480 H 880" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M 1138 498 H 1148 V 375 H 1138" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)" stroke-dasharray="6 5"/>
+<text x="603" y="590" text-anchor="start" class="arch-text">Repeat with the updated student</text>
+<text x="603" y="617" text-anchor="start" class="arch-note">Freeze allocation before generating each batch</text>
+<path d="M 440 375 H 582" fill="none" stroke="#6d55d8" stroke-width="2" marker-end="url(#control-arrow)"/>
+<text x="506" y="343" text-anchor="middle" class="arch-note">Allocation</text>
+<text x="506" y="400" text-anchor="middle" class="arch-note">q(t) + version</text>
+<rect x="40" y="728" width="682" height="165" rx="10" fill="#f6f4ef" stroke="#e5e1da"/>
+<text x="62" y="762" text-anchor="start" class="arch-eyebrow">RUN EVIDENCE</text>
+<text x="62" y="798" text-anchor="start" class="arch-text">All attempted groups + population-aware summaries</text>
+<text x="62" y="831" text-anchor="start" class="arch-note">Task / class / model identity · outcomes · validity · cost</text>
+<text x="62" y="858" text-anchor="start" class="arch-note">Keep proposed, executed, retained and optimized populations distinct</text>
+<rect x="780" y="728" width="380" height="165" rx="10" fill="#fffefa" stroke="#e5e1da"/>
+<text x="802" y="762" text-anchor="start" class="arch-eyebrow">SCHEDULED REFERENCE PROBES</text>
+<text x="802" y="798" text-anchor="start" class="arch-text">Measure comparable performance</text>
+<text x="802" y="831" text-anchor="start" class="arch-note">Frozen student checkpoint</text>
+<text x="802" y="858" text-anchor="start" class="arch-note">Fixed reference design; no optimizer update</text>
+<path d="M 582 480 H 545 V 678 H 520 V 728" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M 1009 526 V 678 H 520" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="599" y="703" text-anchor="middle" class="arch-note">Outcomes + update telemetry</text>
+<path d="M 1138 462 H 1180 V 704 H 970 V 728" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)" stroke-dasharray="6 5"/>
+<text x="1005" y="703" text-anchor="middle" class="arch-note">Student snapshot</text>
+<path d="M 780 811 H 722" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M 240 728 V 640" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="257" y="693" text-anchor="start" class="arch-note">Evidence required by selected policy</text>
+<rect x="40" y="932" width="1120" height="58" rx="10" fill="#e9ede4" stroke="#e5e1da"/>
+<text x="62" y="967" text-anchor="start" class="arch-text">Recovery boundary: model checkpoint + controller state + sampling state + evidence positions</text>
+</svg>

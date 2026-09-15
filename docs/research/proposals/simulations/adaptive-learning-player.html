@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Adaptive learning playground</title></head><body>
+<!-- PLAYER START -->
+<style>
+#learning-player{font:14px/1.6 Inter,system-ui,sans-serif;color:#28252a;background:#fcfbf8;border:1px solid #e5e1da;border-radius:12px;padding:24px;margin:28px 0}
+#learning-player *{box-sizing:border-box}#learning-player h3{font:600 22px/1.3 Inter,system-ui,sans-serif;margin:0 0 8px}#learning-player p{margin:10px 0}
+#learning-player .lp-controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:18px 0}#learning-player button,#learning-player select{font:inherit;padding:8px 12px;border:1px solid #c7bedb;border-radius:6px;background:#fffefa;color:#28252a;cursor:pointer}#learning-player button:first-child{background:#6d55d8;color:white}#learning-player :focus-visible{outline:3px solid #6d55d8;outline-offset:3px}
+#learning-player .lp-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}#learning-player .lp-row{margin:12px 0}#learning-player .lp-label{display:flex;justify-content:space-between;gap:8px}#learning-player .lp-track{height:16px;background:#eeeae3;border-radius:4px;overflow:hidden}#learning-player .lp-fill{height:100%}#learning-player .lp-note{color:#625b68;font-size:12px}#learning-player input[type=range]{width:100%;accent-color:#6d55d8}#learning-player svg{width:100%;height:auto;display:block}#learning-player .lp-status{padding:12px;background:#eee9fa;border-radius:6px;min-height:70px}#learning-player details{margin-top:14px}#learning-player summary{cursor:pointer;font-weight:600}
+@media(max-width:600px){#learning-player{padding:16px}#learning-player .lp-grid{grid-template-columns:1fr}}
+@media print{#learning-player .lp-controls,#learning-player input{display:none}}
+</style>
+<section id="learning-player" aria-label="Playable adaptive learning simulation">
+<h3>Watch practice move between classes</h3>
+<p>Start with equal shares. Play to see observed progress attract extra practice, then release it as learning slows.</p>
+<div class="lp-controls">
+<button id="lp-play" type="button">Play</button><button id="lp-step" type="button">Step</button><button id="lp-reset" type="button">Reset</button>
+<label>Scenario <select id="lp-scenario"><option value="learn">All classes learn</option><option value="stall">Geometry cannot improve</option><option value="forget">Arithmetic regresses at step 80</option></select></label>
+<label>Speed <select id="lp-speed"><option value="400">1×</option><option value="150">3×</option><option value="60">7×</option></select></label>
+</div>
+<label for="lp-reserve">Exploration reserve: <strong id="lp-reserve-value">20%</strong> · changing this restarts the scenario</label>
+<input id="lp-reserve" type="range" min="5" max="100" step="5" value="20">
+<div class="lp-controls"><strong id="lp-time">Step 0 / 180</strong><span id="lp-count">0 practice groups</span></div>
+<label for="lp-seek">Replay position</label><input id="lp-seek" type="range" min="0" max="180" value="0">
+<div class="lp-grid"><div><strong>Student success</strong><p class="lp-note">Toy reference performance after this step.</p><div id="lp-performance"></div></div><div><strong>Next practice allocation</strong><p class="lp-note">Probabilities for the next step; actual draws vary.</p><div id="lp-allocation"></div></div></div>
+<p id="lp-status" class="lp-status" role="status" aria-live="polite"></p>
+<strong>How the practice mixture changed</strong><p class="lp-note">Each vertical slice totals 100%. Colors match the class labels above.</p>
+<svg id="lp-chart" viewBox="0 0 680 170" role="img" aria-label="Stacked class allocation history"></svg>
+<details><summary>What this illustration assumes</summary>
+<p>This is a deterministic seeded toy simulation, not an LLM training result. Each step samples 40 class groups and applies an assumed diminishing-return learning curve. Classes have different learning rates. There is no transfer, gradient interference, verifier noise, or token cost.</p>
+<p>Every step supplies exact reference success probabilities at no cost. Priorities use positive mean progress over the last five steps, divided by a fixed temperature of 0.002, followed by softmax and the exploration reserve. Exact observations stand in for a zero-width progress interval. Real training requires sampled estimates, uncertainty handling, and paid reference observations as described in the proposal.</p>
+<p>The horizon of 180 steps only bounds playback; the update rule never reads it. The regression scenario deliberately shows a limitation: negative progress does not receive a positive bonus. Rehearsal starts through coverage, and renewed improvement can then attract practice. At 100% reserve the same learner uses fixed equal class sampling.</p>
+</details>
+<noscript>Enable JavaScript to play. The proposal's allocation example provides a static explanation of the same rule.</noscript>
+</section>
+<script>
+(() => {
+ const root=document.getElementById('learning-player');if(!root)return;
+ const el=id=>root.querySelector('#lp-'+id);
+ const names=['Arithmetic','Algebra','Geometry','Probability'];
+ const colors=['#6d55d8','#297e85','#ae6a31','#697c42'];
+ let states=[],position=0,timer=null;
+ function generate(scenario,reserve){
+  let seed=42;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+  let p=[.72,.25,.12,.18],q=[.25,.25,.25,.25];const history=[];
+  const result=[{p:[...p],q:[...q],gain:[0,0,0,0]}];
+  for(let t=1;t<=180;t++){
+   const before=[...p],counts=[0,0,0,0];
+   for(let n=0;n<40;n++){let x=random(),c=0;while(c<3&&x>=q[c]){x-=q[c];c++;}counts[c]++;}
+   if(scenario==='forget'&&t===80)p[0]=.30;
+   const rates=[.045,.025,.012,.018];
+   for(let c=0;c<4;c++)if(!(scenario==='stall'&&c===2))p[c]+=(.99-p[c])*(1-Math.exp(-rates[c]*counts[c]*p[c]));
+   history.push(p.map((x,c)=>x-before[c]));if(history.length>5)history.shift();
+   const gain=p.map((_,c)=>Math.max(0,history.reduce((sum,d)=>sum+d[c],0)/history.length));
+   const logits=gain.map(x=>x/.002),max=Math.max(...logits),weights=logits.map(x=>Math.exp(x-max)),sum=weights.reduce((a,b)=>a+b,0);
+   q=weights.map(w=>reserve/4+(1-reserve)*w/sum);
+   result.push({p:[...p],q:[...q],gain});
+  }return result;
+ }
+ function bars(id,values){el(id).innerHTML=values.map((v,c)=>`<div class="lp-row"><div class="lp-label"><span style="color:${colors[c]}">${names[c]}</span><strong>${(100*v).toFixed(1)}%</strong></div><div class="lp-track"><div class="lp-fill" style="width:${100*v}%;background:${colors[c]}"></div></div></div>`).join('');}
+ function render(){
+  const s=states[position];bars('performance',s.p);bars('allocation',s.q);el('seek').value=position;el('time').textContent=`Step ${position} / 180`;el('count').textContent=`${position*40} practice groups`;
+  const leader=s.q.indexOf(Math.max(...s.q)),reserve=Number(el('reserve').value)/100;
+  let message=position===0?'No progress evidence yet: every class starts with 25% of practice.':`${names[leader]} has the largest next share (${(100*s.q[leader]).toFixed(1)}%). Every class keeps at least ${(100*reserve/4).toFixed(1)}% through exploration.`;
+  if(position&&Math.max(...s.q)-Math.min(...s.q)<.025)message='Progress priorities are similar, so practice is close to the equal base mixture.';
+  if(el('scenario').value==='forget'&&position>=80&&position<86)message='Arithmetic regressed. Negative progress earns no bonus; coverage keeps it in practice while fresh evidence accumulates.';
+  if(el('scenario').value==='stall'&&position>10)message+=' Geometry is still weak: low progress does not mean mastery.';
+  el('status').textContent=message;
+  const width=640/181;let svg='<text x="20" y="13" font-size="11" fill="#625b68">100%</text><rect x="20" y="22" width="640" height="118" fill="#eeeae3"/>';
+  for(let t=0;t<=position;t++){let y=22;for(let c=0;c<4;c++){const h=states[t].q[c]*118;svg+=`<rect x="${20+t*width}" y="${y}" width="${width+.1}" height="${h}" fill="${colors[c]}"/>`;y+=h;}}
+  svg+='<text x="20" y="161" font-size="11">Step 0</text><text x="600" y="161" font-size="11">Step 180</text>';el('chart').innerHTML=svg;
+ }
+ function stop(){clearInterval(timer);timer=null;el('play').textContent='Play';}
+ function step(){if(position<180){position++;render();}if(position===180)stop();}
+ function play(){if(timer){stop();return;}if(position===180)position=0;el('play').textContent='Pause';timer=setInterval(step,Number(el('speed').value));}
+ function reset(){stop();position=0;states=generate(el('scenario').value,Number(el('reserve').value)/100);el('reserve-value').textContent=el('reserve').value+'%';render();}
+ el('play').onclick=play;el('step').onclick=()=>{stop();step();};el('reset').onclick=reset;el('scenario').onchange=reset;el('reserve').onchange=reset;
+ el('seek').oninput=()=>{stop();position=Number(el('seek').value);render();};el('speed').onchange=()=>{if(timer){stop();play();}};
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
+ // Export the pure simulator for reproducible validation without a browser.
+ root.simulate=generate;reset();
+})();
+</script>
+<!-- PLAYER END -->
+</body></html>

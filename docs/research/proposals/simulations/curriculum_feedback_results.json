@@ -1,0 +1,242 @@
+{
+  "assumptions": {
+    "seeds": 40,
+    "intervals": 200,
+    "groups": 40,
+    "attempts_per_group": 4,
+    "reserve": 0.2,
+    "window": 5
+  },
+  "results": {
+    "learnable": {
+      "fixed": {
+        "mean_success": 0.9926451538390947,
+        "sd_across_seeds": 0.00031204433818046327,
+        "late_class_shares": [
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ]
+      },
+      "adaptive": {
+        "mean_success": 0.9927355988696042,
+        "sd_across_seeds": 0.000300122005444477,
+        "late_class_shares": [
+          0.24362078858912808,
+          0.2498402912585312,
+          0.2612309574614616,
+          0.24530796269087915
+        ]
+      },
+      "paired_difference": {
+        "mean": 9.0445030509409e-05,
+        "sd": 0.0001355019350997823
+      }
+    },
+    "already_mastered": {
+      "fixed": {
+        "mean_success": 0.9936894296297417,
+        "sd_across_seeds": 0.000284373509139798,
+        "late_class_shares": [
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ]
+      },
+      "adaptive": {
+        "mean_success": 0.9941757650412825,
+        "sd_across_seeds": 0.00029408406912120264,
+        "late_class_shares": [
+          0.2304329242570865,
+          0.2545311691905546,
+          0.2652077287336549,
+          0.24982817781870406
+        ]
+      },
+      "paired_difference": {
+        "mean": 0.0004863354115408336,
+        "sd": 0.00016910871881527993
+      }
+    },
+    "forgetting": {
+      "fixed": {
+        "mean_success": 0.9913372097253527,
+        "sd_across_seeds": 0.0003801723478247961,
+        "late_class_shares": [
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ]
+      },
+      "adaptive": {
+        "mean_success": 0.9916810930344236,
+        "sd_across_seeds": 0.0003496625416740949,
+        "late_class_shares": [
+          0.2542503860716975,
+          0.24658216668083333,
+          0.25731091361711667,
+          0.24185653363035253
+        ]
+      },
+      "paired_difference": {
+        "mean": 0.00034388330907095255,
+        "sd": 0.00018061229784372201
+      }
+    },
+    "impossible": {
+      "fixed": {
+        "mean_success": 0.7454161516255272,
+        "sd_across_seeds": 0.0002781164802407784,
+        "late_class_shares": [
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ]
+      },
+      "adaptive": {
+        "mean_success": 0.7456659007735792,
+        "sd_across_seeds": 0.000276904498733732,
+        "late_class_shares": [
+          0.2535774389105381,
+          0.2586294233927803,
+          0.23318736626917258,
+          0.25460577142750906
+        ]
+      },
+      "paired_difference": {
+        "mean": 0.0002497491480519004,
+        "sd": 9.047981955947871e-05
+      }
+    },
+    "irreducible_noise": {
+      "fixed": {
+        "mean_success": 0.8704161516255272,
+        "sd_across_seeds": 0.0002781164802407784,
+        "late_class_shares": [
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ]
+      },
+      "adaptive": {
+        "mean_success": 0.8677748741864105,
+        "sd_across_seeds": 0.0004390576020391393,
+        "late_class_shares": [
+          0.14183888762505026,
+          0.14741968439467315,
+          0.5653417551264626,
+          0.14539967285381405
+        ]
+      },
+      "paired_difference": {
+        "mean": -0.0026412774391166597,
+        "sd": 0.0003464463644169192
+      }
+    },
+    "verifier_outage": {
+      "fixed": {
+        "mean_success": 0.9921223320505542,
+        "sd_across_seeds": 0.0003432158944513309,
+        "late_class_shares": [
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ]
+      },
+      "adaptive": {
+        "mean_success": 0.9920296202259082,
+        "sd_across_seeds": 0.00031440578695794165,
+        "late_class_shares": [
+          0.2422029689662587,
+          0.24866166725411834,
+          0.26489143239676965,
+          0.24424393138285333
+        ]
+      },
+      "paired_difference": {
+        "mean": -9.271182464594963e-05,
+        "sd": 0.00017034440824650565
+      }
+    }
+  },
+  "sensitivity": {
+    "reserve=0.1,window=1": {
+      "learnable": 0.9928016160939174,
+      "already_mastered": 0.9942938440900023,
+      "forgetting": 0.9918580360388719,
+      "impossible": 0.7458193821242363,
+      "irreducible_noise": 0.8665834197353867,
+      "verifier_outage": 0.9919918445476682
+    },
+    "reserve=0.1,window=5": {
+      "learnable": 0.9928133732610368,
+      "already_mastered": 0.9943945720996017,
+      "forgetting": 0.9917844269033868,
+      "impossible": 0.7458789624342375,
+      "irreducible_noise": 0.8662794776114584,
+      "verifier_outage": 0.9920165538777566
+    },
+    "reserve=0.1,window=20": {
+      "learnable": 0.992808249150107,
+      "already_mastered": 0.9944503063198938,
+      "forgetting": 0.9918188240384757,
+      "impossible": 0.7459430780860038,
+      "irreducible_noise": 0.8666185405006216,
+      "verifier_outage": 0.9921876085925371
+    },
+    "reserve=0.2,window=1": {
+      "learnable": 0.9927796191376614,
+      "already_mastered": 0.9941492858542826,
+      "forgetting": 0.991662268295059,
+      "impossible": 0.7457164258808019,
+      "irreducible_noise": 0.8677401158328802,
+      "verifier_outage": 0.9919972561499569
+    },
+    "reserve=0.2,window=5": {
+      "learnable": 0.9927697387825428,
+      "already_mastered": 0.9941741477745457,
+      "forgetting": 0.9916819069730928,
+      "impossible": 0.7457419561816617,
+      "irreducible_noise": 0.8677681302537326,
+      "verifier_outage": 0.9920509660583317
+    },
+    "reserve=0.2,window=20": {
+      "learnable": 0.9927754975069215,
+      "already_mastered": 0.994218568729775,
+      "forgetting": 0.9917093226905656,
+      "impossible": 0.7457896585086211,
+      "irreducible_noise": 0.8679463860871761,
+      "verifier_outage": 0.9922077236341074
+    },
+    "reserve=0.4,window=1": {
+      "learnable": 0.9927308033771414,
+      "already_mastered": 0.9939447502270715,
+      "forgetting": 0.991564392105614,
+      "impossible": 0.7456028848305601,
+      "irreducible_noise": 0.8691870357588213,
+      "verifier_outage": 0.9920650260599058
+    },
+    "reserve=0.4,window=5": {
+      "learnable": 0.9927415361262647,
+      "already_mastered": 0.9939422814772815,
+      "forgetting": 0.9915858167277968,
+      "impossible": 0.745608137448982,
+      "irreducible_noise": 0.8692278798622477,
+      "verifier_outage": 0.9921578785974735
+    },
+    "reserve=0.4,window=20": {
+      "learnable": 0.9927558420848455,
+      "already_mastered": 0.9939707307399136,
+      "forgetting": 0.9915728788853239,
+      "impossible": 0.745638571196887,
+      "irreducible_noise": 0.8693130039616416,
+      "verifier_outage": 0.9922277116644705
+    }
+  }
+}

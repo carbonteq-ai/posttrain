@@ -332,6 +332,7 @@ huggingface-hub==1.24.0 \
     #   carbonteq-trackio
     #   datasets
     #   gradio-client
+    #   kernels
     #   peft
     #   posttrain-train
     #   tokenizers
@@ -690,6 +691,7 @@ packaging==26.2 \
     #   flashinfer-python
     #   gradio-client
     #   huggingface-hub
+    #   kernels
     #   lm-format-enforcer
     #   peft
     #   transformers
@@ -952,6 +954,7 @@ pyyaml==6.0.3 \
     #   accelerate
     #   datasets
     #   huggingface-hub
+    #   kernels
     #   lm-format-enforcer
     #   peft
     #   posttrain-catalog
@@ -1234,7 +1237,7 @@ triton==3.6.0 \
     #   torch
     #   xgrammar
 
-trl @ https://pypi.lan/carbonteq/dev/+f/1f4/2571c28e178bb/trl-1.12.0.post5-py3-none-any.whl#sha256=1f42571c28e178bb292eb7b904940f0d0e4b0ccdf936b23b8bec9704190b6ecb
+trl @ https://pypi.lan/carbonteq/dev/+f/6ba/30192638c3d30/trl-1.12.0.post7-py3-none-any.whl#sha256=6ba30192638c3d30cdd933558aa1684f5946684d1f5d843e88ead39fbf9a1efd
     # via posttrain-train
 
 typer==0.25.1 \

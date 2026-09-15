@@ -1,0 +1,175 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Task sampling walkthrough</title></head><body>
+<!-- MACHINERY START -->
+<style>
+#machinery{font:13px/1.5 Inter,system-ui,sans-serif;color:#28252a;background:#fcfbf8;border:1px solid #e5e1da;border-radius:12px;padding:22px;margin:28px 0}
+#machinery *{box-sizing:border-box}#machinery h3{font:600 22px/1.3 Inter,system-ui,sans-serif;margin:0 0 8px}#machinery h4{font:600 14px/1.4 Inter,system-ui,sans-serif;margin:0 0 10px}#machinery p{margin:8px 0}#machinery .muted{font-size:11px;color:#756c7a}
+#machinery button{font:inherit;border:1px solid #c7bed5;padding:7px 12px;border-radius:5px;background:white;cursor:pointer}#machinery button:first-child{background:#6d55d8;color:white}#machinery :focus-visible{outline:3px solid #6d55d8;outline-offset:3px}#machinery .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0}
+#machinery .inventory{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}#machinery .category{border:1px solid #e5e1da;border-top:3px solid var(--c);background:white;padding:10px;border-radius:6px;min-width:0}#machinery .category-head{display:flex;justify-content:space-between;gap:4px;font-size:12px;color:var(--c);margin-bottom:8px}#machinery .task{padding:7px;margin-top:5px;border:1px solid #ebe6ef;border-radius:5px;font-size:11px}#machinery .task.chosen{border-color:var(--c);background:var(--wash)}#machinery .task-head{display:flex;justify-content:space-between;gap:5px}#machinery .task strong{font-size:13px;color:var(--c)}#machinery .recorded{font-size:10px;color:#756c7a;margin-top:4px}#machinery .state{font-size:10px;color:var(--c);margin-top:3px}
+#machinery .work{display:grid;grid-template-columns:30% 38px minmax(0,1fr);align-items:stretch;margin:14px 0}
+#machinery .controller{background:#f0ebfa;border:1px solid #d5c9ed;border-radius:8px;padding:13px}#machinery .metric{display:flex;justify-content:space-between;gap:6px;font-size:11px;margin-top:8px}#machinery .track{height:4px;background:#e0d9eb;border-radius:3px;margin:4px 0}#machinery .bar{height:100%;background:var(--c);border-radius:3px;transition:width .5s}
+#machinery .connector{align-self:center;text-align:center;color:#9885be;font-size:25px}#machinery .training{border:1px solid #e5e1da;border-radius:8px;padding:12px;background:white}
+#machinery .phases{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 10px}#machinery .phase{font-size:10px;padding:3px 6px;border-radius:4px;background:#efede8}#machinery .phase.active{background:#6d55d8;color:white}
+#machinery .tray{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;background:#f7f5f0;border-radius:6px;padding:8px}
+#machinery .group{border:1px solid var(--c);border-radius:5px;background:var(--wash);padding:6px 3px;text-align:center;animation:mc-deal .4s both;animation-delay:var(--delay)}#machinery .group strong{color:var(--c);font-size:13px}#machinery .answers{display:flex;justify-content:center;gap:3px;margin-top:5px}#machinery .answer{width:6px;height:6px;display:inline-block;border-radius:50%;background:#cbc5d0}#machinery .pass{background:#31805b}#machinery .fail{background:#c05b4d}#machinery .signal{font-size:9px;color:#655c6c;margin-top:3px}
+#machinery .model-row{display:grid;grid-template-columns:1fr 24px 1fr;align-items:center;margin-top:10px}#machinery .node{padding:8px;border:1px solid #e5e1da;border-radius:5px;background:#f7f5f0;font-size:11px}#machinery .node.active{border-color:#9b84d8;background:#eee9fa}#machinery .node span{display:block;font-size:10px;color:#756c7a}
+#machinery .evidence{display:grid;grid-template-columns:30% 38px minmax(0,1fr);align-items:center}#machinery .return{text-align:center;color:#8c75b2;font-size:12px}#machinery .ledger{border:1px solid #e5e1da;border-radius:6px;background:#f7f5f0;padding:10px}
+#machinery .history{display:flex;gap:5px;flex-wrap:wrap}#machinery .record{font-size:10px;padding:3px 6px;border-radius:4px;background:#ece6f5}
+#machinery .story{padding:10px 0 0;margin:12px 0 0;border-top:1px solid #e5e1da;min-height:66px}#machinery .story p{font-size:12px;margin:5px 0}#machinery details{margin-top:14px;font-size:12px}#machinery summary{cursor:pointer;color:#756c7a}
+@keyframes mc-deal{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:650px){#machinery .inventory{grid-template-columns:repeat(2,minmax(0,1fr))}#machinery .work{grid-template-columns:1fr}#machinery .connector{transform:rotate(90deg);line-height:24px}#machinery .evidence{grid-template-columns:1fr}#machinery .return{margin:4px}#machinery .evidence>.connector{display:none}}@media(prefers-reduced-motion:reduce){#machinery .group{animation:none}#machinery .bar{transition:none}}@media print{#machinery .controls{display:none}}
+
+/* Mechanism-first layout: state carries color; classes remain neutral. */
+#machinery .inventory-shell{padding:12px;border:1px solid #ddd8e0;border-radius:8px;background:#f6f4ef}
+#machinery .inventory-shell h4{display:flex;justify-content:space-between;margin-bottom:10px}
+#machinery .inventory{gap:12px}
+#machinery .category{border:0;border-radius:0;background:none;padding:0 8px 0 0;border-right:1px solid #ded9e2}
+#machinery .category:last-child{border-right:0}
+#machinery .category-head{color:#625b68;font-size:11px;margin-bottom:5px}
+#machinery .task{padding:4px 5px;margin-top:3px;border:0;border-radius:4px;display:grid;grid-template-columns:22px 1fr 34px;align-items:center;gap:4px;min-height:27px}
+#machinery .task.chosen{background:#eeeaf3;outline:1px solid #b9abc9}
+#machinery .task strong{color:#39313f;font-size:11px}
+#machinery .task .task-share{font-size:10px;text-align:right;color:#73697b}
+#machinery .state-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c);vertical-align:middle}
+#machinery .task-state{font-size:9px;color:#746b7b;white-space:nowrap;display:flex;gap:4px;align-items:center}
+#machinery .state-trail{display:inline-flex;gap:2px;margin-left:2px;align-items:end;height:9px}
+#machinery .state-trail i{display:block;width:3px;background:var(--c);border-radius:1px;opacity:.65}
+#machinery .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:10px;color:#756c7a;margin:8px 0 0}
+#machinery .group{background:#faf9f6;border:1px solid #e2dce6;border-top:2px solid var(--c);padding:4px 3px}
+#machinery .group strong{color:#514957;font-size:11px}
+#machinery .signal{display:none}
+#machinery .work{grid-template-columns:25% 34px minmax(0,1fr);margin-bottom:10px}
+#machinery .controller{background:#faf8fd;transition:border-color .25s}
+#machinery .controller.active{border:2px solid #8c73b4;padding:12px}
+#machinery .bar{background:#a699b7}
+#machinery .training{padding:12px;background:#fffefa}
+#machinery .tray{grid-template-columns:repeat(8,minmax(0,1fr));padding:7px;gap:5px;min-height:48px}
+#machinery .phases{display:none}
+#machinery .pipeline{display:grid;grid-template-columns:1fr 20px 1fr 20px 1fr;align-items:stretch;margin-top:15px}
+#machinery .node{min-height:86px;background:#faf9f6;border-radius:7px;padding:9px;position:relative}
+#machinery .node strong{font-size:12px}
+#machinery .node.active{background:#f0ebf8;border-color:#947daf;box-shadow:0 0 0 2px #e5dcf0}
+#machinery .node-icon{font:500 21px/1.6 Inter,system-ui,sans-serif;color:#8a779f}
+#machinery .link{position:relative;align-self:center;height:2px;background:#d7cddd;margin:0 2px}
+#machinery .link:after{content:'';position:absolute;right:-1px;top:-3px;width:0;height:0;border-left:5px solid #b0a2bf;border-top:4px solid transparent;border-bottom:4px solid transparent}
+#machinery .link.active:before{content:'';position:absolute;top:-3px;width:7px;height:7px;border-radius:50%;background:#80649e;animation:mc-transfer 1.3s linear infinite}
+#machinery .node.active .node-icon{animation:mc-pulse 1.3s ease-in-out infinite}
+#machinery .evidence{display:block;border:1px solid #ddd7e3;border-radius:8px;padding:11px;background:#f7f5fa}
+#machinery .feedback{display:grid;grid-template-columns:1fr 25px 1fr 25px 1fr;align-items:center}
+#machinery .feedback-item strong{display:block;font-size:11px}
+#machinery .feedback-item span{font-size:10px;color:#796d83}
+#machinery .feedback-item.active{color:#795294}
+#machinery .history{margin-top:8px;padding-top:7px;border-top:1px solid #e3dce8}
+#machinery .record{background:transparent;border-right:1px solid #d8cddd;border-radius:0;padding:1px 8px 1px 0;font-size:9px}
+#machinery .story{min-height:55px}
+@keyframes mc-transfer{from{left:0;opacity:0}20%{opacity:1}to{left:90%;opacity:0}}
+@keyframes mc-pulse{50%{opacity:.4;transform:translateY(-2px)}}
+@media(max-width:650px){#machinery .work{grid-template-columns:1fr}#machinery .inventory{grid-template-columns:repeat(2,minmax(0,1fr))}#machinery .tray{grid-template-columns:repeat(4,minmax(0,1fr))}#machinery .feedback{grid-template-columns:1fr 15px 1fr 15px 1fr}#machinery .pipeline{grid-template-columns:1fr 12px 1fr 12px 1fr}}
+@media(prefers-reduced-motion:reduce){#machinery .node.active .node-icon,#machinery .link.active:before{animation:none}}
+</style>
+<section id="machinery" aria-label="HTML walkthrough of adaptive class and task selection">
+<h3>Inside the adaptive training loop</h3>
+<p class="muted">Variance-aware variant · scripted steps · task state persists while the student changes</p>
+<div class="controls"><button id="mc-play" type="button">Play</button><button id="mc-next" type="button">Next</button><button id="mc-reset" type="button">Reset</button><strong id="mc-position"></strong></div>
+<div class="inventory-shell">
+<h4>Task inventory <span class="muted">recorded state · hover for evidence</span></h4>
+<div id="mc-inventory" class="inventory"></div>
+<div class="legend"><span style="--c:#aaa3ae"><i class="state-dot"></i> Unobserved</span><span style="--c:#549178"><i class="state-dot"></i> Consistent success</span><span style="--c:#bb8b41"><i class="state-dot"></i> No-success signal</span><span style="--c:#618aaf"><i class="state-dot"></i> Mixed</span><span style="--c:#9570ae"><i class="state-dot"></i> Success increased</span></div>
+</div>
+<div class="work">
+<aside id="mc-controller" class="controller"><h4>Controller</h4><div id="mc-weights"></div><p class="muted">20% exploration<br>State retained across steps</p><p id="mc-owner" class="muted"></p></aside>
+<div id="mc-allocation-link" class="connector" aria-label="Allocation to sampler">→</div>
+<div class="training"><h4>Training loop</h4><div id="mc-phases" class="phases"></div><div class="muted" style="margin-bottom:6px">Sampler · selected task groups</div><div id="mc-tray" class="tray"></div>
+<div class="pipeline">
+<div id="mc-generate-node" class="node"><strong>Generate</strong><div id="mc-generation-icon" class="node-icon">••••</div><span id="mc-generation-status">4 attempts per task</span></div>
+<div id="mc-generate-link" class="link" aria-hidden="true"></div>
+<div id="mc-verify-node" class="node"><strong>Verify</strong><div id="mc-verify-icon" class="node-icon">±</div><span id="mc-verification-status">Outcome-relative signal</span></div>
+<div id="mc-train-link" class="link" aria-hidden="true"></div>
+<div id="mc-model-node" class="node"><strong>Update student</strong><div id="mc-student-icon" class="node-icon">θ₀</div><span id="mc-model"></span></div>
+</div></div></div>
+<div class="evidence">
+<div class="feedback">
+<div id="mc-capture" class="feedback-item"><strong>① Record outcomes</strong><span id="mc-capture-status">↓ from training</span></div>
+<div id="mc-capture-link" class="link" aria-hidden="true"></div>
+<div id="mc-aggregate" class="feedback-item"><strong>② Refresh task history</strong><span id="mc-aggregate-status">variance · success · age</span></div>
+<div id="mc-publish-link" class="link" aria-hidden="true"></div>
+<div id="mc-publish" class="feedback-item"><strong>③ Revise allocation ↗</strong><span id="mc-publish-status">back to the controller</span></div>
+</div><div id="mc-history" class="history"></div></div>
+<div class="story" role="status" aria-live="polite"><strong id="mc-event"></strong><p id="mc-explain"></p></div>
+<details><summary>What is real, and what is illustrative?</summary>
+<p>All probabilities are calculated from the displayed toy evidence. The eight draws per batch are scripted, so counts need not match expected proportions. The first batch covers every task for illustration; the actual policy does not require this warm-up.</p>
+<p>Task scores average normalized within-task variance from their last two shown visits. Class scores average their two task scores with fixed equal weights. At both levels, 20% equal exploration is mixed with 80% score-proportional sampling; all-zero scores fall back to equal shares. Missing evidence starts without an adaptive bonus.</p>
+<p>Real use requires sufficient fresh representative evidence and uncertainty handling. The shown evidence is assumed adequate solely for this illustration. The progress-driven policy is a separate proposal; variance is useful relative signal, not guaranteed learning value.</p>
+<p>Inventory colors describe observed state, not class identity. Small bars show success history. Consistent observed success does not prove learning saturation; this toy evidence does not support a mastery claim. Hover over a task for counts and the last observed step. Highlighted outlines indicate selection independently of state color.</p>
+<p>Green answers pass; red answers fail. Constant-reward groups have zero outcome-relative advantages, but other groups and KL can still affect the model. No group is discarded and refilled. The step-20 revisit is a scripted exploration draw, not a promised deadline. Later answers come from the later student, not replayed outcomes.</p>
+</details><noscript>Enable JavaScript to play. The Markdown contains the architecture and selection equations.</noscript>
+</section>
+<script>
+(()=>{
+const root=document.getElementById('machinery');if(!root)return;
+const el=id=>root.querySelector('#mc-'+id);
+const names=['Arithmetic','Algebra','Geometry','Probability'],colors=['#6d55d8','#287d85','#ae6832','#6c7c3f'],washes=['#eee9fa','#e3f0f1','#f7eadc','#edf0df'];
+const tasks=[['arith/001','15% of 80?','12'],['arith/002','7 × 8?','56'],['algebra/001','3x + 5 = 20; x?','5'],['algebra/002','2x + 7 = 19; x?','6'],['geometry/001','Rectangle P=30, L=9; area?','54'],['geometry/002','Square side 4; area?','16'],['prob/001','3R/2B: two reds, no replacement?','3/10'],['prob/002','Fair die: chance of 6?','1/6']];
+const steps=[1,9,20,24],batches=[[0,1,2,3,4,5,6,7],[2,3,5,2,6,3,7,5],[4,2,5,3,6,4,7,2],[4,5,4,2,4,6,3,7]],phases=['Pick','Generate','Verify','Train','Review'];
+const pct=x=>(100*x).toFixed(1)+'%',style=c=>'--c:'+colors[c]+';--wash:'+washes[c];
+function dist(scores){const sum=scores.reduce((a,b)=>a+b,0);return scores.map(x=>sum?.2/scores.length+.8*x/sum:1/scores.length);}
+function answers(id,r){const yes=tasks[id][2];if(id<2)return [yes,yes,yes,yes];if(id===4)return r<2?['45','48','60','36']:['54','48','54','60'];const no=id===2?'4':id===3?'5':id===5?'12':id===6?'1/5':'1/3';return [yes,no,yes,no];}
+const history=Array.from({length:8},()=>[]),observations=Array.from({length:8},()=>[]),snapshots=[];
+const observedState=()=>history.map((a,id)=>({v:a.length?a.reduce((x,y)=>x+y,0)/a.length:null,n:a.length,success:observations[id].length?observations[id].at(-1).success:null,previous:observations[id].length>1?observations[id].at(-2).success:null,last:observations[id].length?observations[id].at(-1).step:null,trail:observations[id].map(x=>x.success)}));
+const scores=()=>history.map(a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0);
+const weights=h=>({q:dist(names.map((_,c)=>(h[2*c]+h[2*c+1])/2)),within:names.map((_,c)=>dist(h.slice(2*c,2*c+2)))});
+for(let r=0;r<4;r++){
+const beforeState=observedState();
+const before=weights(scores()),groups=batches[r].map(id=>{const a=answers(id,r),rewards=a.map(x=>+(x===tasks[id][2])),mean=rewards.reduce((a,b)=>a+b)/4,v=mean*(1-mean);return {id,a,rewards,score:4*v,adv:rewards.map(x=>v?(x-mean)/Math.sqrt(v):0)};});
+for(const g of groups){history[g.id].push(g.score);if(history[g.id].length>2)history[g.id].shift();}
+for(let id=0;id<8;id++){const visits=groups.filter(g=>g.id===id);if(visits.length)observations[id].push({step:steps[r],success:visits.reduce((sum,g)=>sum+g.rewards.reduce((a,b)=>a+b)/4,0)/visits.length});}
+snapshots.push({before,groups,beforeState,afterState:observedState(),after:weights(scores()),scores:scores()});
+}
+let round=0,phase=0,timer=null;
+function render(){
+const s=snapshots[round],review=phase===4,w=review?s.after:s.before,counts=Array(8).fill(0);s.groups.forEach(g=>counts[g.id]++);
+el('position').textContent='Step '+steps[round]+' · '+phases[phase]+' · '+(round*5+phase+1)+'/20';
+const recorded=review?s.afterState:s.beforeState;
+const label=id=>['A','B','G','P'][Math.floor(id/2)]+(id%2+1);
+function state(rec){if(rec.success===null)return ['#aaa3ae','Unobserved'];if(rec.previous!==null&&rec.success>rec.previous)return ['#9570ae','Success increased'];if(rec.success===1&&rec.v===0)return ['#549178','Consistent success'];if(rec.success===0&&rec.v===0)return ['#bb8b41','No-success signal'];return ['#618aaf','Mixed outcomes'];}
+el('inventory').innerHTML=names.map((name,c)=>'<div class="category"><div class="category-head"><strong>'+name+'</strong><span>'+pct(w.q[c])+'</span></div>'+[0,1].map(i=>{const id=c*2+i,rec=recorded[id],st=state(rec),tip=label(id)+' · '+st[1]+' · V '+(rec.v===null?'unavailable':rec.v.toFixed(2))+' · '+rec.n+' recent groups · last observed '+(rec.last===null?'never':'step '+rec.last)+' · success '+(rec.success===null?'unavailable':pct(rec.success));return '<div class="task '+(counts[id]?'chosen':'')+'" title="'+tip+'" aria-label="'+tip+'" style="--c:'+st[0]+'"><strong>'+label(id)+'</strong><div class="task-state"><i class="state-dot"></i><span>V '+(rec.v===null?'—':rec.v.toFixed(1))+'</span><span class="state-trail" aria-hidden="true">'+rec.trail.map(p=>'<i style="height:'+(2+7*p)+'px"></i>').join('')+'</span></div><span class="task-share">'+Math.round(w.within[c][i]*100)+'%</span></div>';}).join('')+'</div>').join('');
+el('weights').innerHTML=names.map((name,c)=>'<div><div class="metric"><span>'+name+'</span><strong>'+pct(w.q[c])+'</strong></div><div class="track"><div class="bar" style="width:'+100*w.q[c]+'%"></div></div></div>').join('');
+el('model').textContent=phase>=3?'Student θ'+round+' → θ'+(round+1):'Generating student θ'+round;
+el('owner').textContent=review?'Next allocation published.':'Allocation held for this batch.';
+el('phases').innerHTML=phases.map((name,i)=>'<span class="phase '+(phase===i?'active':'')+'">'+(i+1)+' · '+name+'</span>').join('');
+el('tray').innerHTML=s.groups.map((g,k)=>{const c=Math.floor(g.id/2),st=phase>=2?state({success:g.rewards.reduce((a,b)=>a+b)/4,v:g.score,previous:null}):state(recorded[g.id]);return '<div class="group" style="--c:'+st[0]+';--delay:'+k*.06+'s" aria-label="Group '+(k+1)+', task '+label(g.id)+(phase>=2?', '+g.rewards.join(','):'')+'"><strong>'+label(g.id)+'</strong><div class="answers">'+g.rewards.map(y=>'<span class="answer '+(phase>=2?(y?'pass':'fail'):'')+'"></span>').join('')+'</div><div class="signal">'+(phase>=2?(g.score?'± signal':'0 signal'):phase===1?'generated':'selected')+'</div></div>';}).join('');
+el('generate-node').className='node'+(phase===1?' active':'');
+el('verify-node').className='node'+(phase===2?' active':'');
+el('model-node').className='node'+(phase===3?' active':'');
+el('controller').className='controller'+(review?' active':'');
+el('generate-link').className='link'+(phase===1?' active':'');
+el('train-link').className='link'+(phase===2?' active':'');
+el('capture-link').className='link'+(phase===3?' active':'');
+el('publish-link').className='link'+(review?' active':'');
+el('capture').className='feedback-item'+(phase===3?' active':'');
+el('aggregate').className='feedback-item'+(review?' active':'');
+el('publish').className='feedback-item'+(review?' active':'');
+el('student-icon').textContent=phase>=3?'θ'+round+' → θ'+(round+1):'θ'+round;
+el('generation-status').textContent=phase>=1?'32 fresh attempts':'4 attempts per task';
+el('verification-status').textContent=phase>=2?s.groups.filter(g=>g.score>0).length+' signal / '+s.groups.filter(g=>g.score===0).length+' zero-contrast groups':'Outcome-relative signal';
+el('capture-status').textContent=phase>=3?'8 groups recorded':'↓ awaiting completed batch';
+el('aggregate-status').textContent=review?'Task states refreshed':'Prior task state retained';
+el('publish-status').textContent=review?'Next shares → controller':'Current allocation held';
+
+let story='';
+if(phase===0)story=round===0?'Equal initial sampling: this scripted batch covers all eight tasks. Highlights in the inventory identify the selected tasks.':round===1?'G1 supplied no relative reward signal. Its extra share falls; this batch chooses other tasks. It remains eligible through exploration.':round===2?'Exploration revisits geometry/001 with a later student. Repeated task cards are independent fresh groups, not reused answers.':'G1 now supplies mixed outcomes and receives more practice. Both class and task probabilities have changed.';
+if(phase===1)story='Each of eight selected task groups produces four fresh answers. Verification has not happened yet; generated answers alone do not establish success.';
+if(phase===2)story='Green and red outcomes create positive and negative relative advantages. All-green and all-red groups both have zero outcome-relative advantages.';
+if(phase===3)story='Vanilla GRPO updates the student from the full batch. Constant-reward groups stay recorded. Other groups and KL can still contribute to the update.';
+if(phase===4)story=round<2?'Recent task evidence updates the next class and task shares. Zero-contrast tasks keep exploration probability; shown batch probabilities remain unchanged.':'Fresh mixed outcomes replace geometry/001’s earlier zero score. Its within-class share rises and Geometry gains class-level priority.';
+el('event').textContent=phases[phase]+' · step '+steps[round];el('explain').textContent=story;
+el('history').innerHTML=snapshots.slice(0,round+(review?1:0)).map((x,r)=>'<span class="record">Step '+steps[r]+' · G1: V '+x.scores[4].toFixed(1)+' → '+pct(x.after.within[2][0])+'</span>').join('')||'<span class="muted">Waiting for the first review</span>';
+}
+function stop(){clearInterval(timer);timer=null;el('play').textContent='Play';}
+function next(){if(round===3&&phase===4){stop();return;}if(phase===4){round++;phase=0;}else phase++;render();if(round===3&&phase===4)stop();}
+el('next').onclick=()=>{stop();next();};el('reset').onclick=()=>{stop();round=0;phase=0;render();};
+el('play').onclick=()=>{if(timer){stop();return;}if(round===3&&phase===4){round=0;phase=0;render();}el('play').textContent='Pause';timer=setInterval(next,2400);};
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});root.exampleSnapshots=snapshots;render();
+})();
+</script>
+<!-- MACHINERY END -->
+</body></html>

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 660" role="img" aria-label="Class progression and stagnation">
+<title>Class progression and stagnation</title><desc>Classes require fresh evidence to reach mastery and maintenance; low-success stagnation follows a separate path, while forgetting restores practice.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#817a83"/></marker></defs>
+<style>text{font-family:Inter Variable,Inter,Arial,sans-serif;fill:#28252a}.title{font-size:22px;font-weight:700}.label{font-size:17px;font-weight:700}.body{font-size:16px}.small{font-size:14px;fill:#5f5a62}</style>
+<rect width="1100" height="660" rx="16" fill="#fcfbf8"/>
+<text x="550" y="44" text-anchor="middle" class="title">Success saturation and unsuccessful stagnation are different</text>
+<rect x="35" y="142" width="215" height="122" rx="12" fill="#eee9fa" stroke="#e5e1da"/>
+<text x="142.5" y="174" text-anchor="middle" class="label">Observe</text>
+<text x="142.5" y="203" text-anchor="middle" class="body">Unknown competence</text>
+<text x="142.5" y="228" text-anchor="middle" class="body">Collect fresh coverage</text>
+<rect x="307" y="142" width="215" height="122" rx="12" fill="#eee9fa" stroke="#e5e1da"/>
+<text x="414.5" y="174" text-anchor="middle" class="label">Learn</text>
+<text x="414.5" y="203" text-anchor="middle" class="body">Useful exposure</text>
+<text x="414.5" y="228" text-anchor="middle" class="body">Measure progress</text>
+<rect x="579" y="142" width="215" height="122" rx="12" fill="#e9ede4" stroke="#e5e1da"/>
+<text x="686.5" y="174" text-anchor="middle" class="label">Mastered</text>
+<text x="686.5" y="203" text-anchor="middle" class="body">High success lower bound</text>
+<text x="686.5" y="228" text-anchor="middle" class="body">Enough fresh evidence</text>
+<rect x="851" y="142" width="215" height="122" rx="12" fill="#e9ede4" stroke="#e5e1da"/>
+<text x="958.5" y="174" text-anchor="middle" class="label">Maintain</text>
+<text x="958.5" y="203" text-anchor="middle" class="body">High and flat success</text>
+<text x="958.5" y="228" text-anchor="middle" class="body">Low GRPO signal</text>
+<path d="M 250 203 H 302" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M 522 203 H 574" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M 794 203 H 846" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="300" y="426" width="410" height="116" rx="12" fill="#f4ecdc" stroke="#e5e1da"/>
+<text x="505.0" y="458" text-anchor="middle" class="label">Stalled under this recipe</text>
+<text x="505.0" y="487" text-anchor="middle" class="body">Low success + flat progress + enough exposure</text>
+<text x="505.0" y="512" text-anchor="middle" class="body">Bound repeated spending; keep exploration</text>
+<path d="M 415 264 V 426" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M 300 485 H 270 V 236 H 307" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)" stroke-dasharray="6 5"/>
+<text x="143" y="431" text-anchor="middle" class="small">Fresh evidence</text>
+<text x="143" y="453" text-anchor="middle" class="small">reopens practice</text>
+<path d="M 958 264 V 373 H 465 V 264" fill="none" stroke="#817a83" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="776" y="353" text-anchor="middle" class="small">Credible forgetting restores practice</text>
+<text x="550" y="591" text-anchor="middle" class="label">A parent class stays unresolved while a critical child class remains unresolved.</text>
+<text x="550" y="628" text-anchor="middle" class="small">One probe round cannot count as several confirmations; thresholds and budgets are explicit.</text>
+</svg>

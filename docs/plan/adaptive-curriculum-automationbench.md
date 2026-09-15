@@ -20,6 +20,8 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 - [x] (2026-09-12) Added the adaptive AutomationBench/OLMo 3 catalog selection and 20-step work package; both work packages pass static composition validation.
 - [x] (2026-09-12) Registered the queued journal and final snapshot as one durable controller-state artifact.
 - [x] (2026-09-12) Aligned the framework and external environment dependency closure on published Verifiers commit `36eac9d5e04ef29b584b6fa4f027af00cd76ea19`; 197 focused tests pass with 3 expected skips.
+- [x] (2026-09-12) Ran the first rollout batch for both R1 arms; both failed closed before optimizer step one at the LFM actor/vLLM parity gate.
+- [ ] Select the published TRL post7 LFM parity repair and rerun both arms.
 - [ ] Run both 20-update training jobs.
 - [ ] Compare run evidence and record the result here.
 
@@ -39,6 +41,12 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 
 - Observation: the first job-pack attempt found that AutomationBench revision `12ff5e1...` pinned Verifiers `90055c1...`, while the current training runtime pinned descendant `c6c0097...`; uv correctly refused two immutable URLs for one package.
   Evidence: published environment revision `d994073...` changes only the six environment packages' shared Verifiers pin to descendant `36eac9d...`. The framework already contains this dependency-closure migration in later history, and both commits are present on their respective origin branches.
+
+- Observation: both R1 jobs completed one 32-group rollout batch and then failed the pre-update parity gate: mean selected-token log-probability delta was `0.458367` for vanilla GRPO and `0.378127` for adaptive OLMo 3, above the `0.05` bound.
+  Evidence: the branch inherited TRL post5 and the LFM `language_model.` adapter prefix from its older base. The later published post7 repair evaluates heterogeneous LFM parity rows without leading batch padding and uses native LFM module names. No optimizer update occurred, so the controller did not cause the model-policy divergence.
+
+- Observation: the R1 vanilla rollout took `1396.71` seconds at `97.20` aggregate rollout tokens/s. The adaptive OLMo 3 rollout took `1341.67` seconds at `121.35` aggregate rollout tokens/s.
+  Evidence: retained Trackio metrics for the two first batches. These are rollout-system measurements, not optimizer-step throughput; 22 of 32 vanilla and 24 of 32 adaptive episodes were truncated.
 
 ## Decision Log
 
@@ -74,9 +82,13 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
   Rationale: these revisions already provide the exact compatible dependency closure, the environment revision changes no task or scorer semantics, and both are immutable and published.
   Date/Author: 2026-09-12 / Codex
 
+- Decision: Advance this experiment from TRL post5 to the already-published post7 LFM parity closure; keep the `0.05` parity bound unchanged.
+  Rationale: post7 fixes the false comparison caused by independently padded heterogeneous LFM rows and removes the Qwen-only `language_model.` namespace from native LFM bindings. Weakening the gate would permit training against a structurally different behavior policy.
+  Date/Author: 2026-09-12 / Codex
+
 ## Outcomes & Retrospective
 
-Implementation and qualification are in progress. This section will record the two run identifiers, terminal states, controller evidence, held conditions, and any limits revealed by the experiment.
+Implementation and qualification are in progress. R1 run `lfm26-grpo20-random-20260912-r1` and R1 run `lfm26-olmo3-adaptive20-20260912-r1` both failed closed at the pre-update parity gate after one rollout batch. Their retained rollout evidence is valid for runtime diagnosis, but neither is a training result. R2 will use the published post7 parity repair.
 
 ## Context and Orientation
 
@@ -161,3 +173,5 @@ Change note, 2026-09-12: created the implementation plan after source inspection
 Change note, 2026-09-12: updated progress after implementing the controller and catalog profile; recorded the machine-config compatibility issue and current repository-wide Pyright baseline before remote qualification.
 
 Change note, 2026-09-12: recorded the published dependency-closure alignment found during job packing and made the queued controller directory a durable run artifact.
+
+Change note, 2026-09-12: recorded the two R1 parity failures and selected the existing published TRL post7 LFM repair without relaxing the parity threshold.
