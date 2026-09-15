@@ -33,6 +33,7 @@ REVIEWED_ROOT_ENTRIES = frozenset(
         "NOTICE",
         "README.md",
         "SECURITY.md",
+        "Taskfile.yml",
         "UPGRADING.md",
         "apps",
         "docs",

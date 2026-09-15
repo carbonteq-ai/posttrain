@@ -226,6 +226,16 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     local_adaptive_v2 = catalog.resolve(
         CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-adaptive-20-local-v2")
     ).value
+    vortex = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-vortex-20-local-v1")).value
+    adaptive_oversample_environment = catalog.resolve(
+        CatalogRef("environment", "automationbench-lfm26-train-mix-v4")
+    ).value
+    adaptive_oversample_training = catalog.resolve(
+        CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench-local-g40@1")
+    ).value
+    adaptive_oversample_rollout = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-4k@1")
+    ).value
     local_rollout = catalog.resolve(
         CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32@1")
     ).value
@@ -268,6 +278,33 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_adaptive_v2.adaptive_curriculum is not None
     assert local_adaptive_v2.adaptive_curriculum.class_exploration == 0.2
     assert local_adaptive_v2.adaptive_curriculum.task_discovery == 0.2
+    assert isinstance(vortex, GRPOSettings)
+    assert vortex.algorithm == "olmo3"
+    assert vortex.num_prompts_per_step == 10
+    assert vortex.num_generations == 4
+    assert vortex.loop.gradient_accumulation_steps == 40
+    assert vortex.loop.max_length == 24_576
+    assert vortex.max_prompt_length == 20_480
+    assert vortex.max_completion_length == 4_096
+    assert vortex.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
+    assert vortex.adaptive_curriculum == local_adaptive_v2.adaptive_curriculum
+    assert isinstance(adaptive_oversample_environment, EnvironmentBinding)
+    assert adaptive_oversample_environment.max_concurrent == 40
+    assert adaptive_oversample_environment.parameters["max_output_tokens"] == 12_288
+    assert adaptive_oversample_environment.sampling.max_tokens == 4_096
+    assert isinstance(adaptive_oversample_training, TrainingBinding)
+    assert adaptive_oversample_training.runtime.global_batch_size == 40
+    assert adaptive_oversample_training.backend_options["rollout_execution"] == {
+        "env_workers": 5,
+        "episodes_per_worker": 8,
+        "worker_native_threads": 1,
+    }
+    assert isinstance(adaptive_oversample_rollout, InferenceBinding)
+    assert adaptive_oversample_rollout.engine["max_num_seqs"] == 40
+    assert adaptive_oversample_rollout.engine["max_model_len"] == 24_576
+    assert adaptive_oversample_rollout.engine["max_num_batched_tokens"] == 40_960
+    assert adaptive_oversample_rollout.engine["kv_cache_memory_bytes"] == 5 * 1024**3
+    assert adaptive_oversample_rollout.sampling["max_tokens"] == 4_096
     assert isinstance(local_rollout, InferenceBinding)
     assert isinstance(local_training, TrainingBinding)
     assert local_rollout.engine["max_num_seqs"] == 32

@@ -4,7 +4,41 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
-## 0.4.0 - Unreleased
+## 0.4.2 - 2026-09-15
+
+This release adds the VORTEX training profile and replaces the implicit
+candidate-to-final runtime-file handoff with a verified materialization
+contract.
+
+### Added
+
+- VORTEX (Variance-Oriented Refill and Task Exploration), a qualified
+  AutomationBench profile that combines adaptive curriculum proposals with
+  active oversampling and refill, retaining ten prompt groups per optimizer
+  update across 40 concurrent sequences.
+- Hash-addressed candidate materialization receipts that bind every generated
+  runtime lock and image manifest to the exact candidate source, readiness
+  receipt, target version, file set, and file content.
+- A Go Task entrypoint for reproducible local quality and protected release
+  dispatch commands.
+
+### Changed
+
+- VORTEX uses the qualified 12K episode and 4K completion budgets. Its live
+  20-update qualification completed without failed rollouts; the final 12.5%
+  completion-truncation observation remains a documented warning rather than
+  an eliminated condition.
+- Final publication now verifies and projects the candidate materialization
+  into an isolated build stage instead of requiring generated runtime files to
+  be committed or reconstructed from the merge commit.
+
+## 0.4.1 - 2026-09-15
+
+This release introduced manifest-backed adaptive curriculum selection and
+held-out evaluation measurement for AutomationBench, including replayable
+selection evidence in Observatory and hardened v4 runtime images.
+
+## 0.4.0 - 2026-09-11
 
 This release line adds structured-credit online RL and the native foundations
 for overlapping agent rollout collection with learner updates. It also makes

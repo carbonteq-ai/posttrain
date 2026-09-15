@@ -82,7 +82,7 @@ jobs:
           receipt_path="$(find .release/resume -type f -name python-release-receipt.json -print -quit)"
           test -n "${receipt_path}"
           receipt_root="$(dirname "${receipt_path}")"
-          cp "${receipt_root}"/* .release/
+          cp -a "${receipt_root}/." .release/
           source_sha="$(jq -r '.revision // empty' .release/python-release-receipt.json)"
           version="$(jq -r '.version // empty' .release/python-release-receipt.json)"
           test "${#source_sha}" -eq 40
@@ -101,7 +101,10 @@ jobs:
           # CI. The release runner only needs a locked environment and the
           # release-specific manifest check before it handles remote state.
           uv sync --all-packages --group dev --python 3.13 --locked
-          uv run --no-sync posttrain-release check
+          # Generated OCI records are candidate outputs, not authored source.
+          # The accepted materialization is verified and projected into the
+          # isolated build stage below.
+          uv run --no-sync posttrain-release check --allow-pending-runtime-lock
 
       - name: Verify required maintained forks are stable
         run: |
@@ -177,10 +180,9 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --name "${candidate_artifact}" \
             --dir .release/candidate
-          candidate_manifest="$(find .release/candidate -type f -name published.toml -print -quit)"
-          test -n "${candidate_manifest}"
-          candidate_runtime_locks="$(find .release/candidate -type d -name runtime-locks -print -quit)"
-          test -n "${candidate_runtime_locks}"
+          candidate_materialization_receipt="$(find .release/candidate -type f -name materialization.json -print -quit)"
+          test -n "${candidate_materialization_receipt}"
+          candidate_materialization="$(dirname "${candidate_materialization_receipt}")"
           candidate_receipt="$(find .release/candidate -type f -name python-release-receipt.json -print -quit)"
           test -n "${candidate_receipt}"
           candidate_wheelhouse="$(find .release/candidate -type f -name 'posttrain-wheelhouse-*.tar.gz' -print -quit)"
@@ -194,24 +196,13 @@ jobs:
           candidate_version="$(jq -r '.version // empty' "${candidate_receipt}")"
           release_version="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' release/manifest.toml)"
           [[ "${candidate_version}" =~ ^${release_version//./\\.}rc[1-9][0-9]*$ ]]
-          test "$(sed -n 's/^framework_version = "\([^"]*\)"$/\1/p' "${candidate_manifest}")" = "${release_version}"
-          if ! cmp -s \
-            "${candidate_manifest}" \
-            packages/runtime-images/src/posttrain/runtime_images/published.toml; then
-            echo "committed runtime image manifest differs from the accepted candidate" >&2
-            exit 1
-          fi
-          if ! diff -qr \
-            "${candidate_runtime_locks}" \
-            packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/; then
-            echo "committed runtime locks differ from the accepted candidate" >&2
-            exit 1
-          fi
-          cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml
-          cp -a "${candidate_runtime_locks}/." \
-            packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/
-          cp "${candidate_manifest}" .release/published.toml
-          cp -a "${candidate_runtime_locks}" .release/runtime-locks
+          uv run --no-sync posttrain-release materialization-check \
+            "${candidate_materialization}" \
+            --target-version "${release_version}" \
+            --source-sha "${candidate_sha}" \
+            --source-tree "${candidate_tree}" \
+            --readiness-receipt "${candidate_readiness}"
+          cp -a "${candidate_materialization}" .release/materialization
           cp "${candidate_receipt}" .release/candidate-python-release-receipt.json
           cp "${candidate_wheelhouse}" .release/candidate-wheelhouse.tar.gz
           cp "${candidate_checksums}" .release/candidate-SHA256SUMS
@@ -242,7 +233,8 @@ jobs:
           scripts/release/build-python-distributions \
             "${POSTTRAIN_RELEASE_VERSION}" \
             "${RELEASE_SOURCE_SHA}" \
-            .release
+            .release \
+            .release/materialization
           uv run --no-sync posttrain-release receipt-check .release/python-release-receipt.json \
             --distribution-root .release/distributions
 
@@ -302,7 +294,7 @@ jobs:
             .release/posttrain-wheelhouse-*.tar.gz
             .release/release-SHA256SUMS
             .release/SHA256SUMS
-            .release/published.toml
+            .release/materialization/**
             .release/runtime-images-verify.json
             .release/dstack-capacity.json
             .release/buildkit-cache-after.txt

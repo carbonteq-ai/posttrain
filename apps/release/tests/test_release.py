@@ -1124,7 +1124,8 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         "packages/runtime-images/src/posttrain/runtime_images/containers/"
         "posttrain-job-kinds/locks/transform.lock.txt"
     ) in candidate
-    assert ".release/runtime-locks/**" in candidate
+    assert "posttrain-release materialization-create" in candidate
+    assert ".release/materialization/**" in candidate
     assert 'authored_framework_version="$(sed -n' in candidate
     assert "posttrain-release images plan" in candidate
     assert ".release/runtime-image-plan.json" in candidate
@@ -1190,11 +1191,12 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "rc[1-9][0-9]*$ ]]" in final
     assert 'test "$(jq -r \'.source_sha // empty\' "${candidate_readiness}")" = "${candidate_sha}"' in final
     assert 'test "$(jq -r \'.source_tree // empty\' "${candidate_readiness}")" = "${candidate_tree}"' in final
-    assert 'cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml' in final
-    assert "committed runtime image manifest differs from the accepted candidate" in final
-    assert 'if ! cmp -s \\\n            "${candidate_manifest}"' in final
-    assert 'if ! diff -qr \\\n            "${candidate_runtime_locks}"' in final
-    assert "committed runtime locks differ from the accepted candidate" in final
+    assert "posttrain-release materialization-check" in final
+    assert 'cp -a "${candidate_materialization}" .release/materialization' in final
+    assert "committed runtime image manifest differs from the accepted candidate" not in final
+    assert "candidate_manifest" not in final
+    assert "candidate_runtime_locks" not in final
+    assert "committed runtime locks differ from the accepted candidate" not in final
     assert 'candidate_checksums="$(find .release/candidate -type f -name release-SHA256SUMS -print -quit)"' in final
     assert 'cp "${candidate_checksums}" .release/candidate-SHA256SUMS' in final
     assert 'gh release upload "v${POSTTRAIN_RELEASE_VERSION}" "${release_assets[@]}" --clobber' in final
@@ -1205,6 +1207,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "success|failure" in final
     assert "release resume source must be a completed success or failure" in final
     assert "gh run download" in final
+    assert 'cp -a "${receipt_root}/." .release/' in final
     assert 'git merge-base --is-ancestor "${source_sha}"' in final
     assert 'git tag -a "v${POSTTRAIN_RELEASE_VERSION}" "${RELEASE_TAG_SHA}"' in final
     assert "Build final-version Python artifacts from the accepted materialization" in final
@@ -1694,18 +1697,19 @@ def test_public_ci_trl_mirror_matches_selected_distribution() -> None:
     assert 'uv pip install --python .venv/bin/python --no-deps "${CARBONTEQ_TRL_WHEEL_PATH}"' in workflow
 
 
-def test_final_release_restores_candidate_runtime_locks_with_manifest() -> None:
+def test_final_release_verifies_and_stages_one_candidate_materialization() -> None:
     root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
     workflow = (root / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
-    assert 'candidate_runtime_locks="$(find .release/candidate' in workflow
-    assert 'test -n "${candidate_runtime_locks}"' in workflow
-    assert (
-        'cp -a "${candidate_runtime_locks}/." \\\n'
-        "            packages/runtime-images/src/posttrain/runtime_images/containers/"
-        "posttrain-job-kinds/locks/"
-    ) in workflow
-    assert 'cp -a "${candidate_runtime_locks}" .release/runtime-locks' in workflow
+    assert 'candidate_materialization_receipt="$(find .release/candidate' in workflow
+    assert "posttrain-release materialization-check" in workflow
+    assert '--source-sha "${candidate_sha}"' in workflow
+    assert '--source-tree "${candidate_tree}"' in workflow
+    assert '--readiness-receipt "${candidate_readiness}"' in workflow
+    assert 'cp -a "${candidate_materialization}" .release/materialization' in workflow
+    assert "committed runtime image manifest differs from the accepted candidate" not in workflow
+    assert "candidate_manifest" not in workflow
+    assert "candidate_runtime_locks" not in workflow
 
 
 def test_release_can_read_prior_manifest_while_adding_a_variant(

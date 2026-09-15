@@ -23,6 +23,7 @@ from .artifacts import (
 )
 from .candidate import fetch_simple_artifacts, next_candidate_version
 from .fork_ledger import render_fork_ledger, verify_required_fork_index
+from .materialization import apply_materialization, create_materialization, verify_materialization
 from .promotion import create_promotion_receipt, write_promotion_receipt
 from .publish import _release_image_plan, publish_release
 from .readiness import run_readiness, verify_readiness_receipt, write_readiness_receipt
@@ -45,6 +46,87 @@ images_app = typer.Typer(help="runtime image release operations")
 app.add_typer(images_app, name="images")
 
 _MANIFEST_RELATIVE = Path("packages/runtime-images/src/posttrain/runtime_images/published.toml")
+
+
+@app.command("materialization-create", help="retain and hash the candidate's generated runtime inputs")
+def materialization_create_cmd(
+    readiness_receipt: Annotated[Path, typer.Argument(help="exact-source readiness receipt JSON")],
+    destination: Annotated[Path, typer.Option("--destination", help="new materialization directory")],
+    candidate_version: Annotated[str, typer.Option("--candidate-version", help="immutable RC version")],
+    repository_root: Annotated[
+        Path,
+        typer.Option("--repository-root", help="framework checkout containing generated runtime inputs"),
+    ] = Path("."),
+) -> None:
+    receipt = create_materialization(
+        repository_root,
+        readiness_receipt,
+        destination,
+        candidate_version=candidate_version,
+    )
+    files = receipt.get("files")
+    if not isinstance(files, list):
+        raise RuntimeError("release materialization writer returned an invalid file list")
+    print(f"recorded {len(files)} runtime files for {receipt['candidate_version']} from {receipt['source_sha']}")
+
+
+@app.command("materialization-check", help="verify every byte in a candidate runtime materialization")
+def materialization_check_cmd(
+    materialization_root: Annotated[Path, typer.Argument(help="materialization directory")],
+    target_version: Annotated[
+        str | None,
+        typer.Option("--target-version", help="expected stable release version"),
+    ] = None,
+    source_sha: Annotated[str | None, typer.Option("--source-sha", help="expected candidate source SHA")] = None,
+    source_tree: Annotated[
+        str | None,
+        typer.Option("--source-tree", help="expected candidate source tree"),
+    ] = None,
+    readiness_receipt: Annotated[
+        Path | None,
+        typer.Option("--readiness-receipt", help="retained readiness receipt bound by this materialization"),
+    ] = None,
+) -> None:
+    receipt = verify_materialization(
+        materialization_root,
+        target_version=target_version,
+        source_sha=source_sha,
+        source_tree=source_tree,
+        readiness_receipt=readiness_receipt,
+    )
+    files = receipt.get("files")
+    if not isinstance(files, list):
+        raise RuntimeError("release materialization verifier returned an invalid file list")
+    print(f"verified {len(files)} runtime files for {receipt['candidate_version']}")
+
+
+@app.command("materialization-apply", help="verify and project candidate runtime inputs into a staged source tree")
+def materialization_apply_cmd(
+    materialization_root: Annotated[Path, typer.Argument(help="materialization directory")],
+    destination_root: Annotated[Path, typer.Argument(help="staged Posttrain source directory")],
+    target_version: Annotated[
+        str | None,
+        typer.Option("--target-version", help="expected stable release version"),
+    ] = None,
+    source_sha: Annotated[str | None, typer.Option("--source-sha", help="expected candidate source SHA")] = None,
+    source_tree: Annotated[
+        str | None,
+        typer.Option("--source-tree", help="expected candidate source tree"),
+    ] = None,
+    readiness_receipt: Annotated[
+        Path | None,
+        typer.Option("--readiness-receipt", help="retained readiness receipt bound by this materialization"),
+    ] = None,
+) -> None:
+    receipt = apply_materialization(
+        materialization_root,
+        destination_root,
+        target_version=target_version,
+        source_sha=source_sha,
+        source_tree=source_tree,
+        readiness_receipt=readiness_receipt,
+    )
+    print(f"projected accepted runtime materialization for {receipt['candidate_version']}")
 
 
 @app.command("fork-ledger", help="render the maintained-fork release closure selected by this checkout")

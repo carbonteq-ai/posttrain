@@ -157,9 +157,12 @@ accepted release.
 5. **Repair failures on the same release branch.** Push the fix, wait for CI,
    then dispatch a new candidate run. The next unused RC is allocated
    automatically; do not delete or overwrite the failed RC.
-6. **If images changed, commit generated `published.toml` and image receipt
-   references on the release branch.** Hand edits are forbidden. Wait for CI
-   again so the exact generated manifest that will merge is verified.
+6. **Treat generated runtime records as candidate evidence, not source edits.**
+   `published.toml` and the complete runtime-lock directory are retained in one
+   hash-addressed materialization receipt. Hand edits are forbidden. The final
+   workflow verifies every retained byte before projecting the materialization
+   into its isolated build stage; it does not require a second source commit or
+   a second candidate merely to transport generated output.
 7. **Merge only after a candidate passes.** Prefer the repository's normal
    merge method and required checks. Do not merge from a dirty or divergent
    local tree.
@@ -308,16 +311,17 @@ gh pr checks <n>
    `posttrain-release lock-runtime-dependencies`. The command projects the exact
    wheel URLs and hashes already recorded in `uv.lock` without re-resolving the
    public closure. The candidate retains that generated lock beside
-   `published.toml`; commit both before merge and return to strict validation.
+   `published.toml` in a hash-addressed candidate materialization. Do not commit
+   either generated output merely to bridge candidate and final workflows.
    A retained-fork candidate uses an equivalent disposable candidate lock: its
    repository source still names the stable consumer index, while the protected
    runner resolves that named source through `carbonteq/dev` and retains the
    resulting `uv.lock`, runtime lock, and image receipt together. That lock is
    candidate evidence, never a replacement for the committed stable lock.
    After byte-identical fork promotion, run the same protected builder with
-   `dependency_channel=stable`; retain and commit its generated runtime lock
-   and manifest so strict default-branch validation precedes the framework
-   release.
+   `dependency_channel=stable`; retain its generated runtime lock and manifest
+   in the candidate materialization. Strict validation applies after the
+   materialization is projected into the isolated build stage.
 3. **Stage and inspect the target release metadata** with
    `uv run posttrain-release stage /tmp/posttrain-X.Y.Z`. Build all packages
    from that isolated tree using `uv build --all-packages --no-sources`; the
@@ -381,12 +385,11 @@ gh pr checks <n>
    independent-consumer test, pack a real job, execute the changed-kind dstack
    matrix, retain Trackio evidence, and read it through Observatory. If any gate
    fails, fix the branch and return to step 6 with a new candidate run.
-9. **Commit required generated image records, rerun CI, and merge the passing
-   release PR.** The accepted RC binds the source, OCI inputs and retained
-   wheelhouse. A squash merge may place the generated `published.toml` after
-   the candidate-equivalent commit; the final workflow permits that generated
-   record only when it is byte-for-byte identical to the retained candidate
-   manifest.
+9. **Merge the passing release PR without copying generated candidate state
+   into source.** The accepted materialization binds the reviewed source, OCI
+   inputs and retained wheelhouse. The final workflow consumes that explicit
+   materialization, so squash-merge identity and generated runtime state remain
+   separate and neither is inferred from a dirty checkout.
 10. **Promote every required maintained Python fork byte-for-byte to stable.**
     Use the retained-fork promotion workflow and the hashes recorded in
     `release/forks.toml`; do not rebuild or upload new bytes. The final workflow

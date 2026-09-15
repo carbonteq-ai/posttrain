@@ -120,7 +120,7 @@ environment:
       facets:
         - {field: domain, dimension: domain, label: Domain}
 
-  automationbench-lfm26-train-mix-v3:
+  automationbench-lfm26-train-mix-v3: &automationbench_train_mix_v3
     <<: *automationbench_train_mix_v2
     activation:
       kind: verifiers-config
@@ -150,6 +150,12 @@ environment:
       toolset: limited_zapier
       max_turns: 12
       max_output_tokens: 12288
+
+  # Preserve the 12K episode budget while allowing all ten retained prompt
+  # groups (four generations each) to execute concurrently.
+  automationbench-lfm26-train-mix-v4:
+    <<: *automationbench_train_mix_v3
+    max_concurrent: 40
 
   automationbench-lfm26-train-mix-episode-judged-v2: &automationbench_train_mix_episode_judged_v2
     category: agentic-tool-use
@@ -762,6 +768,45 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
+  # VORTEX (Variance-Oriented Refill and Task Exploration): the adaptive
+  # controller chooses ten retained prompt groups while the underlying OLMo 3
+  # loss kernel actively oversamples and refills groups before each update.
+  # The wider 12K/4K episode profile reduces transcript truncation.
+  lfm2.5-2.6b/automationbench-vortex-20-local-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 20
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 40
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 10
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    adaptive_curriculum:
+      class_field: domain
+      class_exploration: 0.2
+      task_discovery: 0.2
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
   lfm2.5-2.6b/automationbench-gdpo-episode-50-v1:
     selection_type: gdpo-settings
     revision: "1"
@@ -974,6 +1019,35 @@ training:
       timeout_seconds: 43200
     backend_options:
       rollout_execution: {env_workers: 4, episodes_per_worker: 8, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      vllm_policy_parity_max_sequence_tokens: 4096
+      dependency_lock: trl-fork@current
+      source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
+      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+
+  training/lfm2.5-2.6b-trl-lora-automationbench-local-g40@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post8
+    renderer:
+      id: lfm2.5-tools-thinking@2
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update:
+      kind: lora
+      rank: 4
+      alpha: 8
+      target_modules: all-linear
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 40
+      devices_per_node: 1
+      timeout_seconds: 43200
+    backend_options:
+      rollout_execution: {env_workers: 5, episodes_per_worker: 8, worker_native_threads: 1}
       use_liger_kernel: false
       logits_chunk_size: 128
       vllm_policy_parity_max_sequence_tokens: 4096
@@ -1209,6 +1283,34 @@ inference:
       max_num_seqs: 32
       max_num_batched_tokens: 32768
       kv_cache_memory_bytes: 4294967296
+      weight_sync_mode: lora
+      enforce_eager: true
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: *policy_sampling_4k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-4k@1:
+    revision: "1"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.25.1
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.20
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 40
+      # Scale the scheduler and explicit KV allocation with concurrency so the
+      # per-sequence capacity matches the qualified c32/4K profile.
+      max_num_batched_tokens: 40960
+      kv_cache_memory_bytes: 5368709120
       weight_sync_mode: lora
       enforce_eager: true
       enable_chunked_prefill: true

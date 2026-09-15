@@ -230,10 +230,10 @@ jobs:
             --framework-version "${authored_framework_version}" \
             --receipt-root .release/image-receipts \
             --trust-bundle /usr/local/share/ca-certificates/carbonteq-local-ai-caddy.crt
-          cp packages/runtime-images/src/posttrain/runtime_images/published.toml .release/published.toml
-          mkdir -p .release/runtime-locks
-          cp -a packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/. \
-            .release/runtime-locks/
+          uv run --no-sync posttrain-release materialization-create \
+            .release/readiness.json \
+            --candidate-version "${{ steps.version.outputs.version }}" \
+            --destination .release/materialization
 
       - name: Verify published runtime images
         run: |
@@ -252,7 +252,11 @@ jobs:
 
       - name: Build and hash the Python wheelhouse
         run: |
-          scripts/release/build-python-distributions "${{ steps.version.outputs.version }}" "$(git rev-parse HEAD)" .release
+          scripts/release/build-python-distributions \
+            "${{ steps.version.outputs.version }}" \
+            "$(git rev-parse HEAD)" \
+            .release \
+            .release/materialization
           uv run --no-sync posttrain-release receipt-check .release/python-release-receipt.json \
             --distribution-root .release/distributions
 
@@ -426,8 +430,7 @@ jobs:
             .release/SHA256SUMS
             .release/image-receipts/**
             .release/runtime-image-plan.json
-            .release/published.toml
-            .release/runtime-locks/**
+            .release/materialization/**
             .release/published-manifest.diff
             .release/runtime-images-verify.json
             .release/dstack-capacity.json

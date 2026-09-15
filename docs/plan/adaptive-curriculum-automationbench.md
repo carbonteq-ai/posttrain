@@ -38,6 +38,8 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
 - [x] (2026-09-12) Added distinct-task uncertainty to class discovery, cumulative class-coverage accounting, adaptive discovery above the 20% floor, and a task score that predicts the next mixed group from both recent reward level and observed variance; advanced the adaptive selection revision to `4`.
 - [x] (2026-09-12) Qualified the selection machinery offline over 400 paired synthetic runs and preserved row-level CSV/JSONL, aggregate paired intervals, and an analytical report. Adaptive sampling used fewer candidates in four profiles and more in the deliberately adverse fast-saturation profile.
 - [x] (2026-09-12) Committed and pushed revision 4 as `30e1daf8`, built immutable job image `sha256:4b5b42c36408bb5a345e857c2f30d3be2a017a241722bc7a0508c539cd395c96`, and submitted run `lfm26-olmo3-adaptive20-discovery-v4-20260912-r1` (`pt-7a96839c766b4ca72a2baa71`).
+- [x] (2026-09-15) Defined VORTEX (Variance-Oriented Refill and Task Exploration) with ten retained prompt groups per update, 40-way rollout concurrency, and the qualified 12K episode / 4K generation budget. Work-package composition, the 19-test lab catalog suite, Ruff, and diff checks pass.
+- [x] (2026-09-15) Qualified the VORTEX configuration under its provisional run name `lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1` (`pt-2c092d442e9b2085151e0c33`). It completed 20 optimizer updates and emitted final model, recovery, curriculum-state, rollout and summary artifacts.
 
 ## Surprises & Discoveries
 
@@ -137,6 +139,14 @@ The controller changes exposure before generation. OLMo 3 active sampling remain
   Rationale: algorithms without a refill loop can select only at the generation boundary. OLMo 3 can use newly observed variance between refill rounds because no optimizer update occurs inside that collection phase. The algorithm still owns the retain-or-refill rule; the controller owns only the task identities proposed for each request.
   Date/Author: 2026-09-12 / Codex
 
+- Decision: Name the released composition VORTEX, short for Variance-Oriented Refill and Task Exploration. Interpret the requested two additional groups as retained prompt groups, increasing the optimizer population from eight groups by four generations (32 sequences) to ten groups by four generations (40 sequences). Keep the OLMo 3 loss/update kernel as an internal lineage field, active sampling as the bounded candidate-oversampling mechanism, and adaptive curriculum as the task-proposal policy.
+  Rationale: this composes the two existing mechanisms without inventing a second oversampling controller. Matching gradient accumulation, runtime global batch, environment concurrency, worker capacity, and vLLM sequence capacity at 40 preserves a coherent execution contract.
+  Date/Author: 2026-09-15 / Codex
+
+- Decision: Raise the follow-up from the actual revision-4 run's 8K episode / 3K completion budget to the already-qualified 12K episode / 4K completion profile, rather than introducing an unqualified 16K / 6K jump at the same time as the batch and concurrency change.
+  Rationale: the revision-4 run averaged a 38.4% clipped-completion ratio, while actor peak allocation was about 12.7 GiB on the 96 GiB RTX PRO. The 12K/4K profile directly addresses the known cap and has already passed the repository's three-step runtime qualification; a larger jump would confound this follow-up and require a separate capacity canary.
+  Date/Author: 2026-09-15 / Codex
+
 ## Outcomes & Retrospective
 
 Implementation is validated on the v0.4 branch. R1 runs `lfm26-grpo20-random-20260912-r1` and `lfm26-olmo3-adaptive20-20260912-r1` are diagnostic failures from the older branch, not training results. The mismatched v0.4 R2 comparison was canceled and retained only as diagnostic evidence. The corrected qualification uses OLMo 3 for both the normal-mixture and adaptive-mixture arms.
@@ -196,6 +206,8 @@ The offline controller experiment is reproducible with `uv run python docs/resea
 
 Revision 4 is scheduled as `lfm26-olmo3-adaptive20-discovery-v4-20260912-r1`, provider run `pt-7a96839c766b4ca72a2baa71`. It uses immutable image `registry.lan/carbonteq/posttrain-lab/posttrain-job@sha256:4b5b42c36408bb5a345e857c2f30d3be2a017a241722bc7a0508c539cd395c96`. The earlier revision-2 run is cancelled and its provider state is terminated.
 
+VORTEX was qualified under the provisional run name `lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1`, provider run `pt-2c092d442e9b2085151e0c33`, from immutable job image `registry.lan/carbonteq/posttrain-lab/posttrain-job@sha256:02e3c31aa16eb131dc67c476295abf31d9f410bf725f46c2dfd6143b9b98382f`. The run succeeded at all 20 optimizer updates and retained checkpoint-10, checkpoint-20, final adapter, recovery, adaptive-controller, native episode, trace and training-summary artifacts. Its final observed values included mean reward `0.24874`, active-sampling retained fraction `0.71429`, zero failed rollouts and rollout throughput `361.72 tokens/s`. Completion truncation was still `0.125` at the final observation, above the approximate five-percent promotion guard; VORTEX therefore improves the earlier truncation result but does not claim to eliminate truncation.
+
 ## Validation and Acceptance
 
 The capability is accepted when profile decoding rejects malformed settings, the pure controller tests pass, the queued backend produces an ordered replayable journal, and a checkpoint contains an atomic controller snapshot that restores the same evidence windows and next allocation.
@@ -240,3 +252,5 @@ Change note, 2026-09-12: corrected the qualification design to compare normal-mi
 Change note, 2026-09-12: moved adaptive OLMo task choice from an eagerly selected candidate pool to each fixed-policy refill boundary; retained initial-only selection for algorithms without refill sampling.
 
 Change note, 2026-09-12: made within-step uniqueness controller-owned, including across OLMo refill rounds. Exhausting the distinct eligible inventory now records a nonfatal duplicate fallback instead of failing generation. Confirmed the live treatment run entered this path and selected eight unique tasks in its first decision.
+
+Change note, 2026-09-15: renamed the released adaptive-plus-active-oversampling composition VORTEX while preserving `olmo3` only as its underlying update-kernel lineage. It retains ten prompt groups per optimizer update, aligns effective batch and execution capacities at 40 sequences, and uses the qualified 12K episode / 4K generation budget. Recorded the completed provisional-name qualification and its remaining truncation warning.
