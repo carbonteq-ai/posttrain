@@ -5,6 +5,7 @@ from collections import defaultdict
 from collections.abc import Mapping
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from posttrain.common import CatalogRef
@@ -533,8 +534,9 @@ def test_olmo_active_sampling_selects_each_refill_from_fresh_evidence(tmp_path: 
 
         @staticmethod
         def gather(value: object) -> object:
-            if isinstance(value, torch.Tensor) and value.ndim == 0:
-                return value.reshape(1)
+            value_tensor = cast(Any, value)
+            if isinstance(value, torch.Tensor) and value_tensor.ndim == 0:
+                return value_tensor.reshape(1)
             return value
 
     class Parent:
@@ -590,11 +592,13 @@ def test_olmo_active_sampling_selects_each_refill_from_fresh_evidence(tmp_path: 
         @staticmethod
         def _select_dynamic_sampling_rows(batch: dict[str, object], keep: object) -> dict[str, object]:
             assert isinstance(keep, torch.Tensor)
-            indices = keep.nonzero(as_tuple=False).flatten().tolist()
+            keep_tensor = cast(Any, keep)
+            indices = keep_tensor.nonzero(as_tuple=False).flatten().tolist()
             selected: dict[str, object] = {}
             for key, value in batch.items():
                 if isinstance(value, torch.Tensor):
-                    selected[key] = value if value.ndim == 0 else value[keep]
+                    value_tensor = cast(Any, value)
+                    selected[key] = value_tensor if value_tensor.ndim == 0 else value_tensor[keep_tensor]
                 elif isinstance(value, list):
                     selected[key] = [value[index] for index in indices]
                 else:

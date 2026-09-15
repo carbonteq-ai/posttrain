@@ -1,0 +1,108 @@
+version: "3"
+
+set: [errexit, nounset, pipefail]
+
+tasks:
+  default:
+    desc: List the supported repository tasks
+    cmds:
+      - task --list
+    silent: true
+
+  setup:
+    desc: Install the exact locked Python workspace and release-test extras
+    env:
+      UV_SYSTEM_CERTS: "true"
+    cmds:
+      - uv sync --all-packages --group dev --extra trl --python 3.13 --locked
+
+  quality:
+    desc: Run the complete repository validation ladder
+    deps: [setup]
+    cmds:
+      - uv run ruff check .
+      - uv run ruff format --check .
+      - uv run pyright
+      - uv run lint-imports
+      - uv run pytest
+      - git diff --check
+
+  release:check:
+    desc: Verify authored and generated release inputs strictly
+    cmds:
+      - uv run --no-sync posttrain-release check
+
+  release:check-candidate:
+    desc: Verify candidate source while allowing generated OCI records to be pending
+    cmds:
+      - uv run --no-sync posttrain-release check --allow-pending-runtime-lock
+
+  release:audit:
+    desc: Run the local release-contract tests and workflow syntax checks
+    cmds:
+      - uv run pytest apps/release/tests -q
+      - uv run ruff check apps/release scripts/release
+      - uv run ruff format --check apps/release
+      - ruby -e 'require "yaml"; Dir[".github/workflows/*.yml"].each { |path| YAML.load_file(path) }; puts "workflow YAML parsed"'
+      - git diff --check
+
+  release:status:
+    desc: Show recent candidate and final workflow state without changing it
+    preconditions:
+      - sh: gh auth status >/dev/null 2>&1
+        msg: Authenticate gh before querying release workflows.
+    cmds:
+      - gh run list --workflow release-candidate.yml --limit 10
+      - gh run list --workflow release.yml --limit 10
+
+  release:candidate:dispatch:
+    desc: Dispatch a protected candidate after local source validation
+    requires:
+      vars:
+        - name: SOURCE_REF
+        - name: PROFILE
+          enum: [rtx-pro-96gb, rtx-3070ti-8gb]
+        - name: GPU
+          enum: ["true", "false"]
+    env:
+      SOURCE_REF: "{{.SOURCE_REF}}"
+      PROFILE: "{{.PROFILE}}"
+      GPU: "{{.GPU}}"
+    preconditions:
+      - sh: gh auth status >/dev/null 2>&1
+        msg: Authenticate gh before dispatching a release candidate.
+      - sh: case "$SOURCE_REF" in codex/*) exit 0;; *) exit 1;; esac
+        msg: SOURCE_REF must name a protected codex/* release branch.
+      - sh: git ls-remote --exit-code origin "refs/heads/$SOURCE_REF" >/dev/null
+        msg: SOURCE_REF must already exist on origin.
+    deps: [release:check-candidate]
+    cmds:
+      - >-
+        gh workflow run release-candidate.yml
+        --ref "$SOURCE_REF"
+        -f source_ref="$SOURCE_REF"
+        -f qualification_profile="$PROFILE"
+        -f run_gpu_qualification="$GPU"
+
+  release:final:dispatch:
+    desc: Dispatch final publication for an exact main SHA and accepted candidate run
+    requires:
+      vars:
+        - name: MERGED_SHA
+        - name: CANDIDATE_RUN_ID
+    env:
+      MERGED_SHA: "{{.MERGED_SHA}}"
+      CANDIDATE_RUN_ID: "{{.CANDIDATE_RUN_ID}}"
+    preconditions:
+      - sh: gh auth status >/dev/null 2>&1
+        msg: Authenticate gh before dispatching final publication.
+      - sh: test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$MERGED_SHA"
+        msg: MERGED_SHA must be the exact current origin/main commit.
+      - sh: 'case "$CANDIDATE_RUN_ID" in *[!0-9]*|"") exit 1;; *) exit 0;; esac'
+        msg: CANDIDATE_RUN_ID must be numeric.
+    cmds:
+      - >-
+        gh workflow run release.yml
+        --ref main
+        -f merged_sha="$MERGED_SHA"
+        -f candidate_run_id="$CANDIDATE_RUN_ID"

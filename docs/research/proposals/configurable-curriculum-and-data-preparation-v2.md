@@ -4,7 +4,7 @@
 
 **Status:** research draft for review; public contracts remain proposed.
 
-**Source context:** the [original proposal](configurable-curriculum-and-data-preparation.md) records Posttrain revision 3f3fdd95f5aec290b315f1669db08e78895539fe. This version specifies a proposed sampling policy; it does not certify its implementation or training results.
+**Source context:** the original proposal is not retained as a separate file in this repository; it recorded Posttrain revision 3f3fdd95f5aec290b315f1669db08e78895539fe. This version specifies a proposed sampling policy; it does not certify its implementation or training results.
 
 ## 1. The hidden cost of a fixed mixture
 

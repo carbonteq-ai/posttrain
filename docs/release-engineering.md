@@ -41,6 +41,93 @@ identity, maintained-dependency receipts, and accepted OCI manifest. The
 internal indexes, registry and GitHub Release must expose those exact
 identities.
 
+## September 2026 incident audit
+
+The release system accumulated local fixes without one executable transition
+model. An audit on 2026-09-15 found 63 failures and 5 cancellations among the
+latest 100 candidate runs, compared with 32 successes. The same window held 23
+failed final-publication runs out of 52. These counts describe workflow runs,
+not unique defects, but they show that failure is routine rather than an edge
+case. Twenty-five failed candidates were dispatched from `main`, although the
+protected workflow only accepts `codex/*`. The operator surface therefore
+allowed an impossible transition and explained the rule only after creating a
+failed run.
+
+The failures cluster at system boundaries:
+
+| Boundary | Observed failures | Structural cause |
+| --- | ---: | --- |
+| Candidate admission and source identity | 27 job/preflight failures plus 25 failed dispatches from `main` | Free-form workflow inputs expose invalid states; source, PR, CI and version checks are shell fragments rather than one reusable planner. |
+| Packed GPU qualification and cleanup | 23 candidate failures | Submission, waiting, reconciliation and cleanup are one `set +e` shell block; terminal job evidence and cleanup evidence are conflated, and recovery is inferred from exit codes. |
+| Candidate-to-final materialization | 10 final failures | The final workflow rediscovered files with `find`, compared checkout state with `cmp`/`diff`, and copied generated state into source. No receipt defined the complete file set. |
+| Private index and TLS | at least 6 candidate/final failures | Readback, retirement and upload did not share one qualified client/trust preflight; failures appeared after mutation had begun. |
+| Tag and GitHub Release | at least 5 final failures | Stable publication and GitHub identity are separate irreversible boundaries without one persisted transaction state. |
+| OCI/BuildKit | at least 5 candidate failures | Image planning, building, cache behavior and dependency bootstrap are distributed across YAML and builder scripts with no classified result envelope. |
+
+The v0.4.1 release is the clearest recurrence. Candidate run `34944261385`
+qualified successfully, but final run `34946588849` failed because the
+committed runtime image manifest differed from the accepted candidate. A
+release-only PR then copied the generated manifest and locks into `main`, and
+run `34948932897` succeeded. The same manifest error appeared in earlier final
+runs `33362609177` and `32713958085`; v0.3.2 had already required a
+candidate-manifest handoff repair. The defect returned because the architectural
+rule was documented but not represented by a type or a testable workflow input.
+
+Two documents also disagreed. The former publishing checklist required the
+generated manifest and locks to be committed before merge, while the LAN runner
+architecture defined them as a separate materialization that need not be
+committed. The implementation combined both models: candidate emitted an
+artifact, but final required the checkout copy to match it. This page and
+`docs/publishing.md` now choose one model: reviewed Git source contains authored
+inputs; generated OCI state is an immutable candidate output; the final build
+receives both explicitly.
+
+Counts were collected with the GitHub CLI against `carbonteq-ai/posttrain` and
+the run IDs above remain the primary logs. Re-run the audit before using these
+numbers as a current reliability score.
+
+## Target control plane
+
+The release control plane is a typed state machine in `apps/release`. A state
+machine is a small program that names every allowed release phase and rejects
+all other transitions before doing remote work. The phases are `draft`,
+`source-ready`, `candidate-planned`, `candidate-published`,
+`candidate-qualified`, `merged`, `stable-published`, and `released`. Every
+transition writes a JSON gate result containing its release identity, inputs,
+outputs, mutation status, retry classification and next legal actions. A retry
+uses the same idempotency key and either proves that the existing bytes match or
+stops; it never overwrites an RC or stable release.
+
+The first implemented boundary is `posttrain.release-materialization.v1` in
+`apps/release/src/posttrain_release/materialization.py`. It binds the target and
+candidate versions, candidate source commit and tree, readiness-receipt digest,
+and the exact names, sizes and SHA-256 digests of `published.toml` and every
+runtime lock. The verifier rejects missing, additional, duplicated, unsafe or
+changed files before replacing anything. `scripts/release/build-python-distributions`
+projects a verified materialization only into the isolated staged tree. Final
+publication therefore no longer needs generated state committed to `main`.
+
+GitHub Actions remains the approval, secret and audit boundary, but its YAML
+must become a thin executor. It checks out a requested SHA, installs the locked
+tooling, invokes one transition command and uploads the resulting gate receipt.
+Polling, allowlists, artifact discovery, recovery classification and business
+rules belong in tested Python modules. The protected LAN runner still
+revalidates every request; local tooling cannot grant release authority.
+
+The root `Taskfile.yml` is the human-facing command catalog. Go Task provides
+names, descriptions, prerequisites and typed enum inputs for local checks,
+status and explicit dispatch. It does not own release truth and its local
+source/status cache is never evidence for an index, registry, GitHub or GPU
+state. `mise.toml` pins the Task version so operator syntax is reproducible.
+
+The remaining migration is incremental. First, all candidate-to-final generated
+state crosses the materialization receipt. Next, add a read-only `plan` command
+that resolves source, CI, version, capacity and prior release state and prints
+the exact legal next transition. Then move candidate execution, GPU lifecycle,
+final publication and recovery out of YAML one boundary at a time. Finally,
+replay the historical incident corpus as contract tests and remove shell paths
+only after their typed replacements are live.
+
 ## Validation layers and the cold-state invariant
 
 A green local suite proves the committed source and deterministic build inputs;
@@ -295,9 +382,9 @@ The framework is feature-rich but not release-complete:
 - The Posttrain LAN runner is live. `ai-infra` still needs a protected,
   repository-scoped Trackio release path for later unattended releases;
   Posttrain remains a verifier and consumer, not Trackio's publisher.
-- Release tooling still needs the explicit materialization receipt and stage
-  input; copying the checkout's generated `published.toml` is temporary and is
-  not an accepted production boundary.
+- Release tooling has the first explicit materialization receipt and stage
+  input. The remaining candidate and final shell orchestration still needs to
+  move behind typed plan, transition and diagnosis commands.
 - The Observatory image, deployment receipt, authentication boundary and
   production readback gate remain.
 - Installation and task guides still need CI-executed examples.
