@@ -226,8 +226,8 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     local_adaptive_v2 = catalog.resolve(
         CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-adaptive-20-local-v2")
     ).value
-    adaptive_oversample = catalog.resolve(
-        CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-adaptive-oversample-20-local-v3")
+    vortex = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-vortex-20-local-v1")
     ).value
     adaptive_oversample_environment = catalog.resolve(
         CatalogRef("environment", "automationbench-lfm26-train-mix-v4")
@@ -280,16 +280,16 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_adaptive_v2.adaptive_curriculum is not None
     assert local_adaptive_v2.adaptive_curriculum.class_exploration == 0.2
     assert local_adaptive_v2.adaptive_curriculum.task_discovery == 0.2
-    assert isinstance(adaptive_oversample, GRPOSettings)
-    assert adaptive_oversample.algorithm == "olmo3"
-    assert adaptive_oversample.num_prompts_per_step == 10
-    assert adaptive_oversample.num_generations == 4
-    assert adaptive_oversample.loop.gradient_accumulation_steps == 40
-    assert adaptive_oversample.loop.max_length == 24_576
-    assert adaptive_oversample.max_prompt_length == 20_480
-    assert adaptive_oversample.max_completion_length == 4_096
-    assert adaptive_oversample.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
-    assert adaptive_oversample.adaptive_curriculum == local_adaptive_v2.adaptive_curriculum
+    assert isinstance(vortex, GRPOSettings)
+    assert vortex.algorithm == "olmo3"
+    assert vortex.num_prompts_per_step == 10
+    assert vortex.num_generations == 4
+    assert vortex.loop.gradient_accumulation_steps == 40
+    assert vortex.loop.max_length == 24_576
+    assert vortex.max_prompt_length == 20_480
+    assert vortex.max_completion_length == 4_096
+    assert vortex.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
+    assert vortex.adaptive_curriculum == local_adaptive_v2.adaptive_curriculum
     assert isinstance(adaptive_oversample_environment, EnvironmentBinding)
     assert adaptive_oversample_environment.max_concurrent == 40
     assert adaptive_oversample_environment.parameters["max_output_tokens"] == 12_288

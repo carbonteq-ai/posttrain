@@ -768,10 +768,11 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
-  # Follow-up treatment: the adaptive controller chooses ten retained prompt
-  # groups while OLMo 3 may oversample and refill candidate groups before each
-  # update. The wider 12K/4K episode profile reduces transcript truncation.
-  lfm2.5-2.6b/automationbench-olmo3-adaptive-oversample-20-local-v3:
+  # VORTEX (Variance-Oriented Refill and Task Exploration): the adaptive
+  # controller chooses ten retained prompt groups while the underlying OLMo 3
+  # loss kernel actively oversamples and refills groups before each update.
+  # The wider 12K/4K episode profile reduces transcript truncation.
+  lfm2.5-2.6b/automationbench-vortex-20-local-v1:
     selection_type: grpo-settings
     revision: "1"
     loop:
