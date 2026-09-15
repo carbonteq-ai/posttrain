@@ -338,6 +338,40 @@ def _online_rl_runtime_attributes(
             if isinstance(request, GRPORequest) and request.settings.active_sampling is not None
             else None
         ),
+        "adaptive_curriculum": (isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None),
+        "adaptive_curriculum_sampling_mode": (
+            "active_sampling_refill"
+            if (
+                isinstance(request, GRPORequest)
+                and request.settings.adaptive_curriculum is not None
+                and request.settings.active_sampling is not None
+            )
+            else (
+                "initial_batch"
+                if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
+                else None
+            )
+        ),
+        "adaptive_curriculum_class_field": (
+            request.settings.adaptive_curriculum.class_field
+            if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
+            else None
+        ),
+        "adaptive_curriculum_class_exploration": (
+            request.settings.adaptive_curriculum.class_exploration
+            if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
+            else None
+        ),
+        "adaptive_curriculum_task_discovery": (
+            request.settings.adaptive_curriculum.task_discovery
+            if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
+            else None
+        ),
+        "adaptive_curriculum_history_groups": (
+            request.settings.adaptive_curriculum.history_groups
+            if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
+            else None
+        ),
     }
     execution = _rollout_execution_config(request)
     if execution is not None:

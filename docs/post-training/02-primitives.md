@@ -467,7 +467,7 @@ QLoRA-as-default, vLLM topology, or a single forced train=rollout target.
 
 | Layer | Type | Owns |
 | --- | --- | --- |
-| Algorithm settings | `SFTSettings` \| `DPOSettings` \| `GRPOSettings` \| `OnPolicyDistillationSettings` | Algorithm identity, generations, divergence semantics, advantages, reward **weights**, IS *learning* semantics, prompt/completion limits, opt schedule |
+| Algorithm settings | `SFTSettings` \| `DPOSettings` \| `GRPOSettings` \| `OnPolicyDistillationSettings` | Algorithm identity, generations, divergence semantics, advantages, reward **weights**, IS *learning* semantics, prompt/completion limits, opt schedule; GRPO may compose an optional pre-rollout curriculum profile |
 | Parameter update | `ParameterUpdatePlan` | Full-parameter \| LoRA \| QLoRA \| quantization-aware (QAT) |
 | Training binding | `TrainingBinding` | Train backend, update plan, normalized train parallelism/runtime, backend-specific options, **training** `ExecutionTarget` |
 | Rollout inference | `InferenceBinding` | Rollout backend/`engine`/sampling, **rollout** `ExecutionTarget` |
@@ -590,6 +590,29 @@ these semantics remain DAPO implementation improvements, not a new algorithm.
 CISPO, GSPO, and Dr. GRPO replace objective or normalization semantics and are
 not DAPO flags.
 
+`GRPOSettings.adaptive_curriculum`, when selected, is a pre-rollout exposure
+policy rather than an update objective. It names a class field already carried
+by the resolved environment tasks and uses completed rollout evidence to choose
+future classes and tasks. The environment still owns the task population and
+reward meaning. `class_exploration` reserves a cumulative fraction of candidate
+groups for base-distribution class coverage. `task_discovery` independently
+reserves a cumulative fraction for task identities not yet selected in the run;
+fractional obligations carry across initial and refill requests. That discovery
+fraction is a floor: other slots may also select unseen tasks when their
+predicted yield exceeds the familiar pool. The controller remembers every task
+identity proposed in the current optimizer step, including rejected refill
+groups, and excludes them while distinct candidates remain. Exhausted
+inventory degrades to recorded repeat selection instead of failing training. The
+curriculum records proposed and observed task identities, discovery accounting,
+step exclusions, recent reward means and within-group variation, and
+checkpoints that state with the model.
+It composes with `grpo`, `dapo`, or `olmo3`. An algorithm without a refill
+boundary receives one curriculum decision before its generation batch. When an
+algorithm such as OLMo 3 requests another candidate group before updating model
+weights, each refill is a new curriculum decision informed by earlier groups
+from that same fixed-policy collection phase. Post-generation retained-group
+sampling remains separately attributable to the selected algorithm.
+
 SAMPO is a separate selection for multi-turn tool-using agents. It combines one
 sequence-level importance ratio per trajectory with a token-aligned advantage
 formed from a group-relative episode advantage and an anchor-state-relative
@@ -655,11 +678,13 @@ comparison policy. Each cell runs through Verifiers v1; see
 
 | Field | Meaning |
 | --- | --- |
-| Environments and tasksets | Exact evaluation content and held-out splits (via env bindings) |
+| Environments and task inventory | Environment-owned finite tasks, stable identities, facets, and held-out splits |
+| Selection | Population filter, distinct-task budget, allocation strata, quotas, and selection seed |
 | Inference requirements | Compatible generation binding or required behavior |
 | Sampling and repetition | Seeds, sample counts, generation limits, retry policy |
 | Metrics and slices | Required measures and failure categories (projected from traces) |
-| Aggregation | Coverage, missing-evidence rules, summary calculations |
+| Measurement | Task-level estimator and missing-evidence policy |
+| Aggregation | Legacy extension settings during migration |
 | Comparison policy | Parent, foundation, sibling, or published baseline references |
 
 ### Examples
@@ -680,6 +705,15 @@ evals/memory-heldout@2
 Running a plan against a particular model creates one or more **runs** (typically
 one run per environment cell) and evaluation evidence. It does not mint a new
 evaluation-plan identity.
+
+When an environment exposes a finite inventory, selection resolves before
+model inference into an immutable evaluation manifest. The manifest records the
+eligible population revision, selected task identities, disjoint allocation
+strata, inclusion probabilities where defined, target weights, and selection
+algorithm version. Facets used for reporting may overlap; allocation operates
+on declared disjoint strata or canonical membership sets so one task is not
+scheduled twice by accident. The same manifest can be consumed by several
+subjects for matched comparison.
 
 The request subject is either a local `ModelVariant` with an
 `InferenceBinding`, or an evaluation-only remote policy with a remote evaluation

@@ -4,7 +4,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -54,7 +54,7 @@ environment:
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
@@ -94,7 +94,7 @@ environment:
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
@@ -128,7 +128,7 @@ environment:
     source:
       package: mmlu-pro-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/mmlu_pro_v1
     activation:
       kind: verifiers-config
@@ -188,7 +188,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -230,7 +230,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -280,7 +280,7 @@ environment:
     source:
       package: math-python-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/math_python_v1
     activation:
       kind: verifiers-config
@@ -326,7 +326,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -378,7 +378,7 @@ environment:
     source:
       package: math-python-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 1181585ea66c6f89432864a476b5110794afc9fe
+      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
       subdirectory: environments/math_python_v1
     activation:
       kind: verifiers-config
@@ -427,7 +427,7 @@ environment:
     source:
       package: reverse-text
       repository: https://github.com/carbonteq-ai/verifiers
-      revision: 1f6793f7d46e8a650a54b2a585193b4010578fa6
+      revision: 84ab782391bbfe1ac4f4ca32fa612e56d01b5b81
       subdirectory: environments/reverse_text
     activation:
       kind: verifiers-config
@@ -458,7 +458,7 @@ environment:
     source:
       package: code-golf
       repository: https://github.com/carbonteq-ai/verifiers
-      revision: 1f6793f7d46e8a650a54b2a585193b4010578fa6
+      revision: 84ab782391bbfe1ac4f4ca32fa612e56d01b5b81
       subdirectory: environments/code_golf
     activation:
       kind: verifiers-config
@@ -490,7 +490,7 @@ environment:
     source:
       package: alphabet-sort
       repository: https://github.com/carbonteq-ai/verifiers
-      revision: 1f6793f7d46e8a650a54b2a585193b4010578fa6
+      revision: 84ab782391bbfe1ac4f4ca32fa612e56d01b5b81
       subdirectory: environments/alphabet_sort
     activation:
       kind: verifiers-config

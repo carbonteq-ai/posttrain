@@ -248,6 +248,12 @@ def test_checkpoint_callback_publishes_paired_views_on_save(tmp_path: Path) -> N
         pass
 
     context = CaptureContext()
+    state_writes: list[Path] = []
+
+    def write_controller_state(path: Path) -> None:
+        state_writes.append(path)
+        (path / "adaptive-curriculum-state.json").write_text("{}\n", encoding="utf-8")
+
     callback = checkpoint_callback_type(
         context,  # type: ignore[arg-type]
         {
@@ -259,6 +265,7 @@ def test_checkpoint_callback_publishes_paired_views_on_save(tmp_path: Path) -> N
         settings=SimpleNamespace(id="training-settings/test", revision="1"),
         update=LoRAUpdate(),
         workspace=tmp_path,
+        checkpoint_state_writer=write_controller_state,
     )()
 
     result = callback.on_save(
@@ -269,6 +276,8 @@ def test_checkpoint_callback_publishes_paired_views_on_save(tmp_path: Path) -> N
 
     assert result == "control"
     assert [artifact.kind for artifact in context.artifacts] == ["training-checkpoint", "model-adapter"]
+    assert state_writes == [checkpoint.resolve()]
+    assert (checkpoint / "adaptive-curriculum-state.json").is_file()
     model_path = context.artifacts[1].reference.path  # type: ignore[union-attr]
     assert model_path == (tmp_path / "checkpoints" / "step-00000004" / "model").resolve()
     assert (model_path / "adapter_model.safetensors").is_file()

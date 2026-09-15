@@ -1108,6 +1108,17 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
                         if value.active_sampling is not None
                         else None
                     ),
+                    "adaptive_curriculum": (
+                        {
+                            "class_field": value.adaptive_curriculum.class_field,
+                            "class_exploration": value.adaptive_curriculum.class_exploration,
+                            "task_discovery": value.adaptive_curriculum.task_discovery,
+                            "history_groups": value.adaptive_curriculum.history_groups,
+                            "seed": value.adaptive_curriculum.seed,
+                        }
+                        if value.adaptive_curriculum is not None
+                        else None
+                    ),
                     "shuffle_prompts": value.shuffle_prompts,
                     "mask_truncated_completions": value.mask_truncated_completions,
                     "overlong_buffer_tokens": value.overlong_buffer_tokens,

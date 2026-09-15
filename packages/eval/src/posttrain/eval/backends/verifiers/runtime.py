@@ -26,8 +26,18 @@ async def prepare_preinstalled_uv_script(
     runtime: Any,
     script: str | bytes,
     env: dict[str, str] | None = None,
+    *,
+    activate: bool = True,
 ) -> list[str]:
-    """Materialize a harness script and execute it from the packed job lock."""
+    """Materialize a harness script and execute it from the packed job lock.
+
+    The packed interpreter already owns the job's complete environment, so
+    Verifiers' optional activation wrapper is unnecessary. Accept the keyword
+    to preserve the runtime protocol while returning the same direct argv for
+    either mode.
+    """
+
+    del activate
 
     data = script.encode() if isinstance(script, str) else script
     digest = hashlib.sha256(data).hexdigest()

@@ -1,0 +1,68 @@
+<section aria-labelledby="td-title" id="task-discovery-player">
+<header class="td-header">
+<div><span class="td-eyebrow">Interactive model · 64 tasks · 4 classes</span><h3 id="td-title">From task pool to training batch</h3></div>
+<span class="td-revision" id="td-revision">Student 0</span>
+</header>
+<p class="td-intro">Discovery tries unseen tasks. Practice follows the observed chance of producing useful reward variance. Recheck revisits familiar tasks. Class discovery combines observed yield with uncertainty, so small samples keep receiving opportunities.</p>
+<div class="td-settings">
+<label>Assumed learner<select id="td-preset"><optgroup label="Ordinary learning"><option selected="" value="normal">Steady learning</option><option value="abilities">Different starting abilities</option><option value="signal">Learning follows signal</option><option value="varied">Different learning speeds</option></optgroup><optgroup label="Stress cases"><option value="hidden">Mostly solved class</option><option value="transfer">Transfer unlocks geometry</option><option value="forgetting">Arithmetic regresses</option><option value="noise">Variance without learning</option><option value="solved">Everything is solved</option></optgroup></select></label>
+<label>Training profile<select id="td-mode"><option value="grpo">Vanilla GRPO</option><option value="olmo">OLMo-style refills</option></select></label>
+<label>Seed<input id="td-seed" max="9999" min="1" type="number" value="17"/></label>
+</div>
+<div class="td-budget">
+<label>Class exploration <output id="td-coverage-value">20%</output><input id="td-coverage" max="100" min="0" step="5" type="range" value="20"/></label>
+<label>Unseen-task discovery <output id="td-discovery-value">20%</output><input id="td-discovery" max="100" min="0" step="5" type="range" value="20"/></label>
+</div>
+<p class="td-small" id="td-scenario">Tasks start with different solve probabilities, from 10% to 88%, varying within and across classes. Starting abilities are hidden from the controller.</p>
+<div class="td-controls">
+<button class="td-primary" id="td-play" type="button">Play</button>
+<button id="td-next" type="button">Next event</button>
+<button id="td-step" type="button">Next model step</button>
+<button id="td-reset" type="button">Reset</button>
+<label class="td-speed">Speed<select id="td-speed"><option value="1200">1×</option><option value="400">3×</option><option value="150">8×</option></select></label>
+<span id="td-position">Step 1 · Round 1</span>
+</div>
+<label class="td-replay">Replay position<input id="td-replay" max="1" min="0" step="1" type="range" value="0"/></label>
+<div class="td-statistics" id="td-statistics"></div>
+<label class="td-truth-toggle td-small"><input id="td-truth" type="checkbox"/> Inspect assumed solve probabilities and learning gains (hidden from the controller)</label>
+<div class="td-inventory-heading"><strong>Task pool</strong><span>Recorded evidence · select a task for values and history</span></div>
+<div class="td-legend">
+<div><b>Within-group variance · tile color</b><span>0 <i class="td-variance-scale"></i> 1</span></div>
+<div><b>Reward / success · bar length</b><span>0% <i class="td-success-scale"></i> 100%</span></div>
+<div class="td-symbol-key"><span><i class="td-key-unknown">—</i>No recent evidence</span><span><i class="td-key-selected"></i>Selected this round</span></div>
+</div>
+<div class="td-pool" id="td-pool"></div>
+<p class="td-heat-note">Orange → neutral → green means increasing within-group variance. The purple bar shows recent success: full for all successes, empty for all failures. Reward is binary in this simulation, so mean reward equals success rate. Observed values can rise or fall.</p>
+<div class="td-work">
+<aside aria-live="polite" class="td-inspector" id="td-inspector"></aside>
+<div class="td-training">
+<div class="td-stage-row" id="td-stages"></div>
+<div class="td-request" id="td-request"></div>
+<div class="td-tray" id="td-tray"></div>
+<div class="td-flow" id="td-flow"></div>
+<p class="td-lane-note" id="td-lane-note"></p>
+</div>
+</div>
+<p aria-live="polite" class="td-narration" id="td-narration" role="status"></p>
+<div aria-label="Class allocation and observed success timelines" class="td-timelines">
+<h4>Class allocation over training steps</h4>
+<p class="td-small">Each column totals 100% of selected candidate groups, including refill rounds. The current step fills as selection proceeds.</p>
+<div class="td-chart-legend" id="td-chart-legend"></div>
+<div id="td-allocation-chart"></div>
+<h4>Success on sampled tasks</h4>
+<p class="td-small">Recent observed success, on the same step axis. Each class has its own 0–100% scale. Gaps mean no recent evidence; the changing sample mixture can affect these rates.</p>
+<div id="td-success-charts"></div>
+</div>
+<details class="td-assumptions">
+<summary>Learning assumptions and what the controller can see</summary>
+<p>This is a synthetic learner, not an LLM or a GRPO optimizer. Each task has a hidden probability of success. Four independent answers are sampled at fixed probabilities during every initial/refill round. Only a model-update event changes those probabilities.</p>
+<p>Steady learning starts tasks at 10%–88% solve probability. Arithmetic starts at 60%–88%, algebra at 35%–63%, geometry at 10%–38%, and probability at 45%–73%. These are assumed abilities of this synthetic learner, not properties of the task categories. Different starting abilities uses an alternative population from 15% to 88%, with the same learning rate. Different learning speeds keeps that alternative population but assigns rates of 0.07, 0.14, or 0.28. The ordinary default rate is 0.14; all rates are illustrative.</p>
+<p>A practiced mixed group moves its task toward 99.5% success. Learning follows signal additionally scales the gain by 4p̄(1 − p̄): two successes out of four give signal 1; one or three give 0.75; constant outcomes give 0. A task with current probability p receives direct gain 0.14 × (0.995 − p) × signal in that preset. The other ordinary presets give the same direct gain for any mixed group. Small transfer gains affect other tasks in the same class and are also signal-scaled in that preset.</p>
+<p>These are assumed learning laws, not the GRPO gradient. The transfer stress case also lets algebra practice improve geometry. The forgetting case lowers arithmetic success after update 10. In the noise case, probability tasks remain at 50% regardless of practice.</p>
+<p>The controller records whether each group produced positive within-group variance. A class uses a Beta posterior with one success and one failure of smoothing. Every task contributes its first generated group as one class observation, so repeated practice cannot make one task stand in for the class. Its discovery index is the posterior mean plus one posterior standard deviation. A task starts from that class mean with two pseudo-observations, then its own recent groups take over.</p>
+<p>Ten groups are the target batch. OLMo-style mode retains only mixed groups and permits up to four candidate rounds; failure to fill the batch stops the simulation without a model update. Every candidate has a unique task ID within its step. Discovery counts carry across requests; exhausted unseen inventory is reported and reserved slots become reassessment.</p>
+<p>Tile color shows average normalized within-group variance, 4p̄(1 − p̄), from orange (0) through neutral (0.5) to green (1). The purple bar shows recent mean reward, equal to success rate for these binary outcomes. Alternating all-success and all-failure groups can therefore give an orange tile with a half-full bar. Grey tiles have no recent evidence; a dash is not a zero. Bars animate between observed values without smoothing or forcing an upward trend. These observations do not establish mastery. Class forecasts may revert toward the weak prior as observations expire. High variance can reflect noise rather than learning.</p>
+<p>Lane percentages are realized shares of the current candidate request, before any OLMo-style filtering. Discovery includes reserved and additional unseen tasks. Recheck comes from familiar-task reassessment, including class coverage and exhausted discovery slots; it has no separate quota. Both unseen-task discovery and class coverage use cumulative counted allocations across requests. Their positions are scheduled independently, so they sometimes overlap without collapsing into one control.</p>
+<p class="td-small">The controller never receives these hidden values. Settings restart the replay at the selected seed. Reference-probe costs, token costs, optimizer noise, correlated answers, and real model generalization are not modeled.</p>
+</details>
+</section>

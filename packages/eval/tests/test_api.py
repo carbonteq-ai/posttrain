@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from posttrain.common import (
     TraceObservation,
 )
 from posttrain.common.variants import QWEN_35_2B
+from posttrain.environment import TaskDescriptor
 from posttrain.eval import (
     EnvironmentBinding,
     EnvironmentSource,
@@ -31,6 +33,7 @@ from posttrain.eval import (
     EvaluationNumericPredicate,
     EvaluationPlan,
     EvaluationPopulation,
+    EvaluationSelectionPolicy,
     EvaluationSignalRef,
     EvaluationSuccessDefinition,
     ExternalInferenceService,
@@ -43,6 +46,7 @@ from posttrain.eval import (
     evaluate,
     evaluation_catalog_decoders,
     general,
+    resolve_evaluation_selection,
 )
 from posttrain.eval.backends.verifiers import VerifiersRunResult
 from posttrain.eval.backends.verifiers.synchronization import TraceSyncStats
@@ -288,7 +292,7 @@ def test_agentic_and_domain_programs_share_the_native_port() -> None:
     source = AGENTIC_SMOKE.environments[0].source
     assert isinstance(source, EnvironmentSource)
     assert source.repository == ("https://github.com/carbonteq-ai/verifiers-environments")
-    assert source.revision == ("1181585ea66c6f89432864a476b5110794afc9fe")
+    assert source.revision == ("a6d779fc1fdfde23f86e297125b3381b140cec2f")
     assert source.subdirectory == "environments/automationbench_v1"
     assert AGENTIC_SMOKE.environments[0].max_concurrent == 1
     assert AUTOMATIONBENCH_PUBLIC.kind == "domain"
@@ -565,6 +569,135 @@ def test_request_shuffle_remains_a_compatibility_default_for_budget() -> None:
         EvaluationBudget(shuffle="yes")  # type: ignore[arg-type]
 
 
+def test_request_uses_exact_manifest_count_and_rejects_legacy_shuffle() -> None:
+    base = request()
+    policy = EvaluationSelectionPolicy(kind="uniform", num_tasks=1, seed=4)
+    plan = replace(base.plan, selection={"math": policy})
+    manifest = resolve_evaluation_selection(
+        (
+            TaskDescriptor(key="task-a", fingerprint="sha256:" + "a" * 64),
+            TaskDescriptor(key="task-b", fingerprint="sha256:" + "b" * 64),
+        ),
+        policy,
+    )
+    selected = replace(base, plan=plan, manifest=manifest)
+    assert selected.resolved_budget == (1, 1, 4)
+    assert selected.manifest is not None
+    with pytest.raises(ValueError, match="cannot be combined with shuffle"):
+        replace(selected, shuffle=True)
+    with pytest.raises(ValueError, match="policy conflicts"):
+        replace(
+            selected,
+            plan=replace(
+                plan,
+                selection={"math": EvaluationSelectionPolicy(kind="uniform", num_tasks=1, seed=5)},
+            ),
+        )
+
+
+def test_native_config_receives_manifest_task_keys(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("verifiers.v1")
+    from posttrain.eval.backends.verifiers import adapter
+    from verifiers.v1.configs.cli.eval import EvalConfig
+    from verifiers.v1.configs.env import EnvConfig
+    from verifiers.v1.envs.single_agent import SingleAgentEnvConfig
+
+    base = request()
+    policy = EvaluationSelectionPolicy(kind="uniform", num_tasks=1, seed=4)
+    plan = replace(base.plan, selection={"math": policy})
+    manifest = resolve_evaluation_selection(
+        (
+            TaskDescriptor(key="task-a", fingerprint="sha256:" + "a" * 64),
+            TaskDescriptor(key="task-b", fingerprint="sha256:" + "b" * 64),
+        ),
+        policy,
+    )
+    selected = replace(base, plan=plan, manifest=manifest)
+    monkeypatch.setattr(PythonFactoryActivation, "activate", lambda self: SingleAgentEnvConfig())
+    monkeypatch.setattr(
+        adapter,
+        "_imports",
+        lambda: (EvalConfig, lambda config: config, (EnvConfig, lambda config: [])),
+    )
+
+    _environment, config, _runner = adapter._build_native(selected, tmp_path)
+
+    assert config.task_keys == [item.task.key for item in manifest.tasks]
+    assert config.num_tasks == len(manifest.tasks)
+    assert not config.shuffle
+
+
+def test_evaluate_retains_manifest_and_records_its_identity(tmp_path: Path) -> None:
+    base = request()
+    policy = EvaluationSelectionPolicy(kind="uniform", num_tasks=1, seed=4)
+    plan = replace(base.plan, selection={"math": policy})
+    manifest = resolve_evaluation_selection(
+        (
+            TaskDescriptor(key="task-a", fingerprint="sha256:" + "a" * 64),
+            TaskDescriptor(key="task-b", fingerprint="sha256:" + "b" * 64),
+        ),
+        policy,
+    )
+    selected = replace(base, plan=plan, manifest=manifest)
+    observer = RecordingObserver()
+
+    def fake_runner(
+        execution: RunContext,
+        evaluation: EvaluateRequest,
+        output: Path,
+    ) -> VerifiersRunResult:
+        del execution, evaluation
+        (output / "traces.jsonl").write_text('{"id":"trace-1"}\n', encoding="utf-8")
+        return VerifiersRunResult(
+            ("trace-1",),
+            TraceSyncStats(observed_records=1, emitted_records=1),
+            EvaluationPopulation(attempted=1, complete=1, failed=0, truncated=0, coverage_missing=0),
+        )
+
+    result = evaluate(context(tmp_path, observer), selected, runner=fake_runner)
+
+    manifest_path = result.native_artifact.reference.path / "evaluation-manifest.json"  # type: ignore[union-attr]
+    assert json.loads(manifest_path.read_text()) == manifest.to_payload()
+    assert observer.events[0].attributes["evaluation_manifest_digest"] == manifest.digest
+
+
+def test_evaluate_resolves_plan_selection_before_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = request()
+    policy = EvaluationSelectionPolicy(kind="uniform", num_tasks=1, seed=4)
+    selected = replace(base, plan=replace(base.plan, selection={"math": policy}))
+    observer = RecordingObserver()
+    population = (
+        TaskDescriptor(key="task-a", fingerprint="sha256:" + "a" * 64),
+        TaskDescriptor(key="task-b", fingerprint="sha256:" + "b" * 64),
+    )
+    monkeypatch.setattr("posttrain.eval.api.inventory_verifiers_tasks", lambda environment: population)
+
+    def fake_runner(
+        execution: RunContext,
+        evaluation: EvaluateRequest,
+        output: Path,
+    ) -> VerifiersRunResult:
+        del execution
+        assert evaluation.manifest is not None
+        assert len(evaluation.manifest.tasks) == 1
+        (output / "traces.jsonl").write_text('{"id":"trace-1"}\n', encoding="utf-8")
+        return VerifiersRunResult(
+            ("trace-1",),
+            TraceSyncStats(observed_records=1, emitted_records=1),
+            EvaluationPopulation(attempted=1, complete=1, failed=0, truncated=0, coverage_missing=0),
+        )
+
+    result = evaluate(context(tmp_path, observer), selected, runner=fake_runner)
+
+    assert result.native_artifact.metadata["task_selection"] == "resolved-manifest"
+    assert (result.native_artifact.reference.path / "evaluation-manifest.json").exists()  # type: ignore[union-attr]
+    assert observer.events[0].attributes["task_selection"] == "resolved-manifest"
+    assert isinstance(observer.events[0].attributes["evaluation_manifest_digest"], str)
+
+
 def test_evaluate_emits_direct_sync_metrics_and_native_artifact(tmp_path: Path) -> None:
     observer = RecordingObserver()
 
@@ -638,6 +771,51 @@ def test_verifiers_eval_emits_shared_trace_facts() -> None:
     assert trace.facts[0].dimensions["rollout_step"] is None
     assert isinstance(evaluation.model, ModelVariant)
     assert trace.facts[0].dimensions["model_family"] == evaluation.model.family
+
+
+def test_manifest_trace_attributes_preserve_repetition_and_selection_evidence() -> None:
+    from posttrain.eval.backends.verifiers.adapter import _emit_batch
+
+    base = request()
+    policy = EvaluationSelectionPolicy(kind="uniform", num_tasks=1, seed=4)
+    plan = replace(base.plan, selection={"math": policy})
+    manifest = resolve_evaluation_selection(
+        (
+            TaskDescriptor(
+                key="task-a",
+                fingerprint="sha256:" + "a" * 64,
+                facets=(),
+            ),
+        ),
+        policy,
+    )
+    evaluation = replace(base, plan=plan, manifest=manifest)
+    observer = RecordingObserver()
+    record = {
+        "id": "episode-1",
+        "ok": True,
+        "task": {"key": "task-a"},
+        "run": {"type": "eval", "id": "run-1", "repetition_index": 2},
+        "traces": [
+            {
+                "id": "trace-1",
+                "version": 2,
+                "task": {"key": "task-a", "type": "Task", "data": {}},
+                "agent": {"model": "models/future-2b"},
+                "nodes": [],
+                "calls": [],
+            }
+        ],
+    }
+
+    _emit_batch(context(Path.cwd(), observer), evaluation, [record])
+
+    [trace] = observer.traces
+    assert trace.attributes["evaluation_repetition_index"] == 2
+    assert trace.attributes["evaluation_execution_attempt_index"] == 0
+    assert trace.attributes["evaluation_task_target_weight"] == 1
+    assert trace.attributes["evaluation_task_inclusion_probability"] == 1
+    assert trace.attributes["evaluation_selected_tasks"] == 1
 
 
 def test_evaluate_records_shuffled_subset_policy(tmp_path: Path) -> None:

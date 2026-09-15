@@ -10,10 +10,15 @@ from posttrain_cli import tracking_config
 
 def test_tracking_environment_does_not_validate_unrelated_runtime_images(monkeypatch) -> None:
     configuration = object()
-    calls: list[bool] = []
+    calls: list[tuple[bool, bool]] = []
 
-    def load(_layout: ProjectLayout, *, verify_published_locks: bool = True) -> object:
-        calls.append(verify_published_locks)
+    def load(
+        _layout: ProjectLayout,
+        *,
+        verify_published_locks: bool = True,
+        resolve_registry: bool = True,
+    ) -> object:
+        calls.append((verify_published_locks, resolve_registry))
         return configuration
 
     monkeypatch.setattr(tracking_config, "load_local_execution_config", load)
@@ -25,5 +30,5 @@ def test_tracking_environment_does_not_validate_unrelated_runtime_images(monkeyp
 
     environment = tracking_config.project_tracking_environment(cast(ProjectLayout, object()))
 
-    assert calls == [False]
+    assert calls == [(False, False)]
     assert environment["POSTTRAIN_TRACKIO_SERVER_URL"] == "https://trackio.example"

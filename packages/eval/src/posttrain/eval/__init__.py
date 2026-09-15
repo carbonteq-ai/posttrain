@@ -4,7 +4,9 @@ from posttrain.environment import EnvironmentBindingSchema
 
 from .api import domain, evaluate, general
 from .catalog_schema import (
+    EvaluationMeasurementPolicySchema,
     EvaluationPlanSchema,
+    EvaluationSelectionPolicySchema,
     RemoteEvaluationBindingSchema,
     evaluation_catalog_decoders,
 )
@@ -17,6 +19,7 @@ from .requests import (
     EvaluationBreakdownDefinition,
     EvaluationBudget,
     EvaluationEndpoint,
+    EvaluationMeasurementPolicy,
     EvaluationNumericPredicate,
     EvaluationPlan,
     EvaluationSignalRef,
@@ -29,6 +32,15 @@ from .requests import (
     VerifiersV1ConfigActivation,
 )
 from .results import EvaluationPopulation, EvaluationResult, TraceSynchronization
+from .selection import (
+    EvaluationFilterClause,
+    EvaluationSelectionPolicy,
+    EvaluationTaskFilter,
+    ResolvedAllocationStratum,
+    ResolvedEvaluationManifest,
+    ResolvedTaskSelection,
+    resolve_evaluation_selection,
+)
 
 __all__ = [
     "EnvironmentActivation",
@@ -41,17 +53,26 @@ __all__ = [
     "EvaluationBudget",
     "EvaluationBreakdownDefinition",
     "EvaluationEndpoint",
+    "EvaluationFilterClause",
+    "EvaluationMeasurementPolicy",
     "EvaluationNumericPredicate",
     "EvaluationPlan",
+    "EvaluationMeasurementPolicySchema",
     "EvaluationPlanSchema",
     "EvaluationPopulation",
     "EvaluationResult",
+    "EvaluationSelectionPolicy",
+    "EvaluationSelectionPolicySchema",
     "EvaluationSignalRef",
     "EvaluationSuccessDefinition",
+    "EvaluationTaskFilter",
     "PythonFactoryActivation",
     "RemoteEvaluationBinding",
     "RemoteEvaluationBindingSchema",
     "RemotePolicy",
+    "ResolvedAllocationStratum",
+    "ResolvedEvaluationManifest",
+    "ResolvedTaskSelection",
     "SamplingPolicy",
     "TraceSynchronization",
     "VerifiersV1ConfigActivation",
@@ -59,4 +80,5 @@ __all__ = [
     "evaluate",
     "evaluation_catalog_decoders",
     "general",
+    "resolve_evaluation_selection",
 ]

@@ -106,6 +106,7 @@ class JobTelemetryDefinition(ObservatoryModel):
     trace_sections: tuple[TraceSectionDefinition, ...] = ()
     artifact_roles: tuple[ArtifactRoleDefinition, ...] = ()
     delta_tip_metrics: tuple[str, ...] = ()
+    projection_metrics: tuple[str, ...] = ()
     evidence_requirements: tuple[EvidenceRequirementDefinition, ...] = ()
 
     @model_validator(mode="after")
@@ -146,6 +147,7 @@ class JobTelemetryDefinition(ObservatoryModel):
             *(metric for chart in self.charts for metric in chart.metrics),
             *(rule.metric for rule in self.health_rules),
             *(metric for requirement in self.evidence_requirements for metric in requirement.metrics),
+            *self.projection_metrics,
         }
 
 
@@ -549,6 +551,54 @@ _METRIC_HELP = {
             "Active-sampling candidate rows unused",
             "Reserved candidate rows never generated because the target population was already filled.",
             "A high value is expected when early candidate rounds are productive; it is not a failed rollout count.",
+        ),
+        _metric(
+            "train/rl/curriculum/candidate_groups",
+            "Controller candidate groups",
+            "Task groups selected by the curriculum controller for one initial batch or refill round.",
+            "Sum points at the same optimizer step to recover the complete candidate population selected across refills.",
+        ),
+        _metric(
+            "train/rl/curriculum/unique_tasks",
+            "Controller unique tasks",
+            "Selected task identities that did not require degraded duplicate fallback.",
+            "Compare the step total with candidate groups to detect selection pressure caused by an exhausted eligible pool.",
+        ),
+        _metric(
+            "train/rl/curriculum/new_tasks",
+            "Controller new tasks",
+            "Selected task identities without prior controller evidence.",
+            "This measures task discovery inside the selected candidate population, including refill rounds.",
+        ),
+        _metric(
+            "train/rl/curriculum/discovery_reserved",
+            "Reserved discovery groups",
+            "Candidate slots reserved for tasks without prior controller evidence.",
+            "Sum across a step and compare with fulfilled discovery to distinguish policy intent from available inventory.",
+        ),
+        _metric(
+            "train/rl/curriculum/discovery_fulfilled",
+            "Fulfilled discovery groups",
+            "Reserved discovery slots filled with previously unseen tasks.",
+            "A persistent gap from the reserved count means the eligible unseen inventory could not satisfy the request.",
+        ),
+        _metric(
+            "train/rl/curriculum/duplicate_fallbacks",
+            "Duplicate fallback groups",
+            "Selections that repeated a task within an optimizer step after the eligible unique inventory was exhausted.",
+            "Zero is the normal state; a positive value records graceful degradation rather than a failed run.",
+        ),
+        _metric(
+            "train/rl/curriculum/refill_round",
+            "Controller refill round",
+            "One-based refill round index, or zero for an initial non-refill selection.",
+            "Use the maximum point at a step to reconstruct how many controller decisions were needed.",
+        ),
+        _metric(
+            "train/rl/curriculum/class_candidate_groups",
+            "Candidate groups by class",
+            "Selected task groups for one class, identified by the bounded class_id point attribute.",
+            "Sum by optimizer step and class to reconstruct the controller's allocation without scanning event payloads.",
         ),
         _metric(
             "train/rl/group_zero_variance_fraction",
@@ -1450,6 +1500,14 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
         "train/rl/active_sampling_candidate_groups_generated",
         "train/rl/active_sampling_candidate_groups_retained",
         "train/rl/active_sampling_candidate_groups_unused",
+        "train/rl/curriculum/candidate_groups",
+        "train/rl/curriculum/unique_tasks",
+        "train/rl/curriculum/new_tasks",
+        "train/rl/curriculum/discovery_reserved",
+        "train/rl/curriculum/discovery_fulfilled",
+        "train/rl/curriculum/duplicate_fallbacks",
+        "train/rl/curriculum/refill_round",
+        "train/rl/curriculum/class_candidate_groups",
         "train/grad_norm",
         "train/learning_rate",
         "train/step_time_seconds",
@@ -1486,6 +1544,16 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
         "serve/backend/speculative_accepted_length",
         "serve/backend/kv_cache_capacity_tokens",
         "serve/backend/kv_cache_peak_usage_ratio",
+    ),
+    projection_metrics=(
+        "train/rl/curriculum/candidate_groups",
+        "train/rl/curriculum/unique_tasks",
+        "train/rl/curriculum/new_tasks",
+        "train/rl/curriculum/discovery_reserved",
+        "train/rl/curriculum/discovery_fulfilled",
+        "train/rl/curriculum/duplicate_fallbacks",
+        "train/rl/curriculum/refill_round",
+        "train/rl/curriculum/class_candidate_groups",
     ),
     health_rules=(
         HealthRuleDefinition(

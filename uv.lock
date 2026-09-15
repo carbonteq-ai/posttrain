@@ -2618,7 +2618,7 @@ verifiers = [
 requires-dist = [
     { name = "datasets", marker = "extra == 'huggingface'", specifier = ">=4.6.1,<4.7" },
     { name = "posttrain-common", editable = "packages/common" },
-    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=1f6793f7d46e8a650a54b2a585193b4010578fa6" },
+    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=84ab782391bbfe1ac4f4ca32fa612e56d01b5b81" },
 ]
 provides-extras = ["huggingface", "verifiers"]
 
@@ -2663,7 +2663,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "torch", marker = "extra == 'verifiers'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'verifiers'", specifier = ">=4.57" },
-    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=1f6793f7d46e8a650a54b2a585193b4010578fa6" },
+    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=84ab782391bbfe1ac4f4ca32fa612e56d01b5b81" },
 ]
 provides-extras = ["verifiers"]
 
@@ -3157,7 +3157,7 @@ requires-dist = [
     { name = "torchvision", marker = "extra == 'trl'", specifier = ">=0.26,<0.27", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'trl'", specifier = ">=5.14,<5.15" },
     { name = "trl", marker = "extra == 'trl'", specifier = "==1.12.0.post8", index = "https://pypi.lan/carbonteq/dev/+simple/" },
-    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=1f6793f7d46e8a650a54b2a585193b4010578fa6" },
+    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=84ab782391bbfe1ac4f4ca32fa612e56d01b5b81" },
     { name = "vllm", marker = "extra == 'trl-vllm'", specifier = "==0.25.1" },
 ]
 provides-extras = ["verifiers", "trl", "trl-vllm"]
@@ -4690,8 +4690,8 @@ wheels = [
 
 [[package]]
 name = "verifiers"
-version = "0.3.2.dev79"
-source = { git = "https://github.com/carbonteq-ai/verifiers.git?rev=1f6793f7d46e8a650a54b2a585193b4010578fa6#1f6793f7d46e8a650a54b2a585193b4010578fa6" }
+version = "0.3.2.dev82"
+source = { git = "https://github.com/carbonteq-ai/verifiers.git?rev=84ab782391bbfe1ac4f4ca32fa612e56d01b5b81#84ab782391bbfe1ac4f4ca32fa612e56d01b5b81" }
 dependencies = [
     { name = "aiohttp" },
     { name = "anthropic" },

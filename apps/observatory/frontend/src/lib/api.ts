@@ -46,6 +46,31 @@ export type SummaryMetric = {
   unit: string | null;
 };
 
+export type GRPOSamplingStep = {
+  step: number;
+  candidate_groups: number;
+  unique_tasks: number;
+  new_tasks: number;
+  discovery_reserved: number;
+  discovery_fulfilled: number;
+  duplicate_fallbacks: number;
+  refill_rounds: number;
+  class_counts: Record<string, number>;
+};
+
+export type GRPOSamplingEvidence = {
+  strategy: 'standard' | 'dynamic' | 'olmo3_active';
+  algorithm: string | null;
+  adaptive_controller: boolean;
+  zero_variance_scope: 'training' | 'candidate';
+  zero_variance: SummaryMetric;
+  retained_fraction: SummaryMetric;
+  generation_rounds: SummaryMetric;
+  generated_groups: SummaryMetric;
+  retained_groups: SummaryMetric;
+  steps: GRPOSamplingStep[];
+};
+
 export type MetricHelp = {
   metric: string;
   label: string;
@@ -334,6 +359,59 @@ export type TraceEvaluation = {
     thinking_tokens: EvaluationDistribution | null;
     tool_calls: EvaluationDistribution | null;
   };
+  measurement?: {
+    calculator_version: string;
+    manifest_digest: string;
+    state: 'complete' | 'partial' | 'unavailable';
+    policy: { estimator: 'task_mean' | 'target_weighted'; missing: 'strict' | 'available' };
+    coverage: {
+      selected_tasks: number;
+      observed_tasks: number;
+      planned_repetitions: number;
+      completed_repetitions: number;
+      valid_repetitions: number;
+      execution_attempts: number;
+      retries: number;
+      execution_failures: number;
+      truncations: number;
+      missing_repetitions: number;
+    };
+    estimate: {
+      estimator: 'task_mean' | 'target_weighted';
+      state: 'complete' | 'partial' | 'unavailable';
+      value: number | null;
+      available_case_value: number | null;
+      task_denominator: number;
+      target_weight_observed: number;
+    };
+    tasks: Array<{
+      key: string;
+      label: string;
+      target_weight: number;
+      planned_repetitions: number;
+      valid_repetitions: number;
+      execution_attempts: number;
+      retries: number;
+      execution_failures: number;
+      truncations: number;
+      mean_reward: number | null;
+      success_frequency: number | null;
+      any_of_k: boolean | null;
+      all_of_k: boolean | null;
+      facets: Array<{ dimension: string; value: string; label: string }>;
+      trace_ids: string[];
+    }>;
+    facets: Array<{
+      dimension: string;
+      value: string;
+      label: string;
+      selected_tasks: number;
+      observed_tasks: number;
+      valid_repetitions: number;
+      mean_reward: number | null;
+      success_rate: number | null;
+    }>;
+  } | null;
   traces: TraceSummary[];
   next_cursor: string | null;
   live: boolean;
@@ -469,6 +547,7 @@ export type RunView = {
         accepted_speculative_length: SummaryMetric;
         kv_cache_peak_usage: SummaryMetric;
       };
+      sampling: GRPOSamplingEvidence;
     } | null;
     alerts?: Array<{ id: string; severity: string; message: string; field: string | null }>;
     metric_catalog?: MetricCatalog;

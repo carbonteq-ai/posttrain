@@ -1076,11 +1076,12 @@ class TrackioDataSource:
         *,
         limit: int,
         offset: int,
+        drop_empty: bool = False,
     ) -> list[dict[str, Any]]:
         """Read one bounded page, with compatibility for pre-paged clients."""
 
         try:
-            return run.history(keys=keys, limit=limit, offset=offset)
+            return run.history(keys=keys, limit=limit, offset=offset, drop_empty=drop_empty)
         except TypeError as error:
             if "unexpected keyword argument" not in str(error):
                 raise
@@ -1328,6 +1329,7 @@ class TrackioDataSource:
             ("event/name", "event/occurred_at", "event/attributes", "step", "timestamp"),
             limit=self._DETAIL_EVENT_LIMIT,
             offset=0,
+            drop_empty=True,
         ):
             if "event/name" not in row:
                 continue

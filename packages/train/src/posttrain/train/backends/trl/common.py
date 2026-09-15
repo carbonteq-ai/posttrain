@@ -386,6 +386,7 @@ def checkpoint_callback_type(
     update: ParameterUpdatePlan,
     workspace: Path,
     reward_contract: str | None = None,
+    checkpoint_state_writer: Callable[[Path], None] | None = None,
 ) -> type[Any]:
     """Create a callback that publishes both views after a trainer save.
 
@@ -412,6 +413,8 @@ def checkpoint_callback_type(
                 context.event("checkpoint_publication_unavailable", {"technique": technique, "global_step": step})
                 return control
             checkpoint = Path(latest).resolve()
+            if checkpoint_state_writer is not None:
+                checkpoint_state_writer(checkpoint)
             if reward_contract is not None:
                 from ...reward_recovery import retain_reward_contract
 
@@ -588,6 +591,7 @@ def publish_interrupted_recovery_checkpoint(
     settings: Any,
     update: ParameterUpdatePlan,
     imports: Mapping[str, Any],
+    checkpoint_state_writer: Callable[[Path], None] | None = None,
 ) -> Path | None:
     """Publish the latest complete TRL checkpoint while an interrupted run still owns its workspace."""
 
@@ -596,6 +600,8 @@ def publish_interrupted_recovery_checkpoint(
         context.event("recovery_checkpoint_unavailable", {"technique": technique})
         return None
     checkpoint = Path(latest).resolve()
+    if checkpoint_state_writer is not None:
+        checkpoint_state_writer(checkpoint)
     publish_checkpoint_views(
         context,
         checkpoint,
@@ -619,6 +625,7 @@ def preserve_recovery_checkpoint_after_error(
     settings: Any,
     update: ParameterUpdatePlan,
     imports: Mapping[str, Any],
+    checkpoint_state_writer: Callable[[Path], None] | None = None,
 ) -> None:
     """Best-effort retention that never replaces the original training failure."""
 
@@ -631,6 +638,7 @@ def preserve_recovery_checkpoint_after_error(
             settings=settings,
             update=update,
             imports=imports,
+            checkpoint_state_writer=checkpoint_state_writer,
         )
     except BaseException as checkpoint_error:
         error.add_note(f"failed to retain the latest recovery checkpoint: {checkpoint_error!r}")

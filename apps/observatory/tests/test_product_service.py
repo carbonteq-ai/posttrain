@@ -9,6 +9,7 @@ from typing import cast
 import pytest
 from posttrain.common import JsonValue
 from posttrain.tracking import (
+    EventRecord,
     MetricPoint,
     MetricSeries,
     TraceAggregateBucket,
@@ -465,6 +466,129 @@ async def test_trace_page_reuses_run_metadata_loaded_for_overview() -> None:
 
 
 @pytest.mark.asyncio
+async def test_olmo_adaptive_sampling_projects_candidate_semantics_and_step_distribution() -> None:
+    source = FixtureRunDataSource()
+    run_id = "runs/grpo-silver-pine"
+    detail = source._details[run_id]  # noqa: SLF001 - deterministic fixture mutation
+    resolved = deepcopy(detail.resolved_inputs)
+    settings = cast(dict[str, JsonValue], resolved["settings"])
+    settings["algorithm"] = "olmo3"
+    metrics = source._metrics[run_id]  # noqa: SLF001 - deterministic fixture mutation
+    metrics.update(
+        {
+            "train/rl/active_sampling_generation_rounds": MetricSeries(
+                name="train/rl/active_sampling_generation_rounds",
+                points=(MetricPoint(value=3, step=1),),
+            ),
+            "train/rl/active_sampling_retained_fraction": MetricSeries(
+                name="train/rl/active_sampling_retained_fraction",
+                points=(MetricPoint(value=0.5, step=1),),
+            ),
+            # The backend metrics count rollout rows. The product projection
+            # divides by num_generations to display task groups.
+            "train/rl/active_sampling_candidate_groups_generated": MetricSeries(
+                name="train/rl/active_sampling_candidate_groups_generated",
+                points=(MetricPoint(value=24, step=1),),
+            ),
+            "train/rl/active_sampling_candidate_groups_retained": MetricSeries(
+                name="train/rl/active_sampling_candidate_groups_retained",
+                points=(MetricPoint(value=12, step=1),),
+            ),
+            "train/rl/curriculum/candidate_groups": MetricSeries(
+                name="train/rl/curriculum/candidate_groups",
+                points=(MetricPoint(value=4, step=1), MetricPoint(value=2, step=1, attributes={"round_index": 2})),
+            ),
+            "train/rl/curriculum/unique_tasks": MetricSeries(
+                name="train/rl/curriculum/unique_tasks",
+                points=(MetricPoint(value=4, step=1), MetricPoint(value=2, step=1, attributes={"round_index": 2})),
+            ),
+            "train/rl/curriculum/new_tasks": MetricSeries(
+                name="train/rl/curriculum/new_tasks",
+                points=(MetricPoint(value=4, step=1), MetricPoint(value=2, step=1, attributes={"round_index": 2})),
+            ),
+            "train/rl/curriculum/discovery_reserved": MetricSeries(
+                name="train/rl/curriculum/discovery_reserved",
+                points=(MetricPoint(value=1, step=1), MetricPoint(value=0, step=1, attributes={"round_index": 2})),
+            ),
+            "train/rl/curriculum/discovery_fulfilled": MetricSeries(
+                name="train/rl/curriculum/discovery_fulfilled",
+                points=(MetricPoint(value=1, step=1), MetricPoint(value=0, step=1, attributes={"round_index": 2})),
+            ),
+            "train/rl/curriculum/duplicate_fallbacks": MetricSeries(
+                name="train/rl/curriculum/duplicate_fallbacks",
+                points=(MetricPoint(value=0, step=1), MetricPoint(value=0, step=1, attributes={"round_index": 2})),
+            ),
+            "train/rl/curriculum/refill_round": MetricSeries(
+                name="train/rl/curriculum/refill_round",
+                points=(MetricPoint(value=1, step=1), MetricPoint(value=2, step=1, attributes={"round_index": 2})),
+            ),
+            "train/rl/curriculum/class_candidate_groups": MetricSeries(
+                name="train/rl/curriculum/class_candidate_groups",
+                points=(
+                    MetricPoint(value=2, step=1, attributes={"class_id": "arithmetic", "round_index": 1}),
+                    MetricPoint(value=2, step=1, attributes={"class_id": "algebra", "round_index": 1}),
+                    MetricPoint(value=1, step=1, attributes={"class_id": "arithmetic", "round_index": 2}),
+                    MetricPoint(value=1, step=1, attributes={"class_id": "algebra", "round_index": 2}),
+                ),
+            ),
+        }
+    )
+    events = (
+        *detail.events,
+        EventRecord(
+            name="adaptive_curriculum_allocation_selected",
+            occurred_at=detail.summary.started_at,
+            attributes={
+                "step": 1,
+                "round_index": 1,
+                "task_ids": ["a1", "a2", "b1", "b2"],
+                "selected_classes": {"arithmetic": 2, "algebra": 2},
+                "new_tasks_selected": 4,
+                "discovery_reserved": 1,
+                "discovery_fulfilled": 1,
+                "duplicate_fallbacks": 0,
+            },
+        ),
+        EventRecord(
+            name="adaptive_curriculum_allocation_selected",
+            occurred_at=detail.summary.started_at,
+            attributes={
+                "step": 1,
+                "round_index": 2,
+                "task_ids": ["a3", "b3"],
+                "selected_classes": {"arithmetic": 1, "algebra": 1},
+                "new_tasks_selected": 2,
+                "discovery_reserved": 0,
+                "discovery_fulfilled": 0,
+                "duplicate_fallbacks": 0,
+            },
+        ),
+    )
+    source._details[run_id] = detail.model_copy(  # noqa: SLF001
+        update={"resolved_inputs": resolved, "metric_names": tuple(metrics), "events": events}
+    )
+
+    response = await ObservatoryService({"fixture": source}).get_run_view_response(
+        RunLocator(source_id="fixture", run_id=run_id)
+    )
+
+    assert response.view.view_kind == "job.metrics"
+    assert response.view.grpo is not None
+    sampling = response.view.grpo.sampling
+    assert sampling.strategy == "olmo3_active"
+    assert sampling.zero_variance_scope == "candidate"
+    assert sampling.adaptive_controller is True
+    assert sampling.generated_groups.value == 6
+    assert sampling.retained_groups.value == 3
+    assert sampling.retained_fraction.value == 0.5
+    assert sampling.steps[0].candidate_groups == 6
+    assert sampling.steps[0].unique_tasks == 6
+    assert sampling.steps[0].new_tasks == 6
+    assert sampling.steps[0].refill_rounds == 2
+    assert sampling.steps[0].class_counts == {"algebra": 3, "arithmetic": 3}
+
+
+@pytest.mark.asyncio
 async def test_eval_population_is_trace_derived_and_drillable(service: ObservatoryService) -> None:
     locator = RunLocator(source_id="fixture", run_id="runs/eval-violet-river")
     response = await service.get_run_view_response(locator)
@@ -475,6 +599,56 @@ async def test_eval_population_is_trace_derived_and_drillable(service: Observato
     detail = await service.get_trace_detail(locator, evaluation.traces[0].external_id)
     assert detail.reward_components
     assert detail.transcript[0]["role"] == "user"
+
+
+@pytest.mark.asyncio
+async def test_manifest_backed_evaluation_projects_task_weighted_measurement() -> None:
+    source = FixtureRunDataSource()
+    run_id = "runs/eval-manifest-measurement"
+    shared = {
+        "evaluation_manifest_digest": "sha256:manifest",
+        "evaluation_selected_tasks": 2,
+        "num_rollouts": 2,
+        "evaluation_execution_attempt_index": 0,
+        "evaluation_task_inclusion_probability": 1.0,
+        "evaluation_task_facets": [{"dimension": "subject", "value": "math"}],
+    }
+    source._traces[run_id] = tuple(  # noqa: SLF001 - deterministic fixture mutation
+        TraceRecord(
+            trace_type="verifiers",
+            external_id=f"trace-{task_key}-{repetition}",
+            payload={
+                "task": {"type": "Task", "key": task_key, "data": {"name": task_key}},
+                "rewards": {"reward": reward},
+                "metrics": {},
+                "errors": [],
+                "nodes": [],
+            },
+            attributes={
+                **shared,
+                "episode_id": f"episode-{task_key}-{repetition}",
+                "evaluation_repetition_index": repetition,
+                "evaluation_task_target_weight": 0.5,
+            },
+        )
+        for task_key, repetition, reward in (
+            ("task-a", 0, 1.0),
+            ("task-a", 1, 1.0),
+            ("task-b", 0, 0.0),
+            ("task-b", 1, 0.0),
+        )
+    )
+
+    evaluation = await trace_evaluation_view(source, run_id, expected=4)
+
+    assert evaluation.measurement is not None
+    assert evaluation.measurement.state == "complete"
+    assert evaluation.measurement.estimate.value == pytest.approx(0.5)
+    assert evaluation.measurement.coverage.selected_tasks == 2
+    assert evaluation.measurement.coverage.planned_repetitions == 4
+    assert evaluation.measurement.coverage.execution_attempts == 4
+    assert len(evaluation.measurement.tasks) == 2
+    assert evaluation.measurement.facets[0].selected_tasks == 2
 
 
 @pytest.mark.asyncio

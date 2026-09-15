@@ -29,6 +29,7 @@ import {
 
 import { FilterPopover } from './components/FilterPopover';
 import { PhaseMemoryTimeline } from './components/PhaseMemoryTimeline';
+import { SamplingDistribution, SamplingSummary } from './components/SamplingEvidence';
 import { ServingBenchmarkOverview } from './features/serving/ServingBenchmarkOverview';
 import { ServingCapacityWorkPackageView } from './features/serving/ServingCapacityWorkPackage';
 
@@ -1531,9 +1532,14 @@ function EvaluationOverview({ selected, response, evaluation, onTraces, onCompar
     ? nestedValue(environment, 'activation', 'config', 'taskset') as Record<string, unknown>
     : null;
   const rewardComponents = nestedValue(environment, 'reward_components');
+  const measurement = evaluation.measurement;
   const expected = evaluation.expected;
-  const coverageLabel = `${evaluation.included.toLocaleString()}${expected == null ? '' : `/${expected.toLocaleString()}`} traces observed`;
-  const evidenceReady = evaluation.state === 'complete' && evaluation.failures === 0 && evaluation.truncated === 0;
+  const coverageLabel = measurement
+    ? `${measurement.coverage.valid_repetitions.toLocaleString()}/${measurement.coverage.planned_repetitions.toLocaleString()} repetitions valid`
+    : `${evaluation.included.toLocaleString()}${expected == null ? '' : `/${expected.toLocaleString()}`} traces observed`;
+  const evidenceReady = measurement
+    ? measurement.state === 'complete'
+    : evaluation.state === 'complete' && evaluation.failures === 0 && evaluation.truncated === 0;
   const outcomeLabel = evidenceReady ? 'Evidence complete' : evaluation.failures > 0 ? 'Needs review' : 'Partial evidence';
   const scoreLabel = evaluation.metadata?.primary_metric_label
     ?? (typeof rewardComponents === 'string'
@@ -1589,8 +1595,8 @@ function EvaluationOverview({ selected, response, evaluation, onTraces, onCompar
         <div className="border-b border-divider bg-violet-50/60 px-5 py-5 lg:border-b-0 lg:border-r">
           <p className="type-eyebrow text-violet-700">BENCHMARK VERDICT</p>
           <div className="mt-2 flex items-end gap-3">
-            <strong className="font-serif text-[56px] font-normal leading-none">{evaluation.mean_reward?.toFixed(3) ?? '—'}</strong>
-            <span className="pb-1 text-[11px] text-secondary">{scoreLabel}</span>
+            <strong className="font-serif text-[56px] font-normal leading-none">{(measurement ? measurement.estimate.value : evaluation.mean_reward)?.toFixed(3) ?? '—'}</strong>
+            <span className="pb-1 text-[11px] text-secondary">{measurement ? `${measurement.estimate.estimator.replace('_', ' ')} · ${scoreLabel}` : scoreLabel}</span>
           </div>
           <div className="mt-4 flex items-center gap-2 text-xs">
             <Circle size={8} weight="fill" className={evidenceReady ? 'text-emerald-600' : 'text-amber-500'} />
@@ -1614,6 +1620,24 @@ function EvaluationOverview({ selected, response, evaluation, onTraces, onCompar
       </div>
       {(evaluation.failures > 0 || evaluation.truncated > 0 || evaluation.state !== 'complete') && <div className="flex items-start gap-2 border-t border-amber-200 bg-[#fffaf1] px-4 py-3 text-[11px] text-amber-900"><Warning size={15} weight="fill" className="mt-0.5 shrink-0 text-amber-600" /><span>{evaluation.failures > 0 ? `${evaluation.failures} task${evaluation.failures === 1 ? '' : 's'} reported an error. ` : ''}{evaluation.truncated > 0 ? `${evaluation.truncated} response${evaluation.truncated === 1 ? '' : 's'} reached the configured output boundary. ` : ''}Interpret the score with this evidence-quality caveat.</span></div>}
     </section>
+    {measurement && <section className="obs-card mt-4 overflow-hidden" aria-label="Evaluation population and repetitions">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-divider px-4 py-3">
+        <div><p className="type-eyebrow">POPULATION AND COVERAGE</p><h2 className="mt-1 font-serif text-xl font-normal">Tasks, repetitions, and execution attempts</h2></div>
+        <span className="text-[11px] text-muted">{measurement.policy.estimator.replace('_', ' ')} · {measurement.policy.missing} missing-data policy</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
+        {[
+          { label: 'Selected tasks', value: measurement.coverage.selected_tasks },
+          { label: 'Observed tasks', value: measurement.coverage.observed_tasks },
+          { label: 'Planned repetitions', value: measurement.coverage.planned_repetitions },
+          { label: 'Valid repetitions', value: measurement.coverage.valid_repetitions },
+          { label: 'Execution attempts', value: measurement.coverage.execution_attempts },
+          { label: 'Retries', value: measurement.coverage.retries },
+        ].map((item) => <div key={item.label} className="border-b border-r border-divider px-4 py-3 xl:border-b-0"><span className="type-label block">{item.label}</span><strong className="mt-1 block font-serif text-2xl font-normal">{item.value.toLocaleString()}</strong></div>)}
+      </div>
+      <div className="overflow-x-auto border-t border-divider"><table className="w-full min-w-[680px] text-left text-xs"><thead className="bg-subtle text-[10px] uppercase tracking-[.1em] text-muted"><tr><th className="px-4 py-3">Task</th><th className="px-4 py-3 text-right">Mean reward</th><th className="px-4 py-3 text-right">Valid / planned</th><th className="px-4 py-3 text-right">Attempts</th><th className="px-4 py-3 text-right">Retries</th><th className="px-4 py-3 text-right">Any / all</th></tr></thead><tbody className="divide-y divide-divider">{measurement.tasks.map((task) => <tr key={task.key}><th className="px-4 py-3 font-medium"><span className="block">{task.label}</span><code className="mt-0.5 block text-[9px] font-normal text-muted">{task.key}</code></th><td className="px-4 py-3 text-right font-medium">{task.mean_reward?.toFixed(3) ?? '—'}</td><td className="px-4 py-3 text-right">{task.valid_repetitions}/{task.planned_repetitions}</td><td className="px-4 py-3 text-right">{task.execution_attempts}</td><td className="px-4 py-3 text-right">{task.retries}</td><td className="px-4 py-3 text-right">{task.any_of_k == null ? '—' : task.any_of_k ? 'pass' : 'fail'} / {task.all_of_k == null ? '—' : task.all_of_k ? 'pass' : 'fail'}</td></tr>)}</tbody></table></div>
+      {measurement.coverage.missing_repetitions > 0 && <p className="border-t border-amber-200 bg-[#fffaf1] px-4 py-3 text-[11px] text-amber-900">{measurement.coverage.missing_repetitions.toLocaleString()} planned repetition{measurement.coverage.missing_repetitions === 1 ? '' : 's'} lack valid evidence. The strict headline remains unavailable until coverage is complete.</p>}
+    </section>}
     {performanceItems.length > 0 && <section className="obs-card mt-4 overflow-hidden" aria-label="Run performance">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-divider px-4 py-3">
         <div><p className="type-eyebrow">RUN PERFORMANCE</p><h2 className="mt-1 font-serif text-xl font-normal">Efficiency across evaluated traces</h2></div>
@@ -1748,6 +1772,7 @@ function GenericOverview({
     (item) => !item.id.startsWith('evidence-') && !item.id.startsWith('missing-'),
   );
   const summaryByKey = new Map(summary.map((item) => [item.key, item]));
+  const sampling = view.grpo?.sampling;
   const grpoReward = summaryByKey.get('reward_mean');
   const grpoEntropy = summaryByKey.get('entropy');
   const grpoZeroVariance = summaryByKey.get('zero_variance');
@@ -1756,7 +1781,11 @@ function GenericOverview({
   const grpoClipLow = summaryByKey.get('clip_fraction_low');
   const grpoClipHigh = summaryByKey.get('clip_fraction_high');
   const zeroVarianceValue = typeof grpoZeroVariance?.value === 'number' ? grpoZeroVariance.value : null;
-  const usableGroupValue = zeroVarianceValue == null ? null : Math.max(0, Math.min(1, 1 - zeroVarianceValue));
+  const retainedFractionValue = typeof sampling?.retained_fraction.value === 'number' ? sampling.retained_fraction.value : null;
+  const olmoSampling = sampling?.strategy === 'olmo3_active';
+  const usableGroupValue = olmoSampling
+    ? retainedFractionValue
+    : zeroVarianceValue == null ? null : Math.max(0, Math.min(1, 1 - zeroVarianceValue));
   const hasAsymmetricClip = grpoClipLow?.state === 'available' || grpoClipHigh?.state === 'available';
   const clipMetric = hasAsymmetricClip ? grpoClipLow : grpoClip;
   const clipValue = hasAsymmetricClip
@@ -1835,12 +1864,14 @@ function GenericOverview({
                     note="exploration"
                   />
                   <HeadlineMetric
-                    label="Usable groups"
+                    label={olmoSampling ? 'Candidate yield' : 'Usable groups'}
                     value={formatValue(usableGroupValue, 'ratio')}
-                    metric={grpoZeroVariance?.metric ?? null}
-                    help={grpoZeroVariance?.metric ? helpByMetric.get(grpoZeroVariance.metric) : undefined}
-                    state={grpoZeroVariance?.state ?? 'missing'}
-                    note="groups with reward variance"
+                    metric={olmoSampling ? sampling.retained_fraction.metric : grpoZeroVariance?.metric ?? null}
+                    help={olmoSampling && sampling.retained_fraction.metric
+                      ? helpByMetric.get(sampling.retained_fraction.metric)
+                      : grpoZeroVariance?.metric ? helpByMetric.get(grpoZeroVariance.metric) : undefined}
+                    state={olmoSampling ? sampling.retained_fraction.state : grpoZeroVariance?.state ?? 'missing'}
+                    note={olmoSampling ? 'generated candidates retained' : 'training groups with reward variance'}
                   />
                   <HeadlineMetric
                     label="Clip pressure"
@@ -1882,6 +1913,9 @@ function GenericOverview({
               )}
             </section>
           ) : <EmptyState title="No registered job summary" body="Use Metrics for raw, bounded evidence. Observatory will not infer job semantics that are not registered." />}
+          {isGroupPolicy && sampling && (sampling.strategy !== 'standard' || sampling.adaptive_controller) && (
+            <SamplingSummary sampling={sampling} />
+          )}
           {dataSummary.length > 0 && (
             <section className="obs-card mt-3 overflow-hidden" aria-labelledby="data-profile-heading">
               <div className="flex flex-wrap items-end justify-between gap-3 border-b border-divider px-4 py-3">
@@ -2206,6 +2240,9 @@ function TraceView({
         <span className="mt-1 block truncate text-[9px] text-muted" title={item.note}>{item.note}</span>
       </div>)}
     </div>
+    {response.view.grpo?.sampling?.adaptive_controller && (
+      <SamplingDistribution sampling={response.view.grpo.sampling} />
+    )}
     <div className="obs-card mt-3 flex flex-wrap items-center gap-2 px-2.5 py-2 text-xs">
       <SlidersHorizontal size={15} className="mx-0.5 text-muted" />
       <FilterPopover label={evaluation?.facets.length ? 'Slice / facet' : 'Slice'} value={slice} onChange={setSlice} options={filterOptions} />

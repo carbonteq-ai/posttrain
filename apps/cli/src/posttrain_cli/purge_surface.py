@@ -58,7 +58,8 @@ def candidate_catalog(
     store = ExecutionSubmissionStore(layout.state)
     purge_stores = _plan_stores(layout)
     candidates: dict[str, PurgeRunCandidate] = {}
-    for submission in store.list_submissions():
+    submissions = store.list_submissions()
+    for submission in submissions:
         evidence = submission.evidence_source
         state = "unknown"
         reconciled = False
@@ -67,14 +68,32 @@ def candidate_catalog(
             cleaned = store.cleaned_result(submission.run_id)
         except Exception:
             cleaned = None
+        cleanup_evidence_state: str | None = None
+        if cleaned is not None:
+            try:
+                cleanup_payload = json.loads(
+                    (store.run_root(submission.run_id) / "cleanup.json").read_text(encoding="utf-8")
+                )
+                if isinstance(cleanup_payload, dict):
+                    value = cleanup_payload.get("evidence_state")
+                    cleanup_evidence_state = value if isinstance(value, str) else None
+            except (OSError, json.JSONDecodeError):
+                cleanup_evidence_state = None
+        provider_terminal_without_tracking = bool(cleaned is not None and cleanup_evidence_state == "provider-terminal")
         if cleaned is not None:
             state = cleaned.record.state
+        if provider_terminal_without_tracking:
+            # Cleanup already performed the guarded remote lookup and retained
+            # the fact that no tracking run exists. Treat that plane as
+            # completed so purge does not turn the source id into a fictitious
+            # provider run id.
+            reconciled = True
         snapshot = store.run_root(submission.run_id) / "reconciliation.json"
         if snapshot.is_file():
             try:
                 payload = json.loads(snapshot.read_text(encoding="utf-8"))
                 if isinstance(payload, dict):
-                    reconciled = _reconciliation_allows_purge(payload)
+                    reconciled = reconciled or _reconciliation_allows_purge(payload)
                     value = payload.get("tracking_provider_run_id")
                     tracking_provider_run_id = value if isinstance(value, str) else None
             except (OSError, json.JSONDecodeError):
@@ -98,6 +117,13 @@ def candidate_catalog(
         workspace = submission.run_workspace if submission.provider == "local" else None
         if workspace is not None and workspace not in local_paths:
             local_paths.append(workspace)
+        completed_planes = _completed_purge_planes(
+            purge_stores,
+            run_id=submission.run_id,
+            project_id=layout.project_id,
+        )
+        if provider_terminal_without_tracking and "tracking" not in completed_planes:
+            completed_planes = (*completed_planes, "tracking")
         candidates[submission.run_id] = PurgeRunCandidate(
             run_id=submission.run_id,
             project_id=layout.project_id,
@@ -112,13 +138,57 @@ def candidate_catalog(
             image=image,
             workspace=workspace,
             local_paths=tuple(local_paths),
-            completed_planes=_completed_purge_planes(
-                purge_stores,
-                run_id=submission.run_id,
-                project_id=layout.project_id,
-            ),
+            completed_planes=completed_planes,
             lineage_complete=False,
             evidence_retention=submission.evidence_retention,
+        )
+    submission_ids = {submission.run_id for submission in submissions}
+    retired_run_ids: set[str] = set()
+    for purge_store in purge_stores:
+        retired_run_ids.update(_completed_purge_run_ids(purge_store.root))
+    try:
+        admission_entries = execution_admission_service(layout).list()
+    except Exception:
+        admission_entries = ()
+    for entry in admission_entries:
+        try:
+            project_id = entry.plan.request.run_spec.project_id
+        except AttributeError:
+            continue
+        if (
+            project_id != layout.project_id
+            or entry.run_id in submission_ids
+            or entry.run_id in retired_run_ids
+            or entry.state != "cancelled"
+        ):
+            continue
+        # A cancelled admission without a submission receipt never reached a
+        # provider or tracking backend. Preserve the image reference for the
+        # registry ownership check, but mark those absent planes complete so
+        # purge only creates the durable tombstone (and removes an unshared
+        # job image when appropriate).
+        settled_planes: set[PurgePlane] = set(
+            _completed_purge_planes(
+                purge_stores,
+                run_id=entry.run_id,
+                project_id=layout.project_id,
+            )
+        )
+        settled_planes.update(("provider", "tracking"))
+        completed_planes = tuple(sorted(settled_planes))
+        candidates[entry.run_id] = PurgeRunCandidate(
+            run_id=entry.run_id,
+            project_id=layout.project_id,
+            provider=entry.plan.provider,
+            provider_id=entry.plan.native_plan_id or entry.run_id,
+            state="cancelled",
+            reconciled=True,
+            evidence_provider="trackio",
+            evidence_project=layout.project_id,
+            tracking_provider_run_id=entry.run_id,
+            image=RegistryManifestRef.parse(entry.plan.request.image.value),
+            completed_planes=completed_planes,
+            lineage_complete=True,
         )
     _populate_trackio_lineage(layout, candidates, discover_run_ids=discover_lineage_for)
     return candidates
@@ -193,7 +263,9 @@ def _populate_trackio_lineage(
     discover_run_ids: tuple[str, ...] | None = None,
 ) -> None:
     trackio_candidates = {
-        run_id: candidate for run_id, candidate in candidates.items() if candidate.evidence_provider == "trackio"
+        run_id: candidate
+        for run_id, candidate in candidates.items()
+        if candidate.evidence_provider == "trackio" and "tracking" not in candidate.completed_planes
     }
     if not trackio_candidates:
         return
@@ -455,7 +527,11 @@ def _apply_executors(layout: Any, plan: PurgePlan) -> dict[PurgePlane, PurgeActi
     }
     local_roots = [layout.state, cache_path(layout, "runs")]
     try:
-        local_binding = load_local_execution_config(layout).local
+        local_binding = load_local_execution_config(
+            layout,
+            verify_published_locks=False,
+            resolve_registry=False,
+        ).local
     except Exception:
         local_binding = None
     if local_binding is not None and local_binding.storage is not None:

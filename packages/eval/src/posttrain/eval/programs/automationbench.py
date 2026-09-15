@@ -15,7 +15,7 @@ from ..requests import (
 # The native Verifiers v1 port is maintained in the framework-neutral
 # environment library. The benchmark fork remains a dependency of that package
 # and is not itself the environment source.
-AUTOMATIONBENCH_REVISION = "1181585ea66c6f89432864a476b5110794afc9fe"
+AUTOMATIONBENCH_REVISION = "a6d779fc1fdfde23f86e297125b3381b140cec2f"
 AUTOMATIONBENCH_REPOSITORY = "https://github.com/carbonteq-ai/verifiers-environments"
 AUTOMATIONBENCH_SUBDIRECTORY = "environments/automationbench_v1"
 

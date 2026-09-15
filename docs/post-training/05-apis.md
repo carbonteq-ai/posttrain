@@ -485,11 +485,36 @@ not replace selected model, data, environment, target, or artifact identities.
 
 Reward **weights** live in algorithm settings; reward **meanings** live on the
 environment. Rollout engine knobs live on `InferenceBinding.engine`.
-`GRPOSettings.algorithm` selects `grpo` or `dapo`. The DAPO selection owns its
+`GRPOSettings.algorithm` selects `grpo`, `dapo`, or `olmo3`. The DAPO selection owns its
 token-level aggregation, asymmetric clipping, bounded retained-group dynamic
 sampling, truncation handling, and optional soft-overlong shaping. Run evidence
 records these settings explicitly. Backend adapters reject unsupported
 semantics rather than approximating DAPO with another objective.
+
+`GRPOSettings.adaptive_curriculum` optionally selects rollout exposure before
+the algorithm update. Its initial contract contains `class_field`,
+`class_exploration`, `task_discovery`, `history_groups`, and `seed`. The named
+field must exist on every resolved rollout task. Class exploration is a
+counted cumulative reserve for base-distribution class coverage; task discovery
+is an independent cumulative floor for unseen task identities. Nonreserved
+slots may also discover tasks when the unseen pool has greater predicted yield.
+The settings can overlap in one selection. Evidence windows advance when that task produces a completed group,
+not merely when an optimizer step passes. Controller state, cumulative
+discovery accounting, current-step exclusions, and write position are recovery
+state and must be retained with a model checkpoint.
+Algorithms without bounded refill sampling call the controller once for the
+initial generation batch. OLMo 3 calls it for every active-sampling refill, so
+evidence from an earlier round can change later task identities while policy
+weights remain fixed. The controller avoids task identities already proposed in
+the optimizer step while distinct candidates remain. If that eligible inventory
+is exhausted, it may reuse a task, records the duplicate fallback, and does not
+fail the run for loss of diversity alone. Each decision records its sampling
+stage, refill round, selection reasons, and fulfilled or unmet discovery reserve.
+Resolved runtime evidence reports `adaptive_curriculum_sampling_mode` as
+`initial_batch` or `active_sampling_refill`; this is derived from the selected
+algorithm capability rather than exposed as another tuning parameter.
+The run records curriculum allocation separately from OLMo 3 or DAPO
+post-generation group selection.
 
 `SAMPOSettings` belongs to the separate `train.sampo` operation. It owns the
 discount factor, turn-advantage weight, sequence clipping bounds, reward
@@ -537,13 +562,30 @@ Neither projection changes the algorithm loss. Semantic segmentation is deferred
 | `id` / `revision` | Plan identity |
 | `environments` | Env bindings / suite composition (one cell → one Verifiers run) |
 | `inference_requirements` | Compatible binding constraints |
-| `sampling` | Repetition, seeds, limits |
+| `selection` | Per-environment population filter and distinct-task allocation policy |
+| `sampling` | Repetition, initialization controls, generation limits, and retries |
 | `metrics_and_slices` | Required measures (projected from traces) |
-| `aggregation` | Coverage / missing-evidence rules |
+| `measurement` | Per-environment task estimator and missing-evidence policy |
+| `aggregation` | Legacy extension settings retained during migration |
 | `comparison` | Parent / foundation / baseline policy |
 
 The model under test is **not** part of the plan; it is a seat on the eval
 request.
+
+`TaskDescriptor` is the environment-owned inventory value. It contains a
+source-scoped stable key, content fingerprint, optional split, semantic facet
+values, and a native source reference sufficient for exact dispatch.
+`EvaluationSelectionPolicy` supports full population, uniform distinct-task
+sampling, proportional or balanced strata, custom stratum weights, and minimum
+per stratum followed by proportional remainder. Resolution produces a
+`ResolvedEvaluationManifest`; execution consumes that manifest rather than
+reselecting positional rows. Exhaustion, missing allocation facets, and
+overlapping memberships follow explicit policy rather than backend defaults.
+`EvaluationMeasurementPolicy` independently selects an equal task mean or the
+manifest's target-weighted task mean and declares whether missing repetitions
+make the headline unavailable or permit an explicitly partial available-case
+estimate. Repetitions are reduced within each task before either estimator is
+applied.
 
 Verifiers mapping (implementation target): each enabled plan cell becomes an
 `EnvConfig` from the env package, merged with client/sampling/budget from the

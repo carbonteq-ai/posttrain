@@ -152,7 +152,11 @@ async def test_metric_series_uses_replay_source_steps_and_preserves_distinct_wav
     details = {
         run_id: RunDetail(
             summary=_summary(run_id, "train.sampo"),
-            metric_names=("train/rl/reward_std", "train/step_time_seconds"),
+            metric_names=(
+                "train/rl/reward_std",
+                "train/step_time_seconds",
+                "train/rl/curriculum/class_candidate_groups",
+            ),
         )
     }
     replay_attributes = {"observation_source": "verifiers", "source_step": 0}
@@ -176,16 +180,30 @@ async def test_metric_series_uses_replay_source_steps_and_preserves_distinct_wav
                 MetricPoint(value=10.01, step=1),
             ),
         ),
+        "train/rl/curriculum/class_candidate_groups": MetricSeries(
+            name="train/rl/curriculum/class_candidate_groups",
+            points=(
+                MetricPoint(value=2.0, step=1, attributes={"class_id": "arithmetic"}),
+                MetricPoint(value=2.0, step=1, attributes={"class_id": "algebra"}),
+            ),
+        ),
     }
 
     result = await ObservatoryService(FakeRunDataSource(details, {run_id: series})).get_metric_series(
         run_id,
-        MetricSeriesQuery(names=("train/rl/reward_std", "train/step_time_seconds")),
+        MetricSeriesQuery(
+            names=(
+                "train/rl/reward_std",
+                "train/step_time_seconds",
+                "train/rl/curriculum/class_candidate_groups",
+            )
+        ),
     )
 
     assert [point.step for point in result.series[0].points] == [0, 1]
     assert [point.value for point in result.series[0].points] == [0.1, 0.3]
     assert [point.value for point in result.series[1].points] == [10.0, 10.01]
+    assert [point.attributes["class_id"] for point in result.series[2].points] == ["arithmetic", "algebra"]
 
 
 @pytest.mark.asyncio

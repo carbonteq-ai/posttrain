@@ -16,6 +16,7 @@ from posttrain.eval import EnvironmentBinding, EnvironmentSource, EvaluationPlan
 from posttrain.serve.backends.vllm.bindings import resolve_binding_configuration
 from posttrain.train import (
     ActiveGroupSampling,
+    AdaptiveCurriculum,
     DynamicGroupSampling,
     GDPOSettings,
     GRPOSettings,
@@ -160,7 +161,7 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert isinstance(environment.source, EnvironmentSource)
     assert environment.source.package == "automationbench-v1"
     assert environment.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-    assert environment.source.revision == "1181585ea66c6f89432864a476b5110794afc9fe"
+    assert environment.source.revision == "a6d779fc1fdfde23f86e297125b3381b140cec2f"
     assert environment.source.subdirectory == "environments/automationbench_v1"
     assert environment.parameters["domains"] == ["simple"]
     assert environment.parameters["sampling_seed"] == 17
@@ -219,11 +220,21 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
 
     local_grpo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-grpo-20-local-v1")).value
     local_olmo = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-20-local-v1")).value
+    local_adaptive = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-adaptive-20-local-v1")
+    ).value
+    local_adaptive_v2 = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-olmo3-adaptive-20-local-v2")
+    ).value
     local_rollout = catalog.resolve(
         CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32@1")
     ).value
     local_training = catalog.resolve(
         CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench-local@1")
+    ).value
+    heldout_environment = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-heldout-mix-v1")).value
+    heldout_local_inference = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-eval-local@1")
     ).value
 
     assert isinstance(local_grpo, GRPOSettings)
@@ -237,6 +248,26 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_olmo.loop.max_steps == 20
     assert local_olmo.algorithm == "olmo3"
     assert local_olmo.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
+    assert isinstance(local_adaptive, GRPOSettings)
+    assert local_adaptive.loop.max_steps == 20
+    assert local_adaptive.loop.max_length == local_grpo.loop.max_length
+    assert local_adaptive.max_prompt_length == local_grpo.max_prompt_length
+    assert local_adaptive.max_completion_length == local_grpo.max_completion_length
+    assert local_adaptive.algorithm == "olmo3"
+    assert local_adaptive.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
+    assert local_adaptive.adaptive_curriculum == AdaptiveCurriculum(
+        "domain",
+        history_groups=4,
+        seed=172846,
+        exploration=0.2,
+    )
+    assert isinstance(local_adaptive_v2, GRPOSettings)
+    assert local_adaptive_v2.revision == "4"
+    assert local_adaptive_v2.algorithm == local_adaptive.algorithm
+    assert local_adaptive_v2.loop == local_adaptive.loop
+    assert local_adaptive_v2.adaptive_curriculum is not None
+    assert local_adaptive_v2.adaptive_curriculum.class_exploration == 0.2
+    assert local_adaptive_v2.adaptive_curriculum.task_discovery == 0.2
     assert isinstance(local_rollout, InferenceBinding)
     assert isinstance(local_training, TrainingBinding)
     assert local_rollout.engine["max_num_seqs"] == 32
@@ -246,6 +277,11 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert local_rollout.engine["kv_cache_memory_bytes"] == 4 * 1024**3
     assert "weight_name_prefix" not in local_rollout.engine
     assert local_rollout.target.id == "targets/carbonteq-rtx-pro-6000-96gb"
+    assert isinstance(heldout_environment, EnvironmentBinding)
+    assert heldout_environment.parameters["max_output_tokens"] == 12_288
+    assert heldout_environment.sampling.max_tokens == 12_288
+    assert isinstance(heldout_local_inference, InferenceBinding)
+    assert heldout_local_inference.sampling["max_tokens"] == 12_288
 
     remote_training = catalog.resolve(CatalogRef("training", "training/lfm2.5-2.6b-trl-lora-automationbench@1")).value
     remote_rollout = catalog.resolve(
@@ -348,7 +384,7 @@ def test_lfm26_three_step_qualification_retains_a_12k_episode_budget() -> None:
     judged_task = cast(Mapping[str, Any], taskset["task"])
     judges = cast(list[Mapping[str, Any]], judged_task["judges"])
     assert judges[0]["input_budget_tokens"] == 12_288
-    assert judges[0]["code_revision"] == "1181585ea66c6f89432864a476b5110794afc9fe"
+    assert judges[0]["code_revision"] == "a6d779fc1fdfde23f86e297125b3381b140cec2f"
     assert "assessment_scope" not in judges[0]
     assert "context_scope" not in judges[0]
 
@@ -472,7 +508,7 @@ def test_general_capability_catalog_and_library_qualification_are_pinned() -> No
     for item in plan.environments:
         assert isinstance(item.source, EnvironmentSource)
         assert item.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-        assert item.source.revision == "1181585ea66c6f89432864a476b5110794afc9fe"
+        assert item.source.revision == "a6d779fc1fdfde23f86e297125b3381b140cec2f"
 
 
 def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:

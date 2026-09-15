@@ -29,6 +29,8 @@ from posttrain.environment import (
     VerifiersV1ConfigActivation,
 )
 
+from .selection import EvaluationSelectionPolicy, ResolvedEvaluationManifest
+
 _ID = re.compile(r"^[a-z0-9][a-z0-9._/-]*$")
 
 
@@ -116,6 +118,14 @@ class EvaluationBreakdownDefinition:
 
 
 @dataclass(frozen=True, slots=True)
+class EvaluationMeasurementPolicy:
+    """How repeated task results become the evaluation headline."""
+
+    estimator: Literal["task_mean", "target_weighted"] = "task_mean"
+    missing: Literal["strict", "available"] = "strict"
+
+
+@dataclass(frozen=True, slots=True)
 class EvaluationPlan:
     """Reusable selection and interpretation policy for environment cells."""
 
@@ -127,6 +137,8 @@ class EvaluationPlan:
     metrics_and_slices: tuple[str, ...] = ()
     success: Mapping[str, EvaluationSuccessDefinition] = field(default_factory=dict)
     breakdowns: Mapping[str, tuple[EvaluationBreakdownDefinition, ...]] = field(default_factory=dict)
+    selection: Mapping[str, EvaluationSelectionPolicy] = field(default_factory=dict)
+    measurement: Mapping[str, EvaluationMeasurementPolicy] = field(default_factory=dict)
     aggregation: Mapping[str, JsonValue] = field(default_factory=dict)
     comparison: Mapping[str, JsonValue] = field(default_factory=dict)
 
@@ -164,6 +176,23 @@ class EvaluationPlan:
                     )
             normalized_breakdowns[environment_id] = tuple(definitions)
         object.__setattr__(self, "breakdowns", MappingProxyType(normalized_breakdowns))
+        unknown_selection = set(self.selection) - set(ids)
+        if unknown_selection:
+            raise ValueError(
+                "evaluation selection policies reference unknown environments: " + ", ".join(sorted(unknown_selection))
+            )
+        if any(not isinstance(policy, EvaluationSelectionPolicy) for policy in self.selection.values()):
+            raise TypeError("evaluation selection policies must be EvaluationSelectionPolicy values")
+        object.__setattr__(self, "selection", MappingProxyType(dict(self.selection)))
+        unknown_measurement = set(self.measurement) - set(ids)
+        if unknown_measurement:
+            raise ValueError(
+                "evaluation measurement policies reference unknown environments: "
+                + ", ".join(sorted(unknown_measurement))
+            )
+        if any(not isinstance(policy, EvaluationMeasurementPolicy) for policy in self.measurement.values()):
+            raise TypeError("evaluation measurement policies must be EvaluationMeasurementPolicy values")
+        object.__setattr__(self, "measurement", MappingProxyType(dict(self.measurement)))
         object.__setattr__(self, "aggregation", MappingProxyType(dict(self.aggregation)))
         object.__setattr__(self, "comparison", MappingProxyType(dict(self.comparison)))
 
@@ -197,6 +226,18 @@ class EvaluationPlan:
     def breakdowns_for(self, environment_id: str) -> tuple[EvaluationBreakdownDefinition, ...]:
         self.environment(environment_id)
         return self.breakdowns.get(environment_id, ())
+
+    def selection_for(self, environment_id: str) -> EvaluationSelectionPolicy | None:
+        """Return the new manifest-backed policy, or None for a legacy plan."""
+
+        self.environment(environment_id)
+        return self.selection.get(environment_id)
+
+    def measurement_for(self, environment_id: str) -> EvaluationMeasurementPolicy:
+        """Return explicit score semantics, defaulting to an equal task mean."""
+
+        self.environment(environment_id)
+        return self.measurement.get(environment_id, EvaluationMeasurementPolicy())
 
 
 RemotePolicy = HostedModel
@@ -277,10 +318,21 @@ class EvaluateRequest:
     reasoning_mode: str | None = None
     shuffle: bool = False
     budget: EvaluationBudget = EvaluationBudget()
+    manifest: ResolvedEvaluationManifest | None = None
 
     def __post_init__(self) -> None:
         environment = self.plan.environment(self.environment_id)
         self.plan.success_for(self.environment_id)
+        selection = self.plan.selection_for(self.environment_id)
+        if self.manifest is not None:
+            if selection is None:
+                raise ValueError("evaluation manifest requires a manifest-backed selection policy")
+            if self.manifest.policy != selection:
+                raise ValueError("evaluation manifest policy conflicts with the evaluation plan")
+            if self.budget.num_tasks is not None and self.budget.num_tasks != len(self.manifest.tasks):
+                raise ValueError("evaluation budget num_tasks conflicts with the resolved manifest")
+            if self.resolved_shuffle:
+                raise ValueError("evaluation manifest cannot be combined with shuffle selection")
         if self.context_window < 1:
             raise ValueError("evaluation context window must be positive")
         if environment.sampling.max_tokens >= self.context_window:
@@ -364,7 +416,10 @@ class EvaluateRequest:
 
     @property
     def resolved_budget(self) -> tuple[int, int, int]:
-        return self.budget.resolve(self.environment)
+        num_tasks, num_rollouts, max_concurrent = self.budget.resolve(self.environment)
+        if self.manifest is not None:
+            num_tasks = len(self.manifest.tasks)
+        return num_tasks, num_rollouts, max_concurrent
 
     @property
     def resolved_shuffle(self) -> bool:
@@ -386,8 +441,10 @@ __all__ = [
     "EvaluateRequest",
     "EvaluationBudget",
     "EvaluationEndpoint",
+    "EvaluationMeasurementPolicy",
     "EvaluationPlan",
     "EvaluationNumericPredicate",
+    "ResolvedEvaluationManifest",
     "EvaluationSignalRef",
     "EvaluationSuccessDefinition",
     "SamplingPolicy",

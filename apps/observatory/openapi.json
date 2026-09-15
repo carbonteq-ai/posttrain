@@ -541,6 +541,75 @@
         "title": "EvaluationBreakdownValue",
         "type": "object"
       },
+      "EvaluationCoverage": {
+        "additionalProperties": false,
+        "properties": {
+          "completed_repetitions": {
+            "minimum": 0.0,
+            "title": "Completed Repetitions",
+            "type": "integer"
+          },
+          "execution_attempts": {
+            "minimum": 0.0,
+            "title": "Execution Attempts",
+            "type": "integer"
+          },
+          "execution_failures": {
+            "minimum": 0.0,
+            "title": "Execution Failures",
+            "type": "integer"
+          },
+          "missing_repetitions": {
+            "minimum": 0.0,
+            "title": "Missing Repetitions",
+            "type": "integer"
+          },
+          "observed_tasks": {
+            "minimum": 0.0,
+            "title": "Observed Tasks",
+            "type": "integer"
+          },
+          "planned_repetitions": {
+            "minimum": 0.0,
+            "title": "Planned Repetitions",
+            "type": "integer"
+          },
+          "retries": {
+            "minimum": 0.0,
+            "title": "Retries",
+            "type": "integer"
+          },
+          "selected_tasks": {
+            "minimum": 0.0,
+            "title": "Selected Tasks",
+            "type": "integer"
+          },
+          "truncations": {
+            "minimum": 0.0,
+            "title": "Truncations",
+            "type": "integer"
+          },
+          "valid_repetitions": {
+            "minimum": 0.0,
+            "title": "Valid Repetitions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "selected_tasks",
+          "observed_tasks",
+          "planned_repetitions",
+          "completed_repetitions",
+          "valid_repetitions",
+          "execution_attempts",
+          "retries",
+          "execution_failures",
+          "truncations",
+          "missing_repetitions"
+        ],
+        "title": "EvaluationCoverage",
+        "type": "object"
+      },
       "EvaluationDistribution": {
         "additionalProperties": false,
         "description": "Observed distribution for one request-level evaluation signal.",
@@ -579,6 +648,69 @@
           "maximum"
         ],
         "title": "EvaluationDistribution",
+        "type": "object"
+      },
+      "EvaluationEstimatorResult": {
+        "additionalProperties": false,
+        "properties": {
+          "available_case_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Case Value"
+          },
+          "estimator": {
+            "enum": [
+              "task_mean",
+              "target_weighted"
+            ],
+            "title": "Estimator",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "target_weight_observed": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Target Weight Observed",
+            "type": "number"
+          },
+          "task_denominator": {
+            "minimum": 0.0,
+            "title": "Task Denominator",
+            "type": "integer"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "estimator",
+          "state",
+          "task_denominator",
+          "target_weight_observed"
+        ],
+        "title": "EvaluationEstimatorResult",
         "type": "object"
       },
       "EvaluationFacet": {
@@ -643,6 +775,73 @@
         "title": "EvaluationFacet",
         "type": "object"
       },
+      "EvaluationFacetResult": {
+        "additionalProperties": false,
+        "properties": {
+          "dimension": {
+            "minLength": 1,
+            "title": "Dimension",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "mean_reward": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Reward"
+          },
+          "observed_tasks": {
+            "minimum": 0.0,
+            "title": "Observed Tasks",
+            "type": "integer"
+          },
+          "selected_tasks": {
+            "minimum": 0.0,
+            "title": "Selected Tasks",
+            "type": "integer"
+          },
+          "success_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success Rate"
+          },
+          "valid_repetitions": {
+            "minimum": 0.0,
+            "title": "Valid Repetitions",
+            "type": "integer"
+          },
+          "value": {
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dimension",
+          "value",
+          "label",
+          "selected_tasks",
+          "observed_tasks",
+          "valid_repetitions"
+        ],
+        "title": "EvaluationFacetResult",
+        "type": "object"
+      },
       "EvaluationFacetSpec": {
         "additionalProperties": false,
         "description": "Resolved environment declaration for one native task-data facet.",
@@ -678,6 +877,117 @@
           "label"
         ],
         "title": "EvaluationFacetSpec",
+        "type": "object"
+      },
+      "EvaluationMeasurementFacet": {
+        "additionalProperties": false,
+        "properties": {
+          "dimension": {
+            "minLength": 1,
+            "title": "Dimension",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dimension",
+          "value",
+          "label"
+        ],
+        "title": "EvaluationMeasurementFacet",
+        "type": "object"
+      },
+      "EvaluationMeasurementPolicyView": {
+        "additionalProperties": false,
+        "properties": {
+          "estimator": {
+            "default": "task_mean",
+            "enum": [
+              "task_mean",
+              "target_weighted"
+            ],
+            "title": "Estimator",
+            "type": "string"
+          },
+          "missing": {
+            "default": "strict",
+            "enum": [
+              "strict",
+              "available"
+            ],
+            "title": "Missing",
+            "type": "string"
+          }
+        },
+        "title": "EvaluationMeasurementPolicyView",
+        "type": "object"
+      },
+      "EvaluationMeasurementView": {
+        "additionalProperties": false,
+        "properties": {
+          "calculator_version": {
+            "minLength": 1,
+            "title": "Calculator Version",
+            "type": "string"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/EvaluationCoverage"
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/EvaluationEstimatorResult"
+          },
+          "facets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationFacetResult"
+            },
+            "title": "Facets",
+            "type": "array"
+          },
+          "manifest_digest": {
+            "minLength": 1,
+            "title": "Manifest Digest",
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/EvaluationMeasurementPolicyView"
+          },
+          "state": {
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "tasks": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationTaskResult"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "calculator_version",
+          "manifest_digest",
+          "state",
+          "policy",
+          "coverage",
+          "estimate"
+        ],
+        "title": "EvaluationMeasurementView",
         "type": "object"
       },
       "EvaluationMetadata": {
@@ -1221,6 +1531,129 @@
         "title": "EvaluationSuccessDefinition",
         "type": "object"
       },
+      "EvaluationTaskResult": {
+        "additionalProperties": false,
+        "properties": {
+          "all_of_k": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "All Of K"
+          },
+          "any_of_k": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Any Of K"
+          },
+          "execution_attempts": {
+            "minimum": 0.0,
+            "title": "Execution Attempts",
+            "type": "integer"
+          },
+          "execution_failures": {
+            "minimum": 0.0,
+            "title": "Execution Failures",
+            "type": "integer"
+          },
+          "facets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationMeasurementFacet"
+            },
+            "title": "Facets",
+            "type": "array"
+          },
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "mean_reward": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Reward"
+          },
+          "planned_repetitions": {
+            "minimum": 1.0,
+            "title": "Planned Repetitions",
+            "type": "integer"
+          },
+          "retries": {
+            "minimum": 0.0,
+            "title": "Retries",
+            "type": "integer"
+          },
+          "success_frequency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success Frequency"
+          },
+          "target_weight": {
+            "exclusiveMinimum": 0.0,
+            "title": "Target Weight",
+            "type": "number"
+          },
+          "trace_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Trace Ids",
+            "type": "array"
+          },
+          "truncations": {
+            "minimum": 0.0,
+            "title": "Truncations",
+            "type": "integer"
+          },
+          "valid_repetitions": {
+            "minimum": 0.0,
+            "title": "Valid Repetitions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "target_weight",
+          "planned_repetitions",
+          "valid_repetitions",
+          "execution_attempts",
+          "retries",
+          "execution_failures",
+          "truncations"
+        ],
+        "title": "EvaluationTaskResult",
+        "type": "object"
+      },
       "EventRecord": {
         "additionalProperties": false,
         "properties": {
@@ -1588,11 +2021,15 @@
           },
           "rollout_population": {
             "$ref": "#/components/schemas/GRPORolloutPopulation"
+          },
+          "sampling": {
+            "$ref": "#/components/schemas/GRPOSamplingEvidence"
           }
         },
         "required": [
           "rollout_population",
-          "acceleration"
+          "acceleration",
+          "sampling"
         ],
         "title": "GRPOProjection",
         "type": "object"
@@ -1632,6 +2069,143 @@
           "missing"
         ],
         "title": "GRPORolloutPopulation",
+        "type": "object"
+      },
+      "GRPOSamplingEvidence": {
+        "additionalProperties": false,
+        "properties": {
+          "adaptive_controller": {
+            "title": "Adaptive Controller",
+            "type": "boolean"
+          },
+          "algorithm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Algorithm"
+          },
+          "generated_groups": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "generation_rounds": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "retained_fraction": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "retained_groups": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "steps": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/GRPOSamplingStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "strategy": {
+            "enum": [
+              "standard",
+              "dynamic",
+              "olmo3_active"
+            ],
+            "title": "Strategy",
+            "type": "string"
+          },
+          "zero_variance": {
+            "$ref": "#/components/schemas/SummaryValue"
+          },
+          "zero_variance_scope": {
+            "enum": [
+              "training",
+              "candidate"
+            ],
+            "title": "Zero Variance Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "strategy",
+          "adaptive_controller",
+          "zero_variance_scope",
+          "zero_variance",
+          "retained_fraction",
+          "generation_rounds",
+          "generated_groups",
+          "retained_groups"
+        ],
+        "title": "GRPOSamplingEvidence",
+        "type": "object"
+      },
+      "GRPOSamplingStep": {
+        "additionalProperties": false,
+        "properties": {
+          "candidate_groups": {
+            "minimum": 0.0,
+            "title": "Candidate Groups",
+            "type": "integer"
+          },
+          "class_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Class Counts",
+            "type": "object"
+          },
+          "discovery_fulfilled": {
+            "minimum": 0.0,
+            "title": "Discovery Fulfilled",
+            "type": "integer"
+          },
+          "discovery_reserved": {
+            "minimum": 0.0,
+            "title": "Discovery Reserved",
+            "type": "integer"
+          },
+          "duplicate_fallbacks": {
+            "minimum": 0.0,
+            "title": "Duplicate Fallbacks",
+            "type": "integer"
+          },
+          "new_tasks": {
+            "minimum": 0.0,
+            "title": "New Tasks",
+            "type": "integer"
+          },
+          "refill_rounds": {
+            "minimum": 0.0,
+            "title": "Refill Rounds",
+            "type": "integer"
+          },
+          "step": {
+            "minimum": 0.0,
+            "title": "Step",
+            "type": "integer"
+          },
+          "unique_tasks": {
+            "minimum": 0.0,
+            "title": "Unique Tasks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "step",
+          "candidate_groups",
+          "unique_tasks",
+          "new_tasks",
+          "discovery_reserved",
+          "discovery_fulfilled",
+          "duplicate_fallbacks",
+          "refill_rounds",
+          "class_counts"
+        ],
+        "title": "GRPOSamplingStep",
         "type": "object"
       },
       "GenericRunView": {
@@ -3635,6 +4209,16 @@
               }
             ],
             "title": "Mean Reward"
+          },
+          "measurement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvaluationMeasurementView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "metadata": {
             "anyOf": [

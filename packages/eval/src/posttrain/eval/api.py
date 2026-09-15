@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from posttrain.common import LocalArtifactRef, ProducedArtifact, RunContext
 
-from .backends.verifiers import VerifiersRunResult, run_verifiers
+from .backends.verifiers import VerifiersRunResult, inventory_verifiers_tasks, run_verifiers
 from .requests import EvaluateRequest, RemoteEvaluationBinding, RemotePolicy
 from .results import EvaluationResult, TraceSynchronization
+from .selection import resolve_evaluation_selection
 
 type EvaluationContext = RunContext
 type EvaluationRunner = Callable[[EvaluationContext, EvaluateRequest, Path], VerifiersRunResult]
@@ -35,6 +38,16 @@ def evaluate(
 ) -> EvaluationResult:
     """Evaluate one model/environment cell and retain its native result bundle."""
 
+    selection = request.plan.selection_for(request.environment_id)
+    if request.manifest is None and selection is not None:
+        request = replace(
+            request,
+            manifest=resolve_evaluation_selection(
+                inventory_verifiers_tasks(request.environment),
+                selection,
+            ),
+        )
+
     environment = request.environment
     num_tasks, num_rollouts, max_concurrent = request.resolved_budget
     attributes = _attributes(request)
@@ -46,12 +59,33 @@ def evaluate(
             "num_tasks": num_tasks,
             "num_rollouts": num_rollouts,
             "max_concurrent": max_concurrent,
-            "task_selection": "verifiers-fixed-shuffle" if request.resolved_shuffle else "head",
+            "task_selection": (
+                "resolved-manifest"
+                if request.manifest is not None
+                else "verifiers-fixed-shuffle"
+                if request.resolved_shuffle
+                else "head"
+            ),
         }
     )
+    if request.manifest is not None:
+        attributes.update(
+            {
+                "evaluation_manifest_digest": request.manifest.digest,
+                "evaluation_inventory_digest": request.manifest.inventory_digest,
+                "evaluation_eligible_tasks": request.manifest.eligible_count,
+                "evaluation_selected_tasks": len(request.manifest.tasks),
+                "evaluation_selection_shortfall": request.manifest.shortfall,
+            }
+        )
     context.event("evaluation_started", attributes)
     output_dir = context.workspace / "evaluation" / environment.id
     output_dir.mkdir(parents=True, exist_ok=False)
+    if request.manifest is not None:
+        (output_dir / "evaluation-manifest.json").write_text(
+            json.dumps(request.manifest.to_payload(), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     backend = runner(context, request, output_dir)
     artifact = ProducedArtifact(
         name=f"evaluation/{_model_id(request)}/{_plan_id(request)}/{environment.id}",
@@ -141,12 +175,15 @@ def domain(
 
 
 def _attributes(request: EvaluateRequest) -> dict[str, str | int]:
+    measurement = request.plan.measurement_for(request.environment_id)
     attributes: dict[str, str | int] = {
         "evaluation_subject_id": request.model.id,
         "evaluation_plan_id": request.plan.id,
         "evaluation_plan_kind": request.plan.kind,
         "inference_binding_id": request.inference.id,
         "execution_target_id": request.target.id,
+        "evaluation_estimator": measurement.estimator,
+        "evaluation_missing_policy": measurement.missing,
     }
     if isinstance(request.model, RemotePolicy):
         assert isinstance(request.inference, RemoteEvaluationBinding)

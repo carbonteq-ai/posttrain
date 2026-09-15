@@ -1,0 +1,331 @@
+{
+  "description": "Synthetic controller-policy experiment; not an LLM training result.",
+  "paired_deltas": [
+    {
+      "candidate_groups": {
+        "lower_95": 11.659134846858443,
+        "mean": 14.25,
+        "upper_95": 16.840865153141557
+      },
+      "candidate_groups_per_completed_step": {
+        "lower_95": 0.6344310429198755,
+        "mean": 0.8153289473684209,
+        "upper_95": 0.9962268518169662
+      },
+      "completed_steps": {
+        "lower_95": -0.32061952646323305,
+        "mean": -0.15,
+        "upper_95": 0.020619526463233062
+      },
+      "direction": "adaptive_minus_random",
+      "retained_fraction": {
+        "lower_95": -0.06047836530677306,
+        "mean": -0.051198166147919284,
+        "upper_95": -0.04191796698906551
+      },
+      "scenario": "fast_saturation",
+      "unique_tasks": {
+        "lower_95": -59.56743845900594,
+        "mean": -56.6,
+        "upper_95": -53.63256154099406
+      }
+    },
+    {
+      "candidate_groups": {
+        "lower_95": -7.650109263450275,
+        "mean": -4.625,
+        "upper_95": -1.5998907365497246
+      },
+      "candidate_groups_per_completed_step": {
+        "lower_95": -0.6902983211456901,
+        "mean": -0.3593868249054009,
+        "upper_95": -0.028475328665111765
+      },
+      "completed_steps": {
+        "lower_95": -0.2005410813094245,
+        "mean": 0.175,
+        "upper_95": 0.5505410813094245
+      },
+      "direction": "adaptive_minus_random",
+      "retained_fraction": {
+        "lower_95": 0.00531437473102799,
+        "mean": 0.014467449528602109,
+        "upper_95": 0.02362052432617623
+      },
+      "scenario": "normal",
+      "unique_tasks": {
+        "lower_95": -80.39501987745294,
+        "mean": -76.4,
+        "upper_95": -72.40498012254707
+      }
+    },
+    {
+      "candidate_groups": {
+        "lower_95": -8.160544158619082,
+        "mean": -5.1,
+        "upper_95": -2.0394558413809163
+      },
+      "candidate_groups_per_completed_step": {
+        "lower_95": -0.4753458842721697,
+        "mean": -0.20476608187134512,
+        "upper_95": 0.06581372052947945
+      },
+      "completed_steps": {
+        "lower_95": -0.3399915238746687,
+        "mean": -0.075,
+        "upper_95": 0.18999152387466867
+      },
+      "direction": "adaptive_minus_random",
+      "retained_fraction": {
+        "lower_95": 0.005885281804126752,
+        "mean": 0.016158345386058964,
+        "upper_95": 0.026431408967991177
+      },
+      "scenario": "persistent_noise",
+      "unique_tasks": {
+        "lower_95": -80.68039053886626,
+        "mean": -76.225,
+        "upper_95": -71.76960946113373
+      }
+    },
+    {
+      "candidate_groups": {
+        "lower_95": -57.77734194456043,
+        "mean": -54.125,
+        "upper_95": -50.47265805543957
+      },
+      "candidate_groups_per_completed_step": {
+        "lower_95": -11.507197003342728,
+        "mean": -9.964649630555202,
+        "upper_95": -8.422102257767676
+      },
+      "completed_steps": {
+        "lower_95": 3.807296729941903,
+        "mean": 4.6,
+        "upper_95": 5.392703270058096
+      },
+      "direction": "adaptive_minus_random",
+      "retained_fraction": {
+        "lower_95": 0.11561637565035822,
+        "mean": 0.12414770958536712,
+        "upper_95": 0.13267904352037602
+      },
+      "scenario": "rare_geometry",
+      "unique_tasks": {
+        "lower_95": -141.48796055782014,
+        "mean": -136.75,
+        "upper_95": -132.01203944217986
+      }
+    },
+    {
+      "candidate_groups": {
+        "lower_95": -6.671396986821455,
+        "mean": -3.95,
+        "upper_95": -1.228603013178545
+      },
+      "candidate_groups_per_completed_step": {
+        "lower_95": -0.6598316271018194,
+        "mean": -0.32850232198142415,
+        "upper_95": 0.002826983138971062
+      },
+      "completed_steps": {
+        "lower_95": -0.15599807815100603,
+        "mean": 0.175,
+        "upper_95": 0.5059980781510061
+      },
+      "direction": "adaptive_minus_random",
+      "retained_fraction": {
+        "lower_95": 0.003983258330697091,
+        "mean": 0.013012082726516763,
+        "upper_95": 0.022040907122336435
+      },
+      "scenario": "regression",
+      "unique_tasks": {
+        "lower_95": -77.55923782323319,
+        "mean": -73.9,
+        "upper_95": -70.24076217676682
+      }
+    }
+  ],
+  "settings": {
+    "class_exploration": 0.2,
+    "group_size": 4,
+    "max_rounds": 4,
+    "seeds": 40,
+    "steps": 20,
+    "target_groups": 10,
+    "task_discovery": 0.2
+  },
+  "summaries": [
+    {
+      "candidate_groups": 230.275,
+      "candidate_groups_per_completed_step": 11.559736842105263,
+      "class_candidate_share": {
+        "algebra": 0.25053484708522855,
+        "arithmetic": 0.24715569726268602,
+        "geometry": 0.24868989448189635,
+        "probability": 0.25361956117018913
+      },
+      "completed_steps": 19.925,
+      "duplicate_fallbacks": 0.0,
+      "policy": "random",
+      "retained_fraction": 0.8686741651221247,
+      "scenario": "fast_saturation",
+      "unique_tasks": 230.275,
+      "useful_groups": 199.925
+    },
+    {
+      "candidate_groups": 244.525,
+      "candidate_groups_per_completed_step": 12.375065789473684,
+      "class_candidate_share": {
+        "algebra": 0.24765713122781846,
+        "arithmetic": 0.2519848716943821,
+        "geometry": 0.2430978832923441,
+        "probability": 0.2572601137854553
+      },
+      "completed_steps": 19.775,
+      "duplicate_fallbacks": 0.0,
+      "policy": "adaptive",
+      "retained_fraction": 0.8174759989742054,
+      "scenario": "fast_saturation",
+      "unique_tasks": 173.675,
+      "useful_groups": 199.775
+    },
+    {
+      "candidate_groups": 261.4,
+      "candidate_groups_per_completed_step": 13.518787409700723,
+      "class_candidate_share": {
+        "algebra": 0.25009973521570195,
+        "arithmetic": 0.24917590456036456,
+        "geometry": 0.24832821629126228,
+        "probability": 0.25239614393267124
+      },
+      "completed_steps": 19.375,
+      "duplicate_fallbacks": 0.0,
+      "policy": "random",
+      "retained_fraction": 0.7634320243907975,
+      "scenario": "normal",
+      "unique_tasks": 261.4,
+      "useful_groups": 199.375
+    },
+    {
+      "candidate_groups": 256.775,
+      "candidate_groups_per_completed_step": 13.159400584795321,
+      "class_candidate_share": {
+        "algebra": 0.26440351381092125,
+        "arithmetic": 0.20679764700109105,
+        "geometry": 0.2728419050650673,
+        "probability": 0.2559569341229204
+      },
+      "completed_steps": 19.55,
+      "duplicate_fallbacks": 0.0,
+      "policy": "adaptive",
+      "retained_fraction": 0.7778994739193996,
+      "scenario": "normal",
+      "unique_tasks": 185.0,
+      "useful_groups": 199.55
+    },
+    {
+      "candidate_groups": 252.85,
+      "candidate_groups_per_completed_step": 12.827836257309942,
+      "class_candidate_share": {
+        "algebra": 0.25033800376894616,
+        "arithmetic": 0.2483526667185355,
+        "geometry": 0.2472002368922363,
+        "probability": 0.25410909262028203
+      },
+      "completed_steps": 19.725,
+      "duplicate_fallbacks": 0.0,
+      "policy": "random",
+      "retained_fraction": 0.7904219435870087,
+      "scenario": "persistent_noise",
+      "unique_tasks": 252.85,
+      "useful_groups": 199.725
+    },
+    {
+      "candidate_groups": 247.75,
+      "candidate_groups_per_completed_step": 12.623070175438597,
+      "class_candidate_share": {
+        "algebra": 0.25139613978067793,
+        "arithmetic": 0.20253639184903882,
+        "geometry": 0.2647813764600519,
+        "probability": 0.2812860919102313
+      },
+      "completed_steps": 19.65,
+      "duplicate_fallbacks": 0.0,
+      "policy": "adaptive",
+      "retained_fraction": 0.8065802889730677,
+      "scenario": "persistent_noise",
+      "unique_tasks": 176.625,
+      "useful_groups": 199.65
+    },
+    {
+      "candidate_groups": 343.3,
+      "candidate_groups_per_completed_step": 25.93494020073064,
+      "class_candidate_share": {
+        "algebra": 0.2503331164434979,
+        "arithmetic": 0.2503722976522307,
+        "geometry": 0.24827399819468754,
+        "probability": 0.25102058770958385
+      },
+      "completed_steps": 13.625,
+      "duplicate_fallbacks": 0.0,
+      "policy": "random",
+      "retained_fraction": 0.5619331653492291,
+      "scenario": "rare_geometry",
+      "unique_tasks": 343.3,
+      "useful_groups": 192.75
+    },
+    {
+      "candidate_groups": 289.175,
+      "candidate_groups_per_completed_step": 15.970290570175438,
+      "class_candidate_share": {
+        "algebra": 0.323252309067697,
+        "arithmetic": 0.26413014343694025,
+        "geometry": 0.0959299689005635,
+        "probability": 0.31668757859479923
+      },
+      "completed_steps": 18.225,
+      "duplicate_fallbacks": 0.0,
+      "policy": "adaptive",
+      "retained_fraction": 0.6860808749345962,
+      "scenario": "rare_geometry",
+      "unique_tasks": 206.55,
+      "useful_groups": 198.175
+    },
+    {
+      "candidate_groups": 253.825,
+      "candidate_groups_per_completed_step": 13.06312951496388,
+      "class_candidate_share": {
+        "algebra": 0.2503625924342734,
+        "arithmetic": 0.24921773947865983,
+        "geometry": 0.24708656657656808,
+        "probability": 0.25333310151049865
+      },
+      "completed_steps": 19.475,
+      "duplicate_fallbacks": 0.0,
+      "policy": "random",
+      "retained_fraction": 0.7867000647813784,
+      "scenario": "regression",
+      "unique_tasks": 253.825,
+      "useful_groups": 199.475
+    },
+    {
+      "candidate_groups": 249.875,
+      "candidate_groups_per_completed_step": 12.734627192982456,
+      "class_candidate_share": {
+        "algebra": 0.26160985476509896,
+        "arithmetic": 0.21633621849161228,
+        "geometry": 0.2655033573423486,
+        "probability": 0.2565505694009402
+      },
+      "completed_steps": 19.65,
+      "duplicate_fallbacks": 0.0,
+      "policy": "adaptive",
+      "retained_fraction": 0.7997121475078952,
+      "scenario": "regression",
+      "unique_tasks": 179.925,
+      "useful_groups": 199.65
+    }
+  ]
+}
