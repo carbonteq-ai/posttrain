@@ -157,6 +157,7 @@ jobs:
                   case "${path}" in
                     .github/*|apps/release/tests/*|docs/plan/*|docs/publishing.md) ;;
                     packages/runtime-images/src/posttrain/runtime_images/published.toml) ;;
+                    packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/*) ;;
                     *) printf '%s\\n' "${path}" ;;
                   esac
                 done)"
@@ -198,6 +199,12 @@ jobs:
             "${candidate_manifest}" \
             packages/runtime-images/src/posttrain/runtime_images/published.toml; then
             echo "committed runtime image manifest differs from the accepted candidate" >&2
+            exit 1
+          fi
+          if ! diff -qr \
+            "${candidate_runtime_locks}" \
+            packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/; then
+            echo "committed runtime locks differ from the accepted candidate" >&2
             exit 1
           fi
           cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml
