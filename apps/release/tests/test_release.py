@@ -1178,6 +1178,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'test "$(git rev-parse "v${POSTTRAIN_RELEASE_VERSION}^{}")" = "${RELEASE_TAG_SHA}"' in final
     assert ".github/*|apps/release/tests/*|docs/plan/*|docs/publishing.md" in final
     assert "packages/runtime-images/src/posttrain/runtime_images/published.toml) ;;" in final
+    assert ("packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/*) ;;") in final
     assert "candidate build inputs changed:" in final
     assert "Prove a clean stable-index consumer install" in final
     assert "Verify required maintained forks are stable" in final
@@ -1192,6 +1193,8 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert 'cp "${candidate_manifest}" packages/runtime-images/src/posttrain/runtime_images/published.toml' in final
     assert "committed runtime image manifest differs from the accepted candidate" in final
     assert 'if ! cmp -s \\\n            "${candidate_manifest}"' in final
+    assert 'if ! diff -qr \\\n            "${candidate_runtime_locks}"' in final
+    assert "committed runtime locks differ from the accepted candidate" in final
     assert 'candidate_checksums="$(find .release/candidate -type f -name release-SHA256SUMS -print -quit)"' in final
     assert 'cp "${candidate_checksums}" .release/candidate-SHA256SUMS' in final
     assert 'gh release upload "v${POSTTRAIN_RELEASE_VERSION}" "${release_assets[@]}" --clobber' in final

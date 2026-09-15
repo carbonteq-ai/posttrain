@@ -20,37 +20,37 @@ default_prefix = "registry.lan/carbonteq"
 
 [base]
 repository = "posttrain-base"
-digest = "sha256:065c2c31b8d6065fff7ecf81da675eb47756676b4229870ec2876bcdb75b8dfd"
-lock_digest = "9aacf2786cbc2d5253cc7c8b0f54cb5a3604363aa7da862245f94d3834cecaf9"
+digest = "sha256:a5c7d5bd68479cd42ba0ef3ef62ce0e0746a76c602645bb8697bee3b560977ba"
+lock_digest = "078406683f7311738417ce1f487fcf2c0a5b1dd2fa75ea2b1c6d226023000c79"
 constraint_lock = "containers/posttrain-job-kinds/locks/base.lock.txt"
-runtime_source_digest = "422df9282573fd8612fab75252b299739e4da37f98dec38b87c0a06495989981"
-trust_bundle_digest = "881cae52f609359140d23aa06e03a4c6e36bbc87fbbc87424328089db73b9488"
+runtime_source_digest = "ecd403ecd5bac5c3299d2e03b4941a37ac1f54f56fc41e9e915e92df7a84f7f2"
+trust_bundle_digest = "1c8eebb22902615537f1b21bedac272482a1c5df087cda8f598a1b9b8cc9a226"
 
 [kinds.eval]
 repository = "posttrain-kind-eval"
-digest = "sha256:d121851f06436ae891c09ba6c7a52eee1a8dbfcbc1135629047f5feb0f933758"
-lock_digest = "87bb5bae87c8ccf468eaf87c9bf1ed319238b9e76ba6a40a3b9a42c04652f50d"
+digest = "sha256:04af79dd291bd3e35b0554aae663d91a11bc456f5d84d65864c28428c35ea925"
+lock_digest = "e8ed8df92b1026bfc06b54cf5991ea7aae4b398749f1ff23b5136590a013f641"
 constraint_lock = "containers/posttrain-job-kinds/locks/eval.lock.txt"
-runtime_source_digest = "3000840172eac940faad0918bfc780ff45039dfe5c5955af98523b30e0190753"
-base_digest = "sha256:065c2c31b8d6065fff7ecf81da675eb47756676b4229870ec2876bcdb75b8dfd"
+runtime_source_digest = "dad6a8c9b8e56a51f55ab5262c6304ad6fc81e300f58e432cee23f40e259eb49"
+base_digest = "sha256:a5c7d5bd68479cd42ba0ef3ef62ce0e0746a76c602645bb8697bee3b560977ba"
 provided_packages = ["verifiers"]
 
 [kinds.online-rl-trl-py312]
 repository = "posttrain-kind-online-rl-trl-py312"
-digest = "sha256:412b8c862b99501818fa3429af20ea57cb0b470c2bd3e5c0ec43dcf57117b8cd"
-lock_digest = "2ac4db363f1af8976be98cf5db11cc10b241864da9b3e8988e7eacfc05d0511c"
+digest = "sha256:4fdc42e8c928969803e7c5b5892870a286b56c81228c72387649d6ebab48b255"
+lock_digest = "ba21c133bd179f034b4d6ecdcd32be08f5fb385e9ceca8885b231203b857e5da"
 constraint_lock = "containers/posttrain-job-kinds/locks/online-rl-trl-py312.lock.txt"
-runtime_source_digest = "b5e05d3f0338c1f3a03cba3c3a969aad93e691dcd7b141d64428b397a74e2efb"
-base_digest = "sha256:065c2c31b8d6065fff7ecf81da675eb47756676b4229870ec2876bcdb75b8dfd"
+runtime_source_digest = "907821f758c1afff566e9eb136729cacdf04403d72b95302ea262d1aea60e2fb"
+base_digest = "sha256:a5c7d5bd68479cd42ba0ef3ef62ce0e0746a76c602645bb8697bee3b560977ba"
 provided_packages = ["verifiers"]
 
 [kinds.online-rl-verl-py313]
 repository = "posttrain-kind-online-rl-verl-py313"
-digest = "sha256:17224deaefc8d5b073fd025dec7d35eab311ece3c4efd86db35c9f2e8ed18e69"
-lock_digest = "2977d319de47f2f545e986dbb5a1d16ad835f7fd0b7f063320dcb6375eadcce0"
+digest = "sha256:602d23cd8c237e7042d4cf629d7013de0b6509dc6531cbc3bc1205d660f48bfa"
+lock_digest = "d9219efd146eb8abf58f4efc693f5906eb792e9faba583ea3f099a34981b480c"
 constraint_lock = "containers/posttrain-job-kinds/locks/online-rl-verl-py313.lock.txt"
-runtime_source_digest = "5c839f1c59916774ccc5829d664649214eed7ab25da8ce7c6a98e697655f4e48"
-base_digest = "sha256:065c2c31b8d6065fff7ecf81da675eb47756676b4229870ec2876bcdb75b8dfd"
+runtime_source_digest = "8e56a9afca8529eebdece976dc83a9584f733c09b51d62154026ee49976ad427"
+base_digest = "sha256:a5c7d5bd68479cd42ba0ef3ef62ce0e0746a76c602645bb8697bee3b560977ba"
 backend_constraint_lock = "containers/posttrain-job-kinds/verl-py313/release/backend-constraints.txt"
 backend_lock_digest = "cf1368a13fd6e1beb949efe1cd70d253d29a41a43d587611f197a7796ee00b55"
 backend_source_repository = "https://github.com/carbonteq-ai/verl.git"
@@ -59,24 +59,24 @@ backend_dependency_lock_digest = "a1f33ba061a7cd549b54f17396d6665cc41d02314674ac
 
 [kinds.serve]
 repository = "posttrain-kind-serve"
-digest = "sha256:21aee16df2278ff6a48ebc3001bcc1f3af72ead64e987140bf9bb7d8195aeb61"
-lock_digest = "42929d4c41aba5ad0dcf44b16efee60ad92ba4fbc6b67ecfc6976639e1ced491"
+digest = "sha256:b6d817ba09a6526be574390b4af1a0617aed1f0abcf4e63d60e467f1a35eed86"
+lock_digest = "ce5784da2337fe6f2a1202f7c1b0475ebfabc48c70c688ef3af6fa4f230d8dd9"
 constraint_lock = "containers/posttrain-job-kinds/locks/serve.lock.txt"
-runtime_source_digest = "cba557b3b489e9af32e9eb8d221e1666cf9c51382eae0ade2cb9d0edd8aa2c84"
-base_digest = "sha256:065c2c31b8d6065fff7ecf81da675eb47756676b4229870ec2876bcdb75b8dfd"
+runtime_source_digest = "10a8121655df539ccc4e0a63ed652bf84a07b93de917c1818817aeaa2626482f"
+base_digest = "sha256:a5c7d5bd68479cd42ba0ef3ef62ce0e0746a76c602645bb8697bee3b560977ba"
 
 [kinds.supervised]
 repository = "posttrain-kind-supervised"
-digest = "sha256:345e99c63ba8c25a32abd451bae7fea311d634f06de92ae9ba31c46a26dfcc9a"
-lock_digest = "d3331e60c75c3ffb6c94a37f4c0c0a2900bc8accec2762f3edc1f2adef603539"
+digest = "sha256:896e1a0cb7d6bbcbbd4cf3c228fc106867666e23fb07a056944d10cc08d7dff8"
+lock_digest = "4b1f1e5b336a833ba0937127655366c20fb441b57f407ed7319ff0d7b628497b"
 constraint_lock = "containers/posttrain-job-kinds/locks/supervised.lock.txt"
-runtime_source_digest = "e5981febdab7d47d77607418f7e0577eb9034a339096e8110ef8c175a40000af"
-base_digest = "sha256:065c2c31b8d6065fff7ecf81da675eb47756676b4229870ec2876bcdb75b8dfd"
+runtime_source_digest = "9c282329bbfaf9120d636ca2f06d797562d75c6ebf5495b09c7d28f88586ca5e"
+base_digest = "sha256:a5c7d5bd68479cd42ba0ef3ef62ce0e0746a76c602645bb8697bee3b560977ba"
 
 [kinds.transform]
 repository = "posttrain-kind-transform"
-digest = "sha256:fae11d621cc6432ef2394383e20dfef774eadfafbf38a41919a8c07e45058b4b"
+digest = "sha256:4ab6a035eb4f23134a5ddfa11e19fa54f7c9c09765f5ed2f0e51f75c001ce070"
 lock_digest = "350d15aa20eac92f3d3d849d7434ffeb28db81387c0d6275d9f2a58443d649a1"
 constraint_lock = "containers/posttrain-job-kinds/locks/transform.lock.txt"
 runtime_source_digest = "cd6076a81b5cb4625e16c8ebf9111c7a1d7e1079c7bf7d844fb2eb23f79d50a1"
-base_digest = "sha256:065c2c31b8d6065fff7ecf81da675eb47756676b4229870ec2876bcdb75b8dfd"
+base_digest = "sha256:a5c7d5bd68479cd42ba0ef3ef62ce0e0746a76c602645bb8697bee3b560977ba"
