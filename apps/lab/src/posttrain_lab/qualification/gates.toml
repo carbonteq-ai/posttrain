@@ -740,6 +740,19 @@ owner = "posttrain-training"
 replacement_condition = "Promote after a matched OLMo3 run completes with auditable discovery accounting, step-wide duplicate telemetry, and useful-group efficiency; otherwise retire or replace the controller policy."
 
 [[gates]]
+id = "lfm26-automationbench-vortex-20-local"
+work_package = ".posttrain/work_packages/lfm26_automationbench_vortex_20_local_v1.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.grpo"
+acceptance = "twenty-update-vortex-comparison-arm"
+experiment_family = "lfm26-automationbench-vortex-20-local-v1"
+hypothesis = "Combining adaptive task exploration with active oversampling and ten retained prompt groups improves useful collection efficiency while a wider output budget reduces transcript truncation."
+owner = "posttrain-training"
+replacement_condition = "Promote after matched held-out evaluation demonstrates an outcome gain and completion truncation falls below the declared guard; otherwise revise or retire the profile."
+
+[[gates]]
 id = "lfm26-automationbench-gdpo-episode-20-deepseek-local"
 work_package = ".posttrain/work_packages/lfm26_automationbench_gdpo_episode_20_deepseek_flash_local.yaml"
 job_id = "train"
