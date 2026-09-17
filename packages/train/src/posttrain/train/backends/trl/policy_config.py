@@ -168,6 +168,21 @@ def _online_rl_arguments(
         arguments["active_sampling_max_batches"] = olmo3_settings.active_sampling.max_candidate_batches
     if request.inference.backend.split("@", 1)[0] == "vllm":
         rollout = request.inference.engine
+        speculative = rollout.get("speculative_config")
+        weight_sync_mode = rollout.get("weight_sync_mode", "full")
+        if isinstance(speculative, Mapping) and speculative.get("method") == "uno":
+            if request.training.update.kind == "lora":
+                if "weight_sync_mode" in rollout and weight_sync_mode != "lora":
+                    raise ValueError(
+                        "TRL Uno LoRA training requires weight_sync_mode='lora' so policy and draft adapters retain "
+                        "their native precision"
+                    )
+                weight_sync_mode = "lora"
+            elif request.training.update.kind == "full":
+                if weight_sync_mode != "full":
+                    raise ValueError("TRL Uno full-policy training requires weight_sync_mode='full'")
+            else:
+                raise ValueError("TRL Uno currently supports full or LoRA policy updates, not QLoRA")
         speculative_config, engine_kwargs = vllm_rollout_options(request.policy, rollout)
         arguments.update(
             {
@@ -180,7 +195,7 @@ def _online_rl_arguments(
                 "vllm_speculative_config": speculative_config,
                 "vllm_engine_kwargs": engine_kwargs,
                 "vllm_weight_name_prefix": rollout.get("weight_name_prefix"),
-                "vllm_weight_sync_mode": rollout.get("weight_sync_mode", "full"),
+                "vllm_weight_sync_mode": weight_sync_mode,
                 "vllm_model_impl": "vllm",
                 "vllm_importance_sampling_correction": True,
                 "vllm_importance_sampling_mode": importance_sampling_mode,
@@ -242,8 +257,8 @@ def _rollout_execution_config(
         raise ValueError("TRL rollout_execution requires inference request_mode=async")
     if request.inference.engine.get("sleep_during_optimization") is not True:
         raise ValueError("TRL rollout_execution requires inference sleep_during_optimization=true")
-    if request.training.update.kind not in {"lora", "qlora"}:
-        raise ValueError("TRL asynchronous colocated rollout execution currently requires a LoRA update")
+    if request.training.update.kind not in {"full", "lora", "qlora"}:
+        raise ValueError("TRL asynchronous colocated rollout execution requires a parameter update plan")
     devices_per_node = request.training.runtime.devices_per_node or 1
     if request.training.runtime.nodes * devices_per_node != 1:
         raise ValueError("TRL asynchronous colocated rollout execution currently requires one trainer process")

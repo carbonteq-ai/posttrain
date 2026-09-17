@@ -126,7 +126,11 @@ def rollout_function(
                 return runtime.collect(
                     selected,
                     collection_id=f"step-{optimizer_step:08d}/collection-{collection_ordinal:06d}",
-                    policy_version=f"optimizer-step-{int(trainer.state.global_step):08d}",
+                    # The exact optimizer version is numeric because it is
+                    # also persisted as BehaviorPolicySpan evidence on every
+                    # native rollout. Collection identity retains the readable
+                    # step label independently.
+                    policy_version=str(int(trainer.state.global_step)),
                     observe_trace=observe_trace,
                 )
 

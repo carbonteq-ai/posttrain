@@ -28,6 +28,35 @@ remain version-pinned until their locks advance to the same fork. Future vLLM
 versions remain unsupported until the fork tests and the lab's GPU rollout
 smoke pass and all pins are advanced together.
 
+## Experimental Uno rollout line
+
+The separate CarbonTeq branch `codex/uno-spec-decoding`, based on upstream
+commit `75c71390d5b399f5397a9166920fc45902f99f14`, now has a native K2 Uno
+proposer. It shares the target model and KV cache, applies the pinned Uno LoRA
+only to future noise rows, and leaves verification, rejection sampling, and
+per-token target logprobs under vLLM authority. It is experimental and does not
+replace the production pin above.
+
+On the RTX PRO 6000, focused native smokes returned complete finite target
+logprobs for 128- and 256-token completions, produced a parsed K2 tool call,
+and completed four concurrent 128-token requests without preemption. The
+proposer runs eagerly while target execution remains compiled because the
+target CUDA graph's captured runner buffers are not shape-safe for Uno's
+seed-plus-noise forward. See
+[`uno-vllm-rollout-integration.md`](../../plan/uno-vllm-rollout-integration.md)
+for the live plan and remaining gates.
+
+Level-1 sleep/wake, post-wake generation, one in-flight abort, and
+pause/cache-clear/resume also pass through the loopback-only development
+control API. Do not select this branch for RL yet: mixed-batch abort churn,
+cache invalidation plus real changed-weight refreshes across LoRA and
+full-policy optimizer updates, and a matched warm long-prompt comparison
+remain required. Native LoRA-policy training is now qualified for one real K2
+optimizer step: target and seed rows use the current policy LoRA, while
+draft-noise rows use an atomically refreshed rank-concatenated policy-plus-Uno
+adapter. Full-policy updates remain a separate full-weight path and still need
+their changed-weight live gate.
+
 The fork delta is Python-only. The veRL image verifies the upstream 0.25.1
 x86_64 ABI3 wheel with SHA-256
 `16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e`

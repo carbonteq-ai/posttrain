@@ -10,7 +10,7 @@ from typing import Any
 from posttrain.common import ModelVariant, TraceObservation
 
 from ...integrations.verifiers_workers import VerifiersWorkerPool, create_verifiers_train_client_config
-from ...online_rl import EnvironmentRollout, RolloutBatch
+from ...online_rl import BehaviorPolicySpan, EnvironmentRollout, RolloutBatch
 from ...profiles import TrainingRenderer
 from ...rollout_execution import RolloutExecutionConfig
 from .collection_runner import TrlCollectionRunner, TrlNativeRolloutCollector
@@ -189,6 +189,10 @@ class TrlAsyncCollectionRuntime:
             model=self._renderer_model_name,
             sampling=Sampling(**sampling_values),
             project_episode=project_episode,
+            behavior_policy_for_episode=lambda key, _episode: BehaviorPolicySpan(
+                int(key.collection.policy_version),
+                int(key.collection.policy_version),
+            ),
             global_limit=self._bridge.max_concurrent,
             startup_timeout=self._startup_timeout,
         )

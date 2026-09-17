@@ -69,14 +69,18 @@ def vllm_rollout_options(
             raise ValueError("TRL trainer-side speculative_config requires colocated vLLM mode")
         if not isinstance(speculative, Mapping):
             raise ValueError("TRL rollout speculative_config must be a mapping")
-        if speculative.get("method") != "mtp":
-            raise ValueError("TRL currently supports only native MTP speculative rollout")
+        method = speculative.get("method")
+        if method not in {"mtp", "uno"}:
+            raise ValueError("TRL supports only native MTP or Uno speculative rollout")
         count = speculative.get("num_speculative_tokens")
         if not isinstance(count, int) or isinstance(count, bool) or count < 1:
-            raise ValueError("TRL MTP num_speculative_tokens must be a positive integer")
-        if not model.capabilities.mtp:
-            raise ValueError(f"model variant {model.id!r} does not declare MTP capability")
-        speculative = _resolve_speculative_assistant(model, speculative)
+            raise ValueError("TRL speculative num_speculative_tokens must be a positive integer")
+        if method == "mtp":
+            if not model.capabilities.mtp:
+                raise ValueError(f"model variant {model.id!r} does not declare MTP capability")
+            speculative = _resolve_speculative_assistant(model, speculative)
+        else:
+            speculative, _ = _resolve_uno_adapter(speculative)
 
     values: dict[str, Any] = {}
     if engine.get("text_only"):
@@ -113,6 +117,54 @@ def vllm_rollout_options(
     if speculative is not None:
         values["disable_log_stats"] = False
     return dict(speculative) if isinstance(speculative, Mapping) else None, values or None
+
+
+def _resolve_uno_adapter(
+    speculative: Mapping[str, JsonValue],
+) -> tuple[Mapping[str, JsonValue | str], int]:
+    """Resolve and validate one immutable Uno adapter for vLLM's LoRA loader."""
+
+    adapter = speculative.get("uno_adapter")
+    revision = speculative.get("uno_adapter_revision")
+    mask_token_id = speculative.get("uno_mask_token_id")
+    noise_mode = speculative.get("uno_noise_mode", "random_uniform")
+    if not isinstance(adapter, str) or not adapter.strip():
+        raise ValueError("TRL Uno speculative rollout requires uno_adapter")
+    if isinstance(mask_token_id, bool) or not isinstance(mask_token_id, int) or mask_token_id < 2:
+        raise ValueError("TRL Uno uno_mask_token_id must be an integer greater than one")
+    if noise_mode not in {"mask", "random_uniform"}:
+        raise ValueError("TRL Uno uno_noise_mode must be 'mask' or 'random_uniform'")
+    adapter_path = Path(adapter)
+    if adapter_path.exists():
+        resolved_path = adapter_path.resolve()
+    else:
+        if adapter.count("/") != 1:
+            raise ValueError("TRL Uno uno_adapter must be a local path or owner/repository string")
+        if not isinstance(revision, str) or _COMMIT_SHA.fullmatch(revision) is None:
+            raise ValueError("TRL Uno uno_adapter_revision must be a full 40-character commit SHA")
+        try:
+            from huggingface_hub import snapshot_download
+        except ImportError as error:
+            raise RuntimeError("install posttrain-train with the trl extra for Uno rollouts") from error
+        resolved_path = Path(snapshot_download(repo_id=adapter, revision=revision))
+    config_path = resolved_path / "adapter_config.json"
+    if not config_path.is_file():
+        raise ValueError(f"TRL Uno adapter is missing {config_path}")
+    try:
+        adapter_config = json.loads(config_path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"TRL Uno adapter config is unreadable: {config_path}") from error
+    rank = adapter_config.get("r")
+    if isinstance(rank, bool) or not isinstance(rank, int) or rank < 1:
+        raise ValueError("TRL Uno adapter_config.json requires a positive integer rank")
+    supported_ranks = (1, 8, 16, 32, 64, 128, 256, 320, 512)
+    try:
+        max_lora_rank = next(value for value in supported_ranks if value >= rank)
+    except StopIteration as error:
+        raise ValueError(f"vLLM does not support Uno adapter rank {rank}") from error
+    resolved = dict(speculative)
+    resolved["uno_adapter"] = str(resolved_path)
+    return resolved, max_lora_rank
 
 
 def _resolve_speculative_assistant(

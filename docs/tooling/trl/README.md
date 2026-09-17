@@ -1,5 +1,24 @@
 # TRL
 
+## Uno full-policy and native LoRA-policy refresh candidate
+
+The current unpublished candidate supports both CUDA-IPC full-policy refresh
+and native policy-LoRA refresh. For Uno with LoRA training, target and seed
+rows use the current policy adapter. Draft-noise rows use an atomically rebuilt
+rank-concatenated adapter whose delta is exactly policy plus Uno.
+
+This composition is required because vLLM selects one adapter per token row.
+It preserves native LoRA precision instead of folding small updates into the
+bfloat16 base. Posttrain selects `lora` for LoRA update plans, `full` for
+full-parameter plans, and rejects mismatches before allocation. QLoRA is not
+covered.
+
+The K2 live gate passed on RTX PRO at learning rate `1e-4`: trainable delta norm
+`0.1214345`, finite loss `2.5226655`, 32/32 finite sampled logprobs, stable
+completion tokens, and maximum post-update logprob movement `0.0655067` across
+policy versions `0` and `1`. The secondary full-policy gate remains open; this
+candidate is not yet published or pinned.
+
 ## GDPO/CAPO follow-on qualification
 
 `scripts/qualification/structured_trl_lifecycle.py` exercises installed TRL
