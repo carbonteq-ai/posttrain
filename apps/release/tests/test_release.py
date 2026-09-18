@@ -940,6 +940,8 @@ def test_candidate_builds_an_rc_and_final_rebuilds_the_accepted_materialization(
     assert "--python 3.13" in builder
     assert 'build_cache_dir="${UV_CACHE_DIR:-$build_cache_dir}"' in builder
     assert 'UV_CACHE_DIR="$build_cache_dir"' in builder
+    assert 'check_args+=(--allow-pending-runtime-lock)' in builder
+    assert 'if [[ -n "${materialization_dir}" ]]' in builder
     assert "uv build environments/" not in candidate
     assert 'generated_runtime_locks="${repository_root}/packages/runtime-images' in builder
     assert 'cp -a "${generated_runtime_locks}/." "${staged_runtime_locks}/"' in builder

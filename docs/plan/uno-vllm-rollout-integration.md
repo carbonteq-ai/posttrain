@@ -38,6 +38,7 @@ The observable outcome is a warm K2 rollout on the RTX PRO 6000 that uses the sa
 - [x] (2026-09-18 06:45Z) Rebuilt the hash-locked Torch 2.13/CUDA 13 universal base as isolated candidate digest `sha256:9a20c278e3d87e1bff03352bc74f06c49485eef6bf12afcf68754ce54edbaecf` and passed the real veRL Docker/Bake import smoke against release commit `18338a0e`.
 - [x] (2026-09-18 08:10Z) Diagnosed the first protected Posttrain 0.4.3 candidate failure at its two owning layers: generic vLLM kinds attempted a CUDA source build without `CUDA_HOME`, and the isolated transform closure still selected Torch 2.11 against the Torch 2.13 base. Added the verified retained binary overlay to the shared vLLM stage, aligned transform to the exact Torch 2.13 CUDA wheel, and passed direct `serve-smoke` and `transform-smoke` BuildKit builds against the retained candidate base.
 - [x] (2026-09-18 08:45Z) Candidate `0.4.3rc1` passed protected image publication, clean index installation, and packed RTX PRO qualification. Promoted TRL post9, veRL post3, and Trackio dev24 unchanged bytes to stable. The final stable preflight then caught one stale Trackio sdist digest in Posttrain's fork receipt; corrected it to the retained release and stable-index digest before allocating a replacement RC.
+- [x] (2026-09-18 09:10Z) Replacement candidate `0.4.3rc2` passed with the corrected fork receipt. Its final release replay exposed an ordering error in `build-python-distributions`: strict source validation ran before the accepted materialization was applied. Restricted pending-lock admission to invocations that supply a retained materialization; the staged tree remains strictly verified after projection.
 - [ ] Run the bounded GPU qualification, then promote TRL/veRL unchanged bytes and the vLLM source overlay from candidate to stable.
 
 ## Surprises & Discoveries
@@ -107,6 +108,9 @@ The observable outcome is a warm K2 rollout on the RTX PRO 6000 that uses the sa
 
 - Observation: Trackio's retained release and both package indexes carried sdist digest `f7e3ba065f1085bff171b384899d06d83d11067e934078dc67d49b8b6f542704`, while Posttrain's consumer receipt still recorded a stale locally built digest `7ba6ac88cb6f50b1682c4a6e196c5722dd9973626a896aa3ce13cc894135eb62`.
   Evidence: protected final run `35304179400` rejected stable fork verification before publishing any Posttrain bytes; retained promotion run `35302677562` proved the `f7e3...` bytes identical in development and stable.
+
+- Observation: final distribution building accepted a materialization directory but called strict release consistency validation before projecting that materialization, making the retained-candidate path fail on the pending state it is designed to resolve.
+  Evidence: final run `35305485843` verified stable forks and rc2 intact, then stopped before building final artifacts because `build-python-distributions` rejected the authored runtime locks prior to `materialization-apply`.
 
 ## Decision Log
 

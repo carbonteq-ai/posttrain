@@ -26,7 +26,14 @@ build_cache_dir="${output_dir}/uv-cache"
   exit 1
 }
 
-target_version="$(uv run --no-sync posttrain-release check --repository-root "$repository_root" | sed -n 's/^authored version: release\/manifest.toml = //p')"
+check_args=(check --repository-root "$repository_root")
+if [[ -n "${materialization_dir}" ]]; then
+  # Generated runtime locks and the image manifest are protected candidate
+  # outputs. Admit that pending state only when this invocation also carries
+  # the retained materialization that is verified and applied below.
+  check_args+=(--allow-pending-runtime-lock)
+fi
+target_version="$(uv run --no-sync posttrain-release "${check_args[@]}" | sed -n 's/^authored version: release\/manifest.toml = //p')"
 [[ -n "$target_version" ]] || { echo "could not read authored release version" >&2; exit 1; }
 
 stage_args=("$stage_dir" --repository-root "$repository_root")
