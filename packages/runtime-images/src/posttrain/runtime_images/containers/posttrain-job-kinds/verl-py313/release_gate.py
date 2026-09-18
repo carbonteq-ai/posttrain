@@ -187,12 +187,12 @@ def validate_definition(profile: ReleaseProfile) -> tuple[str, ...]:
     if FULL_REVISION.fullmatch(profile.upstream_revision) is None:
         errors.append("veRL upstream revision must be a full commit")
     required_versions = {
-        "torch": "2.11.0+cu130",
+        "torch": "2.13.0+cu130",
         "transformers": "5.14.1",
-        "vllm": "0.25.2.dev2+g7817d8457",
-        "vllm_runtime_version": "0.25.2.dev2+g7817d8457.precompiled",
-        "vllm_binary_base": "0.25.1-cp38-abi3-manylinux_2_28_x86_64",
-        "vllm_binary_wheel_sha256": ("16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e"),
+        "vllm": "0.26.1.dev1+g37706e7d9",
+        "vllm_runtime_version": "0.26.1.dev1+g37706e7d9.precompiled",
+        "vllm_binary_base": "0.3.1.dev34+g75c71390d-cp38-abi3-manylinux_2_28_x86_64",
+        "vllm_binary_wheel_sha256": ("9decf15f4451566b6cda7f2ce81a7a7f3f3226e7f82e9b2077bb2f4d23dc7f76"),
         "ray": "2.56.1",
         "tensordict": "0.10.0",
     }
@@ -327,7 +327,7 @@ def validate_repository_integration(
             ("deterministic backend bytecode", "compileall --invalidation-mode checked-hash"),
             (
                 "binary wheel checksum",
-                "16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e",
+                "9decf15f4451566b6cda7f2ce81a7a7f3f3226e7f82e9b2077bb2f4d23dc7f76",
             ),
             ("shared-heavy policy", "shared-heavy.toml"),
             ("shared fallback validator", "validate_shared_fallback.py"),
@@ -344,11 +344,11 @@ def validate_repository_integration(
             ("fail-closed wheel cache validation", "sha256sum --check --status"),
             (
                 "pinned CUTLASS base wheel",
-                "e59da7d89e5e4f8514c6530843f910f9d8734d8042dcaa079c9d9c5063eb3514",
+                "61097c5c355e1e42f8531efd4e8ead0ba61ae1ab6b0b9acfcbf2ca665b3dae5a",
             ),
             (
                 "pinned CUTLASS CUDA 13 wheel",
-                "c7a5ce1c01616fc4c3ac492e011c543a79c3dde86aaf20a8af55e9d40ef2b2e6",
+                "2f86fe8d1a7ef510b853a3800cbf324401a12fdc770cccf4ac5e20a9d0c7d1bd",
             ),
             ("deterministic source revision marker", ".posttrain-source-revision"),
             ("deterministic source snapshot", "rm -rf /opt/posttrain-verl/workdir/.git"),

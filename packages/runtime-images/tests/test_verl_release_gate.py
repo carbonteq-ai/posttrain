@@ -42,7 +42,7 @@ def test_candidate_image_smokes_both_python_313_environments() -> None:
     dockerfile = (PROFILE_ROOT / "Dockerfile").read_text(encoding="utf-8")
 
     assert "import ray, torch, transformers, tensordict, verl, verifiers, vllm" in dockerfile
-    assert "0.25.2.dev2+g7817d8457.precompiled" in dockerfile
+    assert "0.26.1.dev1+g37706e7d9.precompiled" in dockerfile
     assert 'VLLM_VERSION_OVERRIDE="${VLLM_RUNTIME_VERSION}"' in dockerfile
     assert 'CUDA_HOME="/opt/posttrain-verl/lib/python3.13/site-packages/nvidia/cu13"' in dockerfile
     assert 'CPATH="/opt/posttrain/venv/lib/python3.13/site-packages/nvidia/cu13/include"' in dockerfile
@@ -151,7 +151,8 @@ def test_candidate_caches_pinned_backend_wheels_across_dependency_rebuilds() -> 
 
     assert "id=posttrain-verl-wheels" in dockerfile
     assert "target=/opt/posttrain-wheel-cache" in dockerfile
-    assert dockerfile.count("https://pypi.lan/root/pypi/+f/") == 4
+    assert dockerfile.count("_WHEEL_URL=") == 4
+    assert dockerfile.count("_WHEEL_SHA256=") == 4
     assert "download_wheel()" in dockerfile
     assert "sha256sum --check --status" in dependency_layer
     assert 'rm -f "${target}" "${target}.part"' in dependency_layer

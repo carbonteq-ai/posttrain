@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import os
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -285,6 +286,13 @@ class TrlNativeRolloutCollector:
             else:
                 completed[ordinal] = outcome.rollout
         if failures:
+            if os.environ.get("POSTTRAIN_ACTIVE_SAMPLING_AUDIT") == "1":
+                print(
+                    "posttrain rollout-projection audit "
+                    f"collection={collection_id} completed={len(completed)} failed={len(failures)} "
+                    f"reasons={sorted(set(failures.values()))}",
+                    flush=True,
+                )
             raise VerifiersRolloutFailure(
                 f"{len(failures)} of {len(outcomes)} native Verifiers rollouts failed: "
                 f"{sorted(set(failures.values()))}",

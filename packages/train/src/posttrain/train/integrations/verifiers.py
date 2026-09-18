@@ -562,6 +562,69 @@ def _record(value: Any) -> Mapping[str, JsonValue]:
     raise TypeError(f"cannot project {type(value).__name__} into a policy message record")
 
 
+def _project_training_branch(trace: Any) -> Any:
+    """Resolve Verifiers' sampled/raw plus canonical tool-turn graph into one trajectory.
+
+    Modern tool environments retain the exact sampled assistant response as one
+    physical leaf and attach subsequent tool messages to a canonical, unsampled
+    assistant sibling. For training, replace that canonical sibling with its
+    unique sampled sibling on the deepest terminal path. Single-branch
+    environments remain unchanged; ambiguous graph shapes fail closed.
+    """
+    from verifiers.v1.trace import Branch  # pyright: ignore[reportAttributeAccessIssue]
+
+    branches = [branch for branch in trace.branches if branch.trainable and any(branch.sampled_mask)]
+    if not branches:
+        raise VerifiersRolloutFailure("online-RL trace has no trainable sampled branch")
+    if len(branches) == 1:
+        return branches[0]
+    max_depth = max(len(branch.nodes) for branch in branches)
+    terminal = [branch for branch in branches if len(branch.nodes) == max_depth]
+    if len(terminal) != 1:
+        raise VerifiersRolloutFailure(f"online-RL trace has {len(terminal)} equally deep trainable terminal branches")
+
+    node_positions = {id(node): index for index, node in enumerate(trace.nodes)}
+    expected_sampled_ids = {
+        id(node) for branch in branches for node in branch.nodes if bool(getattr(node, "sampled", False))
+    }
+    resolved_nodes: list[Any] = []
+    for node in terminal[0].nodes:
+        role = getattr(getattr(node, "message", None), "role", None)
+        if role != "assistant" or bool(getattr(node, "sampled", False)):
+            resolved_nodes.append(node)
+            continue
+        position = node_positions[id(node)]
+        sampled_siblings = [
+            candidate
+            for candidate in trace.nodes[:position]
+            if candidate.parent == node.parent
+            and bool(getattr(candidate, "sampled", False))
+            and id(candidate) in expected_sampled_ids
+            and getattr(getattr(candidate, "message", None), "role", None) == "assistant"
+        ]
+        if not sampled_siblings:
+            resolved_nodes.append(node)
+            continue
+        if len(sampled_siblings) != 1:
+            raise VerifiersRolloutFailure(
+                "online-RL cannot resolve an unsampled assistant turn with multiple sampled siblings"
+            )
+        resolved_nodes.append(sampled_siblings[0])
+
+    sampled_nodes = [node for node in resolved_nodes if bool(getattr(node, "sampled", False))]
+    if {id(node) for node in sampled_nodes} != expected_sampled_ids:
+        raise VerifiersRolloutFailure("online-RL terminal trajectory does not cover every sampled assistant turn")
+    call_by_node = {call.node: call for call in trace.calls if call.node is not None}
+    resolved_positions = [node_positions[id(node)] for node in resolved_nodes]
+    return Branch(
+        index=terminal[0].index,
+        nodes=resolved_nodes,
+        calls=[call_by_node[index] for index in resolved_positions if index in call_by_node],
+        trainable=True,
+        mm_token_type_id_map=trace.mm_token_type_id_map,
+    )
+
+
 @dataclass(slots=True)
 class VerifiersEnvironmentRolloutBridge:
     """Run native Verifiers episodes using an injected, already-loaded policy."""
@@ -1014,12 +1077,7 @@ class VerifiersEnvironmentRolloutBridge:
     def _project(self, trace: Any, observation: TraceObservation) -> EnvironmentRollout:
         if _trace_has_error(observation.payload):
             raise VerifiersRolloutFailure("Verifiers trace terminated with a harness or environment error")
-        branches = trace.branches
-        if len(branches) != 1:
-            error = getattr(trace, "error", None) or getattr(trace, "last_error", None)
-            detail = f"; trace error={error.type}: {error.message}" if error is not None else ""
-            raise VerifiersRolloutFailure(f"online-RL requires one trainable trace branch, got {len(branches)}{detail}")
-        branch = branches[0]
+        branch = _project_training_branch(trace)
         token_ids = tuple(int(value) for value in branch.token_ids)
         sampled_mask = tuple(bool(value) for value in branch.sampled_mask)
         if len(token_ids) != len(sampled_mask):

@@ -37,6 +37,7 @@ def _online_rl_arguments(
 ) -> dict[str, Any]:
     _rollout_execution_config(request)
     arguments = trainer_arguments(request.settings.loop, output_dir)
+    arguments["trust_remote_code"] = request.policy.provenance.get("trust_remote_code") is True
     arguments.pop("max_length")
     settings = request.settings
     if isinstance(settings, GDPOSettings | CAPOSettings):

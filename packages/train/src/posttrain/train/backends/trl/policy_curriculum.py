@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import math
+import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, cast
@@ -18,6 +20,7 @@ from ...adaptive_curriculum import (
 from ...profiles import AdaptiveCurriculum
 
 _SNAPSHOT_NAME = "adaptive-curriculum-state.json"
+_LOGGER = logging.getLogger(__name__)
 
 
 class AdaptiveCurriculumRuntime:
@@ -209,6 +212,9 @@ class AdaptiveCurriculumRuntime:
 def adaptive_curriculum_trainer_type(parent: type[Any], runtime: AdaptiveCurriculumRuntime) -> type[Any]:
     """Select tasks before generation and observe raw rewards afterwards."""
 
+    if os.environ.get("POSTTRAIN_ACTIVE_SAMPLING_AUDIT") == "1":
+        print(f"posttrain active-sampling audit wrapper_parent={parent.__module__}.{parent.__qualname__}", flush=True)
+
     class AdaptiveCurriculumTrainer(parent):
         def _prepare_inputs(self, generation_batch: Any) -> dict[str, Any]:
             if self.model.training:
@@ -226,6 +232,12 @@ def adaptive_curriculum_trainer_type(parent: type[Any], runtime: AdaptiveCurricu
             return cast(dict[str, Any], super()._prepare_inputs(generation_batch))
 
         def _prepare_active_sampling_inputs(self, candidate_inputs: Any) -> dict[str, Any]:
+            if os.environ.get("POSTTRAIN_ACTIVE_SAMPLING_AUDIT") == "1":
+                print(
+                    "posttrain active-sampling audit wrapper_entry "
+                    f"enabled={getattr(self, 'active_sampling', False)} candidate_rows={len(candidate_inputs)}",
+                    flush=True,
+                )
             if not getattr(self, "active_sampling", False):
                 return cast(dict[str, Any], super()._prepare_active_sampling_inputs(candidate_inputs))
             return _prepare_adaptive_active_sampling_inputs(
@@ -242,7 +254,17 @@ def adaptive_curriculum_trainer_type(parent: type[Any], runtime: AdaptiveCurricu
             completions: list[Any],
             completion_ids_list: list[list[int]],
         ) -> Any:
-            rewards = super()._calculate_rewards(inputs, prompts, completions, completion_ids_list)
+            native_rewards = _native_algorithm_reward_rows(self, inputs)
+            self._posttrain_native_group_reward_std = (
+                _native_group_reward_std(self, inputs, reward_rows=native_rewards)
+                if native_rewards is not None
+                else None
+            )
+            rewards = (
+                native_rewards
+                if native_rewards is not None
+                else super()._calculate_rewards(inputs, prompts, completions, completion_ids_list)
+            )
             if self.model.training:
                 reward_rows = _nested_floats(rewards)
                 weights = _flat_floats(self.reward_weights)
@@ -255,6 +277,38 @@ def adaptive_curriculum_trainer_type(parent: type[Any], runtime: AdaptiveCurricu
             return rewards
 
     return AdaptiveCurriculumTrainer
+
+
+def _native_algorithm_reward_rows(trainer: Any, inputs: Sequence[Mapping[str, Any]]) -> Any | None:
+    """Use rewards computed by a native rollout instead of scoring them again.
+
+    The Posttrain rollout bridge owns environment execution and reward shaping. Its
+    ``algorithm_reward`` field is therefore the authoritative learner reward for
+    adaptive native rollouts. Routing that value back through a generic TRL reward
+    callback creates a second, implicit reward contract at exactly the active-
+    sampling boundary.
+    """
+    import torch
+
+    present = ["algorithm_reward" in row for row in inputs]
+    if not any(present):
+        return None
+    if not all(present):
+        raise RuntimeError("native rollout algorithm rewards must be present for every completion")
+    reward_funcs = getattr(trainer, "reward_funcs", ())
+    if len(reward_funcs) != 1:
+        raise RuntimeError("native scalar algorithm rewards require exactly one configured TRL reward function")
+    raw_values = [row["algorithm_reward"] for row in inputs]
+    if any(isinstance(value, bool) or not isinstance(value, int | float) for value in raw_values):
+        raise RuntimeError(
+            "native rollout algorithm rewards must be scalar numbers; structured environment rewards "
+            "must be projected by the rollout bridge before trainer admission"
+        )
+    values = [float(value) for value in raw_values]
+    if not all(math.isfinite(value) for value in values):
+        raise RuntimeError("native rollout algorithm rewards must be finite")
+    local = torch.tensor(values, dtype=torch.float32, device=trainer.accelerator.device).unsqueeze(1)
+    return trainer.accelerator.gather(local)
 
 
 def _prepare_adaptive_active_sampling_inputs(
@@ -306,8 +360,60 @@ def _prepare_adaptive_active_sampling_inputs(
             generation_rounds += 1
             candidate_count += len(candidate_batch)
             continue
-        group_reward_std = scored_batch.pop("group_reward_std")
+        trl_group_reward_std = scored_batch.pop("group_reward_std")
+        native_group_reward_std = getattr(trainer, "_posttrain_native_group_reward_std", None)
+        trainer._posttrain_native_group_reward_std = None
+        group_reward_std = native_group_reward_std if native_group_reward_std is not None else trl_group_reward_std
+        if native_group_reward_std is not None:
+            if native_group_reward_std.shape != trl_group_reward_std.shape:
+                raise RuntimeError("native and TRL group reward statistics are misaligned")
+            comparable = native_group_reward_std.isfinite() & trl_group_reward_std.isfinite()
+            delta = (native_group_reward_std[comparable] - trl_group_reward_std[comparable]).abs()
+            trainer._metrics["train"]["active_sampling/native_reward_std_max_delta"].append(
+                float(delta.max().item()) if delta.numel() else 0.0
+            )
+            trainer._metrics["train"]["active_sampling/native_reward_std_disagreement_fraction"].append(
+                float(
+                    (~native_group_reward_std.isclose(trl_group_reward_std, rtol=1e-5, atol=1e-7, equal_nan=True))
+                    .float()
+                    .mean()
+                    .item()
+                )
+                if native_group_reward_std.numel()
+                else 0.0
+            )
         keep = group_reward_std > trainer.active_sampling_reward_std_epsilon
+        native_group_values = (
+            native_group_reward_std[:: trainer.num_generations].detach().cpu().tolist()
+            if native_group_reward_std is not None
+            else None
+        )
+        trl_group_values = trl_group_reward_std[:: trainer.num_generations].detach().cpu().tolist()
+        kept_rows = int(keep.sum().item())
+        _LOGGER.info(
+            "adaptive active-sampling round=%d requested_rows=%d kept_rows=%d native_group_std=%s trl_group_std=%s",
+            round_index,
+            len(candidate_batch),
+            kept_rows,
+            native_group_values,
+            trl_group_values,
+        )
+        if os.environ.get("POSTTRAIN_ACTIVE_SAMPLING_AUDIT") == "1":
+            print(
+                "posttrain active-sampling audit "
+                f"round={round_index} requested_rows={len(candidate_batch)} kept_rows={kept_rows} "
+                f"native_group_std={native_group_values} trl_group_std={trl_group_values}",
+                flush=True,
+            )
+        runtime.context.metrics(
+            {
+                "train/rl/active_sampling_round_requested_rows": len(candidate_batch),
+                "train/rl/active_sampling_round_kept_rows": kept_rows,
+                "train/rl/active_sampling_round_kept_fraction": kept_rows / len(candidate_batch),
+            },
+            step=step,
+            attributes={"round_index": round_index},
+        )
         generation_rounds += 1
         candidate_count += len(candidate_batch)
         if keep.any():
@@ -343,6 +449,39 @@ def _prepare_adaptive_active_sampling_inputs(
         len(candidate_inputs) - candidate_cursor
     )
     return cast(dict[str, Any], batch)
+
+
+def _native_group_reward_std(
+    trainer: Any,
+    inputs: Sequence[Mapping[str, Any]],
+    *,
+    reward_rows: Any | None = None,
+) -> Any | None:
+    """Derive local admission variance from authoritative native rollout rewards."""
+    import torch
+    from trl.trainer.utils import nanstd
+
+    reward_rows = _native_algorithm_reward_rows(trainer, inputs) if reward_rows is None else reward_rows
+    if reward_rows is None:
+        return None
+    group_size = int(trainer.num_generations)
+    if len(inputs) % group_size != 0:
+        raise RuntimeError("native rollout rewards must contain complete prompt groups")
+    scalar_rewards = reward_rows.squeeze(1)
+    if getattr(trainer, "mask_truncated_completions", False):
+        local_truncated = torch.tensor(
+            [bool(row.get("is_truncated", False)) for row in inputs],
+            dtype=torch.bool,
+            device=trainer.accelerator.device,
+        )
+        truncated = trainer.accelerator.gather(local_truncated)
+        if truncated.shape != scalar_rewards.shape:
+            raise RuntimeError("native rollout rewards and truncation masks are misaligned")
+        scalar_rewards = scalar_rewards.masked_fill(truncated, torch.nan)
+    group_std = nanstd(scalar_rewards.view(-1, group_size), dim=1).repeat_interleave(group_size)
+    process_index = int(getattr(trainer.accelerator, "process_index", 0))
+    local_size = len(inputs)
+    return group_std[process_index * local_size : (process_index + 1) * local_size]
 
 
 def _weighted_reward(rewards: Sequence[float], weights: Sequence[float]) -> float:

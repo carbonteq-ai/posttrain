@@ -1,0 +1,32 @@
+project_id: posttrain-lab
+work_package_id: train/k2-horizon-7b/automationbench-vortex-uno-one-update-probe-v1
+stage: train
+description: One-update RTX PRO gate for native AutomationBench rewards, VORTEX active refill, Uno rollouts, and policy LoRA synchronization.
+recipe:
+  type: inline
+  id: recipes/k2-horizon-7b-automationbench-vortex-uno-one-update-probe-v1@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: train
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, adaptive curriculum state, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/k2-horizon-7b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-v4}
+  settings: {type: ref, family: training, id: k2-horizon-7b/automationbench-vortex-uno-one-update-probe-v1}
+  training: {type: ref, family: training, id: training/k2-horizon-7b-trl-lora-automationbench-local-g4-probe@1}
+  rollout_inference: {type: ref, family: inference, id: inference/k2-horizon-7b-vllm-uno-automationbench-rollout-local-c16-4k@1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: k2-horizon-automationbench-vortex-uno-one-update-probe-v1
+  arm: vortex-uno-one-update-probe
+  task_mix: lfm26-automationbench-mix-v2
+  labels: [qualification, automationbench, k2-horizon, vortex, uno, adaptive-curriculum, active-sampling, lora, one-update]

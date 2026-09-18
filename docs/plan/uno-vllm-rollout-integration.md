@@ -18,7 +18,7 @@ The observable outcome is a warm K2 rollout on the RTX PRO 6000 that uses the sa
 - [x] (2026-09-17 17:05Z) Ported the minimal linear Psi-Spec draft path: bounded random noise, compact seed-plus-noise inputs, draft probabilities, vLLM-owned rejection sampling, and native acceptance telemetry.
 - [x] (2026-09-18 00:10Z) Added separate full-policy and native LoRA-policy paths. LoRA target rows retain the policy adapter; Uno noise rows use an atomically refreshed rank-concatenated `policy + Uno` adapter.
 - [x] (2026-09-17 19:05Z) Preserved target sampling, per-token target log probabilities, abort/drain, sleep/wake, prefix-cache invalidation, numeric policy-version fencing, and exact `BehaviorPolicySpan` projection in the code path. Real changed-weight optimizer gates remain unqualified.
-- [ ] Extend Posttrain's rollout option resolver, catalogs, metrics, and tests for a pinned Uno adapter revision. (Resolver and focused tests are complete; catalog selection and released dependency pins remain open.)
+- [x] (2026-09-18 05:50Z) Extended Posttrain's rollout option resolver, K2 model variant, catalogs, cache/speculation metrics, and focused tests for the pinned Uno adapter revision.
 - [ ] Run distributional correctness, tool-call, long-prompt, 16K-output, concurrency, warm-throughput, and RL weight-update qualification on the RTX PRO 6000.
 - [x] (2026-09-17 15:44Z) Ran the retained short Uno reference smoke on the RTX PRO and audited its public lifecycle interfaces; generation passed but RL admission failed on missing target logprobs, policy-version fencing, weight refresh, abort, and sleep/wake.
 - [x] (2026-09-17 17:05Z) Ran the native vLLM Uno path on the RTX PRO: 128/128 and 256/256 finite target logprobs, a parsed K2 tool call, and four concurrent 128-token requests with no preemptions.
@@ -26,7 +26,16 @@ The observable outcome is a warm K2 rollout on the RTX PRO 6000 that uses the sa
 - [x] (2026-09-17 17:28Z) Enabled loopback-only vLLM lifecycle controls and passed level-1 sleep/wake, post-wake 32/32 target logprobs, single-request abort, and pause/cache-clear/resume on the RTX PRO.
 - [x] (2026-09-17 17:31Z) Set and read back the exact base policy revision through vLLM's weight-version register; Posttrain still must attach and fence that value on each rollout because OpenAI completion responses omit it.
 - [x] (2026-09-18 00:10Z) Passed the primary live K2 LoRA optimizer gate on RTX PRO: policy version `0` to `1`, finite target logprobs, trainable delta norm `0.1214`, stable tokens, and maximum sampled-logprob movement `0.0655` at learning rate `1e-4`.
-- [ ] Commit and push the vLLM fork before updating immutable Posttrain dependency pins and lockfiles.
+- [x] (2026-09-18 01:15Z) Closed the colocated rollout cache-observability gap: synchronous and continuous-async vLLM now retain per-collection prefix query tokens, hit tokens, hit rate, KV peak usage, and speculative counters; Posttrain projects them into provider-neutral `serve/backend/*` metrics.
+- [x] (2026-09-18 01:40Z) Cancelled the first VORTEX 20-step qualification before any optimizer update after active sampling repeatedly requested full refills. Removed the native-reward callback indirection at the adaptive trainer boundary and added mixed-reward and incomplete-population regression coverage.
+- [x] (2026-09-18 03:35Z) Proved that AutomationBench's structured reward objects were not the refill cause. The environment bridge emits a finite scalar `algorithm_reward`; environments without that field retain TRL's generic single- or multi-reward-function path.
+- [x] (2026-09-18 03:40Z) Fixed modern Verifiers multi-turn projection at the trace boundary. The bridge now resolves canonical unsampled assistant/tool continuations back to their exact sampled siblings, preserves sampled token IDs/logprobs, and fails closed on ambiguous graphs.
+- [x] (2026-09-18 03:45Z) Proved genuine bounded active sampling live: a 16-row probe reduced its second request to 12 rows, and the final four-row probe admitted all four rows on round two with matching native and TRL group standard deviation `0.1507936567`.
+- [x] (2026-09-18 04:04Z) Completed the one-update K2/Uno/VORTEX gate. Trackio run `744d74f0-d963-44c6-8594-18eb2f53810a` admitted four rows after two rounds and finished one LoRA optimizer step with finite loss `0.005787`, gradient norm `0.002367`, and zero native/TRL variance disagreement.
+- [x] (2026-09-18 04:08Z) Pushed the generic TRL corrections at `carbonteq-ai/trl@096145f37e64d92f36e664643a1d0e9917fe3cf3`: real MoE detection across five trainers plus chunked GRPO log-probabilities with router auxiliary loss. The focused fork tests pass 2/2 on the RTX host.
+- [x] (2026-09-18 05:50Z) Published vLLM `carbonteq-v0.26.1.dev1`, TRL `carbonteq-v1.12.0.post9`, and veRL `carbonteq-v0.9.0.post3` from immutable commits. TRL and veRL retained-asset workflows `35292803386` and `35292934219` passed exact-byte development readback and clean installation.
+- [x] (2026-09-18 05:50Z) Advanced the Posttrain root lock to Torch 2.13, TRL post9, and vLLM commit `37706e7d`; regenerated the veRL Python 3.13.12 image lock for post3 and the commit-matched vLLM binary base. The fork ledger and 15 release-definition tests pass.
+- [ ] Build and smoke the updated veRL runtime image, run the bounded GPU qualification, then promote TRL/veRL unchanged bytes and the vLLM source overlay from candidate to stable.
 
 ## Surprises & Discoveries
 
@@ -66,6 +75,21 @@ The observable outcome is a warm K2 rollout on the RTX PRO 6000 that uses the sa
 - Observation: Current vLLM's LoRA mapping selects one adapter identifier per token row; it cannot directly evaluate the sum of a changing policy LoRA and the fixed Uno LoRA on one draft-noise row.
   Evidence: the model-runner `LoRAMapping` contains one integer mapping per token. The native Uno proposer therefore needs either a synthesized composite adapter or a materialized policy delta.
 
+- Observation: vLLM exposes prefix-cache reuse as scheduler-local token deltas, while the existing TRL bridge retained only capacity and peak usage and its asynchronous path did not snapshot scheduler metrics at all.
+  Evidence: `SchedulerStats.prefix_cache_stats` reports `queries` and `hits` in tokens. The new runtime tracker resets at collection admission, snapshots after drain and before sleep, and derives rates only after raw-count aggregation.
+
+- Observation: Verifiers reward components are objects, but the learner never receives those objects.
+  Evidence: `Trace.reward` sums each component's `score * weight`; `VerifiersEnvironmentRolloutBridge._project` then converts that value to `float`, and the rollout adapter emits finite scalar `algorithm_reward` rows. A controlled `[0, 1, 1, 0]` bridge probe also preserved the values exactly through TRL's generic callback.
+
+- Observation: the failed VORTEX attempt nevertheless routed its authoritative native scalar back through TRL's generic reward-function interface before group-variance admission.
+  Evidence: `policy_rollouts.py` emitted `algorithm_reward`, then `_bridge_reward` reconstructed the same scalar from a mutable input row. The adaptive trainer now consumes the explicit native field directly, rejects partial/non-finite populations, and exposes it to the unchanged TRL group-statistics implementation as a `[rows, 1]` tensor.
+
+- Observation: modern Verifiers represents a multi-turn tool episode as several sampled/raw physical branches plus a canonical unsampled assistant sibling that owns the following tool message.
+  Evidence: the live projection failures reported 2, 5, 6, 7, and 12 trainable branches. Resolving the unique deepest terminal path through exact sampled siblings produced complete token/logprob trajectories and allowed active-sampling variance to reach admission.
+
+- Observation: `logits_chunk_size` and real MoE router auxiliary loss were independently implemented but artificially mutually exclusive in the TRL fork; separately, TRL falsely classified dense K2-Horizon as an MoE.
+  Evidence: the four-row live probe filled its batch and then failed before backward with `logits_chunk_size is not supported with router auxiliary loss`. The pinned K2 config has `num_experts=0` and `num_experts_per_tok=0` but still exposes `output_router_logits=False`; TRL's field-presence test therefore enabled a nonexistent objective. MoE detection now requires a positive expert count, while actual MoEs carry router logits through chunked scoring.
+
 ## Decision Log
 
 - Decision: Base the new fork line on exact upstream commit `75c71390d5b399f5397a9166920fc45902f99f14`, the revision already qualified in the K2 comparison, rather than rebasing the v0.25.1 maintenance branch.
@@ -100,9 +124,21 @@ The observable outcome is a warm K2 rollout on the RTX PRO 6000 that uses the sa
   Rationale: The target query is already represented in KV state; replaying it changes positions and destroys acceptance. Two slots avoid eviction of the pinned adapter during memory profiling.
   Date/Author: 2026-09-17 / Codex
 
+- Decision: Persist prefix-cache query and hit token counts as the source evidence and derive the hit rate from their aggregate at each fixed-policy collection boundary.
+  Rationale: averaging scheduler-iteration rates would weight small and large prefixes equally, while cumulative process counters would leak prior policy versions into later optimizer steps. Raw per-collection counts preserve an exact denominator and respect policy-cache invalidation.
+  Date/Author: 2026-09-18 / Codex
+
+- Decision: Treat Posttrain's native `algorithm_reward` as authoritative at the adaptive trainer boundary instead of round-tripping it through a generic TRL callback.
+  Rationale: Posttrain owns environment execution and algorithm-specific shaping for this rollout path. Direct finite scalar rows eliminate a second interpretation seam while preserving structured components in trace evidence and ordinary TRL single- or multi-reward functions for environments that do not provide native rewards.
+  Date/Author: 2026-09-18 / Codex
+
+- Decision: Preserve both chunked LM-head scoring and the model's router auxiliary loss.
+  Rationale: disabling either would hide a fork integration gap and would make the probe unlike the intended memory-efficient MoE training profile. The backbone output contains both hidden states and router logits, so the two objectives are compatible.
+  Date/Author: 2026-09-18 / Codex
+
 ## Outcomes & Retrospective
 
-The native proposer and position-gated adapter now run inside vLLM on the RTX PRO. The primary K2 LoRA optimizer-step gate passes with exact policy versions, finite target logprobs, stable completion tokens, and measurable post-update logprob movement. The implementation retains native policy-LoRA precision and applies a refreshed policy-plus-Uno composite only to draft-noise rows. Full-policy changed-weight qualification, mixed-batch abort churn, and the retained warm long-prompt comparison remain open.
+The native proposer and position-gated adapter now run inside vLLM on the RTX PRO. The primary K2 LoRA optimizer-step gate passes with exact policy versions, finite target logprobs, stable completion tokens, and measurable post-update logprob movement. The implementation retains native policy-LoRA precision and applies a refreshed policy-plus-Uno composite only to draft-noise rows. The bounded K2/Uno/VORTEX probe also completes a real LoRA optimizer step: modern Verifiers multi-turn projection, environment-neutral scalar reward handoff, two-round active sampling, chunked policy scoring, and finite backward all passed together. The failed attempts exposed and corrected integration bugs at their ownership boundaries: canonical Verifiers branch projection, router-loss capability detection, and stale runtime dependency pins. The three maintained forks now have immutable candidate releases and exact-byte development publication. Stable promotion remains gated on the rebuilt veRL image, bounded GPU qualification, full-policy changed-weight qualification, mixed-batch abort churn, the 20-step stability run, and the retained warm long-prompt comparison.
 
 ## Context and Orientation
 

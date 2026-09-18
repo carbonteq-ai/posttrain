@@ -6,8 +6,8 @@ the dormant `online-rl-verl-py313` kind image.
 Current inputs:
 
 1. `pyproject.toml` selects CarbonTeq veRL
-   `98742d3e9507318ba0b5d4944034deb7db1ec84b` (`0.9.0.post2` candidate), CarbonTeq vLLM
-   `7817d845727af570352622dc8d58f2d43c76d89d`, and Verifiers core
+   `18338a0efbd6f103378d2861f4a078ad243db455` (`0.9.0.post3` candidate), CarbonTeq vLLM
+   `37706e7d920abc97c705ffecee0919d64ef31485`, and Verifiers core
    `84ab782391bbfe1ac4f4ca32fa612e56d01b5b81` with no concrete environment
    packages and no editable or path sources.
 2. `uv.lock` is generated for exact Python `3.13.12`.
@@ -16,8 +16,9 @@ Current inputs:
    constraints from replacing backend-owned versions such as
    `antlr4-python3-runtime==4.9.3`.
 4. `profile.toml` records the fork revision and both content digests.
-5. The image verifies the upstream vLLM 0.25.1 x86_64 ABI3 wheel at SHA-256
-   `16fc7a28df1576eb6f7ca0455026551b8f9adb674c19c66059359ef3e964bd1e`
+5. The image verifies the upstream commit-specific vLLM x86_64 ABI3 wheel at
+   SHA-256
+   `9decf15f4451566b6cda7f2ce81a7a7f3f3226e7f82e9b2077bb2f4d23dc7f76`
    and uses its compiled extensions as the binary base for the Python-only
    CarbonTeq fork delta.
 

@@ -807,6 +807,66 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
+  # One bounded K2-Horizon/Uno qualification run of the VORTEX controller.
+  # It keeps the released ten-group/four-generation policy and 20 updates;
+  # only model-specific memory and rollout runtime controls differ.
+  k2-horizon-7b/automationbench-vortex-20-uno-local-v1: &k2_horizon_vortex_20_uno_local_v1
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 20
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 40
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 10
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    adaptive_curriculum:
+      class_field: domain
+      class_exploration: 0.2
+      task_discovery: 0.2
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
+  # Bounded release gate for the native-reward and active-refill handoff. This
+  # must complete one real optimizer update before the 20-step arm is retried.
+  k2-horizon-7b/automationbench-vortex-uno-one-update-probe-v1:
+    <<: *k2_horizon_vortex_20_uno_local_v1
+    revision: "1"
+    loop:
+      max_steps: 1
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 4
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 1
+      checkpoint_limit: 1
+    num_prompts_per_step: 1
+    adaptive_curriculum:
+      class_field: domain
+      class_exploration: 1.0
+      task_discovery: 1.0
+      history_groups: 4
+      seed: 172846
+
   lfm2.5-2.6b/automationbench-gdpo-episode-50-v1:
     selection_type: gdpo-settings
     revision: "1"
@@ -1053,6 +1113,83 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
+      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+
+  training/k2-horizon-7b-trl-lora-automationbench-local-g40@1: &k2_horizon_trl_lora_automationbench_local_g40
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post8
+    renderer:
+      id: k2-horizon-tools-thinking@1
+      model_family: k2-horizon
+      implementation: default
+      reasoning_mode: high
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: q_proj,v_proj
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 40
+      devices_per_node: 1
+      timeout_seconds: 86400
+    backend_options:
+      rollout_execution: {env_workers: 5, episodes_per_worker: 8, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      vllm_policy_parity_max_sequence_tokens: 4096
+      dependency_lock: trl-uno-candidate@096145f3
+      source_revision: 096145f37e64d92f36e664643a1d0e9917fe3cf3
+      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+
+  training/k2-horizon-7b-trl-lora-automationbench-local-g16-probe@1:
+    <<: *k2_horizon_trl_lora_automationbench_local_g40
+    revision: "1"
+    runtime:
+      global_batch_size: 16
+      devices_per_node: 1
+      timeout_seconds: 86400
+    backend_options:
+      rollout_execution: {env_workers: 2, episodes_per_worker: 8, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      vllm_policy_parity_max_sequence_tokens: 4096
+      dependency_lock: trl-uno-candidate@096145f3
+      source_revision: 096145f37e64d92f36e664643a1d0e9917fe3cf3
+      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+
+  training/k2-horizon-7b-trl-lora-automationbench-local-g8-probe@1:
+    <<: *k2_horizon_trl_lora_automationbench_local_g40
+    revision: "1"
+    runtime:
+      global_batch_size: 8
+      devices_per_node: 1
+      timeout_seconds: 86400
+    backend_options:
+      rollout_execution: {env_workers: 1, episodes_per_worker: 8, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      vllm_policy_parity_max_sequence_tokens: 4096
+      dependency_lock: trl-uno-candidate@096145f3
+      source_revision: 096145f37e64d92f36e664643a1d0e9917fe3cf3
+      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+
+  training/k2-horizon-7b-trl-lora-automationbench-local-g4-probe@1:
+    <<: *k2_horizon_trl_lora_automationbench_local_g40
+    revision: "1"
+    runtime:
+      global_batch_size: 4
+      devices_per_node: 1
+      timeout_seconds: 86400
+    backend_options:
+      rollout_execution: {env_workers: 1, episodes_per_worker: 4, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      vllm_policy_parity_max_sequence_tokens: 4096
+      dependency_lock: trl-uno-candidate@096145f3
+      source_revision: 096145f37e64d92f36e664643a1d0e9917fe3cf3
       dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
@@ -1317,6 +1454,41 @@ inference:
       free_cache_engine: true
       text_only: true
       skip_mm_profiling: true
+    sampling: *policy_sampling_4k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/k2-horizon-7b-vllm-uno-automationbench-rollout-local-c16-4k@1:
+    revision: "1"
+    model: models/k2-horizon-7b@bf16
+    backend: vllm@0.26.1
+    renderer: k2-horizon-tools-thinking@1
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.38
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 16
+      max_num_batched_tokens: 32768
+      kv_cache_memory_bytes: 12884901888
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+      trust_remote_code: true
+      speculative_config:
+        method: uno
+        num_speculative_tokens: 7
+        uno_adapter: IFM/K2-Horizon-7B-Uno
+        uno_adapter_revision: ec92bbd768f4a404319625204544782e3377bcd7
+        uno_mask_token_id: 250624
+        uno_noise_mode: random_uniform
+        draft_sample_method: probabilistic
     sampling: *policy_sampling_4k
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]

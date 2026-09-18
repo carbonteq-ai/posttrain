@@ -87,6 +87,27 @@ model:
       source: huggingface
       license: lfm1.0
       upstream_model_type: lfm2
+  models/k2-horizon-7b@bf16:
+    artifact:
+      kind: hub
+      repo_id: IFM/K2-Horizon-7B
+      revision: 586b03f0fd1fbbf2f13eeafc33749e95ae34dd10
+    form: foundation
+    weight_precision: bf16
+    family: k2-horizon
+    parameters: 7000000000
+    instruction_tuned: true
+    renderer_contract: k2-horizon-tools-thinking@1
+    capabilities:
+      modalities: [text]
+      native_context_window: 524288
+      mtp: false
+    provenance:
+      source: huggingface
+      license: apache-2.0
+      upstream_model_type: k2_horizon
+      upstream_architecture: K2HorizonForCausalLM
+      trust_remote_code: true
   models/nanbeige4.2-3b@bf16:
     artifact:
       kind: hub

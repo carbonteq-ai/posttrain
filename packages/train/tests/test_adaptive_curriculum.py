@@ -16,6 +16,8 @@ from posttrain.train.adaptive_curriculum import (
 )
 from posttrain.train.backends.trl.policy_curriculum import (
     AdaptiveCurriculumRuntime,
+    _native_algorithm_reward_rows,
+    _native_group_reward_std,
     adaptive_curriculum_trainer_type,
 )
 from posttrain.train.catalog_schema import decode_training_selection
@@ -39,6 +41,178 @@ class RecordingBackend:
 
     def close(self) -> None:
         self.closed = True
+
+
+def test_native_algorithm_rewards_reach_trl_as_scalar_rows() -> None:
+    import torch
+
+    class Accelerator:
+        device = torch.device("cpu")
+
+        @staticmethod
+        def gather(value: object) -> object:
+            return value
+
+    trainer = SimpleNamespace(accelerator=Accelerator(), reward_funcs=[object()])
+
+    rewards = _native_algorithm_reward_rows(
+        trainer,
+        [
+            {"algorithm_reward": 0.0},
+            {"algorithm_reward": 1.0},
+            {"algorithm_reward": 1.0},
+            {"algorithm_reward": 0.0},
+        ],
+    )
+
+    assert isinstance(rewards, torch.Tensor)
+    torch.testing.assert_close(rewards, torch.tensor([[0.0], [1.0], [1.0], [0.0]]))
+    assert rewards.std(unbiased=False).item() == pytest.approx(0.5)
+
+
+def test_native_algorithm_rewards_reject_partial_population() -> None:
+    import torch
+
+    trainer = SimpleNamespace(
+        accelerator=SimpleNamespace(device=torch.device("cpu")),
+        reward_funcs=[object()],
+    )
+
+    with pytest.raises(RuntimeError, match="every completion"):
+        _native_algorithm_reward_rows(trainer, [{"algorithm_reward": 0.0}, {}])
+
+
+@pytest.mark.parametrize("value", [True, {"partial_credit": {"score": 1.0, "weight": 1.0}}])
+def test_native_algorithm_rewards_reject_unprojected_environment_values(value: object) -> None:
+    import torch
+
+    trainer = SimpleNamespace(
+        accelerator=SimpleNamespace(device=torch.device("cpu")),
+        reward_funcs=[object()],
+    )
+
+    with pytest.raises(RuntimeError, match="must be scalar numbers"):
+        _native_algorithm_reward_rows(trainer, [{"algorithm_reward": value}])
+
+
+def test_generic_reward_path_remains_available_for_other_environments() -> None:
+    import torch
+
+    class Accelerator:
+        device = torch.device("cpu")
+
+        @staticmethod
+        def gather(value: object) -> object:
+            return value
+
+    trainer = SimpleNamespace(accelerator=Accelerator(), reward_funcs=[object(), object()])
+
+    assert _native_algorithm_reward_rows(trainer, [{"prompt": "environment-owned"}]) is None
+
+
+def test_native_group_reward_std_repeats_each_prompt_group_statistic() -> None:
+    import torch
+
+    class Accelerator:
+        device = torch.device("cpu")
+
+        @staticmethod
+        def gather(value: object) -> object:
+            return value
+
+    trainer = SimpleNamespace(
+        accelerator=Accelerator(),
+        reward_funcs=[object()],
+        num_generations=4,
+        mask_truncated_completions=False,
+    )
+
+    group_std = _native_group_reward_std(
+        trainer,
+        [{"algorithm_reward": value} for value in (0.0, 1.0, 1.0, 0.0, 0.6, 0.6, 0.6, 0.6)],
+    )
+
+    assert isinstance(group_std, torch.Tensor)
+    torch.testing.assert_close(group_std, torch.tensor([0.57735026] * 4 + [0.0] * 4))
+
+
+def test_native_group_reward_std_excludes_masked_truncations() -> None:
+    import torch
+
+    class Accelerator:
+        device = torch.device("cpu")
+        process_index = 0
+
+        @staticmethod
+        def gather(value: object) -> object:
+            return value
+
+    trainer = SimpleNamespace(
+        accelerator=Accelerator(),
+        reward_funcs=[object()],
+        num_generations=4,
+        mask_truncated_completions=True,
+    )
+    rows = [
+        {"algorithm_reward": 0.0, "is_truncated": True},
+        {"algorithm_reward": 1.0, "is_truncated": False},
+        {"algorithm_reward": 1.0, "is_truncated": False},
+        {"algorithm_reward": 1.0, "is_truncated": False},
+    ]
+
+    group_std = _native_group_reward_std(trainer, rows)
+
+    assert isinstance(group_std, torch.Tensor)
+    torch.testing.assert_close(group_std, torch.zeros(4))
+
+
+def test_adaptive_trainer_uses_native_rewards_without_generic_rescoring() -> None:
+    import torch
+
+    class Accelerator:
+        device = torch.device("cpu")
+
+        @staticmethod
+        def gather(value: object) -> object:
+            return value
+
+    class Runtime:
+        observed: tuple[list[dict[str, object]], list[list[float]], list[float], int] | None = None
+
+        def observe_rewards(
+            self,
+            inputs: list[dict[str, object]],
+            rewards: list[list[float]],
+            weights: list[float],
+            *,
+            step: int,
+        ) -> None:
+            self.observed = (inputs, rewards, weights, step)
+
+    class Parent:
+        def __init__(self) -> None:
+            self.model = SimpleNamespace(training=True)
+            self.accelerator = Accelerator()
+            self.reward_funcs = [object()]
+            self.reward_weights = torch.tensor([1.0])
+            self.num_generations = 2
+            self.mask_truncated_completions = False
+            self.state = SimpleNamespace(global_step=2)
+
+        def _calculate_rewards(self, *_args: object, **_kwargs: object) -> object:
+            raise AssertionError("native rewards must not be sent through the generic reward callback")
+
+    runtime = Runtime()
+    trainer = adaptive_curriculum_trainer_type(Parent, cast(Any, runtime))()
+    inputs = [
+        {"example_id": "task", "algorithm_reward": 0.0},
+        {"example_id": "task", "algorithm_reward": 1.0},
+    ]
+
+    rewards = trainer._calculate_rewards(inputs, [], [], [])
+
+    torch.testing.assert_close(rewards, torch.tensor([[0.0], [1.0]]))
+    assert runtime.observed == (inputs, [[0.0], [1.0]], [1.0], 3)
 
 
 def _controller(
@@ -470,6 +644,7 @@ def test_trainer_composition_selects_before_generation_and_observes_raw_rewards(
             self._step = 0
             self._buffered_inputs = None
             self.state = SimpleNamespace(global_step=0)
+            self.reward_funcs = [object()]
             self.reward_weights = [1.0]
 
         def _prepare_inputs(self, generation_batch: list[dict[str, object]]) -> dict[str, object]:
@@ -547,7 +722,9 @@ def test_olmo_active_sampling_selects_each_refill_from_fresh_evidence(tmp_path: 
             self.active_sampling_max_batches = 3
             self.active_sampling_reward_std_epsilon = 0.0
             self.num_generations = 2
+            self.mask_truncated_completions = False
             self.state = SimpleNamespace(global_step=0)
+            self.reward_funcs = [object()]
             self.reward_weights = [1.0]
             self._metrics = {"train": defaultdict(list)}
             self.generated_task_ids: list[tuple[str, ...]] = []
@@ -576,15 +753,20 @@ def test_olmo_active_sampling_selects_each_refill_from_fresh_evidence(tmp_path: 
             self.generated_task_ids.append(
                 tuple(str(inputs[offset]["example_id"]) for offset in range(0, len(inputs), self.num_generations))
             )
-            rewards = self._calculate_rewards(inputs, [], [], [])
-            group_std: list[float] = []
-            for offset in range(0, len(rewards), self.num_generations):
-                values = torch.tensor([row[0] for row in rewards[offset : offset + self.num_generations]])
-                group_std.extend([float(values.std(unbiased=False))] * self.num_generations)
+            self.reward_calls += 1
+            for offset in range(0, len(inputs), self.num_generations):
+                # Retain one group in the first round, then retain the refill.
+                varied = self.reward_calls > 1 or offset == 0
+                values = (0.0, 1.0) if varied else (0.0, 0.0)
+                for row, reward in zip(inputs[offset : offset + self.num_generations], values, strict=True):
+                    row["algorithm_reward"] = reward
+            self._calculate_rewards(inputs, [], [], [])
             return {
                 "completion_ids": torch.arange(len(inputs)).reshape(-1, 1),
                 "completion_mask": torch.ones((len(inputs), 1), dtype=torch.bool),
-                "group_reward_std": torch.tensor(group_std),
+                # Reproduce the live failure: generic TRL statistics lost the
+                # native variance even though the rollout rewards were mixed.
+                "group_reward_std": torch.zeros(len(inputs)),
                 "example_id": [row["example_id"] for row in inputs],
                 "domain": [row["domain"] for row in inputs],
             }
@@ -631,6 +813,9 @@ def test_olmo_active_sampling_selects_each_refill_from_fresh_evidence(tmp_path: 
         assert len(retained["completion_ids"]) == 4
         assert trainer._metrics["train"]["active_sampling/generation_rounds"] == [2]
         assert trainer._metrics["train"]["active_sampling/generated_rows"] == [6]
+        assert trainer._metrics["train"]["active_sampling/native_reward_std_max_delta"] == pytest.approx(
+            [2**-0.5, 2**-0.5]
+        )
         decisions = [event[1] for event in context.events if event[0] == "adaptive_curriculum_allocation_selected"]
         assert [decision["selection_kind"] for decision in decisions] == [
             "active_sampling_refill",

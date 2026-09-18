@@ -5,6 +5,7 @@ from posttrain.common.variants import (
     GEMMA_4_31B_IT,
     GEMMA_4_E2B_IT,
     GEMMA_4_E4B_IT,
+    K2_HORIZON_7B,
     LFM_25_12B_THINKING,
     LFM_25_26B,
     NANBEIGE_42_3B,
@@ -49,6 +50,8 @@ def test_foundation_variants_publish_explicit_model_and_renderer_contracts() -> 
     assert GEMMA_4_12B_IT.renderer.id == "gemma4-tools@1"
     assert GEMMA_4_12B_IT.provenance["upstream_model_type"] == "gemma4_unified"
     assert GEMMA_4_12B_IT.provenance["upstream_architecture"] == "Gemma4UnifiedForConditionalGeneration"
+    assert K2_HORIZON_7B.renderer.id == "k2-horizon-tools-thinking@1"
+    assert K2_HORIZON_7B.provenance["trust_remote_code"] is True
 
 
 def test_gemma4_dense_matrix_is_pinned_and_mtp_ready() -> None:

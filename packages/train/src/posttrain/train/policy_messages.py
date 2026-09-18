@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -22,6 +23,9 @@ def parsed_policy_message(
     sequence; never substitute an empty action or repair arguments implicitly.
     Reasoning stays in its native channel and accepted calls stay structured.
     """
+    if tool_call_protocol is not None and tool_call_protocol.id == "k2_ifm_xml":
+        return _k2_ifm_message(token_ids, tokenizer, tools)
+
     content = [parsed.content] if parsed.content else []
     calls = []
     rejected = []
@@ -64,6 +68,87 @@ def parsed_policy_message(
         if recovered is not None:
             message["content"] = recovered[0]
             message["tool_calls"] = recovered[1]
+    return message
+
+
+def _k2_ifm_message(
+    token_ids: Sequence[int],
+    tokenizer: Any,
+    tools: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
+    """Project K2's sampled IFM XML protocol without repairing invalid calls."""
+
+    raw = tokenizer.decode(list(token_ids), skip_special_tokens=False)
+    for stop in ("<|ifm|im_end|>", "<|ifm|endoftext|>"):
+        if raw.endswith(stop):
+            raw = raw[: -len(stop)]
+    reasoning: str | None = None
+    body = raw
+    # The generation prompt already contains the opening reasoning tag, so a
+    # completion normally begins with reasoning text and only carries its close.
+    close = re.search(r"</ifm\|(think|think_fast|think_faster)>", body)
+    if close is not None:
+        prefix = body[: close.start()]
+        opened = re.match(r"\s*<ifm\|(think|think_fast|think_faster)>\s*", prefix)
+        reasoning = prefix[opened.end() :] if opened is not None else prefix
+        body = body[close.end() :]
+
+    allowed = {
+        str(function["name"])
+        for tool in tools
+        if isinstance(tool, dict)
+        and isinstance((function := tool.get("function", tool)), dict)
+        and isinstance(function.get("name"), str)
+    }
+    calls: list[dict[str, str]] = []
+    call_block = re.search(r"<ifm\|tool_calls>(.*?)</ifm\|tool_calls>", body, flags=re.DOTALL)
+    if call_block is not None:
+        for index, match in enumerate(
+            re.finditer(r"<ifm\|tool_call>(.*?)</ifm\|tool_call>", call_block.group(1), flags=re.DOTALL)
+        ):
+            payload = match.group(1).strip()
+            name, separator, remainder = payload.partition("\n")
+            if not separator or name not in allowed:
+                continue
+            arguments: dict[str, Any] = {}
+            valid = True
+            position = 0
+            pattern = re.compile(
+                r"\s*<ifm\|arg_key>(.*?)</ifm\|arg_key>\s*"
+                r"<ifm\|arg_value>(.*?)</ifm\|arg_value>",
+                flags=re.DOTALL,
+            )
+            for argument in pattern.finditer(remainder):
+                if remainder[position : argument.start()].strip():
+                    valid = False
+                    break
+                key = argument.group(1).strip()
+                value_text = argument.group(2).strip()
+                if not key or key in arguments:
+                    valid = False
+                    break
+                try:
+                    value = json.loads(value_text)
+                except json.JSONDecodeError:
+                    value = value_text
+                arguments[key] = value
+                position = argument.end()
+            if remainder[position:].strip() or not valid:
+                continue
+            calls.append(
+                {
+                    "id": f"call_{index}",
+                    "name": name,
+                    "arguments": json.dumps(arguments, separators=(",", ":"), ensure_ascii=False),
+                }
+            )
+        body = f"{body[: call_block.start()]}{body[call_block.end() :]}"
+
+    message: dict[str, Any] = {"role": "assistant", "content": body.strip() or None}
+    if reasoning is not None:
+        message["reasoning_content"] = reasoning.strip()
+    if calls:
+        message["tool_calls"] = calls
     return message
 
 

@@ -8,10 +8,11 @@ from typing import Any, cast
 
 import pytest
 from posttrain.common import ProducedArtifact
-from posttrain.common.variants import GEMMA_4_12B_IT, LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common.variants import GEMMA_4_12B_IT, K2_HORIZON_7B, LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.train import LoRAUpdate, TrainingLoop
 from posttrain.train.backends.trl.common import (
     checkpoint_callback_type,
+    load_tokenizer,
     load_trainable_model,
     preserve_recovery_checkpoint_after_error,
     publish_interrupted_recovery_checkpoint,
@@ -125,6 +126,55 @@ def test_trainable_model_loader_honors_requested_dtype() -> None:
     ]
     with pytest.raises(ValueError, match="bfloat16.*float32"):
         load_trainable_model(QWEN_35_2B, LoRAUpdate(), cast(TrainingLoop, loop), imports, model_dtype="float16")
+
+
+def test_trainable_model_loader_expands_explicit_lora_target_module_csv() -> None:
+    lora_configs: list[dict[str, object]] = []
+
+    class Factory:
+        @staticmethod
+        def from_pretrained(_repo: str, **_kwargs: object) -> Any:
+            return SimpleNamespace(config=SimpleNamespace(use_cache=True))
+
+    imports = {
+        "torch": SimpleNamespace(bfloat16="bf16", float32="fp32"),
+        "AutoModelForCausalLM": Factory,
+        "AutoModelForMultimodalLM": Factory,
+        "get_peft_model": lambda model, _config: model,
+        "LoraConfig": lambda **kwargs: lora_configs.append(kwargs) or object(),
+    }
+
+    load_trainable_model(
+        K2_HORIZON_7B,
+        LoRAUpdate(target_modules="q_proj, v_proj"),
+        cast(TrainingLoop, SimpleNamespace(gradient_checkpointing=False)),
+        imports,
+        model_dtype="bfloat16",
+    )
+
+    assert lora_configs[0]["target_modules"] == ["q_proj", "v_proj"]
+
+
+def test_k2_tokenizer_enables_only_its_pinned_remote_code() -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    class Factory:
+        @staticmethod
+        def from_pretrained(repo: str, **kwargs: object) -> Any:
+            calls.append((repo, kwargs))
+            return SimpleNamespace(pad_token_id=0, padding_side="left")
+
+    load_tokenizer(K2_HORIZON_7B, {"AutoTokenizer": Factory})
+
+    assert calls == [
+        (
+            "IFM/K2-Horizon-7B",
+            {
+                "revision": "586b03f0fd1fbbf2f13eeafc33749e95ae34dd10",
+                "trust_remote_code": True,
+            },
+        )
+    ]
 
 
 def test_gemma_mtp_materializes_the_pinned_assistant_before_trl(monkeypatch) -> None:

@@ -99,8 +99,10 @@ def test_sync_collection_runtime_reuses_one_async_loop_and_replays_observations_
                 observe_trace=lambda _trace: observed_threads.append(threading.get_ident()),
             )
             assert result[0].example_id == "train/000000"
-            assert result[0].behavior_policy.start == ordinal
-            assert result[0].behavior_policy.end == ordinal
+            behavior_policy = result[0].behavior_policy
+            assert behavior_policy is not None
+            assert behavior_policy.start == ordinal
+            assert behavior_policy.end == ordinal
     finally:
         runtime.close()
 

@@ -27,6 +27,17 @@ from ..retention import validate_adapter_only_directory
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
+def _peft_target_modules(value: str) -> str | list[str]:
+    """Preserve PEFT sentinels/regexes while supporting catalog CSV lists."""
+
+    if "," not in value:
+        return value
+    modules = [module.strip() for module in value.split(",")]
+    if any(not module for module in modules) or len(set(modules)) != len(modules):
+        raise ValueError("LoRA target_modules CSV must contain unique non-empty module names")
+    return modules
+
+
 def framework_imports() -> dict[str, Any]:
     os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
     try:
@@ -210,10 +221,11 @@ def _resolve_speculative_assistant(
 
 
 def load_tokenizer(model: ModelVariant, imports: dict[str, Any]) -> Any:
+    trust_remote_code = model.provenance.get("trust_remote_code") is True
     tokenizer = imports["AutoTokenizer"].from_pretrained(
         model.base.repo_id,
         revision=model.base.revision,
-        trust_remote_code=False,
+        trust_remote_code=trust_remote_code,
     )
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -255,7 +267,7 @@ def load_trainable_model(
         "device_map": {"": 0},
         "dtype": dtype,
         "attn_implementation": "sdpa",
-        "trust_remote_code": False,
+        "trust_remote_code": model.provenance.get("trust_remote_code") is True,
     }
     if isinstance(update, QLoRAUpdate):
         load_options["quantization_config"] = imports["BitsAndBytesConfig"](
@@ -280,7 +292,7 @@ def load_trainable_model(
             r=update.rank,
             lora_alpha=update.alpha,
             lora_dropout=update.dropout,
-            target_modules=update.target_modules,
+            target_modules=_peft_target_modules(update.target_modules),
             bias="none",
             task_type="CAUSAL_LM",
         )

@@ -123,7 +123,7 @@ def rollout_function(
                     )
                     trainer._posttrain_async_collection_runtime = runtime  # noqa: SLF001 - backend lifecycle state
                 collection_ordinal += 1
-                return runtime.collect(
+                outcomes = runtime.collect(
                     selected,
                     collection_id=f"step-{optimizer_step:08d}/collection-{collection_ordinal:06d}",
                     # The exact optimizer version is numeric because it is
@@ -133,6 +133,13 @@ def rollout_function(
                     policy_version=str(int(trainer.state.global_step)),
                     observe_trace=observe_trace,
                 )
+                from trl.generation.vllm_generation import _accumulate_spec_decode_metrics
+
+                _accumulate_spec_decode_metrics(
+                    trainer._metrics["train"],  # noqa: SLF001 - TRL's native metric buffer
+                    trainer.vllm_generation.last_generation_metrics,
+                )
+                return outcomes
 
             if isinstance(request, GDPORequest | CAPORequest) or (
                 isinstance(request, GRPORequest) and batch.prompt_group_ids
