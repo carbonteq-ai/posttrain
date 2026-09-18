@@ -64,12 +64,15 @@ jobs:
       - name: Run deterministic release readiness
         run: |
           if [[ "${GITHUB_EVENT_NAME}" = "pull_request" \
+            || ( "${GITHUB_EVENT_NAME}" = "push" && "${GITHUB_REF_NAME}" = "main" ) \
             || "${{ inputs.allow_pending_runtime_lock || false }}" = "true" ]]; then
             pending_lock=--allow-pending-runtime-lock
             # Generated runtime locks are candidate materialization, not
             # authored Git state. Project them in the disposable CI checkout
-            # before the test suite so dependency-changing PRs validate the
-            # exact closure that the protected candidate builder will publish.
+            # before the test suite so dependency-changing PRs and their exact
+            # merged main commit validate the closure that the protected
+            # candidate builder published. Final release replays and verifies
+            # that retained materialization instead of committing these locks.
             uv run --no-sync posttrain-release lock-runtime-dependencies
             uv export \
               --project tools/quantization \
