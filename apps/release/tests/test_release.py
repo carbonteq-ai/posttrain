@@ -551,6 +551,24 @@ def test_prepare_changes_only_the_authored_manifest(tmp_path: Path) -> None:
     assert (tmp_path / "packages/train/pyproject.toml").read_text(encoding="utf-8") == source_metadata
 
 
+def test_prepare_allows_candidate_runtime_materialization_to_remain_pending(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _version_repository(tmp_path)
+    observed: dict[str, object] = {}
+
+    def fake_check_release(repository_root: Path, *, allow_pending_runtime_lock: bool = False) -> object:
+        observed["root"] = repository_root
+        observed["allow_pending"] = allow_pending_runtime_lock
+        return object()
+
+    monkeypatch.setattr(versioning, "check_release", fake_check_release)
+
+    prepare_release(tmp_path, "0.3.0")
+
+    assert observed == {"root": tmp_path.resolve(), "allow_pending": True}
+
+
 def test_stage_expands_static_wheel_metadata_without_touching_source(tmp_path: Path) -> None:
     source = tmp_path / "source"
     destination = tmp_path / "staged"
@@ -785,10 +803,10 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
     entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
 
     assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev23"
-    assert entries["trl"].revision == "6dfc69db939144d270cbcbbed17294262b5ac6f4"
-    assert entries["verl"].release_tag == "carbonteq-v0.9.0.post2"
+    assert entries["trl"].revision == "3b7a582e011a32de74d1f2b6e572b794360fbfd7"
+    assert entries["verl"].release_tag == "carbonteq-v0.9.0.post3"
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
-        "8d4736461fbc3bf72075b4d84417208b3c5fc9ffc6f48bf26cbe9ef955cf307b"
+        "4d1263e77cc9c36a63874efa7f9cf42cb42687282e13b87294edcbe40918a135"
     )
     assert entries["automationbench"].artifacts["environment_revision"] == ("a6d779fc1fdfde23f86e297125b3381b140cec2f")
     assert entries["dstack"].required is False
@@ -1287,10 +1305,10 @@ def test_required_fork_index_check_uses_every_python_fork_hash(monkeypatch: pyte
     assert {item["filename"] for item in artifacts} == {
         "carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl",
         "carbonteq_trackio-0.31.5.post14.dev23.tar.gz",
-        "trl-1.12.0.post8-py3-none-any.whl",
-        "trl-1.12.0.post8.tar.gz",
-        "verl-0.9.0.post2-py3-none-any.whl",
-        "verl-0.9.0.post2.tar.gz",
+        "trl-1.12.0.post9-py3-none-any.whl",
+        "trl-1.12.0.post9.tar.gz",
+        "verl-0.9.0.post3-py3-none-any.whl",
+        "verl-0.9.0.post3.tar.gz",
     }
 
 

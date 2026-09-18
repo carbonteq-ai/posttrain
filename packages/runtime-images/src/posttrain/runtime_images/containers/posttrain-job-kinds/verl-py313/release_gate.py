@@ -408,13 +408,17 @@ def run_container_gate(
             cwd=ROOT.parent,
             env={**os.environ, **environment},
             check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
         )
     except OSError:
         return ("docker buildx is unavailable for the veRL container smoke",)
     if completed.returncode != 0:
-        return ("real veRL Docker/Bake import smoke failed",)
+        output = completed.stdout or ""
+        tail = "\n".join(output.splitlines()[-40:])
+        detail = f"\n{tail}" if tail else ""
+        return (f"real veRL Docker/Bake import smoke failed{detail}",)
     return ()
 
 

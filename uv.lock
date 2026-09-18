@@ -2764,7 +2764,7 @@ requires-dist = [
     { name = "posttrain-environment", editable = "packages/environment" },
     { name = "prime", marker = "extra == 'verifiers'", specifier = ">=0.6" },
     { name = "pydantic", specifier = ">=2.12,<3" },
-    { name = "torch", marker = "extra == 'verifiers'", index = "https://download.pytorch.org/whl/cu130" },
+    { name = "torch", marker = "extra == 'verifiers'", url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" },
     { name = "transformers", marker = "extra == 'verifiers'", specifier = ">=4.57" },
     { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=84ab782391bbfe1ac4f4ca32fa612e56d01b5b81" },
 ]
@@ -3134,7 +3134,7 @@ requires-dist = [
     { name = "nvidia-ml-py", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = ">=13.580.82" },
     { name = "nvidia-nvvm", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = "==13.0.88" },
     { name = "posttrain-common", editable = "packages/common" },
-    { name = "torch", marker = "extra == 'vllm'", index = "https://download.pytorch.org/whl/cu130" },
+    { name = "torch", marker = "extra == 'vllm'", url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" },
     { name = "torchaudio", marker = "extra == 'vllm'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", marker = "extra == 'vllm'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "vllm", marker = "extra == 'vllm'", git = "https://github.com/carbonteq-ai/vllm.git?rev=37706e7d920abc97c705ffecee0919d64ef31485" },
@@ -3257,7 +3257,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "renderers", marker = "extra == 'trl'", specifier = "==0.1.12.dev3" },
     { name = "sentencepiece", marker = "extra == 'trl'", specifier = ">=0.2,<0.3" },
-    { name = "torch", marker = "extra == 'trl'", specifier = ">=2.13,<2.14", index = "https://download.pytorch.org/whl/cu130" },
+    { name = "torch", marker = "extra == 'trl'", url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" },
     { name = "torchvision", marker = "extra == 'trl'", specifier = ">=0.28,<0.29", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'trl'", specifier = ">=5.14,<5.15" },
     { name = "trl", marker = "extra == 'trl'", specifier = "==1.12.0.post9", index = "https://pypi.lan/carbonteq/dev/+simple/" },
@@ -4556,7 +4556,7 @@ wheels = [
 [[package]]
 name = "torch"
 version = "2.13.0+cu130"
-source = { registry = "https://download.pytorch.org/whl/cu130" }
+source = { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" }
 dependencies = [
     { name = "cuda-bindings", marker = "sys_platform == 'linux'" },
     { name = "cuda-toolkit", extra = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "sys_platform == 'linux'" },
@@ -4574,10 +4574,30 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 wheels = [
-    { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_aarch64.whl", upload-time = "2026-07-08T11:19:11Z" },
-    { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl", upload-time = "2026-07-08T11:19:18Z" },
-    { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-win_amd64.whl", upload-time = "2026-07-08T11:19:21Z" },
+    { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:95bdbad2f0786bd448932e4b72a6404aa22290db6ec954e24edfa6d33c833c8f" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "cuda-bindings", marker = "python_full_version < '3.15' and sys_platform == 'linux'", specifier = ">=13.0.3,<14" },
+    { name = "cuda-toolkit", extras = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "sys_platform == 'linux'", specifier = "==13.0.3" },
+    { name = "filelock" },
+    { name = "fsspec", specifier = ">=0.8.5" },
+    { name = "jinja2" },
+    { name = "networkx", specifier = ">=2.5.1" },
+    { name = "nvidia-cudnn-cu13", marker = "sys_platform == 'linux'", specifier = "==9.20.0.48" },
+    { name = "nvidia-cusparselt-cu13", marker = "sys_platform == 'linux'", specifier = "==0.8.1" },
+    { name = "nvidia-nccl-cu13", marker = "sys_platform == 'linux'", specifier = "==2.29.7" },
+    { name = "nvidia-nvshmem-cu13", marker = "sys_platform == 'linux'", specifier = "==3.4.5" },
+    { name = "opt-einsum", marker = "extra == 'opt-einsum'", specifier = ">=3.3" },
+    { name = "optree", marker = "extra == 'optree'", specifier = ">=0.13.0" },
+    { name = "pyyaml", marker = "extra == 'pyyaml'" },
+    { name = "setuptools", specifier = ">=77.0.3" },
+    { name = "sympy", specifier = ">=1.13.3" },
+    { name = "triton", marker = "python_full_version < '3.15' and sys_platform == 'linux'", specifier = "==3.7.1" },
+    { name = "typing-extensions", specifier = ">=4.10.0" },
+]
+provides-extras = ["optree", "opt-einsum", "pyyaml"]
 
 [[package]]
 name = "torch-c-dlpack-ext"

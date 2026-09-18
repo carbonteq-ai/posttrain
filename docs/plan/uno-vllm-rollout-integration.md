@@ -35,7 +35,8 @@ The observable outcome is a warm K2 rollout on the RTX PRO 6000 that uses the sa
 - [x] (2026-09-18 04:08Z) Pushed the generic TRL corrections at `carbonteq-ai/trl@096145f37e64d92f36e664643a1d0e9917fe3cf3`: real MoE detection across five trainers plus chunked GRPO log-probabilities with router auxiliary loss. The focused fork tests pass 2/2 on the RTX host.
 - [x] (2026-09-18 05:50Z) Published vLLM `carbonteq-v0.26.1.dev1`, TRL `carbonteq-v1.12.0.post9`, and veRL `carbonteq-v0.9.0.post3` from immutable commits. TRL and veRL retained-asset workflows `35292803386` and `35292934219` passed exact-byte development readback and clean installation.
 - [x] (2026-09-18 05:50Z) Advanced the Posttrain root lock to Torch 2.13, TRL post9, and vLLM commit `37706e7d`; regenerated the veRL Python 3.13.12 image lock for post3 and the commit-matched vLLM binary base. The fork ledger and 15 release-definition tests pass.
-- [ ] Build and smoke the updated veRL runtime image, run the bounded GPU qualification, then promote TRL/veRL unchanged bytes and the vLLM source overlay from candidate to stable.
+- [x] (2026-09-18 06:45Z) Rebuilt the hash-locked Torch 2.13/CUDA 13 universal base as isolated candidate digest `sha256:9a20c278e3d87e1bff03352bc74f06c49485eef6bf12afcf68754ce54edbaecf` and passed the real veRL Docker/Bake import smoke against release commit `18338a0e`.
+- [ ] Run the bounded GPU qualification, then promote TRL/veRL unchanged bytes and the vLLM source overlay from candidate to stable.
 
 ## Surprises & Discoveries
 
@@ -89,6 +90,12 @@ The observable outcome is a warm K2 rollout on the RTX PRO 6000 that uses the sa
 
 - Observation: `logits_chunk_size` and real MoE router auxiliary loss were independently implemented but artificially mutually exclusive in the TRL fork; separately, TRL falsely classified dense K2-Horizon as an MoE.
   Evidence: the four-row live probe filled its batch and then failed before backward with `logits_chunk_size is not supported with router auxiliary loss`. The pinned K2 config has `num_experts=0` and `num_experts_per_tok=0` but still exposes `output_router_logits=False`; TRL's field-presence test therefore enabled a nonexistent objective. MoE detection now requires a positive expert count, while actual MoEs carry router logits through chunked scoring.
+
+- Observation: the prior shared runtime base could not safely parent the new veRL closure because it carried Torch 2.11 and older cuBLAS, cuDNN, cuSPARSELt, and NCCL distributions.
+  Evidence: fail-closed shared-fallback validation rejected inherited `nvidia-cublas==13.1.0.3` against the backend lock's `13.1.1.3`; regenerating and rebuilding the universal base installed the exact Torch 2.13 shared set and made the real veRL image gate pass without duplicate CUDA packages.
+
+- Observation: an optional BuildKit trust-bundle secret could reuse a cached layer created without the secret because secret contents do not participate in Docker RUN cache identity.
+  Evidence: the first base retry still failed with `UnknownIssuer` after mounting the LAN CA. The runtime builder now supplies the bundle SHA-256 as a non-secret build argument, which invalidated that layer and allowed the hash-locked private-index installation to complete.
 
 ## Decision Log
 

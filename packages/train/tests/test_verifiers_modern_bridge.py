@@ -12,7 +12,7 @@ from posttrain.train.rollout_execution import CollectionKey, EpisodeKey
 
 
 def test_training_branch_replaces_canonical_tool_turn_with_exact_sampled_sibling() -> None:
-    import verifiers.v1 as vf
+    vf = pytest.importorskip("verifiers.v1")
 
     trace = vf.Trace(
         agent=vf.AgentInfo(config=vf.AgentConfig()),

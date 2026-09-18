@@ -4,6 +4,31 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.4.3 - 2026-09-18
+
+This release adds native Uno speculative rollout integration for the VORTEX
+training path and advances the maintained TRL, veRL, and vLLM fork closure.
+
+### Added
+
+- A position-gated Uno proposer integrated with vLLM verification, continuous
+  batching, abort, sleep, log-probability, and weight-refresh lifecycle paths.
+- LoRA-aware rollout synchronization with explicit policy-version fencing and
+  reward-object normalization at the active-sampling admission boundary.
+- Cache, speculative-decoding, concurrency, and token-throughput observations
+  for rollout qualification.
+
+### Changed
+
+- TRL now consumes the immutable CarbonTeq vLLM release and fixes MoE auxiliary
+  scoring capability detection; veRL consumes the same fork without claiming
+  native K2 training support.
+- Runtime images advance to the Torch 2.13 CUDA 13 closure and rebuild the
+  shared base instead of duplicating mismatched CUDA libraries in the veRL
+  backend layer.
+- Release preparation now permits the expected pending image materialization;
+  exact runtime locks and OCI identities remain protected-candidate outputs.
+
 ## 0.4.2 - 2026-09-15
 
 This release adds the VORTEX training profile and replaces the implicit

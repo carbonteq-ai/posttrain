@@ -1031,7 +1031,7 @@ training:
   training/lfm2.5-2.6b-trl-lora-automationbench@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.12.0.post8
+    backend: trl@1.12.0.post9
     renderer:
       id: lfm2.5-tools-thinking@2
       model_family: lfm2.5
@@ -1054,13 +1054,13 @@ training:
       logits_chunk_size: 128
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
-      source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+      source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
+      dependency_lock_sha256: 3e535f90268d7beb0bb3058380e599c512b7781114226d0309f7b376a93f42a8
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.12.0.post8
+    backend: trl@1.12.0.post9
     renderer:
       id: lfm2.5-tools-thinking@2
       model_family: lfm2.5
@@ -1083,13 +1083,13 @@ training:
       logits_chunk_size: 128
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
-      source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+      source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
+      dependency_lock_sha256: 3e535f90268d7beb0bb3058380e599c512b7781114226d0309f7b376a93f42a8
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g40@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.12.0.post8
+    backend: trl@1.12.0.post9
     renderer:
       id: lfm2.5-tools-thinking@2
       model_family: lfm2.5
@@ -1112,13 +1112,13 @@ training:
       logits_chunk_size: 128
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
-      source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+      source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
+      dependency_lock_sha256: 3e535f90268d7beb0bb3058380e599c512b7781114226d0309f7b376a93f42a8
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g40@1: &k2_horizon_trl_lora_automationbench_local_g40
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.12.0.post8
+    backend: trl@1.12.0.post9
     renderer:
       id: k2-horizon-tools-thinking@1
       model_family: k2-horizon
@@ -1140,9 +1140,9 @@ training:
       use_liger_kernel: false
       logits_chunk_size: 128
       vllm_policy_parity_max_sequence_tokens: 4096
-      dependency_lock: trl-uno-candidate@096145f3
-      source_revision: 096145f37e64d92f36e664643a1d0e9917fe3cf3
-      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+      dependency_lock: trl-fork@current
+      source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
+      dependency_lock_sha256: 3e535f90268d7beb0bb3058380e599c512b7781114226d0309f7b376a93f42a8
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g16-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1156,9 +1156,9 @@ training:
       use_liger_kernel: false
       logits_chunk_size: 128
       vllm_policy_parity_max_sequence_tokens: 4096
-      dependency_lock: trl-uno-candidate@096145f3
-      source_revision: 096145f37e64d92f36e664643a1d0e9917fe3cf3
-      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+      dependency_lock: trl-fork@current
+      source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
+      dependency_lock_sha256: 3e535f90268d7beb0bb3058380e599c512b7781114226d0309f7b376a93f42a8
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g8-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1172,9 +1172,9 @@ training:
       use_liger_kernel: false
       logits_chunk_size: 128
       vllm_policy_parity_max_sequence_tokens: 4096
-      dependency_lock: trl-uno-candidate@096145f3
-      source_revision: 096145f37e64d92f36e664643a1d0e9917fe3cf3
-      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+      dependency_lock: trl-fork@current
+      source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
+      dependency_lock_sha256: 3e535f90268d7beb0bb3058380e599c512b7781114226d0309f7b376a93f42a8
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g4-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1188,14 +1188,14 @@ training:
       use_liger_kernel: false
       logits_chunk_size: 128
       vllm_policy_parity_max_sequence_tokens: 4096
-      dependency_lock: trl-uno-candidate@096145f3
-      source_revision: 096145f37e64d92f36e664643a1d0e9917fe3cf3
-      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+      dependency_lock: trl-fork@current
+      source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
+      dependency_lock_sha256: 3e535f90268d7beb0bb3058380e599c512b7781114226d0309f7b376a93f42a8
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.12.0.post8
+    backend: trl@1.12.0.post9
     renderer:
       id: lfm2.5-tools-thinking@2
       model_family: lfm2.5
@@ -1222,7 +1222,7 @@ training:
   training/lfm2.5-2.6b-trl-lora-changed-weight-canary@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.12.0.post8
+    backend: trl@1.12.0.post9
     renderer:
       id: lfm2.5-tools-thinking@2
       model_family: lfm2.5
@@ -1238,13 +1238,13 @@ training:
       logits_chunk_size: 64
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
-      source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+      source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
+      dependency_lock_sha256: 3e535f90268d7beb0bb3058380e599c512b7781114226d0309f7b376a93f42a8
 
   training/lfm2.5-1.2b-trl-lora-changed-weight-local@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.12.0.post8
+    backend: trl@1.12.0.post9
     renderer:
       id: lfm2.5-tools@1
       model_family: lfm2.5
@@ -1260,8 +1260,8 @@ training:
       logits_chunk_size: 64
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
-      source_revision: 6dfc69db939144d270cbcbbed17294262b5ac6f4
-      dependency_lock_sha256: 07d1b9020aee6225d8f8a1e39eb5d275106358971b405f842a2d65660fcc68a7
+      source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
+      dependency_lock_sha256: 3e535f90268d7beb0bb3058380e599c512b7781114226d0309f7b376a93f42a8
 
   reward/automationbench-episode-gdpo@1:
     selection_type: reward-projection

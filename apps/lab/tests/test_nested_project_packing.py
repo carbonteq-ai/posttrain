@@ -34,7 +34,7 @@ def _candidate_manifest_for_nested_packing_tests(monkeypatch: pytest.MonkeyPatch
     exercise only the nested-project packaging boundary.
     """
 
-    manifest = _load_manifest(verify_locks=False)
+    manifest = _load_manifest(verify_locks=False, verify_variants=False)
     # The planner forwards its candidate-verification switches to the loader;
     # keep this test double compatible with that call boundary while still
     # returning the deliberately relaxed candidate manifest.

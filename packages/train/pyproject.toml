@@ -50,7 +50,7 @@ package = true
 posttrain-common = { workspace = true }
 posttrain-data = { workspace = true }
 posttrain-environment = { workspace = true }
-torch = { index = "pytorch-cu130" }
+torch = { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" }
 torchvision = { index = "pytorch-cu130" }
 trl = { index = "carbonteq-dev" }
 
