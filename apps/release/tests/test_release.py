@@ -1079,6 +1079,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "allow_pending_runtime_lock:" in quality
     assert "default: false" in quality
     assert "inputs.allow_pending_runtime_lock || false" in quality
+    assert '"${GITHUB_EVENT_NAME}" = "push" && "${GITHUB_REF_NAME}" = "main"' in quality
     assert "--allow-pending-runtime-lock" in quality
 
     for workflow in (candidate,):
