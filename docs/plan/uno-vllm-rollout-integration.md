@@ -36,6 +36,7 @@ The observable outcome is a warm K2 rollout on the RTX PRO 6000 that uses the sa
 - [x] (2026-09-18 05:50Z) Published vLLM `carbonteq-v0.26.1.dev1`, TRL `carbonteq-v1.12.0.post9`, and veRL `carbonteq-v0.9.0.post3` from immutable commits. TRL and veRL retained-asset workflows `35292803386` and `35292934219` passed exact-byte development readback and clean installation.
 - [x] (2026-09-18 05:50Z) Advanced the Posttrain root lock to Torch 2.13, TRL post9, and vLLM commit `37706e7d`; regenerated the veRL Python 3.13.12 image lock for post3 and the commit-matched vLLM binary base. The fork ledger and 15 release-definition tests pass.
 - [x] (2026-09-18 06:45Z) Rebuilt the hash-locked Torch 2.13/CUDA 13 universal base as isolated candidate digest `sha256:9a20c278e3d87e1bff03352bc74f06c49485eef6bf12afcf68754ce54edbaecf` and passed the real veRL Docker/Bake import smoke against release commit `18338a0e`.
+- [x] (2026-09-18 08:10Z) Diagnosed the first protected Posttrain 0.4.3 candidate failure at its two owning layers: generic vLLM kinds attempted a CUDA source build without `CUDA_HOME`, and the isolated transform closure still selected Torch 2.11 against the Torch 2.13 base. Added the verified retained binary overlay to the shared vLLM stage, aligned transform to the exact Torch 2.13 CUDA wheel, and passed direct `serve-smoke` and `transform-smoke` BuildKit builds against the retained candidate base.
 - [ ] Run the bounded GPU qualification, then promote TRL/veRL unchanged bytes and the vLLM source overlay from candidate to stable.
 
 ## Surprises & Discoveries
@@ -97,6 +98,12 @@ The observable outcome is a warm K2 rollout on the RTX PRO 6000 that uses the sa
 - Observation: an optional BuildKit trust-bundle secret could reuse a cached layer created without the secret because secret contents do not participate in Docker RUN cache identity.
   Evidence: the first base retry still failed with `UnknownIssuer` after mounting the LAN CA. The runtime builder now supplies the bundle SHA-256 as a non-secret build argument, which invalidated that layer and allowed the hash-locked private-index installation to complete.
 
+- Observation: building a vLLM Git dependency from source still runs its Python packaging step even when the intended CUDA extension bytes already exist, and that packaging step fails in generic runtime stages unless vLLM's supported precompiled-wheel overlay is selected explicitly.
+  Evidence: the first protected 0.4.3 candidate failed with `CUDA_HOME is not set`; the direct rebuilt `serve-smoke` used `VLLM_USE_PRECOMPILED=1`, installed fork version `0.26.1.dev1+g37706e7d9`, and completed without CUDA compilation.
+
+- Observation: the transform runtime has an independent quantization lock, so advancing the universal base to Torch 2.13 does not update transform automatically.
+  Evidence: the first candidate could not satisfy `torch==2.11.0+cu130` from the transform lock; regenerating that isolated lock from an exact Torch 2.13 CUDA URL made the direct `transform-smoke` pass with llmcompressor and Trackio dev24.
+
 ## Decision Log
 
 - Decision: Base the new fork line on exact upstream commit `75c71390d5b399f5397a9166920fc45902f99f14`, the revision already qualified in the K2 comparison, rather than rebasing the v0.25.1 maintenance branch.
@@ -141,6 +148,10 @@ The observable outcome is a warm K2 rollout on the RTX PRO 6000 that uses the sa
 
 - Decision: Preserve both chunked LM-head scoring and the model's router auxiliary loss.
   Rationale: disabling either would hide a fork integration gap and would make the probe unlike the intended memory-efficient MoE training profile. The backbone output contains both hidden states and router logits, so the two objectives are compatible.
+  Date/Author: 2026-09-18 / Codex
+
+- Decision: Build generic vLLM job kinds from the immutable CarbonTeq source commit with the SHA-verified binary wheel from its recorded upstream base as the extension overlay.
+  Rationale: this retains the fork's Python-level Uno changes and reproducible source identity while reusing ABI-compatible CUDA extension bytes; generic job-kind stages no longer need the CUDA toolkit merely to package the fork.
   Date/Author: 2026-09-18 / Codex
 
 ## Outcomes & Retrospective

@@ -8,7 +8,7 @@ dependencies = [
     "llmcompressor @ git+https://github.com/vllm-project/llm-compressor.git@655b83d1240c37920a603b747bbfb6c218f66383",
     "pydantic==2.13.4",
     "pyyaml==6.0.3",
-    "torch==2.11.0",
+    "torch>=2.13,<2.14",
     "transformers>=5.9,<5.15",
 ]
 
@@ -16,7 +16,7 @@ dependencies = [
 system-certs = true
 
 [tool.uv.sources]
-torch = { index = "pytorch-cu130" }
+torch = { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" }
 
 [[tool.uv.index]]
 name = "carbonteq-stable"
