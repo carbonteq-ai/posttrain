@@ -12,21 +12,47 @@ same CUDA minor version. This is required because FlashInfer compiles kernels
 locally: the runtime, headers, NVCC, NVVM, CRT, and CCCL cannot safely float to
 different CUDA releases.
 
-The production veRL runtime selects the manually released CarbonTeq vLLM
-source-overlay prerelease
-[`carbonteq-v0.25.2.dev2`](https://github.com/carbonteq-ai/vllm/releases/tag/carbonteq-v0.25.2.dev2),
-commit `7817d845727af570352622dc8d58f2d43c76d89d`, based exactly on upstream
-vLLM 0.25.1. Its retained source archive has SHA-256
-`8d4736461fbc3bf72075b4d84417208b3c5fc9ffc6f48bf26cbe9ef955cf307b`.
-The fork carries the bounded TurboQuant cache-reshape correction documented in
-its root `CARBONTEQ_FORK.md`. Training resolves TRL 1.9.2.post11 from
-the immutable CarbonTeq fork commit documented in
-[ADR 0007](../../decisions/0007-trl-vllm-025-fork.md), which raises TRL's
-validated vLLM ceiling and adds explicitly profiled synchronization options.
-The general `posttrain-serve[vllm]` and `posttrain-train[trl-vllm]` extras
-remain version-pinned until their locks advance to the same fork. Future vLLM
-versions remain unsupported until the fork tests and the lab's GPU rollout
-smoke pass and all pins are advanced together.
+The current development candidate selects the manually released CarbonTeq
+vLLM source overlay
+[`carbonteq-v0.26.1.dev1`](https://github.com/carbonteq-ai/vllm/releases/tag/carbonteq-v0.26.1.dev1),
+commit `37706e7d920abc97c705ffecee0919d64ef31485`, based exactly on upstream
+`75c71390d5b399f5397a9166920fc45902f99f14`. Its retained source archive has
+SHA-256 `4d1263e77cc9c36a63874efa7f9cf42cb42687282e13b87294edcbe40918a135`.
+The fork carries the bounded TurboQuant cache correction, native Uno proposer,
+and policy-LoRA composition documented in its root `CARBONTEQ_FORK.md`.
+`posttrain-serve[vllm]`, `posttrain-train[trl-vllm]`, TRL post9, and veRL post3
+all select that exact commit. The candidate remains a prerelease until the
+rebuilt runtime image and bounded GPU rollout gates pass.
+
+## Uno rollout candidate
+
+The CarbonTeq branch `codex/uno-spec-decoding`, based on upstream
+commit `75c71390d5b399f5397a9166920fc45902f99f14`, now has a native K2 Uno
+proposer. It shares the target model and KV cache, applies the pinned Uno LoRA
+only to future noise rows, and leaves verification, rejection sampling, and
+per-token target logprobs under vLLM authority. The branch is the source of the
+`carbonteq-v0.26.1.dev1` candidate above; it does not become the stable runtime
+until promotion gates pass.
+
+On the RTX PRO 6000, focused native smokes returned complete finite target
+logprobs for 128- and 256-token completions, produced a parsed K2 tool call,
+and completed four concurrent 128-token requests without preemption. The
+proposer runs eagerly while target execution remains compiled because the
+target CUDA graph's captured runner buffers are not shape-safe for Uno's
+seed-plus-noise forward. See
+[`uno-vllm-rollout-integration.md`](../../plan/uno-vllm-rollout-integration.md)
+for the live plan and remaining gates.
+
+Level-1 sleep/wake, post-wake generation, one in-flight abort, and
+pause/cache-clear/resume also pass through the loopback-only development
+control API. Do not select this branch for RL yet: mixed-batch abort churn,
+cache invalidation plus real changed-weight refreshes across LoRA and
+full-policy optimizer updates, and a matched warm long-prompt comparison
+remain required. Native LoRA-policy training is now qualified for one real K2
+optimizer step: target and seed rows use the current policy LoRA, while
+draft-noise rows use an atomically refreshed rank-concatenated policy-plus-Uno
+adapter. Full-policy updates remain a separate full-weight path and still need
+their changed-weight live gate.
 
 The fork delta is Python-only. The veRL image verifies the upstream 0.25.1
 x86_64 ABI3 wheel with SHA-256

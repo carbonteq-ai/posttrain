@@ -131,6 +131,9 @@ _TRL_METRICS: Mapping[str, str] = MappingProxyType(
         "rollout/spec_accept_length": "serve/backend/speculative_accepted_length",
         "rollout/kv_cache_capacity_tokens": "serve/backend/kv_cache_capacity_tokens",
         "rollout/kv_cache_peak_usage_ratio": "serve/backend/kv_cache_peak_usage_ratio",
+        "rollout/prefix_cache_query_tokens": "serve/backend/prefix_cache_query_tokens",
+        "rollout/prefix_cache_hit_tokens": "serve/backend/prefix_cache_hit_tokens",
+        "rollout/prefix_cache_hit_rate": "serve/backend/prefix_cache_hit_rate",
     }
 )
 
@@ -243,6 +246,9 @@ _CANONICAL_PASSTHROUGH = frozenset(
         "serve/backend/speculative_accepted_length",
         "serve/backend/kv_cache_capacity_tokens",
         "serve/backend/kv_cache_peak_usage_ratio",
+        "serve/backend/prefix_cache_query_tokens",
+        "serve/backend/prefix_cache_hit_tokens",
+        "serve/backend/prefix_cache_hit_rate",
     }
 )
 
@@ -265,6 +271,7 @@ _RATIO_METRICS = frozenset(
         "train/rl/sparse_reward_projection_fraction",
         "serve/backend/speculative_acceptance_rate",
         "serve/backend/kv_cache_peak_usage_ratio",
+        "serve/backend/prefix_cache_hit_rate",
     }
 )
 
@@ -307,6 +314,8 @@ _NON_NEGATIVE_METRICS = frozenset(
         "serve/backend/speculative_accepted_tokens",
         "serve/backend/speculative_accepted_length",
         "serve/backend/kv_cache_capacity_tokens",
+        "serve/backend/prefix_cache_query_tokens",
+        "serve/backend/prefix_cache_hit_tokens",
         "train/rl/anchor_group_size_mean",
     }
 )

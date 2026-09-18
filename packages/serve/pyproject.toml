@@ -24,7 +24,7 @@ vllm = [
     "nvidia-nvvm==13.0.88; sys_platform == 'linux'",
     "nvidia-ml-py>=13.580.82; sys_platform == 'linux'",
     "ninja>=1.13",
-    "vllm==0.25.1",
+    "vllm @ git+https://github.com/carbonteq-ai/vllm.git@37706e7d920abc97c705ffecee0919d64ef31485",
     "vllm-spark2-5-plugin",
 ]
 [tool.uv]
@@ -32,7 +32,7 @@ package = true
 
 [tool.uv.sources]
 posttrain-common = { workspace = true }
-torch = { index = "pytorch-cu130" }
+torch = { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" }
 torchvision = { index = "pytorch-cu130" }
 torchaudio = { index = "pytorch-cu130" }
 vllm-spark2-5-plugin = { git = "https://github.com/XHToken/Spark-plugin.git", rev = "3e1040e63a5907e4c748a485d6795d739dcd5bd6" }
@@ -43,6 +43,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/posttrain"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [project.urls]
 Documentation = "https://github.com/carbonteq-ai/posttrain#readme"

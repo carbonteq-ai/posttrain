@@ -33,7 +33,9 @@ RUN apt-get update && \
 # tooling supplies them as a BuildKit secret so the host path never enters the
 # build context or image metadata. Append rather than replace: public PyPI and
 # the private index must remain verifiable in the same build and runtime.
+ARG POSTTRAIN_TRUST_BUNDLE_SHA256="absent"
 RUN --mount=type=secret,id=posttrain_ca_bundle,required=false \
+    test -n "${POSTTRAIN_TRUST_BUNDLE_SHA256}" && \
     if [ -f /run/secrets/posttrain_ca_bundle ]; then \
       cat /run/secrets/posttrain_ca_bundle >> /etc/ssl/certs/ca-certificates.crt; \
     fi
@@ -66,4 +68,4 @@ WORKDIR /opt/posttrain/job
 
 FROM runtime AS smoke
 RUN command -v sshd && \
-    python -c "import ssl, torch; assert torch.__version__ == '2.11.0+cu130'; print(ssl.get_default_verify_paths().cafile, torch.__version__)"
+    python -c "import ssl, torch; assert torch.__version__ == '2.13.0+cu130'; print(ssl.get_default_verify_paths().cafile, torch.__version__)"

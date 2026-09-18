@@ -150,6 +150,7 @@ def test_trl_sampo_selects_sequence_clipping_and_precomputed_advantages(tmp_path
         Any,
         SimpleNamespace(
             settings=_settings(),
+            policy=SimpleNamespace(provenance={}),
             training=SimpleNamespace(backend_options={}),
             inference=SimpleNamespace(backend="transformers@1", sampling={}, engine={}),
         ),

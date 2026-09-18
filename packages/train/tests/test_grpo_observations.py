@@ -108,6 +108,9 @@ def test_trl_kv_cache_runtime_metrics_use_backend_neutral_names() -> None:
         native={
             "rollout/kv_cache_capacity_tokens": 8192,
             "rollout/kv_cache_peak_usage_ratio": 0.625,
+            "rollout/prefix_cache_query_tokens": 4096,
+            "rollout/prefix_cache_hit_tokens": 3072,
+            "rollout/prefix_cache_hit_rate": 0.75,
         },
         features=GRPOObservationFeatures(quantized_kv_cache=True),
     )
@@ -115,6 +118,9 @@ def test_trl_kv_cache_runtime_metrics_use_backend_neutral_names() -> None:
     assert step.metrics == {
         "serve/backend/kv_cache_capacity_tokens": 8192.0,
         "serve/backend/kv_cache_peak_usage_ratio": 0.625,
+        "serve/backend/prefix_cache_query_tokens": 4096.0,
+        "serve/backend/prefix_cache_hit_tokens": 3072.0,
+        "serve/backend/prefix_cache_hit_rate": 0.75,
     }
     status = assess_grpo_evidence(step.metrics, GRPOObservationFeatures(quantized_kv_cache=True))
     assert "serve/backend/kv_cache_capacity_tokens" not in status.missing

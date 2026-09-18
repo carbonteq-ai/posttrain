@@ -17,13 +17,13 @@ permissions:
   actions: write
 
 env:
-  CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post14.dev23/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl
-  CARBONTEQ_TRACKIO_WHEEL_SHA256: 0460ba6a4d531595a1caba1c6d340f13d4ba490be149308138b695b0a03512a6
-  CARBONTEQ_TRACKIO_WHEEL_PATH: /tmp/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl
-  CARBONTEQ_TRL_WHEEL_URL: https://github.com/carbonteq-ai/trl/releases/download/carbonteq-v1.12.0.post8/trl-1.12.0.post8-py3-none-any.whl
-  CARBONTEQ_TRL_WHEEL_SHA256: aabf5a52b9f8a20db32e9da5847fd2584e18ba8cfb12f2e79ec7db146db8ffa4
-  CARBONTEQ_TRL_WHEEL_PATH: /tmp/trl-1.12.0.post8-py3-none-any.whl
-  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl:/tmp/trl-1.12.0.post8-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post14.dev24/carbonteq_trackio-0.31.5.post14.dev24-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_SHA256: fea18a183a7493a0a1cd69218ccc2e1442cfcdbdea9c7d19f247ab7bbbf0fc21
+  CARBONTEQ_TRACKIO_WHEEL_PATH: /tmp/carbonteq_trackio-0.31.5.post14.dev24-py3-none-any.whl
+  CARBONTEQ_TRL_WHEEL_URL: https://github.com/carbonteq-ai/trl/releases/download/carbonteq-v1.12.0.post9/trl-1.12.0.post9-py3-none-any.whl
+  CARBONTEQ_TRL_WHEEL_SHA256: c5d204da587a9a45dd279f1407d0e20816344075d001da9fe03f6dd4879fa710
+  CARBONTEQ_TRL_WHEEL_PATH: /tmp/trl-1.12.0.post9-py3-none-any.whl
+  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post14.dev24-py3-none-any.whl:/tmp/trl-1.12.0.post9-py3-none-any.whl
 
 jobs:
   quality:
@@ -66,6 +66,19 @@ jobs:
           if [[ "${GITHUB_EVENT_NAME}" = "pull_request" \
             || "${{ inputs.allow_pending_runtime_lock || false }}" = "true" ]]; then
             pending_lock=--allow-pending-runtime-lock
+            # Generated runtime locks are candidate materialization, not
+            # authored Git state. Project them in the disposable CI checkout
+            # before the test suite so dependency-changing PRs validate the
+            # exact closure that the protected candidate builder will publish.
+            uv run --no-sync posttrain-release lock-runtime-dependencies
+            uv export \
+              --project tools/quantization \
+              --frozen \
+              --python 3.13.12 \
+              --no-emit-project \
+              --no-dev \
+              --format requirements.txt \
+              --output-file packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/transform.lock.txt
           else
             pending_lock=
           fi

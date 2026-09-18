@@ -385,12 +385,15 @@ class BuildKitRuntimeBuilder:
 
     def _trust_arguments(self, request: RuntimeBuildRequest) -> list[str]:
         if request.trust_bundle is None:
-            return []
+            return ["--set", f"{request.target}.args.POSTTRAIN_TRUST_BUNDLE_SHA256=absent"]
+        digest = _file_digest(request.trust_bundle)
         return [
             "--allow",
             f"fs.read={request.trust_bundle}",
             "--set",
             f"{request.target}.secrets=id=posttrain_ca_bundle,src={request.trust_bundle}",
+            "--set",
+            f"{request.target}.args.POSTTRAIN_TRUST_BUNDLE_SHA256={digest}",
         ]
 
     def _reproducibility_arguments(self, request: RuntimeBuildRequest) -> list[str]:

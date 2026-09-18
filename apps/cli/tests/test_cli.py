@@ -68,12 +68,12 @@ def _candidate_manifest_for_cli_unit_tests(monkeypatch: pytest.MonkeyPatch) -> N
     exercising independent CLI behavior.
     """
 
-    manifest = _load_manifest(verify_locks=False)
+    manifest = _load_manifest(verify_locks=False, verify_variants=False)
     monkeypatch.setattr("posttrain_cli.execution_config.load_manifest", lambda **_: manifest)
 
 
 def _candidate_manifest():
-    return _load_manifest(verify_locks=False)
+    return _load_manifest(verify_locks=False, verify_variants=False)
 
 
 def test_job_help_exposes_product_path_not_compatibility_flags(capsys) -> None:

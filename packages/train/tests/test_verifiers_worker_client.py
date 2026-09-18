@@ -2,10 +2,10 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from posttrain.common.variants import LFM_25_12B_THINKING
+from posttrain.common.variants import K2_HORIZON_7B, LFM_25_12B_THINKING
 from posttrain.train.backends.trl.policy_endpoint import TrlPolicyEndpoint
 from posttrain.train.integrations.verifiers_workers import create_verifiers_train_client_config
-from posttrain.train.profiles import LFM25_RENDERER
+from posttrain.train.profiles import LFM25_RENDERER, TrainingRenderer
 from posttrain.train.rendering import create_renderer
 from posttrain.train.rollout_execution import CollectionKey
 
@@ -18,6 +18,18 @@ pytest.importorskip(
 )
 AutoTokenizer = pytest.importorskip("transformers").AutoTokenizer
 pytest.importorskip("renderers")
+
+
+def test_native_worker_selects_k2_ifm_tool_parser():
+    config = create_verifiers_train_client_config(
+        base_url="http://127.0.0.1:8123/v1",
+        renderer_model_name=K2_HORIZON_7B.base.repo_id,
+        model=K2_HORIZON_7B,
+        renderer=TrainingRenderer("k2-horizon-tools-thinking@1", "k2-horizon", "default", "high"),
+    )
+
+    assert config.renderer.tool_parser == "k2-ifm"
+    assert config.renderer.reasoning_parser == "k2-ifm"
 
 
 def test_native_worker_uses_exact_lfm_template_and_tokens(monkeypatch):

@@ -132,7 +132,10 @@ def _validate_boundaries() -> None:
     base_dockerfile = (BASE / "Dockerfile").read_text()
     base_lock = (KINDS / "locks" / "base.lock.txt").read_text()
     _require("base.lock.txt" in base_dockerfile, "universal base must install its isolated dependency closure")
-    _require("torch==2.11.0+cu130" in base_lock, "universal base must install locked CUDA PyTorch")
+    _require(
+        "torch-2.13.0%2Bcu130" in base_lock,
+        "universal base must install locked CUDA PyTorch",
+    )
     for backend in ("trl", "vllm", "verifiers", "llmcompressor"):
         _require(
             f"import {backend}" not in base_dockerfile and f'"{backend}' not in base_dockerfile,
@@ -153,6 +156,12 @@ def _validate_boundaries() -> None:
         "FROM kind-common AS vllm-kind-common" in vllm_dockerfile
         and "apt-get install --yes --no-install-recommends g++" in vllm_dockerfile,
         "vLLM kind images need a host C++ compiler for native extensions",
+    )
+    _require(
+        "VLLM_USE_PRECOMPILED=1" in vllm_dockerfile
+        and 'VLLM_PRECOMPILED_WHEEL_LOCATION="${wheel}"' in vllm_dockerfile
+        and "9decf15f4451566b6cda7f2ce81a7a7f3f3226e7f82e9b2077bb2f4d23dc7f76" in vllm_dockerfile,
+        "the shared vLLM stage must verify and overlay the retained binary wheel",
     )
     _require(
         vllm_dockerfile.count('ENV VLLM_USE_FLASHINFER_SAMPLER="0"') == 3,

@@ -87,7 +87,6 @@ def test_trl_rollout_execution_rejects_ambiguous_topologies(values, message):
         ({"sleep": False}, "sleep_during_optimization=true"),
         ({"max_concurrent": None}, "declare max_concurrent"),
         ({"request_mode": "batch"}, "request_mode=async"),
-        ({"update_kind": "full"}, "requires a LoRA update"),
         ({"world_size": 2}, "requires one trainer process"),
     ],
 )

@@ -214,7 +214,12 @@ def prepare_release(repository_root: Path, version: str) -> ReleaseCheck:
     if not manifest_path.is_file():
         raise ValueError(f"release manifest not found: {manifest_path}")
     manifest_path.write_text(f'schema_version = 1\nversion = "{version}"\n', encoding="utf-8")
-    return check_release(root)
+    # Advancing a release version is the first authored release step. Runtime
+    # locks and image identities are deliberately materialized later by the
+    # protected candidate builder, so a dependency-changing release must be
+    # preparable while the committed image manifest still describes the last
+    # published closure.
+    return check_release(root, allow_pending_runtime_lock=True)
 
 
 def render_project_metadata(text: str, version: str, relative: Path) -> tuple[str, int]:

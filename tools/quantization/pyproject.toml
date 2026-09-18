@@ -3,12 +3,12 @@ name = "posttrain-awq-runtime"
 version = "0.1.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/046/0ba6a4d531595/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl#sha256=0460ba6a4d531595a1caba1c6d340f13d4ba490be149308138b695b0a03512a6",
+    "carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/fea/18a183a7493a0/carbonteq_trackio-0.31.5.post14.dev24-py3-none-any.whl#sha256=fea18a183a7493a0a1cd69218ccc2e1442cfcdbdea9c7d19f247ab7bbbf0fc21",
     "datasets>=4.8.4,<5",
     "llmcompressor @ git+https://github.com/vllm-project/llm-compressor.git@655b83d1240c37920a603b747bbfb6c218f66383",
     "pydantic==2.13.4",
     "pyyaml==6.0.3",
-    "torch==2.11.0",
+    "torch>=2.13,<2.14",
     "transformers>=5.9,<5.15",
 ]
 
@@ -16,7 +16,7 @@ dependencies = [
 system-certs = true
 
 [tool.uv.sources]
-torch = { index = "pytorch-cu130" }
+torch = { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" }
 
 [[tool.uv.index]]
 name = "carbonteq-stable"

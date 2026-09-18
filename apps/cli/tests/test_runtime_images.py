@@ -45,7 +45,7 @@ def _candidate_manifest_for_runtime_image_tests(monkeypatch: pytest.MonkeyPatch)
     strict manifest/publication gate.
     """
 
-    manifest = _load_manifest(verify_locks=False)
+    manifest = _load_manifest(verify_locks=False, verify_variants=False)
     for module in (
         "posttrain_cli.execution_config",
         "posttrain_cli.runtime_images",
@@ -57,7 +57,7 @@ def _candidate_manifest_for_runtime_image_tests(monkeypatch: pytest.MonkeyPatch)
 
 
 def _manifest():
-    return _load_manifest(verify_locks=False)
+    return _load_manifest(verify_locks=False, verify_variants=False)
 
 
 def _expected_lock() -> str:
@@ -182,7 +182,9 @@ def test_verl_runtime_image_requires_its_backend_identity_labels(
 ) -> None:
     registry = _registry(tmp_path, monkeypatch)
     variant = "online-rl-verl-py313"
-    expected_labels = backend_runtime_labels(variant)
+    published_identity = _manifest().image(variant).backend_runtime_identity
+    assert published_identity is not None
+    expected_labels = backend_runtime_labels(variant, published_identity)
     verified = verify_variant(
         variant,
         registry.kind_images[variant].value,

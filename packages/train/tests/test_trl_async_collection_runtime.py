@@ -32,8 +32,9 @@ def test_sync_collection_runtime_reuses_one_async_loop_and_replays_observations_
             pass
 
     class Workers:
-        def __init__(self, *, project_episode, **_kwargs):
+        def __init__(self, *, project_episode, behavior_policy_for_episode, **_kwargs):
             self.project_episode = project_episode
+            self.behavior_policy_for_episode = behavior_policy_for_episode
 
     class Runner:
         def __init__(self, *, session, endpoint, workers, **_kwargs):
@@ -52,9 +53,12 @@ def test_sync_collection_runtime_reuses_one_async_loop_and_replays_observations_
 
         async def collect(self, batch, *, collection_id, policy_version):
             loop_ids.append(id(asyncio.get_running_loop()))
+            key = SimpleNamespace(collection=SimpleNamespace(run_id="run", policy_version=policy_version))
+            behavior_policy = self.runner.workers.behavior_policy_for_episode(key, SimpleNamespace())
             rollout = await self.runner.workers.project_episode(
-                SimpleNamespace(collection=SimpleNamespace(run_id="run")),
+                key,
                 SimpleNamespace(),
+                behavior_policy=behavior_policy,
             )
             return [rollout]
 
@@ -65,9 +69,9 @@ def test_sync_collection_runtime_reuses_one_async_loop_and_replays_observations_
         environment_factory = SimpleNamespace(config={"agent": {"timeout": {"rollout": 5}}})
         native_activation = {"agent": {"timeout": {"rollout": 5}}}
 
-        async def project_native_episode(self, _key, _episode, *, on_completed, **_kwargs):
+        async def project_native_episode(self, _key, _episode, *, on_completed, behavior_policy, **_kwargs):
             await on_completed(SimpleNamespace(external_id="trace-1"))
-            return SimpleNamespace(example_id="train/000000")
+            return SimpleNamespace(example_id="train/000000", behavior_policy=behavior_policy)
 
     monkeypatch.setattr(runtime_module, "TrlPolicyEndpoint", Endpoint)
     monkeypatch.setattr(runtime_module, "VerifiersWorkerPool", Workers)
@@ -91,10 +95,14 @@ def test_sync_collection_runtime_reuses_one_async_loop_and_replays_observations_
             result = runtime.collect(
                 RolloutBatch(("train/000000",), ordinal + 1, LFM_25_12B_THINKING.id),
                 collection_id=f"collection-{ordinal}",
-                policy_version=f"policy-{ordinal}",
+                policy_version=str(ordinal),
                 observe_trace=lambda _trace: observed_threads.append(threading.get_ident()),
             )
             assert result[0].example_id == "train/000000"
+            behavior_policy = result[0].behavior_policy
+            assert behavior_policy is not None
+            assert behavior_policy.start == ordinal
+            assert behavior_policy.end == ordinal
     finally:
         runtime.close()
 

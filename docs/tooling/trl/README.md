@@ -1,5 +1,24 @@
 # TRL
 
+## Uno full-policy and native LoRA-policy refresh candidate
+
+The post9 candidate supports both CUDA-IPC full-policy refresh
+and native policy-LoRA refresh. For Uno with LoRA training, target and seed
+rows use the current policy adapter. Draft-noise rows use an atomically rebuilt
+rank-concatenated adapter whose delta is exactly policy plus Uno.
+
+This composition is required because vLLM selects one adapter per token row.
+It preserves native LoRA precision instead of folding small updates into the
+bfloat16 base. Posttrain selects `lora` for LoRA update plans, `full` for
+full-parameter plans, and rejects mismatches before allocation. QLoRA is not
+covered.
+
+The K2 live gate passed on RTX PRO at learning rate `1e-4`: trainable delta norm
+`0.1214345`, finite loss `2.5226655`, 32/32 finite sampled logprobs, stable
+completion tokens, and maximum post-update logprob movement `0.0655067` across
+policy versions `0` and `1`. The secondary full-policy gate remains open; this
+candidate is published to GitHub and selected by the development pin.
+
 ## GDPO/CAPO follow-on qualification
 
 `scripts/qualification/structured_trl_lifecycle.py` exercises installed TRL
@@ -9,9 +28,11 @@ resume checkpoint 1 to matching uninterrupted weights, and generate from the
 export. This is deterministic full-parameter fixture evidence, not live Verifiers,
 judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
 
-Latest candidate: `1.12.0.post8`, release commit
-`6dfc69db939144d270cbcbbed17294262b5ac6f4`, tag
-`carbonteq-v1.12.0.post8`. It publishes the continuous-batched colocated vLLM
+Latest candidate: `1.12.0.post9`, release commit
+`3b7a582e011a32de74d1f2b6e572b794360fbfd7`, tag
+`carbonteq-v1.12.0.post9`. It publishes native Uno policy-LoRA refresh,
+MoE-safe chunked scoring, cache/speculation observability, and the
+continuous-batched colocated vLLM
 request path, session-owned LoRA refresh, and async parity-probe routing on top
 of the post6 async lifecycle and post5 complete-group admission behavior. It
 consumes retained source-row
@@ -21,13 +42,12 @@ sampling accepts partial and empty candidate rounds within its existing bound.
 Padding exists only in trainer tensors after scoring; no synthetic rewards or
 episodes are created. Partial distributed, multimodal, fixed alternate-loss,
 fused-loss, entropy-bonus and auxiliary-loss cases remain unqualified/rejected.
-The post8 async-vLLM slice passes 26 focused tests with one runtime capability
-skip; its clean installed wheel imports the async GRPO, asynchronous vLLM
-session, IW-OPD, and OLMo3 surfaces. Wheel SHA-256:
-`aabf5a52b9f8a20db32e9da5847fd2584e18ba8cfb12f2e79ec7db146db8ffa4`;
-sdist: `74ff559792ee20df94b2576a09c8962508ee66e2571e7b353ec516b9320ac721`.
-Posttrain retained-asset workflow `34393365885` published and read back those
-exact bytes from `carbonteq/dev`.
+The focused post9 gate passes 33 tests across async session, cache/speculation
+metrics, Uno policy refresh, and MoE scoring. Wheel SHA-256:
+`c5d204da587a9a45dd279f1407d0e20816344075d001da9fe03f6dd4879fa710`;
+sdist: `146e46b37f6795a206d684e286e137edb1eec673b658d0168d45c603870156fa`.
+Posttrain retained-asset workflow `35292803386` passed development-index
+publication, exact-byte readback, and clean installation.
 Live RTX PRO qualification remains pending. Harness optimization is deferred.
 
 The post8 candidate connects `GRPOConfig.vllm_request_mode`
@@ -384,9 +404,12 @@ For GRPO, the fork additionally exposes `logits_chunk_size`. It bounds the
 number of flattened token positions projected through the LM head at once
 during old-policy and reference-policy scoring, then reconstructs the same
 token-aligned log-probabilities and entropies. The focused fork regression
-compares chunked and unchunked numerical results. This control does not bound
-the differentiable train loss by itself; the current constrained profile pairs
-it with `use_liger_kernel=true`.
+compares chunked and unchunked numerical results. For MoE policies, the
+backbone pass also retains router logits and computes the same load-balancing
+auxiliary loss, so chunking does not require disabling the router objective.
+This control does not bound the differentiable train loss by itself; profiles
+that do not use the ordinary Torch loss still pair it with an independently
+qualified fused-loss implementation.
 
 ## SAMPO support
 

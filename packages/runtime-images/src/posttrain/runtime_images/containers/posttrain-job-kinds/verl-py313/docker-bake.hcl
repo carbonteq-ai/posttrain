@@ -38,6 +38,10 @@ variable "SOURCE_REVISION" {
   default = ""
 }
 
+variable "SOURCE_DATE_EPOCH" {
+  default = "315532800"
+}
+
 variable "SOURCE_REPOSITORY" {
   default = "https://github.com/carbonteq-ai/verl.git"
 }
@@ -59,6 +63,7 @@ target "_common" {
     RELEASE_SOURCE_REVISION = RELEASE_SOURCE_REVISION
     RELEASE_VERSION = RELEASE_VERSION
     SOURCE_REVISION = SOURCE_REVISION
+    SOURCE_DATE_EPOCH = SOURCE_DATE_EPOCH
     SOURCE_REPOSITORY = SOURCE_REPOSITORY
     VERSION = VERSION
   }

@@ -107,10 +107,13 @@ def test_compatible_vllm_kinds_share_one_locked_parent_layer() -> None:
     assert "vllm-common.lock.txt" in shared_stage
     assert "profiles/vllm-common.txt" in shared_stage
     assert "--requirement /opt/posttrain/profiles/vllm-common.txt" in shared_stage
+    assert "VLLM_USE_PRECOMPILED=1" in shared_stage
+    assert 'VLLM_PRECOMPILED_WHEEL_LOCATION="${wheel}"' in shared_stage
+    assert 'VLLM_BINARY_WHEEL_SHA256="9decf15f' in shared_stage
     assert 'VLLM_USE_FLASHINFER_SAMPLER="0"' not in shared_stage
     assert dockerfile.count('ENV VLLM_USE_FLASHINFER_SAMPLER="0"') == 3
     assert vllm_lock.is_file()
-    assert "vllm==0.25.1" in vllm_profile.read_text(encoding="utf-8")
+    assert "vllm==0.26.1.dev1+g37706e7d9" in vllm_profile.read_text(encoding="utf-8")
     for stage in ("online-rl-trl-py312-dependencies", "eval-dependencies", "serve-dependencies"):
         assert f"FROM vllm-kind-common AS {stage}" in dockerfile
 
@@ -120,6 +123,8 @@ def test_base_accepts_a_build_secret_ca_bundle_without_disabling_tls() -> None:
         dockerfile = (root / "containers/posttrain-base/Dockerfile").read_text()
 
     assert "--mount=type=secret,id=posttrain_ca_bundle,required=false" in dockerfile
+    assert 'ARG POSTTRAIN_TRUST_BUNDLE_SHA256="absent"' in dockerfile
+    assert 'test -n "${POSTTRAIN_TRUST_BUNDLE_SHA256}"' in dockerfile
     assert "cat /run/secrets/posttrain_ca_bundle >>" in dockerfile
     assert "/etc/ssl/certs/ca-certificates.crt" in dockerfile
     assert "install -m 0644 /run/secrets/posttrain_ca_bundle" not in dockerfile
@@ -329,8 +334,18 @@ def test_every_kind_installs_the_shared_framework_runtime() -> None:
 
 def test_base_runtime_lock_retains_the_reviewed_mirrored_triton_artifact() -> None:
     requirements = _logical_requirements(BASE_LOCK)
-    assert requirements["triton"].startswith("triton @ https://pypi.lan/root/pypi/+f/10c/7f76c6e72d2ef/")
-    assert "#sha256=10c7f76c6e72d2ef08df639e3d0d30729112f47a56b0c81672edc05ee5116ac9" in requirements["triton"]
+    assert requirements["triton"].startswith(
+        "triton @ https://files.pythonhosted.org/packages/07/42/2c3ac59253ae8892b6f307875263dd23dc875cdf732d3aea40d6d41fb7cb/"
+    )
+    assert "#sha256=58c0e131da05134a2a4788ccbcc0c1105cf0f54c8e98f19e34cd465396dc15eb" in requirements["triton"]
+
+
+def test_base_runtime_lock_retains_the_reviewed_torch_artifact() -> None:
+    requirements = _logical_requirements(BASE_LOCK)
+    assert requirements["torch"].startswith(
+        "torch @ https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl"
+    )
+    assert "#sha256=95bdbad2f0786bd448932e4b72a6404aa22290db6ec954e24edfa6d33c833c8f" in requirements["torch"]
 
 
 def test_narrow_runtime_locks_only_select_artifacts_from_the_workspace_resolution() -> None:

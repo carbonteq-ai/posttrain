@@ -613,11 +613,19 @@ def test_native_config_receives_manifest_task_keys(tmp_path: Path, monkeypatch: 
         policy,
     )
     selected = replace(base, plan=plan, manifest=manifest)
-    monkeypatch.setattr(PythonFactoryActivation, "activate", lambda self: SingleAgentEnvConfig())
+    monkeypatch.setattr(
+        PythonFactoryActivation,
+        "activate",
+        lambda self: SingleAgentEnvConfig(max_concurrent_agents=1),
+    )
     monkeypatch.setattr(
         adapter,
         "_imports",
-        lambda: (EvalConfig, lambda config: config, (EnvConfig, lambda config: [])),
+        lambda: (
+            EvalConfig,
+            lambda config: config,
+            (EnvConfig, lambda config, max_concurrent_agents: []),
+        ),
     )
 
     _environment, config, _runner = adapter._build_native(selected, tmp_path)

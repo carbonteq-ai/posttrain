@@ -3,17 +3,19 @@
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
 `import trackio` API. The current framework dependency is
-`carbonteq-trackio==0.31.5.post14.dev23`, built from immutable fork commit
-`03ff6e0d7c7458b26a23a69242f519bc700ff920`. Its wheel
-(`0460ba6a4d531595a1caba1c6d340f13d4ba490be149308138b695b0a03512a6`) and
+`carbonteq-trackio==0.31.5.post14.dev24`, built from immutable fork commit
+`3a67722d2a2c0f40d3db98721ab2fc6933b93494`. Its wheel
+(`fea18a183a7493a0a1cd69218ccc2e1442cfcdbdea9c7d19f247ab7bbbf0fc21`) and
 sdist (`7ba6ac88cb6f50b1682c4a6e196c5722dd9973626a896aa3ce13cc894135eb62`)
-were released manually as `carbonteq-v0.31.5.post14.dev23` and published
+were released manually as `carbonteq-v0.31.5.post14.dev24` and published
 unchanged to `carbonteq/dev` by Posttrain workflow `34588926837`. Promotion to
 `carbonteq/stable` remains gated on the real training canary. This revision
 adds bounded wait-for-one-slot artifact backpressure, a configurable
 600-second finalization barrier, and one per-run remote publication transaction
 that prevents overlapping manifests from transferring the same absent blob.
-The dev23 client also retries only idempotent direct multipart control-plane
+The dev24 client also uses Hugging Face Hub's public commit-operation API for
+compatibility with Hub 1.31 and later, and retains dev23's retries for only
+idempotent direct multipart control-plane
 requests after transient network or HTTP 5xx failures. A retried part
 acknowledgment does not re-upload the part. Dev22 is permanently unusable
 because its distribution and import versions disagreed; the clean-install

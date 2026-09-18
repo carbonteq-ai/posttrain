@@ -115,6 +115,30 @@ def test_lfm_pythonic_content_accepts_flat_verifiers_tool_records():
     ]
 
 
+def test_k2_ifm_xml_completion_preserves_reasoning_and_parses_actions():
+    raw = (
+        "Check the current task.</ifm|think>"
+        "<ifm|tool_calls>\n<ifm|tool_call>asana_get_task\n"
+        "<ifm|arg_key>gid</ifm|arg_key>\n<ifm|arg_value>asana_123</ifm|arg_value>\n"
+        "<ifm|arg_key>limit</ifm|arg_key>\n<ifm|arg_value>2</ifm|arg_value>\n"
+        "</ifm|tool_call>\n</ifm|tool_calls><|ifm|im_end|>"
+    )
+    message = parsed_policy_message(
+        SimpleNamespace(content=raw, reasoning_content=None, tool_calls=[]),
+        list(map(ord, raw)),
+        Tokenizer(),
+        tool_call_protocol=SimpleNamespace(id="k2_ifm_xml"),
+        tools=[{"type": "function", "function": {"name": "asana_get_task"}}],
+    )
+
+    assert message == {
+        "role": "assistant",
+        "content": None,
+        "reasoning_content": "Check the current task.",
+        "tool_calls": [{"id": "call_0", "name": "asana_get_task", "arguments": '{"gid":"asana_123","limit":2}'}],
+    }
+
+
 @pytest.mark.parametrize(
     "body",
     [

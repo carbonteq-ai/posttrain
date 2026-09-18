@@ -108,11 +108,16 @@ def create_renderer_config(
     else:
         template_kwargs = cast(dict[str, Any], mode.kwargs())
         tool_parser = None
+        reasoning_parser = None
         protocol = model.conversation.tool_calls
         if structured_output and protocol is not None and protocol.id == "lfm2_pythonic":
             tool_parser = "lfm2"
+        elif structured_output and protocol is not None and protocol.id == "k2_ifm_xml":
+            tool_parser = "k2-ifm"
+            reasoning_parser = "k2-ifm"
         config = DefaultRendererConfig(
             tool_parser=tool_parser,
+            reasoning_parser=reasoning_parser,
             **template_kwargs,
         )
     return config

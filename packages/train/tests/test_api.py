@@ -1701,6 +1701,63 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     }
     assert mtp_arguments["vllm_engine_kwargs"]["disable_log_stats"] is False
 
+    uno_adapter = tmp_path / "uno-adapter"
+    uno_adapter.mkdir()
+    (uno_adapter / "adapter_config.json").write_text('{"r": 128}')
+    uno_engine = dict(request.inference.engine)
+    uno_engine.update(
+        {
+            "weight_sync_mode": "lora",
+            "weight_name_prefix": None,
+            "speculative_config": {
+                "method": "uno",
+                "num_speculative_tokens": 7,
+                "uno_adapter": str(uno_adapter),
+                "uno_adapter_revision": "ec92bbd768f4a404319625204544782e3377bcd7",
+                "uno_mask_token_id": 250624,
+                "uno_noise_mode": "random_uniform",
+                "draft_sample_method": "probabilistic",
+            },
+        }
+    )
+    uno_request = replace(
+        request,
+        training=_training(update=LoRAUpdate()),
+        inference=replace(request.inference, engine=uno_engine),
+    )
+    uno_arguments = _grpo_arguments(uno_request, tmp_path, {"enable_thinking": False})
+    assert uno_arguments["vllm_weight_sync_mode"] == "lora"
+    assert uno_arguments["vllm_speculative_config"] == {
+        "method": "uno",
+        "num_speculative_tokens": 7,
+        "uno_adapter": str(uno_adapter.resolve()),
+        "uno_adapter_revision": "ec92bbd768f4a404319625204544782e3377bcd7",
+        "uno_mask_token_id": 250624,
+        "uno_noise_mode": "random_uniform",
+        "draft_sample_method": "probabilistic",
+    }
+    assert uno_arguments["vllm_engine_kwargs"] == {
+        "language_model_only": True,
+        "skip_mm_profiling": True,
+        "enforce_eager": True,
+        "kv_cache_memory_bytes": 64 * 1024 * 1024,
+        "disable_log_stats": False,
+    }
+
+    invalid_uno_request = replace(
+        uno_request,
+        inference=replace(uno_request.inference, engine={**uno_engine, "weight_sync_mode": "full"}),
+    )
+    with pytest.raises(ValueError, match="weight_sync_mode='lora'"):
+        _grpo_arguments(invalid_uno_request, tmp_path, {"enable_thinking": False})
+
+    full_uno_request = replace(uno_request, training=_training(update=FullParameterUpdate()))
+    full_uno_request = replace(
+        full_uno_request,
+        inference=replace(full_uno_request.inference, engine={**uno_engine, "weight_sync_mode": "full"}),
+    )
+    assert _grpo_arguments(full_uno_request, tmp_path, {"enable_thinking": False})["vllm_weight_sync_mode"] == "full"
+
     turboquant_request = replace(request, inference=_inference(model, kv_cache_dtype="turboquant_k8v4"))
     turboquant_arguments = _grpo_arguments(turboquant_request, tmp_path, {"enable_thinking": False})
     assert turboquant_arguments["vllm_engine_kwargs"]["kv_cache_dtype"] == "turboquant_k8v4"

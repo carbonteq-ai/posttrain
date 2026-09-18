@@ -2,9 +2,11 @@
 
 ## Rollout-execution development candidate
 
-Branch `codex/verl-rollout-execution` publishes `0.9.0.post2` from immutable
-release commit `98742d3e9507318ba0b5d4944034deb7db1ec84b`, with ledger
-follow-up `4050fbeb`. It adds opt-in Ray agent-worker episode limits, explicit CPU
+Branch `codex/verl-rollout-execution` publishes `0.9.0.post3` from immutable
+release commit `18338a0efbd6f103378d2861f4a078ad243db455`. Post3 retains
+the post2 behavior and pins its `vllm` extra to CarbonTeq vLLM commit
+`37706e7d920abc97c705ffecee0919d64ef31485`. This dependency release does not
+claim native K2 training support in veRL. Post2 added opt-in Ray agent-worker episode limits, explicit CPU
 reservations, and complete failed-group replacement in the V1 TransferQueue
 path. The framework accepts a private
 `TrainingBinding.backend_options.rollout_execution` mapping with
@@ -23,11 +25,11 @@ executed once before the next model turn. This is CPU protocol evidence, not a
 changed-weight GPU qualification.
 
 The candidate wheel SHA-256 is
-`adeef5700a7f56a10beaef5304f6a5626b015c45334d516d2330243bcad174f5`;
+`55db59d956084c27941a787952c1d66fcdbd4f7c1d71c9ddd1f20c283af7186f`;
 the sdist SHA-256 is
-`0c1c1ac543a93d2ff5ba50c4394c4b9838ad90615c981422ce22df4693224a0a`.
-Posttrain workflow `34335257738` published and clean-installed those exact
-bytes from `carbonteq/dev`. The development profile selects post2, but
+`75caad0671f3f3f70241b049ff6b3fb937cee34a4bdcadd74230b1c46bc4bb31`.
+Posttrain workflow `35292934219` passed development-index publication,
+exact-byte readback, and clean installation. The development profile selects post3, but
 runtime-image reconstruction and a real GPU collection/update gate are still
 required before stable promotion. Renderer construction is now
 binding-driven for Qwen and LFM, but the existing Qwen-only GPU qualification

@@ -7,7 +7,6 @@ from pathlib import PurePosixPath
 import pytest
 from posttrain.runtime_images import (
     RUNTIME_VARIANTS,
-    backend_runtime_identity,
     constraint_lock,
     lock_digest,
     read_resource,
@@ -27,7 +26,7 @@ from posttrain.runtime_images.manifest import (
 def _candidate_manifest():
     """Inspect declared candidate shape without accepting it as runnable."""
 
-    return _load_manifest(verify_locks=False)
+    return _load_manifest(verify_locks=False, verify_variants=False)
 
 
 def test_every_released_variant_is_published() -> None:
@@ -40,9 +39,11 @@ def test_verl_is_published() -> None:
 
 
 def test_verl_manifest_carries_the_runtime_backend_identity() -> None:
-    assert _candidate_manifest().image("online-rl-verl-py313").backend_runtime_identity == backend_runtime_identity(
-        "online-rl-verl-py313"
-    )
+    identity = _candidate_manifest().image("online-rl-verl-py313").backend_runtime_identity
+    assert identity is not None
+    assert identity.source_repository == "https://github.com/carbonteq-ai/verl.git"
+    assert len(identity.source_revision) == 40
+    assert len(identity.dependency_lock_digest) == 64
 
 
 def test_candidate_manifest_declares_lock_digests_for_every_image() -> None:

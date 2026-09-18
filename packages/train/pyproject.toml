@@ -18,10 +18,10 @@ verifiers = [
     "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@84ab782391bbfe1ac4f4ca32fa612e56d01b5b81",
 ]
 trl = [
-    "torch>=2.11,<2.12",
-    "torchvision>=0.26,<0.27",
+    "torch>=2.13,<2.14",
+    "torchvision>=0.28,<0.29",
     "transformers>=5.14,<5.15",
-    "trl==1.12.0.post8",
+    "trl==1.12.0.post9",
     "peft>=0.19,<0.20",
     "datasets>=4.6.1,<4.7",
     "accelerate>=1.14,<1.15",
@@ -30,7 +30,7 @@ trl = [
     "liger-kernel>=0.8.2,<0.9",
     "sentencepiece>=0.2,<0.3",
     "protobuf>=7.35,<8",
-    "huggingface-hub>=1.24,<1.25",
+    "huggingface-hub>=1.31,<1.32",
     # AsyncGRPO uses Transformers' Hub-hosted FlashAttention kernel directly.
     "kernels>=0.15.2,<0.16",
 ]
@@ -40,7 +40,7 @@ trl-vllm = [
     "nvidia-cuda-crt==13.0.88; sys_platform == 'linux'",
     "nvidia-cuda-nvcc==13.0.88; sys_platform == 'linux'",
     "nvidia-nvvm==13.0.88; sys_platform == 'linux'",
-    "vllm==0.25.1",
+    "vllm @ git+https://github.com/carbonteq-ai/vllm.git@37706e7d920abc97c705ffecee0919d64ef31485",
 ]
 
 [tool.uv]
@@ -50,16 +50,16 @@ package = true
 posttrain-common = { workspace = true }
 posttrain-data = { workspace = true }
 posttrain-environment = { workspace = true }
-torch = { index = "pytorch-cu130" }
+torch = { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" }
 torchvision = { index = "pytorch-cu130" }
 trl = { index = "carbonteq-dev" }
 
 [tool.posttrain.trl]
-version = "1.12.0.post8"
-release-tag = "carbonteq-v1.12.0.post8"
-source-revision = "6dfc69db939144d270cbcbbed17294262b5ac6f4"
-wheel-sha256 = "aabf5a52b9f8a20db32e9da5847fd2584e18ba8cfb12f2e79ec7db146db8ffa4"
-sdist-sha256 = "74ff559792ee20df94b2576a09c8962508ee66e2571e7b353ec516b9320ac721"
+version = "1.12.0.post9"
+release-tag = "carbonteq-v1.12.0.post9"
+source-revision = "3b7a582e011a32de74d1f2b6e572b794360fbfd7"
+wheel-sha256 = "c5d204da587a9a45dd279f1407d0e20816344075d001da9fe03f6dd4879fa710"
+sdist-sha256 = "146e46b37f6795a206d684e286e137edb1eec673b658d0168d45c603870156fa"
 
 [build-system]
 requires = ["hatchling"]

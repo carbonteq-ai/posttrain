@@ -52,12 +52,12 @@ def _candidate_manifest_for_configuration_tests(monkeypatch: pytest.MonkeyPatch)
     only; strict manifest integrity is covered by runtime-image/release tests.
     """
 
-    manifest = _load_manifest(verify_locks=False)
+    manifest = _load_manifest(verify_locks=False, verify_variants=False)
     monkeypatch.setattr("posttrain_cli.execution_config.load_manifest", lambda **_: manifest)
 
 
 def _candidate_manifest():
-    return _load_manifest(verify_locks=False)
+    return _load_manifest(verify_locks=False, verify_variants=False)
 
 
 def _layout(tmp_path: Path):

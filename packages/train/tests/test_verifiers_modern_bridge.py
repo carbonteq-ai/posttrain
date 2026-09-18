@@ -6,9 +6,58 @@ from typing import cast
 
 import pytest
 from posttrain.common import JsonValue
-from posttrain.train.integrations.verifiers import VerifiersEnvironmentRolloutBridge
+from posttrain.train.integrations.verifiers import VerifiersEnvironmentRolloutBridge, _project_training_branch
 from posttrain.train.online_rl import BehaviorPolicySpan, PolicySampling, PolicyTurnResult, RolloutBatch
 from posttrain.train.rollout_execution import CollectionKey, EpisodeKey
+
+
+def test_training_branch_replaces_canonical_tool_turn_with_exact_sampled_sibling() -> None:
+    vf = pytest.importorskip("verifiers.v1")
+
+    trace = vf.Trace(
+        agent=vf.AgentInfo(config=vf.AgentConfig()),
+        task=vf.TraceTask(type="Task", data=vf.TaskData(idx=0, prompt="task")),
+        nodes=[
+            vf.MessageNode(message=vf.SystemMessage(content="system"), token_ids=[1], mask=[False]),
+            vf.MessageNode(parent=0, message=vf.UserMessage(content="task"), token_ids=[2], mask=[False]),
+            vf.MessageNode(
+                parent=1,
+                message=vf.AssistantMessage(content="sampled tool call"),
+                sampled=True,
+                token_ids=[3, 4],
+                mask=[True, True],
+                logprobs=[-0.1, -0.2],
+            ),
+            vf.MessageNode(
+                parent=1,
+                message=vf.AssistantMessage(content="canonical tool call"),
+                token_ids=[30, 40],
+                mask=[False, False],
+            ),
+            vf.MessageNode(
+                parent=3,
+                message=vf.ToolMessage(tool_call_id="call", content="result"),
+                token_ids=[5],
+                mask=[False],
+            ),
+            vf.MessageNode(
+                parent=4,
+                message=vf.AssistantMessage(content="done"),
+                sampled=True,
+                token_ids=[6],
+                mask=[True],
+                logprobs=[-0.3],
+            ),
+        ],
+        is_completed=True,
+        ok=True,
+    )
+
+    branch = _project_training_branch(trace)
+
+    assert branch.token_ids == [1, 2, 3, 4, 5, 6]
+    assert branch.sampled_mask == [False, False, True, True, False, True]
+    assert branch.logprobs == [0.0, 0.0, -0.1, -0.2, 0.0, -0.3]
 
 
 def test_native_judge_resolution_does_not_mutate_recoverable_selection():
