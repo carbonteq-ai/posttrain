@@ -135,9 +135,7 @@ def test_k2_ifm_xml_completion_preserves_reasoning_and_parses_actions():
         "role": "assistant",
         "content": None,
         "reasoning_content": "Check the current task.",
-        "tool_calls": [
-            {"id": "call_0", "name": "asana_get_task", "arguments": '{"gid":"asana_123","limit":2}'}
-        ],
+        "tool_calls": [{"id": "call_0", "name": "asana_get_task", "arguments": '{"gid":"asana_123","limit":2}'}],
     }
 
 
