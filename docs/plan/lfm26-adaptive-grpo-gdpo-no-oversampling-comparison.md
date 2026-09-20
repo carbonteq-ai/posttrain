@@ -15,6 +15,8 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 - [x] (2026-09-20 12:12Z) Validated all three work-package compositions with the repository CLI.
 - [x] (2026-09-20 12:35Z) Qualified the released runtime images and both job plans from a clean Posttrain 0.4.4 stable-index installation.
 - [x] (2026-09-20 12:39Z) Passed 132 focused tests plus Ruff, committed the experiment as `480ece91`, and pushed its branch.
+- [x] (2026-09-20 13:05Z) Qualified the attention compiler fix in attempt `20260920b`; startup then exposed the colocated memory-budget mismatch and revision 2 reduced the hard vLLM fraction to 9% without changing c32 or the 4 GiB KV cache.
+- [x] (2026-09-20 13:22Z) Attempt `20260920c` proved native vLLM FA4 rejects SM120. Switched LFM rollout and eval to native FA2 and added a static job-compilation error for RTX PRO SM120 plus FA4.
 - [ ] Submit the first 50-update arm and monitor at least three completed optimizer updates with GPU and inference evidence (completed: attempt `lfm26-adaptive-grpo-50-c32-20260920a` proved a compiler/runtime attention-contract bug before GPU allocation; remaining: qualify the fix and resubmit).
 - [ ] Submit or queue the second 50-update arm and monitor at least three completed optimizer updates with the same evidence (completed: attempt `lfm26-gdpo-50-c32-gemma-mtp2-20260920a` was cancelled when the shared defect was identified; remaining: qualify the fix and resubmit).
 - [ ] Run the common held-out evaluation once against each materialized adapter.
@@ -31,6 +33,9 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 - Observation: After the attention fix, vLLM reached GPU initialization but the old colocated utilization setting requested 18.99 GiB while the trainer left 9.48 GiB free.
   Evidence: vLLM reported `Free memory on device cuda:0 (9.48/94.97 GiB) ... less than desired GPU memory utilization (0.2, 18.99 GiB)`. No unrelated dstack training run was active. Revision 2 uses 9% with the same c32 scheduler and explicit 4 GiB KV cache.
 
+- Observation: Native vLLM FA4 is not an SM120 backend even though SM120 is a Blackwell architecture.
+  Evidence: attempt `lfm26-adaptive-grpo-50-c32-20260920c` passed the attention-field and memory gates, then repeatedly reported that FA4 supports compute capabilities 9.x, 10.x, and 11.x before failing attention initialization on compute capability 12.0. The earlier favorable SM120 FA4 result came from the separately extracted kernel, not native `FLASH_ATTN`.
+
 ## Decision Log
 
 - Decision: Interpret “100 steps total” as two matched 50-step arms rather than 100 steps per arm.
@@ -41,8 +46,8 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
   Rationale: VORTEX combines the OLMo3 update recipe, active group refill, and adaptive curriculum. Removing oversampling removes active refill, and the typed framework contract correctly rejects OLMo3 without it. An honest ablation uses GRPO plus adaptive initial-batch allocation.
   Date/Author: 2026-09-20 / Codex
 
-- Decision: Use native FA4 for LFM and the qualified Triton MTP-2 path for the Gemma judge, subject to pre-submission policy compilation.
-  Rationale: Posttrain 0.4.4 qualifies native Blackwell FA4 for eligible target models but does not qualify the experimental SM120 FA4 path for Gemma. Gemma MTP-2 on Triton is the retained correct path.
+- Decision: Use native FA2 for LFM on the RTX PRO SM120 target and the qualified Triton MTP-2 path for the Gemma judge, subject to pre-submission policy compilation.
+  Rationale: Live startup proved that vLLM native FA4 rejects compute capability 12.0; the earlier FA4 result used the separately extracted SM120 kernel and cannot be represented as native `FLASH_ATTN`. Gemma MTP-2 on Triton remains the retained correct path.
   Date/Author: 2026-09-20 / Codex
 
 ## Outcomes & Retrospective
@@ -59,7 +64,7 @@ The held-out evaluator is intentionally separate from training. It accepts a mat
 
 ## Plan of Work
 
-First, validate the catalog and compile both dstack job plans using Posttrain 0.4.4 installed from the stable package index. Confirm that the LFM rollout resolves to native FA4 with CUDA graphs and prefix caching, while the Gemma judge resolves to Triton attention with MTP-2. Reject any silent fallback that changes the intended operating point.
+First, validate the catalog and compile both dstack job plans using Posttrain 0.4.4 installed from the stable package index. Confirm that the LFM rollout resolves to native FA2 with CUDA graphs and prefix caching, while the Gemma judge resolves to Triton attention with MTP-2. Reject any silent fallback that changes the intended operating point.
 
 Second, run focused catalog, qualification-gate, training-policy, and work-package tests. Commit the configuration and plan so each submitted job has an immutable source revision. Submit the adaptive-GRPO and GDPO work packages with distinct run IDs. Because one RTX PRO 6000 may serialize jobs, queueing is acceptable; overlapping two memory-heavy training jobs on one GPU is not.
 

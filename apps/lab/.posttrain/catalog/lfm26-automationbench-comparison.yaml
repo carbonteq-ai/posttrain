@@ -1499,9 +1499,11 @@ inference:
     purpose: [rollout]
     capabilities: [tool-calling]
 
-  # Posttrain 0.4.4 optimized Blackwell rollout profile. CUDA graphs, native
-  # FA4, prefix caching and asynchronous continuous batching are enabled; the
+  # Posttrain 0.4.4 optimized SM120 rollout profile. CUDA graphs, native FA2,
+  # prefix caching and asynchronous continuous batching are enabled; the
   # policy-version fence invalidates stale prefixes after every LoRA refresh.
+  # Native vLLM FA4 admits compute capabilities 9.x-11.x and rejects SM120;
+  # the separately qualified extracted SM120 kernel is not this backend.
   inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@2:
     revision: "2"
     model: models/lfm2.5-2.6b@bf16
@@ -1525,8 +1527,8 @@ inference:
       enforce_eager: false
       enable_chunked_prefill: true
       enable_prefix_caching: true
-      flash_attn_version: 4
-      attention_backend_priority: [FLASH_ATTN, TRITON_ATTN]
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
       free_cache_engine: true
       text_only: true
       skip_mm_profiling: true
@@ -1819,8 +1821,8 @@ inference:
       enforce_eager: false
       enable_chunked_prefill: true
       enable_prefix_caching: true
-      flash_attn_version: 4
-      attention_backend_priority: [FLASH_ATTN, TRITON_ATTN]
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
       text_only: true
       skip_mm_profiling: true
     sampling:

@@ -117,6 +117,34 @@ def test_job_compiler_rejects_turboquant_with_flash_attention_four() -> None:
     assert issue.related_paths == ("rollout_inference.engine.kv_cache_dtype",)
 
 
+def test_job_compiler_rejects_native_flash_attention_four_on_sm120() -> None:
+    catalog = open_catalog(scope="empty-project")
+    model = cast(ModelVariant, catalog.resolve(CatalogRef("model", "models/lfm2.5-2.6b@bf16")).value)
+    target = cast(
+        ExecutionTarget,
+        catalog.resolve(CatalogRef("target", "targets/rtx-pro-6000-96gb")).value,
+    )
+    binding = InferenceBinding(
+        "inference/lfm-invalid-sm120-fa4@1",
+        "1",
+        model,
+        "vllm@fbbba6698b2f8a912b94705cfc09eb4fd7243716",
+        model.renderer.id,
+        {"max_model_len": 24_576, "flash_attn_version": 4},
+        {"max_tokens": 4_096},
+        target,
+        ("rollout",),
+    )
+
+    issues, _ = _configuration_findings({"rollout_inference": binding})
+
+    issue = next(issue for issue in issues if issue.code == "VLLM_NATIVE_FA4_UNSUPPORTED_ON_SM120")
+    assert issue.severity == "error"
+    assert issue.path == "rollout_inference.engine.flash_attn_version"
+    assert issue.related_paths == ("rollout_inference.target.hardware.accelerator_model",)
+    assert "RTXPRO6000" in issue.message
+
+
 def test_job_compiler_rejects_pinned_dspark_with_turboquant() -> None:
     catalog = open_catalog(scope="empty-project")
     model = cast(ModelVariant, catalog.resolve(CatalogRef("model", "models/nanbeige4.2-3b@bf16")).value)
