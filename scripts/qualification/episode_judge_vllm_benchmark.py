@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import statistics
 import time
 from pathlib import Path
@@ -29,6 +30,7 @@ from automationbench_v1.episode_prompt import (
     model_native_frame_request,
     normalize_wire_verdict,
 )
+from automationbench_v1.limited_tools import enrich_tool_definitions
 
 
 def _arguments() -> argparse.Namespace:
@@ -215,13 +217,175 @@ def _load_cases(path: Path) -> list[dict[str, Any]]:
             {
                 "input_digest": input_digest,
                 "source_input_digest": record.get("source_input_digest", input_digest),
-                "case_id": record.get("case_id"),
+                "case_id": record.get("case_id") or record.get("trace_id"),
                 "messages": messages,
             }
         )
     if not cases:
         raise ValueError("replay corpus is empty")
     return cases
+
+
+_TEMPORAL_FIELD_FAMILIES = {
+    "due_date": frozenset({"due", "dueat", "duedate", "dueon"}),
+    "start_date": frozenset({"start", "startat", "startdate", "starton"}),
+    "completed_date": frozenset({"completedat", "completeddate", "completedon"}),
+}
+
+
+def _embedded_json(value: object) -> object:
+    """Decode JSON-valued strings emitted by flattened tool adapters."""
+
+    if not isinstance(value, str) or not value.strip().startswith(("{", "[")):
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
+def _walk_observation_values(value: object, path: str = "$") -> list[tuple[str, str, object]]:
+    """Return scalar observation leaves, including JSON embedded in strings."""
+
+    decoded = _embedded_json(value)
+    if decoded is not value:
+        return _walk_observation_values(decoded, f"{path}<json>")
+    if isinstance(value, dict):
+        leaves: list[tuple[str, str, object]] = []
+        for key, child in value.items():
+            leaves.extend(_walk_observation_values(child, f"{path}.{key}"))
+        return leaves
+    if isinstance(value, list):
+        leaves = []
+        for index, child in enumerate(value):
+            leaves.extend(_walk_observation_values(child, f"{path}[{index}]"))
+        return leaves
+    key = path.rsplit(".", 1)[-1].split("[", 1)[0]
+    return [(path, key, value)]
+
+
+def _temporal_value(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    match = re.match(r"^(\d{4}-\d{2}-\d{2})", value.strip())
+    return match.group(1) if match is not None else None
+
+
+def _observation_diagnostics(
+    trajectory: list[dict[str, Any]], available_tools: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
+    """Expose conflicting observation aliases before asking the judge to reason.
+
+    Tool adapters frequently return both provider-native and compatibility
+    fields. A judge that reads only the favorable alias can incorrectly declare
+    success. These diagnostics are evidence pointers, not hidden labels: the
+    judge must reconcile the cited values against the original observation.
+    """
+
+    diagnostics: list[dict[str, Any]] = []
+    contracts = {
+        function.get("name"): function.get("x-automationbench-contract")
+        for definition in available_tools or []
+        if isinstance(definition, dict)
+        and isinstance((function := definition.get("function")), dict)
+        and isinstance(function.get("name"), str)
+        and isinstance(function.get("x-automationbench-contract"), dict)
+    }
+    for evidence_index, entry in enumerate(trajectory):
+        if entry.get("role") != "tool" or not isinstance(entry.get("content"), str):
+            continue
+        try:
+            observation = json.loads(entry["content"])
+        except json.JSONDecodeError:
+            continue
+        leaves = _walk_observation_values(observation)
+        for family, aliases in _TEMPORAL_FIELD_FAMILIES.items():
+            contract = contracts.get(entry.get("name"), {})
+            result_semantics = contract.get("result_semantics", {}) if isinstance(contract, dict) else {}
+            authoritative = result_semantics.get("authoritative_applied_fields", [])
+            legacy = result_semantics.get("legacy_template_fields", [])
+            if family == "due_date" and (
+                "results[].dueDate" in authoritative
+                and {"results[].due_on", "results[].due_at"}.intersection(legacy)
+            ):
+                continue
+            candidates: list[dict[str, str]] = []
+            for path, key, value in leaves:
+                normalized_key = re.sub(r"[^a-z0-9]", "", key.lower())
+                normalized_value = _temporal_value(value)
+                if normalized_key in aliases and normalized_value is not None:
+                    candidates.append(
+                        {"path": path, "value": str(value), "normalized_value": normalized_value}
+                    )
+            distinct = {candidate["normalized_value"] for candidate in candidates}
+            if len(distinct) > 1:
+                diagnostics.append(
+                    {
+                        "diagnostic_id": f"observation-conflict-{evidence_index}-{family}",
+                        "kind": "conflicting_observation_aliases",
+                        "evidence_index": evidence_index,
+                        "field_family": family,
+                        "observations": candidates,
+                    }
+                )
+    return diagnostics
+
+
+def _assessment_frame_diagnostic_errors(
+    frame: EpisodeAssessmentFrame, diagnostics: list[dict[str, Any]]
+) -> list[str]:
+    """Require every machine-detected conflict to survive model compression."""
+
+    open_discrepancies = "\n".join(frame.open_discrepancies)
+    errors = []
+    for diagnostic in diagnostics:
+        diagnostic_id = diagnostic["diagnostic_id"]
+        if diagnostic_id not in open_discrepancies:
+            errors.append(f"open_discrepancies omitted {diagnostic_id}")
+        matching_discrepancies = [
+            item.discrepancy
+            for item in frame.requirement_observations
+            if diagnostic_id in item.discrepancy
+        ]
+        if not matching_discrepancies:
+            errors.append(f"requirement_observations omitted {diagnostic_id}")
+            continue
+        diagnostic_text = " ".join(matching_discrepancies).lower()
+        unresolved = "unresolved" in diagnostic_text
+        resolved = "resolved" in diagnostic_text and not unresolved
+        if not unresolved and not resolved:
+            errors.append(f"requirement_observations did not classify {diagnostic_id} as resolved or unresolved")
+            continue
+        if resolved:
+            cited_indexes = [
+                int(value) for value in re.findall(r"message-(\d+)", diagnostic_text)
+            ]
+            if not any(index > diagnostic["evidence_index"] for index in cited_indexes):
+                errors.append(
+                    f"resolved {diagnostic_id} did not cite a later environment observation"
+                )
+            continue
+        if unresolved:
+            for dimension in (
+                "logical_correctness",
+                "verification_self_correction",
+                "answer_quality",
+            ):
+                subcheck_blocks = any(
+                    subcheck.blocks_perfection
+                    for subcheck in getattr(frame.dimension_subchecks, dimension)
+                )
+                named_blockers = [
+                    blocker.strip().lower()
+                    for blocker in getattr(frame.perfection_blockers, dimension)
+                ]
+                has_named_blocker = any(
+                    blocker not in {"none", "not applicable", "n/a"}
+                    for blocker in named_blockers
+                )
+                if not subcheck_blocks or not has_named_blocker:
+                    errors.append(f"unresolved {diagnostic_id} did not block {dimension}")
+    return errors
 
 
 def _use_current_production_protocol(cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -243,7 +407,17 @@ def _use_current_production_protocol(cases: list[dict[str, Any]]) -> list[dict[s
         if observed_ids != message_ids or len(observed_ids) != len(trajectory):
             raise ValueError("replay trajectory must match its valid message IDs exactly")
         indexed = [{**entry, "evidence_index": index} for index, entry in enumerate(trajectory)]
-        refreshed_request = {**request, "contract": EPISODE_PROMPT_VERSION, "trajectory": indexed}
+        available_tools = request.get("available_tools", [])
+        if not isinstance(available_tools, list):
+            available_tools = []
+        enriched_tools = enrich_tool_definitions(available_tools)
+        refreshed_request = {
+            **request,
+            "contract": EPISODE_PROMPT_VERSION,
+            "trajectory": indexed,
+            "available_tools": enriched_tools,
+            "harness_observation_diagnostics": _observation_diagnostics(indexed, enriched_tools),
+        }
         content = json.dumps(refreshed_request, ensure_ascii=False, sort_keys=True)
         refreshed.append(
             {
@@ -447,6 +621,7 @@ _ASSESSMENT_FRAME_SCHEMA = {
         "open_discrepancies",
         "observed_defects",
         "perfection_blockers",
+        "dimension_subchecks",
         "dimension_language",
     ],
     "properties": {
@@ -493,6 +668,36 @@ _ASSESSMENT_FRAME_SCHEMA = {
                 for name in EPISODE_RUBRICS
             },
         },
+        "dimension_subchecks": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": list(EPISODE_RUBRICS),
+            "properties": {
+                name: {
+                    "type": "array",
+                    "minItems": count,
+                    "maxItems": count,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["subdimension", "finding", "blocks_perfection"],
+                        "properties": {
+                            "subdimension": {"type": "string", "minLength": 3, "maxLength": 80},
+                            "finding": {"type": "string", "minLength": 1, "maxLength": 480},
+                            "blocks_perfection": {"type": "boolean"},
+                        },
+                    },
+                }
+                for name, count in {
+                    "problem_understanding_planning": 3,
+                    "logical_correctness": 4,
+                    "verification_self_correction": 4,
+                    "progress_efficiency": 3,
+                    "action_quality": 4,
+                    "answer_quality": 4,
+                }.items()
+            },
+        },
         "dimension_language": {
             "type": "object",
             "additionalProperties": False,
@@ -503,13 +708,15 @@ _ASSESSMENT_FRAME_SCHEMA = {
 }
 
 
-def _choice_content(response: dict[str, Any]) -> tuple[str, str, str]:
+def _choice_content(response: dict[str, Any]) -> tuple[str, str, str | None]:
     choices = response.get("choices") or []
     choice = choices[0] if choices and isinstance(choices[0], dict) else {}
     message = choice.get("message") if isinstance(choice.get("message"), dict) else {}
     content = message.get("content") if isinstance(message.get("content"), str) else ""
-    reasoning = message.get("reasoning_content") or message.get("reasoning")
-    return str(choice.get("finish_reason") or ""), content, reasoning if isinstance(reasoning, str) else ""
+    reasoning = message.get("reasoning_content")
+    if not isinstance(reasoning, str):
+        reasoning = message.get("reasoning")
+    return str(choice.get("finish_reason") or ""), content, reasoning if isinstance(reasoning, str) else None
 
 
 def _sampling_payload(
@@ -606,13 +813,22 @@ def _complete(
     assessment_frame_usage: dict[str, Any] = {}
     assessment_frame_finish_reason: str | None = None
     assessment_frame_content: str | None = None
+    assessment_frame_reasoning: str | None = None
     assessment_frame_validation_error: str | None = None
+    assessment_frame_diagnostic_errors: list[str] = []
+    assessment_frame_repaired = False
+    initial_assessment_frame_content: str | None = None
     messages = case["messages"]
+    request = json.loads(case["messages"][1]["content"])
+    observation_diagnostics = request.get("harness_observation_diagnostics", [])
+    if not isinstance(observation_diagnostics, list):
+        observation_diagnostics = []
     raw_vocabulary_profile = case.get("vocabulary_profile")
     vocabulary_profile = None
     if raw_vocabulary_profile is not None:
         vocabulary_profile = EpisodeVocabularyProfile.model_validate(raw_vocabulary_profile)
     if restatement_first:
+        frame_request = model_native_frame_request(vocabulary_profile)
         first = _chat_completion_request(
             base_url,
             {
@@ -622,7 +838,7 @@ def _complete(
                 + [
                     {
                         "role": "user",
-                        "content": model_native_frame_request(vocabulary_profile),
+                        "content": frame_request,
                     }
                 ],
                 **_sampling_payload(
@@ -645,16 +861,93 @@ def _complete(
             timeout,
             api_key=api_key,
         )
-        first_finish, first_content, _ = _choice_content(first)
+        first_finish, first_content, first_reasoning = _choice_content(first)
         assessment_frame_finish_reason = first_finish
         assessment_frame_content = first_content
+        assessment_frame_reasoning = first_reasoning
+        assessment_frame_usage = first.get("usage") if isinstance(first.get("usage"), dict) else {}
         try:
             raw_assessment_frame = json.loads(first_content) if first_finish == "stop" else None
-            assessment_frame = EpisodeAssessmentFrame.model_validate(raw_assessment_frame).model_dump(mode="json")
+            validated_frame = EpisodeAssessmentFrame.model_validate(raw_assessment_frame)
+            assessment_frame_diagnostic_errors = _assessment_frame_diagnostic_errors(
+                validated_frame, observation_diagnostics
+            )
         except (TypeError, ValueError, json.JSONDecodeError) as error:
-            assessment_frame = None
             assessment_frame_validation_error = str(error)
-        assessment_frame_usage = first.get("usage") if isinstance(first.get("usage"), dict) else {}
+        else:
+            if assessment_frame_diagnostic_errors:
+                initial_assessment_frame_content = first_content
+                repair = _chat_completion_request(
+                    base_url,
+                    {
+                        **extra_body,
+                        "model": model,
+                        "messages": messages
+                        + [
+                            {"role": "user", "content": frame_request},
+                            {"role": "assistant", "content": first_content},
+                            {
+                                "role": "user",
+                                "content": (
+                                    "Your assessment frame failed the harness evidence-coverage gate: "
+                                    + "; ".join(assessment_frame_diagnostic_errors)
+                                    + ". Return a complete replacement frame. Inspect each cited tool path, copy "
+                                    "every diagnostic_id into both open_discrepancies and its material "
+                                    "requirement_observations discrepancy, and do not select a favorable alias. "
+                                    "If no later observation resolves the conflict, mark it unresolved and set "
+                                    "the relevant dimension subchecks and perfection blockers accordingly."
+                                ),
+                            },
+                        ],
+                        **_sampling_payload(
+                            temperature=temperature,
+                            top_p=top_p,
+                            top_k=top_k,
+                            omit_temperature=omit_temperature,
+                            omit_top_p=omit_top_p,
+                            omit_top_k=omit_top_k,
+                            chat_template_kwargs=chat_template_kwargs,
+                            omit_chat_template_kwargs=omit_chat_template_kwargs,
+                        ),
+                        "max_tokens": restatement_max_tokens,
+                        "response_format": _response_format(
+                            "EpisodeAssessmentFrame",
+                            _ASSESSMENT_FRAME_SCHEMA,
+                            frame_response_format_mode or response_format_mode,
+                        ),
+                    },
+                    timeout,
+                    api_key=api_key,
+                )
+                repair_finish, repair_content, repair_reasoning = _choice_content(repair)
+                repair_usage = repair.get("usage") if isinstance(repair.get("usage"), dict) else {}
+                assessment_frame_usage = {
+                    "prompt_tokens": int(assessment_frame_usage.get("prompt_tokens") or 0)
+                    + int(repair_usage.get("prompt_tokens") or 0),
+                    "completion_tokens": int(assessment_frame_usage.get("completion_tokens") or 0)
+                    + int(repair_usage.get("completion_tokens") or 0),
+                }
+                assessment_frame_finish_reason = repair_finish
+                assessment_frame_content = repair_content
+                assessment_frame_reasoning = repair_reasoning
+                first_content = repair_content
+                first_reasoning = repair_reasoning
+                try:
+                    raw_repaired_frame = json.loads(repair_content) if repair_finish == "stop" else None
+                    validated_frame = EpisodeAssessmentFrame.model_validate(raw_repaired_frame)
+                    assessment_frame_diagnostic_errors = _assessment_frame_diagnostic_errors(
+                        validated_frame, observation_diagnostics
+                    )
+                    if assessment_frame_diagnostic_errors:
+                        raise ValueError("; ".join(assessment_frame_diagnostic_errors))
+                except (TypeError, ValueError, json.JSONDecodeError) as error:
+                    assessment_frame_validation_error = str(error)
+                else:
+                    assessment_frame_repaired = True
+                    assessment_frame_validation_error = None
+                    assessment_frame = validated_frame.model_dump(mode="json")
+            else:
+                assessment_frame = validated_frame.model_dump(mode="json")
         if assessment_frame is None:
             # A model-native verdict is meaningful only if the judge supplied
             # the vocabulary it is supposed to use.  Do not fall back to the
@@ -678,6 +971,8 @@ def _complete(
                 "assessment_frame": None,
                 "assessment_frame_finish_reason": assessment_frame_finish_reason,
                 "assessment_frame_validation_error": assessment_frame_validation_error,
+                "assessment_frame_diagnostic_errors": assessment_frame_diagnostic_errors,
+                "assessment_frame_repaired": assessment_frame_repaired,
                 "verdict": None,
                 "scores": None,
             }
@@ -685,9 +980,18 @@ def _complete(
                 result["content"] = None
                 result["reasoning"] = None
                 result["assessment_frame_content"] = assessment_frame_content
+                result["assessment_frame_reasoning"] = assessment_frame_reasoning
+                result["initial_assessment_frame_content"] = initial_assessment_frame_content
             return result
+        assistant_frame_message: dict[str, Any] = {"role": "assistant", "content": first_content}
+        if first_reasoning is not None:
+            # Some reasoning-model chat templates require the assistant's
+            # reasoning field when a generated message is replayed as history.
+            # Preserve it exactly instead of silently constructing a malformed
+            # assistant turn between the frame and verdict requests.
+            assistant_frame_message["reasoning_content"] = first_reasoning
         messages = messages + [
-            {"role": "assistant", "content": first_content},
+            assistant_frame_message,
             {
                 "role": "user",
                 "content": MODEL_NATIVE_VERDICT_REQUEST,
@@ -718,7 +1022,7 @@ def _complete(
     provisional_content: str | None = None
     provisional_usage: dict[str, Any] = {}
     if review_after_verdict:
-        provisional_finish, provisional_content, _ = _choice_content(response)
+        provisional_finish, provisional_content, provisional_reasoning = _choice_content(response)
         try:
             if provisional_finish != "stop":
                 raise ValueError("provisional verdict did not stop normally")
@@ -730,6 +1034,12 @@ def _complete(
             provisional_content = None
         if provisional_content is not None:
             provisional_usage = response.get("usage") if isinstance(response.get("usage"), dict) else {}
+            assistant_verdict_message: dict[str, Any] = {
+                "role": "assistant",
+                "content": provisional_content,
+            }
+            if provisional_reasoning is not None:
+                assistant_verdict_message["reasoning_content"] = provisional_reasoning
             response = _chat_completion_request(
                 base_url,
                 {
@@ -737,7 +1047,7 @@ def _complete(
                     "model": model,
                     "messages": messages
                     + [
-                        {"role": "assistant", "content": provisional_content},
+                        assistant_verdict_message,
                         {
                             "role": "user",
                             "content": (
@@ -773,12 +1083,15 @@ def _complete(
     elapsed = time.perf_counter() - started
     usage = response.get("usage") or {}
     finish_reason, content, reasoning = _choice_content(response)
+    # Non-reasoning models legitimately omit reasoning_content. Keep the
+    # optional value above while replaying assistant history, but normalize it
+    # at the report boundary where hashes and character counts require text.
+    reasoning_text = reasoning if reasoning is not None else ""
     verdict = None
     verdict_validation_error: str | None = None
     try:
         if wire_evidence_indexes:
             wire = WireEpisodeVerdict.model_validate_json(content)
-            request = json.loads(case["messages"][1]["content"])
             verdict = normalize_wire_verdict(wire, request["valid_message_ids"])
         else:
             verdict = EpisodeVerdict.model_validate_json(content)
@@ -797,13 +1110,15 @@ def _complete(
         + int(assessment_frame_usage.get("completion_tokens") or 0),
         "finish_reason": finish_reason,
         "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
-        "reasoning_sha256": hashlib.sha256(reasoning.encode()).hexdigest(),
+        "reasoning_sha256": hashlib.sha256(reasoning_text.encode()).hexdigest(),
         "content_characters": len(content),
-        "reasoning_characters": len(reasoning),
+        "reasoning_characters": len(reasoning_text),
         "structured_output_valid": verdict is not None and (not restatement_first or assessment_frame is not None),
         "assessment_frame": assessment_frame,
         "assessment_frame_finish_reason": assessment_frame_finish_reason,
         "assessment_frame_validation_error": assessment_frame_validation_error,
+        "assessment_frame_diagnostic_errors": assessment_frame_diagnostic_errors,
+        "assessment_frame_repaired": assessment_frame_repaired,
         "verdict_validation_error": verdict_validation_error,
         "verdict": verdict.model_dump(mode="json") if verdict is not None else None,
         "scores": (
@@ -814,8 +1129,10 @@ def _complete(
     }
     if retain_content:
         result["content"] = content
-        result["reasoning"] = reasoning
+        result["reasoning"] = reasoning_text
         result["assessment_frame_content"] = assessment_frame_content
+        result["assessment_frame_reasoning"] = assessment_frame_reasoning
+        result["initial_assessment_frame_content"] = initial_assessment_frame_content
         result["provisional_content"] = provisional_content
     return result
 

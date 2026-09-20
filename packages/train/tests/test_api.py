@@ -1711,7 +1711,7 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
             "weight_name_prefix": None,
             "speculative_config": {
                 "method": "uno",
-                "num_speculative_tokens": 7,
+                "num_speculative_tokens": 8,
                 "uno_adapter": str(uno_adapter),
                 "uno_adapter_revision": "ec92bbd768f4a404319625204544782e3377bcd7",
                 "uno_mask_token_id": 250624,
@@ -1729,7 +1729,7 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert uno_arguments["vllm_weight_sync_mode"] == "lora"
     assert uno_arguments["vllm_speculative_config"] == {
         "method": "uno",
-        "num_speculative_tokens": 7,
+        "num_speculative_tokens": 8,
         "uno_adapter": str(uno_adapter.resolve()),
         "uno_adapter_revision": "ec92bbd768f4a404319625204544782e3377bcd7",
         "uno_mask_token_id": 250624,
@@ -1752,11 +1752,12 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
         _grpo_arguments(invalid_uno_request, tmp_path, {"enable_thinking": False})
 
     full_uno_request = replace(uno_request, training=_training(update=FullParameterUpdate()))
-    full_uno_request = replace(
-        full_uno_request,
-        inference=replace(full_uno_request.inference, engine={**uno_engine, "weight_sync_mode": "full"}),
-    )
-    assert _grpo_arguments(full_uno_request, tmp_path, {"enable_thinking": False})["vllm_weight_sync_mode"] == "full"
+    with pytest.raises(ValueError, match="native LoRA policy updates only"):
+        _grpo_arguments(full_uno_request, tmp_path, {"enable_thinking": False})
+
+    qlora_uno_request = replace(uno_request, training=_training(update=QLoRAUpdate()))
+    with pytest.raises(ValueError, match="native LoRA policy updates only"):
+        _grpo_arguments(qlora_uno_request, tmp_path, {"enable_thinking": False})
 
     turboquant_request = replace(request, inference=_inference(model, kv_cache_dtype="turboquant_k8v4"))
     turboquant_arguments = _grpo_arguments(turboquant_request, tmp_path, {"enable_thinking": False})

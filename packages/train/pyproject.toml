@@ -40,7 +40,7 @@ trl-vllm = [
     "nvidia-cuda-crt==13.0.88; sys_platform == 'linux'",
     "nvidia-cuda-nvcc==13.0.88; sys_platform == 'linux'",
     "nvidia-nvvm==13.0.88; sys_platform == 'linux'",
-    "vllm @ git+https://github.com/carbonteq-ai/vllm.git@37706e7d920abc97c705ffecee0919d64ef31485",
+    "vllm @ git+https://github.com/carbonteq-ai/vllm.git@fbbba6698b2f8a912b94705cfc09eb4fd7243716",
 ]
 
 [tool.uv]

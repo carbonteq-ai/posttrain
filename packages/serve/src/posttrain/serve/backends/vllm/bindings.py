@@ -172,25 +172,7 @@ def engine_config(binding: InferenceBinding) -> VllmEngineConfig:
     engine = VllmEngineConfig(**values)
     if engine.speculative is not None and engine.speculative.method == "mtp" and not binding.model.capabilities.mtp:
         raise ValueError(f"model variant {binding.model.id!r} does not declare MTP capability")
-    _validate_runtime_compatibility(binding, engine)
     return engine
-
-
-def _validate_runtime_compatibility(
-    binding: InferenceBinding,
-    engine: VllmEngineConfig,
-) -> None:
-    if (
-        binding.backend == "vllm@62f6de733d7ae63b759329993bc209e67afdf431"
-        and binding.model.family == "nanbeige4.2"
-        and engine.kv_cache_dtype == "turboquant_k8v4"
-        and engine.speculative is not None
-        and engine.speculative.method == "dspark"
-    ):
-        raise ValueError(
-            "DSpark cannot be composed with TurboQuant in Nanbeige vLLM 62f6de733: "
-            "its non-causal draft attention is not supported by the TurboQuant backend"
-        )
 
 
 def sampling_config(binding: InferenceBinding) -> VllmSamplingConfig:

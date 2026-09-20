@@ -267,6 +267,45 @@ inference:
       temperature: 0.0
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [eval]
+  # Qualified RTX PRO serving profile for the pinned seven-token Gemma 4
+  # DSpark assistant. Gemma keeps Triton attention: the optional SM120 FA4
+  # backend is intentionally not selected for its heterogeneous 256/512 head
+  # dimensions.
+  inference/gemma4-12b-it-vllm-dspark@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.26.1
+    renderer: gemma4-tools@1
+    engine:
+      max_model_len: 65536
+      gpu_memory_utilization: 0.70
+      dtype: bfloat16
+      load_format: auto
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: false
+      disable_log_stats: false
+      max_num_seqs: 32
+      max_num_batched_tokens: 32768
+      kv_cache_dtype: auto
+      text_only: true
+      skip_mm_profiling: true
+      tool_call_parser: gemma4
+      reasoning_parser: gemma4
+      speculative_config:
+        method: dspark
+        num_speculative_tokens: 7
+        draft_model:
+          repo_id: deepseek-ai/dspark_gemma4_12b_block7
+          revision: 2fa72e765eec2965fc4d86a8663ce6769eba6218
+    sampling:
+      max_tokens: 16384
+      temperature: 1.0
+      top_p: 0.95
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [screen, eval]
+    capabilities: [tool-calling]
   inference/gemma4-31b-it-vllm-eval@1:
     revision: "1"
     startup_timeout_seconds: 1800

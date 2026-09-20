@@ -5,7 +5,7 @@
 Branch `codex/verl-rollout-execution` publishes `0.9.0.post3` from immutable
 release commit `18338a0efbd6f103378d2861f4a078ad243db455`. Post3 retains
 the post2 behavior and pins its `vllm` extra to CarbonTeq vLLM commit
-`37706e7d920abc97c705ffecee0919d64ef31485`. This dependency release does not
+`fbbba6698b2f8a912b94705cfc09eb4fd7243716`. This dependency release does not
 claim native K2 training support in veRL. Post2 added opt-in Ray agent-worker episode limits, explicit CPU
 reservations, and complete failed-group replacement in the V1 TransferQueue
 path. The framework accepts a private

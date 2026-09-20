@@ -14,7 +14,7 @@ from posttrain.common.models import (
 _K2_HORIZON_7B_REVISION = "586b03f0fd1fbbf2f13eeafc33749e95ae34dd10"
 
 K2_HORIZON_RENDERER_CONTRACT = RendererContract(
-    id="k2-horizon-tools-thinking@1",
+    id="k2-horizon-tools-thinking@2",
     model_family="k2-horizon",
     conversation=ConversationProfile(
         chat_template=ChatTemplate("tokenizer"),
@@ -28,8 +28,24 @@ K2_HORIZON_RENDERER_CONTRACT = RendererContract(
                     ("tool_call_format", "xml"),
                 ),
             ),
+            ReasoningMode(
+                "medium",
+                (
+                    ("reasoning_effort", "medium"),
+                    ("tool_presentation_format", "markdown"),
+                    ("tool_call_format", "xml"),
+                ),
+            ),
+            ReasoningMode(
+                "low",
+                (
+                    ("reasoning_effort", "low"),
+                    ("tool_presentation_format", "markdown"),
+                    ("tool_call_format", "xml"),
+                ),
+            ),
         ),
-        default_reasoning_mode="high",
+        default_reasoning_mode="medium",
         tool_calls=ToolCallProtocol(
             id="k2_ifm_xml",
             assistant_format="IFM XML tool-call block with key/value arguments",

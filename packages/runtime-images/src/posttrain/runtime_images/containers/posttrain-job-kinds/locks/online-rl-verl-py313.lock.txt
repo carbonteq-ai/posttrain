@@ -123,7 +123,7 @@ brotli==1.2.0 \
     --hash=sha256:e310f77e41941c13340a95976fe66a8a95b01e783d430eeaf7a2f87e0a57dd0a
     # via carbonteq-trackio
 
-carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/046/0ba6a4d531595/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl#sha256=0460ba6a4d531595a1caba1c6d340f13d4ba490be149308138b695b0a03512a6
+carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/fea/18a183a7493a0/carbonteq_trackio-0.31.5.post14.dev24-py3-none-any.whl#sha256=fea18a183a7493a0a1cd69218ccc2e1442cfcdbdea9c7d19f247ab7bbbf0fc21
     # via posttrain-tracking-trackio
 
 certifi==2026.6.17 \
@@ -371,9 +371,9 @@ httpx2==2.12.0 \
     #   mcp
     #   verifiers
 
-huggingface-hub==1.24.0 \
-    --hash=sha256:18431ff4daae0749aa9ba102fc952e314c98e1d30ebdec5319d85ca0a83e1ae5 \
-    --hash=sha256:6ed4120a84a6beec900640aa7e346bd766a6b7341e41526fef5dc8bd81fb7d59
+huggingface-hub==1.31.0 \
+    --hash=sha256:9dbb6a503cbe2494ea666695207e7262d410659e09134059deb83e5480864667 \
+    --hash=sha256:f8e9e710a210613fa5d0f26bba6da05ef4aef9fba5a0f23f508f5ac4d08b6f90
     # via
     #   accelerate
     #   carbonteq-trackio
@@ -384,6 +384,7 @@ huggingface-hub==1.24.0 \
     #   posttrain-train
     #   tokenizers
     #   transformers
+    #   vllm
 
 idna==3.18 \
     --hash=sha256:7f952cbe720b688055e3f87de14f5c3e5fdaa8bc3928985c4077ca689de849a2 \
@@ -613,8 +614,11 @@ numpy==2.3.5 \
     #   humming-kernels
     #   mistral-common
     #   ml-dtypes
+    #   nccl4py
     #   numba
     #   nvidia-cutlass-dsl-libs-base
+    #   nvidia-cutlass-dsl-libs-core
+    #   nvidia-cutlass-dsl-libs-cu12
     #   nvidia-cutlass-dsl-libs-cu13
     #   opencv-python-headless
     #   pandas
@@ -699,6 +703,7 @@ packaging==26.2 \
     #   huggingface-hub
     #   kernels
     #   lm-format-enforcer
+    #   nccl4py
     #   peft
     #   transformers
     #   trl
@@ -787,17 +792,20 @@ propcache==0.5.2 \
     #   aiohttp
     #   yarl
 
-protobuf==7.35.1 \
+protobuf==7.35.1 ; platform_machine != 's390x' \
     --hash=sha256:11d6b0ec246892d85215b0a13ca6e0233cf5284b68f0ac02646427f4ff88a799 \
     --hash=sha256:230a75ddfc2de4806e56696ce9640c1cdfdb6543b7cfce98d42a4c0a0e7bdb87 \
     --hash=sha256:24f857477359a85c0c235261b8ba905fd51b2562f4a64ca1df5473f29850cbf6 \
     --hash=sha256:353652e4efd0bca5b5fc2656abf8307ef351f0cf938c9eba09f0e09c20a25c30 \
     --hash=sha256:4bc97768d8fe4ad6743c8a19403e314511ed9f6d13205b687e52421c023ac1b9 \
     --hash=sha256:74758715c53d7158fb76caf4f0cfdacc5329a4b1bb994f865d6cf302d413a1c4 \
-    --hash=sha256:b73f9489a4b8b1c9cb1f8ed951c736392592edb24b9d6819f36d2e10b171d5b4 \
     --hash=sha256:ce115a26fe0c39a2c29973d914d327e516a6455464489fe3cd1e51a1b354f81a
     # via
     #   googleapis-common-protos
+    #   nvidia-cutlass-dsl-libs-base
+    #   nvidia-cutlass-dsl-libs-core
+    #   nvidia-cutlass-dsl-libs-cu12
+    #   nvidia-cutlass-dsl-libs-cu13
     #   opentelemetry-proto
     #   posttrain-train
     #   prime-sandboxes
@@ -1310,6 +1318,8 @@ typing-extensions==4.16.0 \
     #   mcp-types
     #   mistral-common
     #   nvidia-cutlass-dsl-libs-base
+    #   nvidia-cutlass-dsl-libs-core
+    #   nvidia-cutlass-dsl-libs-cu12
     #   nvidia-cutlass-dsl-libs-cu13
     #   openai
     #   opentelemetry-api

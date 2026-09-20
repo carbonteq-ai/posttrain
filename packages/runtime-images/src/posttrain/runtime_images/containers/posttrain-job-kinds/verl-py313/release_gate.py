@@ -189,10 +189,10 @@ def validate_definition(profile: ReleaseProfile) -> tuple[str, ...]:
     required_versions = {
         "torch": "2.13.0+cu130",
         "transformers": "5.14.1",
-        "vllm": "0.26.1.dev1+g37706e7d9",
-        "vllm_runtime_version": "0.26.1.dev1+g37706e7d9.precompiled",
-        "vllm_binary_base": "0.3.1.dev34+g75c71390d-cp38-abi3-manylinux_2_28_x86_64",
-        "vllm_binary_wheel_sha256": ("9decf15f4451566b6cda7f2ce81a7a7f3f3226e7f82e9b2077bb2f4d23dc7f76"),
+        "vllm": "0.29.1.dev2",
+        "vllm_runtime_version": "0.29.1.dev2+precompiled",
+        "vllm_binary_base": "0.29.1rc1.dev366+g44dd18fe0-cp38-abi3-manylinux_2_28_x86_64",
+        "vllm_binary_wheel_sha256": ("2b8f85d32b952cb05743c2edb02c4ae5be59921445b97069a609f186fdf6c5f0"),
         "ray": "2.56.1",
         "tensordict": "0.10.0",
     }
@@ -327,7 +327,7 @@ def validate_repository_integration(
             ("deterministic backend bytecode", "compileall --invalidation-mode checked-hash"),
             (
                 "binary wheel checksum",
-                "9decf15f4451566b6cda7f2ce81a7a7f3f3226e7f82e9b2077bb2f4d23dc7f76",
+                "2b8f85d32b952cb05743c2edb02c4ae5be59921445b97069a609f186fdf6c5f0",
             ),
             ("shared-heavy policy", "shared-heavy.toml"),
             ("shared fallback validator", "validate_shared_fallback.py"),

@@ -521,7 +521,47 @@ def _configuration_findings(
         engine = value.engine
         speculative = engine.get("speculative_config", engine.get("speculative"))
         is_mtp = isinstance(speculative, Mapping) and speculative.get("method") == "mtp"
-        turboquant = engine.get("kv_cache_dtype") == "turboquant_k8v4"
+        kv_cache_dtype = engine.get("kv_cache_dtype")
+        turboquant = isinstance(kv_cache_dtype, str) and kv_cache_dtype.startswith("turboquant_")
+        flash_attn_version = engine.get("flash_attn_version")
+        if turboquant and isinstance(flash_attn_version, int) and flash_attn_version >= 3:
+            issues.append(
+                ConfigurationIssue(
+                    "VLLM_TURBOQUANT_FLASH_ATTN_INCOMPATIBLE",
+                    "error",
+                    "static",
+                    role,
+                    f"{role}.engine.flash_attn_version",
+                    (
+                        f"TurboQuant KV cache cannot be compiled with FlashAttention {flash_attn_version}; "
+                        "the selected vLLM runtime requires FlashAttention 2 for TurboQuant boundary layers"
+                    ),
+                    "Set flash_attn_version to 2 or select a non-TurboQuant KV-cache dtype.",
+                    (f"{role}.engine.kv_cache_dtype",),
+                )
+            )
+        if (
+            value.backend == "vllm@62f6de733d7ae63b759329993bc209e67afdf431"
+            and value.model.family == "nanbeige4.2"
+            and turboquant
+            and isinstance(speculative, Mapping)
+            and speculative.get("method") == "dspark"
+        ):
+            issues.append(
+                ConfigurationIssue(
+                    "VLLM_DSPARK_TURBOQUANT_INCOMPATIBLE",
+                    "error",
+                    "static",
+                    role,
+                    f"{role}.engine.speculative_config",
+                    (
+                        "DSpark cannot be compiled with TurboQuant in vLLM 62f6de733 because its "
+                        "non-causal draft attention is unsupported by the TurboQuant backend"
+                    ),
+                    "Use the native KV cache for DSpark or select a runtime that explicitly qualifies this composition.",
+                    (f"{role}.engine.kv_cache_dtype",),
+                )
+            )
         if is_mtp and not value.model.capabilities.mtp:
             issues.append(
                 ConfigurationIssue(

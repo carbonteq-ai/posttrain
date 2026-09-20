@@ -2,6 +2,11 @@
 
 vLLM is an optional backend of `packages/serve` and an optional rollout dependency of `packages/train`.
 
+For runtime optimization work, follow the
+[CUDA graph debugging and qualification guideline](./cuda-graph-debugging.md).
+It defines upstream diagnostic controls, deterministic replay fixtures,
+evidence requirements, and the current Uno investigation entry point.
+
 ```bash
 uv sync --package posttrain-serve --extra vllm --python 3.12
 uv sync --package posttrain-train --extra vllm --python 3.12
@@ -12,47 +17,40 @@ same CUDA minor version. This is required because FlashInfer compiles kernels
 locally: the runtime, headers, NVCC, NVVM, CRT, and CCCL cannot safely float to
 different CUDA releases.
 
-The current development candidate selects the manually released CarbonTeq
-vLLM source overlay
-[`carbonteq-v0.26.1.dev1`](https://github.com/carbonteq-ai/vllm/releases/tag/carbonteq-v0.26.1.dev1),
-commit `37706e7d920abc97c705ffecee0919d64ef31485`, based exactly on upstream
-`75c71390d5b399f5397a9166920fc45902f99f14`. Its retained source archive has
-SHA-256 `4d1263e77cc9c36a63874efa7f9cf42cb42687282e13b87294edcbe40918a135`.
-The fork carries the bounded TurboQuant cache correction, native Uno proposer,
-and policy-LoRA composition documented in its root `CARBONTEQ_FORK.md`.
-`posttrain-serve[vllm]`, `posttrain-train[trl-vllm]`, TRL post9, and veRL post3
-all select that exact commit. The candidate remains a prerelease until the
-rebuilt runtime image and bounded GPU rollout gates pass.
+The selected development release is
+[`carbonteq-v0.29.1.dev2`](https://github.com/carbonteq-ai/vllm/releases/tag/carbonteq-v0.29.1.dev2),
+commit `fbbba6698b2f8a912b94705cfc09eb4fd7243716`, based exactly on upstream
+`44dd18fe0bb0f13157f97a5aa029b6604468fca6`. Its retained source archive has
+SHA-256 `cd44782606be23fa4a0195fd90e7377a5adf8f3d9bcc7984a21743a046b7d44e`.
+The independent SM120 kernel is
+[`sm120-paged-attention` v0.1.0](https://github.com/carbonteq-ai/sm120-paged-attention/releases/tag/v0.1.0),
+commit `99a6fe0acbb4756735aa8e47236f8b74e3f7c4be`, with wheel SHA-256
+`3149a539c3296afbc56dfec88e86012fa00c8ac167eb828fa95efe90fdd38430`.
 
-## Uno rollout candidate
+## Uno and SM120 release boundary
 
-The CarbonTeq branch `codex/uno-spec-decoding`, based on upstream
-commit `75c71390d5b399f5397a9166920fc45902f99f14`, now has a native K2 Uno
-proposer. It shares the target model and KV cache, applies the pinned Uno LoRA
-only to future noise rows, and leaves verification, rejection sampling, and
-per-token target logprobs under vLLM authority. The branch is the source of the
-`carbonteq-v0.26.1.dev1` candidate above; it does not become the stable runtime
-until promotion gates pass.
+The fork provides the native Uno proposer, position-gated system LoRA overlay,
+owner-scoped Punica metadata, policy-plus-Uno adapter composition, SM120 paged
+FA4 backend, and shape-tuned batch-invariant linear configurations. Uno keeps
+its proposer eager; target decode retains ordinary vLLM CUDA graphs. Rejected
+authoritative-prefix, proposer-graph, deterministic-noise, and debug-switch
+experiments are not part of the public configuration.
 
-On the RTX PRO 6000, focused native smokes returned complete finite target
-logprobs for 128- and 256-token completions, produced a parsed K2 tool call,
-and completed four concurrent 128-token requests without preemption. The
-proposer runs eagerly while target execution remains compiled because the
-target CUDA graph's captured runner buffers are not shape-safe for Uno's
-seed-plus-noise forward. See
-[`uno-vllm-rollout-integration.md`](../../plan/uno-vllm-rollout-integration.md)
-for the live plan and remaining gates.
+The release-clean RTX PRO c4 control produced 435.78 output tok/s with the
+released kernel and zero preemptions. Focused configuration, attention,
+invariant-linear, Uno, and LoRA tests pass. A real rank-8 policy-LoRA optimizer
+step passed policy versions 0 and 1 with 32/32 finite target logprobs and a
+maximum post-update logprob movement of 0.0655067.
 
-Level-1 sleep/wake, post-wake generation, one in-flight abort, and
-pause/cache-clear/resume also pass through the loopback-only development
-control API. Do not select this branch for RL yet: mixed-batch abort churn,
-cache invalidation plus real changed-weight refreshes across LoRA and
-full-policy optimizer updates, and a matched warm long-prompt comparison
-remain required. Native LoRA-policy training is now qualified for one real K2
-optimizer step: target and seed rows use the current policy LoRA, while
-draft-noise rows use an atomically refreshed rank-concatenated policy-plus-Uno
-adapter. Full-policy updates remain a separate full-weight path and still need
-their changed-weight live gate.
+Posttrain therefore admits native Uno inference and LoRA training only.
+Full-weight and QLoRA Uno refresh are rejected during job compilation until
+they pass independent live optimizer/update gates. Distributional comparison,
+mixed-batch churn, and the long-prompt cell remain stable-promotion evidence;
+they do not silently broaden the qualified training modes.
+
+See the [optimization architecture](../../architecture/vllm-inference-optimization.md)
+and [Uno rollout plan](../../plan/uno-vllm-rollout-integration.md) for the
+diagnostic chain and retained artifacts.
 
 The fork delta is Python-only. The veRL image verifies the upstream 0.25.1
 x86_64 ABI3 wheel with SHA-256
@@ -82,6 +80,36 @@ activation also prepends the active interpreter's scripts directory to `PATH`
 so pip-installed JIT tools such as `ninja` resolve for EngineCore children
 even when `vllm` was launched by absolute path. It does not alter the installed
 wheels and does not disable FlashInfer.
+
+### Direct RTX PRO development loop
+
+Python, Triton, scheduler, and benchmark changes are iterated directly on the
+RTX PRO before OCI qualification. The command surface lives in
+`/home/hammad/projects/k2-horizon-inference/Taskfile.yml`:
+
+```bash
+cd /home/hammad/projects/k2-horizon-inference
+task remote:bootstrap
+task remote:test -- tests/v1/spec_decode/test_uno.py -q
+task remote:restart
+task remote:status
+```
+
+Bootstrap transfers a Git bundle of the local base commit and then overlays the
+dirty worktree with checksum-based `rsync`. The remote clone is therefore
+self-contained and does not depend on GitHub credentials or a linked-worktree
+path from another machine. Subsequent no-op synchronization is sub-second on
+the LAN. The retained vLLM venv supplies compiled extensions, while the remote
+source overlay supplies Python and Triton code. Generated third-party sources
+and compatible native binaries are reused from the existing remote build.
+
+The server runs as the `vllm-sm120-dev.service` transient user unit, binds only
+to loopback, and records the strict batch-invariant and deterministic SM120
+flags in its managed environment. Start refuses to replace an unmanaged
+listener. Restart stops only the managed unit, synchronizes source, waits for a
+healthy endpoint, and fails with its journal if initialization exits. Docker,
+image publication, and Posttrain submission remain separate release gates
+after focused tests and direct warm benchmarks pass.
 
 Run either current code-defined foundation smoke through the lab composition
 root. The operation remains usable directly from Python through

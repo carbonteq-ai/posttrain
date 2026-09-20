@@ -50,7 +50,13 @@ def test_foundation_variants_publish_explicit_model_and_renderer_contracts() -> 
     assert GEMMA_4_12B_IT.renderer.id == "gemma4-tools@1"
     assert GEMMA_4_12B_IT.provenance["upstream_model_type"] == "gemma4_unified"
     assert GEMMA_4_12B_IT.provenance["upstream_architecture"] == "Gemma4UnifiedForConditionalGeneration"
-    assert K2_HORIZON_7B.renderer.id == "k2-horizon-tools-thinking@1"
+    assert K2_HORIZON_7B.renderer.id == "k2-horizon-tools-thinking@2"
+    assert K2_HORIZON_7B.default_reasoning_mode == "medium"
+    assert tuple(mode.id for mode in K2_HORIZON_7B.conversation.reasoning_modes) == (
+        "high",
+        "medium",
+        "low",
+    )
     assert K2_HORIZON_7B.provenance["trust_remote_code"] is True
 
 

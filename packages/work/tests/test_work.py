@@ -185,6 +185,81 @@ def test_selected_job_can_be_prepared_without_execution(tmp_path: Path) -> None:
     assert prepared.seats["target"] is target
 
 
+def test_job_compilation_rejects_invalid_vllm_flags_even_when_optional_preflight_is_skipped(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "invalid-vllm.yaml"
+    path.write_text(
+        """
+project_id: example
+work_package_id: qualify/invalid-vllm
+stage: qualify
+recipe:
+  type: inline
+  id: recipes/invalid-vllm@1
+  revision: "1"
+  stage: qualify
+  seats:
+    inference: inference
+  jobs:
+    - id: smoke
+      kind: serve.smoke
+      definition: serve/invalid-vllm@1
+bindings:
+  inference:
+    type: ref
+    family: inference
+    id: inference/invalid-tq-fa4@1
+enabled_optional_jobs: []
+metadata: {}
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    target = ExecutionTarget("targets/blackwell", "1", "nvidia-cuda", 96)
+    binding = InferenceBinding(
+        "inference/invalid-tq-fa4@1",
+        "1",
+        QWEN_35_2B,
+        "vllm@fbbba6698b2f8a912b94705cfc09eb4fd7243716",
+        QWEN_35_2B.renderer.id,
+        {
+            "max_model_len": 16_384,
+            "kv_cache_dtype": "turboquant_k8v4",
+            "flash_attn_version": 4,
+        },
+        {"max_tokens": 1_024},
+        target,
+        ("smoke",),
+    )
+    catalog = Catalog(
+        CatalogLayer(
+            "framework-v1",
+            {CatalogRef("inference", binding.id): binding},
+        ),
+        (),
+        "example",
+    )
+    executed: list[str] = []
+    definition = JobDefinition(
+        "serve/invalid-vllm@1",
+        "serve.smoke",
+        {"inference": InferenceBinding},
+        lambda context, seats: executed.append(context.run_id),
+    )
+    context = WorkPackageContext(catalog, {definition.id: definition})
+
+    with pytest.raises(ContractError, match="TurboQuant KV cache cannot be compiled with FlashAttention 4"):
+        prepare_work_package_job(
+            context,
+            load_work_package(path),
+            "smoke",
+            skip_preflight=True,
+        )
+
+    assert executed == []
+
+
 def test_run_snapshot_includes_project_brief_and_digest(tmp_path: Path) -> None:
     path = tmp_path / "cpu-check.yaml"
     _fixture(path)

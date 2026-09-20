@@ -7,7 +7,7 @@ from types import ModuleType, SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from posttrain.common import ProducedArtifact
+from posttrain.common import JsonValue, ProducedArtifact
 from posttrain.common.variants import GEMMA_4_12B_IT, K2_HORIZON_7B, LFM_25_12B_THINKING, QWEN_35_2B
 from posttrain.train import LoRAUpdate, TrainingLoop
 from posttrain.train.backends.trl.common import (
@@ -214,6 +214,19 @@ def test_gemma_mtp_rejects_an_unpinned_or_incomplete_assistant() -> None:
             GEMMA_4_12B_IT,
             {"mode": "colocate", "speculative_config": {"method": "mtp", "num_speculative_tokens": 1}},
         )
+    with pytest.raises(ValueError, match="full 40-character commit SHA"):
+        vllm_rollout_options(
+            GEMMA_4_12B_IT,
+            {
+                "mode": "colocate",
+                "speculative_config": {
+                    "method": "mtp",
+                    "num_speculative_tokens": 1,
+                    "assistant_model": "google/gemma-4-12B-it-assistant",
+                    "assistant_revision": "main",
+                },
+            },
+        )
 
 
 def test_vllm_rollout_options_preserves_bounded_large_batch_wave_settings() -> None:
@@ -228,19 +241,88 @@ def test_vllm_rollout_options_preserves_bounded_large_batch_wave_settings() -> N
 
     assert speculative is None
     assert kwargs == {"max_num_seqs": 32, "max_num_batched_tokens": 32768}
-    with pytest.raises(ValueError, match="full 40-character commit SHA"):
-        vllm_rollout_options(
-            GEMMA_4_12B_IT,
-            {
-                "mode": "colocate",
-                "speculative_config": {
-                    "method": "mtp",
-                    "num_speculative_tokens": 1,
-                    "assistant_model": "google/gemma-4-12B-it-assistant",
-                    "assistant_revision": "main",
-                },
-            },
-        )
+
+
+def test_vllm_rollout_options_preserves_attention_cache_and_scheduler_settings() -> None:
+    speculative, kwargs = vllm_rollout_options(
+        QWEN_35_2B,
+        {
+            "mode": "colocate",
+            "flash_attn_version": 4,
+            "enable_chunked_prefill": True,
+            "enable_prefix_caching": True,
+            "kv_cache_memory_bytes": 512 * 1024 * 1024,
+        },
+    )
+
+    assert speculative is None
+    assert kwargs == {
+        "kv_cache_memory_bytes": 512 * 1024 * 1024,
+        "enable_chunked_prefill": True,
+        "enable_prefix_caching": True,
+        "attention_config": {"flash_attn_version": 4},
+    }
+
+
+def test_vllm_rollout_options_forwards_attention_backend_priority() -> None:
+    speculative, kwargs = vllm_rollout_options(
+        QWEN_35_2B,
+        {
+            "flash_attn_version": 4,
+            "attention_backend_priority": [
+                "B12X",
+                "FLASH_ATTN",
+                "FLASHINFER",
+                "TRITON_ATTN",
+            ],
+        },
+    )
+
+    assert speculative is None
+    assert kwargs == {
+        "attention_config": {
+            "flash_attn_version": 4,
+            "backend_priority": [
+                "B12X",
+                "FLASH_ATTN",
+                "FLASHINFER",
+                "TRITON_ATTN",
+            ],
+        }
+    }
+
+
+@pytest.mark.parametrize(
+    ("priority", "match"),
+    [
+        ("B12X", "list or tuple"),
+        ([], "must not be empty"),
+        (["b12x"], "uppercase backend names"),
+        (["B12X", "B12X"], "must not contain duplicates"),
+    ],
+)
+def test_vllm_rollout_options_rejects_invalid_backend_priority(priority: JsonValue, match: str) -> None:
+    with pytest.raises(ValueError, match=match):
+        vllm_rollout_options(QWEN_35_2B, {"attention_backend_priority": priority})
+
+
+def test_vllm_rollout_options_rejects_invalid_attention_version_syntax() -> None:
+    with pytest.raises(ValueError, match="one of 2, 3, or 4"):
+        vllm_rollout_options(QWEN_35_2B, {"flash_attn_version": 5})
+
+
+def test_vllm_rollout_options_defers_attention_cache_compatibility_to_backend() -> None:
+    speculative, kwargs = vllm_rollout_options(
+        QWEN_35_2B,
+        {"flash_attn_version": 4, "kv_cache_dtype": "turboquant_k8v4"},
+    )
+
+    assert speculative is None
+    assert kwargs == {
+        "attention_config": {"flash_attn_version": 4},
+        "kv_cache_dtype": "turboquant_k8v4",
+        "dtype": "float16",
+    }
 
 
 def test_mtp_compile_disable_is_applied_before_runtime_import(monkeypatch) -> None:

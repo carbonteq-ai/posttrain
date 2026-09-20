@@ -25,7 +25,7 @@ def test_native_worker_selects_k2_ifm_tool_parser():
         base_url="http://127.0.0.1:8123/v1",
         renderer_model_name=K2_HORIZON_7B.base.repo_id,
         model=K2_HORIZON_7B,
-        renderer=TrainingRenderer("k2-horizon-tools-thinking@1", "k2-horizon", "default", "high"),
+        renderer=TrainingRenderer("k2-horizon-tools-thinking@2", "k2-horizon", "default", "medium"),
     )
 
     assert config.renderer.tool_parser == "k2-ifm"

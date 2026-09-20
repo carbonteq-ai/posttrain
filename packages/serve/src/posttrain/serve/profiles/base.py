@@ -40,6 +40,12 @@ class VllmSpeculativeConfig:
     method: str
     num_speculative_tokens: int
     draft_model: VllmDraftModel | None = None
+    enforce_eager: bool | None = None
+    uno_adapter: str | None = None
+    uno_adapter_revision: str | None = None
+    uno_mask_token_id: int | None = None
+    uno_noise_mode: str = "random_uniform"
+    uno_composes_request_lora: bool = False
 
     def __post_init__(self) -> None:
         if not self.method or re.fullmatch(r"[a-z0-9][a-z0-9._-]*", self.method) is None:
@@ -48,14 +54,53 @@ class VllmSpeculativeConfig:
             raise ValueError("num_speculative_tokens must be positive")
         if self.method == "dspark" and self.draft_model is None:
             raise ValueError("DSpark speculative decoding requires an immutable draft model")
+        if self.enforce_eager is not None and not isinstance(self.enforce_eager, bool):
+            raise ValueError("speculative enforce_eager must be a boolean")
+        uno_fields_selected = (
+            self.uno_adapter is not None
+            or self.uno_adapter_revision is not None
+            or self.uno_mask_token_id is not None
+            or self.uno_noise_mode != "random_uniform"
+            or self.uno_composes_request_lora
+        )
+        if not isinstance(self.uno_composes_request_lora, bool):
+            raise ValueError("uno_composes_request_lora must be a boolean")
+        if self.method == "uno":
+            if not isinstance(self.uno_adapter, str) or not self.uno_adapter:
+                raise ValueError("Uno speculative decoding requires uno_adapter")
+            if (
+                isinstance(self.uno_mask_token_id, bool)
+                or not isinstance(self.uno_mask_token_id, int)
+                or self.uno_mask_token_id < 2
+            ):
+                raise ValueError("Uno speculative decoding requires uno_mask_token_id greater than one")
+            if self.uno_noise_mode not in {"mask", "random_uniform"}:
+                raise ValueError("uno_noise_mode must be 'mask' or 'random_uniform'")
+        elif uno_fields_selected:
+            raise ValueError("Uno speculative settings require method='uno'")
 
-    def as_vllm(self) -> dict[str, str | int]:
-        values: dict[str, str | int] = {
+    def as_vllm(self) -> dict[str, str | int | bool]:
+        values: dict[str, str | int | bool] = {
             "method": self.method,
             "num_speculative_tokens": self.num_speculative_tokens,
         }
         if self.draft_model is not None:
             values.update(self.draft_model.as_vllm())
+        if self.enforce_eager is not None:
+            values["enforce_eager"] = self.enforce_eager
+        if self.method == "uno":
+            assert self.uno_adapter is not None
+            assert self.uno_mask_token_id is not None
+            values.update(
+                {
+                    "uno_adapter": self.uno_adapter,
+                    "uno_mask_token_id": self.uno_mask_token_id,
+                    "uno_noise_mode": self.uno_noise_mode,
+                    "uno_composes_request_lora": self.uno_composes_request_lora,
+                }
+            )
+            if self.uno_adapter_revision is not None:
+                values["uno_adapter_revision"] = self.uno_adapter_revision
         return values
 
 
@@ -77,6 +122,7 @@ class VllmEngineConfig:
     text_only: bool = False
     skip_mm_profiling: bool = False
     flash_attn_version: int | None = None
+    attention_backend_priority: tuple[str, ...] = ()
     speculative: VllmSpeculativeConfig | None = None
 
     def __post_init__(self) -> None:
@@ -107,6 +153,20 @@ class VllmEngineConfig:
             raise ValueError("max_num_batched_tokens must be positive")
         if self.skip_mm_profiling and not self.text_only:
             raise ValueError("skip_mm_profiling is only safe for an explicit text-only profile")
+        if self.flash_attn_version is not None and (
+            isinstance(self.flash_attn_version, bool)
+            or not isinstance(self.flash_attn_version, int)
+            or self.flash_attn_version not in {2, 3, 4}
+        ):
+            raise ValueError("flash_attn_version must be one of 2, 3, or 4")
+        object.__setattr__(self, "attention_backend_priority", tuple(self.attention_backend_priority))
+        if len(set(self.attention_backend_priority)) != len(self.attention_backend_priority):
+            raise ValueError("attention_backend_priority must not contain duplicates")
+        if any(
+            not isinstance(backend, str) or not backend or backend != backend.upper()
+            for backend in self.attention_backend_priority
+        ):
+            raise ValueError("attention_backend_priority entries must be non-empty uppercase backend names")
 
     def as_vllm_kwargs(self) -> dict[str, object]:
         values: dict[str, object] = {
@@ -130,8 +190,13 @@ class VllmEngineConfig:
             values["limit_mm_per_prompt"] = {"image": 0, "video": 0, "audio": 0}
         if self.skip_mm_profiling:
             values["skip_mm_profiling"] = True
+        attention_config: dict[str, object] = {}
         if self.flash_attn_version is not None:
-            values["attention_config"] = {"flash_attn_version": self.flash_attn_version}
+            attention_config["flash_attn_version"] = self.flash_attn_version
+        if self.attention_backend_priority:
+            attention_config["backend_priority"] = list(self.attention_backend_priority)
+        if attention_config:
+            values["attention_config"] = attention_config
         if self.speculative is not None:
             values["speculative_config"] = self.speculative.as_vllm()
         return values
@@ -169,8 +234,13 @@ class VllmEngineConfig:
             values.extend(("--limit-mm-per-prompt", json.dumps({"image": 0, "video": 0, "audio": 0})))
         if self.skip_mm_profiling:
             values.append("--skip-mm-profiling")
+        attention_config: dict[str, object] = {}
         if self.flash_attn_version is not None:
-            values.extend(("--attention-config", json.dumps({"flash_attn_version": self.flash_attn_version})))
+            attention_config["flash_attn_version"] = self.flash_attn_version
+        if self.attention_backend_priority:
+            attention_config["backend_priority"] = list(self.attention_backend_priority)
+        if attention_config:
+            values.extend(("--attention-config", json.dumps(attention_config)))
         if self.speculative is not None:
             values.extend(("--speculative-config", json.dumps(self.speculative.as_vllm())))
         return tuple(values)

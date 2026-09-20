@@ -179,11 +179,11 @@ def _online_rl_arguments(
                         "their native precision"
                     )
                 weight_sync_mode = "lora"
-            elif request.training.update.kind == "full":
-                if weight_sync_mode != "full":
-                    raise ValueError("TRL Uno full-policy training requires weight_sync_mode='full'")
             else:
-                raise ValueError("TRL Uno currently supports full or LoRA policy updates, not QLoRA")
+                raise ValueError(
+                    "TRL Uno currently qualifies native LoRA policy updates only; "
+                    "full-weight and QLoRA refresh require separate release gates"
+                )
         speculative_config, engine_kwargs = vllm_rollout_options(request.policy, rollout)
         arguments.update(
             {

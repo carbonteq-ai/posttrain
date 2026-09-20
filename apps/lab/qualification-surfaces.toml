@@ -461,6 +461,17 @@ parity = [
 deletion_condition = "The public judge replay test suite covers both service lifecycle variants."
 
 [[surfaces]]
+id = "sample-trackio-training-traces"
+path = "scripts/qualification/sample_trackio_training_traces.py"
+kind = "evidence-validator"
+owner = "observatory"
+transition = "promote"
+replacement = "an Observatory trace-sampling export over provider-neutral trace readers"
+tests = []
+parity = ["select complete non-truncated traces across task domains deterministically", "retain native payloads and a provenance manifest without judge-oracle projection"]
+deletion_condition = "Observatory owns the equivalent bounded trace-sampling export and its deterministic selection tests."
+
+[[surfaces]]
 id = "validate-context-preflight"
 path = "scripts/qualification/validate_context_preflight.py"
 kind = "operator-preflight"

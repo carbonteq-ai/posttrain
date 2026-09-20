@@ -806,7 +806,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
     assert entries["trl"].revision == "3b7a582e011a32de74d1f2b6e572b794360fbfd7"
     assert entries["verl"].release_tag == "carbonteq-v0.9.0.post3"
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
-        "4d1263e77cc9c36a63874efa7f9cf42cb42687282e13b87294edcbe40918a135"
+        "cd44782606be23fa4a0195fd90e7377a5adf8f3d9bcc7984a21743a046b7d44e"
     )
     assert entries["automationbench"].artifacts["environment_revision"] == ("a6d779fc1fdfde23f86e297125b3381b140cec2f")
     assert entries["dstack"].required is False

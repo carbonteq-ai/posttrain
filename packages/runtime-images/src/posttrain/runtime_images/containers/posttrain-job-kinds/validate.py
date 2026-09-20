@@ -160,7 +160,7 @@ def _validate_boundaries() -> None:
     _require(
         "VLLM_USE_PRECOMPILED=1" in vllm_dockerfile
         and 'VLLM_PRECOMPILED_WHEEL_LOCATION="${wheel}"' in vllm_dockerfile
-        and "9decf15f4451566b6cda7f2ce81a7a7f3f3226e7f82e9b2077bb2f4d23dc7f76" in vllm_dockerfile,
+        and "2b8f85d32b952cb05743c2edb02c4ae5be59921445b97069a609f186fdf6c5f0" in vllm_dockerfile,
         "the shared vLLM stage must verify and overlay the retained binary wheel",
     )
     _require(

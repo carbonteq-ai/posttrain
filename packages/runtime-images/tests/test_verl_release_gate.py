@@ -43,7 +43,7 @@ def test_candidate_image_smokes_both_python_313_environments() -> None:
     bake = (PROFILE_ROOT / "docker-bake.hcl").read_text(encoding="utf-8")
 
     assert "import ray, torch, transformers, tensordict, verl, verifiers, vllm" in dockerfile
-    assert "0.26.1.dev1+g37706e7d9.precompiled" in dockerfile
+    assert "0.29.1.dev2+precompiled" in dockerfile
     assert 'VLLM_VERSION_OVERRIDE="${VLLM_RUNTIME_VERSION}"' in dockerfile
     assert 'variable "SOURCE_DATE_EPOCH"' in bake
     assert 'default = "315532800"' in bake
