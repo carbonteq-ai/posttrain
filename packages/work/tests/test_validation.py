@@ -86,6 +86,68 @@ def test_hardware_advice_recommends_qualified_accelerations_without_mutating_bin
     assert "MTP_AVAILABLE" not in {issue.code for issue in teacher_issues}
 
 
+def test_job_compiler_rejects_turboquant_with_flash_attention_four() -> None:
+    catalog = open_catalog(scope="empty-project")
+    model = cast(ModelVariant, catalog.resolve(CatalogRef("model", "models/gemma4-12b-it@bf16")).value)
+    target = cast(
+        ExecutionTarget,
+        catalog.resolve(CatalogRef("target", "targets/rtx-pro-6000-96gb")).value,
+    )
+    binding = InferenceBinding(
+        "inference/gemma4-invalid-tq-fa4@1",
+        "1",
+        model,
+        "vllm@fbbba6698b2f8a912b94705cfc09eb4fd7243716",
+        model.renderer.id,
+        {
+            "max_model_len": 16_384,
+            "kv_cache_dtype": "turboquant_k8v4",
+            "flash_attn_version": 4,
+        },
+        {"max_tokens": 1_024},
+        target,
+        ("rollout",),
+    )
+
+    issues, _ = _configuration_findings({"rollout_inference": binding})
+
+    issue = next(issue for issue in issues if issue.code == "VLLM_TURBOQUANT_FLASH_ATTN_INCOMPATIBLE")
+    assert issue.severity == "error"
+    assert issue.path == "rollout_inference.engine.flash_attn_version"
+    assert issue.related_paths == ("rollout_inference.engine.kv_cache_dtype",)
+
+
+def test_job_compiler_rejects_pinned_dspark_with_turboquant() -> None:
+    catalog = open_catalog(scope="empty-project")
+    model = cast(ModelVariant, catalog.resolve(CatalogRef("model", "models/nanbeige4.2-3b@bf16")).value)
+    target = cast(
+        ExecutionTarget,
+        catalog.resolve(CatalogRef("target", "targets/rtx-pro-6000-96gb")).value,
+    )
+    binding = InferenceBinding(
+        "inference/nanbeige-invalid-dspark-tq@1",
+        "1",
+        model,
+        "vllm@62f6de733d7ae63b759329993bc209e67afdf431",
+        model.renderer.id,
+        {
+            "max_model_len": 16_384,
+            "kv_cache_dtype": "turboquant_k8v4",
+            "flash_attn_version": 2,
+            "speculative_config": {"method": "dspark", "num_speculative_tokens": 7},
+        },
+        {"max_tokens": 1_024},
+        target,
+        ("rollout",),
+    )
+
+    issues, _ = _configuration_findings({"rollout_inference": binding})
+
+    issue = next(issue for issue in issues if issue.code == "VLLM_DSPARK_TURBOQUANT_INCOMPATIBLE")
+    assert issue.severity == "error"
+    assert "non-causal draft attention" in issue.message
+
+
 def test_training_topology_cannot_request_more_devices_than_exact_target() -> None:
     catalog = open_catalog(scope="empty-project")
     training = cast(

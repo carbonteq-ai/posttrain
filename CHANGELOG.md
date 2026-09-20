@@ -4,6 +4,36 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## 0.4.4 - 2026-09-20
+
+This release promotes the release-clean Uno/SM120 runtime, adds the Gemma
+DSpark comparison profile, and makes unsupported rollout combinations fail
+before job submission.
+
+### Added
+
+- CarbonTeq vLLM `0.29.1.dev2` with native Uno, native policy-LoRA
+  composition, an optional released SM120 paged-FA4 backend, and tuned
+  batch-invariant SM120 linear configurations.
+- A pinned Gemma 4 12B DSpark inference profile using the qualified Triton
+  attention path, seven-token assistant, compiled target, 64K context, and
+  16K output budget on RTX PRO 6000.
+- Reusable cache, speculative-acceptance, concurrency, token-throughput, and
+  judge-trace measurements for rollout qualification.
+
+### Changed
+
+- The K2/Uno VORTEX profile uses the second-generation K2 renderer contract
+  with medium reasoning by default. Experimental Gemma-on-SM120-FA4 routing is
+  excluded; SM120 FA4 remains confined to the qualified Uno path.
+- Posttrain admits native Uno inference and LoRA training. Full-weight and
+  QLoRA Uno refresh now fail during job compilation until they pass separate
+  live optimizer/update gates.
+- The vLLM runtime image uses the CUDA 13 binary wheel from the exact upstream
+  base of the fork. Rejected authoritative-prefix, proposer-graph,
+  deterministic-noise, and debug-switch experiments are absent from the
+  released configuration.
+
 ## 0.4.3 - 2026-09-18
 
 This release adds native Uno speculative rollout integration for the VORTEX

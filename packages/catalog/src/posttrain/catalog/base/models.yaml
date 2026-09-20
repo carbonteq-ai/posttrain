@@ -97,7 +97,7 @@ model:
     family: k2-horizon
     parameters: 7000000000
     instruction_tuned: true
-    renderer_contract: k2-horizon-tools-thinking@1
+    renderer_contract: k2-horizon-tools-thinking@2
     capabilities:
       modalities: [text]
       native_context_window: 524288

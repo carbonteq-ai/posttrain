@@ -98,7 +98,7 @@ def vllm_rollout_options(
         values["language_model_only"] = True
     if engine.get("skip_mm_profiling"):
         values["skip_mm_profiling"] = True
-    for key in ("max_num_seqs", "max_num_batched_tokens"):
+    for key in ("max_num_seqs", "max_num_batched_tokens", "kv_cache_memory_bytes"):
         requested = engine.get(key)
         if requested is not None:
             if isinstance(requested, bool) or not isinstance(requested, int) or requested < 1:
@@ -116,8 +116,38 @@ def vllm_rollout_options(
         # This is consumed by the job entrypoint before importing torch.  It
         # is intentionally not passed as a vLLM constructor kwarg: the
         # switch also disables compile-decorated MTP helper modules.
-    if engine.get("kv_cache_memory_bytes") is not None:
-        values["kv_cache_memory_bytes"] = engine["kv_cache_memory_bytes"]
+    for key in ("enable_chunked_prefill", "enable_prefix_caching"):
+        requested = engine.get(key)
+        if requested is not None:
+            if not isinstance(requested, bool):
+                raise ValueError(f"TRL rollout {key} must be a boolean")
+            values[key] = requested
+    flash_attn_version = engine.get("flash_attn_version")
+    attention_config: dict[str, Any] = {}
+    if flash_attn_version is not None:
+        if (
+            isinstance(flash_attn_version, bool)
+            or not isinstance(flash_attn_version, int)
+            or flash_attn_version not in {2, 3, 4}
+        ):
+            raise ValueError("TRL rollout flash_attn_version must be one of 2, 3, or 4")
+        attention_config["flash_attn_version"] = flash_attn_version
+    attention_backend_priority = engine.get("attention_backend_priority")
+    if attention_backend_priority is not None:
+        if not isinstance(attention_backend_priority, (list, tuple)):
+            raise ValueError("TRL rollout attention_backend_priority must be a list or tuple")
+        if not attention_backend_priority:
+            raise ValueError("TRL rollout attention_backend_priority must not be empty")
+        if any(
+            not isinstance(backend, str) or not backend or backend != backend.upper()
+            for backend in attention_backend_priority
+        ):
+            raise ValueError("TRL rollout attention_backend_priority entries must be non-empty uppercase backend names")
+        if len(set(attention_backend_priority)) != len(attention_backend_priority):
+            raise ValueError("TRL rollout attention_backend_priority must not contain duplicates")
+        attention_config["backend_priority"] = list(attention_backend_priority)
+    if attention_config:
+        values["attention_config"] = attention_config
     kv_cache_dtype = engine.get("kv_cache_dtype")
     if kv_cache_dtype is not None:
         if not isinstance(kv_cache_dtype, str) or not kv_cache_dtype:

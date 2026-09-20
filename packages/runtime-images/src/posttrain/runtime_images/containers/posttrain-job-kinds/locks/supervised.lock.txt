@@ -121,7 +121,7 @@ brotli==1.2.0 \
     --hash=sha256:e310f77e41941c13340a95976fe66a8a95b01e783d430eeaf7a2f87e0a57dd0a
     # via carbonteq-trackio
 
-carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/046/0ba6a4d531595/carbonteq_trackio-0.31.5.post14.dev23-py3-none-any.whl#sha256=0460ba6a4d531595a1caba1c6d340f13d4ba490be149308138b695b0a03512a6
+carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/fea/18a183a7493a0/carbonteq_trackio-0.31.5.post14.dev24-py3-none-any.whl#sha256=fea18a183a7493a0a1cd69218ccc2e1442cfcdbdea9c7d19f247ab7bbbf0fc21
     # via posttrain-tracking-trackio
 
 certifi==2026.6.17 \
@@ -178,9 +178,10 @@ cuda-pathfinder==1.5.6 \
     #   cuda-bindings
     #   cuda-core
     #   cuda-python
+    #   nccl4py
 
-cuda-toolkit==13.0.2 ; sys_platform == 'linux' \
-    --hash=sha256:b198824cf2f54003f50d64ada3a0f184b42ca0846c1c94192fa269ecd97a66eb
+cuda-toolkit==13.0.3.0 ; sys_platform == 'linux' \
+    --hash=sha256:d693caaa261214ddd7dbb60d68e71cbed884e68c2be7509778f3051da0b91c3f
     # via torch
 
 datasets==4.6.1 \
@@ -325,9 +326,9 @@ httpx==0.28.1 \
     #   prime-tunnel
     #   verifiers
 
-huggingface-hub==1.24.0 \
-    --hash=sha256:18431ff4daae0749aa9ba102fc952e314c98e1d30ebdec5319d85ca0a83e1ae5 \
-    --hash=sha256:6ed4120a84a6beec900640aa7e346bd766a6b7341e41526fef5dc8bd81fb7d59
+huggingface-hub==1.31.0 \
+    --hash=sha256:9dbb6a503cbe2494ea666695207e7262d410659e09134059deb83e5480864667 \
+    --hash=sha256:f8e9e710a210613fa5d0f26bba6da05ef4aef9fba5a0f23f508f5ac4d08b6f90
     # via
     #   accelerate
     #   carbonteq-trackio
@@ -338,6 +339,7 @@ huggingface-hub==1.24.0 \
     #   posttrain-train
     #   tokenizers
     #   transformers
+    #   vllm
 
 idna==3.18 \
     --hash=sha256:7f952cbe720b688055e3f87de14f5c3e5fdaa8bc3928985c4077ca689de849a2 \
@@ -529,8 +531,11 @@ numpy==2.3.5 \
     #   humming-kernels
     #   mistral-common
     #   ml-dtypes
+    #   nccl4py
     #   numba
     #   nvidia-cutlass-dsl-libs-base
+    #   nvidia-cutlass-dsl-libs-core
+    #   nvidia-cutlass-dsl-libs-cu12
     #   nvidia-cutlass-dsl-libs-cu13
     #   opencv-python-headless
     #   pandas
@@ -545,15 +550,15 @@ numpy==2.3.5 \
     #   vllm
     #   xgrammar
 
-nvidia-cublas==13.1.0.3 ; sys_platform == 'linux' \
-    --hash=sha256:c86fc7f7ae36d7528288c5d88098edcb7b02c633d262e7ddbb86b0ad91be5df2 \
-    --hash=sha256:ee8722c1f0145ab246bccb9e452153b5e0515fd094c3678df50b2a0888b8b171
+nvidia-cublas==13.1.1.3 ; platform_machine != 's390x' and sys_platform == 'linux' \
+    --hash=sha256:37936a16db8fe4ac1f065c2139360608a543a09275cb1a1af612e08cfa065436 \
+    --hash=sha256:b7a210458267ac818974c53038fbec2e969d5c99f305ab15c72522fa9f001dd5
     # via
     #   cuda-toolkit
     #   nvidia-cudnn-cu13
     #   nvidia-cusolver
 
-nvidia-cuda-cupti==13.0.85 ; sys_platform == 'linux' \
+nvidia-cuda-cupti==13.0.85 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') \
     --hash=sha256:4eb01c08e859bf924d222250d2e8f8b8ff6d3db4721288cf35d14252a4d933c8 \
     --hash=sha256:796bd679890ee55fb14a94629b698b6db54bcfd833d391d5e94017dd9d7d3151
     # via cuda-toolkit
@@ -565,6 +570,7 @@ nvidia-cuda-nvrtc==13.0.88 ; sys_platform != 'darwin' \
     # via
     #   cuda-toolkit
     #   humming-kernels
+    #   nvidia-cublas
 
 nvidia-cuda-runtime==13.0.96 ; sys_platform != 'darwin' \
     --hash=sha256:7f82250d7782aa23b6cfe765ecc7db554bd3c2870c43f3d1821f1d18aebf0548 \
@@ -575,49 +581,49 @@ nvidia-cuda-runtime==13.0.96 ; sys_platform != 'darwin' \
     #   humming-kernels
     #   nvidia-cuda-nvcc
 
-nvidia-cudnn-cu13==9.19.0.56 ; sys_platform == 'linux' \
-    --hash=sha256:6ed29ffaee1176c612daf442e4dd6cfeb6a0caa43ddcbeb59da94953030b1be4 \
-    --hash=sha256:d20e1734305e9d68889a96e3f35094d733ff1f83932ebe462753973e53a572bf
+nvidia-cudnn-cu13==9.20.0.48 ; sys_platform == 'linux' \
+    --hash=sha256:0c45dd8eeb50b603f07995b1b300c62ffe6a1980482b82b3bcf94a4ca9d49304 \
+    --hash=sha256:e31454ae00094b0c55319d9d15b6fa2fc50a9e1c0f5c8c80fb75258234e731e1
     # via torch
 
-nvidia-cufft==12.0.0.61 ; sys_platform == 'linux' \
+nvidia-cufft==12.0.0.61 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') \
     --hash=sha256:2708c852ef8cd89d1d2068bdbece0aa188813a0c934db3779b9b1faa8442e5f5 \
     --hash=sha256:6c44f692dce8fd5ffd3e3df134b6cdb9c2f72d99cf40b62c32dde45eea9ddad3
     # via cuda-toolkit
 
-nvidia-cufile==1.15.1.6 ; sys_platform == 'linux' \
+nvidia-cufile==1.15.1.6 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') \
     --hash=sha256:08a3ecefae5a01c7f5117351c64f17c7c62efa5fffdbe24fc7d298da19cd0b44 \
     --hash=sha256:bdc0deedc61f548bddf7733bdc216456c2fdb101d020e1ab4b88d232d5e2f6d1
     # via cuda-toolkit
 
-nvidia-curand==10.4.0.35 ; sys_platform == 'linux' \
+nvidia-curand==10.4.0.35 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') \
     --hash=sha256:133df5a7509c3e292aaa2b477afd0194f06ce4ea24d714d616ff36439cee349a \
     --hash=sha256:1aee33a5da6e1db083fe2b90082def8915f30f3248d5896bcec36a579d941bfc
     # via cuda-toolkit
 
-nvidia-cusolver==12.0.4.66 ; sys_platform == 'linux' \
+nvidia-cusolver==12.0.4.66 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') \
     --hash=sha256:02c2457eaa9e39de20f880f4bd8820e6a1cfb9f9a34f820eb12a155aa5bc92d2 \
     --hash=sha256:0a759da5dea5c0ea10fd307de75cdeb59e7ea4fcb8add0924859b944babf1112
     # via cuda-toolkit
 
-nvidia-cusparse==12.6.3.3 ; sys_platform == 'linux' \
+nvidia-cusparse==12.6.3.3 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') \
     --hash=sha256:2b3c89c88d01ee0e477cb7f82ef60a11a4bcd57b6b87c33f789350b59759360b \
     --hash=sha256:80bcc4662f23f1054ee334a15c72b8940402975e0eab63178fc7e670aa59472c
     # via
     #   cuda-toolkit
     #   nvidia-cusolver
 
-nvidia-cusparselt-cu13==0.8.0 ; sys_platform == 'linux' \
-    --hash=sha256:25e30a8a7323935d4ad0340b95a0b69926eee755767e8e0b1cf8dd85b197d3fd \
-    --hash=sha256:400c6ed1cf6780fc6efedd64ec9f1345871767e6a1a0a552a1ea0578117ea77c
+nvidia-cusparselt-cu13==0.8.1 ; sys_platform == 'linux' \
+    --hash=sha256:4dca476c50bf4780d46cd0bfbd82e2bc10a08e4fef7950917ce8d7578d22a23f \
+    --hash=sha256:786ce87568c303fadb5afcc7102d454cd3040d75f6f8626f5db460d1871f4dd0
     # via torch
 
-nvidia-nccl-cu13==2.28.9 ; sys_platform == 'linux' \
-    --hash=sha256:01c873ba1626b54caa12272ed228dc5b2781545e0ae8ba3f432a8ef1c6d78643 \
-    --hash=sha256:e4553a30f34195f3fa1da02a6da3d6337d28f2003943aa0a3d247bbc25fefc42
+nvidia-nccl-cu13==2.29.7 ; sys_platform == 'linux' \
+    --hash=sha256:674a12383e3c38a1bcccae7d4f3633b37852230b6047883cb2f4c2d1b36d9bf5 \
+    --hash=sha256:edd81538446786ec3b73972543e53bb43bcaf0bfc8ef76cb679fcc390ffe136d
     # via torch
 
-nvidia-nvjitlink==13.0.88 ; sys_platform == 'linux' \
+nvidia-nvjitlink==13.0.88 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') \
     --hash=sha256:13a74f429e23b921c1109976abefacc69835f2f433ebd323d3946e11d804e47b \
     --hash=sha256:e931536ccc7d467a98ba1d8b89ff7fa7f1fa3b13f2b0069118cd7f47bff07d0c
     # via
@@ -631,7 +637,7 @@ nvidia-nvshmem-cu13==3.4.5 ; sys_platform == 'linux' \
     --hash=sha256:6dc2a197f38e5d0376ad52cd1a2a3617d3cdc150fd5966f4aee9bcebb1d68fe9
     # via torch
 
-nvidia-nvtx==13.0.85 ; sys_platform == 'linux' \
+nvidia-nvtx==13.0.85 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') \
     --hash=sha256:4936d1d6780fbe68db454f5e72a42ff64d1fd6397df9f363ae786930fd5c1cd4 \
     --hash=sha256:cb7780edb6b14107373c835bf8b72e7a178bac7367e23da7acb108f973f157a6
     # via cuda-toolkit
@@ -694,6 +700,7 @@ packaging==26.2 \
     #   huggingface-hub
     #   kernels
     #   lm-format-enforcer
+    #   nccl4py
     #   peft
     #   transformers
     #   trl
@@ -792,17 +799,20 @@ propcache==0.5.2 \
     #   aiohttp
     #   yarl
 
-protobuf==7.35.1 \
+protobuf==7.35.1 ; platform_machine != 's390x' \
     --hash=sha256:11d6b0ec246892d85215b0a13ca6e0233cf5284b68f0ac02646427f4ff88a799 \
     --hash=sha256:230a75ddfc2de4806e56696ce9640c1cdfdb6543b7cfce98d42a4c0a0e7bdb87 \
     --hash=sha256:24f857477359a85c0c235261b8ba905fd51b2562f4a64ca1df5473f29850cbf6 \
     --hash=sha256:353652e4efd0bca5b5fc2656abf8307ef351f0cf938c9eba09f0e09c20a25c30 \
     --hash=sha256:4bc97768d8fe4ad6743c8a19403e314511ed9f6d13205b687e52421c023ac1b9 \
     --hash=sha256:74758715c53d7158fb76caf4f0cfdacc5329a4b1bb994f865d6cf302d413a1c4 \
-    --hash=sha256:b73f9489a4b8b1c9cb1f8ed951c736392592edb24b9d6819f36d2e10b171d5b4 \
     --hash=sha256:ce115a26fe0c39a2c29973d914d327e516a6455464489fe3cd1e51a1b354f81a
     # via
     #   googleapis-common-protos
+    #   nvidia-cutlass-dsl-libs-base
+    #   nvidia-cutlass-dsl-libs-core
+    #   nvidia-cutlass-dsl-libs-cu12
+    #   nvidia-cutlass-dsl-libs-cu13
     #   opentelemetry-proto
     #   posttrain-train
     #   prime-sandboxes
@@ -1174,19 +1184,15 @@ tokenizers==0.22.2 \
     #   transformers
     #   vllm
 
-torch==2.11.0+cu130 \
-    --hash=sha256:21d2734fd02af45d19bb88c0ff2e86b238ce73f7bde6003ade7f1454ae299198 \
-    --hash=sha256:339801f2163698a53c7fb3c91883e7f44331d22c34d45acfbce4eff71f2332fa \
-    --hash=sha256:554461b76f21211927c776056bcb0b00fb42972364794b686d768ebb0b586366 \
-    --hash=sha256:6fd10ed484eb695312ae829719888bb9f6c7f5e8503528e3e8ad1b98a45296c2 \
-    --hash=sha256:a33905bc3e093b25d2b019181cf834f7f7d4c562739e13dd36a798ecb2e411b0 \
-    --hash=sha256:c3d60f79666b9101e3914a2e5dec2e81eac834e13cae0bcf59e94dc1a465f756
+torch @ https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl \
+    --hash=sha256:95bdbad2f0786bd448932e4b72a6404aa22290db6ec954e24edfa6d33c833c8f
     # via
     #   accelerate
     #   bitsandbytes
     #   compressed-tensors
     #   flashinfer-python
     #   humming-kernels
+    #   instanttensor
     #   liger-kernel
     #   peft
     #   posttrain-eval
@@ -1227,18 +1233,16 @@ transformers==5.14.1 \
     #   vllm
     #   xgrammar
 
-triton==3.6.0 \
-    --hash=sha256:10c7f76c6e72d2ef08df639e3d0d30729112f47a56b0c81672edc05ee5116ac9 \
-    --hash=sha256:1722e172d34e32abc3eb7711d0025bb69d7959ebea84e3b7f7a341cd7ed694d6 \
-    --hash=sha256:448e02fe6dc898e9e5aa89cf0ee5c371e99df5aa5e8ad976a80b93334f3494fd \
-    --hash=sha256:d002e07d7180fd65e622134fbd980c9a3d4211fb85224b56a0a0efbd422ab72f
+triton==3.7.1 ; sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' \
+    --hash=sha256:58c0e131da05134a2a4788ccbcc0c1105cf0f54c8e98f19e34cd465396dc15eb \
+    --hash=sha256:cdbfc09d9ec58bc5e68321525653220de7515c199e7a8097a97c85e62b52cd0a
     # via
     #   humming-kernels
     #   liger-kernel
     #   torch
     #   xgrammar
 
-trl @ https://pypi.lan/carbonteq/dev/+f/aab/f5a52b9f8a20d/trl-1.12.0.post8-py3-none-any.whl#sha256=aabf5a52b9f8a20db32e9da5847fd2584e18ba8cfb12f2e79ec7db146db8ffa4
+trl @ https://pypi.lan/carbonteq/dev/+f/c5d/204da587a9a45/trl-1.12.0.post9-py3-none-any.whl#sha256=c5d204da587a9a45dd279f1407d0e20816344075d001da9fe03f6dd4879fa710
     # via posttrain-train
 
 typer==0.25.1 \
@@ -1268,6 +1272,8 @@ typing-extensions==4.16.0 \
     #   mcp-types
     #   mistral-common
     #   nvidia-cutlass-dsl-libs-base
+    #   nvidia-cutlass-dsl-libs-core
+    #   nvidia-cutlass-dsl-libs-cu12
     #   nvidia-cutlass-dsl-libs-cu13
     #   openai
     #   opentelemetry-api

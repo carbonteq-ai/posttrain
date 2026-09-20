@@ -1,5 +1,6 @@
 """Tests for vLLM inference-binding translation."""
 
+import json
 from dataclasses import replace
 
 import pytest
@@ -36,6 +37,64 @@ def test_prefix_caching_is_validated_and_forwarded(qwen_screen_binding: Inferenc
 
     assert engine.as_vllm_kwargs()["enable_prefix_caching"] is True
     assert "--enable-prefix-caching" in engine.as_cli_args()
+
+
+def test_flash_attention_version_is_validated_and_forwarded(qwen_screen_binding: InferenceBinding) -> None:
+    binding = replace(
+        qwen_screen_binding,
+        engine={**qwen_screen_binding.engine, "flash_attn_version": 4},
+    )
+
+    engine = engine_config(binding)
+
+    assert engine.as_vllm_kwargs()["attention_config"] == {"flash_attn_version": 4}
+    assert ("--attention-config", '{"flash_attn_version": 4}') == engine.as_cli_args()[-2:]
+
+    with pytest.raises(ValueError, match="one of 2, 3, or 4"):
+        VllmEngineConfig(max_model_len=1_024, gpu_memory_utilization=0.75, flash_attn_version=5)
+
+
+def test_attention_backend_priority_is_composed_with_flash_version() -> None:
+    engine = VllmEngineConfig(
+        max_model_len=1_024,
+        gpu_memory_utilization=0.75,
+        flash_attn_version=4,
+        attention_backend_priority=("B12X", "FLASH_ATTN", "FLASHINFER", "TRITON_ATTN"),
+    )
+    expected = {
+        "flash_attn_version": 4,
+        "backend_priority": ["B12X", "FLASH_ATTN", "FLASHINFER", "TRITON_ATTN"],
+    }
+
+    assert engine.as_vllm_kwargs()["attention_config"] == expected
+    assert engine.as_cli_args()[-2:] == ("--attention-config", json.dumps(expected))
+
+
+def test_attention_backend_priority_is_validated() -> None:
+    with pytest.raises(ValueError, match="must not contain duplicates"):
+        VllmEngineConfig(
+            max_model_len=1_024,
+            gpu_memory_utilization=0.75,
+            attention_backend_priority=("B12X", "B12X"),
+        )
+    with pytest.raises(ValueError, match="uppercase backend names"):
+        VllmEngineConfig(
+            max_model_len=1_024,
+            gpu_memory_utilization=0.75,
+            attention_backend_priority=("b12x",),
+        )
+
+
+def test_backend_native_attention_and_cache_flags_are_composed_without_policy() -> None:
+    engine = VllmEngineConfig(
+        max_model_len=32_768,
+        gpu_memory_utilization=0.75,
+        kv_cache_dtype="turboquant_k8v4",
+        flash_attn_version=4,
+    )
+
+    assert engine.as_vllm_kwargs()["kv_cache_dtype"] == "turboquant_k8v4"
+    assert engine.as_vllm_kwargs()["attention_config"] == {"flash_attn_version": 4}
 
 
 def test_trust_remote_code_is_explicit_and_forwarded(qwen_screen_binding: InferenceBinding) -> None:
@@ -258,7 +317,7 @@ def test_dspark_binding_retains_immutable_draft_identity_and_uses_actual_variant
     assert all(cell.required_variant == "dspark" for cell in config.cells)
 
 
-def test_dspark_and_turboquant_are_rejected_for_pinned_nanbeige_runtime(
+def test_binding_translation_preserves_dspark_and_turboquant_for_job_compiler(
     qwen_screen_binding: InferenceBinding,
     representative_workload: Workload,
 ) -> None:
@@ -281,8 +340,11 @@ def test_dspark_and_turboquant_are_rejected_for_pinned_nanbeige_runtime(
         },
     )
 
-    with pytest.raises(ValueError, match="non-causal draft attention"):
-        benchmark_config(ServeBenchmarkRequest(binding, representative_workload))
+    config = benchmark_config(ServeBenchmarkRequest(binding, representative_workload))
+
+    assert config.engine.kv_cache_dtype == "turboquant_k8v4"
+    assert config.engine.speculative is not None
+    assert config.engine.speculative.method == "dspark"
 
 
 def test_dspark_turboquant_limit_does_not_prejudge_future_runtime(
@@ -334,6 +396,39 @@ def test_speculative_and_kv_cache_variants_are_composed_without_relabeling(
 def test_dspark_requires_a_host_materialized_immutable_draft() -> None:
     with pytest.raises(ValueError, match="immutable draft model"):
         VllmSpeculativeConfig(method="dspark", num_speculative_tokens=7)
+
+
+def test_speculative_proposer_execution_mode_is_explicit() -> None:
+    eager = VllmSpeculativeConfig(method="mtp", num_speculative_tokens=1, enforce_eager=True)
+    compiled = VllmSpeculativeConfig(method="mtp", num_speculative_tokens=1, enforce_eager=False)
+
+    assert eager.as_vllm()["enforce_eager"] is True
+    assert compiled.as_vllm()["enforce_eager"] is False
+
+    with pytest.raises(ValueError, match="must be a boolean"):
+        VllmSpeculativeConfig(method="mtp", num_speculative_tokens=1, enforce_eager=1)  # type: ignore[arg-type]
+
+
+def test_uno_release_configuration_is_forwarded_without_debug_flags() -> None:
+    speculative = VllmSpeculativeConfig(
+        method="uno",
+        num_speculative_tokens=8,
+        uno_adapter="IFM/K2-Horizon-7B-Uno",
+        uno_adapter_revision="ec92bbd768f4a404319625204544782e3377bcd7",
+        uno_mask_token_id=250624,
+        uno_noise_mode="random_uniform",
+        uno_composes_request_lora=True,
+    )
+
+    assert speculative.as_vllm() == {
+        "method": "uno",
+        "num_speculative_tokens": 8,
+        "uno_adapter": "IFM/K2-Horizon-7B-Uno",
+        "uno_adapter_revision": "ec92bbd768f4a404319625204544782e3377bcd7",
+        "uno_mask_token_id": 250624,
+        "uno_noise_mode": "random_uniform",
+        "uno_composes_request_lora": True,
+    }
 
 
 def test_nanbeige_renderer_drives_its_vllm_parsers(qwen_screen_binding: InferenceBinding) -> None:

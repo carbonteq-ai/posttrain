@@ -7,7 +7,7 @@ Current inputs:
 
 1. `pyproject.toml` selects CarbonTeq veRL
    `18338a0efbd6f103378d2861f4a078ad243db455` (`0.9.0.post3` candidate), CarbonTeq vLLM
-   `37706e7d920abc97c705ffecee0919d64ef31485`, and Verifiers core
+   `fbbba6698b2f8a912b94705cfc09eb4fd7243716`, and Verifiers core
    `84ab782391bbfe1ac4f4ca32fa612e56d01b5b81` with no concrete environment
    packages and no editable or path sources.
 2. `uv.lock` is generated for exact Python `3.13.12`.
@@ -18,7 +18,7 @@ Current inputs:
 4. `profile.toml` records the fork revision and both content digests.
 5. The image verifies the upstream commit-specific vLLM x86_64 ABI3 wheel at
    SHA-256
-   `9decf15f4451566b6cda7f2ce81a7a7f3f3226e7f82e9b2077bb2f4d23dc7f76`
+   `2b8f85d32b952cb05743c2edb02c4ae5be59921445b97069a609f186fdf6c5f0`
    and uses its compiled extensions as the binary base for the Python-only
    CarbonTeq fork delta.
 

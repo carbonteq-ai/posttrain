@@ -70,6 +70,7 @@ def test_gemma4_unified_qualification_selections_resolve_as_one_support_plane() 
     mtp_environment = catalog.resolve(CatalogRef("environment", "gemma4-gsm8k-mtp-qualification"))
     inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-it-vllm-screen@1"))
     evaluation_inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-it-vllm-eval@1"))
+    dspark_inference = catalog.resolve(CatalogRef("inference", "inference/gemma4-12b-it-vllm-dspark@1"))
 
     assert isinstance(model.value, ModelVariant)
     assert model.value.family == "gemma4"
@@ -98,6 +99,22 @@ def test_gemma4_unified_qualification_selections_resolve_as_one_support_plane() 
     assert evaluation_inference.value.target == training.value.target
     assert evaluation_inference.value.purpose == ("eval",)
     assert evaluation_inference.value.engine["max_model_len"] == 32768
+    assert isinstance(dspark_inference.value, InferenceBinding)
+    assert dspark_inference.value.model == model.value
+    assert dspark_inference.value.backend == "vllm@0.26.1"
+    assert dspark_inference.value.engine["max_model_len"] == 65536
+    assert dspark_inference.value.engine["enforce_eager"] is False
+    assert dspark_inference.value.engine["enable_prefix_caching"] is False
+    assert dspark_inference.value.engine["tool_call_parser"] == "gemma4"
+    assert dspark_inference.value.engine["reasoning_parser"] == "gemma4"
+    dspark = cast(Mapping[str, Any], dspark_inference.value.engine["speculative_config"])
+    assert dspark["method"] == "dspark"
+    assert dspark["num_speculative_tokens"] == 7
+    assert dspark["draft_model"] == {
+        "repo_id": "deepseek-ai/dspark_gemma4_12b_block7",
+        "revision": "2fa72e765eec2965fc4d86a8663ce6769eba6218",
+    }
+    assert dspark_inference.value.sampling["max_tokens"] == 16384
     assert isinstance(mtp_settings.value, GRPOSettings)
     assert mtp_settings.value.loop.max_steps == 1
     assert mtp_settings.value.num_generations == 2
@@ -109,10 +126,13 @@ def test_gemma4_unified_qualification_selections_resolve_as_one_support_plane() 
     assert speculative_config["assistant_revision"] == ("364bd03c9952e5b7da73665ee30c9eccfc408345")
     assert isinstance(mtp_environment.value, EnvironmentBinding)
     assert mtp_environment.value.max_concurrent == 1
-    assert all(value.source_layer == "overlay" for value in (settings, training, inference, evaluation_inference))
+    assert all(
+        value.source_layer == "overlay"
+        for value in (settings, training, inference, evaluation_inference, dspark_inference)
+    )
     assert all(
         value.overlay_id == "posttrain-lab-serving-capacity-v1"
-        for value in (settings, training, inference, evaluation_inference)
+        for value in (settings, training, inference, evaluation_inference, dspark_inference)
     )
 
 

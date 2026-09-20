@@ -11,9 +11,9 @@ RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locke
       --requirement /opt/posttrain/locks/build-tools.lock.txt
 
 FROM kind-common AS vllm-kind-common
-ARG VLLM_BINARY_WHEEL_URL="https://wheels.vllm.ai/75c71390d5b399f5397a9166920fc45902f99f14/vllm-0.3.1.dev34%2Bg75c71390d-cp38-abi3-manylinux_2_28_x86_64.whl"
-ARG VLLM_BINARY_WHEEL_SHA256="9decf15f4451566b6cda7f2ce81a7a7f3f3226e7f82e9b2077bb2f4d23dc7f76"
-ARG VLLM_RUNTIME_VERSION="0.26.1.dev1+g37706e7d9"
+ARG VLLM_BINARY_WHEEL_URL="https://wheels.vllm.ai/44dd18fe0bb0f13157f97a5aa029b6604468fca6/vllm-0.29.1rc1.dev366%2Bg44dd18fe0-cp38-abi3-manylinux_2_28_x86_64.whl"
+ARG VLLM_BINARY_WHEEL_SHA256="2b8f85d32b952cb05743c2edb02c4ae5be59921445b97069a609f186fdf6c5f0"
+ARG VLLM_RUNTIME_VERSION="0.29.1.dev2"
 RUN apt-get update && \
     apt-get install --yes --no-install-recommends g++ && \
     rm -rf /var/lib/apt/lists/*

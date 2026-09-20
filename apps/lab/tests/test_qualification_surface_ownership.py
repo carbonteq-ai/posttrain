@@ -79,6 +79,7 @@ def test_every_temporary_script_and_lab_dependent_fixture_has_one_owner_and_exit
         "nanbeige-inference-matrix",
         "reload-deterministic-export",
         "replay-episode-judge",
+        "sample-trackio-training-traces",
         "structured-trl-lifecycle",
         "optimize-episode-judge-prompt",
         "test-calibrate-general-episode-prompt",

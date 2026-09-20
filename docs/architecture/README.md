@@ -29,6 +29,7 @@ existing code remains prototype evidence rather than an interface constraint.
 | [Infrastructure and job lifecycle](./infrastructure-and-job-lifecycle.md) | Which local and cloud infrastructure services exist, how do dstack-owned spot attempts, run-scoped storage, generic automation hooks, truthful inventory, evidence reconciliation, and cleanup compose? |
 | [LAN release runner](./lan-release-runner.md) | How do GitHub approval, a private-network runner, development qualification, stable promotion, and tag-last finalization form one release transaction? |
 | [Training and inference](./training-and-inference.md) | What do the reusable train/eval/serve packages expose, and which framework details remain internal? |
+| [vLLM inference optimization on Blackwell](./vllm-inference-optimization.md) | Which K2/Uno, SM120 FA4, CUDA-graph, proposer, and LoRA optimizations were tried, what is retained, and what must be qualified next? |
 | [Observability](./observability.md) | What is recorded for runs, metrics, events, samples, and native artifacts? |
 | [Trackio architecture](./trackio.md) | What does Trackio observe, and which authoring and execution concerns explicitly remain outside it? |
 | [Lineage and metadata](./lineage-and-metadata.md) | How are models, datasets, environments, runs, observations, and decisions linked? |
@@ -47,6 +48,8 @@ contract is recorded in
 
 ## Revision history
 
+- 2026-09-19: Added the experimental vLLM/Uno Blackwell optimization history,
+  current operating point, rejected paths, and qualification roadmap.
 - 2026-08-30: Extended the infrastructure delivery architecture and linked ADR
   0017 for RunPod spot recovery, run-scoped storage, durable hooks, cleanup, and
   fleet inventory.
