@@ -214,9 +214,7 @@ def test_asana_contract_declares_alias_precedence_and_resolves_template_dates():
         {
             "role": "tool",
             "name": "asana_create_task",
-            "content": json.dumps(
-                {"results": [{"dueDate": "2026-03-15", "due_on": "2024-02-15"}]}
-            ),
+            "content": json.dumps({"results": [{"dueDate": "2026-03-15", "due_on": "2024-02-15"}]}),
         }
     ]
     assert benchmark._observation_diagnostics(trajectory, [definition]) == []
@@ -243,13 +241,9 @@ def test_assessment_frame_must_preserve_machine_detected_conflict_id():
     preserved = SimpleNamespace(
         open_discrepancies=["observation-conflict-3-due_date remains unresolved"],
         requirement_observations=[
-            SimpleNamespace(
-                discrepancy="observation-conflict-3-due_date is unresolved because aliases disagree"
-            )
+            SimpleNamespace(discrepancy="observation-conflict-3-due_date is unresolved because aliases disagree")
         ],
-        dimension_subchecks=SimpleNamespace(
-            **{name: [SimpleNamespace(blocks_perfection=True)] for name in dimensions}
-        ),
+        dimension_subchecks=SimpleNamespace(**{name: [SimpleNamespace(blocks_perfection=True)] for name in dimensions}),
         perfection_blockers=SimpleNamespace(
             **{name: ["Conflicting due-date aliases remain unresolved."] for name in dimensions}
         ),
@@ -264,11 +258,7 @@ def test_assessment_frame_must_preserve_machine_detected_conflict_id():
     falsely_resolved = SimpleNamespace(
         open_discrepancies=["observation-conflict-3-due_date"],
         requirement_observations=[
-            SimpleNamespace(
-                discrepancy=(
-                    "observation-conflict-3-due_date resolved by the same message-3 aliases"
-                )
-            )
+            SimpleNamespace(discrepancy=("observation-conflict-3-due_date resolved by the same message-3 aliases"))
         ],
         dimension_subchecks=missed.dimension_subchecks,
         perfection_blockers=missed.perfection_blockers,

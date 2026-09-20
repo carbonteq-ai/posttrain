@@ -305,8 +305,7 @@ def _observation_diagnostics(
             authoritative = result_semantics.get("authoritative_applied_fields", [])
             legacy = result_semantics.get("legacy_template_fields", [])
             if family == "due_date" and (
-                "results[].dueDate" in authoritative
-                and {"results[].due_on", "results[].due_at"}.intersection(legacy)
+                "results[].dueDate" in authoritative and {"results[].due_on", "results[].due_at"}.intersection(legacy)
             ):
                 continue
             candidates: list[dict[str, str]] = []
@@ -314,9 +313,7 @@ def _observation_diagnostics(
                 normalized_key = re.sub(r"[^a-z0-9]", "", key.lower())
                 normalized_value = _temporal_value(value)
                 if normalized_key in aliases and normalized_value is not None:
-                    candidates.append(
-                        {"path": path, "value": str(value), "normalized_value": normalized_value}
-                    )
+                    candidates.append({"path": path, "value": str(value), "normalized_value": normalized_value})
             distinct = {candidate["normalized_value"] for candidate in candidates}
             if len(distinct) > 1:
                 diagnostics.append(
@@ -331,9 +328,7 @@ def _observation_diagnostics(
     return diagnostics
 
 
-def _assessment_frame_diagnostic_errors(
-    frame: EpisodeAssessmentFrame, diagnostics: list[dict[str, Any]]
-) -> list[str]:
+def _assessment_frame_diagnostic_errors(frame: EpisodeAssessmentFrame, diagnostics: list[dict[str, Any]]) -> list[str]:
     """Require every machine-detected conflict to survive model compression."""
 
     open_discrepancies = "\n".join(frame.open_discrepancies)
@@ -343,9 +338,7 @@ def _assessment_frame_diagnostic_errors(
         if diagnostic_id not in open_discrepancies:
             errors.append(f"open_discrepancies omitted {diagnostic_id}")
         matching_discrepancies = [
-            item.discrepancy
-            for item in frame.requirement_observations
-            if diagnostic_id in item.discrepancy
+            item.discrepancy for item in frame.requirement_observations if diagnostic_id in item.discrepancy
         ]
         if not matching_discrepancies:
             errors.append(f"requirement_observations omitted {diagnostic_id}")
@@ -357,13 +350,9 @@ def _assessment_frame_diagnostic_errors(
             errors.append(f"requirement_observations did not classify {diagnostic_id} as resolved or unresolved")
             continue
         if resolved:
-            cited_indexes = [
-                int(value) for value in re.findall(r"message-(\d+)", diagnostic_text)
-            ]
+            cited_indexes = [int(value) for value in re.findall(r"message-(\d+)", diagnostic_text)]
             if not any(index > diagnostic["evidence_index"] for index in cited_indexes):
-                errors.append(
-                    f"resolved {diagnostic_id} did not cite a later environment observation"
-                )
+                errors.append(f"resolved {diagnostic_id} did not cite a later environment observation")
             continue
         if unresolved:
             for dimension in (
@@ -372,17 +361,10 @@ def _assessment_frame_diagnostic_errors(
                 "answer_quality",
             ):
                 subcheck_blocks = any(
-                    subcheck.blocks_perfection
-                    for subcheck in getattr(frame.dimension_subchecks, dimension)
+                    subcheck.blocks_perfection for subcheck in getattr(frame.dimension_subchecks, dimension)
                 )
-                named_blockers = [
-                    blocker.strip().lower()
-                    for blocker in getattr(frame.perfection_blockers, dimension)
-                ]
-                has_named_blocker = any(
-                    blocker not in {"none", "not applicable", "n/a"}
-                    for blocker in named_blockers
-                )
+                named_blockers = [blocker.strip().lower() for blocker in getattr(frame.perfection_blockers, dimension)]
+                has_named_blocker = any(blocker not in {"none", "not applicable", "n/a"} for blocker in named_blockers)
                 if not subcheck_blocks or not has_named_blocker:
                     errors.append(f"unresolved {diagnostic_id} did not block {dimension}")
     return errors

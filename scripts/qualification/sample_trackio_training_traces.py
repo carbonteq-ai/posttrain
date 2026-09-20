@@ -127,9 +127,7 @@ async def _main(args: argparse.Namespace) -> None:
     complete = await asyncio.gather(*(fetch(record) for record in selected))
     args.output.mkdir(parents=True, exist_ok=False)
     traces_path = args.output / "native-traces.jsonl"
-    traces_path.write_text(
-        "".join(json.dumps(item.payload, ensure_ascii=False) + "\n" for _, item in complete)
-    )
+    traces_path.write_text("".join(json.dumps(item.payload, ensure_ascii=False) + "\n" for _, item in complete))
     rows: list[dict[str, Any]] = []
     for metadata_record, full_record in complete:
         payload = full_record.payload
@@ -151,9 +149,7 @@ async def _main(args: argparse.Namespace) -> None:
                 "tool_call_count": len(payload.get("calls", ())),
             }
         )
-    (args.output / "sample-index.jsonl").write_text(
-        "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
-    )
+    (args.output / "sample-index.jsonl").write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows))
     manifest = {
         "project": args.project,
         "server_url": args.server_url,

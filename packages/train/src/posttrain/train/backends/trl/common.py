@@ -142,9 +142,7 @@ def vllm_rollout_options(
             not isinstance(backend, str) or not backend or backend != backend.upper()
             for backend in attention_backend_priority
         ):
-            raise ValueError(
-                "TRL rollout attention_backend_priority entries must be non-empty uppercase backend names"
-            )
+            raise ValueError("TRL rollout attention_backend_priority entries must be non-empty uppercase backend names")
         if len(set(attention_backend_priority)) != len(attention_backend_priority):
             raise ValueError("TRL rollout attention_backend_priority must not contain duplicates")
         attention_config["backend_priority"] = list(attention_backend_priority)
