@@ -13,10 +13,10 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 - [x] (2026-09-20 12:00Z) Defined two matched 50-update training selections, c32 inference profiles, and one shared held-out evaluation package.
 - [x] (2026-09-20 12:10Z) Corrected the no-oversampling arm from invalid OLMo3 to ordinary GRPO with adaptive initial-batch curriculum allocation.
 - [x] (2026-09-20 12:12Z) Validated all three work-package compositions with the repository CLI.
-- [ ] Qualify backend policies and job plans using the clean Posttrain 0.4.4 stable-index installation.
-- [ ] Run focused repository tests and record the immutable source revision.
-- [ ] Submit the first 50-update arm and monitor at least three completed optimizer updates with GPU and inference evidence.
-- [ ] Submit or queue the second 50-update arm and monitor at least three completed optimizer updates with the same evidence.
+- [x] (2026-09-20 12:35Z) Qualified the released runtime images and both job plans from a clean Posttrain 0.4.4 stable-index installation.
+- [x] (2026-09-20 12:39Z) Passed 132 focused tests plus Ruff, committed the experiment as `480ece91`, and pushed its branch.
+- [ ] Submit the first 50-update arm and monitor at least three completed optimizer updates with GPU and inference evidence (completed: attempt `lfm26-adaptive-grpo-50-c32-20260920a` proved a compiler/runtime attention-contract bug before GPU allocation; remaining: qualify the fix and resubmit).
+- [ ] Submit or queue the second 50-update arm and monitor at least three completed optimizer updates with the same evidence (completed: attempt `lfm26-gdpo-50-c32-gemma-mtp2-20260920a` was cancelled when the shared defect was identified; remaining: qualify the fix and resubmit).
 - [ ] Run the common held-out evaluation once against each materialized adapter.
 - [ ] Reconcile the comparison and record final run identities and evidence.
 
@@ -24,6 +24,9 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 
 - Observation: OLMo3 is not a valid no-oversampling algorithm in this framework.
   Evidence: work-package validation returned `OLMo 3 requires active group sampling`; `GRPOSettings` enforces this contract, while adaptive curriculum independently supports the `initial_batch` sampling mode with ordinary GRPO.
+
+- Observation: The first live attempt failed before GPU allocation because the framework emitted a nonexistent vLLM `AttentionConfig.backend_priority` field.
+  Evidence: vLLM raised `ValidationError: backend_priority Unexpected keyword argument`. The released fork exposes scalar `AttentionConfig.backend`; compilation now resolves the ordered framework policy to that scalar runtime field.
 
 ## Decision Log
 
@@ -103,4 +106,4 @@ After changing the arm to GRPO with adaptive initial-batch allocation, all three
 
 The experiment uses Posttrain 0.4.4, the released CarbonTeq vLLM `0.29.1.dev2` runtime, TRL LoRA training, the AutomationBench Verifiers environment, Trackio/Doris evidence storage, and dstack scheduling on the RTX PRO 6000. The LFM rollout inference selection is `inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@2`. The Gemma judge selection is `inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@3`. The held-out evaluator uses `inference/lfm2.5-2.6b-vllm-automationbench-eval-local@2`.
 
-Revision note (2026-09-20): Created this plan after static validation rejected an invalid OLMo3-without-active-sampling interpretation; the plan records the corrected adaptive-GRPO design and the live operating gates.
+Revision note (2026-09-20): Created this plan after static validation rejected an invalid OLMo3-without-active-sampling interpretation; the plan records the corrected adaptive-GRPO design and the live operating gates. Updated after the first live attempt found that Posttrain emitted a framework-only backend-priority list into vLLM's scalar backend contract.

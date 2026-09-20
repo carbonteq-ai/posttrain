@@ -194,7 +194,7 @@ class VllmEngineConfig:
         if self.flash_attn_version is not None:
             attention_config["flash_attn_version"] = self.flash_attn_version
         if self.attention_backend_priority:
-            attention_config["backend_priority"] = list(self.attention_backend_priority)
+            attention_config["backend"] = self.attention_backend_priority[0]
         if attention_config:
             values["attention_config"] = attention_config
         if self.speculative is not None:
@@ -238,7 +238,7 @@ class VllmEngineConfig:
         if self.flash_attn_version is not None:
             attention_config["flash_attn_version"] = self.flash_attn_version
         if self.attention_backend_priority:
-            attention_config["backend_priority"] = list(self.attention_backend_priority)
+            attention_config["backend"] = self.attention_backend_priority[0]
         if attention_config:
             values.extend(("--attention-config", json.dumps(attention_config)))
         if self.speculative is not None:

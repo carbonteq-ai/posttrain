@@ -282,12 +282,7 @@ def test_vllm_rollout_options_forwards_attention_backend_priority() -> None:
     assert kwargs == {
         "attention_config": {
             "flash_attn_version": 4,
-            "backend_priority": [
-                "B12X",
-                "FLASH_ATTN",
-                "FLASHINFER",
-                "TRITON_ATTN",
-            ],
+            "backend": "B12X",
         }
     }
 
