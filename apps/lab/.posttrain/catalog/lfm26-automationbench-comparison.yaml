@@ -807,6 +807,44 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
+  # Matched 50-update adaptive-GRPO ablation requested after the 0.4.4 release.
+  # Full VORTEX requires OLMo3 active refill, so the no-oversampling arm uses
+  # ordinary GRPO with curriculum allocation over the initial batch. Eight
+  # prompt groups by four generations yields exactly 32 sequences per update.
+  lfm2.5-2.6b/automationbench-adaptive-grpo-no-oversampling-50-local-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 50
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    algorithm: grpo
+    beta: 0.0
+    advantage_scaling: group
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.2
+    importance_sampling_mode: sequence_truncate
+    importance_sampling_clip_min: 0.1
+    importance_sampling_clip_max: 3.0
+    adaptive_curriculum:
+      class_field: domain
+      class_exploration: 0.2
+      task_discovery: 0.2
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
   # One bounded K2-Horizon/Uno qualification run of the VORTEX controller.
   # It keeps the released ten-group/four-generation policy and 20 updates;
   # only model-specific memory and rollout runtime controls differ.
@@ -885,6 +923,36 @@ training:
       - answer_quality
     component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
     max_admission_attempts: 3
+
+  # Matched local GDPO arm for the same 50x8x4 comparison. One admission
+  # attempt prevents rollout or judge retries from becoming hidden
+  # oversampling; incomplete groups are retained as explicit evidence.
+  lfm2.5-2.6b/automationbench-gdpo-episode-50-local-8x4-v1:
+    selection_type: gdpo-settings
+    revision: "1"
+    loop:
+      max_steps: 50
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 1
 
   lfm2.5-2.6b/automationbench-gdpo-episode-2-local-v1:
     selection_type: gdpo-settings
@@ -1431,6 +1499,38 @@ inference:
     purpose: [rollout]
     capabilities: [tool-calling]
 
+  # Posttrain 0.4.4 optimized Blackwell rollout profile. CUDA graphs, native
+  # FA4, prefix caching and asynchronous continuous batching are enabled; the
+  # policy-version fence invalidates stale prefixes after every LoRA refresh.
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@2:
+    revision: "2"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev2
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.20
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 32
+      max_num_batched_tokens: 32768
+      kv_cache_memory_bytes: 4294967296
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 4
+      attention_backend_priority: [FLASH_ATTN, TRITON_ATTN]
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: *policy_sampling_4k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
   inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-4k@1:
     revision: "1"
     model: models/lfm2.5-2.6b@bf16
@@ -1665,6 +1765,69 @@ inference:
     sampling: *judge_sampling
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [eval]
+
+  # Concurrency-32 judge profile for the matched GDPO arm. Gemma remains on
+  # its qualified Triton attention path; the released generic composer supplies
+  # MTP-2, target CUDA graphs and prefix-cache metrics without the rejected
+  # experimental Gemma SM120 attention kernel.
+  inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@3:
+    revision: "3"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.29.1.dev2
+    renderer: gemma4-tools@1
+    engine:
+      gpu_memory_utilization: 0.45
+      dtype: bfloat16
+      tensor_parallel_size: 1
+      max_model_len: 32768
+      max_num_seqs: 32
+      max_num_batched_tokens: 65536
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      attention_backend_priority: [TRITON_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: gemma4
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 2
+        draft_model:
+          repo_id: google/gemma-4-12B-it-assistant
+          revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
+    sampling: *judge_sampling
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+
+  inference/lfm2.5-2.6b-vllm-automationbench-eval-local@2:
+    revision: "2"
+    startup_timeout_seconds: 900
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev2
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      gpu_memory_utilization: 0.90
+      tensor_parallel_size: 1
+      max_model_len: 16384
+      max_num_seqs: 32
+      max_num_batched_tokens: 65536
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 4
+      attention_backend_priority: [FLASH_ATTN, TRITON_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 12288
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+    capabilities: [tool-calling]
 
   inference/spark-x2.5-4b-vllm-automationbench-judge-nothink-local@1:
     revision: "1"

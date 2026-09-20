@@ -1,0 +1,36 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-gdpo-episode-50-local-8x4-v1
+stage: train
+description: Matched 50-update LFM2.5 GDPO arm with self-hosted Gemma MTP-2 judging, no oversampling, 8x4 collection, and concurrency 32 for policy and judge.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-gdpo-episode-50-local-8x4-v1@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    reward_projection: training
+    training: training
+    rollout_inference: inference
+    judge_inference: inference
+  jobs:
+    - id: train
+      kind: train.gdpo
+      definition: train/gdpo-episode-judged@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, episode judge evidence, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-episode-judged-v3}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-gdpo-episode-50-local-8x4-v1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-episode-gdpo@1}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-local@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@2}
+  judge_inference: {type: ref, family: inference, id: inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@3}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-adaptive-grpo-gdpo-50x2-no-oversampling-v1
+  arm: gdpo-episode-gemma-mtp2
+  task_mix: lfm26-automationbench-mix-v2
+  labels: [experiment, automationbench, lfm2.5, gdpo, episode-judge, gemma4, mtp2, no-oversampling, local-rtx-pro-6000]
