@@ -49,6 +49,9 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 - Observation: The 4,096-token completion ceiling is a quality constraint even though the adaptive arm is operationally healthy.
   Evidence: 359 of 1,600 trajectories (22.44%) reached the completion cap across 50 updates. The run was not interrupted because optimization stayed finite and the operating contract forbids restarting a healthy run, but a larger completion budget is required before calling this the final best-quality profile.
 
+- Observation: The first GDPO attempt reached Gemma initialization but its revision-3 judge profile narrowly underprovisioned full-context KV memory.
+  Evidence: vLLM measured 9.92 GiB available versus 10.50 GiB required to admit one 32,768-token request (estimated limit 30,944). Revision 4 raises the judge fraction from 45% to 47%, about 1.9 GiB of card-level headroom, rather than reducing the declared context and silently changing judge semantics.
+
 ## Decision Log
 
 - Decision: Interpret “100 steps total” as two matched 50-step arms rather than 100 steps per arm.
@@ -125,6 +128,6 @@ After changing the arm to GRPO with adaptive initial-batch allocation, all three
 
 ## Interfaces and Dependencies
 
-The experiment uses Posttrain 0.4.4, the released CarbonTeq vLLM `0.29.1.dev2` runtime, TRL LoRA training, the AutomationBench Verifiers environment, Trackio/Doris evidence storage, and dstack scheduling on the RTX PRO 6000. The LFM rollout inference selection is `inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@2`. The Gemma judge selection is `inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@3`. The held-out evaluator uses `inference/lfm2.5-2.6b-vllm-automationbench-eval-local@2`.
+The experiment uses Posttrain 0.4.4, the released CarbonTeq vLLM `0.29.1.dev2` runtime, TRL LoRA training, the AutomationBench Verifiers environment, Trackio/Doris evidence storage, and dstack scheduling on the RTX PRO 6000. The LFM rollout inference selection is `inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@2`. The Gemma judge selection is `inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@4`. The held-out evaluator uses `inference/lfm2.5-2.6b-vllm-automationbench-eval-local@2`.
 
 Revision note (2026-09-20): Created this plan after static validation rejected an invalid OLMo3-without-active-sampling interpretation; the plan records the corrected adaptive-GRPO design and the live operating gates. Updated after live attempts found both a framework-only backend-priority field at the vLLM boundary and a pre-0.29 colocation memory fraction that exceeded actual free device memory.

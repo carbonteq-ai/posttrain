@@ -156,6 +156,27 @@ def test_gdpo_resolves_self_hosted_gemma_on_the_declared_server() -> None:
     }
 
 
+def test_lfm26_local_gdpo_retains_full_context_judge_headroom() -> None:
+    package = load_work_package(WORK_PACKAGES / "lfm26_automationbench_gdpo_episode_50_local_8x4_v1.yaml")
+    catalog = open_framework_catalog(
+        scope=package.project_id,
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    resolved = resolve_work_package(catalog, package)
+
+    judge = resolved.seats["judge_inference"].value
+    assert isinstance(judge, InferenceBinding)
+    assert judge.id == "inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@4"
+    assert judge.engine["gpu_memory_utilization"] == 0.47
+    assert judge.engine["max_model_len"] == 32_768
+    assert judge.engine["max_num_seqs"] == 32
+    assert judge.engine["speculative_config"]["num_speculative_tokens"] == 2  # type: ignore[index]
+
+    command = build_vllm_command(ServeLaunchRequest(judge))
+    assert command[command.index("--gpu-memory-utilization") + 1] == "0.47"
+    assert command[command.index("--max-model-len") + 1] == "32768"
+
+
 def test_reference_yaml_runs_screen_and_skips_optional_eval() -> None:
     package = load_work_package(WORK_PACKAGES / "foundation_screen.yaml")
     resolved_package = resolve_work_package(open_catalog(scope=package.project_id), package)

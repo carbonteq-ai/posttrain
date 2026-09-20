@@ -1809,6 +1809,40 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [eval]
 
+  # Revision 3 reached the RTX PRO but exposed only 9.92 GiB of KV memory;
+  # vLLM requires 10.50 GiB to admit one full 32K request. Two percentage
+  # points add roughly 1.9 GiB on the 96 GB card, preserving 32K semantics and
+  # leaving deliberate headroom instead of tuning to the observed minimum.
+  inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@4:
+    revision: "4"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.29.1.dev2
+    renderer: gemma4-tools@1
+    engine:
+      gpu_memory_utilization: 0.47
+      dtype: bfloat16
+      tensor_parallel_size: 1
+      max_model_len: 32768
+      max_num_seqs: 32
+      max_num_batched_tokens: 65536
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      attention_backend_priority: [TRITON_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: gemma4
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 2
+        draft_model:
+          repo_id: google/gemma-4-12B-it-assistant
+          revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
+    sampling: *judge_sampling
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+
   inference/lfm2.5-2.6b-vllm-automationbench-eval-local@2:
     revision: "2"
     startup_timeout_seconds: 900
