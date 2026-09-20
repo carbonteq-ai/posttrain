@@ -21,7 +21,7 @@ version = "0.31.5.post14.dev24"
 release-tag = "carbonteq-v0.31.5.post14.dev24"
 source-revision = "3a67722d2a2c0f40d3db98721ab2fc6933b93494"
 wheel-sha256 = "fea18a183a7493a0a1cd69218ccc2e1442cfcdbdea9c7d19f247ab7bbbf0fc21"
-sdist-sha256 = "7ba6ac88cb6f50b1682c4a6e196c5722dd9973626a896aa3ce13cc894135eb62"
+sdist-sha256 = "f7e3ba065f1085bff171b384899d06d83d11067e934078dc67d49b8b6f542704"
 
 [build-system]
 requires = ["hatchling"]

@@ -940,6 +940,8 @@ def test_candidate_builds_an_rc_and_final_rebuilds_the_accepted_materialization(
     assert "--python 3.13" in builder
     assert 'build_cache_dir="${UV_CACHE_DIR:-$build_cache_dir}"' in builder
     assert 'UV_CACHE_DIR="$build_cache_dir"' in builder
+    assert "check_args+=(--allow-pending-runtime-lock)" in builder
+    assert 'if [[ -n "${materialization_dir}" ]]' in builder
     assert "uv build environments/" not in candidate
     assert 'generated_runtime_locks="${repository_root}/packages/runtime-images' in builder
     assert 'cp -a "${generated_runtime_locks}/." "${staged_runtime_locks}/"' in builder
@@ -1079,6 +1081,7 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "allow_pending_runtime_lock:" in quality
     assert "default: false" in quality
     assert "inputs.allow_pending_runtime_lock || false" in quality
+    assert '"${GITHUB_EVENT_NAME}" = "push" && "${GITHUB_REF_NAME}" = "main"' in quality
     assert "--allow-pending-runtime-lock" in quality
 
     for workflow in (candidate,):
