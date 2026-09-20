@@ -18,7 +18,7 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 - [x] (2026-09-20 13:05Z) Qualified the attention compiler fix in attempt `20260920b`; startup then exposed the colocated memory-budget mismatch and revision 2 reduced the hard vLLM fraction to 9% without changing c32 or the 4 GiB KV cache.
 - [x] (2026-09-20 13:22Z) Attempt `20260920c` proved native vLLM FA4 rejects SM120. Switched LFM rollout and eval to native FA2 and added a static job-compilation error for RTX PRO SM120 plus FA4.
 - [x] (2026-09-20 13:42Z) Attempts `20260920d/e` exposed host contention rather than an LFM capacity defect. The retained `vllm-sm120-dev.service` held 80.8 GiB; it was stopped and the intended 4 GiB KV arena restored before the exclusive-GPU retry.
-- [x] (2026-09-20 14:33Z) Submitted adaptive arm `lfm26-adaptive-grpo-50-c32-20260920f` (`pt-1455ba03bb1be0920665b259`) and qualified three optimizer updates: 96/96 rollouts completed, zero failed, warm rollout throughput 1,086-1,708 tok/s, repeated 100% rollout intervals, and sustained 100% actor-update utilization. The 50-update run remains active.
+- [x] (2026-09-20 15:28Z) Adaptive arm `lfm26-adaptive-grpo-50-c32-20260920f` (`pt-1455ba03bb1be0920665b259`) succeeded with all 50 optimizer updates, 32/32 rollouts and zero failures on the final step, plus committed step-50 model, recovery, and training-summary artifacts. Its first-three-step operating gate recorded 96/96 rollouts, warm throughput of 1,086-1,708 tok/s, repeated 100% rollout intervals, and sustained 100% actor-update utilization.
 - [ ] Submit or queue the second 50-update arm and monitor at least three completed optimizer updates with the same evidence (submitted: `lfm26-gdpo-50-c32-gemma-mtp2-20260920b`, provider `pt-d0b98e60633ce736d8b0c4df`; currently waiting for the adaptive arm to release the single RTX PRO).
 - [ ] Run the common held-out evaluation once against each materialized adapter.
 - [ ] Reconcile the comparison and record final run identities and evidence.
@@ -46,6 +46,9 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 - Observation: Long-sequence GRPO correction reaches the configured sequence-level importance-ratio floor.
   Evidence: `train/rl/importance_sampling_ratio_mean` was 0.1 on all first three updates while mean token-logprob delta fell from 0.0507 to 0.0457. Rewards and gradients remained finite and reward mean rose from 0.4005 to 0.4663, so the run continues, but a token-level correction comparison is a recorded follow-up rather than a silent mid-run semantic change.
 
+- Observation: The 4,096-token completion ceiling is a quality constraint even though the adaptive arm is operationally healthy.
+  Evidence: 359 of 1,600 trajectories (22.44%) reached the completion cap across 50 updates. The run was not interrupted because optimization stayed finite and the operating contract forbids restarting a healthy run, but a larger completion budget is required before calling this the final best-quality profile.
+
 ## Decision Log
 
 - Decision: Interpret “100 steps total” as two matched 50-step arms rather than 100 steps per arm.
@@ -62,7 +65,7 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 
 ## Outcomes & Retrospective
 
-Configuration is complete and statically valid. Live backend qualification, submission, three-step monitoring, final evaluation, and comparison remain. No live run has yet been claimed successful.
+Configuration and live qualification of the adaptive-GRPO arm are complete. Run `lfm26-adaptive-grpo-50-c32-20260920f` succeeded with 50 updates and immutable model, recovery, and summary artifacts. The queued GDPO arm, its three-step operating gate, both held-out evaluations, and final comparison remain.
 
 ## Context and Orientation
 
