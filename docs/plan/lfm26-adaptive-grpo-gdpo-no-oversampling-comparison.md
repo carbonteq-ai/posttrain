@@ -28,6 +28,9 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 - Observation: The first live attempt failed before GPU allocation because the framework emitted a nonexistent vLLM `AttentionConfig.backend_priority` field.
   Evidence: vLLM raised `ValidationError: backend_priority Unexpected keyword argument`. The released fork exposes scalar `AttentionConfig.backend`; compilation now resolves the ordered framework policy to that scalar runtime field.
 
+- Observation: After the attention fix, vLLM reached GPU initialization but the old colocated utilization setting requested 18.99 GiB while the trainer left 9.48 GiB free.
+  Evidence: vLLM reported `Free memory on device cuda:0 (9.48/94.97 GiB) ... less than desired GPU memory utilization (0.2, 18.99 GiB)`. No unrelated dstack training run was active. Revision 2 uses 9% with the same c32 scheduler and explicit 4 GiB KV cache.
+
 ## Decision Log
 
 - Decision: Interpret “100 steps total” as two matched 50-step arms rather than 100 steps per arm.
@@ -106,4 +109,4 @@ After changing the arm to GRPO with adaptive initial-batch allocation, all three
 
 The experiment uses Posttrain 0.4.4, the released CarbonTeq vLLM `0.29.1.dev2` runtime, TRL LoRA training, the AutomationBench Verifiers environment, Trackio/Doris evidence storage, and dstack scheduling on the RTX PRO 6000. The LFM rollout inference selection is `inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@2`. The Gemma judge selection is `inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@3`. The held-out evaluator uses `inference/lfm2.5-2.6b-vllm-automationbench-eval-local@2`.
 
-Revision note (2026-09-20): Created this plan after static validation rejected an invalid OLMo3-without-active-sampling interpretation; the plan records the corrected adaptive-GRPO design and the live operating gates. Updated after the first live attempt found that Posttrain emitted a framework-only backend-priority list into vLLM's scalar backend contract.
+Revision note (2026-09-20): Created this plan after static validation rejected an invalid OLMo3-without-active-sampling interpretation; the plan records the corrected adaptive-GRPO design and the live operating gates. Updated after live attempts found both a framework-only backend-priority field at the vLLM boundary and a pre-0.29 colocation memory fraction that exceeded actual free device memory.

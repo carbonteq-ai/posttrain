@@ -1511,7 +1511,11 @@ inference:
       mode: colocate
       request_mode: async
       sleep_during_optimization: true
-      gpu_memory_utilization: 0.20
+      # vLLM 0.29 treats this as a hard fraction of total device memory. The
+      # colocated trainer leaves about 9.48 GiB free on the 96 GiB RTX PRO, so
+      # 9% admits the engine with bounded headroom while retaining the explicit
+      # 4 GiB KV cache and c32 scheduler.
+      gpu_memory_utilization: 0.09
       tensor_parallel_size: 1
       max_model_len: 24576
       max_num_seqs: 32
