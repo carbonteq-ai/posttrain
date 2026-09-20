@@ -1515,16 +1515,17 @@ inference:
       sleep_during_optimization: true
       # vLLM 0.29 treats this as a hard fraction of total device memory. The
       # colocated trainer leaves about 9.48 GiB free on the 96 GiB RTX PRO, so
-      # 9% admits the engine. Live FA2 graph startup consumes about 5.94 GiB
-      # after model load; a 4 GiB KV tensor left no allocator/kernel headroom
-      # inside the measured 9.48 GiB free budget. Use a 3 GiB arena while
-      # retaining the c32 scheduler, 24K context envelope and 4K output cap.
+      # 9% admits the engine with bounded headroom while retaining the explicit
+      # 4 GiB KV cache and c32 scheduler. Attempts d/e initially appeared to
+      # exhaust this budget, but host inspection found an unrelated retained
+      # Uno development service holding 80.8 GiB; do not encode that contention
+      # by reducing the intended benchmark capacity.
       gpu_memory_utilization: 0.09
       tensor_parallel_size: 1
       max_model_len: 24576
       max_num_seqs: 32
       max_num_batched_tokens: 32768
-      kv_cache_memory_bytes: 3221225472
+      kv_cache_memory_bytes: 4294967296
       weight_sync_mode: lora
       enforce_eager: false
       enable_chunked_prefill: true
