@@ -18,8 +18,8 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 - [x] (2026-09-20 13:05Z) Qualified the attention compiler fix in attempt `20260920b`; startup then exposed the colocated memory-budget mismatch and revision 2 reduced the hard vLLM fraction to 9% without changing c32 or the 4 GiB KV cache.
 - [x] (2026-09-20 13:22Z) Attempt `20260920c` proved native vLLM FA4 rejects SM120. Switched LFM rollout and eval to native FA2 and added a static job-compilation error for RTX PRO SM120 plus FA4.
 - [x] (2026-09-20 13:42Z) Attempts `20260920d/e` exposed host contention rather than an LFM capacity defect. The retained `vllm-sm120-dev.service` held 80.8 GiB; it was stopped and the intended 4 GiB KV arena restored before the exclusive-GPU retry.
-- [ ] Submit the first 50-update arm and monitor at least three completed optimizer updates with GPU and inference evidence (completed: attempt `lfm26-adaptive-grpo-50-c32-20260920a` proved a compiler/runtime attention-contract bug before GPU allocation; remaining: qualify the fix and resubmit).
-- [ ] Submit or queue the second 50-update arm and monitor at least three completed optimizer updates with the same evidence (completed: attempt `lfm26-gdpo-50-c32-gemma-mtp2-20260920a` was cancelled when the shared defect was identified; remaining: qualify the fix and resubmit).
+- [x] (2026-09-20 14:33Z) Submitted adaptive arm `lfm26-adaptive-grpo-50-c32-20260920f` (`pt-1455ba03bb1be0920665b259`) and qualified three optimizer updates: 96/96 rollouts completed, zero failed, warm rollout throughput 1,086-1,708 tok/s, repeated 100% rollout intervals, and sustained 100% actor-update utilization. The 50-update run remains active.
+- [ ] Submit or queue the second 50-update arm and monitor at least three completed optimizer updates with the same evidence (submitted: `lfm26-gdpo-50-c32-gemma-mtp2-20260920b`, provider `pt-d0b98e60633ce736d8b0c4df`; currently waiting for the adaptive arm to release the single RTX PRO).
 - [ ] Run the common held-out evaluation once against each materialized adapter.
 - [ ] Reconcile the comparison and record final run identities and evidence.
 
@@ -39,6 +39,12 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 
 - Observation: The apparent colocated KV-cache pressure in attempts d/e was caused by a retained standalone inference service, not the selected LFM profile.
   Evidence: host `nvidia-smi` identified `VLLM::EngineCore` in `vllm-sm120-dev.service`, serving K2-Horizon/Uno at 65K context and c32 while holding 80.8 GiB. It remained after each failed dstack container terminated. Stopping the reversible user service released the allocation; the comparison keeps its intended 4 GiB BF16 KV arena.
+
+- Observation: The corrected adaptive arm saturates the GPU and its warm rollout path is substantially faster than cold startup.
+  Evidence: the first three updates completed 32/32 rollouts each with zero failures and no refill rounds. Rollout throughput was 868.96, 1708.13, and 1086.20 tok/s; step times were 508.79, 429.92, and 404.80 seconds. Consecutive dstack samples showed repeated 100% generation intervals and sustained 100% actor updates; late-tail generation dropped toward 52-58% as requests completed. Peak KV usage was 76.3%, 80.5%, and 46.2%.
+
+- Observation: Long-sequence GRPO correction reaches the configured sequence-level importance-ratio floor.
+  Evidence: `train/rl/importance_sampling_ratio_mean` was 0.1 on all first three updates while mean token-logprob delta fell from 0.0507 to 0.0457. Rewards and gradients remained finite and reward mean rose from 0.4005 to 0.4663, so the run continues, but a token-level correction comparison is a recorded follow-up rather than a silent mid-run semantic change.
 
 ## Decision Log
 
