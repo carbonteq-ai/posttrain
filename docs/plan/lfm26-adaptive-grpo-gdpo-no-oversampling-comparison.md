@@ -19,7 +19,10 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 - [x] (2026-09-20 13:22Z) Attempt `20260920c` proved native vLLM FA4 rejects SM120. Switched LFM rollout and eval to native FA2 and added a static job-compilation error for RTX PRO SM120 plus FA4.
 - [x] (2026-09-20 13:42Z) Attempts `20260920d/e` exposed host contention rather than an LFM capacity defect. The retained `vllm-sm120-dev.service` held 80.8 GiB; it was stopped and the intended 4 GiB KV arena restored before the exclusive-GPU retry.
 - [x] (2026-09-20 15:28Z) Adaptive arm `lfm26-adaptive-grpo-50-c32-20260920f` (`pt-1455ba03bb1be0920665b259`) succeeded with all 50 optimizer updates, 32/32 rollouts and zero failures on the final step, plus committed step-50 model, recovery, and training-summary artifacts. Its first-three-step operating gate recorded 96/96 rollouts, warm throughput of 1,086-1,708 tok/s, repeated 100% rollout intervals, and sustained 100% actor-update utilization.
-- [ ] Submit or queue the second 50-update arm and monitor at least three completed optimizer updates with the same evidence. Attempt `lfm26-gdpo-50-c32-gemma-mtp2-20260920b` (`pt-d0b98e60633ce736d8b0c4df`) failed the Gemma full-context KV admission check; corrected attempt `lfm26-gdpo-50-c32-gemma-mtp2-20260920c` (`pt-3fa6e61cd9ed8a37a44743cf`) is submitted with the revision-4 judge profile.
+- [ ] Complete the second 50-update arm and monitor at least three updates with the same evidence. Attempt `lfm26-gdpo-50-c32-gemma-mtp2-20260920b` (`pt-d0b98e60633ce736d8b0c4df`) failed Gemma KV admission. Attempt `lfm26-gdpo-50-c32-gemma-mtp2-20260920c` (`pt-3fa6e61cd9ed8a37a44743cf`) used the corrected revision-4 profile but failed later on judge context. A new immutable attempt is required after qualification.
+- [x] (2026-09-20 17:42Z) Diagnosed attempt `20260920c` after 11 completed updates: it failed before update 12 because a judge request reserved 16,384 output tokens after at least 16,385 prompt tokens against a 32,768-token serving limit. Preserved the step-10 checkpoint and native traces; no restart has been submitted.
+- [ ] Qualify a bounded judge request contract and a Gemma serving context that fits representative long episodes at the requested concurrency. Inspect structured-output length and actual prompt-token distribution, including copied tool contracts and observations. Re-run the reviewed rubric calibration gate before promoting a new scorer version.
+- [ ] Decide and validate the inference path on the released vLLM fork: retain the currently selected Gemma MTP-2 path unless DSpark's separately measured speed and scorer calibration both qualify. Verify actual compilation/CUDA-graph and speculative counters rather than inferring them from `enforce_eager: false`.
 - [ ] Run the common held-out evaluation once against each materialized adapter.
 - [ ] Reconcile the comparison and record final run identities and evidence.
 
@@ -52,6 +55,12 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 - Observation: The first GDPO attempt reached Gemma initialization but its revision-3 judge profile narrowly underprovisioned full-context KV memory.
   Evidence: vLLM measured 9.92 GiB available versus 10.50 GiB required to admit one 32,768-token request (estimated limit 30,944). Revision 4 raises the judge fraction from 45% to 47%, about 1.9 GiB of card-level headroom, rather than reducing the declared context and silently changing judge semantics.
 
+- Observation: The corrected GDPO attempt reached 11 optimizer updates but the nominal input budget did not bound rendered judge prompts.
+  Evidence: `20260920c` failed at the next collection with vLLM HTTP 400: at least 16,385 prompt tokens plus a 16,384-token output reservation exceeded the configured 32,768-token context. The selected Verifiers judge declares `input_budget_tokens: 12288`, but its `score` method passes the full serialized episode and selected tool definitions to `complete` without token-count enforcement. Earlier updates retained fewer complete groups when individual judge calls failed; group-atomic admission already drops invalid groups when at least one complete group remains, but correctly refuses an all-invalid batch rather than fabricating rewards.
+
+- Observation: The active GDPO profile did not use the separately benchmarked Gemma/DSpark judge path.
+  Evidence: the work package selects Gemma MTP-2 on the released vLLM fork, Triton attention, `enforce_eager: false`, and 32K context. The retained DSpark qualification used an unreleased dirty vLLM runtime and showed 16/16 schema-valid verdicts but only 42.31% reviewed constraint pass and 10 false-perfect verdicts under its initial rubric; later prompt versions improved but did not establish a complete replacement gate. The 50-case two-pass diagnostic produced 2,435 output tokens on average (maximum 3,703), showing that a 16K-per-call reservation deserves remeasurement rather than automatic retention. This two-pass output distribution is not a direct-mode guarantee.
+
 ## Decision Log
 
 - Decision: Interpret “100 steps total” as two matched 50-step arms rather than 100 steps per arm.
@@ -66,9 +75,17 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
   Rationale: Live startup proved that vLLM native FA4 rejects compute capability 12.0; the earlier FA4 result used the separately extracted SM120 kernel and cannot be represented as native `FLASH_ATTN`. Gemma MTP-2 on Triton remains the retained correct path.
   Date/Author: 2026-09-20 / Codex
 
+- Decision: Do not treat a missing or malformed rubric score as zero, and do not count a skipped all-invalid collection as an optimizer update.
+  Rationale: GDPO's per-group component normalization needs valid reward vectors. The current admission layer already retains complete groups without oversampling; an all-invalid batch has no unbiased update. Fix request budgeting first, preserve failed trace reasons, and add an explicit bounded whole-batch recovery policy only if it can maintain the no-oversampling and 50-real-update contracts.
+  Date/Author: 2026-09-20 / Codex
+
+- Decision: Keep DSpark and actual CUDA-graph execution as release gates, not inferred performance claims.
+  Rationale: the running selection was MTP-2 and `enforce_eager: false` is only an instruction allowing compilation, not proof that its target and proposer replayed compiled graphs. The DSpark speed result used an unpublished runtime and its rubric calibration was not yet acceptable.
+  Date/Author: 2026-09-20 / Codex
+
 ## Outcomes & Retrospective
 
-Configuration and live qualification of the adaptive-GRPO arm are complete. Run `lfm26-adaptive-grpo-50-c32-20260920f` succeeded with 50 updates and immutable model, recovery, and summary artifacts. The queued GDPO arm, its three-step operating gate, both held-out evaluations, and final comparison remain.
+Configuration and live qualification of the adaptive-GRPO arm are complete. Run `lfm26-adaptive-grpo-50-c32-20260920f` succeeded with 50 updates and immutable model, recovery, and summary artifacts. GDPO attempt `20260920c` completed 11 updates and then failed on an unbounded judge request. It must not be presented as a 50-update result. Judge-budget repair, runtime qualification, a new immutable GDPO attempt, both held-out evaluations, and final comparison remain.
 
 ## Context and Orientation
 
@@ -85,6 +102,10 @@ First, validate the catalog and compile both dstack job plans using Posttrain 0.
 Second, run focused catalog, qualification-gate, training-policy, and work-package tests. Commit the configuration and plan so each submitted job has an immutable source revision. Submit the adaptive-GRPO and GDPO work packages with distinct run IDs. Because one RTX PRO 6000 may serialize jobs, queueing is acceptable; overlapping two memory-heavy training jobs on one GPU is not.
 
 Third, observe each arm through at least three completed optimizer updates. Capture optimizer step, trajectory counts, truncation, rollout throughput, queue depth or scheduler occupancy, KV-cache utilization and hit rate where applicable, GPU utilization and memory use, speculative acceptance for the Gemma judge, LoRA/policy version, loss, KL, gradient norm, and reward statistics. A run is not healthy merely because it remains alive. If metrics indicate underutilization, preemption, cache thrash, invalid values, stale weights, or malformed rewards, stop the affected run, change only the evidence-supported bottleneck, recompile the job, and resubmit under a new run ID.
+
+Before a GDPO retry, inspect the pinned `environments/automationbench_v1/src/automationbench_v1/episode_prompt.py` and `judge.py` in `../verifiers-environments` at the catalog's exact source revision. The current direct prompt copies the full role-separated episode, selected tool definitions, message IDs, and rubric labels; tool observations are JSON-wrapped but not semantically shortened. Introduce a tokenizer-measured input and output reservation that cannot exceed the selected server context, and preserve evidence-index validity if redundant fields are removed. Any prompt or schema change requires a new scorer/source revision, frozen replay calibration, and an immutable Posttrain pin. At least one long episode that previously exceeded 32K must complete or be explicitly marked unjudgeable before training begins. Do not silently truncate material tool results.
+
+Qualify the Gemma runtime separately at 32 concurrent judge requests: verify the server's actual max context and KV admission, inspect compile/CUDA-graph logs, target and proposer graph coverage, MTP or DSpark draft/acceptance counters, GPU utilization, and valid structured outputs. The current profile permits compilation (`enforce_eager: false`) but does not prove it. If testing DSpark, use its pinned BF16 block-7 draft on a committed CarbonTeq vLLM fork, re-run the reviewed rubric label gates, and only then select it in a versioned inference binding. Do not substitute the smaller Spark-X2.5-4B judge; it is a different model and scorer. Keep the current MTP-2 profile as the comparison baseline.
 
 Finally, after both 50-step descendants materialize, submit the same held-out evaluation twice using each training run as `--model-from-run`. Compare task-level means, completion and truncation, tool-call correctness, reward components, throughput, and resource efficiency. Keep training evidence and held-out evidence distinct.
 
@@ -104,6 +125,13 @@ Run focused tests from `/home/hammad/projects/rl`:
     uv run ruff check apps/lab packages/train packages/work
     git diff --check
 
+For the judge repair, first confirm the pinned environment revision and local checkout state without editing the latter implicitly:
+
+    git -C /home/hammad/projects/verifiers-environments rev-parse HEAD
+    git -C /home/hammad/projects/verifiers-environments status --short
+
+Run the environment's judge tests there after its prompt-builder change, then run `uv run pytest packages/jobs/tests/test_native_judges.py packages/train/tests/test_reward_admission.py apps/lab/tests/test_work_packages.py -q` from `/home/hammad/projects/rl` after the immutable pin update. Compare output lengths with `jq '[.cases[].completion_tokens]|{count:length,min:min,max:max,mean:(add/length)}' outputs/qualification/lfm26-oversample-training-sample-50-20260920/gemma4-dspark-v16-report.json`; this is the two-pass diagnostic, not a substitute for replaying the promoted direct or framed production protocol. Use `scripts/qualification/episode_judge_vllm_benchmark.py` on frozen retained inputs against a live versioned endpoint and verify its `structured_output_valid`, finish reasons, prompt/output tokens, and reviewed labels before submitting a new training run. The endpoint and GPU credentials are external preconditions, never stored in this plan.
+
 Submit training only after both job plans resolve the requested backend policies. Use stable, descriptive run IDs containing the algorithm, 50-step budget, and date. Evaluation submission waits for its source training run to materialize.
 
 ## Validation and Acceptance
@@ -111,6 +139,8 @@ Submit training only after both job plans resolve the requested backend policies
 Static acceptance requires all three work packages to validate and the focused test suite, Ruff, and `git diff --check` to pass. Compilation acceptance requires both dstack plans to select the released runtime and compatible inference backends before submission.
 
 Live acceptance for each arm requires three completed optimizer updates with finite loss, reward, KL, and gradient metrics; 8 prompt groups and 32 trajectories requested per step; no hidden candidate refill; changing policy versions after updates; and no malformed reward or stale-cache warnings. GPU acceptance requires sustained utilization during model-active windows rather than an average diluted by environment waits. If the runtime exposes scheduler occupancy, queue depth, KV-cache use, and token throughput, those values are the primary explanation of saturation. Overall GPU percentage alone is insufficient.
+
+Judge acceptance additionally requires a deterministic long-episode replay whose exact rendered token count plus reserved output and safety margin is within the selected serving context; a 400 context response, absent component vector, or invented zero score fails this gate. A single failed judge may exclude its whole prompt group if at least one complete group remains; an all-invalid collection must produce an explicit bounded recovery/stop outcome, never a fictitious optimizer step. The selected runtime must show observed compile/graph and speculative acceptance evidence. Faster DSpark decoding alone is insufficient without calibration parity on reviewed labels.
 
 Final acceptance requires 50 completed updates in each arm and two held-out evaluations derived from the immutable outputs. Any restarted attempt remains in lineage and is reported rather than overwritten.
 
@@ -130,4 +160,4 @@ After changing the arm to GRPO with adaptive initial-batch allocation, all three
 
 The experiment uses Posttrain 0.4.4, the released CarbonTeq vLLM `0.29.1.dev2` runtime, TRL LoRA training, the AutomationBench Verifiers environment, Trackio/Doris evidence storage, and dstack scheduling on the RTX PRO 6000. The LFM rollout inference selection is `inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@2`. The Gemma judge selection is `inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@4`. The held-out evaluator uses `inference/lfm2.5-2.6b-vllm-automationbench-eval-local@2`.
 
-Revision note (2026-09-20): Created this plan after static validation rejected an invalid OLMo3-without-active-sampling interpretation; the plan records the corrected adaptive-GRPO design and the live operating gates. Updated after live attempts found both a framework-only backend-priority field at the vLLM boundary and a pre-0.29 colocation memory fraction that exceeded actual free device memory.
+Revision note (2026-09-20): Created this plan after static validation rejected an invalid OLMo3-without-active-sampling interpretation; the plan records the corrected adaptive-GRPO design and the live operating gates. Updated after live attempts found both a framework-only backend-priority field at the vLLM boundary and a pre-0.29 colocation memory fraction that exceeded actual free device memory. Revised after GDPO attempt `20260920c` failed at 11 updates to require tokenizer-measured judge budgeting, explicit all-invalid-batch behavior, and observed—not configured—compilation and speculative evidence before another retry.
