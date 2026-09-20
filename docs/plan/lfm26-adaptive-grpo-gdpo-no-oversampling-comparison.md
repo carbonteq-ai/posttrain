@@ -17,6 +17,7 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 - [x] (2026-09-20 12:39Z) Passed 132 focused tests plus Ruff, committed the experiment as `480ece91`, and pushed its branch.
 - [x] (2026-09-20 13:05Z) Qualified the attention compiler fix in attempt `20260920b`; startup then exposed the colocated memory-budget mismatch and revision 2 reduced the hard vLLM fraction to 9% without changing c32 or the 4 GiB KV cache.
 - [x] (2026-09-20 13:22Z) Attempt `20260920c` proved native vLLM FA4 rejects SM120. Switched LFM rollout and eval to native FA2 and added a static job-compilation error for RTX PRO SM120 plus FA4.
+- [x] (2026-09-20 13:34Z) Attempt `20260920d` passed FA2 initialization and measured the graph-era memory footprint, then failed because a 4 GiB fixed KV tensor left no allocator headroom. Revision 2 now reserves 3 GiB without reducing concurrency or token budgets.
 - [ ] Submit the first 50-update arm and monitor at least three completed optimizer updates with GPU and inference evidence (completed: attempt `lfm26-adaptive-grpo-50-c32-20260920a` proved a compiler/runtime attention-contract bug before GPU allocation; remaining: qualify the fix and resubmit).
 - [ ] Submit or queue the second 50-update arm and monitor at least three completed optimizer updates with the same evidence (completed: attempt `lfm26-gdpo-50-c32-gemma-mtp2-20260920a` was cancelled when the shared defect was identified; remaining: qualify the fix and resubmit).
 - [ ] Run the common held-out evaluation once against each materialized adapter.
@@ -35,6 +36,9 @@ The first three optimizer updates of each arm are an operating gate. Logs and me
 
 - Observation: Native vLLM FA4 is not an SM120 backend even though SM120 is a Blackwell architecture.
   Evidence: attempt `lfm26-adaptive-grpo-50-c32-20260920c` passed the attention-field and memory gates, then repeatedly reported that FA4 supports compute capabilities 9.x, 10.x, and 11.x before failing attention initialization on compute capability 12.0. The earlier favorable SM120 FA4 result came from the separately extracted kernel, not native `FLASH_ATTN`.
+
+- Observation: Admission against `gpu_memory_utilization` is necessary but not sufficient when `kv_cache_memory_bytes` is fixed.
+  Evidence: attempt `lfm26-adaptive-grpo-50-c32-20260920d` admitted with 9.48 GiB free, consumed about 5.94 GiB for the model and private CUDA-graph pools, then OOMed allocating the full 4 GiB KV tensor. A 3 GiB arena preserves roughly 1 GiB of runtime headroom.
 
 ## Decision Log
 
