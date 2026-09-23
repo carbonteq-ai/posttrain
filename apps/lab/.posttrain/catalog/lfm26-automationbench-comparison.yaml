@@ -6,7 +6,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -47,7 +47,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -79,7 +79,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -162,7 +162,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -177,7 +177,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
                 model: google/gemma-4-12B-it
                 model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
                 attempts: 2
@@ -233,7 +233,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
                 model: google/gemma-4-12B-it
                 model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
                 attempts: 2
@@ -275,7 +275,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
                 model: XHToken/Spark-X2.5-4B
                 model_revision: 5e10fcc0286756aebf7c41dc52c1e42d95c70281
                 attempts: 2
@@ -326,7 +326,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
                 model: deepseek/deepseek-v4.1-flash
                 model_revision: "20260910"
                 attempts: 2
@@ -366,7 +366,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -381,7 +381,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
                 model: deepseek/deepseek-v4-flash-0731
                 model_revision: "0731"
                 attempts: 2
@@ -429,7 +429,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -807,6 +807,44 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
+  # Matched 50-update adaptive-GRPO ablation requested after the 0.4.4 release.
+  # Full VORTEX requires OLMo3 active refill, so the no-oversampling arm uses
+  # ordinary GRPO with curriculum allocation over the initial batch. Eight
+  # prompt groups by four generations yields exactly 32 sequences per update.
+  lfm2.5-2.6b/automationbench-adaptive-grpo-no-oversampling-50-local-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 50
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    algorithm: grpo
+    beta: 0.0
+    advantage_scaling: group
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.2
+    importance_sampling_mode: sequence_truncate
+    importance_sampling_clip_min: 0.1
+    importance_sampling_clip_max: 3.0
+    adaptive_curriculum:
+      class_field: domain
+      class_exploration: 0.2
+      task_discovery: 0.2
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
   # One bounded K2-Horizon/Uno qualification run of the VORTEX controller.
   # It keeps the released ten-group/four-generation policy and 20 updates;
   # only model-specific memory and rollout runtime controls differ.
@@ -885,6 +923,36 @@ training:
       - answer_quality
     component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
     max_admission_attempts: 3
+
+  # Matched local GDPO arm for the same 50x8x4 comparison. One admission
+  # attempt prevents rollout or judge retries from becoming hidden
+  # oversampling; incomplete groups are retained as explicit evidence.
+  lfm2.5-2.6b/automationbench-gdpo-episode-50-local-8x4-v1:
+    selection_type: gdpo-settings
+    revision: "1"
+    loop:
+      max_steps: 50
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    component_names:
+      - partial_credit
+      - problem_understanding_planning
+      - logical_correctness
+      - verification_self_correction
+      - progress_efficiency
+      - action_quality
+      - answer_quality
+    component_weights: [0.55, 0.05, 0.05, 0.03, 0.07, 0.15, 0.10]
+    max_admission_attempts: 1
 
   lfm2.5-2.6b/automationbench-gdpo-episode-2-local-v1:
     selection_type: gdpo-settings
@@ -1055,7 +1123,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local@1:
     selection_type: training-binding
@@ -1084,7 +1152,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g40@1:
     selection_type: training-binding
@@ -1113,7 +1181,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g40@1: &k2_horizon_trl_lora_automationbench_local_g40
     selection_type: training-binding
@@ -1142,7 +1210,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g16-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1158,7 +1226,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g8-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1174,7 +1242,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g4-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1190,7 +1258,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
     selection_type: training-binding
@@ -1239,7 +1307,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/lfm2.5-1.2b-trl-lora-changed-weight-local@1:
     selection_type: training-binding
@@ -1261,7 +1329,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   reward/automationbench-episode-gdpo@1:
     selection_type: reward-projection
@@ -1431,6 +1499,47 @@ inference:
     purpose: [rollout]
     capabilities: [tool-calling]
 
+  # Posttrain 0.4.4 optimized SM120 rollout profile. CUDA graphs, native FA2,
+  # prefix caching and asynchronous continuous batching are enabled; the
+  # policy-version fence invalidates stale prefixes after every LoRA refresh.
+  # Native vLLM FA4 admits compute capabilities 9.x-11.x and rejects SM120;
+  # the separately qualified extracted SM120 kernel is not this backend.
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@2:
+    revision: "2"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      # vLLM 0.29 treats this as a hard fraction of total device memory. The
+      # colocated trainer leaves about 9.48 GiB free on the 96 GiB RTX PRO, so
+      # 9% admits the engine with bounded headroom while retaining the explicit
+      # 4 GiB KV cache and c32 scheduler. Attempts d/e initially appeared to
+      # exhaust this budget, but host inspection found an unrelated retained
+      # Uno development service holding 80.8 GiB; do not encode that contention
+      # by reducing the intended benchmark capacity.
+      gpu_memory_utilization: 0.09
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 32
+      max_num_batched_tokens: 32768
+      kv_cache_memory_bytes: 4294967296
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: *policy_sampling_4k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
   inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-4k@1:
     revision: "1"
     model: models/lfm2.5-2.6b@bf16
@@ -1451,6 +1560,40 @@ inference:
       weight_sync_mode: lora
       enforce_eager: true
       enable_chunked_prefill: true
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: *policy_sampling_4k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  # The Posttrain 0.4.4 optimized rollout profile (c32-4k@2: CUDA graphs,
+  # FA2, prefix caching, async batching) scaled to VORTEX's 40 sequences. KV
+  # capacity and the colocated memory fraction match c40-4k@1, so the trainer's
+  # headroom is unchanged; c40-4k@1 forced eager mode, which the agentic replay
+  # measured as the slower path (docs/plan/agentic-workload-inference-optimization.md).
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-4k@2:
+    revision: "2"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.20
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 40
+      max_num_batched_tokens: 40960
+      kv_cache_memory_bytes: 5368709120
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
       free_cache_engine: true
       text_only: true
       skip_mm_profiling: true
@@ -1665,6 +1808,103 @@ inference:
     sampling: *judge_sampling
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [eval]
+
+  # Concurrency-32 judge profile for the matched GDPO arm. Gemma remains on
+  # its qualified Triton attention path; the released generic composer supplies
+  # MTP-2, target CUDA graphs and prefix-cache metrics without the rejected
+  # experimental Gemma SM120 attention kernel.
+  inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@3:
+    revision: "3"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: gemma4-tools@1
+    engine:
+      gpu_memory_utilization: 0.45
+      dtype: bfloat16
+      tensor_parallel_size: 1
+      max_model_len: 32768
+      max_num_seqs: 32
+      max_num_batched_tokens: 65536
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      attention_backend_priority: [TRITON_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: gemma4
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 2
+        draft_model:
+          repo_id: google/gemma-4-12B-it-assistant
+          revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
+    sampling: *judge_sampling
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+
+  # Revision 3 reached the RTX PRO but exposed only 9.92 GiB of KV memory;
+  # vLLM requires 10.50 GiB to admit one full 32K request. Two percentage
+  # points add roughly 1.9 GiB on the 96 GB card, preserving 32K semantics and
+  # leaving deliberate headroom instead of tuning to the observed minimum.
+  inference/gemma4-12b-vllm-automationbench-judge-mtp2-local-32k@4:
+    revision: "4"
+    startup_timeout_seconds: 900
+    model: models/gemma4-12b-it@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: gemma4-tools@1
+    engine:
+      gpu_memory_utilization: 0.47
+      dtype: bfloat16
+      tensor_parallel_size: 1
+      max_model_len: 32768
+      max_num_seqs: 32
+      max_num_batched_tokens: 65536
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      attention_backend_priority: [TRITON_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+      reasoning_parser: gemma4
+      speculative_config:
+        method: mtp
+        num_speculative_tokens: 2
+        draft_model:
+          repo_id: google/gemma-4-12B-it-assistant
+          revision: 364bd03c9952e5b7da73665ee30c9eccfc408345
+    sampling: *judge_sampling
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+
+  inference/lfm2.5-2.6b-vllm-automationbench-eval-local@2:
+    revision: "2"
+    startup_timeout_seconds: 900
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      gpu_memory_utilization: 0.90
+      tensor_parallel_size: 1
+      max_model_len: 16384
+      max_num_seqs: 32
+      max_num_batched_tokens: 65536
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 12288
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+    capabilities: [tool-calling]
 
   inference/spark-x2.5-4b-vllm-automationbench-judge-nothink-local@1:
     revision: "1"

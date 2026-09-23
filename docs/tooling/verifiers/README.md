@@ -8,7 +8,7 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 ## Install / pin
 
 The selected independently maintained CarbonTeq distribution is
-`carbonteq-ai/verifiers@84ab782391bbfe1ac4f4ca32fa612e56d01b5b81`, based on
+`carbonteq-ai/verifiers@b71ade0a7ac712cdee9e1a4c0e53030d70768aff`, based on
 upstream main commit `27bbd216df0af719a43705866b2cf6139bcc95de` and retaining
 the CarbonTeq host-client, selected-template, and cancellation seams. It adds
 optional host-client injection through native serving/interception. The fork
@@ -28,7 +28,22 @@ credential-dependent Prime cases skipped. Verifiers is consumed directly by
 immutable Git revision rather than as a private-index wheel; the Posttrain
 manifests and runtime locks therefore constitute its development selection.
 
-The selected commit adds exact ordered task-key selection and records the
+Selected commit `b71ade0a7ac712cdee9e1a4c0e53030d70768aff` adds the rollout
+startup and tool-path work from the agentic inference plan
+(`docs/plan/agentic-workload-inference-optimization.md`): an opt-in fork server
+for subprocess-runtime Python programs (tool servers, preinstalled and
+uv-prepared harness scripts), port-file backoff with a host-side probe, and
+no-delay TCP listeners for MCP tool servers, which removed a ~40 ms delayed-ACK
+stall from every tool call. Posttrain enables the fork server for its Verifiers
+jobs through `posttrain.environment.verifiers_runtime.enable_verifiers_fork_server`
+(`VF_FORK_SERVER=0` opts out). AutomationBench at concurrency 16 with recorded
+tool calls: host time per episode 6.6 s to 0.65 s (preinstalled interpreter)
+and 6.65 s to 0.78 s (uv-prepared harness, as in training). The fork's
+`tests/v1/test_subprocess_fork_server.py` and `test_mcp_server_latency.py`
+pass; the rest of the v1 suite fails only its 14 pre-existing
+environment-import cases, identically before and after.
+
+The earlier selected commit added exact ordered task-key selection and records the
 repetition index on native evaluation episodes. These generic seams let a host
 reuse one reviewed task manifest and distinguish planned repetitions without
 moving allocation or measurement policy into Verifiers.

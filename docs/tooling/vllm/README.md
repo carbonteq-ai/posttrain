@@ -18,10 +18,19 @@ locally: the runtime, headers, NVCC, NVVM, CRT, and CCCL cannot safely float to
 different CUDA releases.
 
 The selected development release is
-[`carbonteq-v0.29.1.dev2`](https://github.com/carbonteq-ai/vllm/releases/tag/carbonteq-v0.29.1.dev2),
-commit `fbbba6698b2f8a912b94705cfc09eb4fd7243716`, based exactly on upstream
+[`carbonteq-v0.29.1.dev3`](https://github.com/carbonteq-ai/vllm/releases/tag/carbonteq-v0.29.1.dev3),
+commit `564ff2b43d499f5d17bcee554d126360b768dd98`, based exactly on upstream
 `44dd18fe0bb0f13157f97a5aa029b6604468fca6`. Its retained source archive has
-SHA-256 `cd44782606be23fa4a0195fd90e7377a5adf8f3d9bcc7984a21743a046b7d44e`.
+SHA-256 `28d20ff20893e1570b3789fb1367af4ca78a8bd71e31c03d43476a6f89aa57d0`.
+Over dev2 (`fbbba6698b2f8a912b94705cfc09eb4fd7243716`) it adds the generic
+SM120 batch-invariant GEMM rule, batch-invariant split-KV attention, GDN chunk
+alignment and invariant CUDA RMSNorm (see
+[the optimization architecture](../../architecture/vllm-inference-optimization.md)),
+and multi-turn prefix reuse for hybrid and sliding-window models: a decoding
+request's last computed block stays reachable under sparse retention, so an
+agentic turn no longer re-prefills the previous turn's generated tokens
+(LFM2.5 AutomationBench replay at c16: 43% fewer prefilled tokens, 0.1% instead
+of 9.6% of reusable context recomputed, collection 1.023x).
 The independent SM120 kernel is
 [`sm120-paged-attention` v0.1.0](https://github.com/carbonteq-ai/sm120-paged-attention/releases/tag/v0.1.0),
 commit `99a6fe0acbb4756735aa8e47236f8b74e3f7c4be`, with wheel SHA-256

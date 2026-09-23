@@ -145,7 +145,10 @@ def vllm_rollout_options(
             raise ValueError("TRL rollout attention_backend_priority entries must be non-empty uppercase backend names")
         if len(set(attention_backend_priority)) != len(attention_backend_priority):
             raise ValueError("TRL rollout attention_backend_priority must not contain duplicates")
-        attention_config["backend_priority"] = list(attention_backend_priority)
+        # vLLM's public AttentionConfig accepts one selected backend.  Keep
+        # priority ordering in the framework policy, but compile its first
+        # eligible choice to the scalar runtime contract.
+        attention_config["backend"] = attention_backend_priority[0]
     if attention_config:
         values["attention_config"] = attention_config
     kv_cache_dtype = engine.get("kv_cache_dtype")

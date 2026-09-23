@@ -1,0 +1,33 @@
+project_id: posttrain-lab
+work_package_id: eval/lfm2.5-2.6b/automationbench-heldout-comparison-c32-v1
+stage: qualify
+description: Matched held-out AutomationBench evaluation for both 50-step descendants using the LFM recommended preset and optimized concurrency-32 inference.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-heldout-comparison-c32-v1@1
+  revision: "1"
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: evaluate
+      kind: eval.general
+      definition: eval/verifiers-managed-general@1
+  expected_artifacts: [native evaluation result]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  evaluation_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-eval-local@2}
+  target: {type: ref, family: target, id: targets/carbonteq-rtx-pro-6000-96gb}
+  evaluation_plan: {type: ref, family: evaluation, id: lfm26-automationbench-heldout-v1}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-heldout-mix-v1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-adaptive-grpo-gdpo-50x2-no-oversampling-v1
+  evaluation_population: heldout20
+  repetitions_per_task: "3"
+  generation_preset: lfm2.5-2.6b-recommended
+  labels: [qualification, evaluation, automationbench, lfm2.5, heldout, concurrency-32]

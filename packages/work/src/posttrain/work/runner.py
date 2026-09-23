@@ -524,6 +524,23 @@ def _configuration_findings(
         kv_cache_dtype = engine.get("kv_cache_dtype")
         turboquant = isinstance(kv_cache_dtype, str) and kv_cache_dtype.startswith("turboquant_")
         flash_attn_version = engine.get("flash_attn_version")
+        accelerator_model = hardware.accelerator_model if hardware is not None else None
+        if accelerator_model in {"RTXPRO4500", "RTXPRO6000"} and flash_attn_version == 4:
+            issues.append(
+                ConfigurationIssue(
+                    "VLLM_NATIVE_FA4_UNSUPPORTED_ON_SM120",
+                    "error",
+                    "static",
+                    role,
+                    f"{role}.engine.flash_attn_version",
+                    (
+                        f"native vLLM FlashAttention 4 does not support SM120 target {accelerator_model}; "
+                        "the separately qualified extracted SM120 kernel is not the native FLASH_ATTN backend"
+                    ),
+                    "Set flash_attn_version to 2 or select a runtime with a qualified SM120 attention backend.",
+                    (f"{role}.target.hardware.accelerator_model",),
+                )
+            )
         if turboquant and isinstance(flash_attn_version, int) and flash_attn_version >= 3:
             issues.append(
                 ConfigurationIssue(

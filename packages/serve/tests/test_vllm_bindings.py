@@ -63,7 +63,7 @@ def test_attention_backend_priority_is_composed_with_flash_version() -> None:
     )
     expected = {
         "flash_attn_version": 4,
-        "backend_priority": ["B12X", "FLASH_ATTN", "FLASHINFER", "TRITON_ATTN"],
+        "backend": "B12X",
     }
 
     assert engine.as_vllm_kwargs()["attention_config"] == expected

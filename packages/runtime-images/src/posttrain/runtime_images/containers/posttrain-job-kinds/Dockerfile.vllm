@@ -13,7 +13,7 @@ RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locke
 FROM kind-common AS vllm-kind-common
 ARG VLLM_BINARY_WHEEL_URL="https://wheels.vllm.ai/44dd18fe0bb0f13157f97a5aa029b6604468fca6/vllm-0.29.1rc1.dev366%2Bg44dd18fe0-cp38-abi3-manylinux_2_28_x86_64.whl"
 ARG VLLM_BINARY_WHEEL_SHA256="2b8f85d32b952cb05743c2edb02c4ae5be59921445b97069a609f186fdf6c5f0"
-ARG VLLM_RUNTIME_VERSION="0.29.1.dev2"
+ARG VLLM_RUNTIME_VERSION="0.29.1.dev3"
 RUN apt-get update && \
     apt-get install --yes --no-install-recommends g++ && \
     rm -rf /var/lib/apt/lists/*

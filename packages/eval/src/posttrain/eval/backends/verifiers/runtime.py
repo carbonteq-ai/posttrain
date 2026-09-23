@@ -67,6 +67,9 @@ async def prepare_preinstalled_uv_script(
 def configure_preinstalled_runtime() -> None:
     """Install the no-network policy into Verifiers when the image requests it."""
 
+    from posttrain.environment.verifiers_runtime import enable_verifiers_fork_server
+
+    enable_verifiers_fork_server()
     if os.environ.get(PREINSTALLED_ENV) != "1":
         return
     from verifiers.v1.runtimes import base as runtime_base

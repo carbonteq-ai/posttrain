@@ -51,9 +51,9 @@ environments = ["sys_platform == 'linux' and platform_machine == 'x86_64' and py
 torch = { index = "pytorch-cu130" }
 torchaudio = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
-verifiers = { git = "https://github.com/carbonteq-ai/verifiers.git", rev = "84ab782391bbfe1ac4f4ca32fa612e56d01b5b81" }
+verifiers = { git = "https://github.com/carbonteq-ai/verifiers.git", rev = "b71ade0a7ac712cdee9e1a4c0e53030d70768aff" }
 verl = { git = "https://github.com/carbonteq-ai/verl.git", rev = "18338a0efbd6f103378d2861f4a078ad243db455" }
-vllm = { git = "https://github.com/carbonteq-ai/vllm.git", rev = "fbbba6698b2f8a912b94705cfc09eb4fd7243716" }
+vllm = { git = "https://github.com/carbonteq-ai/vllm.git", rev = "564ff2b43d499f5d17bcee554d126360b768dd98" }
 
 [[tool.uv.index]]
 name = "pytorch-cu130"
