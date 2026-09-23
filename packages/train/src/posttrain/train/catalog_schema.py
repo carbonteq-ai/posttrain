@@ -165,10 +165,15 @@ class ActiveGroupSamplingSchema(TrainCatalogSchema):
 
 class AdaptiveCurriculumSchema(TrainCatalogSchema):
     class_field: str = Field(min_length=1)
+    policy: Literal["quota", "yield_first"] = "quota"
     class_exploration: float = Field(default=0.2, gt=0, le=1, allow_inf_nan=False)
     task_discovery: float = Field(default=0.2, ge=0, le=1, allow_inf_nan=False)
     history_groups: int = Field(default=4, gt=0)
     seed: int = 42
+    exploration_share: float = Field(default=0.2, ge=0, le=1, allow_inf_nan=False)
+    uncertainty_weight: float = Field(default=4.0, ge=0, allow_inf_nan=False)
+    evidence_half_life_steps: float = Field(default=20.0, gt=0, allow_inf_nan=False)
+    yield_prior_strength: float = Field(default=4.0, gt=0, allow_inf_nan=False)
     exploration: float | None = Field(default=None, gt=0, le=1, allow_inf_nan=False)
 
 

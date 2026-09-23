@@ -807,6 +807,65 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
+  # VORTEX v1 settings with the LoRA learning rate from the literature review in
+  # docs/plan/agentic-workload-inference-optimization.md: Tinker's RL recipes
+  # (1e-5 to 4e-5 at LoRA alpha 32, constant schedule) are 4e-5 to 1.6e-4 at this
+  # binding's alpha 8, since the LoRA update scales with learning rate x alpha.
+  # v1's 1e-5 with linear decay to zero over 20 updates was about 8x below the
+  # lowest Tinker RL recipe. Revision 2 takes the aggressive end (2e-4); the OLMo3
+  # clipped objective bounds each update (the recipe deliberately has no KL term).
+  # Revision 1 (1e-4) was cancelled before training.
+  lfm2.5-2.6b/automationbench-vortex-20-local-v3: &vortex_20_local_v3
+    selection_type: grpo-settings
+    revision: "2"
+    loop:
+      max_steps: 20
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 40
+      learning_rate: 0.0002
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 10
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    adaptive_curriculum:
+      class_field: domain
+      class_exploration: 0.2
+      task_discovery: 0.2
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
+  # Same model, optimizer, reward, inference and 20-step budget as v3. Only the
+  # versioned curriculum policy changes; both lanes use the full 160-task pool.
+  lfm2.5-2.6b/automationbench-vortex-yield-first-20-local-v4:
+    <<: *vortex_20_local_v3
+    revision: "1"
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+
   # Matched 50-update adaptive-GRPO ablation requested after the 0.4.4 release.
   # Full VORTEX requires OLMo3 active refill, so the no-oversampling arm uses
   # ordinary GRPO with curriculum allocation over the initial batch. Eight

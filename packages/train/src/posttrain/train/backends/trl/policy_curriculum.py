@@ -84,9 +84,12 @@ class AdaptiveCurriculumRuntime:
         context.event(
             "adaptive_curriculum_started",
             {
+                "policy": settings.policy,
                 "class_field": settings.class_field,
-                "class_exploration": settings.class_exploration,
-                "task_discovery": settings.task_discovery,
+                "class_exploration": settings.class_exploration if settings.policy == "quota" else None,
+                "task_discovery": settings.task_discovery if settings.policy == "quota" else None,
+                "exploration_share": settings.exploration_share if settings.policy == "yield_first" else None,
+                "uncertainty_weight": settings.uncertainty_weight if settings.policy == "yield_first" else None,
                 "history_groups": settings.history_groups,
                 "seed": settings.seed,
                 "task_count": len(task_rows),

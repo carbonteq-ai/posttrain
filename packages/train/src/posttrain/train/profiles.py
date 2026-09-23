@@ -125,15 +125,33 @@ class AdaptiveCurriculum:
     """Select distinct rollout tasks from observed class and task evidence."""
 
     class_field: str
+    policy: Literal["quota", "yield_first"] = "quota"
     class_exploration: float = 0.2
     task_discovery: float = 0.2
     history_groups: int = 4
     seed: int = 42
+    exploration_share: float = 0.2
+    uncertainty_weight: float = 4.0
+    evidence_half_life_steps: float = 20.0
+    yield_prior_strength: float = 4.0
     exploration: InitVar[float | None] = None
 
     def __post_init__(self, exploration: float | None) -> None:
         if not self.class_field or not self.class_field.strip():
             raise ValueError("adaptive curriculum class field is required")
+        if self.policy not in {"quota", "yield_first"}:
+            raise ValueError("adaptive curriculum policy must be quota or yield_first")
+        if self.policy == "yield_first" and (
+            exploration is not None or self.class_exploration != 0.2 or self.task_discovery != 0.2
+        ):
+            raise ValueError("yield_first does not use quota exploration or task discovery settings")
+        if self.policy == "quota" and (
+            self.exploration_share != 0.2
+            or self.uncertainty_weight != 4.0
+            or self.evidence_half_life_steps != 20.0
+            or self.yield_prior_strength != 4.0
+        ):
+            raise ValueError("quota policy does not use yield_first exploration settings")
         if exploration is not None:
             if self.class_exploration != 0.2 or self.task_discovery != 0.2:
                 raise ValueError("legacy exploration cannot be combined with class exploration or task discovery")
@@ -147,6 +165,14 @@ class AdaptiveCurriculum:
             raise ValueError("adaptive curriculum task discovery must be in [0, 1]")
         if self.history_groups < 1:
             raise ValueError("adaptive curriculum history groups must be positive")
+        if not math.isfinite(self.exploration_share) or not 0 <= self.exploration_share <= 1:
+            raise ValueError("adaptive curriculum exploration share must be in [0, 1]")
+        if not math.isfinite(self.uncertainty_weight) or self.uncertainty_weight < 0:
+            raise ValueError("adaptive curriculum uncertainty weight must be nonnegative")
+        if not math.isfinite(self.evidence_half_life_steps) or self.evidence_half_life_steps <= 0:
+            raise ValueError("adaptive curriculum evidence half-life must be positive")
+        if not math.isfinite(self.yield_prior_strength) or self.yield_prior_strength <= 0:
+            raise ValueError("adaptive curriculum yield prior strength must be positive")
 
 
 @dataclass(frozen=True, slots=True)
