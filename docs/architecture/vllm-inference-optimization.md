@@ -433,16 +433,24 @@ on the fork branch:
   changing each row's reduction order; invariance now forces one row.
 
 Qwen3.5-2B and 27B are then bit-exact at c1–c32 and across mixed steps (c4:
-345 → 921 tok/s on the 2B, 47 → 101 on the 27B). One gap remains: with chunked
-prefill a long prompt can be split at different points depending on its
-neighbours, and GDN's result depends on the split point (a 3,000-token prompt
-split at 1,536 vs 2,048 flips its second token). With chunked prefill off both
-staggered tests are bit-exact, and the fork warns when both are enabled. The
-cause is not yet located: the state-carry kernel keeps fp32 state across calls
-symmetrically. Separately, several FLA kernels (`chunk_o`,
-`chunk_scaled_dot_kkt`, `l2norm`) autotune configurations that change the
-reduction split, so two processes can pick different configurations and
-produce different bits; within one process the choice is fixed.
+345 → 921 tok/s on the 2B, 47 → 101 on the 27B).
+
+A fourth dependence came from chunked prefill, which splits a long prompt
+wherever the step's remaining budget runs out, so the split point depended on
+the neighbours. Running the FLA chunk kernel directly on a 3,000-token
+sequence showed it is bit-exact across a split only when the split falls on
+its 64-token chunk boundary (splits at 1,536 and 2,048 match the unsplit run;
+1,000 and 1,537 diverge from the split point on). A kernel change cannot close
+that gap, because the kernel solves each 64-token chunk as one block. Under
+invariance the scheduler now ends partial prefill chunks on 64-token
+boundaries for models with GDN layers, costing at most 63 tokens of budget in
+a step. Qwen3.5-2B is bit-exact with chunked prefill on in both staggered
+tests; the invariance-off controls drift at 136 and 160 steps. Prefix caching
+with GDN under invariance is not yet validated.
+
+Forcing each autotune candidate of the nine FLA kernels in the GDN prefill
+path (125 configurations) produced bit-identical output, so autotuning does
+not threaten cross-process reproducibility for these kernels.
 
 ### Invariant attention: fixed-segment split-KV
 
@@ -532,13 +540,9 @@ These are open and were found by inspection on 2026-09-23, not by a failing run.
    `F.linear` or `torch.matmul` on the hot path still runs on cuBLAS.
    Bit-exact end-to-end logprobs for five models suggest none of them currently
    matter; a new model or feature that adds one would silently lose invariance.
-7. **GDN (Qwen3.5 linear attention) depends on chunked-prefill split points.**
-   Batch composition and mixed steps are fixed on the branch; split-point
-   dependence remains (see Hybrid layers after the GEMM rule). Disable chunked
-   prefill for full reproducibility until it is fixed.
-8. **FLA kernels autotune configurations that change reduction order.** Two
-   engine processes can choose different configurations and disagree in the
-   last bits. Invariant mode should pin one configuration per kernel.
+7. **GDN with prefix caching is not validated under invariance.** Batch
+   composition, mixed steps and chunked-prefill split points are fixed on the
+   branch; a prefix-cache hit may resume a prompt off a 64-token boundary.
 
 Items 1 and 3 should be closed before the kernel is carried to any further
 model, because together they mean a new model's correctness cannot currently be
@@ -682,7 +686,8 @@ script name.
   batch-invariant at 16+ sequences. Recorded that the aten overrides are
   SM80-only, that short-conv is invariant while GDN is not, and the
   staggered-arrival and chunk-boundary evidence.
-- 2026-09-23 (evening): Recorded the three GDN fixes and the remaining
-  split-point dependence, the FLA autotuning risk, and fixed-segment split-KV
-  for invariant Triton attention (Gemma-4-12B c4 cost 9.3% → 4.5%, E4B 15.8% →
-  8.8%, bit-exact).
+- 2026-09-23 (evening): Recorded the three GDN fixes and fixed-segment
+  split-KV for invariant Triton attention (Gemma-4-12B c4 cost 9.3% → 4.5%,
+  E4B 15.8% → 8.8%, bit-exact). Traced the GDN split-point dependence to
+  unaligned prefill splits and fixed it with 64-token-aligned chunking;
+  measured that FLA autotuning does not change output bits.
