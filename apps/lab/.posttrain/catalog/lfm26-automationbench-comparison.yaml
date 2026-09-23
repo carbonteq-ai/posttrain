@@ -6,7 +6,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -47,7 +47,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -79,7 +79,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -162,7 +162,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -177,7 +177,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
                 model: google/gemma-4-12B-it
                 model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
                 attempts: 2
@@ -233,7 +233,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
                 model: google/gemma-4-12B-it
                 model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
                 attempts: 2
@@ -275,7 +275,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
                 model: XHToken/Spark-X2.5-4B
                 model_revision: 5e10fcc0286756aebf7c41dc52c1e42d95c70281
                 attempts: 2
@@ -326,7 +326,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
                 model: deepseek/deepseek-v4.1-flash
                 model_revision: "20260910"
                 attempts: 2
@@ -366,7 +366,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -381,7 +381,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
                 model: deepseek/deepseek-v4-flash-0731
                 model_revision: "0731"
                 attempts: 2
@@ -429,7 +429,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: a6d779fc1fdfde23f86e297125b3381b140cec2f
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -1123,7 +1123,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local@1:
     selection_type: training-binding
@@ -1152,7 +1152,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g40@1:
     selection_type: training-binding
@@ -1181,7 +1181,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g40@1: &k2_horizon_trl_lora_automationbench_local_g40
     selection_type: training-binding
@@ -1210,7 +1210,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g16-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1226,7 +1226,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g8-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1242,7 +1242,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g4-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1258,7 +1258,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
     selection_type: training-binding
@@ -1307,7 +1307,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/lfm2.5-1.2b-trl-lora-changed-weight-local@1:
     selection_type: training-binding
@@ -1329,7 +1329,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 8f67d280b1229753982deea544751a5ea2fcee1017f438de72b78c548b9345e4
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   reward/automationbench-episode-gdpo@1:
     selection_type: reward-projection

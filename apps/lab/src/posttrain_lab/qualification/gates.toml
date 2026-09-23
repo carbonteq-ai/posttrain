@@ -753,6 +753,19 @@ owner = "posttrain-training"
 replacement_condition = "Promote after matched held-out evaluation demonstrates an outcome gain and completion truncation falls below the declared guard; otherwise revise or retire the profile."
 
 [[gates]]
+id = "lfm26-automationbench-vortex-20-local-v2"
+work_package = ".posttrain/work_packages/lfm26_automationbench_vortex_20_local_v2.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.grpo"
+acceptance = "twenty-update-vortex-agentic-stack-comparison-arm"
+experiment_family = "lfm26-automationbench-vortex-20-local-v1"
+hypothesis = "The same VORTEX policy on vLLM 0.29.1.dev3, fast-startup Verifiers and the CUDA-graph c40 rollout profile completes the twenty updates in materially less wall time without changing learning behavior."
+owner = "posttrain-training"
+replacement_condition = "Replace the v1 binding after the run matches v1 on reward, truncation and held-out outcome with lower step time; otherwise retire the v2 binding and record which change regressed."
+
+[[gates]]
 id = "lfm26-automationbench-gdpo-episode-20-deepseek-local"
 work_package = ".posttrain/work_packages/lfm26_automationbench_gdpo_episode_20_deepseek_flash_local.yaml"
 job_id = "train"
