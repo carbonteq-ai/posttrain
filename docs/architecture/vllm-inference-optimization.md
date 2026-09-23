@@ -482,6 +482,30 @@ off). The remaining +784 µs is norm (+280), GEMM (+252) and small kernels
 LFM) still run unsplit attention under invariance; K2's attention costs +26%
 at c4.
 
+### Invariant RMSNorm on the CUDA kernel
+
+After split-KV, Gemma's largest leftover was RMSNorm. Under invariance a norm
+without a residual ran a generic Triton kernel, and strided q/k/v views were
+copied first: on Gemma-4-12B at c4, 883 µs of norm (603 with invariance off)
+plus 229 µs of copies per step. vLLM's CUDA `rms_norm` already pins its block
+size under `VLLM_BATCH_INVARIANT`, but its reduction order also follows how
+each row's read splits into a scalar prefix and 16-byte vectors, which depends
+on row alignment. The fork uses the CUDA kernel whenever every row starts
+16-byte aligned and keeps the Triton kernel otherwise.
+
+| Model | c | invariance off | + split-KV | + CUDA norm | determinism cost |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Gemma-4-12B | 1 | 56.9 | 54.8 | 55.7 | -3.7% → -2.1% |
+| Gemma-4-12B | 4 | 224.9 | 214.7 | 220.3 | -4.5% → -2.0% |
+| Gemma-4-12B | 32 | 1,195.5 | 1,155.0 | 1,180.1 | -3.4% → -1.3% |
+| Gemma-4-E4B | 4 | 476.4 | 434.5 | 448.3 | -8.8% → -5.9% |
+| Gemma-4-E4B | 32 | 2,791.8 | 2,620.8 | 2,685.1 | -6.1% → -3.8% |
+
+Gemma-4-12B, E4B, K2, LFM2.5 and Qwen3.5-2B stay bit-exact at c1–c32 and
+across staggered arrivals; K2, LFM and Qwen throughput is unchanged. At c4 the
+12B's remaining +309 µs per step is almost all GEMM (+263 µs, Triton vs
+cuBLAS).
+
 CUDA graph memory in these runs was 0.01–0.06 GiB per model when capturing up
 to batch 32; the 0.2–0.8 GiB seen in the K2 server logs comes from capturing 54
 sizes up to 512.
@@ -691,3 +715,5 @@ script name.
   E4B 15.8% → 8.8%, bit-exact). Traced the GDN split-point dependence to
   unaligned prefill splits and fixed it with 64-token-aligned chunking;
   measured that FLA autotuning does not change output bits.
+- 2026-09-23 (night): Routed invariant RMSNorm to vLLM's invariant CUDA kernel
+  for 16-byte-aligned rows (Gemma-4-12B c4 cost 4.5% → 2.0%, E4B 8.8% → 5.9%).
