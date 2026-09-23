@@ -8,7 +8,7 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "posttrain-common",
     "posttrain-tracking",
-    "carbonteq-trackio==0.31.5.post14.dev24",
+    "carbonteq-trackio==0.31.5.post14.dev25",
 ]
 
 [tool.uv.sources]
@@ -17,11 +17,11 @@ posttrain-tracking = { workspace = true }
 carbonteq-trackio = { index = "carbonteq-dev" }
 
 [tool.posttrain.trackio]
-version = "0.31.5.post14.dev24"
-release-tag = "carbonteq-v0.31.5.post14.dev24"
-source-revision = "3a67722d2a2c0f40d3db98721ab2fc6933b93494"
-wheel-sha256 = "fea18a183a7493a0a1cd69218ccc2e1442cfcdbdea9c7d19f247ab7bbbf0fc21"
-sdist-sha256 = "f7e3ba065f1085bff171b384899d06d83d11067e934078dc67d49b8b6f542704"
+version = "0.31.5.post14.dev25"
+release-tag = "carbonteq-v0.31.5.post14.dev25"
+source-revision = "bb40b7e333b7f74f4cf6923e3ff6030255ed746d"
+wheel-sha256 = "a349d7cb5848865255019204fc2c1cc538d12164bda634a5360c2a9ff52a0f90"
+sdist-sha256 = "72091a9064cbd0e1ba171bfbb080d16abf83798a32af85deca8bd98c01c59b61"
 
 [build-system]
 requires = ["hatchling"]

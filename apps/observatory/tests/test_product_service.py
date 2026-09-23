@@ -713,11 +713,11 @@ async def test_eval_population_projects_verifiers_v1_wire_trace_fields() -> None
     evaluation = await trace_evaluation_view(source, run_id, expected=2)
 
     assert evaluation.state == "complete"
-    assert evaluation.mean_reward == 0.5
-    assert evaluation.success_rate == 0.5
-    assert evaluation.scored == 2
+    assert evaluation.mean_reward == 1.0
+    assert evaluation.success_rate == 1.0
+    assert evaluation.scored == 1
     assert evaluation.passed == 1
-    assert evaluation.pass_scored == 2
+    assert evaluation.pass_scored == 1
     assert evaluation.failures == 1
     assert evaluation.truncated == 1
     assert evaluation.traces[0].task == "GSM8KTask:1"

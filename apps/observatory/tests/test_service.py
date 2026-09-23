@@ -733,6 +733,38 @@ async def test_compare_runs_rejects_different_job_kinds() -> None:
 
 
 @pytest.mark.asyncio
+async def test_eval_warnings_survive_missing_native_traces() -> None:
+    run_id = "runs/eval-provider-overflow"
+    metrics = {
+        "eval/run/rollouts_complete": 21,
+        "eval/run/rollouts_failed": 39,
+        "eval/run/model_call_error_rollouts": 39,
+        "eval/run/model_call_http_400_rollouts": 39,
+        "eval/run/context_overflow_rollouts": 39,
+        "eval/trace_sync_complete": 0,
+        "eval/trace_sync_schema_mismatch": 1,
+    }
+    source = FakeRunDataSource(
+        {run_id: RunDetail(summary=_summary(run_id, "eval.general"), metric_names=tuple(metrics), trace_count=0)},
+        {
+            run_id: {
+                name: MetricSeries(name=name, points=(MetricPoint(value=value),))
+                for name, value in metrics.items()
+            }
+        },
+    )
+    view = await ObservatoryService(source).get_run_view(run_id)
+    summaries = {item.key: item.value for item in view.summary}
+    assert summaries["model_call_error_rollouts"] == 39
+    assert summaries["context_overflow_rollouts"] == 39
+    alert_ids = {alert.id for alert in view.alerts}
+    assert "eval.general-context-overflow" in alert_ids
+    assert "eval.general-model-call-errors" in alert_ids
+    assert "eval.general-trace-schema-mismatch" in alert_ids
+    assert "eval.general-trace-sync" in alert_ids
+
+
+@pytest.mark.asyncio
 async def test_compare_evaluations_requires_the_same_population_but_allows_model_changes() -> None:
     source = _source()
     first = "runs/eval-first"
