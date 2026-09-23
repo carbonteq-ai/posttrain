@@ -748,8 +748,7 @@ async def test_eval_warnings_survive_missing_native_traces() -> None:
         {run_id: RunDetail(summary=_summary(run_id, "eval.general"), metric_names=tuple(metrics), trace_count=0)},
         {
             run_id: {
-                name: MetricSeries(name=name, points=(MetricPoint(value=value),))
-                for name, value in metrics.items()
+                name: MetricSeries(name=name, points=(MetricPoint(value=value),)) for name, value in metrics.items()
             }
         },
     )
