@@ -157,6 +157,42 @@ environment:
     <<: *automationbench_train_mix_v3
     max_concurrent: 40
 
+  # Yield-first qualification keeps the task mix and concurrency but raises
+  # the episode and per-call output limits after v3 marked 492/1284 traces
+  # truncated; sampled trace calls frequently ended at exactly 4096 tokens.
+  # This is a two-factor comparison, not a policy-only ablation.
+  automationbench-lfm26-train-mix-v5:
+    <<: *automationbench_train_mix_v3
+    max_concurrent: 40
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 16384
+    sampling: &policy_sampling_8k
+      max_tokens: 8192
+      temperature: 0.8
+      top_p: 0.95
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 16384
+
   automationbench-lfm26-train-mix-episode-judged-v2: &automationbench_train_mix_episode_judged_v2
     category: agentic-tool-use
     source:
@@ -851,11 +887,23 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
-  # Same model, optimizer, reward, inference and 20-step budget as v3. Only the
-  # versioned curriculum policy changes; both lanes use the full 160-task pool.
+  # Same model, optimizer, reward and 20-step budget as v3, with the new
+  # controller and a larger rollout budget. This is not policy-only.
   lfm2.5-2.6b/automationbench-vortex-yield-first-20-local-v4:
     <<: *vortex_20_local_v3
-    revision: "1"
+    revision: "2"
+    loop:
+      max_steps: 20
+      max_length: 32768
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 40
+      learning_rate: 0.0002
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    max_prompt_length: 24576
+    max_completion_length: 8192
     adaptive_curriculum:
       class_field: domain
       policy: yield_first
@@ -1657,6 +1705,37 @@ inference:
       text_only: true
       skip_mm_profiling: true
     sampling: *policy_sampling_4k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  # Larger output/context budget with more KV headroom. v3 reached 100% of
+  # its 5 GiB KV pool; this 9 GiB candidate requires live GPU qualification.
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-8k@1:
+    revision: "1"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.25
+      tensor_parallel_size: 1
+      max_model_len: 32768
+      max_num_seqs: 40
+      max_num_batched_tokens: 40960
+      kv_cache_memory_bytes: 9663676416
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: *policy_sampling_8k
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
