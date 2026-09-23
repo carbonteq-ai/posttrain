@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -750,6 +751,45 @@ def test_evaluate_emits_direct_sync_metrics_and_native_artifact(tmp_path: Path) 
     assert observer.events[-1].name == "evaluation_completed"
 
 
+def test_provider_call_error_invalidates_modern_episode_and_emits_run_counters(tmp_path: Path) -> None:
+    from posttrain.eval.backends.verifiers.adapter import _evaluation_population
+
+    error = SimpleNamespace(
+        type="ProviderError",
+        status_code=400,
+        message="This model's maximum context length is 16384 tokens",
+    )
+    broken = SimpleNamespace(
+        ok=True,
+        traces=[SimpleNamespace(calls=[SimpleNamespace(error=error)], is_truncated=False)],
+    )
+    healthy = SimpleNamespace(
+        ok=True,
+        traces=[SimpleNamespace(calls=[SimpleNamespace(error=None)], is_truncated=False)],
+    )
+    population = _evaluation_population([broken, healthy], modern=True, expected=2)
+    assert population.attempted == 2
+    assert population.complete == 1
+    assert population.failed == 1
+    assert population.model_call_error_rollouts == 1
+    assert population.model_call_http_400_rollouts == 1
+    assert population.context_overflow_rollouts == 1
+
+    observer = RecordingObserver()
+
+    def fake_runner(execution: RunContext, evaluation: EvaluateRequest, output: Path) -> VerifiersRunResult:
+        del execution, evaluation
+        (output / "traces.jsonl").write_text('{"id":"trace-1"}\n', encoding="utf-8")
+        return VerifiersRunResult(("trace-1",), TraceSyncStats(observed_records=2, emitted_records=2), population)
+
+    evaluate(context(tmp_path, observer), request(), runner=fake_runner)
+    values = observer.metrics_log[0].values
+    assert values["eval/run/rollouts_failed"] == 1
+    assert values["eval/run/model_call_error_rollouts"] == 1
+    assert values["eval/run/model_call_http_400_rollouts"] == 1
+    assert values["eval/run/context_overflow_rollouts"] == 1
+
+
 def test_verifiers_eval_emits_shared_trace_facts() -> None:
     from posttrain.eval.backends.verifiers.adapter import _emit_batch
 
@@ -878,7 +918,12 @@ def test_general_uses_canonical_seats_and_marks_partial_trace_sync(tmp_path: Pat
         (output / "traces.jsonl").write_text('{"id":"trace-1"}\n', encoding="utf-8")
         return VerifiersRunResult(
             ("trace-1",),
-            TraceSyncStats(observed_records=1, unsynchronized_records=1),
+            TraceSyncStats(
+                observed_records=1,
+                failed_batches=2,
+                unsynchronized_records=1,
+                errors=["ValueError: unsupported trace fact dimension 'task_id'"],
+            ),
             EvaluationPopulation(
                 attempted=1,
                 complete=0,
@@ -901,6 +946,7 @@ def test_general_uses_canonical_seats_and_marks_partial_trace_sync(tmp_path: Pat
     assert values["eval/run/rollouts_truncated"] == 1
     assert values["eval/run/coverage_missing"] == 1
     assert values["eval/trace_sync_complete"] == 0
+    assert values["eval/trace_sync_schema_mismatch"] == 1
     assert "eval/mean_reward" not in values
     attributes = observer.metrics_log[0].attributes
     assert attributes["project_id"] == "foundation-models"
@@ -908,6 +954,9 @@ def test_general_uses_canonical_seats_and_marks_partial_trace_sync(tmp_path: Pat
     assert attributes["evaluation_plan_id"] == canonical.plan.id
     assert attributes["model_variant_id"] == canonical.model.id
     assert observer.events[-1].attributes["evaluation_status"] == "partial"
+    sync_event = next(event for event in observer.events if event.name == "evaluation_trace_sync_failed")
+    assert sync_event.attributes["schema_mismatch"] is True
+    assert sync_event.attributes["error_classes"] == "ValueError"
 
 
 def test_domain_rejects_a_general_plan(tmp_path: Path) -> None:

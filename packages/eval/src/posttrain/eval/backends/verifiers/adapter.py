@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, cast
@@ -256,6 +256,64 @@ def _observed_model(record: dict[str, Any]) -> str | None:
     return str(model) if isinstance(model, str) and model else None
 
 
+def _field(value: object, name: str) -> object:
+    return value.get(name) if isinstance(value, Mapping) else getattr(value, name, None)
+
+
+def _model_call_error_flags(episode: object, *, modern: bool) -> tuple[bool, bool, bool]:
+    """Inspect provider failures without trusting episode-level `ok` alone.
+
+    The last flag identifies the known context-overflow signature for diagnostics
+    only. Any model-call error invalidates the attempt, even if unrecognized.
+    """
+
+    traces = _field(episode, "traces") if modern else (episode,)
+    if not isinstance(traces, (list, tuple)):
+        return False, False, False
+    found = http_400 = context_overflow = False
+    for trace in traces:
+        calls = _field(trace, "calls")
+        if not isinstance(calls, (list, tuple)):
+            continue
+        for call in calls:
+            error = _field(call, "error")
+            if error in (None, False, ""):
+                continue
+            found = True
+            status = _field(error, "status_code")
+            if status == 400:
+                http_400 = True
+                message = _field(error, "message")
+                if isinstance(message, str) and "maximum context length" in message.lower():
+                    context_overflow = True
+    return found, http_400, context_overflow
+
+
+def _evaluation_population(traces: list[Any], *, modern: bool, expected: int) -> EvaluationPopulation:
+    call_errors = [_model_call_error_flags(episode, modern=modern) for episode in traces]
+    execution_failed = [
+        (not episode.ok if modern else bool(episode.has_error)) or call_errors[index][0]
+        for index, episode in enumerate(traces)
+    ]
+    return EvaluationPopulation(
+        attempted=len(traces),
+        complete=sum(
+            not execution_failed[index] and (bool(episode.ok) if modern else bool(episode.is_completed))
+            for index, episode in enumerate(traces)
+        ),
+        failed=sum(execution_failed),
+        truncated=sum(
+            not execution_failed[index]
+            and (any(child.is_truncated for child in episode.traces) if modern else bool(episode.is_truncated))
+            for index, episode in enumerate(traces)
+        ),
+        coverage_missing=max(expected - len(traces), 0),
+        model_call_error_rollouts=sum(flags[0] for flags in call_errors),
+        model_call_http_400_rollouts=sum(flags[1] for flags in call_errors),
+        context_overflow_rollouts=sum(flags[2] for flags in call_errors),
+    )
+
+
 async def _run(context: EvaluationContext, request: EvaluateRequest, output_dir: Path) -> VerifiersRunResult:
     environment, config, native_run = _build_native(request, output_dir)
     trace_path = output_dir / "traces.jsonl"
@@ -281,17 +339,7 @@ async def _run(context: EvaluationContext, request: EvaluateRequest, output_dir:
     finally:
         stats = sync.finalize()
     expected = request.resolved_budget[0] * request.resolved_budget[1]
-    attempted = len(traces)
-    population = EvaluationPopulation(
-        attempted=attempted,
-        complete=sum(bool(trace.ok) if modern else bool(trace.is_completed) for trace in traces),
-        failed=sum(not trace.ok if modern else bool(trace.has_error) for trace in traces),
-        truncated=sum(
-            any(child.is_truncated for child in trace.traces) if modern else bool(trace.is_truncated)
-            for trace in traces
-        ),
-        coverage_missing=max(expected - attempted, 0),
-    )
+    population = _evaluation_population(traces, modern=modern, expected=expected)
     return VerifiersRunResult(
         tuple(child.id for episode in traces for child in episode.traces)
         if modern

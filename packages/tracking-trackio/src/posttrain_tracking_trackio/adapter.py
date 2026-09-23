@@ -589,6 +589,24 @@ class TrackioBackend:
         started_at: datetime | None = None,
         full_run_name: bool = False,
     ) -> TrackioTrackedRun:
+        if spec.job_kind.startswith("eval."):
+            # Check the installed client schema before opening a provider run
+            # or spending GPU time on episodes whose facts cannot be persisted.
+            try:
+                _trackio_trace_facts(
+                    "verifiers",
+                    "compatibility-probe",
+                    TraceFactSet(
+                        namespace="verifiers.trace",
+                        calculator_version="compatibility-probe",
+                        dimensions={"task_id": "task-a", "prompt_group_id": "group-a"},
+                    ),
+                )
+            except (ContractError, ValueError, TypeError) as exc:
+                raise ContractError(
+                    "the installed Trackio client cannot encode evaluation task trace facts; "
+                    "install the compatible pinned Trackio release before starting the run"
+                ) from exc
         started_at = started_at or datetime.now(UTC)
         project = self.settings.project or spec.project_id
         init_arguments: dict[str, Any] = {}

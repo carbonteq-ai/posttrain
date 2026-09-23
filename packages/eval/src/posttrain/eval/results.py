@@ -16,6 +16,9 @@ class EvaluationPopulation:
     failed: int
     truncated: int
     coverage_missing: int
+    model_call_error_rollouts: int = 0
+    model_call_http_400_rollouts: int = 0
+    context_overflow_rollouts: int = 0
 
     def __post_init__(self) -> None:
         values = (
@@ -24,11 +27,28 @@ class EvaluationPopulation:
             self.failed,
             self.truncated,
             self.coverage_missing,
+            self.model_call_error_rollouts,
+            self.model_call_http_400_rollouts,
+            self.context_overflow_rollouts,
         )
         if any(value < 0 for value in values):
             raise ValueError("evaluation population counts must be non-negative")
-        if any(value > self.attempted for value in (self.complete, self.failed, self.truncated)):
+        if any(
+            value > self.attempted
+            for value in (
+                self.complete,
+                self.failed,
+                self.truncated,
+                self.model_call_error_rollouts,
+                self.model_call_http_400_rollouts,
+                self.context_overflow_rollouts,
+            )
+        ):
             raise ValueError("evaluation outcome counts cannot exceed attempted rollouts")
+        if self.model_call_http_400_rollouts > self.model_call_error_rollouts:
+            raise ValueError("HTTP 400 rollouts cannot exceed model-call error rollouts")
+        if self.context_overflow_rollouts > self.model_call_http_400_rollouts:
+            raise ValueError("context-overflow rollouts cannot exceed HTTP 400 rollouts")
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,7 +85,12 @@ class EvaluationResult:
 
     @property
     def status(self) -> str:
-        if self.synchronization.complete and self.population.coverage_missing == 0:
+        if (
+            self.synchronization.complete
+            and self.population.coverage_missing == 0
+            and self.population.failed == 0
+            and self.population.truncated == 0
+        ):
             return "complete"
         return "partial"
 
