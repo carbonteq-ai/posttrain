@@ -1,0 +1,64 @@
+{
+ "binding_id": "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@2",
+ "backend": "vllm@0.29.1.dev2",
+ "model": {
+  "repo_id": "LiquidAI/LFM2.5-2.6B",
+  "revision": "654f9463ce32b05d0429d76fe1f580b27d4c1ac0"
+ },
+ "engine_args": {
+  "dtype": "bfloat16",
+  "max_model_len": 24576,
+  "max_num_seqs": 32,
+  "max_num_batched_tokens": 32768,
+  "kv_cache_memory_bytes": 4294967296,
+  "enforce_eager": false,
+  "enable_chunked_prefill": true,
+  "enable_prefix_caching": true,
+  "tensor_parallel_size": 1,
+  "limit_mm_per_prompt": {
+   "image": 0,
+   "video": 0,
+   "audio": 0
+  },
+  "skip_mm_profiling": true,
+  "attention_config": {
+   "flash_attn_version": 2,
+   "backend": "FLASH_ATTN"
+  },
+  "enable_lora": true,
+  "max_loras": 1,
+  "max_lora_rank": 8,
+  "gpu_memory_utilization": 0.85
+ },
+ "lora_rank": 4,
+ "not_applied": {
+  "mode": "colocate",
+  "request_mode": "async",
+  "sleep_during_optimization": true,
+  "weight_sync_mode": "lora",
+  "free_cache_engine": true,
+  "gpu_memory_utilization": 0.09
+ },
+ "binding_engine": {
+  "attention_backend_priority": [
+   "FLASH_ATTN"
+  ],
+  "enable_chunked_prefill": true,
+  "enable_prefix_caching": true,
+  "enforce_eager": false,
+  "flash_attn_version": 2,
+  "free_cache_engine": true,
+  "gpu_memory_utilization": 0.09,
+  "kv_cache_memory_bytes": 4294967296,
+  "max_model_len": 24576,
+  "max_num_batched_tokens": 32768,
+  "max_num_seqs": 32,
+  "mode": "colocate",
+  "request_mode": "async",
+  "skip_mm_profiling": true,
+  "sleep_during_optimization": true,
+  "tensor_parallel_size": 1,
+  "text_only": true,
+  "weight_sync_mode": "lora"
+ }
+}

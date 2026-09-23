@@ -4,6 +4,23 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+## Unreleased
+
+### Changed
+
+- CarbonTeq vLLM `0.29.1.dev3`: multi-turn prefix reuse for hybrid and
+  sliding-window models (agentic turns no longer re-prefill the previous
+  turn's generated tokens), generic SM120 batch-invariant GEMM, split-KV
+  attention, GDN chunk alignment and invariant CUDA RMSNorm.
+- CarbonTeq Verifiers `b71ade0a`: a fork server for rollout tool servers and
+  harness programs, faster port discovery, and no-delay MCP tool-server
+  sockets. Posttrain enables the fork server for Verifiers jobs by default
+  (`VF_FORK_SERVER=0` opts out); AutomationBench host time per episode falls
+  from about 6.6 s to under 1 s at concurrency 16.
+- The TRL policy endpoint skips detokenization when no stop strings are set
+  and no longer echoes prompt token IDs; Verifiers episode preservation runs
+  off the event loop.
+
 ## 0.4.4 - 2026-09-20
 
 This release promotes the release-clean Uno/SM120 runtime, adds the Gemma

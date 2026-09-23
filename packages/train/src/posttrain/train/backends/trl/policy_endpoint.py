@@ -316,6 +316,12 @@ class TrlPolicyEndpoint:
             sampling_params.max_tokens = remaining_tokens
             if sampling_params.min_tokens > remaining_tokens:
                 sampling_params.min_tokens = remaining_tokens
+        if sampling_params.detokenize and not sampling_params.stop:
+            # Responses carry token ids and logprobs only; text is never read.
+            # Stop strings still need detokenized text, so they keep it.
+            if sampling_params is parsed.sampling_params:
+                sampling_params = sampling_params.clone()
+            sampling_params.detokenize = False
         request_id = parsed.request_id or secrets.token_hex(16)
         native_request = _SessionGenerationRequest(
             request_id=request_id,
@@ -355,13 +361,15 @@ class TrlPolicyEndpoint:
                     "top_logprobs": [],
                 }
             )
-        prompt_ids = [int(value) for value in (getattr(output, "prompt_token_ids", None) or [])]
-        if prompt_ids != list(expected_prompt_ids):
+        prompt_ids = getattr(output, "prompt_token_ids", None) or ()
+        if len(prompt_ids) != len(expected_prompt_ids) or tuple(prompt_ids) != expected_prompt_ids:
             raise RuntimeError("policy engine response prompt token identity does not match")
+        # The prompt is not echoed: the caller sent it, the identity check above
+        # proves the engine used it, and text-only clients fall back to their
+        # own copy. Echoing re-serializes the whole growing history every turn.
         return {
             "request_id": request_id,
             "model": self._model_name,
-            "prompt_token_ids": prompt_ids,
             "choices": [
                 {
                     "index": int(completion.index),
@@ -371,9 +379,9 @@ class TrlPolicyEndpoint:
                 }
             ],
             "usage": {
-                "prompt_tokens": len(prompt_ids),
+                "prompt_tokens": len(expected_prompt_ids),
                 "completion_tokens": len(token_ids),
-                "total_tokens": len(prompt_ids) + len(token_ids),
+                "total_tokens": len(expected_prompt_ids) + len(token_ids),
             },
         }
 

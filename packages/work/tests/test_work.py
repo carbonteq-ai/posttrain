@@ -221,7 +221,7 @@ metadata: {}
         "inference/invalid-tq-fa4@1",
         "1",
         QWEN_35_2B,
-        "vllm@fbbba6698b2f8a912b94705cfc09eb4fd7243716",
+        "vllm@564ff2b43d499f5d17bcee554d126360b768dd98",
         QWEN_35_2B.renderer.id,
         {
             "max_model_len": 16_384,

@@ -105,8 +105,12 @@ async def test_loopback_endpoint_preserves_native_token_response_and_collection_
             assert response.status_code == 200
             payload = response.json()
             GenerateResponse.model_validate(payload)
-            assert payload["prompt_token_ids"] == [1, 2]
+            # The prompt is verified server-side but not echoed back.
+            assert "prompt_token_ids" not in payload
+            assert payload["usage"]["prompt_tokens"] == 2
             assert payload["choices"][0]["token_ids"] == [3, 4]
+            # Only token ids are returned, so the engine skips detokenization.
+            assert session.requests[0].sampling_params.detokenize is False
             assert _parse_completion_logprobs(payload["choices"][0], [3, 4]) == [-0.25, -0.5]
 
             await endpoint.stop_admission(collection)
@@ -273,5 +277,23 @@ async def test_response_prompt_identity_mismatch_is_collection_fatal():
         assert response.status_code == 500
         assert isinstance(endpoint.fatal_error, RuntimeError)
         assert "prompt token identity" in str(endpoint.fatal_error)
+    finally:
+        await endpoint.aclose()
+
+
+@pytest.mark.asyncio
+async def test_stop_strings_keep_detokenization():
+    session = FakeSession()
+    endpoint = TrlPolicyEndpoint(model_name="policy-model", max_model_len=4096)
+    collection = CollectionKey("run", "collection-1", "policy-7")
+    await endpoint.start(session)
+    try:
+        await endpoint.open_admission(collection)
+        body = _body()
+        body["sampling_params"]["stop"] = ["</tool_call>"]
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{endpoint.base_url.removesuffix('/v1')}/inference/v1/generate", json=body)
+        assert response.status_code == 200
+        assert session.requests[0].sampling_params.detokenize is True
     finally:
         await endpoint.aclose()

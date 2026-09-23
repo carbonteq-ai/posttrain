@@ -2399,14 +2399,14 @@ uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'c
     --hash=sha256:bc5ef13bbc10b5335792360623cc378d52d7e62c2de64660616478c32cd0598e
     # via uvicorn
 
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@84ab782391bbfe1ac4f4ca32fa612e56d01b5b81
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@b71ade0a7ac712cdee9e1a4c0e53030d70768aff
     # via
     #   posttrain-data
     #   posttrain-eval
     #   posttrain-train
     #   prime
 
-vllm @ git+https://github.com/carbonteq-ai/vllm.git@fbbba6698b2f8a912b94705cfc09eb4fd7243716
+vllm @ git+https://github.com/carbonteq-ai/vllm.git@564ff2b43d499f5d17bcee554d126360b768dd98
     # via
     #   posttrain-serve
     #   posttrain-train

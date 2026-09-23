@@ -97,6 +97,9 @@ def _native_failure_detail(episode: Any) -> str | None:
 def _apply_verifiers_runtime_compatibility() -> None:
     """Apply bounded compatibility fixes for the pinned Verifiers runtime."""
 
+    from posttrain.environment.verifiers_runtime import enable_verifiers_fork_server
+
+    enable_verifiers_fork_server()
     uv_executable = os.environ.get("POSTTRAIN_UV_EXECUTABLE")
     if uv_executable is None:
         return
@@ -829,7 +832,7 @@ class VerifiersEnvironmentRolloutBridge:
             record, observation = self._terminal_observation(trace, example_id, task_index, rollout_ordinal)
             # Native JSONL is the replay authority.  This happens before any
             # trainable projection, including branch/token/reward validation.
-            self._preserve(record)
+            await self._preserve_off_loop(record)
             if isinstance(enrichment_error, asyncio.CancelledError):
                 raise enrichment_error
             if on_completed is not None:
@@ -981,7 +984,7 @@ class VerifiersEnvironmentRolloutBridge:
                 reason += f"; native_error={failure_detail}"
             for native_trace in episode.traces:
                 native_trace.info.update(posttrain_admission_error=reason)
-            self._preserve_episode(episode)
+            await self._preserve_episode_off_loop(episode)
             raise InvalidNativeEpisode(reason)
         trace = traces[0]
         enrichment_error: Exception | asyncio.CancelledError | None = None
@@ -994,8 +997,8 @@ class VerifiersEnvironmentRolloutBridge:
             enrichment_error = error
             trace.info.update(posttrain_enrichment_error=type(error).__name__)
         record, observation = self._terminal_observation(trace, example_id, task_index, rollout_ordinal)
-        self._preserve_episode(episode)
-        self._preserve(record)
+        await self._preserve_episode_off_loop(episode)
+        await self._preserve_off_loop(record)
         if isinstance(enrichment_error, asyncio.CancelledError):
             raise enrichment_error
         if on_completed is not None:
@@ -1147,6 +1150,19 @@ class VerifiersEnvironmentRolloutBridge:
 
         with self._write_lock:
             self._live_observed_trace_ids.add(external_id)
+
+    async def _preserve_episode_off_loop(self, episode: Any) -> None:
+        """Encode and append a native episode without blocking the event loop.
+
+        Episode records carry every turn's token ids (hundreds of KB to MB of
+        JSON). The rollout event loop also serves the policy engine, so encoding
+        them inline stalls every in-flight generation. Awaiting the worker keeps
+        the write ordered before any projection of the episode.
+        """
+        await asyncio.to_thread(self._preserve_episode, episode)
+
+    async def _preserve_off_loop(self, record: dict[str, Any]) -> None:
+        await asyncio.to_thread(self._preserve, record)
 
     def _preserve_episode(self, episode: Any) -> None:
         path = self.trace_path.with_name("episodes.jsonl")

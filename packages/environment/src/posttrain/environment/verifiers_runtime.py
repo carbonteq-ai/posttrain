@@ -2,8 +2,35 @@
 
 from __future__ import annotations
 
+import os
 from importlib import import_module
 from typing import Any, cast
+
+# Client libraries every Verifiers harness program imports. A tool server's own
+# module is learned by the fork server on first use, so no environment needs to
+# be named here.
+FORK_SERVER_PRELOAD = (
+    "anyio",
+    "httpx",
+    "httpx2",
+    "mcp",
+    "mcp.client.streamable_http",
+    "openai",
+    "openai.resources",
+    "tenacity",
+)
+
+
+def enable_verifiers_fork_server() -> None:
+    """Start Verifiers programs from a warm fork server unless the job opts out.
+
+    Each rollout starts a tool server and a harness program; without the fork
+    server every one re-imports its dependencies (several seconds per episode
+    under concurrency). An explicit ``VF_FORK_SERVER`` value, including ``0``,
+    is kept; the variables reach every worker process started afterward.
+    """
+    os.environ.setdefault("VF_FORK_SERVER", "1")
+    os.environ.setdefault("VF_FORK_SERVER_PRELOAD", ",".join(FORK_SERVER_PRELOAD))
 
 
 def verifiers_environment_types() -> tuple[type[Any], type[Any]]:
@@ -42,4 +69,9 @@ def materialize_verifiers_environment(value: object) -> Any:
     raise TypeError("environment activation did not produce a Verifiers EnvConfig")
 
 
-__all__ = ["materialize_verifiers_environment", "verifiers_environment_types"]
+__all__ = [
+    "FORK_SERVER_PRELOAD",
+    "enable_verifiers_fork_server",
+    "materialize_verifiers_environment",
+    "verifiers_environment_types",
+]

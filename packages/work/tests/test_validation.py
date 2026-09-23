@@ -97,7 +97,7 @@ def test_job_compiler_rejects_turboquant_with_flash_attention_four() -> None:
         "inference/gemma4-invalid-tq-fa4@1",
         "1",
         model,
-        "vllm@fbbba6698b2f8a912b94705cfc09eb4fd7243716",
+        "vllm@564ff2b43d499f5d17bcee554d126360b768dd98",
         model.renderer.id,
         {
             "max_model_len": 16_384,
@@ -128,7 +128,7 @@ def test_job_compiler_rejects_native_flash_attention_four_on_sm120() -> None:
         "inference/lfm-invalid-sm120-fa4@1",
         "1",
         model,
-        "vllm@fbbba6698b2f8a912b94705cfc09eb4fd7243716",
+        "vllm@564ff2b43d499f5d17bcee554d126360b768dd98",
         model.renderer.id,
         {"max_model_len": 24_576, "flash_attn_version": 4},
         {"max_tokens": 4_096},
