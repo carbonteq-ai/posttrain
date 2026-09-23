@@ -97,6 +97,7 @@ def test_incompatible_eval_trace_schema_fails_before_opening_provider_run(monkey
         TrackioBackend(TrackioSettings(project="conformance")).start_run(spec)
     assert not opened
 
+
 STARTED = datetime(2026, 7, 22, 2, 0, tzinfo=UTC)
 
 
