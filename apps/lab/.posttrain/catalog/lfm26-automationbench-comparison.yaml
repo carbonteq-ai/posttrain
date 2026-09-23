@@ -1568,6 +1568,40 @@ inference:
     purpose: [rollout]
     capabilities: [tool-calling]
 
+  # The Posttrain 0.4.4 optimized rollout profile (c32-4k@2: CUDA graphs,
+  # FA2, prefix caching, async batching) scaled to VORTEX's 40 sequences. KV
+  # capacity and the colocated memory fraction match c40-4k@1, so the trainer's
+  # headroom is unchanged; c40-4k@1 forced eager mode, which the agentic replay
+  # measured as the slower path (docs/plan/agentic-workload-inference-optimization.md).
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-4k@2:
+    revision: "2"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.20
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 40
+      max_num_batched_tokens: 40960
+      kv_cache_memory_bytes: 5368709120
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: *policy_sampling_4k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
   inference/k2-horizon-7b-vllm-uno-automationbench-rollout-local-c16-4k@1:
     revision: "1"
     model: models/k2-horizon-7b@bf16

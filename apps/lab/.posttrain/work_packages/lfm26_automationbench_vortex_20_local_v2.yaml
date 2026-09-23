@@ -1,0 +1,32 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-vortex-20-local-v2
+stage: train
+description: VORTEX (v1 settings, task mix and environment) on the agentic-optimized stack - CarbonTeq vLLM 0.29.1.dev3, fast-startup Verifiers, and the 0.4.4 CUDA-graph rollout profile at 40 sequences - for comparison with the v1 qualification run.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-vortex-20-local-v2@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: train
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, adaptive curriculum state, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-v4}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-vortex-20-local-v1}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-local-g40@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-4k@2}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-automationbench-vortex-20-local-v1
+  arm: vortex-agentic-stack
+  task_mix: lfm26-automationbench-mix-v2
+  labels: [experiment, automationbench, lfm2.5, vortex, adaptive-curriculum, active-sampling, oversampling, local-rtx-pro-6000]
