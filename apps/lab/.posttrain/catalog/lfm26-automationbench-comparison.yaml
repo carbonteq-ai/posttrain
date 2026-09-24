@@ -1279,7 +1279,10 @@ training:
 
   # g40@1 scaled to 16 prompt groups x 4 generations. Eight environment workers
   # of eight episodes give the 64 concurrent episodes one rollout batch needs.
-  training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
+  # (Named -w8 because an unrelated g64@1 with 32 episode slots already exists
+  # below; YAML keeps the last duplicate key, which broke run
+  # lfm26-vortex-v5-yield-first-64-20260925-r1.)
+  training/lfm2.5-2.6b-trl-lora-automationbench-local-g64-w8@1:
     selection_type: training-binding
     revision: "1"
     backend: trl@1.12.0.post9
