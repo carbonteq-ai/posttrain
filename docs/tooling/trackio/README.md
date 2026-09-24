@@ -2,7 +2,19 @@
 
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
-`import trackio` API. The current framework dependency is
+`import trackio` API. The shared server at `https://trackio.carbonteq.com` runs
+`0.31.5.post14.dev26` (fork commit `5593ef84865c1ab134ed24ac2534f6c018027052`,
+wheel `c4ecb89aed2f6620b93ddd4d20d2cfbfb364d75dd6b0f6c73fc8b50e9d2ef64f`,
+deployed 2026-09-25 with ai-infra `scripts/deploy-trackio`). Dev26 changes
+only the server inbox importer: a failed import batch is retried one fragment
+at a time, and fragments that can never import (Doris string-length rejection,
+or trace facts whose parent trace is still missing after
+`TRACKIO_INBOX_RETRY_MAX_AGE`, default 24 hours) move with an error sidecar to
+`inbox-dead-letter/` instead of blocking every batch they join. Before dev26,
+two oversized August fragments silently held other runs' evidence in the inbox;
+see `docs/plan/vortex-v3-v4-matched-heldout-evaluation.md`. The client API is
+unchanged, so the framework dependency stays at dev25 until the next runtime
+image refresh. The current framework dependency is
 `carbonteq-trackio==0.31.5.post14.dev25`, built from immutable fork commit
 `bb40b7e333b7f74f4cf6923e3ff6030255ed746d`. Its wheel
 (`a349d7cb5848865255019204fc2c1cc538d12164bda634a5360c2a9ff52a0f90`) and
