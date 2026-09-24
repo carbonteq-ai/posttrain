@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import tomllib
 from collections.abc import Mapping
 from pathlib import Path
@@ -208,6 +209,36 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert rollout.capabilities == ("tool-calling",)
     assert rollout.model.conversation.tool_calls is not None
     assert rollout.model.conversation.tool_calls.id == "qwen3_xml"
+
+
+def test_lfm26_train_mix_v6_reserves_both_evaluation_task_sets() -> None:
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    fixture_path = WORKSPACE / "scripts/qualification/fixtures/lfm26_automationbench_mix_v3.json"
+    fixture = json.loads(fixture_path.read_text())
+
+    def names(environment_id: str) -> list[str]:
+        environment = catalog.resolve(CatalogRef("environment", environment_id)).value
+        assert isinstance(environment, EnvironmentBinding)
+        assert isinstance(environment.activation, VerifiersV1ConfigActivation)
+        taskset = environment.activation.config["taskset"]
+        assert isinstance(taskset, Mapping)
+        return list(cast(list[str], taskset["task_names"]))
+
+    training = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-v6")).value
+    assert isinstance(training, EnvironmentBinding)
+    training_names = names("automationbench-lfm26-train-mix-v6")
+    assert training.num_tasks == len(training_names) == len(set(training_names)) == 160
+    assert training_names == fixture["task_names"]
+    assert training.parameters["task_mix_id"] == "lfm26-automationbench-mix-v3"
+    assert training.parameters["task_mix_sha256"] == hashlib.sha256(fixture_path.read_bytes()).hexdigest()
+    names_digest = hashlib.sha256(json.dumps(training_names, separators=(",", ":")).encode()).hexdigest()
+    assert names_digest == fixture["selected_names_sha256"]
+    heldout = set(names("automationbench-lfm26-heldout-mix-v3"))
+    tiered = set(names("automationbench-lfm26-difficulty-tiered-v1"))
+    assert len(heldout) == len(tiered) == 20
+    assert not set(training_names) & (heldout | tiered)
+    assert sorted(heldout) == fixture["reserved_evaluation_tasks"]["heldout"]
+    assert sorted(tiered) == fixture["reserved_evaluation_tasks"]["difficulty_tiered"]
 
 
 def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> None:

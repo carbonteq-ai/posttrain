@@ -1,0 +1,35 @@
+project_id: posttrain-lab
+work_package_id: eval/lfm2.5-2.6b/automationbench-difficulty-tiered-64k-v1
+stage: qualify
+description: Difficulty-tiered 20-task, three-repetition AutomationBench comparison (6 easy, 7 medium, 7 hard by training reward) of base and the step-20 VORTEX descendants with 20-turn episodes on the 64K serving context. Tasks come from the training pool, so this is not a held-out measurement.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-difficulty-tiered-64k-v1@1
+  revision: "1"
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: evaluate
+      kind: eval.general
+      definition: eval/verifiers-managed-general@1
+  expected_artifacts: [native evaluation result]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  evaluation_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-eval-local@4}
+  target: {type: ref, family: target, id: targets/carbonteq-rtx-pro-6000-96gb}
+  evaluation_plan: {type: ref, family: evaluation, id: lfm26-automationbench-difficulty-tiered-v1}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-difficulty-tiered-v1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-vortex-base-v1-v4-step20-difficulty-tiered-v1
+  evaluation_population: training-pool-tiered20
+  repetitions_per_task: "3"
+  policy_call_output_budget: "8192"
+  episode_output_budget: "32768"
+  max_turns: "20"
+  labels: [qualification, evaluation, automationbench, lfm2.5, vortex, difficulty-tiered, in-distribution, context64k]

@@ -193,6 +193,201 @@ environment:
       max_turns: 12
       max_output_tokens: 16384
 
+  # v5 settings on task population lfm26-automationbench-mix-v3: mix-v2 minus the
+  # 20 difficulty-tiered evaluation tasks, plus 20 domain-matched replacements
+  # (scripts/qualification/fixtures/lfm26_automationbench_mix_v3.json). The
+  # explicit list keeps both the held-out 20 and the tiered 20 out of training,
+  # so later descendants can treat the tiered set as a true holdout.
+  automationbench-lfm26-train-mix-v6:
+    <<: *automationbench_train_mix_v3
+    max_concurrent: 40
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task_names:
+            - simple.email_sf_contact_account_update
+            - simple.email_sf_contact_assistant_update
+            - simple.sf_opp_amount_update
+            - simple.email_sf_log_task
+            - simple.sf_create_contact_note
+            - simple.sf_lead_source_web
+            - simple.sf_lead_description_update
+            - simple.hs_create_contact
+            - simple.hs_update_contact_tag
+            - simple.buffer_linkedin_partnership
+            - simple.buffer_webinar_dual_post
+            - simple.buffer_product_tip
+            - simple.gmail_weekly_status
+            - simple.gmail_reply_customer_inquiry
+            - simple.gmail_onboarding_welcome
+            - simple.slack_dm_meeting_reminder
+            - simple.slack_dm_task_assignment
+            - simple.slack_deployment_notice
+            - simple.sheets_log_email_inquiry
+            - simple.sheets_update_status
+            - simple.sheets_budget_expense
+            - simple.sheets_log_sales_call
+            - simple.asana_rfp_response
+            - simple.jira_login_bug_from_email
+            - simple.jira_dashboard_perf_bug
+            - simple.jira_legacy_data_migration
+            - simple.jira_mobile_redesign_epic
+            - simple.jira_cicd_pipeline
+            - simple.trello_q1_marketing_budget
+            - simple.trello_manager_feedback_from_email
+            - simple.zoom_ai_webinar
+            - simple.zoom_meeting_email_invite
+            - simple.weekly_report_sheets_email
+            - simple.event_asana_calendar
+            - simple.email_airtable_lead
+            - simple.airtable_find_update
+            - simple.airtable_update_slack_notify
+            - simple.zoom_calendar_sync
+            - simple.milestone_sheets_slack
+            - simple.weekly_digest_sheets_email
+            - sales.priority_selection
+            - sales.email_zoom_fuzzy
+            - sales.create_contact_for_account
+            - sales.add_contact_to_campaign
+            - sales.create_note_on_contact
+            - sales.slack_deal_notification
+            - sales.linkedin_content_engagement
+            - sales.meeting_action_items
+            - sales.chatgpt_lead_classification_pipeline
+            - sales.cross_platform_account_health_score
+            - sales.chatgpt_lead_summary_generator
+            - sales.chatgpt_email_sentiment_routing
+            - sales.calendly_availability_based_routing
+            - sales.gcal_travel_time_buffer
+            - sales.full_sales_cycle_orchestrator
+            - sales.contract_renewal_coordinator
+            - sales.historical_context_pipeline_report
+            - sales.unreliable_label_account_review
+            - sales.overdue_followup_flag
+            - marketing.influencer_outreach
+            - marketing.referral_processing
+            - marketing.partner_comarketing
+            - marketing.press_release_distribution
+            - marketing.campaign_retrospective
+            - marketing.editorial_calendar
+            - marketing.content_scoring
+            - marketing.tam_analysis
+            - marketing.social_audit
+            - marketing.trial_extension_processing
+            - marketing.competitor_product_launch
+            - marketing.analyst_mention_tracking
+            - marketing.partner_content_approval
+            - marketing.blog_refresh_queue
+            - marketing.customer_story_intake
+            - marketing.event_sponsorship_screen
+            - marketing.utm_audit_and_fix
+            - marketing.influencer_contract_reminders
+            - marketing.email_blast_suppression
+            - marketing.linkedin_company_update
+            - marketing.google_ads_pause_low_ctr
+            - operations.asana_safety_walk_log
+            - operations.trello_vendor_hold_email
+            - operations.drive_slack_dock_schedule
+            - operations.asana_basecamp_move_planning
+            - operations.calendar_airtable_gmail_maintenance_notice
+            - operations.salesforce_escalated_customer
+            - operations.insurance_cert_validation
+            - operations.twilio_facilities_emergency
+            - operations.linkedin_abm_outreach
+            - operations.fleet_vehicle_maintenance
+            - operations.sla_breach_early_warning
+            - operations.fire_extinguisher_inspection_schedule
+            - operations.overtime_threshold_monitoring
+            - operations.contract_renewal_pipeline
+            - operations.utility_cost_allocation
+            - operations.cross_department_budget_reconciliation
+            - operations.parking_allocation_management
+            - operations.space_utilization_analysis
+            - operations.mailroom_package_routing
+            - operations.procurement_card_reconciliation
+            - support.helpscout_jira_bugs
+            - support.zoho_sf_enrichment
+            - support.freshdesk_faq_drafts
+            - support.intercom_winback
+            - support.intercom_freshdesk_escalation
+            - support.gorgias_refund_processing
+            - support.freshdesk_reamaze_migration
+            - support.hiver_csat_analysis
+            - support.intercom_usage_health_scoring
+            - support.gorgias_quality_audit
+            - support.zendesk_gdpr_purge
+            - support.zendesk_weekend_handoff
+            - support.freshdesk_auto_merge
+            - support.intercom_auto_response_drafts
+            - support.helpscout_customer_merge
+            - support.reamaze_lifecycle_tagging
+            - support.hiver_mailbox_audit
+            - support.gorgias_loyalty_program
+            - support.intercom_zoho_customer_360
+            - support.reamaze_intercom_sync
+            - finance.expense_anomaly_detection
+            - finance.timesheet_to_invoice
+            - finance.slack_receipt_capture
+            - finance.vendor_payment_approval
+            - finance.multicurrency_invoice
+            - finance.dept_expense_rollup
+            - finance.xero_vendor_onboard
+            - finance.petty_cash_reconciliation
+            - finance.qb_estimate_conversion
+            - finance.xero_bank_reconcile
+            - finance.wave_product_catalog
+            - finance.refund_processing
+            - finance.payment_terms_tracking
+            - finance.expense_policy_violation
+            - finance.subscription_billing
+            - finance.qb_bill_payment_batch
+            - finance.gl_variance_analysis
+            - finance.qb_void_stale_invoices
+            - finance.xero_quote_to_invoice
+            - hr.training_compliance
+            - hr.pto_balance_alert
+            - hr.airtable_skills_matrix
+            - hr.asana_compliance_tasks
+            - hr.disciplinary_action_tracking
+            - hr.docusign_nda_collection
+            - hr.monday_pip_tracking
+            - hr.offboarding_multi_system
+            - hr.recruitment_channel_roi
+            - hr.return_from_leave
+            - hr.docusign_policy_acknowledgment
+            - hr.payroll_bonus_processing
+            - hr.candidate_offer_negotiation_tracking
+            - hr.performance_review_kickoff
+            - hr.org_restructure_update
+            - hr.diversity_metrics_report
+            - hr.background_check_followup
+            - hr.mandatory_meeting_scheduling
+            - hr.rto_compliance_check
+            - hr.intern_cohort_onboarding
+            - hr.quarterly_termination_queue
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 16384
+    sampling: *policy_sampling_8k
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v3
+      task_mix_sha256: b9e142b3ae7ad5e6620d489520a0add1c29f42be0902fb6f6d522d6d633e54d8
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 16384
+
   automationbench-lfm26-train-mix-episode-judged-v2: &automationbench_train_mix_episode_judged_v2
     category: agentic-tool-use
     source:
@@ -611,6 +806,178 @@ environment:
       toolset: limited_zapier
       max_turns: 12
       max_output_tokens: 16384
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+
+  # Difficulty-tiered companion to the held-out mix. The held-out 20 put 7 tasks
+  # at the ceiling and 4 at the floor for every model, so these 20 are chosen
+  # from the 160-task training pool by mean training reward over 9,808 rollouts
+  # of eight LFM2.5-2.6B runs (>= 8 prompt groups each): 6 easy (0.70-0.90),
+  # 7 medium (0.35-0.70), 7 hard (0.15-0.35), every domain present, always-1.0
+  # and always-0 tasks excluded. These are NOT held out: every trained arm saw
+  # them. Future training mixes must exclude them so later runs can use them as
+  # a true holdout. Evidence: outputs/qualification/vortex-matched-eval-20260924/
+  # task_variance.json in the main checkout.
+  automationbench-lfm26-difficulty-tiered-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task_names: &lfm26_difficulty_tiered_v1_tasks
+            # easy
+            - simple.zendesk_urgent_reply
+            - simple.customer_question_zendesk_reply
+            - simple.trello_case_study_draft
+            - marketing.seo_audit
+            - finance.commission_calculation
+            - finance.wire_transfer_approval
+            # medium
+            - simple.asana_performance_reviews
+            - sales.event_followup_outreach
+            - sales.calendly_multi_stakeholder_scheduling
+            - marketing.content_syndication
+            - operations.calendar_airtable_maintenance
+            - operations.inventory_enrichment
+            - finance.escrow_tracking
+            # hard
+            - sales.form_to_crm_qualification
+            - marketing.event_followup_personalization
+            - operations.purchase_order_three_way_match
+            - support.reamaze_multi_channel_dedup
+            - support.zendesk_freshdesk_sync
+            - support.hiver_slack_digest
+            - hr.headcount_planning
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 2700, finalize: 60, scoring: 300}
+          max_turns: 20
+          max_output_tokens: 32768
+    sampling:
+      max_tokens: 8192
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    num_tasks: 20
+    num_rollouts: 3
+    max_concurrent: 20
+    parameters:
+      task_names: *lfm26_difficulty_tiered_v1_tasks
+      selection_basis: training-reward-tiers-20260924
+      toolset: limited_zapier
+      max_turns: 20
+      max_output_tokens: 32768
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
+
+  # Same 20 held-out tasks as v1/v2 (task-mix checksum unchanged). Only the
+  # episode envelope changes: 20 turns and 32K output across the episode. On
+  # 2026-09-24 at 12 turns/16K, v3 exhausted the episode output limit 9/60 times
+  # and v4 hit the turn cap 12/60 and the output limit 7/60 times.
+  automationbench-lfm26-heldout-mix-v3:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset: *lfm26_heldout_taskset
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 2700, finalize: 60, scoring: 300}
+          max_turns: 20
+          max_output_tokens: 32768
+    sampling:
+      max_tokens: 8192
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    num_tasks: 20
+    num_rollouts: 3
+    max_concurrent: 20
+    parameters:
+      task_mix_id: lfm26-automationbench-mix-v1-heldout
+      task_mix_sha256: 4526f8a12081555b9061fa5c45924fa2d2b635dee832c27e6bb72cb9234941d7
+      sampling_seed: 43
+      toolset: limited_zapier
+      max_turns: 20
+      max_output_tokens: 32768
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
+  # 64K/20-turn context gate on the two tasks whose v4 step-20 episodes reached
+  # the longest prompts at 12 turns. Not part of any score.
+  automationbench-lfm26-context-canary-64k-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [sales, finance]
+          task_names:
+            - sales.zoom_attendance_pipeline
+            - finance.ap_aging_report
+          task: {toolset: limited_zapier, search_top_k: 20}
+        retries: {max_retries: 0}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 2700, finalize: 60, scoring: 300}
+          max_turns: 20
+          max_output_tokens: 32768
+    sampling:
+      max_tokens: 8192
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    num_tasks: 2
+    num_rollouts: 1
+    max_concurrent: 2
+    parameters:
+      task_names: [sales.zoom_attendance_pipeline, finance.ap_aging_report]
+      toolset: limited_zapier
+      max_turns: 20
+      max_output_tokens: 32768
     reward_components: [partial_credit]
     required_inference_capabilities: [tool-calling]
     observation:
@@ -2165,6 +2532,39 @@ inference:
     purpose: [eval]
     capabilities: [tool-calling]
 
+  # Revision 3 with a 64K context for 20-turn episodes. On 2026-09-24 the
+  # longest 12-turn step-20 episode reached a 28,416-token prompt, growing up to
+  # 2,191 tokens per turn; 20 turns projects to about 46K, which overflows the
+  # 40,960 prompt tokens that 48K leaves beside the 8,192-token call reservation.
+  inference/lfm2.5-2.6b-vllm-automationbench-eval-local@4:
+    revision: "4"
+    startup_timeout_seconds: 900
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      gpu_memory_utilization: 0.90
+      tensor_parallel_size: 1
+      max_model_len: 65536
+      max_num_seqs: 20
+      max_num_batched_tokens: 65536
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 8192
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+
   inference/spark-x2.5-4b-vllm-automationbench-judge-nothink-local@1:
     revision: "1"
     startup_timeout_seconds: 900
@@ -2245,5 +2645,59 @@ evaluation:
         kind: full
     measurement:
       automationbench-lfm26-heldout-context-canary-v1:
+        estimator: task_mean
+        missing: strict
+
+  lfm26-automationbench-difficulty-tiered-v1:
+    revision: "1"
+    kind: general
+    environments: [automationbench-lfm26-difficulty-tiered-v1]
+    success:
+      automationbench-lfm26-difficulty-tiered-v1:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-lfm26-difficulty-tiered-v1:
+        kind: full
+    measurement:
+      automationbench-lfm26-difficulty-tiered-v1:
+        estimator: task_mean
+        missing: strict
+
+  lfm26-automationbench-heldout-v3:
+    revision: "1"
+    kind: general
+    environments: [automationbench-lfm26-heldout-mix-v3]
+    success:
+      automationbench-lfm26-heldout-mix-v3:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-lfm26-heldout-mix-v3:
+        kind: full
+    measurement:
+      automationbench-lfm26-heldout-mix-v3:
+        estimator: task_mean
+        missing: strict
+
+  lfm26-automationbench-context-canary-64k-v1:
+    revision: "1"
+    kind: general
+    environments: [automationbench-lfm26-context-canary-64k-v1]
+    success:
+      automationbench-lfm26-context-canary-64k-v1:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-lfm26-context-canary-64k-v1:
+        kind: full
+    measurement:
+      automationbench-lfm26-context-canary-64k-v1:
         estimator: task_mean
         missing: strict
