@@ -1278,7 +1278,10 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
     assert "posttrain-release sync-runtime-profile-pins" in runtime_candidate
     assert "posttrain-release lock-dependencies" in runtime_candidate
     assert "--project tools/quantization" in runtime_candidate
-    assert "--output-file packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/transform.lock.txt" in runtime_candidate
+    assert (
+        "--output-file packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/transform.lock.txt"
+        in runtime_candidate
+    )
     assert "runtime lock resolved an internal package outside" in runtime_candidate
     assert "posttrain-release images plan" in runtime_candidate
     assert ".release/runtime-image-plan.json" in runtime_candidate
