@@ -413,6 +413,38 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert "weight_name_prefix" not in changed_weight_rollout.engine
 
 
+def test_lfm26_vortex_heldout_v2_preserves_tasks_and_expands_episode_budget() -> None:
+    catalog = open_catalog(
+        scope="posttrain-lab",
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    original = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-heldout-mix-v1")).value
+    matched = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-heldout-mix-v2")).value
+    inference = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-eval-local@3")
+    ).value
+    plan = catalog.resolve(CatalogRef("evaluation", "lfm26-automationbench-heldout-v2")).value
+
+    assert isinstance(original, EnvironmentBinding)
+    assert isinstance(matched, EnvironmentBinding)
+    assert isinstance(original.activation, VerifiersV1ConfigActivation)
+    assert isinstance(matched.activation, VerifiersV1ConfigActivation)
+    original_taskset = cast(Mapping[str, Any], original.activation.config["taskset"])
+    matched_taskset = cast(Mapping[str, Any], matched.activation.config["taskset"])
+    assert original_taskset == matched_taskset
+    assert original.parameters["task_mix_sha256"] == matched.parameters["task_mix_sha256"]
+    assert original.num_tasks == matched.num_tasks == 20
+    assert original.num_rollouts == matched.num_rollouts == 3
+    assert matched.parameters["max_output_tokens"] == 16_384
+    assert matched.sampling.max_tokens == 8_192
+    assert isinstance(inference, InferenceBinding)
+    assert inference.engine["max_model_len"] == 49_152
+    assert inference.engine["enforce_eager"] is False
+    assert inference.sampling["max_tokens"] == 8_192
+    assert isinstance(plan, EvaluationPlan)
+    assert plan.environment("automationbench-lfm26-heldout-mix-v2") is matched
+
+
 def test_lfm26_three_step_qualification_retains_a_12k_episode_budget() -> None:
     catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
     scalar = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-v3")).value
