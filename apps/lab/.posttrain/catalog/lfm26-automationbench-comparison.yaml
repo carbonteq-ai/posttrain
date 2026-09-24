@@ -1758,10 +1758,6 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
-    performance_acknowledgements:
-      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
-        free_cache_engine is read only by the veRL backend; it is kept so this
-        revision matches its recorded run lfm26-vortex-v2-agentic-20260923-r1.
 
   # c40-4k@2 scaled to VORTEX v5's 16 prompt groups x 4 generations. Sequence
   # slots, batched tokens, and KV capacity grow 1.6x with the rollout batch; the
@@ -1795,10 +1791,6 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
-    performance_acknowledgements:
-      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
-        free_cache_engine is read only by the veRL backend; it is kept so this
-        binding differs from c40-4k@2 only in rollout batch capacity.
 
   inference/k2-horizon-7b-vllm-uno-automationbench-rollout-local-c16-4k@1:
     revision: "1"
