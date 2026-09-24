@@ -12,6 +12,7 @@ The earlier VORTEX v3 held-out evaluation treated provider context errors as sco
 - [x] (2026-09-24 08:05Z) Created isolated `codex/vortex-matched-evals` from the v4 source revision and cherry-picked the two commits of PR #118. The main checkout and dirty Verifiers-environments sibling remain untouched.
 - [x] (2026-09-24 08:18Z) Added candidate held-out v2 and two-task canary selections with the same held-out task inventory, an 8K per-call and 16K episode output allowance, and a 48K context on the RTX PRO. Static work-package validation passed for both.
 - [x] (2026-09-24 08:35Z) First immutable canary build reached offline environment qualification and stopped before publication or submission: the canary selected operations/finance tasks without including those domains in its taskset. Added the two domains and revalidated composition. The exact attempted run ID has no submission record and no provider run.
+- [x] (2026-09-24 08:47Z) Submitted corrected two-task canary `eval-lfm26-vortex-v3-step20-48k-canary-20260924-r2` once with dstack provider `pt-eb846c21aa68fa1f0a084441` and immutable image `registry.lan/carbonteq/posttrain-lab/posttrain-job@sha256:64a8c46f585209549880ad30ecc3af9d5871c15b184fb5ee0a414206cae34654`. The image passed offline taskset qualification and retained v3 step-20 model lineage. The provider was provisioning at the first status check; live inference and trace gates remain.
 - [ ] Add focused catalog tests for identical v1/v2 task identities and distinct output budgets; run targeted and repository boundary checks.
 - [ ] Prove actual-job packaging resolves the Trackio dev25 wheel over the older kind image, and inspect the exact image and source digest. If the kind-image contract forbids this, publish the minimum reviewed kind revision or stop and report that gate; never use the old dev24 runtime.
 - [ ] Measure actual rendered prompt token counts with the selected server tokenizer, verify prompt plus reserved per-call output fits 48K with headroom, and run a two-task canary from the v3 step-20 model on the RTX PRO. Inspect GPU/KV admission, compiled inference, tool calls, per-call provider errors, episode truncation, and complete trace sync. The v2 full run cannot start if the canary fails.
@@ -34,7 +35,7 @@ The earlier VORTEX v3 held-out evaluation treated provider context errors as sco
 
 ## Outcomes & Retrospective
 
-Preparation is incomplete. The first canary build failed its offline task-inventory gate, then the taskset was corrected. No eval has been submitted, no 48K GPU admission or tokenizer parity has been claimed, and PR #118 remains unmerged at the last check. The original run's errors remain historical evidence, not zero-valued model performance.
+Preparation is incomplete. The first canary build failed its offline task-inventory gate, then the taskset was corrected; the second attempt published an immutable actual-job image and submitted a two-task canary. No full matched eval has been submitted, no 48K GPU admission or tokenizer parity has yet been claimed, and PR #118 remains unmerged at the last check. The original run's errors remain historical evidence, not zero-valued model performance.
 
 ## Context and Orientation
 
@@ -75,3 +76,5 @@ Use the existing `EnvironmentBinding`, `InferenceBinding`, and `EvaluationPlan` 
 Revision note (2026-09-24): Created after the training run was collected and the first static matched/canary profiles passed; the plan records the remaining immutable-image and live-evaluation gates rather than treating static validation as launch readiness.
 
 Revision note (2026-09-24): Recorded the first failed canary image qualification and narrowed its taskset domains. This was a safe pre-submission failure and does not authorize a full evaluation without a passing live canary.
+
+Revision note (2026-09-24): Recorded the digest-pinned r2 canary submission and separated image/offline qualification from still-pending live serving and evidence gates.
