@@ -68,7 +68,10 @@ jobs:
               source = source.replace(stable, candidate)
           path.write_text(source, encoding="utf-8")
           PY
-          uv lock --upgrade-package trl --upgrade-package carbonteq-trackio
+          # The pushed branch's uv.lock is the candidate authority. A broad
+          # upgrade re-resolves unrelated Git packages (including vLLM) and
+          # requires CUDA on this CPU-only release runner. Resolve and review
+          # new dependency receipts on the source branch before dispatch.
           # Image publication uses only the release tool. Installing the
           # entire workspace needlessly builds the pinned vLLM source on this
           # CPU-only runner and fails without CUDA_HOME.

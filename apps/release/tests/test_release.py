@@ -1274,7 +1274,8 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
     assert "- dev" in runtime_candidate
     assert "- stable" in runtime_candidate
     assert "candidate index source must be unambiguous" in runtime_candidate
-    assert "uv lock --upgrade-package trl --upgrade-package carbonteq-trackio" in runtime_candidate
+    assert "uv lock --upgrade-package" not in runtime_candidate
+    assert "The pushed branch's uv.lock is the candidate authority" in runtime_candidate
     assert "uv sync --package posttrain-release --frozen --python 3.13" in runtime_candidate
     assert "uv sync --all-packages" not in runtime_candidate
     assert "posttrain-release sync-runtime-profile-pins" in runtime_candidate
