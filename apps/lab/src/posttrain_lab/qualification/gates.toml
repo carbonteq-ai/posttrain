@@ -870,6 +870,32 @@ owner = "posttrain-observatory"
 replacement_condition = "Promote the evaluation protocol after all four model views produce complete comparable evidence."
 
 [[gates]]
+id = "lfm26-vortex-heldout-context-canary-48k"
+work_package = ".posttrain/work_packages/lfm26_automationbench_vortex_eval_context_canary_48k_v1.yaml"
+job_id = "evaluate"
+tier = "experimental"
+state = "candidate"
+job_kind = "eval.general"
+acceptance = "two-episode-long-context-tool-trace-canary"
+experiment_family = "lfm26-vortex-v3-v4-matched-heldout-48k"
+hypothesis = "The pinned eval runtime can serve 48K LFM requests with bounded output, valid tool calls, and complete native traces before a scored comparison."
+owner = "posttrain-evaluation"
+replacement_condition = "Retire after the 48K request envelope, provider errors, tool calls, and trace sync are qualified or superseded."
+
+[[gates]]
+id = "lfm26-vortex-matched-heldout-48k"
+work_package = ".posttrain/work_packages/lfm26_automationbench_vortex_matched_eval_48k_v2.yaml"
+job_id = "evaluate"
+tier = "experimental"
+state = "candidate"
+job_kind = "eval.general"
+acceptance = "matched-20-task-three-repetition-step20-evaluation"
+experiment_family = "lfm26-vortex-v3-v4-matched-heldout-48k"
+hypothesis = "The same held-out tasks, output budget, and inference profile produce complete comparable evidence for exact VORTEX v3 and yield-first v4 step-20 model views."
+owner = "posttrain-evaluation"
+replacement_condition = "Promote only after both descendants have 60 valid episodes, complete traces, exact checkpoint lineage, and explicit error/truncation accounting."
+
+[[gates]]
 id = "lfm26-automationbench-gdpo-episode-50-gemma"
 work_package = ".posttrain/work_packages/lfm26_automationbench_gdpo_episode_50_gemma.yaml"
 job_id = "train"
