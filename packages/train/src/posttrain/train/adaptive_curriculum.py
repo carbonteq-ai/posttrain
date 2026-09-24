@@ -17,9 +17,13 @@ from typing import Protocol, cast
 
 from .profiles import AdaptiveCurriculum
 
-_STATE_VERSION = 4
+_STATE_VERSION = 5
 _CLASS_PRIOR_STRENGTH = 2.0
 _CLASS_UNCERTAINTY_WEIGHT = 1.0
+
+
+class CurriculumCapacityError(RuntimeError):
+    """A requested batch cannot be filled without repeating a task in this step."""
 
 
 class CurriculumStateBackend(Protocol):
@@ -57,6 +61,7 @@ class CurriculumDecision:
     selection_reasons: tuple[str, ...] = ()
     selection_components: tuple[str, ...] = ()
     selection_probabilities: tuple[float, ...] = ()
+    policy: str = "quota"
 
     def as_record(self) -> dict[str, object]:
         return {
@@ -83,6 +88,7 @@ class CurriculumDecision:
             "selection_reasons": list(self.selection_reasons),
             "selection_components": list(self.selection_components),
             "selection_probabilities": list(self.selection_probabilities),
+            "policy": self.policy,
         }
 
 
@@ -291,6 +297,9 @@ class AdaptiveCurriculumController:
         self.tasks_by_class = {class_id: tuple(sorted(task_ids)) for class_id, task_ids in sorted(grouped.items())}
         self._history = {task_id: deque(maxlen=settings.history_groups) for task_id in self.task_classes}
         self._first_evidence: dict[str, _Evidence] = {}
+        # Effective binary-yield moments are aged by optimizer step. Keeping
+        # sufficient statistics avoids retaining an unbounded rollout history.
+        self._yield_moments = {task_id: [0.0, 0.0, 0.0, -1.0] for task_id in self.task_classes}
         self._seen: set[str] = set()
         self._last_selected = {task_id: -1 for task_id in self.task_classes}
         self._active_step: int | None = None
@@ -327,11 +336,24 @@ class AdaptiveCurriculumController:
     ) -> CurriculumDecision:
         if group_count < 1:
             raise ValueError("adaptive curriculum group count must be positive")
+        if self._active_step is not None and step < self._active_step:
+            raise ValueError("adaptive curriculum step cannot move backwards")
+        already_selected = self._step_selected if step == self._active_step else set()
+        available = len(self.task_classes) - len(already_selected)
+        if available < group_count:
+            raise CurriculumCapacityError(
+                "adaptive curriculum distinct-task capacity shortfall: "
+                f"step={step} requested={group_count} available={available}; "
+                "no task may repeat within one optimizer step"
+            )
         if self._active_step is None or step > self._active_step:
             self._active_step = step
             self._step_selected.clear()
-        elif step < self._active_step:
-            raise ValueError("adaptive curriculum step cannot move backwards")
+
+        if self.settings.policy == "yield_first":
+            return self._select_yield_first(
+                group_count, step=step, selection_kind=selection_kind, round_index=round_index
+            )
 
         rng = random.Random(_decision_seed(self.settings.seed, self._decision_index))
         discovery_reserved = _cumulative_quota(
@@ -413,10 +435,135 @@ class AdaptiveCurriculumController:
             selection_reasons=tuple(reasons),
             selection_components=tuple(components),
             selection_probabilities=tuple(selection_probabilities),
+            policy=self.settings.policy,
         )
         self._decision_index += 1
         self.backend.append(decision.as_record())
         return decision
+
+    def _select_yield_first(
+        self,
+        group_count: int,
+        *,
+        step: int,
+        selection_kind: str,
+        round_index: int | None,
+    ) -> CurriculumDecision:
+        """Sample both lanes from one class-then-task distribution family."""
+        rng = random.Random(_decision_seed(self.settings.seed, self._decision_index))
+        uncertainties = self._yield_uncertainties(step)
+        base_scores = {task_id: self.task_priority(task_id) for task_id in self.task_classes}
+        selected: list[str] = []
+        reasons: list[str] = []
+        probabilities: list[float] = []
+        task_priorities: dict[str, float] = {}
+        task_probabilities: dict[str, float] = {}
+        class_probability_sums = {class_id: 0.0 for class_id in self.tasks_by_class}
+        new_selected = 0
+        for _ in range(group_count):
+            eligible = [task_id for task_id in self.task_classes if task_id not in self._step_selected]
+            explore = rng.random() < self.settings.exploration_share
+            weights = {
+                task_id: base_scores[task_id]
+                + (self.settings.uncertainty_weight * uncertainties[task_id] if explore else 0.0)
+                for task_id in eligible
+            }
+            by_class = {
+                class_id: [task_id for task_id in task_ids if task_id in weights]
+                for class_id, task_ids in self.tasks_by_class.items()
+            }
+            by_class = {class_id: task_ids for class_id, task_ids in by_class.items() if task_ids}
+            class_scores = {
+                class_id: sum(weights[task_id] for task_id in task_ids) / len(task_ids)
+                for class_id, task_ids in by_class.items()
+            }
+            class_probabilities = _normalized_scores(tuple(by_class), class_scores)
+            if class_probabilities is None:
+                class_probabilities = {class_id: 1 / len(by_class) for class_id in by_class}
+            class_id = _draw(class_probabilities, rng)
+            task_ids = by_class[class_id]
+            within = _normalized_scores(task_ids, weights)
+            if within is None:
+                within = {task_id: 1 / len(task_ids) for task_id in task_ids}
+            task_id = _draw(within, rng)
+            probability = class_probabilities[class_id] * within[task_id]
+            selected.append(task_id)
+            reasons.append("uncertainty_exploration" if explore else "yield_practice")
+            probabilities.append(probability)
+            task_probabilities[task_id] = probability
+            task_priorities[task_id] = weights[task_id]
+            for candidate_class, value in class_probabilities.items():
+                class_probability_sums[candidate_class] += value
+            if task_id not in self._seen:
+                self._seen.add(task_id)
+                new_selected += 1
+            self._step_selected.add(task_id)
+            self._last_selected[task_id] = self._candidate_count
+            self._candidate_count += 1
+        decision = CurriculumDecision(
+            index=self._decision_index,
+            step=step,
+            task_ids=tuple(selected),
+            class_probabilities={
+                class_id: value / group_count for class_id, value in class_probability_sums.items()
+            },
+            task_probabilities=task_probabilities,
+            task_priorities=task_priorities,
+            class_discovery_priorities={
+                class_id: self._class_discovery_priority(class_id) for class_id in self.tasks_by_class
+            },
+            selected_classes=_counts(self.task_classes[task_id] for task_id in selected),
+            selected_tasks=_counts(selected),
+            selection_kind=selection_kind,
+            round_index=round_index,
+            new_tasks_selected=new_selected,
+            selection_reasons=tuple(reasons),
+            selection_components=tuple("adaptive" for _ in selected),
+            selection_probabilities=tuple(probabilities),
+            policy="yield_first",
+        )
+        self._decision_index += 1
+        self.backend.append(decision.as_record())
+        return decision
+
+    def _age_yield_moments(self, task_id: str, step: int) -> list[float]:
+        state = self._yield_moments[task_id]
+        previous_step = int(state[3])
+        if previous_step >= 0 and step > previous_step:
+            decay = 2 ** (-(step - previous_step) / self.settings.evidence_half_life_steps)
+            for index in range(3):
+                state[index] *= decay
+        state[3] = float(step)
+        return state
+
+    def _yield_uncertainties(self, step: int) -> dict[str, float]:
+        """Mirror the replay's aged binary-yield uncertainty and peer shrinkage."""
+        class_moments = {class_id: [0.0, 0.0, 0.0] for class_id in self.tasks_by_class}
+        own_contributions: dict[str, tuple[float, float, float]] = {}
+        for task_id, class_id in self.task_classes.items():
+            n, first, second, _ = self._age_yield_moments(task_id, step)
+            if n > 0:
+                confidence = min(1.0, n)
+                own = (confidence, confidence * first / n, confidence * second / n)
+                own_contributions[task_id] = own
+                for index, value in enumerate(own):
+                    class_moments[class_id][index] += value
+        result: dict[str, float] = {}
+        for task_id, class_id in self.task_classes.items():
+            own = own_contributions.get(task_id, (0.0, 0.0, 0.0))
+            peer_n, peer_first, peer_second = (
+                max(0.0, total - own[index])
+                for index, total in enumerate(class_moments[class_id])
+            )
+            prior_mean = (1 + peer_first) / (2 + peer_n)
+            prior_second = (2 / 3 + peer_second) / (2 + peer_n)
+            n, first, second, _ = self._yield_moments[task_id]
+            mass = self.settings.yield_prior_strength + n
+            mean = (self.settings.yield_prior_strength * prior_mean + first) / mass
+            mean_second = (self.settings.yield_prior_strength * prior_second + second) / mass
+            spread = max(0.0, mean_second - mean * mean)
+            result[task_id] = math.sqrt(spread / (n + 1))
+        return result
 
     def _select_one(
         self,
@@ -457,15 +604,11 @@ class AdaptiveCurriculumController:
             pool = unseen_available
             reason = "additional_discovery"
         else:
-            pool = familiar or unseen or list(self.task_classes)
-            reason = "duplicate_fallback"
+            raise CurriculumCapacityError("adaptive curriculum has no distinct eligible task in this step")
 
         eligible = [task_id for task_id in pool if task_id not in self._step_selected]
-        repeated = False
         if not eligible:
-            eligible = pool
-            repeated = True
-            reason = "duplicate_fallback"
+            raise CurriculumCapacityError("adaptive curriculum has no distinct eligible task in this step")
 
         tasks_by_class = {
             class_id: [task_id for task_id in eligible if self.task_classes[task_id] == class_id]
@@ -512,7 +655,7 @@ class AdaptiveCurriculumController:
             probability = route_class_probabilities[class_id] * route_within.get(task_id, 0.0)
         if use_coverage and reason == "adaptive_practice":
             reason = "reassessment"
-        return task_id, pool_probability * probability, class_probabilities, reason, component, repeated
+        return task_id, pool_probability * probability, class_probabilities, reason, component, False
 
     def observe(
         self,
@@ -542,6 +685,12 @@ class AdaptiveCurriculumController:
             )
             self._history[task_id].append(evidence)
             self._first_evidence.setdefault(task_id, evidence)
+            if self.settings.policy == "yield_first":
+                moments = self._age_yield_moments(task_id, step)
+                useful = float(variance > 1e-12)
+                moments[0] += 1.0
+                moments[1] += useful
+                moments[2] += useful * useful
             observed_task_ids.add(task_id)
             task_rewards[task_id] = mean
             task_variances[task_id] = variance
@@ -643,6 +792,7 @@ class AdaptiveCurriculumController:
             "last_selected": dict(self._last_selected),
             "history": {task_id: [item.as_record() for item in values] for task_id, values in self._history.items()},
             "first_evidence": {task_id: evidence.as_record() for task_id, evidence in self._first_evidence.items()},
+            "yield_moments": self._yield_moments if self.settings.policy == "yield_first" else None,
         }
 
     def snapshot(self, path: Path) -> None:
@@ -655,16 +805,29 @@ class AdaptiveCurriculumController:
         self.backend.close()
 
     def _settings_record(self) -> dict[str, object]:
-        return {
+        record: dict[str, object] = {
             "class_field": self.settings.class_field,
-            "class_exploration": self.settings.class_exploration,
-            "task_discovery": self.settings.task_discovery,
             "history_groups": self.settings.history_groups,
             "seed": self.settings.seed,
         }
+        if self.settings.policy == "yield_first":
+            record.update(
+                policy="yield_first",
+                exploration_share=self.settings.exploration_share,
+                uncertainty_weight=self.settings.uncertainty_weight,
+                evidence_half_life_steps=self.settings.evidence_half_life_steps,
+                yield_prior_strength=self.settings.yield_prior_strength,
+            )
+        else:
+            record.update(
+                class_exploration=self.settings.class_exploration,
+                task_discovery=self.settings.task_discovery,
+            )
+        return record
 
     def _restore(self, state: Mapping[str, object]) -> None:
-        if state.get("version") != _STATE_VERSION:
+        version = state.get("version")
+        if version not in {4, _STATE_VERSION} or (self.settings.policy == "yield_first" and version != _STATE_VERSION):
             raise ValueError("adaptive curriculum snapshot version does not match")
         if state.get("inventory_digest") != self._inventory_digest:
             raise ValueError("adaptive curriculum snapshot inventory does not match")
@@ -680,6 +843,7 @@ class AdaptiveCurriculumController:
         step_selected = state.get("step_selected")
         last_selected = state.get("last_selected")
         first_evidence = state.get("first_evidence")
+        yield_moments = state.get("yield_moments")
         if (
             not isinstance(decision_index, int)
             or decision_index < 0
@@ -691,6 +855,7 @@ class AdaptiveCurriculumController:
             or not isinstance(step_selected, list)
             or not isinstance(last_selected, dict)
             or not isinstance(first_evidence, dict)
+            or (self.settings.policy == "yield_first" and not isinstance(yield_moments, dict))
         ):
             raise ValueError("adaptive curriculum snapshot state is malformed")
         if any(task_id not in self.task_classes for task_id in [*seen, *step_selected]):
@@ -703,6 +868,23 @@ class AdaptiveCurriculumController:
             if task_id not in self.task_classes:
                 raise ValueError("adaptive curriculum snapshot first evidence is malformed")
             self._first_evidence[task_id] = _decode_evidence(value)
+        if self.settings.policy == "yield_first":
+            assert isinstance(yield_moments, dict)
+            if set(yield_moments) != set(self.task_classes):
+                raise ValueError("adaptive curriculum yield moments inventory does not match")
+            for task_id, values in yield_moments.items():
+                if (
+                    not isinstance(values, list)
+                    or len(values) != 4
+                    or any(isinstance(value, bool) or not isinstance(value, int | float) for value in values)
+                    or not all(math.isfinite(float(value)) for value in values)
+                    or values[0] < 0
+                    or values[1] < 0
+                    or values[2] < 0
+                    or values[3] < -1
+                ):
+                    raise ValueError("adaptive curriculum yield moments are malformed")
+                self._yield_moments[task_id] = [float(value) for value in values]
         for task_id, value in last_selected.items():
             if task_id not in self._last_selected or not isinstance(value, int):
                 raise ValueError("adaptive curriculum snapshot selection history is malformed")

@@ -84,9 +84,12 @@ class AdaptiveCurriculumRuntime:
         context.event(
             "adaptive_curriculum_started",
             {
+                "policy": settings.policy,
                 "class_field": settings.class_field,
-                "class_exploration": settings.class_exploration,
-                "task_discovery": settings.task_discovery,
+                "class_exploration": settings.class_exploration if settings.policy == "quota" else None,
+                "task_discovery": settings.task_discovery if settings.policy == "quota" else None,
+                "exploration_share": settings.exploration_share if settings.policy == "yield_first" else None,
+                "uncertainty_weight": settings.uncertainty_weight if settings.policy == "yield_first" else None,
                 "history_groups": settings.history_groups,
                 "seed": settings.seed,
                 "task_count": len(task_rows),
@@ -448,6 +451,16 @@ def _prepare_adaptive_active_sampling_inputs(
     trainer._metrics["train"]["active_sampling/candidate_groups_unused"].append(
         len(candidate_inputs) - candidate_cursor
     )
+    # The candidate_groups_* series above count rows (completions), and the
+    # TRL frac_reward_zero_std / advantages/zero_fraction series average every
+    # generation round before filtering. Report the batch actually optimized.
+    trainer._metrics["train"]["active_sampling/retained_groups"].append(retained_count / trainer.num_generations)
+    trainer._metrics["train"]["active_sampling/generated_groups"].append(candidate_count / trainer.num_generations)
+    advantages = batch.get("advantages")
+    if isinstance(advantages, torch.Tensor) and advantages.numel() % trainer.num_generations == 0:
+        zero = advantages.detach().abs().reshape(-1, trainer.num_generations) <= 1e-8
+        trainer._metrics["train"]["trained/frac_reward_zero_std"].append(zero.all(dim=1).float().mean().item())
+        trainer._metrics["train"]["trained/advantages_zero_fraction"].append(zero.float().mean().item())
     return cast(dict[str, Any], batch)
 
 

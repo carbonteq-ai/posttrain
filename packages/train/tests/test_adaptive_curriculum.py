@@ -12,6 +12,7 @@ from posttrain.common import CatalogRef
 from posttrain.train import AdaptiveCurriculum
 from posttrain.train.adaptive_curriculum import (
     AdaptiveCurriculumController,
+    CurriculumCapacityError,
     QueuedJsonlCurriculumStateBackend,
 )
 from posttrain.train.backends.trl.policy_curriculum import (
@@ -223,6 +224,9 @@ def _controller(
     restored_state: Mapping[str, object] | None = None,
     class_exploration: float = 0.2,
     task_discovery: float = 0.2,
+    policy: str = "quota",
+    exploration_share: float = 0.2,
+    uncertainty_weight: float = 4.0,
 ) -> AdaptiveCurriculumController:
     return AdaptiveCurriculumController(
         task_classes or {**{f"a{i}": "a" for i in range(1, 7)}, **{f"b{i}": "b" for i in range(1, 7)}},
@@ -232,6 +236,9 @@ def _controller(
             task_discovery=task_discovery,
             history_groups=history_groups,
             seed=7,
+            policy=cast(Any, policy),
+            exploration_share=exploration_share,
+            uncertainty_weight=uncertainty_weight,
         ),
         backend,
         restored_state=restored_state,
@@ -362,22 +369,88 @@ def test_representative_class_evidence_guides_unseen_tasks_without_marking_them_
     assert controller.task_priority("b5") > controller.task_priority("a5")
 
 
-def test_current_step_memory_avoids_duplicates_then_degrades_without_failing() -> None:
+def test_current_step_memory_fails_before_repeating_a_task() -> None:
+    backend = RecordingBackend()
     controller = _controller(
-        RecordingBackend(),
+        backend,
         task_classes={"a1": "a", "a2": "a", "b1": "b", "b2": "b"},
     )
 
     first = controller.select(2, step=1, selection_kind="active_sampling_refill", round_index=1)
     second = controller.select(2, step=1, selection_kind="active_sampling_refill", round_index=2)
-    exhausted = controller.select(2, step=1, selection_kind="active_sampling_refill", round_index=3)
+    state_before = controller.state()
+    records_before = len(backend.records)
+    with pytest.raises(CurriculumCapacityError, match="requested=2 available=0"):
+        controller.select(2, step=1, selection_kind="active_sampling_refill", round_index=3)
 
     assert len(set(first.task_ids + second.task_ids)) == 4
     assert first.duplicate_fallbacks == second.duplicate_fallbacks == 0
-    assert exhausted.duplicate_fallbacks == 2
-    assert set(exhausted.selection_reasons) == {"duplicate_fallback"}
+    assert controller.state() == state_before
+    assert len(backend.records) == records_before
     next_step = controller.select(2, step=2)
     assert next_step.duplicate_fallbacks == 0
+
+
+def test_yield_first_starts_class_balanced_and_uses_full_pool() -> None:
+    controller = _controller(
+        RecordingBackend(),
+        task_classes={"a1": "a", "a2": "a", "a3": "a", "b1": "b"},
+        policy="yield_first",
+        exploration_share=1.0,
+    )
+    first = controller.select(1, step=1)
+    second = controller.select(1, step=1, selection_kind="active_sampling_refill", round_index=2)
+
+    assert first.policy == second.policy == "yield_first"
+    assert first.class_probabilities == pytest.approx({"a": 0.5, "b": 0.5})
+    assert first.selection_reasons == ("uncertainty_exploration",)
+    assert set(first.task_ids).isdisjoint(second.task_ids)
+    assert first.discovery_reserved == second.discovery_reserved == 0
+
+
+def test_yield_first_can_fill_worst_case_vortex_refills_without_repeating_tasks() -> None:
+    inventory = {f"task-{index}": f"class-{index % 7}" for index in range(160)}
+    controller = _controller(RecordingBackend(), task_classes=inventory, policy="yield_first")
+
+    selected = [
+        task_id
+        for round_index in range(1, 11)
+        for task_id in controller.select(
+            10,
+            step=1,
+            selection_kind="active_sampling_refill",
+            round_index=round_index,
+        ).task_ids
+    ]
+
+    assert len(selected) == len(set(selected)) == 100
+    assert len(inventory.keys() - set(selected)) == 60
+
+
+def test_yield_first_uncertainty_ages_and_resume_preserves_step_exclusions() -> None:
+    inventory = {"a1": "a", "a2": "a", "a3": "a", "b1": "b"}
+    controller = _controller(
+        RecordingBackend(), task_classes=inventory, policy="yield_first", exploration_share=1.0
+    )
+    for _ in range(12):
+        controller.observe([("a1", [0.0, 1.0, 0.0, 1.0])], step=1)
+    current = controller._yield_uncertainties(1)
+    assert current["a2"] > current["a1"]
+    aged = controller._yield_uncertainties(81)
+    assert aged["a1"] > current["a1"]
+
+    first = controller.select(2, step=81)
+    state = controller.state()
+    expected = controller.select(2, step=81, selection_kind="active_sampling_refill", round_index=2)
+    restored = _controller(
+        RecordingBackend(), task_classes=inventory, policy="yield_first",
+        exploration_share=1.0, restored_state=state,
+    )
+    actual = restored.select(2, step=81, selection_kind="active_sampling_refill", round_index=2)
+    assert actual == expected
+    assert set(first.task_ids).isdisjoint(actual.task_ids)
+    with pytest.raises(CurriculumCapacityError, match="available=0"):
+        restored.select(1, step=81, selection_kind="active_sampling_refill", round_index=3)
 
 
 def test_duplicate_observations_are_recorded_without_failing() -> None:
@@ -604,7 +677,7 @@ class EventContext:
             self.metric(name, value, step=step, attributes=attributes)
 
 
-def _runtime(tmp_path: Path, context: EventContext) -> AdaptiveCurriculumRuntime:
+def _runtime(tmp_path: Path, context: EventContext, *, policy: str = "quota") -> AdaptiveCurriculumRuntime:
     rows = [
         {"example_id": "a1", "domain": "a", "prompt": "a1"},
         {"example_id": "a2", "domain": "a", "prompt": "a2"},
@@ -624,6 +697,7 @@ def _runtime(tmp_path: Path, context: EventContext) -> AdaptiveCurriculumRuntime
             task_discovery=0.2,
             history_groups=2,
             seed=7,
+            policy=cast(Any, policy),
         ),
         num_generations=2,
         state_dir=tmp_path / "state",
@@ -697,11 +771,12 @@ def test_trainer_composition_selects_before_generation_and_observes_raw_rewards(
         runtime.close()
 
 
-def test_olmo_active_sampling_selects_each_refill_from_fresh_evidence(tmp_path: Path) -> None:
+@pytest.mark.parametrize("policy", ["quota", "yield_first"])
+def test_olmo_active_sampling_selects_each_refill_from_fresh_evidence(tmp_path: Path, policy: str) -> None:
     import torch
 
     context = EventContext()
-    runtime = _runtime(tmp_path, context)
+    runtime = _runtime(tmp_path, context, policy=policy)
 
     class Accelerator:
         num_processes = 1
@@ -767,6 +842,13 @@ def test_olmo_active_sampling_selects_each_refill_from_fresh_evidence(tmp_path: 
                 # Reproduce the live failure: generic TRL statistics lost the
                 # native variance even though the rollout rewards were mixed.
                 "group_reward_std": torch.zeros(len(inputs)),
+                # Group-centred advantages: a mixed group is (-0.5, 0.5), a tied group (0, 0).
+                "advantages": torch.tensor(
+                    [
+                        cast(float, row["algorithm_reward"]) - 0.5 if self.reward_calls > 1 or index < 2 else 0.0
+                        for index, row in enumerate(inputs)
+                    ]
+                ),
                 "example_id": [row["example_id"] for row in inputs],
                 "domain": [row["domain"] for row in inputs],
             }
@@ -813,6 +895,11 @@ def test_olmo_active_sampling_selects_each_refill_from_fresh_evidence(tmp_path: 
         assert len(retained["completion_ids"]) == 4
         assert trainer._metrics["train"]["active_sampling/generation_rounds"] == [2]
         assert trainer._metrics["train"]["active_sampling/generated_rows"] == [6]
+        # Groups, not rows; and the optimized batch holds only mixed-reward groups.
+        assert trainer._metrics["train"]["active_sampling/generated_groups"] == [3]
+        assert trainer._metrics["train"]["active_sampling/retained_groups"] == [2]
+        assert trainer._metrics["train"]["trained/frac_reward_zero_std"] == [0.0]
+        assert trainer._metrics["train"]["trained/advantages_zero_fraction"] == [0.0]
         assert trainer._metrics["train"]["active_sampling/native_reward_std_max_delta"] == pytest.approx(
             [2**-0.5, 2**-0.5]
         )
@@ -822,6 +909,7 @@ def test_olmo_active_sampling_selects_each_refill_from_fresh_evidence(tmp_path: 
             "active_sampling_refill",
         ]
         assert [decision["round_index"] for decision in decisions] == [1, 2]
+        assert [decision["policy"] for decision in decisions] == [policy, policy]
         event_names = [name for name, _ in context.events]
         first_decision = event_names.index("adaptive_curriculum_allocation_selected")
         observation = event_names.index("adaptive_curriculum_evidence_observed", first_decision + 1)

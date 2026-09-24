@@ -157,6 +157,37 @@ environment:
     <<: *automationbench_train_mix_v3
     max_concurrent: 40
 
+  # train-mix-v4 on verifiers-environments acb3043 for VORTEX v5. In limited_zapier
+  # mode the 100 HR and 6 marketing tasks whose spreadsheet IDs could not be
+  # discovered gain the read-only Drive file search, and turn_budget replaces the
+  # upstream "~50 tool-using turns" system sentence with the real 12-turn budget.
+  # 64 concurrent episodes match v5's 16 prompt groups x 4 generations.
+  automationbench-lfm26-train-mix-v5:
+    <<: *automationbench_train_mix_v3
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: acb3043ed7b8c24df62c5b8e5232b13fd92710e1
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 12
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 12288
+    max_concurrent: 64
+
   automationbench-lfm26-train-mix-episode-judged-v2: &automationbench_train_mix_episode_judged_v2
     category: agentic-tool-use
     source:
@@ -807,6 +838,98 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
+  # VORTEX v1 settings with the LoRA learning rate from the literature review in
+  # docs/plan/agentic-workload-inference-optimization.md: Tinker's RL recipes
+  # (1e-5 to 4e-5 at LoRA alpha 32, constant schedule) are 4e-5 to 1.6e-4 at this
+  # binding's alpha 8, since the LoRA update scales with learning rate x alpha.
+  # v1's 1e-5 with linear decay to zero over 20 updates was about 8x below the
+  # lowest Tinker RL recipe. Revision 2 takes the aggressive end (2e-4); the OLMo3
+  # clipped objective bounds each update (the recipe deliberately has no KL term).
+  # Revision 1 (1e-4) was cancelled before training.
+  lfm2.5-2.6b/automationbench-vortex-20-local-v3: &vortex_20_local_v3
+    selection_type: grpo-settings
+    revision: "2"
+    loop:
+      max_steps: 20
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 40
+      learning_rate: 0.0002
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 10
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    adaptive_curriculum:
+      class_field: domain
+      class_exploration: 0.2
+      task_discovery: 0.2
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
+  # Same model, optimizer, reward, inference and 20-step budget as v3. Only the
+  # versioned curriculum policy changes; both lanes use the full 160-task pool.
+  lfm2.5-2.6b/automationbench-vortex-yield-first-20-local-v4:
+    <<: *vortex_20_local_v3
+    revision: "1"
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+
+  # VORTEX v5: v4's yield-first curriculum with three changes and unchanged
+  # per-reply, turn, and context budgets.
+  # - LoRA learning rate 1e-4, inside the 4e-5..1.6e-4 range the v3 note derives
+  #   from Tinker's LoRA RL recipes at alpha 8. v3/v4's 2e-4 sat above it, and v3's
+  #   truncation rate climbed from 19% to 73%.
+  # - 16 prompt groups per update (64 rollouts) to use more of the RTX PRO 6000.
+  # - A 0.2 truncation penalty so a truncated rollout ranks below an equally
+  #   scored finished one before OLMo 3 active sampling measures reward spread.
+  lfm2.5-2.6b/automationbench-vortex-yield-first-64-local-v5:
+    <<: *vortex_20_local_v3
+    revision: "1"
+    loop:
+      max_steps: 20
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 64
+      learning_rate: 0.0001
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 16
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    truncation_penalty: 0.2
+
   # Matched 50-update adaptive-GRPO ablation requested after the 0.4.4 release.
   # Full VORTEX requires OLMo3 active refill, so the no-oversampling arm uses
   # ordinary GRPO with curriculum allocation over the initial batch. Eight
@@ -1152,7 +1275,38 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
+      dependency_lock_sha256: f434bdf4044407ab0a2d30a1d22d5405ab0204b0542b83b4e0b39ef6d194fc62
+
+  # g40@1 scaled to 16 prompt groups x 4 generations. Eight environment workers
+  # of eight episodes give the 64 concurrent episodes one rollout batch needs.
+  training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post9
+    renderer:
+      id: lfm2.5-tools-thinking@2
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update:
+      kind: lora
+      rank: 4
+      alpha: 8
+      target_modules: all-linear
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 64
+      devices_per_node: 1
+      timeout_seconds: 43200
+    backend_options:
+      rollout_execution: {env_workers: 8, episodes_per_worker: 8, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      vllm_policy_parity_max_sequence_tokens: 4096
+      dependency_lock: trl-fork@current
+      source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
+      dependency_lock_sha256: f434bdf4044407ab0a2d30a1d22d5405ab0204b0542b83b4e0b39ef6d194fc62
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g40@1:
     selection_type: training-binding
@@ -1601,6 +1755,47 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        free_cache_engine is read only by the veRL backend; it is kept so this
+        revision matches its recorded run lfm26-vortex-v2-agentic-20260923-r1.
+
+  # c40-4k@2 scaled to VORTEX v5's 16 prompt groups x 4 generations. Sequence
+  # slots, batched tokens, and KV capacity grow 1.6x with the rollout batch; the
+  # per-reply and context budgets are unchanged. The larger KV reservation is not
+  # yet measured on the RTX PRO 6000 and must pass a one-update probe first.
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c64-4k@1:
+    revision: "1"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.20
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 64
+      max_num_batched_tokens: 65536
+      kv_cache_memory_bytes: 8589934592
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: *policy_sampling_4k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        free_cache_engine is read only by the veRL backend; it is kept so this
+        binding differs from c40-4k@2 only in rollout batch capacity.
 
   inference/k2-horizon-7b-vllm-uno-automationbench-rollout-local-c16-4k@1:
     revision: "1"

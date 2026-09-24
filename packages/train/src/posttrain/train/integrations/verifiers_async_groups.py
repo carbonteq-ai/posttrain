@@ -251,7 +251,10 @@ class VerifiersAsyncGroupProducer:
                 f"async Verifiers group uses {token_count} tokens, exceeding {self._max_group_tokens}"
             )
         shaped_rewards = tuple(
-            shape_online_reward(self._settings, rollout.reward, len(rollout.completion_ids)) for rollout in rollouts
+            shape_online_reward(
+                self._settings, rollout.reward, len(rollout.completion_ids), is_truncated=rollout.is_truncated
+            )
+            for rollout in rollouts
         )
         records = tuple(
             AsyncRolloutRecord(
