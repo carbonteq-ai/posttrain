@@ -585,6 +585,7 @@ environment:
       config:
         taskset:
           id: automationbench-v1
+          domains: [operations, finance]
           task_names:
             - operations.server_capacity_threshold_alerts
             - finance.cash_flow_forecast

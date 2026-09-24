@@ -11,6 +11,7 @@ The earlier VORTEX v3 held-out evaluation treated provider context errors as sco
 - [x] (2026-09-24 07:50Z) Verified both training runs succeeded and expose step-20 model views. V4 reconciliation and cleanup succeeded; its 10 artifacts remain and the RTX PRO 6000 is idle.
 - [x] (2026-09-24 08:05Z) Created isolated `codex/vortex-matched-evals` from the v4 source revision and cherry-picked the two commits of PR #118. The main checkout and dirty Verifiers-environments sibling remain untouched.
 - [x] (2026-09-24 08:18Z) Added candidate held-out v2 and two-task canary selections with the same held-out task inventory, an 8K per-call and 16K episode output allowance, and a 48K context on the RTX PRO. Static work-package validation passed for both.
+- [x] (2026-09-24 08:35Z) First immutable canary build reached offline environment qualification and stopped before publication or submission: the canary selected operations/finance tasks without including those domains in its taskset. Added the two domains and revalidated composition. The exact attempted run ID has no submission record and no provider run.
 - [ ] Add focused catalog tests for identical v1/v2 task identities and distinct output budgets; run targeted and repository boundary checks.
 - [ ] Prove actual-job packaging resolves the Trackio dev25 wheel over the older kind image, and inspect the exact image and source digest. If the kind-image contract forbids this, publish the minimum reviewed kind revision or stop and report that gate; never use the old dev24 runtime.
 - [ ] Measure actual rendered prompt token counts with the selected server tokenizer, verify prompt plus reserved per-call output fits 48K with headroom, and run a two-task canary from the v3 step-20 model on the RTX PRO. Inspect GPU/KV admission, compiled inference, tool calls, per-call provider errors, episode truncation, and complete trace sync. The v2 full run cannot start if the canary fails.
@@ -22,16 +23,18 @@ The earlier VORTEX v3 held-out evaluation treated provider context errors as sco
 - The local main checkout lacks the v4 run's submission record; the submitting worktree at `/home/hammad/.codex/worktrees/vortex-yield-first-release/rl` owns its reconciliation and cleanup receipts. Running `posttrain run reconcile` from the main checkout reports `execution submission is missing`, although the provider run succeeded.
 - The current eval job-kind image is based on Trackio dev24, whereas PR #118 pins dev25. The actual-job Dockerfile installs the hash-locked runtime closure before local framework source. This *may* upgrade Trackio without a public framework release, but no immutable image has yet proved it.
 - `posttrain job plan --explain` reports one recommendation, `TURBOQUANT_AVAILABLE`, not an invalid binding. TurboQuant is deliberately not selected for this matched comparison.
+- The first canary image built its external runtime and local framework source successfully, including the Trackio dev25 package resolution, but offline `Taskset.load` rejected the operations/finance task names because the canary taskset defaulted to the simple domain. This was a canary configuration error, not a provider or GPU failure. No job was submitted.
 
 ## Decision Log
 
 - Decision: evaluate the two step-20 descendants under one new manifest and inference profile; do not compare a new v4 score to the broken old v3 score. Rationale: output/context and transport differences would confound the result. Date/Author: 2026-09-24, Codex.
 - Decision: use a candidate 48K context, 8K per-call output, and 16K episode output, with compiled FA2 and prefix caching. Rationale: the LFM catalog advertises 131K native context, the prior 16K profile left only 4K input headroom, and v4 trained with 8K per call/16K per episode. These are hypotheses until the live tokenizer and RTX PRO tests pass. Date/Author: 2026-09-24, Codex.
 - Decision: retain a two-task canary distinct from the scored 20-task population. Rationale: runtime and transport failures should cost at most two episodes before spending 120 full-eval episodes. Date/Author: 2026-09-24, Codex.
+- Decision: specify `domains: [operations, finance]` in the canary taskset. Rationale: `Taskset.load` enumerates only selected domains before matching names; adding the domains preserves the exact two intended tasks and lets offline qualification catch future inventory drift. Date/Author: 2026-09-24, Codex.
 
 ## Outcomes & Retrospective
 
-Preparation is incomplete. No eval has been submitted, no 48K GPU admission or tokenizer parity has been claimed, and PR #118 remains unmerged at the last check. The original run's errors remain historical evidence, not zero-valued model performance.
+Preparation is incomplete. The first canary build failed its offline task-inventory gate, then the taskset was corrected. No eval has been submitted, no 48K GPU admission or tokenizer parity has been claimed, and PR #118 remains unmerged at the last check. The original run's errors remain historical evidence, not zero-valued model performance.
 
 ## Context and Orientation
 
@@ -70,3 +73,5 @@ The v4 cleanup receipt is `/home/hammad/.codex/worktrees/vortex-yield-first-rele
 Use the existing `EnvironmentBinding`, `InferenceBinding`, and `EvaluationPlan` catalog schemas; do not introduce a new evaluator contract. The work-package `model` seat is replaced by the committed model view from `--model-from-run`, not by an untracked adapter directory. The evaluation source remains immutable Verifiers-environments commit `9bbd3116e6b5a444d6cf103dce18b1866ae32787` unless request-budget repair genuinely requires a new committed source pin. Trackio dev25 is the minimum trace-schema-compatible storage client. The runtime profile uses CarbonTeq vLLM `0.29.1.dev3`, LFM tool renderer `lfm2.5-tools-thinking@2`, FA2, compilation enabled, chunked prefill and prefix caching; the live canary must prove that those features actually activate.
 
 Revision note (2026-09-24): Created after the training run was collected and the first static matched/canary profiles passed; the plan records the remaining immutable-image and live-evaluation gates rather than treating static validation as launch readiness.
+
+Revision note (2026-09-24): Recorded the first failed canary image qualification and narrowed its taskset domains. This was a safe pre-submission failure and does not authorize a full evaluation without a passing live canary.
