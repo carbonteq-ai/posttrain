@@ -1275,7 +1275,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: f434bdf4044407ab0a2d30a1d22d5405ab0204b0542b83b4e0b39ef6d194fc62
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   # g40@1 scaled to 16 prompt groups x 4 generations. Eight environment workers
   # of eight episodes give the 64 concurrent episodes one rollout batch needs.
@@ -1309,7 +1309,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: f434bdf4044407ab0a2d30a1d22d5405ab0204b0542b83b4e0b39ef6d194fc62
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g40@1:
     selection_type: training-binding
