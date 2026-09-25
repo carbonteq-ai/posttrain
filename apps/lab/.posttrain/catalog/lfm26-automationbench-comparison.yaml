@@ -1781,7 +1781,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
+      dependency_lock_sha256: f5897cc37a03f94dceadefc0b31fd49e359a45ab028491a32f65e8e1bafdb11d
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local@1:
     selection_type: training-binding
@@ -1810,7 +1810,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
+      dependency_lock_sha256: f5897cc37a03f94dceadefc0b31fd49e359a45ab028491a32f65e8e1bafdb11d
 
   # g40@1 scaled to 16 prompt groups x 4 generations. Eight environment workers
   # of eight episodes give the 64 concurrent episodes one rollout batch needs.
@@ -1873,7 +1873,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
+      dependency_lock_sha256: f5897cc37a03f94dceadefc0b31fd49e359a45ab028491a32f65e8e1bafdb11d
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g40@1: &k2_horizon_trl_lora_automationbench_local_g40
     selection_type: training-binding
@@ -1902,7 +1902,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
+      dependency_lock_sha256: f5897cc37a03f94dceadefc0b31fd49e359a45ab028491a32f65e8e1bafdb11d
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g16-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1918,7 +1918,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
+      dependency_lock_sha256: f5897cc37a03f94dceadefc0b31fd49e359a45ab028491a32f65e8e1bafdb11d
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g8-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1934,7 +1934,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
+      dependency_lock_sha256: f5897cc37a03f94dceadefc0b31fd49e359a45ab028491a32f65e8e1bafdb11d
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g4-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1950,7 +1950,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
+      dependency_lock_sha256: f5897cc37a03f94dceadefc0b31fd49e359a45ab028491a32f65e8e1bafdb11d
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
     selection_type: training-binding
@@ -1999,7 +1999,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
+      dependency_lock_sha256: f5897cc37a03f94dceadefc0b31fd49e359a45ab028491a32f65e8e1bafdb11d
 
   training/lfm2.5-1.2b-trl-lora-changed-weight-local@1:
     selection_type: training-binding
@@ -2021,7 +2021,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
+      dependency_lock_sha256: f5897cc37a03f94dceadefc0b31fd49e359a45ab028491a32f65e8e1bafdb11d
 
   reward/automationbench-episode-gdpo@1:
     selection_type: reward-projection
@@ -2081,6 +2081,18 @@ inference:
     target: targets/local-cuda-8gb
     purpose: [rollout]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        The keys TRL ignores are kept so this revision matches its recorded runs; they
+        had no effect there; recorded by 1 work package
+        (lfm12_automationbench_changed_weight_local), so it stays unchanged to keep
+        them reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (lfm12_automationbench_changed_weight_local), so it stays unchanged to
+        keep them reproducible; new work takes `posttrain settings suggest` values in a
+        new revision.
 
   inference/lfm2.5-2.6b-vllm-changed-weight-canary@1:
     revision: "1"
@@ -2107,6 +2119,18 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        The keys TRL ignores are kept so this revision matches its recorded runs; they
+        had no effect there; recorded by 1 work package
+        (lfm26_automationbench_changed_weight_canary), so it stays unchanged to keep
+        them reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (lfm26_automationbench_changed_weight_canary), so it stays unchanged to
+        keep them reproducible; new work takes `posttrain settings suggest` values in a
+        new revision.
 
   inference/lfm2.5-2.6b-vllm-automationbench-rollout@1:
     revision: "1"
@@ -2136,6 +2160,26 @@ inference:
     target: targets/runpod-rtx-pro-6000-96gb-secure-ondemand
     purpose: [rollout]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        The keys TRL ignores are kept so this revision matches its recorded runs; they
+        had no effect there; recorded by 4 work packages
+        (lfm26_automationbench_gdpo_episode_50,
+        lfm26_automationbench_gdpo_episode_50_gemma, ...), so it stays unchanged to
+        keep them reproducible; new work takes `posttrain settings suggest` values in a
+        new revision.
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 4 work
+        packages (lfm26_automationbench_gdpo_episode_50,
+        lfm26_automationbench_gdpo_episode_50_gemma, ...), so it stays unchanged to
+        keep them reproducible; new work takes `posttrain settings suggest` values in a
+        new revision.
+      VLLM_HYBRID_CONTINUATION_REUSE_MISSING: >-
+        The pre-fix vLLM backend is the one this revision's runs used; recorded by 4
+        work packages (lfm26_automationbench_gdpo_episode_50,
+        lfm26_automationbench_gdpo_episode_50_gemma, ...), so it stays unchanged to
+        keep them reproducible; new work takes `posttrain settings suggest` values in a
+        new revision.
 
   inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32@1:
     revision: "1"
@@ -2164,6 +2208,25 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        The keys TRL ignores are kept so this revision matches its recorded runs; they
+        had no effect there; recorded by 4 work packages
+        (lfm26_automationbench_grpo_20_local, lfm26_automationbench_olmo3_20_local,
+        ...), so it stays unchanged to keep them reproducible; new work takes
+        `posttrain settings suggest` values in a new revision.
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 4 work
+        packages (lfm26_automationbench_grpo_20_local,
+        lfm26_automationbench_olmo3_20_local, ...), so it stays unchanged to keep them
+        reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
+      VLLM_HYBRID_CONTINUATION_REUSE_MISSING: >-
+        The pre-fix vLLM backend is the one this revision's runs used; recorded by 4
+        work packages (lfm26_automationbench_grpo_20_local,
+        lfm26_automationbench_olmo3_20_local, ...), so it stays unchanged to keep them
+        reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
 
   inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@1:
     revision: "1"
@@ -2190,6 +2253,26 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        The keys TRL ignores are kept so this revision matches its recorded runs; they
+        had no effect there; recorded by 2 work packages
+        (lfm26_automationbench_gdpo_episode_20_deepseek_flash_local,
+        lfm26_automationbench_olmo3_30_local), so it stays unchanged to keep them
+        reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 2 work
+        packages (lfm26_automationbench_gdpo_episode_20_deepseek_flash_local,
+        lfm26_automationbench_olmo3_30_local), so it stays unchanged to keep them
+        reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
+      VLLM_HYBRID_CONTINUATION_REUSE_MISSING: >-
+        The pre-fix vLLM backend is the one this revision's runs used; recorded by 2
+        work packages (lfm26_automationbench_gdpo_episode_20_deepseek_flash_local,
+        lfm26_automationbench_olmo3_30_local), so it stays unchanged to keep them
+        reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
 
   # Posttrain 0.4.4 optimized SM120 rollout profile. CUDA graphs, native FA2,
   # prefix caching and asynchronous continuous batching are enabled; the
@@ -2231,6 +2314,14 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        The keys TRL ignores are kept so this revision matches its recorded runs; they
+        had no effect there; recorded by 2 work packages
+        (lfm26_automationbench_adaptive_grpo_no_oversampling_50_local_v1,
+        lfm26_automationbench_gdpo_episode_50_local_8x4_v1), so it stays unchanged to
+        keep them reproducible; new work takes `posttrain settings suggest` values in a
+        new revision.
 
   inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-4k@1:
     revision: "1"
@@ -2259,6 +2350,23 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        The keys TRL ignores are kept so this revision matches its recorded runs; they
+        had no effect there; recorded by 1 work package
+        (lfm26_automationbench_vortex_20_local_v1), so it stays unchanged to keep them
+        reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (lfm26_automationbench_vortex_20_local_v1), so it stays unchanged to
+        keep them reproducible; new work takes `posttrain settings suggest` values in a
+        new revision.
+      VLLM_HYBRID_CONTINUATION_REUSE_MISSING: >-
+        The pre-fix vLLM backend is the one this revision's runs used; recorded by 1
+        work package (lfm26_automationbench_vortex_20_local_v1), so it stays unchanged
+        to keep them reproducible; new work takes `posttrain settings suggest` values
+        in a new revision.
 
   # The Posttrain 0.4.4 optimized rollout profile (c32-4k@2: CUDA graphs,
   # FA2, prefix caching, async batching) scaled to VORTEX's 40 sequences. KV
@@ -2293,6 +2401,10 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        free_cache_engine is read only by the veRL backend; it is kept so this
+        revision matches its recorded run lfm26-vortex-v2-agentic-20260923-r1.
 
   # Larger output/context budget with more KV headroom. v3 reached 100% of
   # its 5 GiB KV pool; this 9 GiB candidate requires live GPU qualification.
@@ -2324,6 +2436,13 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        The keys TRL ignores are kept so this revision matches its recorded runs; they
+        had no effect there; recorded by 1 work package
+        (lfm26_automationbench_vortex_yield_first_20_local_v4), so it stays unchanged
+        to keep them reproducible; new work takes `posttrain settings suggest` values
+        in a new revision.
 
   # c40-4k@2 scaled to VORTEX v5's 16 prompt groups x 4 generations. Sequence
   # slots, batched tokens, and KV capacity grow 1.6x with the rollout batch; the
@@ -2357,6 +2476,10 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        free_cache_engine is read only by the veRL backend; it is kept so this
+        binding differs from c40-4k@2 only in rollout batch capacity.
 
   inference/k2-horizon-7b-vllm-uno-automationbench-rollout-local-c16-4k@1:
     revision: "1"
@@ -2393,6 +2516,14 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        The keys TRL ignores are kept so this revision matches its recorded runs; they
+        had no effect there; recorded by 2 work packages
+        (k2_horizon_automationbench_vortex_20_uno_local_v1,
+        k2_horizon_automationbench_vortex_uno_one_update_probe_v1), so it stays
+        unchanged to keep them reproducible; new work takes `posttrain settings
+        suggest` values in a new revision.
 
   inference/lfm2.5-2.6b-vllm-automationbench-eval@1:
     revision: "1"
@@ -2443,6 +2574,11 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [eval]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Held-out comparison binding: base, VORTEX v1 and v2 were scored with exactly
+        this engine on 2026-09-23, so later checkpoints must use it unchanged to stay
+        comparable. A tuned successor revision replaces it for new comparisons.
 
   inference/gemma4-12b-vllm-automationbench-judge-mtp2@1:
     revision: "1"
@@ -2471,6 +2607,12 @@ inference:
     sampling: *judge_sampling
     target: targets/runpod-rtx-pro-6000-96gb-secure-ondemand
     purpose: [eval]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (lfm26_automationbench_gdpo_episode_50_gemma), so it stays unchanged to
+        keep them reproducible; new work takes `posttrain settings suggest` values in a
+        new revision.
 
   inference/gemma4-12b-vllm-automationbench-judge-mtp2-local@1:
     revision: "1"

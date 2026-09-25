@@ -76,14 +76,19 @@ def test_hardware_advice_recommends_qualified_accelerations_without_mutating_bin
 
     issues, checks = _configuration_findings({"judge": binding})
 
-    assert {issue.code for issue in issues} == {"MTP_AVAILABLE", "TURBOQUANT_AVAILABLE"}
-    assert all(issue.severity == "recommendation" for issue in issues)
+    severities = {issue.code: issue.severity for issue in issues}
+    assert severities["SPECULATIVE_DECODING_AVAILABLE"] == "warning"
+    assert "google/gemma-4-12B-it-assistant" in next(
+        issue.hint or "" for issue in issues if issue.code == "SPECULATIVE_DECODING_AVAILABLE"
+    )
+    assert severities["TURBOQUANT_AVAILABLE"] == "recommendation"
+    assert severities["BATCH_INVARIANCE_OFF_FOR_EVALUATION"] == "warning"
     assert "speculative_config" not in binding.engine
     assert "kv_cache_dtype" not in binding.engine
     assert checks[0].outcome == "passed"
 
     teacher_issues, _ = _configuration_findings({"teacher": replace(binding, purpose=("teacher-score",))})
-    assert "MTP_AVAILABLE" not in {issue.code for issue in teacher_issues}
+    assert "SPECULATIVE_DECODING_AVAILABLE" not in {issue.code for issue in teacher_issues}
 
 
 def test_job_compiler_rejects_turboquant_with_flash_attention_four() -> None:
@@ -141,7 +146,7 @@ def test_job_compiler_rejects_native_flash_attention_four_on_sm120() -> None:
     issue = next(issue for issue in issues if issue.code == "VLLM_NATIVE_FA4_UNSUPPORTED_ON_SM120")
     assert issue.severity == "error"
     assert issue.path == "rollout_inference.engine.flash_attn_version"
-    assert issue.related_paths == ("rollout_inference.target.hardware.accelerator_model",)
+    assert issue.related_paths == ("rollout_inference.target_id",)
     assert "RTXPRO6000" in issue.message
 
 

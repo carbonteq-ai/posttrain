@@ -163,6 +163,12 @@ inference:
       temperature: 0.0
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [screen, smoke]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (gemma4_e2b_serve_smoke_qualification), so it stays unchanged to keep
+        them reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
   inference/gemma4-e4b-it-vllm-screen@1:
     revision: "1"
     startup_timeout_seconds: 900
@@ -189,6 +195,12 @@ inference:
       temperature: 0.0
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [screen, smoke]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (gemma4_e4b_serve_smoke_qualification), so it stays unchanged to keep
+        them reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
   inference/gemma4-12b-it-vllm-screen@1:
     revision: "1"
     startup_timeout_seconds: 900
@@ -215,6 +227,12 @@ inference:
       temperature: 0.0
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [screen, smoke]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (gemma4_unified_serve_smoke_qualification), so it stays unchanged to
+        keep them reproducible; new work takes `posttrain settings suggest` values in a
+        new revision.
   inference/gemma4-31b-it-vllm-screen@1:
     revision: "1"
     startup_timeout_seconds: 1200
@@ -241,6 +259,12 @@ inference:
       temperature: 0.0
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [screen, smoke]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (gemma4_31b_serve_smoke_qualification), so it stays unchanged to keep
+        them reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
   inference/gemma4-12b-it-vllm-eval@1:
     revision: "1"
     startup_timeout_seconds: 900
@@ -361,3 +385,9 @@ inference:
       top_p: 1.0
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (gemma4_unified_grpo_mtp_qualification), so it stays unchanged to keep
+        them reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.

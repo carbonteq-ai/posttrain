@@ -27,7 +27,7 @@ bindings:
   evaluation_inference:
     type: ref
     family: inference
-    id: inference/qwen3.5-2b-vllm-eval@2
+    id: inference/qwen3.5-2b-vllm-eval@3
   target:
     type: ref
     family: target

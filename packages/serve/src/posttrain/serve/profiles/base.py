@@ -124,8 +124,12 @@ class VllmEngineConfig:
     flash_attn_version: int | None = None
     attention_backend_priority: tuple[str, ...] = ()
     speculative: VllmSpeculativeConfig | None = None
+    batch_invariant: bool = False
+    """Make each request's output independent of its batch (``VLLM_BATCH_INVARIANT=1``)."""
 
     def __post_init__(self) -> None:
+        if not isinstance(self.batch_invariant, bool):
+            raise ValueError("batch_invariant must be a boolean")
         if isinstance(self.max_model_len, bool) or not isinstance(self.max_model_len, int) or self.max_model_len < 1:
             raise ValueError("max_model_len must be positive")
         if (
@@ -167,6 +171,11 @@ class VllmEngineConfig:
             for backend in self.attention_backend_priority
         ):
             raise ValueError("attention_backend_priority entries must be non-empty uppercase backend names")
+
+    def environment(self) -> dict[str, str]:
+        """Process environment the engine needs; vLLM reads batch invariance only from it."""
+
+        return {"VLLM_BATCH_INVARIANT": "1"} if self.batch_invariant else {}
 
     def as_vllm_kwargs(self) -> dict[str, object]:
         values: dict[str, object] = {

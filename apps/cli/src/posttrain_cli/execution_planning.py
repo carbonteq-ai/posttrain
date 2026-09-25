@@ -110,6 +110,7 @@ _EMPTY_LAUNCH_OVERRIDES = LaunchOverrides()
 _PACKAGE_KEY = re.compile(r"^[0-9a-f]{64}$")
 _FRAMEWORK_INSTALL_ROOTS = (
     "apps/runtime",
+    "packages/advisor",
     "packages/catalog",
     "packages/common",
     "packages/data",

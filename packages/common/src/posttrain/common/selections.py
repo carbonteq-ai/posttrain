@@ -32,6 +32,9 @@ def validate_revision(value: str, field_name: str = "revision") -> str:
     return value
 
 
+_FINDING_CODE = re.compile(r"[A-Z][A-Z0-9_]+")
+
+
 def immutable_json_mapping(value: JsonMapping) -> JsonMapping:
     return MappingProxyType(dict(value))
 
@@ -134,6 +137,11 @@ class InferenceBinding:
     capabilities: tuple[str, ...] = ()
     startup_timeout_seconds: float = 180.0
     reasoning_mode: str | None = None
+    performance_acknowledgements: Mapping[str, str] = field(default_factory=dict)
+    """Configuration findings this binding deliberately accepts, keyed by finding
+    code with the reason. The rules (``posttrain.advisor``) report an acknowledged
+    error or warning as information carrying the reason, so the trade-off stays
+    visible in every plan and in Observatory."""
 
     def __post_init__(self) -> None:
         validate_selection_id(self.id, "inference binding id")
@@ -168,8 +176,16 @@ class InferenceBinding:
             raise ContractError("inference sampling max_tokens must be a positive integer when declared")
         if isinstance(context_window, int) and isinstance(max_tokens, int) and max_tokens > context_window:
             raise ContractError("inference sampling max_tokens cannot exceed inference max_model_len")
+        for code, reason in self.performance_acknowledgements.items():
+            if not _FINDING_CODE.fullmatch(code):
+                raise ContractError(f"performance acknowledgement {code!r} must be an upper-case finding code")
+            if not isinstance(reason, str) or not reason.strip():
+                raise ContractError(f"performance acknowledgement {code!r} needs a reason")
         object.__setattr__(self, "engine", immutable_json_mapping(self.engine))
         object.__setattr__(self, "sampling", immutable_json_mapping(self.sampling))
+        object.__setattr__(
+            self, "performance_acknowledgements", MappingProxyType(dict(self.performance_acknowledgements))
+        )
 
     @property
     def resolved_reasoning_mode(self) -> str:

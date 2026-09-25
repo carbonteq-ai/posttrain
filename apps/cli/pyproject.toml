@@ -6,6 +6,7 @@ authors = [{ name = "CarbonTeq" }]
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+    "posttrain-advisor",
     "posttrain-catalog",
     "posttrain-data",
     "posttrain-execution",
@@ -50,6 +51,7 @@ vllm = [
 posttrain = "posttrain_cli.cli:main"
 
 [tool.uv.sources]
+posttrain-advisor = { workspace = true }
 posttrain-catalog = { workspace = true }
 posttrain-data = { workspace = true }
 posttrain-execution = { workspace = true }

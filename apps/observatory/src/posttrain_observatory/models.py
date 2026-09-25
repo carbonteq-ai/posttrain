@@ -257,6 +257,105 @@ class ExecutionTargetContext(ObservatoryModel):
 type FindingSeverity = Literal["error", "warning", "recommendation", "info"]
 
 
+class ConfigurationFinding(ObservatoryModel):
+    """One configuration finding, located against the run's recorded selections."""
+
+    code: str = Field(min_length=1)
+    severity: FindingSeverity
+    source: Literal["rule", "calculator"]
+    role: str = Field(min_length=1)
+    path: str = Field(min_length=1)
+    """Dotted path into the recorded selections: ``<role>.<field>...`` under the role's resolved values."""
+    value: JsonPayload = None
+    """The recorded value at ``path``; ``None`` when the run did not record it."""
+    message: str = Field(min_length=1)
+    hint: str | None = None
+    related_paths: StringTuple = ()
+
+
+class RecommendedSetting(ObservatoryModel):
+    key: str = Field(min_length=1)
+    suggested: JsonPayload = None
+    current: JsonPayload = None
+    changed: bool | None = None
+    reason: str = ""
+
+
+class StepOptionView(ObservatoryModel):
+    label: str = Field(min_length=1)
+    prompts_per_step: int = Field(ge=0)
+    oversample_groups: int = Field(ge=0)
+    rows: int = Field(ge=0)
+    waves: int = Field(ge=0)
+    relative_step_time: float
+    relative_rows_per_second: float
+    estimated_rollout_seconds: float | None = None
+    """Rollout seconds per step: decoding scales with the decode-bound estimate; tool calls, prefill and
+    waiting for the slowest episode repeat per wave but do not grow with parallel episodes."""
+    estimated_step_seconds: float | None = None
+    """Estimated rollout time plus the measured non-rollout time scaled by rows."""
+    estimated_relative_rows_per_second: float | None = None
+    """Rows per second of the whole step, relative to this run's measured step."""
+
+
+class StepCapacityView(ObservatoryModel):
+    step_sequences: int = Field(ge=0)
+    fits: int = Field(ge=0)
+    useful: int = Field(ge=0)
+    waves: int = Field(ge=0)
+    margin_sequences: int = Field(ge=0)
+    oversample_groups: int = Field(ge=0)
+    extra_prompts_per_step: int = Field(ge=0)
+    recommended_prompts_per_step: int = Field(ge=0)
+    recommended_in_flight: int = Field(ge=0)
+    reason: str
+    options: tuple[StepOptionView, ...] = ()
+
+
+class SettingsRecommendation(ObservatoryModel):
+    """The settings calculator's answer for one inference seat of the run."""
+
+    role: str = Field(min_length=1)
+    state: Literal["available", "unavailable"]
+    unavailable_reason: str | None = None
+    binding_id: str | None = None
+    model: str | None = None
+    hardware: dict[str, JsonPayload] = Field(default_factory=dict)
+    task: dict[str, JsonPayload] = Field(default_factory=dict)
+    settings: tuple[RecommendedSetting, ...] = ()
+    environment: dict[str, str] = Field(default_factory=dict)
+    memory_gb: dict[str, float] = Field(default_factory=dict)
+    max_concurrency: int | None = None
+    decode_tokens_per_s_upper_bound: float | None = None
+    notes: StringTuple = ()
+    step: StepCapacityView | None = None
+
+
+class StepCalibration(ObservatoryModel):
+    """This run's measured per-step times, used to turn relative step times into seconds."""
+
+    rollout_seconds: float = Field(gt=0)
+    """Mean seconds per rollout round (active sampling runs several rounds per step)."""
+    rounds_per_step: float = Field(default=1.0, ge=1)
+    step_seconds: float | None = Field(default=None, gt=0)
+    completion_tokens: float | None = Field(default=None, gt=0)
+    """Mean generated tokens per sequence, used to split a round into decoding and waiting."""
+    steps: int = Field(ge=1)
+
+
+class ConfigurationReview(ObservatoryModel):
+    """Configuration rules and settings-calculator advice computed from the run's recorded selections.
+
+    Observatory computes the review itself, so it covers every run, including
+    runs recorded before the rules existed.
+    """
+
+    findings: tuple[ConfigurationFinding, ...] = ()
+    recommendations: tuple[SettingsRecommendation, ...] = ()
+    calculator: Literal["available", "disabled"] = "available"
+    calibration: StepCalibration | None = None
+
+
 class RunView(ObservatoryModel):
     """Registered metric-job projection. Kept as the stable Python name."""
 
@@ -273,6 +372,7 @@ class RunView(ObservatoryModel):
     artifacts: ArtifactSet
     execution_targets: tuple[ExecutionTargetContext, ...] = ()
     resolved_inputs: dict[str, JsonPayload] = Field(default_factory=dict)
+    configuration: ConfigurationReview | None = None
     source_metadata: dict[str, JsonPayload] = Field(default_factory=dict)
     trace_count: int = Field(ge=0)
     trace_evaluation_enabled: bool
@@ -290,6 +390,7 @@ class GenericRunView(ObservatoryModel):
     artifacts: ArtifactSet
     execution_targets: tuple[ExecutionTargetContext, ...] = ()
     resolved_inputs: dict[str, JsonPayload]
+    configuration: ConfigurationReview | None = None
     source_metadata: dict[str, JsonPayload]
     trace_count: int = Field(ge=0)
     trace_evaluation_enabled: bool
@@ -399,6 +500,7 @@ class ServingBenchmarkRunView(ObservatoryModel):
     artifacts: ArtifactSet
     execution_targets: tuple[ExecutionTargetContext, ...] = ()
     resolved_inputs: dict[str, JsonPayload] = Field(default_factory=dict)
+    configuration: ConfigurationReview | None = None
     source_metadata: dict[str, JsonPayload] = Field(default_factory=dict)
     trace_count: int = Field(ge=0)
     trace_evaluation_enabled: bool = False
@@ -1091,6 +1193,7 @@ class EvaluationRunView(ObservatoryModel):
     artifacts: ArtifactSet
     execution_targets: tuple[ExecutionTargetContext, ...] = ()
     resolved_inputs: dict[str, JsonPayload] = Field(default_factory=dict)
+    configuration: ConfigurationReview | None = None
     source_metadata: dict[str, JsonPayload] = Field(default_factory=dict)
     trace_evaluation_enabled: bool = True
     capabilities: TrackingCapabilities

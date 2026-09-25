@@ -24,6 +24,7 @@ from .commands import (
     purge_cmd,
     run_cmd,
     runtime,
+    settings,
     state,
     version,
     work_package,
@@ -104,6 +105,7 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
     project_cmd.register(app)
     purge_cmd.register(app)
     catalog.register(app)
+    settings.register(app)
     cache.register(app)
     dataset.register(app)
     environment.register(app)

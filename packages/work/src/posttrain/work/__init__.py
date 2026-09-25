@@ -57,6 +57,7 @@ from .runner import (
     run_work_package,
     run_work_package_job,
     validate_work_package,
+    work_package_findings,
 )
 from .validation import JobValidationReport, ValidationCheck
 
@@ -118,4 +119,5 @@ __all__ = [
     "run_work_package",
     "run_work_package_job",
     "validate_work_package",
+    "work_package_findings",
 ]

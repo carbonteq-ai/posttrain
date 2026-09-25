@@ -3,6 +3,8 @@
 !apps/runtime/
 !apps/runtime/**
 !packages/
+!packages/advisor/
+!packages/advisor/**
 !packages/common/
 !packages/common/**
 !packages/data/

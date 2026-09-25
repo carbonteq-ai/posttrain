@@ -43,6 +43,7 @@ testpaths = [
     "apps/observatory/tests",
     "apps/release/tests",
     "apps/runtime/tests",
+    "packages/advisor/tests",
     "packages/catalog/tests",
     "packages/common/tests",
     "packages/data/tests",
@@ -119,6 +120,12 @@ name = "New common contracts do not import execution frameworks"
 type = "forbidden"
 source_modules = ["posttrain.common"]
 forbidden_modules = ["trackio", "trl", "verifiers", "vllm"]
+
+[[tool.importlinter.contracts]]
+name = "The settings advisor reads recorded selections, not capability packages"
+type = "forbidden"
+source_modules = ["posttrain.advisor"]
+forbidden_modules = ["posttrain.eval", "posttrain.serve", "posttrain.train", "posttrain.work", "trackio", "trl", "verifiers", "vllm"]
 
 [[tool.importlinter.contracts]]
 name = "Canonical data contracts do not import execution frameworks"

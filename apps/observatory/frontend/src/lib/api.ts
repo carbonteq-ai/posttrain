@@ -587,6 +587,13 @@ export type MetricSeriesSet = {
 };
 
 type Schemas = components['schemas'];
+export type ConfigurationReview = Schemas['ConfigurationReview'];
+export type ConfigurationFinding = Schemas['ConfigurationFinding'];
+export type SettingsRecommendation = Schemas['SettingsRecommendation'];
+export type RecommendedSetting = Schemas['RecommendedSetting'];
+export type StepCapacityView = Schemas['StepCapacityView'];
+export type StepOptionView = Schemas['StepOptionView'];
+export type StepCalibration = Schemas['StepCalibration'];
 
 export type RunView = {
   requested_mode: 'auto' | 'job' | 'generic';
@@ -679,6 +686,7 @@ export type RunView = {
     artifacts: { items: Artifact[] };
     execution_targets?: ExecutionTargetContext[];
     resolved_inputs?: Record<string, unknown>;
+    configuration?: ConfigurationReview | null;
     source_metadata?: Record<string, unknown>;
     events?: Array<{ name: string; occurred_at: string; attributes: Record<string, unknown> }>;
     trace_count?: number;

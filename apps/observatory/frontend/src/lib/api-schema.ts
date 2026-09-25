@@ -582,6 +582,57 @@ export interface components {
             run_keys: string[];
         };
         /**
+         * ConfigurationFinding
+         * @description One configuration finding, located against the run's recorded selections.
+         */
+        ConfigurationFinding: {
+            /** Code */
+            code: string;
+            /** Hint */
+            hint?: string | null;
+            /** Message */
+            message: string;
+            /** Path */
+            path: string;
+            /** @default [] */
+            related_paths: components["schemas"]["StringTuple"];
+            /** Role */
+            role: string;
+            severity: components["schemas"]["FindingSeverity"];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "rule" | "calculator";
+            value?: components["schemas"]["JsonPayload"];
+        };
+        /**
+         * ConfigurationReview
+         * @description Configuration rules and settings-calculator advice computed from the run's recorded selections.
+         *
+         *     Observatory computes the review itself, so it covers every run, including
+         *     runs recorded before the rules existed.
+         */
+        ConfigurationReview: {
+            /**
+             * Calculator
+             * @default available
+             * @enum {string}
+             */
+            calculator: "available" | "disabled";
+            calibration?: components["schemas"]["StepCalibration"] | null;
+            /**
+             * Findings
+             * @default []
+             */
+            findings: components["schemas"]["ConfigurationFinding"][];
+            /**
+             * Recommendations
+             * @default []
+             */
+            recommendations: components["schemas"]["SettingsRecommendation"][];
+        };
+        /**
          * EvaluationBreakdown
          * @description One declared compound report with structured groups.
          */
@@ -946,6 +997,7 @@ export interface components {
             /** Comparison Key */
             comparison_key: string;
             completeness: components["schemas"]["EvidenceCompleteness"];
+            configuration?: components["schemas"]["ConfigurationReview"] | null;
             evaluation: components["schemas"]["TraceEvaluationView"];
             /**
              * Execution Targets
@@ -1179,6 +1231,8 @@ export interface components {
             /** Work Package Id */
             work_package_id?: string | null;
         };
+        /** @enum {string} */
+        FindingSeverity: "error" | "warning" | "recommendation" | "info";
         /** GRPOAccelerationEvidence */
         GRPOAccelerationEvidence: {
             accepted_speculative_length: components["schemas"]["SummaryValue"];
@@ -1264,6 +1318,7 @@ export interface components {
         GenericRunView: {
             artifacts: components["schemas"]["ArtifactSet"];
             capabilities: components["schemas"]["TrackingCapabilities"];
+            configuration?: components["schemas"]["ConfigurationReview"] | null;
             /** Events */
             events: components["schemas"]["EventRecord"][];
             /**
@@ -1453,6 +1508,20 @@ export interface components {
              */
             state: "complete" | "partial" | "unavailable";
         };
+        /** RecommendedSetting */
+        RecommendedSetting: {
+            /** Changed */
+            changed?: boolean | null;
+            current?: components["schemas"]["JsonPayload"];
+            /** Key */
+            key: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            suggested?: components["schemas"]["JsonPayload"];
+        };
         /**
          * RolloutBehaviorPoint
          * @description Trace-derived rollout averages for one optimizer step.
@@ -1612,6 +1681,7 @@ export interface components {
             /** Charts */
             charts: components["schemas"]["ChartView"][];
             completeness: components["schemas"]["EvidenceCompleteness"];
+            configuration?: components["schemas"]["ConfigurationReview"] | null;
             /**
              * Execution Targets
              * @default []
@@ -1713,6 +1783,7 @@ export interface components {
             alerts: components["schemas"]["RunAlert"][];
             artifacts: components["schemas"]["ArtifactSet"];
             capabilities: components["schemas"]["TrackingCapabilities"];
+            configuration?: components["schemas"]["ConfigurationReview"] | null;
             eligibility: components["schemas"]["ServingEligibility"];
             /** Execution Target Id */
             execution_target_id?: string | null;
@@ -1868,6 +1939,53 @@ export interface components {
             /** Unit */
             unit: string;
         };
+        /**
+         * SettingsRecommendation
+         * @description The settings calculator's answer for one inference seat of the run.
+         */
+        SettingsRecommendation: {
+            /** Binding Id */
+            binding_id?: string | null;
+            /** Decode Tokens Per S Upper Bound */
+            decode_tokens_per_s_upper_bound?: number | null;
+            /** Environment */
+            environment?: {
+                [key: string]: string;
+            };
+            /** Hardware */
+            hardware?: {
+                [key: string]: components["schemas"]["JsonPayload"];
+            };
+            /** Max Concurrency */
+            max_concurrency?: number | null;
+            /** Memory Gb */
+            memory_gb?: {
+                [key: string]: number;
+            };
+            /** Model */
+            model?: string | null;
+            /** @default [] */
+            notes: components["schemas"]["StringTuple"];
+            /** Role */
+            role: string;
+            /**
+             * Settings
+             * @default []
+             */
+            settings: components["schemas"]["RecommendedSetting"][];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "unavailable";
+            step?: components["schemas"]["StepCapacityView"] | null;
+            /** Task */
+            task?: {
+                [key: string]: components["schemas"]["JsonPayload"];
+            };
+            /** Unavailable Reason */
+            unavailable_reason?: string | null;
+        };
         /** SourceRefreshStatus */
         SourceRefreshStatus: {
             /** @default [] */
@@ -1888,6 +2006,76 @@ export interface components {
         };
         /** @enum {string} */
         Stage: "screen" | "train" | "qualify";
+        /**
+         * StepCalibration
+         * @description This run's measured per-step times, used to turn relative step times into seconds.
+         */
+        StepCalibration: {
+            /** Completion Tokens */
+            completion_tokens?: number | null;
+            /** Rollout Seconds */
+            rollout_seconds: number;
+            /**
+             * Rounds Per Step
+             * @default 1
+             */
+            rounds_per_step: number;
+            /** Step Seconds */
+            step_seconds?: number | null;
+            /** Steps */
+            steps: number;
+        };
+        /** StepCapacityView */
+        StepCapacityView: {
+            /** Extra Prompts Per Step */
+            extra_prompts_per_step: number;
+            /** Fits */
+            fits: number;
+            /** Margin Sequences */
+            margin_sequences: number;
+            /**
+             * Options
+             * @default []
+             */
+            options: components["schemas"]["StepOptionView"][];
+            /** Oversample Groups */
+            oversample_groups: number;
+            /** Reason */
+            reason: string;
+            /** Recommended In Flight */
+            recommended_in_flight: number;
+            /** Recommended Prompts Per Step */
+            recommended_prompts_per_step: number;
+            /** Step Sequences */
+            step_sequences: number;
+            /** Useful */
+            useful: number;
+            /** Waves */
+            waves: number;
+        };
+        /** StepOptionView */
+        StepOptionView: {
+            /** Estimated Relative Rows Per Second */
+            estimated_relative_rows_per_second?: number | null;
+            /** Estimated Rollout Seconds */
+            estimated_rollout_seconds?: number | null;
+            /** Estimated Step Seconds */
+            estimated_step_seconds?: number | null;
+            /** Label */
+            label: string;
+            /** Oversample Groups */
+            oversample_groups: number;
+            /** Prompts Per Step */
+            prompts_per_step: number;
+            /** Relative Rows Per Second */
+            relative_rows_per_second: number;
+            /** Relative Step Time */
+            relative_step_time: number;
+            /** Rows */
+            rows: number;
+            /** Waves */
+            waves: number;
+        };
         /** StoredArtifact */
         StoredArtifact: {
             /** Digest */

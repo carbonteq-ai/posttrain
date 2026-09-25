@@ -15,6 +15,7 @@ resolution-markers = [
 [manifest]
 members = [
     "posttrain",
+    "posttrain-advisor",
     "posttrain-catalog",
     "posttrain-common",
     "posttrain-data",
@@ -2624,6 +2625,7 @@ name = "posttrain"
 version = "0.0.0"
 source = { editable = "apps/cli" }
 dependencies = [
+    { name = "posttrain-advisor" },
     { name = "posttrain-catalog" },
     { name = "posttrain-data" },
     { name = "posttrain-environment" },
@@ -2666,6 +2668,7 @@ wandb = [
 
 [package.metadata]
 requires-dist = [
+    { name = "posttrain-advisor", editable = "packages/advisor" },
     { name = "posttrain-catalog", editable = "packages/catalog" },
     { name = "posttrain-data", editable = "packages/data" },
     { name = "posttrain-environment", editable = "packages/environment" },
@@ -2690,6 +2693,21 @@ requires-dist = [
     { name = "typer", specifier = ">=0.25.1" },
 ]
 provides-extras = ["observatory", "trackio", "wandb", "dstack", "trl", "verifiers", "vllm"]
+
+[[package]]
+name = "posttrain-advisor"
+version = "0.0.0"
+source = { editable = "packages/advisor" }
+dependencies = [
+    { name = "httpx" },
+    { name = "posttrain-common" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "posttrain-common", editable = "packages/common" },
+]
 
 [[package]]
 name = "posttrain-catalog"
@@ -3016,6 +3034,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "mcp" },
+    { name = "posttrain-advisor" },
     { name = "posttrain-common" },
     { name = "posttrain-tracking" },
     { name = "posttrain-tracking-trackio" },
@@ -3029,6 +3048,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.136.3,<0.137" },
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "mcp", specifier = ">=2,<3" },
+    { name = "posttrain-advisor", editable = "packages/advisor" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-tracking", editable = "packages/tracking" },
     { name = "posttrain-tracking-trackio", editable = "packages/tracking-trackio" },
@@ -3295,6 +3315,7 @@ name = "posttrain-work"
 version = "0.0.0"
 source = { editable = "packages/work" }
 dependencies = [
+    { name = "posttrain-advisor" },
     { name = "posttrain-common" },
     { name = "posttrain-data" },
     { name = "posttrain-environment" },
@@ -3307,6 +3328,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "posttrain-advisor", editable = "packages/advisor" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-data", editable = "packages/data" },
     { name = "posttrain-environment", editable = "packages/environment" },

@@ -126,6 +126,7 @@ def starter_pyproject(project_id: str, template: str) -> str:
         local_sources = {
             "posttrain": "apps/cli",
             "posttrain-observatory": "apps/observatory",
+            "posttrain-advisor": "packages/advisor",
             "posttrain-catalog": "packages/catalog",
             "posttrain-common": "packages/common",
             "posttrain-data": "packages/data",
@@ -273,7 +274,7 @@ def starter_work_package(project_id: str, template: str) -> str:
             "  rollout_inference:",
             "    type: ref",
             "    family: inference",
-            "    id: inference/qwen3.5-0.8b-vllm-distill-rollout@1",
+            "    id: inference/qwen3.5-0.8b-vllm-distill-rollout@4",
             "enabled_optional_jobs: []",
             "metadata:",
             "  labels: [starter, grpo, verifiers]",

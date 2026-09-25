@@ -10,6 +10,7 @@ dependencies = [
     "posttrain-data",
     "posttrain-environment",
     "posttrain-eval",
+    "posttrain-advisor",
     "posttrain-tracking",
     "posttrain-train",
     "pydantic>=2.12,<3",
@@ -20,6 +21,7 @@ dependencies = [
 package = true
 
 [tool.uv.sources]
+posttrain-advisor = { workspace = true }
 posttrain-common = { workspace = true }
 posttrain-data = { workspace = true }
 posttrain-environment = { workspace = true }

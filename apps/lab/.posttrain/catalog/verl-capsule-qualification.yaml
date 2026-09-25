@@ -548,6 +548,17 @@ inference:
       top_p: 1.0
     target: targets/carbonteq-cuda-24gb-plus
     purpose: [rollout]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 5 work
+        packages (gsm8k_verl_dapo_2_qualification, gsm8k_verl_distill_2_qualification,
+        ...), so it stays unchanged to keep them reproducible; new work selects
+        inference/qwen3.5-0.8b-vllm-distill-rollout@4.
+      VLLM_HYBRID_CONTINUATION_REUSE_MISSING: >-
+        The pre-fix vLLM backend is the one this revision's runs used; recorded by 5
+        work packages (gsm8k_verl_dapo_2_qualification,
+        gsm8k_verl_distill_2_qualification, ...), so it stays unchanged to keep them
+        reproducible; new work selects inference/qwen3.5-0.8b-vllm-distill-rollout@4.
 
   inference/qwen3.5-0.8b-vllm-verl-sampling-contract-canary@1:
     revision: "1"
@@ -575,6 +586,17 @@ inference:
       presence_penalty: 1.5
     target: targets/carbonteq-cuda-24gb-plus
     purpose: [rollout]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (qwen08b_verl_sampling_contract_canary), so it stays unchanged to keep
+        them reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
+      VLLM_HYBRID_CONTINUATION_REUSE_MISSING: >-
+        The pre-fix vLLM backend is the one this revision's runs used; recorded by 1
+        work package (qwen08b_verl_sampling_contract_canary), so it stays unchanged to
+        keep them reproducible; new work takes `posttrain settings suggest` values in a
+        new revision.
 
   inference/qwen3.5-2b-transformers-teacher-score@2:
     revision: "2"
@@ -679,6 +701,13 @@ inference:
       top_p: 1.0
     target: targets/carbonteq-cuda-24gb-plus
     purpose: [rollout]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 2 work
+        packages (gsm8k_verl_dapo_2_mtp_qualification,
+        qwen08b_verl_sampo_2_mtp_qualification), so it stays unchanged to keep them
+        reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
 
   inference/qwen3.5-0.8b-vllm-verl-turboquant-rollout@1:
     revision: "1"
@@ -708,6 +737,13 @@ inference:
       top_p: 1.0
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 2 work
+        packages (gsm8k_verl_dapo_2_turboquant_qualification,
+        qwen08b_verl_sampo_2_turboquant_qualification), so it stays unchanged to keep
+        them reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.
 
   inference/qwen3.5-0.8b-vllm-verl-mtp-turboquant-rollout@1:
     revision: "1"
@@ -740,3 +776,10 @@ inference:
       top_p: 1.0
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 2 work
+        packages (gsm8k_verl_dapo_2_mtp_turboquant_qualification,
+        qwen08b_verl_sampo_2_mtp_turboquant_qualification), so it stays unchanged to
+        keep them reproducible; new work takes `posttrain settings suggest` values in a
+        new revision.

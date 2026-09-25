@@ -10,10 +10,10 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from posttrain.common import ContractError, HostedInferenceBinding
+from posttrain.common import ConfigurationIssue, ContractError, HostedInferenceBinding
 from posttrain.execution import ProjectControlLocator, compare_job_packages, unchanged_fields
 from posttrain.project import JobIntent, Project
-from posttrain.work import resolve_work_package, run_work_package_job, validate_work_package
+from posttrain.work import resolve_work_package, run_work_package_job, work_package_findings
 
 from ..context import CliState
 from ..execution_config import (
@@ -90,6 +90,32 @@ def _select_checkpoint_output(
     return candidates[0]
 
 
+_SEVERITY_ORDER = {"error": 0, "warning": 1, "recommendation": 2, "info": 3}
+
+
+def finding_lines(issues: tuple[ConfigurationIssue, ...] | list[ConfigurationIssue], *, prefix: str = "") -> list[str]:
+    """Render configuration findings for terminal output, most severe first."""
+
+    lines: list[str] = []
+    for issue in sorted(issues, key=lambda item: (_SEVERITY_ORDER.get(item.severity, 9), item.code)):
+        lines.append(f"{prefix}{issue.severity.upper()} {issue.code} at {issue.path}: {issue.message}")
+        if issue.hint:
+            lines.append(f"{prefix}  hint: {issue.hint}")
+    return lines
+
+
+def enforce_strict_findings(issues: tuple[ConfigurationIssue, ...] | list[ConfigurationIssue]) -> None:
+    """Fail when --strict is set and any warning is not acknowledged."""
+
+    warnings = sorted({issue.code for issue in issues if issue.severity == "warning"})
+    if warnings:
+        raise ContractError(
+            "strict mode rejects unacknowledged configuration warnings: "
+            + ", ".join(warnings)
+            + "; fix the setting or acknowledge it in the binding's performance_acknowledgements"
+        )
+
+
 def _select_curriculum_output(links: tuple[object, ...], *, source_run_id: str, step: int | None) -> object:
     """Pick one adaptive-curriculum controller state: the run's final state, or its state at `step`.
 
@@ -130,6 +156,7 @@ def validate_work_package_cmd(
     *,
     host: str | None = None,
     entry: str | None = None,
+    strict: bool = False,
 ) -> None:
     layout, catalog, resolved_path, package = load_work_package_bundle(state, path)
     resolved = resolve_work_package(catalog, package)
@@ -143,7 +170,8 @@ def validate_work_package_cmd(
             entry=entry,
             activate=False,
         )
-        validate_work_package(context, package)
+        findings = work_package_findings(context, package)
+    all_issues = [issue for issues in findings.values() for issue in issues]
     validation_level = "host" if host is not None else "project"
     composition_validation = "complete"
     payload = {
@@ -165,16 +193,23 @@ def validate_work_package_cmd(
         ],
         "validation_level": validation_level,
         "composition_validation": composition_validation,
+        "findings": {job_id: [issue.as_dict() for issue in issues] for job_id, issues in findings.items()},
     }
-    emit(
-        state,
-        payload,
-        (
-            f"Work package composition valid: {package.work_package_id} "
-            f"({len(resolved.seats)} resolved seats, {len(resolved.recipe.jobs)} jobs)\n"
-            f"Static composition validation: {composition_validation}"
-        ),
-    )
+    lines = [
+        f"Work package composition valid: {package.work_package_id} "
+        f"({len(resolved.seats)} resolved seats, {len(resolved.recipe.jobs)} jobs)",
+        f"Static composition validation: {composition_validation}",
+    ]
+    for job_id, issues in findings.items():
+        if issues:
+            lines.append(f"Job {job_id} configuration findings:")
+            lines.extend(finding_lines(issues, prefix="  "))
+    errors = sorted({issue.code for issue in all_issues if issue.severity == "error"})
+    emit(state, payload, "\n".join(lines))
+    if errors:
+        raise ContractError(f"invalid model configuration: {', '.join(errors)}")
+    if strict:
+        enforce_strict_findings(all_issues)
 
 
 def plan_work_package_cmd(
@@ -192,6 +227,7 @@ def plan_work_package_cmd(
     builder: str | None = None,
     explain: bool = False,
     skip_preflight: bool = False,
+    strict: bool = False,
 ) -> JobIntent:
     """Render job meaning, with optional metadata-only builder selection."""
 
@@ -240,6 +276,13 @@ def plan_work_package_cmd(
         }
         endpoint = f" at {selected.endpoint}" if selected.endpoint is not None else ""
         lines.append(f"Developer job builder: {selected.mode} ({selected.source}){endpoint}")
+    issues = intent.prepared.validation.issues
+    if issues:
+        # Findings are always shown: a warning hidden behind --explain is a
+        # performance regression nobody sees.
+        payload["findings"] = [issue.as_dict() for issue in issues]
+        lines.append("Configuration findings:")
+        lines.extend(finding_lines(issues, prefix="  "))
     if explain:
         payload["validation"] = intent.prepared.validation.as_dict()
         lines.extend(
@@ -255,6 +298,8 @@ def plan_work_package_cmd(
         payload,
         "\n".join(lines),
     )
+    if strict:
+        enforce_strict_findings(issues)
     return intent
 
 
@@ -818,9 +863,13 @@ def register(app: typer.Typer) -> None:
                 help="override the optional project entry for this invocation",
             ),
         ] = None,
+        strict: Annotated[
+            bool,
+            typer.Option("--strict", help="fail on configuration warnings that no binding acknowledges"),
+        ] = False,
     ) -> None:
         state: CliState = ctx.obj
-        validate_work_package_cmd(state, path, host=host, entry=entry)
+        validate_work_package_cmd(state, path, host=host, entry=entry, strict=strict)
 
     @work_package_app.command(
         "plan",

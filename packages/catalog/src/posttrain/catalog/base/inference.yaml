@@ -112,6 +112,18 @@ inference:
     target: targets/local-cuda-rollout-8gb
     purpose: [rollout]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      TRL_ROLLOUT_ENGINE_KEYS_IGNORED: >-
+        The keys TRL ignores are kept so this revision matches its recorded runs; they
+        had no effect there; recorded by 2 work packages
+        (automationbench_sampo_qualification, automationbench_zapier_grpo), so it stays
+        unchanged to keep them reproducible; new work takes `posttrain settings
+        suggest` values in a new revision.
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 2 work
+        packages (automationbench_sampo_qualification, automationbench_zapier_grpo), so
+        it stays unchanged to keep them reproducible; new work takes `posttrain
+        settings suggest` values in a new revision.
   inference/qwen3.5-0.8b-vllm-distill-rollout@1:
     revision: "1"
     model: models/qwen3.5-0.8b@bf16
@@ -131,6 +143,48 @@ inference:
       # CUDA graphs on Qwen3.5 hybrid (GDN) can illegal-address during colocated
       # LoRA rollouts on 24 GiB; match the AutomationBench rollout eager path.
       enforce_eager: true
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/local-cuda-rollout-8gb
+    purpose: [rollout]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 3 work
+        packages (gsm8k_distillation_10_qualification,
+        gsm8k_qwen08b_grpo_qualification, ...), so it stays unchanged to keep them
+        reproducible; new work selects inference/qwen3.5-0.8b-vllm-distill-rollout@4.
+      VLLM_HYBRID_CONTINUATION_REUSE_MISSING: >-
+        The pre-fix vLLM backend is the one this revision's runs used; recorded by 3
+        work packages (gsm8k_distillation_10_qualification,
+        gsm8k_qwen08b_grpo_qualification, ...), so it stays unchanged to keep them
+        reproducible; new work selects inference/qwen3.5-0.8b-vllm-distill-rollout@4.
+  inference/qwen3.5-0.8b-vllm-distill-rollout@4:
+    revision: "4"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: qwen3.5-tools@1
+    # Calculator values (`posttrain settings suggest`) for a colocated 8 GB
+    # target: CUDA graphs fit beside the 3.3 GB trainer with 2.3 GB free.
+    # Revision 1 forced eager decode after GDN CUDA graphs illegal-addressed on
+    # vllm@0.25.1; 0.29.1.dev3 carries the GDN chunk-alignment fix.
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.37
+      tensor_parallel_size: 1
+      max_model_len: 768
+      max_num_seqs: 8
+      max_num_batched_tokens: 8192
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 268435456
+      weight_sync_mode: lora
+      weight_name_prefix: language_model.
+      enforce_eager: false
     sampling:
       max_tokens: 384
       temperature: 1.0
@@ -185,6 +239,17 @@ inference:
       temperature: 0.0
     target: targets/local-cuda-8gb
     purpose: [screen, smoke]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 2 work
+        packages (foundation_screen, qwen2b_serve_smoke_qualification), so it stays
+        unchanged to keep them reproducible; new work takes `posttrain settings
+        suggest` values in a new revision.
+      VLLM_FLOAT16_ON_BF16_CHECKPOINT: >-
+        Float16 compute is what this revision's runs used; recorded by 2 work packages
+        (foundation_screen, qwen2b_serve_smoke_qualification), so it stays unchanged to
+        keep them reproducible; new work takes `posttrain settings suggest` values in a
+        new revision.
   inference/qwen3.5-2b-vllm-eval@1:
     revision: "1"
     model: models/qwen3.5-2b@bf16
@@ -209,6 +274,12 @@ inference:
       temperature: 0.0
     target: targets/local-cuda-8gb
     purpose: [eval]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 7 work
+        packages (environment_library_gsm8k_qualification,
+        environment_library_ifeval_qualification, ...), so it stays unchanged to keep
+        them reproducible; new work selects inference/qwen3.5-2b-vllm-eval@3.
   inference/qwen3.5-2b-vllm-eval@2:
     revision: "2"
     startup_timeout_seconds: 600
@@ -225,6 +296,39 @@ inference:
       disable_log_stats: false
       max_num_seqs: 4
       max_num_batched_tokens: 4096
+      kv_cache_dtype: turboquant_k8v4
+      text_only: true
+      skip_mm_profiling: true
+      flash_attn_version: 2
+    sampling:
+      max_tokens: 4096
+      temperature: 0.0
+    target: targets/local-cuda-8gb
+    purpose: [eval]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (qwen2b_eval_qualification), so it stays unchanged to keep them
+        reproducible; new work selects inference/qwen3.5-2b-vllm-eval@3.
+  inference/qwen3.5-2b-vllm-eval@3:
+    revision: "3"
+    startup_timeout_seconds: 600
+    model: models/qwen3.5-2b@bf16
+    backend: vllm@0.25.1
+    renderer: qwen3.5-tools@1
+    # Calculator values (`posttrain settings suggest`) for the dedicated 8 GB
+    # evaluation engine: CUDA graphs and prefix caching on, 8,192 batched tokens.
+    engine:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.9
+      dtype: float16
+      load_format: auto
+      enforce_eager: false
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      disable_log_stats: false
+      max_num_seqs: 4
+      max_num_batched_tokens: 8192
       kv_cache_dtype: turboquant_k8v4
       text_only: true
       skip_mm_profiling: true
@@ -261,6 +365,13 @@ inference:
     target: targets/local-cuda-24gb
     purpose: [eval]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 2 work
+        packages (environment_library_qwen4b_thinking_ifeval_overview,
+        environment_library_qwen4b_thinking_reasoning_gym_overview), so it stays
+        unchanged to keep them reproducible; new work takes `posttrain settings
+        suggest` values in a new revision.
   inference/qwen3.5-4b-vllm-thinking-eval-long@1:
     revision: "1"
     startup_timeout_seconds: 600
@@ -288,6 +399,13 @@ inference:
     target: targets/local-cuda-24gb
     purpose: [eval]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 2 work
+        packages (environment_library_qwen4b_thinking_ifeval_baseline_long,
+        environment_library_qwen4b_thinking_reasoning_gym_baseline_long), so it stays
+        unchanged to keep them reproducible; new work takes `posttrain settings
+        suggest` values in a new revision.
   inference/qwen3.5-4b-vllm-thinking-eval-extra-long@1:
     revision: "1"
     startup_timeout_seconds: 600
@@ -315,6 +433,13 @@ inference:
     target: targets/local-cuda-24gb
     purpose: [eval]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 2 work
+        packages (environment_library_qwen4b_thinking_ifeval_baseline_extra_long,
+        environment_library_qwen4b_thinking_reasoning_gym_baseline_extra_long), so it
+        stays unchanged to keep them reproducible; new work takes `posttrain settings
+        suggest` values in a new revision.
   inference/qwen3.5-4b-vllm-thinking-eval-mtp@1:
     revision: "1"
     startup_timeout_seconds: 600
@@ -345,6 +470,13 @@ inference:
     target: targets/local-cuda-24gb
     purpose: [eval]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 2 work
+        packages (environment_library_qwen4b_thinking_ifeval_baseline_mtp,
+        environment_library_qwen4b_thinking_reasoning_gym_baseline_mtp), so it stays
+        unchanged to keep them reproducible; new work takes `posttrain settings
+        suggest` values in a new revision.
   inference/qwen3.5-4b-vllm-thinking-eval-mtp-concurrent8-32k@1:
     revision: "1"
     startup_timeout_seconds: 600
@@ -375,6 +507,13 @@ inference:
     target: targets/local-cuda-24gb
     purpose: [eval]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 2 work
+        packages (environment_library_qwen4b_thinking_ifeval_release_mtp_c8_32k,
+        environment_library_qwen4b_thinking_reasoning_gym_release_mtp_c8_32k), so it
+        stays unchanged to keep them reproducible; new work takes `posttrain settings
+        suggest` values in a new revision.
   inference/qwen3.5-4b-vllm-thinking-eval-mtp-concurrent8-budget32k-context64k@1:
     revision: "1"
     startup_timeout_seconds: 600
@@ -405,6 +544,12 @@ inference:
     target: targets/local-cuda-24gb
     purpose: [eval]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (environment_library_qwen4b_thinking_math_python_release_mtp_c8_32k),
+        so it stays unchanged to keep them reproducible; new work takes `posttrain
+        settings suggest` values in a new revision.
   inference/qwen3.5-4b-vllm-thinking-eval-mtp-concurrent16-32k@1:
     revision: "1"
     startup_timeout_seconds: 600
@@ -435,6 +580,12 @@ inference:
     target: targets/local-cuda-24gb
     purpose: [eval]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (environment_library_qwen4b_thinking_automationbench_success_v2), so it
+        stays unchanged to keep them reproducible; new work takes `posttrain settings
+        suggest` values in a new revision.
   inference/qwen3.5-4b-vllm-thinking-eval-concurrent2@1:
     revision: "1"
     startup_timeout_seconds: 600
@@ -462,6 +613,13 @@ inference:
     target: targets/local-cuda-24gb
     purpose: [eval]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 2 work
+        packages (environment_library_qwen4b_thinking_ifeval_capacity_probe,
+        environment_library_qwen4b_thinking_reasoning_gym_capacity_probe), so it stays
+        unchanged to keep them reproducible; new work takes `posttrain settings
+        suggest` values in a new revision.
   inference/qwen3.5-4b-vllm-thinking-eval-concurrent4@1:
     revision: "1"
     startup_timeout_seconds: 600
@@ -489,6 +647,14 @@ inference:
     target: targets/local-cuda-24gb
     purpose: [eval]
     capabilities: [tool-calling]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 2 work
+        packages
+        (environment_library_qwen4b_thinking_ifeval_capacity_probe_concurrent4,
+        environment_library_qwen4b_thinking_reasoning_gym_capacity_probe_concurrent4),
+        so it stays unchanged to keep them reproducible; new work takes `posttrain
+        settings suggest` values in a new revision.
   inference/qwen3.5-2b-vllm-rollout@1:
     revision: "1"
     model: models/qwen3.5-2b@bf16
