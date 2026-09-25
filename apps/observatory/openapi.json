@@ -2183,6 +2183,18 @@
             "title": "Refill Rounds",
             "type": "integer"
           },
+          "retained_groups": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retained Groups"
+          },
           "step": {
             "minimum": 0.0,
             "title": "Step",
@@ -2591,6 +2603,173 @@
         "title": "MetricSeriesSet",
         "type": "object"
       },
+      "PromptGroupReward": {
+        "additionalProperties": false,
+        "properties": {
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromptGroupRewardStats"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "group_id": {
+            "minLength": 1,
+            "title": "Group Id",
+            "type": "string"
+          },
+          "prior": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromptGroupRewardStats"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prior_rollouts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prior Rollouts"
+          },
+          "prior_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prior Step"
+          },
+          "reward_coverage": {
+            "minimum": 0.0,
+            "title": "Reward Coverage",
+            "type": "integer"
+          },
+          "rollouts": {
+            "minimum": 0.0,
+            "title": "Rollouts",
+            "type": "integer"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          }
+        },
+        "required": [
+          "group_id",
+          "rollouts",
+          "reward_coverage"
+        ],
+        "title": "PromptGroupReward",
+        "type": "object"
+      },
+      "PromptGroupRewardStats": {
+        "additionalProperties": false,
+        "properties": {
+          "mean": {
+            "title": "Mean",
+            "type": "number"
+          },
+          "std": {
+            "minimum": 0.0,
+            "title": "Std",
+            "type": "number"
+          }
+        },
+        "required": [
+          "mean",
+          "std"
+        ],
+        "title": "PromptGroupRewardStats",
+        "type": "object"
+      },
+      "PromptGroupRewardView": {
+        "additionalProperties": false,
+        "description": "Bounded group aggregates from indexed, rebuildable trace facts.",
+        "properties": {
+          "expected_group_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Group Size"
+          },
+          "fact_rows": {
+            "minimum": 0.0,
+            "title": "Fact Rows",
+            "type": "integer"
+          },
+          "groups": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PromptGroupReward"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "live": {
+            "default": false,
+            "title": "Live",
+            "type": "boolean"
+          },
+          "recorded_traces": {
+            "minimum": 0.0,
+            "title": "Recorded Traces",
+            "type": "integer"
+          },
+          "state": {
+            "default": "unavailable",
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fact_rows",
+          "recorded_traces"
+        ],
+        "title": "PromptGroupRewardView",
+        "type": "object"
+      },
       "RolloutBehaviorPoint": {
         "additionalProperties": false,
         "description": "Trace-derived rollout averages for one optimizer step.",
@@ -2710,6 +2889,153 @@
           "included"
         ],
         "title": "RolloutBehaviorView",
+        "type": "object"
+      },
+      "RolloutTimeStep": {
+        "additionalProperties": false,
+        "description": "Summed rollout phase time for one optimizer step (None: facts not projected yet).",
+        "properties": {
+          "elapsed_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elapsed Ms"
+          },
+          "inference_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inference Ms"
+          },
+          "rollout_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rollout Ms"
+          },
+          "rollouts": {
+            "minimum": 0.0,
+            "title": "Rollouts",
+            "type": "integer"
+          },
+          "scoring_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scoring Ms"
+          },
+          "setup_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setup Ms"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step"
+          },
+          "timed_rollouts": {
+            "minimum": 0.0,
+            "title": "Timed Rollouts",
+            "type": "integer"
+          },
+          "tools_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tools Ms"
+          }
+        },
+        "required": [
+          "rollouts",
+          "timed_rollouts"
+        ],
+        "title": "RolloutTimeStep",
+        "type": "object"
+      },
+      "RolloutTimeView": {
+        "additionalProperties": false,
+        "description": "Where rollout time went across a run: GPU inference vs CPU harness work.\n\nInference sums model-call spans, which include queueing in the inference\nserver while other rollouts are served.",
+        "properties": {
+          "elapsed_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elapsed Ms"
+          },
+          "live": {
+            "default": false,
+            "title": "Live",
+            "type": "boolean"
+          },
+          "state": {
+            "default": "unavailable",
+            "enum": [
+              "available",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "steps": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RolloutTimeStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "title": "RolloutTimeView",
         "type": "object"
       },
       "RunAlert": {
@@ -4318,6 +4644,67 @@
         "title": "TraceEvaluationView",
         "type": "object"
       },
+      "TraceFilterOptions": {
+        "additionalProperties": false,
+        "description": "Choices derived from the complete recorded trace population.",
+        "properties": {
+          "outcomes": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TraceOutcome"
+            },
+            "title": "Outcomes",
+            "type": "array"
+          },
+          "slices": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TraceFilterSlice"
+            },
+            "title": "Slices",
+            "type": "array"
+          },
+          "steps": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "TraceFilterOptions",
+        "type": "object"
+      },
+      "TraceFilterSlice": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "TraceFilterSlice",
+        "type": "object"
+      },
       "TraceOutcome": {
         "enum": [
           "pass",
@@ -4410,9 +4797,32 @@
             "title": "Native Metrics",
             "type": "object"
           },
+          "optimizer_step": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optimizer Step"
+          },
           "outcome": {
             "$ref": "#/components/schemas/TraceOutcome",
             "default": "unknown"
+          },
+          "prompt_group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Group Id"
           },
           "prompt_preview": {
             "anyOf": [
@@ -4534,6 +4944,16 @@
             ],
             "title": "Thinking Tokens"
           },
+          "timing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TraceTiming"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "tokens": {
             "anyOf": [
               {
@@ -4614,6 +5034,52 @@
           "total"
         ],
         "title": "TraceSummaryPage",
+        "type": "object"
+      },
+      "TraceTiming": {
+        "additionalProperties": false,
+        "description": "Where a rollout's wall-clock time went: GPU inference vs CPU harness work.\n\n``inference_ms`` sums model-call spans, which include any queueing in the\ninference server. ``tools_ms`` is harness time between and around calls.",
+        "properties": {
+          "inference_ms": {
+            "minimum": 0.0,
+            "title": "Inference Ms",
+            "type": "number"
+          },
+          "model_calls": {
+            "minimum": 0.0,
+            "title": "Model Calls",
+            "type": "integer"
+          },
+          "scoring_ms": {
+            "minimum": 0.0,
+            "title": "Scoring Ms",
+            "type": "number"
+          },
+          "setup_ms": {
+            "minimum": 0.0,
+            "title": "Setup Ms",
+            "type": "number"
+          },
+          "tools_ms": {
+            "minimum": 0.0,
+            "title": "Tools Ms",
+            "type": "number"
+          },
+          "total_ms": {
+            "minimum": 0.0,
+            "title": "Total Ms",
+            "type": "number"
+          }
+        },
+        "required": [
+          "total_ms",
+          "inference_ms",
+          "tools_ms",
+          "setup_ms",
+          "scoring_ms",
+          "model_calls"
+        ],
+        "title": "TraceTiming",
         "type": "object"
       },
       "TrackingCapabilities": {
@@ -5347,6 +5813,45 @@
         "summary": "Rollout Behavior"
       }
     },
+    "/api/v1/runs/{run_key}/rollout-time": {
+      "get": {
+        "operationId": "rollout_time_api_v1_runs__run_key__rollout_time_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RolloutTimeView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rollout Time"
+      }
+    },
     "/api/v1/runs/{run_key}/semantic-summary": {
       "post": {
         "operationId": "semantic_summary_api_v1_runs__run_key__semantic_summary_post",
@@ -5439,6 +5944,84 @@
         "summary": "System Metrics"
       }
     },
+    "/api/v1/runs/{run_key}/trace-filters": {
+      "get": {
+        "operationId": "trace_filters_api_v1_runs__run_key__trace_filters_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceFilterOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trace Filters"
+      }
+    },
+    "/api/v1/runs/{run_key}/trace-group-rewards": {
+      "get": {
+        "operationId": "trace_group_rewards_api_v1_runs__run_key__trace_group_rewards_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptGroupRewardView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trace Group Rewards"
+      }
+    },
     "/api/v1/runs/{run_key}/traces": {
       "get": {
         "operationId": "trace_summaries_api_v1_runs__run_key__traces_get",
@@ -5478,6 +6061,72 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "step",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Step"
+            }
+          },
+          {
+            "in": "query",
+            "name": "slice_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Slice Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TraceOutcome"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Outcome"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
             }
           }
         ],

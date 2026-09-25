@@ -876,6 +876,24 @@ _METRIC_HELP = {
             "Non-zero values reduce aggregate coverage and should be inspected at trace level.",
         ),
         _metric(
+            "eval/run/model_call_error_rollouts",
+            "Model-call error rollouts",
+            "Number of evaluation attempts containing at least one failed model request.",
+            "These attempts are execution failures, not semantic task failures or valid zero rewards.",
+        ),
+        _metric(
+            "eval/run/model_call_http_400_rollouts",
+            "HTTP 400 model-call rollouts",
+            "Number of evaluation attempts with a model request rejected as HTTP 400.",
+            "Check the inference request and model context budget before interpreting scores.",
+        ),
+        _metric(
+            "eval/run/context_overflow_rollouts",
+            "Context-overflow rollouts",
+            "Number of attempts whose model request reported maximum-context-length overflow.",
+            "Increase qualified context capacity or bound the per-call output reservation.",
+        ),
+        _metric(
             "eval/run/rollouts_truncated",
             "Truncated rollouts",
             "Number of rollouts stopped by a token, time, or step limit.",
@@ -887,6 +905,12 @@ _METRIC_HELP = {
             "Whether all native evaluation traces have been synchronized into the tracking reader.",
             "A value of 100% means aggregates can link back to their complete trace population.",
             unit="ratio",
+        ),
+        _metric(
+            "eval/trace_sync_schema_mismatch",
+            "Trace schema mismatch",
+            "Whether the producer and tracking client disagreed about a trace-fact dimension.",
+            "Use a compatible immutable runtime before submitting another evaluation.",
         ),
     )
 }
@@ -2232,6 +2256,24 @@ def _eval_definition(job_kind: Literal["eval.general", "eval.domain"], display_n
                 reducer="sum",
             ),
             SummaryFieldDefinition(
+                key="model_call_error_rollouts",
+                label="Model-call errors",
+                metric="eval/run/model_call_error_rollouts",
+                reducer="sum",
+            ),
+            SummaryFieldDefinition(
+                key="model_call_http_400_rollouts",
+                label="Model HTTP 400 errors",
+                metric="eval/run/model_call_http_400_rollouts",
+                reducer="sum",
+            ),
+            SummaryFieldDefinition(
+                key="context_overflow_rollouts",
+                label="Context overflows",
+                metric="eval/run/context_overflow_rollouts",
+                reducer="sum",
+            ),
+            SummaryFieldDefinition(
                 key="trace_sync_complete", label="Trace synchronization complete", metric="eval/trace_sync_complete"
             ),
         ),
@@ -2246,9 +2288,37 @@ def _eval_definition(job_kind: Literal["eval.general", "eval.domain"], display_n
             "eval/run/rollouts_complete",
             "eval/run/rollouts_failed",
             "eval/run/rollouts_truncated",
+            "eval/run/model_call_error_rollouts",
+            "eval/run/model_call_http_400_rollouts",
+            "eval/run/context_overflow_rollouts",
             "eval/trace_sync_complete",
+            "eval/trace_sync_schema_mismatch",
         ),
         health_rules=(
+            HealthRuleDefinition(
+                id=f"{job_kind}-context-overflow",
+                kind="threshold",
+                metric="eval/run/context_overflow_rollouts",
+                operator="gt",
+                threshold=0.0,
+                message="Model context overflow invalidated evaluation attempts; check per-call output and prompt budgets.",
+            ),
+            HealthRuleDefinition(
+                id=f"{job_kind}-model-call-errors",
+                kind="threshold",
+                metric="eval/run/model_call_error_rollouts",
+                operator="gt",
+                threshold=0.0,
+                message="Model-call failures invalidated evaluation attempts; these are not semantic zero scores.",
+            ),
+            HealthRuleDefinition(
+                id=f"{job_kind}-trace-schema-mismatch",
+                kind="threshold",
+                metric="eval/trace_sync_schema_mismatch",
+                operator="gt",
+                threshold=0.0,
+                message="Trace schema mismatch: evaluation traces were not synchronized; use a compatible runtime.",
+            ),
             HealthRuleDefinition(
                 id=f"{job_kind}-trace-sync",
                 kind="threshold",

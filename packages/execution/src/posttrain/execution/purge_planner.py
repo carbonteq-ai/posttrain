@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Protocol
 
-from posttrain.common import ContractError
+from posttrain.common import ContractError, JsonValue
 
 from .purge import PurgeAction, PurgeMode, PurgePlan, PurgePlane, PurgeReason
 from .registry import RegistryManifestRef
@@ -66,6 +67,100 @@ class PurgeRunCandidate:
             raise ContractError("purge candidate completed plane is invalid")
         if self.evidence_retention not in {"standard", "pinned"}:
             raise ContractError("purge candidate evidence retention is invalid")
+
+
+ORPHAN_TRACKING_RUN_BASIS = "orphan-tracking-run"
+DEFAULT_ORPHAN_STALE_AFTER = timedelta(hours=24)
+_TERMINAL_TRACKING_STATUSES = frozenset({"succeeded", "failed", "cancelled", "lost"})
+
+
+@dataclass(frozen=True, slots=True)
+class OrphanProviderInventory:
+    """Provider-side evidence that no execution is attributable to an orphan.
+
+    ``checked`` names every provider inventory that was successfully queried
+    (for example ``dstack project 'main'``). ``active`` lists executions that
+    still reference the run id, and ``blockers`` lists inventories that could
+    not be queried. An empty ``checked`` tuple is never proof of absence.
+    """
+
+    checked: tuple[str, ...] = ()
+    active: tuple[str, ...] = ()
+    blockers: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class OrphanTrackingRun:
+    """One tracking-plane run with no local submission receipt.
+
+    A composition root builds this from the tracking backend, the provider
+    inventories, and the machine registry-ownership inventory. The planner is
+    the only place that turns that evidence into blockers, so preview and
+    apply-time revalidation cannot disagree about the rules.
+    """
+
+    run_id: str
+    project_id: str
+    evidence_provider: str
+    evidence_project: str
+    tracking_provider_run_id: str
+    tracking_status: str
+    last_activity_at: datetime | None
+    provider: OrphanProviderInventory
+    recorded_provider: str | None = None
+    recorded_job_image: str | None = None
+    consumers: tuple[str, ...] = ()
+    lineage_complete: bool = True
+    lineage_blockers: tuple[str, ...] = ()
+    tracked_artifacts: int = 0
+    evidence_retention: str = "standard"
+    admission: OrphanAdmissionEntry | None = None
+
+    def __post_init__(self) -> None:
+        for label, value in (
+            ("run id", self.run_id),
+            ("project id", self.project_id),
+            ("evidence provider", self.evidence_provider),
+            ("evidence project", self.evidence_project),
+            ("tracking provider run id", self.tracking_provider_run_id),
+            ("tracking status", self.tracking_status),
+        ):
+            if not value.strip() or "\x00" in value:
+                raise ContractError(f"orphan tracking run {label} cannot be empty")
+        if self.last_activity_at is not None and self.last_activity_at.utcoffset() is None:
+            raise ContractError("orphan tracking run last activity must be timezone-aware")
+        if self.tracked_artifacts < 0:
+            raise ContractError("orphan tracking run artifact count cannot be negative")
+
+
+@dataclass(frozen=True, slots=True)
+class OrphanAdmissionEntry:
+    """The machine admission-ledger entry that still names an orphaned run.
+
+    ``control_store_status`` is ``absent`` when the recorded owning control
+    store no longer exists, ``no-receipt`` when it exists without a submission
+    receipt for the run, ``has-receipt`` when the owner still controls it, and
+    ``unknown`` when no locator was recorded or it could not be inspected.
+    ``provider_state`` is the neutral state of the provider execution the entry
+    names, queried now (``lost`` means absent), or ``None`` if the query failed.
+    """
+
+    state: str
+    admission_key: str
+    provider: str
+    provider_id: str | None
+    control_store: str | None
+    control_store_status: str
+    provider_state: str | None
+    provider_native_state: str | None = None
+    provider_query_error: str | None = None
+    job_image: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.control_store_status not in {"absent", "no-receipt", "has-receipt", "unknown"}:
+            raise ContractError("orphan admission control-store status is invalid")
+        if not self.admission_key.strip() or not self.state.strip():
+            raise ContractError("orphan admission entry identity is invalid")
 
 
 class PurgeRunCatalog(Protocol):
@@ -155,6 +250,317 @@ def build_run_purge_plan(
         blockers=[*blockers, *catalog.registry_inventory_blockers()],
         reason=reason,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _OrphanAssessment:
+    blockers: tuple[str, ...]
+    registry_deletions: tuple[str, ...]
+    registry_retained: tuple[tuple[str, tuple[str, ...]], ...]
+    settle_admission: bool
+    attributed_images: tuple[str, ...]
+
+
+_SETTLED_ADMISSION_STATES = frozenset({"completed", "cancelled"})
+_TERMINAL_PROVIDER_STATES = frozenset({"succeeded", "failed", "cancelled", "lost"})
+
+
+def _assess_orphan(
+    orphan: OrphanTrackingRun,
+    *,
+    registry_image_owners: Mapping[str, tuple[str, ...]],
+    registry_inventory_blockers: tuple[str, ...],
+    now: datetime,
+    stale_after: timedelta,
+) -> _OrphanAssessment:
+    run = orphan.run_id
+    blockers: list[str] = []
+    if orphan.evidence_provider != "trackio":
+        blockers.append(f"orphan run {run!r} evidence provider is {orphan.evidence_provider!r}")
+    if orphan.evidence_project != orphan.project_id:
+        blockers.append(f"orphan run {run!r} evidence is in project {orphan.evidence_project!r}")
+
+    # (a) provider attribution: live inventories, then the admission entry.
+    if not orphan.provider.checked and not orphan.provider.blockers:
+        blockers.append(f"orphan run {run!r} has no queryable provider inventory")
+    blockers.extend(f"orphan run {run!r} provider check failed: {item}" for item in orphan.provider.blockers)
+    blockers.extend(
+        f"orphan run {run!r} is still attributable to provider execution state: {item}"
+        for item in orphan.provider.active
+    )
+    settle_admission = False
+    admission = orphan.admission
+    if admission is not None and admission.state not in _SETTLED_ADMISSION_STATES:
+        label = f"machine admission entry {admission.state}"
+        before = len(blockers)
+        if admission.state != "terminal_pending_evidence":
+            blockers.append(
+                f"orphan run {run!r} has an unsettled {label}; only terminal_pending_evidence can be settled"
+            )
+        if admission.control_store_status == "has-receipt":
+            blockers.append(
+                f"orphan run {run!r} {label} is still owned by control store {admission.control_store!r}, "
+                "which holds its submission receipt; reconcile it from that project"
+            )
+        elif admission.control_store_status == "unknown":
+            blockers.append(f"orphan run {run!r} {label} has no inspectable owning control store")
+        execution = f"{admission.provider}:{admission.provider_id or 'unknown'}"
+        if admission.provider_query_error is not None or admission.provider_state is None:
+            blockers.append(
+                f"orphan run {run!r} {label} names provider execution {execution} whose state could not be "
+                f"queried ({admission.provider_query_error or 'no state'})"
+            )
+        elif admission.provider_state not in _TERMINAL_PROVIDER_STATES:
+            blockers.append(
+                f"orphan run {run!r} {label} names provider execution {execution} which is "
+                f"{admission.provider_state} ({admission.provider_native_state or 'unknown'})"
+            )
+        settle_admission = len(blockers) == before
+
+    # (b) registry attribution: only the image recorded by the run's own
+    # admission entry is explained. It is deleted when the run is its only
+    # owner and retained (as a normal purge retains it) when other runs share
+    # it. Any other attribution may mean another project still controls the
+    # run, so it blocks.
+    blockers.extend(f"orphan run {run!r} registry check failed: {item}" for item in registry_inventory_blockers)
+    attributed = tuple(_attributed_images(orphan, registry_image_owners))
+    deletions: list[str] = []
+    retained: list[tuple[str, tuple[str, ...]]] = []
+    for reference in attributed:
+        if admission is None or admission.job_image != reference:
+            blockers.append(
+                f"orphan run {run!r} is attributed registry image {reference!r} by an owner record other than "
+                "its admission entry"
+            )
+            continue
+        others = tuple(sorted(owner for owner in registry_image_owners.get(reference, ()) if owner != run))
+        if others:
+            retained.append((reference, others))
+        else:
+            deletions.append(reference)
+
+    # (c) surviving consumers
+    blockers.extend(
+        f"orphan run {run!r} is consumed by surviving run {consumer!r}"
+        for consumer in orphan.consumers
+        if consumer not in {run, orphan.tracking_provider_run_id}
+    )
+    if not orphan.lineage_complete:
+        blockers.append(f"orphan run {run!r} has incomplete tracking lineage discovery")
+    blockers.extend(orphan.lineage_blockers)
+
+    # (d) terminal, or running but stale
+    if orphan.tracking_status == "running":
+        if orphan.last_activity_at is None:
+            blockers.append(f"orphan run {run!r} is recorded as running and has no activity timestamp")
+        elif now - orphan.last_activity_at < stale_after:
+            blockers.append(
+                f"orphan run {run!r} is recorded as running and was active at "
+                f"{orphan.last_activity_at.isoformat()} (within {_hours(stale_after)})"
+            )
+    elif orphan.tracking_status not in _TERMINAL_TRACKING_STATUSES:
+        blockers.append(f"orphan run {run!r} tracking status {orphan.tracking_status!r} is not terminal")
+    return _OrphanAssessment(
+        blockers=tuple(dict.fromkeys(blockers)),
+        registry_deletions=tuple(deletions),
+        registry_retained=tuple(retained),
+        settle_admission=settle_admission,
+        attributed_images=attributed,
+    )
+
+
+def orphan_run_blockers(
+    orphan: OrphanTrackingRun,
+    *,
+    registry_image_owners: Mapping[str, tuple[str, ...]],
+    registry_inventory_blockers: tuple[str, ...],
+    now: datetime,
+    stale_after: timedelta = DEFAULT_ORPHAN_STALE_AFTER,
+) -> tuple[str, ...]:
+    """Return every reason an orphaned tracking run cannot be purged now.
+
+    The four checks are deliberately independent: provider attribution
+    (live inventories and any abandoned admission entry), registry
+    attribution, surviving consumers, and terminal-or-stale state. Any
+    unavailable inventory blocks because absence cannot be proved.
+    """
+
+    return _assess_orphan(
+        orphan,
+        registry_image_owners=registry_image_owners,
+        registry_inventory_blockers=registry_inventory_blockers,
+        now=now,
+        stale_after=stale_after,
+    ).blockers
+
+
+def build_orphan_run_purge_plan(
+    orphan: OrphanTrackingRun,
+    *,
+    reason: PurgeReason,
+    registry_image_owners: Mapping[str, tuple[str, ...]],
+    registry_inventory_blockers: tuple[str, ...],
+    now: datetime,
+    stale_after: timedelta = DEFAULT_ORPHAN_STALE_AFTER,
+) -> PurgePlan:
+    """Build an orphan plan: tracking deletion, plus proven registry/admission cleanup.
+
+    The tracking run is always the only evidence deleted. When the run's
+    abandoned admission entry is proven settleable, the plan also settles it
+    (local plane) and deletes the actual-job image that entry exclusively
+    owns (registry plane). Provider records are never cleaned without a
+    submission receipt; their terminal state is recorded as evidence.
+    """
+
+    run = orphan.run_id
+    assessment = _assess_orphan(
+        orphan,
+        registry_image_owners=registry_image_owners,
+        registry_inventory_blockers=registry_inventory_blockers,
+        now=now,
+        stale_after=stale_after,
+    )
+    admission = orphan.admission
+    warnings = [
+        f"orphan purge: run {run!r} has no local submission receipt; provider records and workspaces are not cleaned"
+    ]
+    if orphan.evidence_retention == "pinned":
+        warnings.append(f"run {run!r} is pinned; explicit run purge overrides its retention pin")
+    warnings.extend(
+        f"job image {reference!r} retained; referenced by unselected run(s): "
+        + ", ".join(repr(owner) for owner in owners)
+        for reference, owners in assessment.registry_retained
+    )
+    retained_references = {reference for reference, _owners in assessment.registry_retained}
+    if (
+        orphan.recorded_job_image
+        and orphan.recorded_job_image not in assessment.registry_deletions
+        and orphan.recorded_job_image not in retained_references
+    ):
+        warnings.append(f"registry manifest {orphan.recorded_job_image!r} recorded by the run is left untouched")
+    if orphan.tracking_status == "running" and orphan.last_activity_at is not None:
+        warnings.append(f"run {run!r} is recorded as running but stale since {orphan.last_activity_at.isoformat()}")
+    registry_actions = tuple(
+        PurgeAction(
+            action_id=f"registry:{run}" if index == 0 else f"registry:{run}:{index}",
+            plane="registry",
+            kind="registry.delete_manifest",
+            target={"reference": reference, "run_id": run},
+            precondition={"orphan": True, "exclusive_owner": run},
+        )
+        for index, reference in enumerate(assessment.registry_deletions)
+    )
+    tracking_id = f"tracking:{run}"
+    local_actions: tuple[PurgeAction, ...] = ()
+    if assessment.settle_admission and admission is not None:
+        local_actions = (
+            PurgeAction(
+                action_id=f"local:{run}:admission",
+                plane="local",
+                kind="local.settle_admission",
+                target={
+                    "run_id": run,
+                    "admission_key": admission.admission_key,
+                    "provider": admission.provider,
+                    "provider_id": admission.provider_id,
+                    "note": (
+                        f"settled by orphan purge ({reason.category}); owning control store "
+                        f"{admission.control_store_status}; provider execution {admission.provider_state}"
+                    ),
+                },
+                depends_on=(tracking_id,),
+                precondition={
+                    "state": "terminal_pending_evidence",
+                    "control_store": admission.control_store_status,
+                    "provider_state": admission.provider_state,
+                },
+            ),
+        )
+    return PurgePlan.build(
+        mode="run",
+        project_id=orphan.project_id,
+        run_ids=(run,),
+        root_run_id=run,
+        registry_actions=registry_actions,
+        tracking_actions=(
+            PurgeAction(
+                action_id=tracking_id,
+                plane="tracking",
+                kind="tracking.delete_run",
+                target={
+                    "provider": orphan.evidence_provider,
+                    "project": orphan.evidence_project,
+                    "provider_run_id": orphan.tracking_provider_run_id,
+                },
+                depends_on=tuple(action.action_id for action in registry_actions),
+                precondition={"orphan": True},
+            ),
+        ),
+        local_actions=local_actions,
+        warnings=tuple(warnings),
+        blockers=assessment.blockers,
+        reason=reason,
+        basis=orphan_basis(
+            orphan,
+            stale_after=stale_after,
+            attributed_images=list(assessment.attributed_images),
+            registry_inventory_complete=not registry_inventory_blockers,
+            registry_deletions=list(assessment.registry_deletions),
+            registry_retained=[reference for reference, _owners in assessment.registry_retained],
+            settle_admission=assessment.settle_admission,
+        ),
+    )
+
+
+def _attributed_images(orphan: OrphanTrackingRun, owners: Mapping[str, tuple[str, ...]]) -> list[str]:
+    return sorted(reference for reference, run_ids in owners.items() if orphan.run_id in run_ids)
+
+
+def orphan_basis(
+    orphan: OrphanTrackingRun,
+    *,
+    stale_after: timedelta,
+    attributed_images: list[str],
+    registry_inventory_complete: bool,
+    registry_deletions: list[str] | None = None,
+    registry_retained: list[str] | None = None,
+    settle_admission: bool = False,
+) -> dict[str, JsonValue]:
+    """Return the secret-free, digest-bound evidence recorded in the tombstone."""
+
+    admission = orphan.admission
+    return {
+        "kind": ORPHAN_TRACKING_RUN_BASIS,
+        "local_receipt": "absent",
+        "tracking_provider_run_id": orphan.tracking_provider_run_id,
+        "tracking_status": orphan.tracking_status,
+        "last_activity_at": orphan.last_activity_at.isoformat() if orphan.last_activity_at is not None else None,
+        "stale_after_seconds": int(stale_after.total_seconds()),
+        "recorded_provider": orphan.recorded_provider,
+        "provider_inventories": list(orphan.provider.checked),
+        "active_provider_executions": list(orphan.provider.active),
+        "admission_state": admission.state if admission is not None else None,
+        "admission_control_store": admission.control_store if admission is not None else None,
+        "admission_control_store_status": admission.control_store_status if admission is not None else None,
+        "admission_provider_execution": (
+            f"{admission.provider}:{admission.provider_id or 'unknown'} "
+            f"({admission.provider_state or 'unqueried'}, {admission.provider_native_state or 'unknown'})"
+            if admission is not None
+            else None
+        ),
+        "admission_settle": settle_admission,
+        "registry_attributed_images": list(attributed_images),
+        "registry_deletions": list(registry_deletions or ()),
+        "registry_retained_shared": list(registry_retained or ()),
+        "registry_inventory_complete": registry_inventory_complete,
+        "tracked_artifacts": orphan.tracked_artifacts,
+        "surviving_consumers": list(orphan.consumers),
+    }
+
+
+def _hours(value: timedelta) -> str:
+    hours = value.total_seconds() / 3600
+    return f"{hours:g} h"
 
 
 def build_project_purge_plan(
@@ -394,8 +800,16 @@ def _leaf_first(selected: Mapping[str, PurgeRunCandidate], root_run_id: str | No
 
 
 __all__ = [
+    "DEFAULT_ORPHAN_STALE_AFTER",
+    "ORPHAN_TRACKING_RUN_BASIS",
+    "OrphanAdmissionEntry",
+    "OrphanProviderInventory",
+    "OrphanTrackingRun",
     "PurgeRunCandidate",
     "PurgeRunCatalog",
+    "build_orphan_run_purge_plan",
     "build_project_purge_plan",
     "build_run_purge_plan",
+    "orphan_basis",
+    "orphan_run_blockers",
 ]

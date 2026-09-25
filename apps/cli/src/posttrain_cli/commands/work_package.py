@@ -33,6 +33,7 @@ from ..execution_planning import (
     plan_job_package,
     runtime_credential_status,
     runtime_credential_status_for_seats,
+    with_curriculum_state,
     with_model_checkpoint,
     with_recovery_checkpoint,
 )
@@ -67,12 +68,60 @@ def _select_checkpoint_output(
             )
             == step
         )
+    if len(candidates) > 1:
+        digests = {getattr(getattr(link, "artifact", None), "digest", None) for link in candidates}
+        if len(digests) == 1 and None not in digests:
+            # One checkpoint registered twice, e.g. a periodic save at the final step is also
+            # published as the run's final recovery checkpoint. Identical bytes, so keep the
+            # explicit per-step view instead of refusing the selection.
+            candidates = tuple(
+                sorted(
+                    candidates,
+                    key=lambda link: (
+                        "checkpoint_step" not in getattr(getattr(link, "artifact", None), "provider_metadata", {})
+                    ),
+                )
+            )[:1]
     if len(candidates) != 1:
         requested = f" at step {step}" if step is not None else ""
         raise ContractError(
             f"source run {source_run_id!r} has {len(candidates)} matching checkpoint model outputs{requested}; expected 1"
         )
     return candidates[0]
+
+
+def _select_curriculum_output(links: tuple[object, ...], *, source_run_id: str, step: int | None) -> object:
+    """Pick one adaptive-curriculum controller state: the run's final state, or its state at `step`.
+
+    Runs published before per-checkpoint curriculum views fall back to the recovery
+    checkpoint at `step`, which carries the same controller snapshot.
+    """
+
+    views = tuple(
+        link
+        for link in links
+        if getattr(link, "direction", None) == "output" and getattr(link, "kind", None) == "adaptive-curriculum-state"
+    )
+
+    def view_step(link: object) -> object:
+        return getattr(getattr(link, "artifact", None), "provider_metadata", {}).get("checkpoint_step")
+
+    if step is None:
+        final = [link for link in views if view_step(link) is None]
+        if len(final) == 1:
+            return final[0]
+        steps = sorted({value for link in views if isinstance(value := view_step(link), int)})
+        hint = f"; choose --curriculum-checkpoint-step from {steps}" if steps else ""
+        raise ContractError(
+            f"source run {source_run_id!r} has {len(final)} final adaptive-curriculum-state outputs; expected 1{hint}"
+        )
+    if any(view_step(link) == step for link in views):
+        return _select_checkpoint_output(
+            views, source_run_id=source_run_id, kinds=frozenset({"adaptive-curriculum-state"}), step=step
+        )
+    return _select_checkpoint_output(
+        links, source_run_id=source_run_id, kinds=frozenset({"training-checkpoint"}), step=step
+    )
 
 
 def validate_work_package_cmd(
@@ -306,6 +355,8 @@ def run_work_package_cmd(
     model_from_run_id: str | None = None,
     model_checkpoint_step: int | None = None,
     model_seat: str = "model",
+    curriculum_from_run_id: str | None = None,
+    curriculum_checkpoint_step: int | None = None,
     project_packages: tuple[str, ...] | None = None,
     source_includes: tuple[str, ...] | None = None,
     build_missing: bool = False,
@@ -320,6 +371,12 @@ def run_work_package_cmd(
         raise ContractError("--checkpoint-step requires --resume-from-run or --model-from-run")
     if model_checkpoint_step is not None and model_from_run_id is None:
         raise ContractError("--model-checkpoint-step requires --model-from-run")
+    if curriculum_from_run_id is not None and resume_from_run_id is not None:
+        raise ContractError(
+            "--curriculum-from-run cannot be combined with --resume-from-run; a resumed run restores its own curriculum"
+        )
+    if curriculum_checkpoint_step is not None and curriculum_from_run_id is None:
+        raise ContractError("--curriculum-checkpoint-step requires --curriculum-from-run")
     layout, catalog, resolved_path, package = load_work_package_bundle(state, path)
     job = resolve_job_id(catalog, package, job)
     if not in_process:
@@ -369,6 +426,19 @@ def run_work_package_cmd(
                 model_seat=model_seat,
                 replace_existing=True,
             )
+        if curriculum_from_run_id is not None:
+            source = tracking_source_for_project(layout)
+            candidates = asyncio.run(source.artifacts(curriculum_from_run_id)).outputs
+            artifact = _select_curriculum_output(
+                candidates,
+                source_run_id=curriculum_from_run_id,
+                step=curriculum_checkpoint_step,
+            )
+            planned = with_curriculum_state(
+                planned,
+                source_run_id=curriculum_from_run_id,
+                artifact=artifact,  # type: ignore[arg-type]
+            )
         _require_verified_kind_image(planned, build_missing=build_missing)
         packed = planned.pack(allow_deferred_qualification=allow_deferred_qualification)
         prepared_submission = packed.prepare_submission()
@@ -412,8 +482,10 @@ def run_work_package_cmd(
         )
         return
 
-    if resume_from_run_id is not None or model_from_run_id is not None:
-        raise ContractError("--resume-from-run requires packaged local or remote execution")
+    if resume_from_run_id is not None or model_from_run_id is not None or curriculum_from_run_id is not None:
+        raise ContractError(
+            "--resume-from-run, --model-from-run and --curriculum-from-run require packaged local or remote execution"
+        )
 
     output_redirect = redirect_stdout(sys.stderr) if state.json_output else nullcontext()
     with output_redirect:

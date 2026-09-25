@@ -100,6 +100,7 @@ class TraceQuery(TrackingModel):
     trace_type: str | None = None
     cursor: str | None = None
     limit: int = Field(default=100, ge=1, le=1000)
+    order: Literal["oldest_first", "newest_first"] = "oldest_first"
     include_payload: bool = False
 
 
@@ -130,7 +131,7 @@ class TraceFactAggregate(TrackingModel):
         "reward_component_score",
         "reward_component_weight",
     ]
-    operation: Literal["mean", "sum", "count"] = "mean"
+    operation: Literal["mean", "sum", "sum_squares", "count"] = "mean"
     component_name: str | None = Field(default=None, min_length=1, max_length=256)
 
     @model_validator(mode="after")
@@ -146,6 +147,8 @@ class TraceFactsQuery(TrackingModel):
         Literal[
             "model",
             "task_type",
+            "task_id",
+            "prompt_group_id",
             "rollout_step",
             "is_truncated",
             "has_error",
@@ -159,6 +162,8 @@ class TraceFactsQuery(TrackingModel):
         Literal[
             "model",
             "task_type",
+            "task_id",
+            "prompt_group_id",
             "rollout_step",
             "is_truncated",
             "has_error",
@@ -183,6 +188,49 @@ class TraceFactsQuery(TrackingModel):
         if component_dimensions.intersection(self.group_by) | component_dimensions.intersection(self.dimensions):
             if not component_aggregates:
                 raise ValueError("reward-component dimensions require reward-component aggregates")
+        return self
+
+
+type PayloadDimension = Literal[
+    "model",
+    "task_type",
+    "task_id",
+    "prompt_group_id",
+    "rollout_step",
+    "is_truncated",
+    "has_error",
+]
+
+
+class TracePayloadMeasure(TrackingModel):
+    """A numeric value read from each trace's stored native payload.
+
+    ``path`` is a bounded chain of JSON object keys such as
+    ``$.timing.agent.model.duration``; with ``minus`` the value is the
+    difference of two paths, for spans stored as start/end timestamps.
+    """
+
+    key: str = Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    path: str = Field(pattern=r"^\$(\.[A-Za-z_][A-Za-z0-9_]{0,63}){1,8}$")
+    minus: str | None = Field(default=None, pattern=r"^\$(\.[A-Za-z_][A-Za-z0-9_]{0,63}){1,8}$")
+    operation: Literal["mean", "sum", "count", "min", "max"] = "sum"
+
+
+class TracePayloadQuery(TrackingModel):
+    """Aggregate payload values over a run's traces, grouped by fact dimensions."""
+
+    measures: tuple[TracePayloadMeasure, ...] = Field(min_length=1, max_length=16)
+    trace_type: str = "verifiers"
+    group_by: tuple[PayloadDimension, ...] = ()
+    dimensions: dict[PayloadDimension, JsonValue] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_query(self) -> TracePayloadQuery:
+        if len(self.group_by) != len(set(self.group_by)):
+            raise ValueError("trace-payload group-by dimensions must be unique")
+        keys = [measure.key for measure in self.measures]
+        if len(keys) != len(set(keys)):
+            raise ValueError("trace-payload measure keys must be unique")
         return self
 
 

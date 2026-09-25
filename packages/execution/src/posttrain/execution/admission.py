@@ -97,6 +97,7 @@ class AdmissionEntry:
     control_store_uri: str | None = None
     control_locator: ProjectControlLocator | None = None
     provider_source: ExecutionProviderSource | None = None
+    admission_key: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -294,6 +295,50 @@ class ExecutionAdmissionService:
             # The completed run stays released. The next run records its own
             # submission failure for explicit idempotent recovery.
             return AdmissionResult(self.get(next_run_id))
+
+    def settle_orphaned(
+        self,
+        run_id: str,
+        *,
+        admission_key: str,
+        provider_id: str | None,
+        note: str,
+    ) -> bool:
+        """Settle one abandoned ``terminal_pending_evidence`` entry as ``completed``.
+
+        This is used only by an orphan purge after it proved that the owning
+        control store is gone (or holds no receipt for the run) and that the
+        named provider execution is terminal or absent. Unlike
+        :meth:`acknowledge_reconciled`, it never pumps a waiting run: a purge
+        must not submit unrelated work. It touches only this entry and its own
+        placement reservation. Returns ``False`` when already settled.
+        """
+
+        if not note.strip() or "\x00" in note or "\n" in note or len(note) > 280:
+            raise ContractError("admission settlement note must be one short line")
+        with self._locked() as payload:
+            entry = _required(payload, run_id)
+            if entry["state"] == "completed" and entry.get("settlement") == "orphan-purge":
+                return False
+            if entry["state"] != "terminal_pending_evidence":
+                raise ContractError(
+                    f"admission run {run_id} is {entry['state']!r}; only terminal_pending_evidence can be settled"
+                )
+            if entry["admission_key"] != admission_key:
+                raise ContractError(f"admission run {run_id} placement changed after the purge preview")
+            plan = entry.get("plan")
+            recorded_provider_id = plan.get("native_plan_id") if isinstance(plan, dict) else None
+            if recorded_provider_id != provider_id:
+                raise ContractError(f"admission run {run_id} provider identity changed after the purge preview")
+            entry["state"] = "completed"
+            entry["terminal_at"] = datetime.now(UTC).isoformat()
+            entry["settlement"] = "orphan-purge"
+            entry["message"] = note
+            active_by_key = payload["active_by_key"]
+            if active_by_key.get(admission_key) == run_id:
+                active_by_key.pop(admission_key)
+            self._persist(payload)
+        return True
 
     def get(self, run_id: str) -> AdmissionEntry:
         with self._locked() as payload:
@@ -822,6 +867,7 @@ def _decode_entry(raw: dict[str, Any], entries: list[dict[str, Any]]) -> Admissi
         control_store_uri=(str(raw["control_store_uri"]) if isinstance(raw.get("control_store_uri"), str) else None),
         control_locator=_decode_control_locator(raw.get("control_locator")),
         provider_source=_decode_provider_source(raw.get("provider_source")),
+        admission_key=(str(raw["admission_key"]) if isinstance(raw.get("admission_key"), str) else None),
     )
 
 

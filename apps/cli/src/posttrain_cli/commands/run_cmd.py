@@ -8,12 +8,14 @@ import json
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict
+from datetime import timedelta
 from typing import Annotated, Any
 
 import click
 import typer
 from posttrain.common import ContractError, StoredArtifactRef
 from posttrain.execution import (
+    DEFAULT_ORPHAN_STALE_AFTER,
     ExecutionSubmissionStore,
     LogCursor,
     PurgeReason,
@@ -838,10 +840,38 @@ def register(app: typer.Typer) -> None:
         cascade: Annotated[
             bool, typer.Option("--cascade", help="include the complete same-project consumer closure")
         ] = False,
+        orphan: Annotated[
+            bool,
+            typer.Option(
+                "--orphan",
+                help=(
+                    "purge a tracking run that has no local submission receipt (plus a proven-abandoned "
+                    "admission entry and exclusively owned job image); blocks unless provider, registry, "
+                    "lineage, and terminal-or-stale checks all pass"
+                ),
+            ),
+        ] = False,
+        stale_after_hours: Annotated[
+            float,
+            typer.Option(
+                "--stale-after-hours",
+                min=1.0,
+                help="with --orphan: hours without a metric or event before a 'running' run counts as stale",
+            ),
+        ] = DEFAULT_ORPHAN_STALE_AFTER.total_seconds() / 3600,
     ) -> None:
         state: CliState = ctx.obj
         layout = state.layout()
-        plan = save_run_preview(layout, run_id, cascade=cascade, reason=PurgeReason(category=reason, note=note))
+        if not orphan and stale_after_hours != DEFAULT_ORPHAN_STALE_AFTER.total_seconds() / 3600:
+            raise typer.BadParameter("--stale-after-hours applies only with --orphan")
+        plan = save_run_preview(
+            layout,
+            run_id,
+            cascade=cascade,
+            reason=PurgeReason(category=reason, note=note),
+            orphan=orphan,
+            stale_after=timedelta(hours=stale_after_hours),
+        )
         emit(state, plan, render_plan(plan))
 
     @run_app.command("show", help="show one recorded run view")

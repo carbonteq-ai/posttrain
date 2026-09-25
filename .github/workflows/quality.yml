@@ -17,13 +17,16 @@ permissions:
   actions: write
 
 env:
-  CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post14.dev24/carbonteq_trackio-0.31.5.post14.dev24-py3-none-any.whl
-  CARBONTEQ_TRACKIO_WHEEL_SHA256: fea18a183a7493a0a1cd69218ccc2e1442cfcdbdea9c7d19f247ab7bbbf0fc21
-  CARBONTEQ_TRACKIO_WHEEL_PATH: /tmp/carbonteq_trackio-0.31.5.post14.dev24-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post14.dev27/carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_SHA256: 228651b05e88409cb374296ad8a675057cf75377adcbe104a6fd0903b922c57c
+  CARBONTEQ_TRACKIO_WHEEL_PATH: /tmp/carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl
+  CARBONTEQ_RENDERERS_WHEEL_URL: https://github.com/carbonteq-ai/renderers/releases/download/carbonteq-v0.1.12.post1.dev1/carbonteq_renderers-0.1.12.post1.dev1-py3-none-any.whl
+  CARBONTEQ_RENDERERS_WHEEL_SHA256: 2e3231784729b9177bfc25eb06e3a6a958f9ba420ff8e241c010266cc9422d0b
+  CARBONTEQ_RENDERERS_WHEEL_PATH: /tmp/carbonteq_renderers-0.1.12.post1.dev1-py3-none-any.whl
   CARBONTEQ_TRL_WHEEL_URL: https://github.com/carbonteq-ai/trl/releases/download/carbonteq-v1.12.0.post9/trl-1.12.0.post9-py3-none-any.whl
   CARBONTEQ_TRL_WHEEL_SHA256: c5d204da587a9a45dd279f1407d0e20816344075d001da9fe03f6dd4879fa710
   CARBONTEQ_TRL_WHEEL_PATH: /tmp/trl-1.12.0.post9-py3-none-any.whl
-  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post14.dev24-py3-none-any.whl:/tmp/trl-1.12.0.post9-py3-none-any.whl
+  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl:/tmp/trl-1.12.0.post9-py3-none-any.whl:/tmp/carbonteq_renderers-0.1.12.post1.dev1-py3-none-any.whl
 
 jobs:
   quality:
@@ -47,17 +50,21 @@ jobs:
             "${CARBONTEQ_TRACKIO_WHEEL_URL}"
           echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${CARBONTEQ_TRACKIO_WHEEL_PATH}" | sha256sum --check --strict
           curl --fail --location --silent --show-error \
+            --output "${CARBONTEQ_RENDERERS_WHEEL_PATH}" \
+            "${CARBONTEQ_RENDERERS_WHEEL_URL}"
+          echo "${CARBONTEQ_RENDERERS_WHEEL_SHA256}  ${CARBONTEQ_RENDERERS_WHEEL_PATH}" | sha256sum --check --strict
+          curl --fail --location --silent --show-error \
             --output "${CARBONTEQ_TRL_WHEEL_PATH}" \
             "${CARBONTEQ_TRL_WHEEL_URL}"
           echo "${CARBONTEQ_TRL_WHEEL_SHA256}  ${CARBONTEQ_TRL_WHEEL_PATH}" | sha256sum --check --strict
-          VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}"
+          VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}" "${CARBONTEQ_RENDERERS_WHEEL_PATH}"
       - name: Install workspace and quality tools
         # The committed lock records the internal stable index. Public runners
         # consume its hash-identical GitHub Release wheel and must not resolve
         # the private index while installing the remaining frozen lock.
         run: |
           uv sync --frozen --all-packages --group dev --extra trl --python 3.13 \
-            --no-install-package carbonteq-trackio --no-install-package trl --inexact
+            --no-install-package carbonteq-renderers --no-install-package carbonteq-trackio --no-install-package trl --inexact
           uv pip install --python .venv/bin/python --no-deps "${CARBONTEQ_TRL_WHEEL_PATH}"
       - name: Verify repository ownership
         run: uv run --no-sync posttrain-release repository-check
@@ -142,12 +149,16 @@ jobs:
             "${CARBONTEQ_TRACKIO_WHEEL_URL}"
           echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${CARBONTEQ_TRACKIO_WHEEL_PATH}" | sha256sum --check --strict
           curl --fail --location --silent --show-error \
+            --output "${CARBONTEQ_RENDERERS_WHEEL_PATH}" \
+            "${CARBONTEQ_RENDERERS_WHEEL_URL}"
+          echo "${CARBONTEQ_RENDERERS_WHEEL_SHA256}  ${CARBONTEQ_RENDERERS_WHEEL_PATH}" | sha256sum --check --strict
+          curl --fail --location --silent --show-error \
             --output "${CARBONTEQ_TRL_WHEEL_PATH}" \
             "${CARBONTEQ_TRL_WHEEL_URL}"
           echo "${CARBONTEQ_TRL_WHEEL_SHA256}  ${CARBONTEQ_TRL_WHEEL_PATH}" | sha256sum --check --strict
-          VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}"
+          VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}" "${CARBONTEQ_RENDERERS_WHEEL_PATH}"
       - name: Install package
-        run: uv sync --frozen --package ${{ matrix.package }} --python 3.13 --no-install-package carbonteq-trackio --inexact
+        run: uv sync --frozen --package ${{ matrix.package }} --python 3.13 --no-install-package carbonteq-renderers --no-install-package carbonteq-trackio --inexact
       - name: Import package
         run: uv run --no-sync --package ${{ matrix.package }} python -c "import ${{ matrix.import_name }}"
 
@@ -168,12 +179,16 @@ jobs:
             "${CARBONTEQ_TRACKIO_WHEEL_URL}"
           echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${CARBONTEQ_TRACKIO_WHEEL_PATH}" | sha256sum --check --strict
           curl --fail --location --silent --show-error \
+            --output "${CARBONTEQ_RENDERERS_WHEEL_PATH}" \
+            "${CARBONTEQ_RENDERERS_WHEEL_URL}"
+          echo "${CARBONTEQ_RENDERERS_WHEEL_SHA256}  ${CARBONTEQ_RENDERERS_WHEEL_PATH}" | sha256sum --check --strict
+          curl --fail --location --silent --show-error \
             --output "${CARBONTEQ_TRL_WHEEL_PATH}" \
             "${CARBONTEQ_TRL_WHEEL_URL}"
           echo "${CARBONTEQ_TRL_WHEEL_SHA256}  ${CARBONTEQ_TRL_WHEEL_PATH}" | sha256sum --check --strict
-          VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}"
+          VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}" "${CARBONTEQ_RENDERERS_WHEEL_PATH}"
       - name: Install workspace and test tools
-        run: uv sync --frozen --all-packages --group dev --python 3.13 --no-install-package carbonteq-trackio --inexact
+        run: uv sync --frozen --all-packages --group dev --python 3.13 --no-install-package carbonteq-renderers --no-install-package carbonteq-trackio --inexact
       - name: Build wheels and run outside the workspace
         run: uv run --no-sync pytest -q tests/consumer
 
@@ -194,13 +209,17 @@ jobs:
             "${CARBONTEQ_TRACKIO_WHEEL_URL}"
           echo "${CARBONTEQ_TRACKIO_WHEEL_SHA256}  ${CARBONTEQ_TRACKIO_WHEEL_PATH}" | sha256sum --check --strict
           curl --fail --location --silent --show-error \
+            --output "${CARBONTEQ_RENDERERS_WHEEL_PATH}" \
+            "${CARBONTEQ_RENDERERS_WHEEL_URL}"
+          echo "${CARBONTEQ_RENDERERS_WHEEL_SHA256}  ${CARBONTEQ_RENDERERS_WHEEL_PATH}" | sha256sum --check --strict
+          curl --fail --location --silent --show-error \
             --output "${CARBONTEQ_TRL_WHEEL_PATH}" \
             "${CARBONTEQ_TRL_WHEEL_URL}"
           echo "${CARBONTEQ_TRL_WHEEL_SHA256}  ${CARBONTEQ_TRL_WHEEL_PATH}" | sha256sum --check --strict
-          VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}"
+          VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}" "${CARBONTEQ_RENDERERS_WHEEL_PATH}"
       - name: Install the Verifiers integration
         run: |
-          uv sync --frozen --all-packages --extra verifiers --python 3.13 --no-install-package carbonteq-trackio --inexact
+          uv sync --frozen --all-packages --extra verifiers --python 3.13 --no-install-package carbonteq-renderers --no-install-package carbonteq-trackio --inexact
           uv pip install --python .venv/bin/python \
             "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@d994073b9632e73c96a57865683133d7a6ebc4bf#subdirectory=environments/gsm8k_v1"
       - name: Test the Verifiers bridge

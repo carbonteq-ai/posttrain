@@ -54,11 +54,20 @@ def load_fork_ledger(repository_root: Path) -> tuple[ForkLedgerEntry, ...]:
     root = repository_root.resolve()
     declared = _declared_entries(root)
     expected = {entry["id"]: entry for entry in declared}
-    if set(expected) != {"carbonteq-trackio", "trl", "verl", "vllm", "automationbench", "dstack"}:
+    if set(expected) != {
+        "carbonteq-trackio",
+        "trl",
+        "carbonteq-renderers",
+        "verl",
+        "vllm",
+        "automationbench",
+        "dstack",
+    }:
         raise ValueError("release/forks.toml must declare the complete maintained-fork closure")
 
     trackio = _tool_metadata(root / _TRACKIO, "trackio")
     trl = _tool_metadata(root / _TRAIN, "trl")
+    renderers = _tool_metadata(root / _TRAIN, "renderers")
     profile = _toml(root / _VERL_PROFILE)
     dependencies = _mapping(profile.get("dependencies"), "veRL profile dependencies")
 
@@ -70,6 +79,12 @@ def load_fork_ledger(repository_root: Path) -> tuple[ForkLedgerEntry, ...]:
             source=_TRACKIO.as_posix(),
         ),
         _package_entry(expected["trl"], metadata=trl, package="trl", source=_TRAIN.as_posix()),
+        _package_entry(
+            expected["carbonteq-renderers"],
+            metadata=renderers,
+            package="carbonteq-renderers",
+            source=_TRAIN.as_posix(),
+        ),
         _verl_entry(expected["verl"], profile),
         _vllm_entry(expected["vllm"], dependencies),
         _automationbench_entry(expected["automationbench"], root),
@@ -197,7 +212,7 @@ def _vllm_entry(declared: dict[str, Any], dependencies: dict[str, Any]) -> ForkL
 def _automationbench_entry(declared: dict[str, Any], root: Path) -> ForkLedgerEntry:
     text = (root / _AUTOMATIONBENCH).read_text(encoding="utf-8")
     environment_revision = _python_constant(text, "AUTOMATIONBENCH_REVISION")
-    if environment_revision != "9bbd3116e6b5a444d6cf103dce18b1866ae32787":
+    if environment_revision != "8b739717adad33e9dd3a4fcef0acd7ce7626a9d3":
         raise ValueError("AutomationBench environment source changed; update the release ledger deliberately")
     return _entry(
         declared,

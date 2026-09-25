@@ -136,6 +136,32 @@ def cancel(payload):
     return {"cancelled": False, "missing": False}
 
 
+_ACTIVE_LIST_LIMIT = 100
+
+
+def active_runs(payload):
+    """List non-terminal runs with their posttrain run-id tag (read-only)."""
+
+    runs = _client(payload).runs.list()
+    active = []
+    for run in runs:
+        native = str(getattr(run.status, "value", run.status)).lower()
+        if native in _TERMINAL:
+            continue
+        configuration = getattr(getattr(run._run, "run_spec", None), "configuration", None)
+        tags = getattr(configuration, "tags", None) or {}
+        active.append(
+            {
+                "run_name": run.name,
+                "status": native,
+                "posttrain_run_id": tags.get("posttrain_run_id") if isinstance(tags, dict) else None,
+            }
+        )
+    # dstack returns at most one page of active runs. A full page cannot prove
+    # that a run id is absent from the remainder.
+    return {"runs": active, "complete": len(runs) < _ACTIVE_LIST_LIMIT}
+
+
 def _native_status(run):
     run.refresh()
     return str(getattr(run.status, "value", run.status)).lower()
@@ -385,6 +411,7 @@ def main():
         "logs": logs,
         "cancel": cancel,
         "cleanup_workspace": cleanup_workspace,
+        "active_runs": active_runs,
     }
     result = handlers[action](payload)
     json.dump(result, sys.stdout, sort_keys=True, separators=(",", ":"))

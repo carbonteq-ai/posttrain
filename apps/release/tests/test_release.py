@@ -785,6 +785,7 @@ def test_readiness_receipt_binds_the_exact_source_tree_and_selected_forks(tmp_pa
     assert {entry["id"] for entry in entries if isinstance(entry, dict)} == {
         "carbonteq-trackio",
         "trl",
+        "carbonteq-renderers",
         "verl",
         "vllm",
         "automationbench",
@@ -802,13 +803,13 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
 
     entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
 
-    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev24"
+    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev27"
     assert entries["trl"].revision == "3b7a582e011a32de74d1f2b6e572b794360fbfd7"
     assert entries["verl"].release_tag == "carbonteq-v0.9.0.post3"
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
         "28d20ff20893e1570b3789fb1367af4ca78a8bd71e31c03d43476a6f89aa57d0"
     )
-    assert entries["automationbench"].artifacts["environment_revision"] == ("9bbd3116e6b5a444d6cf103dce18b1866ae32787")
+    assert entries["automationbench"].artifacts["environment_revision"] == ("8b739717adad33e9dd3a4fcef0acd7ce7626a9d3")
     assert entries["dstack"].required is False
     assert entries["dstack"].deployed_image and "@sha256:" in entries["dstack"].deployed_image
     assert render_fork_ledger(repository_root)["schema"] == "posttrain.fork-ledger.v1"
@@ -1276,9 +1277,17 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
     assert "- dev" in runtime_candidate
     assert "- stable" in runtime_candidate
     assert "candidate index source must be unambiguous" in runtime_candidate
-    assert "uv lock --upgrade-package trl --upgrade-package carbonteq-trackio" in runtime_candidate
+    assert "uv lock --upgrade-package" not in runtime_candidate
+    assert "The pushed branch's uv.lock is the candidate authority" in runtime_candidate
+    assert "uv sync --package posttrain-release --frozen --python 3.13" in runtime_candidate
+    assert "uv sync --all-packages" not in runtime_candidate
     assert "posttrain-release sync-runtime-profile-pins" in runtime_candidate
     assert "posttrain-release lock-dependencies" in runtime_candidate
+    assert "--project tools/quantization" in runtime_candidate
+    assert (
+        "--output-file packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/transform.lock.txt"
+        in runtime_candidate
+    )
     assert "runtime lock resolved an internal package outside" in runtime_candidate
     assert "posttrain-release images plan" in runtime_candidate
     assert ".release/runtime-image-plan.json" in runtime_candidate
@@ -1301,17 +1310,20 @@ def test_required_fork_index_check_uses_every_python_fork_hash(monkeypatch: pyte
     assert verify_required_fork_index(root, "https://stable.example/+simple/") == (
         "carbonteq-trackio",
         "trl",
+        "carbonteq-renderers",
         "verl",
     )
-    assert captured["packages"] == ["carbonteq-trackio", "trl", "verl"]
+    assert captured["packages"] == ["carbonteq-trackio", "trl", "carbonteq-renderers", "verl"]
     assert captured["simple_base_url"] == "https://stable.example/+simple/"
     artifacts = captured["artifacts"]
     assert isinstance(artifacts, list)
     assert {item["filename"] for item in artifacts} == {
-        "carbonteq_trackio-0.31.5.post14.dev24-py3-none-any.whl",
-        "carbonteq_trackio-0.31.5.post14.dev24.tar.gz",
+        "carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl",
+        "carbonteq_trackio-0.31.5.post14.dev27.tar.gz",
         "trl-1.12.0.post9-py3-none-any.whl",
         "trl-1.12.0.post9.tar.gz",
+        "carbonteq_renderers-0.1.12.post1.dev1-py3-none-any.whl",
+        "carbonteq_renderers-0.1.12.post1.dev1.tar.gz",
         "verl-0.9.0.post3-py3-none-any.whl",
         "verl-0.9.0.post3.tar.gz",
     }

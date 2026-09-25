@@ -23,9 +23,17 @@ None of this delta is submitted to upstream (user decision, 2026-09-25).
 
 ## Selection
 
-Not selected yet. Posttrain and Verifiers still resolve upstream
-`renderers==0.1.12.dev3` (upstream commit `06bcf635`). The first fork candidate
-is `0.1.12.post1.dev1`, based on upstream `20f2b38c`.
+Posttrain 0.4.5 selects `carbonteq-renderers==0.1.12.post1.dev1` from
+`carbonteq-dev` (`packages/train/pyproject.toml`, with its identity under
+`[tool.posttrain.renderers]`). It is built from fork commit
+`6aba28a8c9a597475addc2c123dd18b28a462766` (tag
+`carbonteq-v0.1.12.post1.dev1`, based on upstream `20f2b38c`); wheel
+`2e3231784729b9177bfc25eb06e3a6a958f9ba420ff8e241c010266cc9422d0b`, sdist
+`bf529fc910f66494770a96e0ee5ec986344ed5f8b48258b50a55b82baa876fa3`. Verifiers
+`0cee0a07` depends on it without an index pin, so public consumers (including
+the Quality `external-consumer` job) install the GitHub Release wheel instead of
+reaching `pypi.lan`. `release/forks.toml` and the stable-index fork check cover
+it.
 
 ## Publication
 
@@ -36,8 +44,9 @@ wheel and sdist and records their SHA-256. The maintainer then dispatches
 That workflow publishes those exact bytes to `https://pypi.lan/carbonteq/dev/`,
 proves the stored files match, and installs them cleanly. Promotion to
 `carbonteq/stable` uses `.github/workflows/promote-retained-fork-candidate.yml`
-after qualification. A workflow can only be dispatched once it exists on the
-repository's default branch.
+after qualification; its first promotion needs the workflow fix in Posttrain
+0.4.5 that treats a missing stable page as a first promotion. A workflow can only
+be dispatched once it exists on the repository's default branch.
 
 ## Qualification evidence and remaining gates
 

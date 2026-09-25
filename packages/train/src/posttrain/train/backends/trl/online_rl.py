@@ -12,7 +12,7 @@ from ...bindings import TrainingBinding
 from ...online_rl import PolicySampling, PolicyTurnRequest, PolicyTurnResult
 from ...policy_messages import parsed_policy_message
 from ...profiles import CAPOSettings, GDPOSettings, GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings
-from ...rendering import bridge_lfm25_tool_cycle, create_renderer
+from ...rendering import create_renderer
 
 
 class TrlPolicyGenerator:
@@ -68,15 +68,6 @@ class TrlPolicyGenerator:
                 messages[request.tail_start :],
                 tools=tools or None,
             )
-            if rendered is None and self._tool_call_protocol is not None:
-                if self._tool_call_protocol.id == "lfm2_pythonic":
-                    rendered = bridge_lfm25_tool_cycle(
-                        self._renderer,
-                        self._tokenizer,
-                        list(request.previous_prompt_ids),
-                        list(request.previous_completion_ids),
-                        messages[request.tail_start :],
-                    )
         if rendered is None:
             rendered = self._renderer.render(messages, tools=tools or None, add_generation_prompt=True)
             spans = tuple(rendered.message_token_spans())

@@ -212,7 +212,12 @@ def rollout_function(
             )
         if isinstance(request, GRPORequest):
             shaped_rewards = [
-                shape_online_reward(request.settings, rollout.reward, len(rollout.completion_ids))
+                shape_online_reward(
+                    request.settings,
+                    rollout.reward,
+                    len(rollout.completion_ids),
+                    is_truncated=rollout.is_truncated,
+                )
                 for rollout in rollouts
             ]
         else:

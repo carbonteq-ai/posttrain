@@ -225,6 +225,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{run_key}/rollout-time": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rollout Time */
+        get: operations["rollout_time_api_v1_runs__run_key__rollout_time_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{run_key}/semantic-summary": {
         parameters: {
             query?: never;
@@ -251,6 +268,40 @@ export interface paths {
         };
         /** System Metrics */
         get: operations["system_metrics_api_v1_runs__run_key__system_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_key}/trace-filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trace Filters */
+        get: operations["trace_filters_api_v1_runs__run_key__trace_filters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_key}/trace-group-rewards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trace Group Rewards */
+        get: operations["trace_group_rewards_api_v1_runs__run_key__trace_group_rewards_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1202,6 +1253,8 @@ export interface components {
             new_tasks: number;
             /** Refill Rounds */
             refill_rounds: number;
+            /** Retained Groups */
+            retained_groups?: number | null;
             /** Step */
             step: number;
             /** Unique Tasks */
@@ -1346,6 +1399,60 @@ export interface components {
             /** Series */
             series: components["schemas"]["MetricSeries"][];
         };
+        /** PromptGroupReward */
+        PromptGroupReward: {
+            current?: components["schemas"]["PromptGroupRewardStats"] | null;
+            /** Group Id */
+            group_id: string;
+            prior?: components["schemas"]["PromptGroupRewardStats"] | null;
+            /** Prior Rollouts */
+            prior_rollouts?: number | null;
+            /** Prior Step */
+            prior_step?: number | null;
+            /** Reward Coverage */
+            reward_coverage: number;
+            /** Rollouts */
+            rollouts: number;
+            /** Step */
+            step?: number | null;
+            /** Task Id */
+            task_id?: string | null;
+        };
+        /** PromptGroupRewardStats */
+        PromptGroupRewardStats: {
+            /** Mean */
+            mean: number;
+            /** Std */
+            std: number;
+        };
+        /**
+         * PromptGroupRewardView
+         * @description Bounded group aggregates from indexed, rebuildable trace facts.
+         */
+        PromptGroupRewardView: {
+            /** Expected Group Size */
+            expected_group_size?: number | null;
+            /** Fact Rows */
+            fact_rows: number;
+            /**
+             * Groups
+             * @default []
+             */
+            groups: components["schemas"]["PromptGroupReward"][];
+            /**
+             * Live
+             * @default false
+             */
+            live: boolean;
+            /** Recorded Traces */
+            recorded_traces: number;
+            /**
+             * State
+             * @default unavailable
+             * @enum {string}
+             */
+            state: "complete" | "partial" | "unavailable";
+        };
         /**
          * RolloutBehaviorPoint
          * @description Trace-derived rollout averages for one optimizer step.
@@ -1393,6 +1500,57 @@ export interface components {
              * @default 0
              */
             unattributed: number;
+        };
+        /**
+         * RolloutTimeStep
+         * @description Summed rollout phase time for one optimizer step (None: facts not projected yet).
+         */
+        RolloutTimeStep: {
+            /** Elapsed Ms */
+            elapsed_ms?: number | null;
+            /** Inference Ms */
+            inference_ms?: number | null;
+            /** Rollout Ms */
+            rollout_ms?: number | null;
+            /** Rollouts */
+            rollouts: number;
+            /** Scoring Ms */
+            scoring_ms?: number | null;
+            /** Setup Ms */
+            setup_ms?: number | null;
+            /** Step */
+            step?: number | null;
+            /** Timed Rollouts */
+            timed_rollouts: number;
+            /** Tools Ms */
+            tools_ms?: number | null;
+        };
+        /**
+         * RolloutTimeView
+         * @description Where rollout time went across a run: GPU inference vs CPU harness work.
+         *
+         *     Inference sums model-call spans, which include queueing in the inference
+         *     server while other rollouts are served.
+         */
+        RolloutTimeView: {
+            /** Elapsed Ms */
+            elapsed_ms?: number | null;
+            /**
+             * Live
+             * @default false
+             */
+            live: boolean;
+            /**
+             * State
+             * @default unavailable
+             * @enum {string}
+             */
+            state: "available" | "unavailable";
+            /**
+             * Steps
+             * @default []
+             */
+            steps: components["schemas"]["RolloutTimeStep"][];
         };
         /** RunAlert */
         RunAlert: {
@@ -1896,6 +2054,36 @@ export interface components {
              */
             truncated: number;
         };
+        /**
+         * TraceFilterOptions
+         * @description Choices derived from the complete recorded trace population.
+         */
+        TraceFilterOptions: {
+            /**
+             * Outcomes
+             * @default []
+             */
+            outcomes: components["schemas"]["TraceOutcome"][];
+            /**
+             * Slices
+             * @default []
+             */
+            slices: components["schemas"]["TraceFilterSlice"][];
+            /**
+             * Steps
+             * @default []
+             */
+            steps: number[];
+            /** Total */
+            total: number;
+        };
+        /** TraceFilterSlice */
+        TraceFilterSlice: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
         /** @enum {string} */
         TraceOutcome: "pass" | "review" | "scored" | "error" | "truncated" | "unknown";
         /** TraceSummary */
@@ -1920,8 +2108,12 @@ export interface components {
             native_metrics?: {
                 [key: string]: number;
             };
+            /** Optimizer Step */
+            optimizer_step?: number | null;
             /** @default unknown */
             outcome: components["schemas"]["TraceOutcome"];
+            /** Prompt Group Id */
+            prompt_group_id?: string | null;
             /** Prompt Preview */
             prompt_preview?: string | null;
             /** Response Chars */
@@ -1945,6 +2137,7 @@ export interface components {
             thinking_chars?: number | null;
             /** Thinking Tokens */
             thinking_tokens?: number | null;
+            timing?: components["schemas"]["TraceTiming"] | null;
             /** Tokens */
             tokens?: number | null;
             /** Tool Calls */
@@ -1976,6 +2169,27 @@ export interface components {
             next_cursor?: string | null;
             /** Total */
             total: number;
+        };
+        /**
+         * TraceTiming
+         * @description Where a rollout's wall-clock time went: GPU inference vs CPU harness work.
+         *
+         *     ``inference_ms`` sums model-call spans, which include any queueing in the
+         *     inference server. ``tools_ms`` is harness time between and around calls.
+         */
+        TraceTiming: {
+            /** Inference Ms */
+            inference_ms: number;
+            /** Model Calls */
+            model_calls: number;
+            /** Scoring Ms */
+            scoring_ms: number;
+            /** Setup Ms */
+            setup_ms: number;
+            /** Tools Ms */
+            tools_ms: number;
+            /** Total Ms */
+            total_ms: number;
         };
         /** TrackingCapabilities */
         TrackingCapabilities: {
@@ -2461,6 +2675,37 @@ export interface operations {
             };
         };
     };
+    rollout_time_api_v1_runs__run_key__rollout_time_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolloutTimeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     semantic_summary_api_v1_runs__run_key__semantic_summary_post: {
         parameters: {
             query?: never;
@@ -2531,11 +2776,77 @@ export interface operations {
             };
         };
     };
+    trace_filters_api_v1_runs__run_key__trace_filters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TraceFilterOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trace_group_rewards_api_v1_runs__run_key__trace_group_rewards_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptGroupRewardView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     trace_summaries_api_v1_runs__run_key__traces_get: {
         parameters: {
             query?: {
                 cursor?: string | null;
                 limit?: number;
+                step?: number | null;
+                slice_key?: string | null;
+                outcome?: components["schemas"]["TraceOutcome"] | null;
+                search?: string | null;
             };
             header?: never;
             path: {

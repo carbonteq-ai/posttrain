@@ -600,6 +600,57 @@ def with_recovery_checkpoint(
     return replace(planned, launch=replace(planned.launch, run_spec=rebound_spec))
 
 
+def with_curriculum_state(
+    planned: PlannedJobExecution,
+    *,
+    source_run_id: str,
+    artifact: ArtifactLink,
+) -> PlannedJobExecution:
+    """Bind another run's published adaptive-curriculum-state to warm-start a new training run."""
+
+    spec = planned.launch.run_spec
+    if not spec.job_kind.startswith("train."):
+        raise ContractError("curriculum warm starts apply only to training jobs")
+    if source_run_id == spec.run_id:
+        raise ContractError("a curriculum source run must use a different run identity")
+    if artifact.direction != "output" or artifact.kind not in {"adaptive-curriculum-state", "training-checkpoint"}:
+        raise ContractError(
+            "curriculum source must be an output adaptive-curriculum-state or training-checkpoint artifact"
+        )
+    if "recovery_checkpoint" in spec.artifacts:
+        raise ContractError("a resumed run restores its own curriculum; do not also warm-start it")
+    if "curriculum_state" in spec.artifacts:
+        raise ContractError("run already has a selected curriculum source")
+    stored = artifact.artifact
+    if stored.digest is None:
+        raise ContractError("curriculum source must have a committed content digest")
+    reference = StoredArtifactRef(
+        provider=stored.provider,
+        namespace=stored.namespace,
+        name=stored.name,
+        version=stored.version,
+        digest=stored.digest,
+        provider_metadata=stored.provider_metadata,
+    )
+    rebound_spec = replace(
+        spec,
+        artifacts={**dict(spec.artifacts), "curriculum_state": ArtifactInput(reference, artifact.kind)},
+        resolved_inputs={
+            **dict(spec.resolved_inputs),
+            "curriculum_state": {
+                "source_run_id": source_run_id,
+                "logical_name": artifact.logical_name,
+                "provider": stored.provider,
+                "namespace": stored.namespace,
+                "name": stored.name,
+                "version": stored.version,
+                "digest": stored.digest,
+            },
+        },
+    )
+    return replace(planned, launch=replace(planned.launch, run_spec=rebound_spec))
+
+
 def with_model_checkpoint(
     planned: PlannedJobExecution,
     *,

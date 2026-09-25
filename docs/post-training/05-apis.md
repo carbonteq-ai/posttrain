@@ -140,6 +140,7 @@ posttrain job plan WORK_PACKAGE --job JOB_ID [--builder local|remote]
 posttrain job pack WORK_PACKAGE --job JOB_ID [--builder local|remote]
 posttrain job run WORK_PACKAGE --job JOB_ID [--provider local|dstack] [--builder local|remote] [--build-missing] [--resume-from-run RUN_ID] [--checkpoint-step STEP]
 posttrain job run WORK_PACKAGE --job JOB_ID [--model-from-run RUN_ID] [--checkpoint-step STEP] [--model-seat SEAT]
+posttrain job run WORK_PACKAGE --job JOB_ID [--curriculum-from-run RUN_ID] [--curriculum-checkpoint-step STEP] [--model-from-run RUN_ID ...]
 posttrain job diff WORK_PACKAGE --job JOB_ID [--from KEY] [--to KEY]
 posttrain run list
 posttrain run status RUN_ID
@@ -149,7 +150,7 @@ posttrain run cancel RUN_ID
 posttrain run retry-submit RUN_ID
 posttrain run reconcile RUN_ID
 posttrain run cleanup RUN_ID
-posttrain run purge RUN_ID --reason REASON [--note SAFE_NOTE] [--cascade]
+posttrain run purge RUN_ID --reason REASON [--note SAFE_NOTE] [--cascade | --orphan [--stale-after-hours H]]
 posttrain run show RUN_ID
 posttrain project purge --reason REASON [--note SAFE_NOTE]
 posttrain purge show PURGE_ID
@@ -219,6 +220,22 @@ When a job has multiple model seats, `--model-seat` is required unless the job
 definition declares one unambiguous default. The resume and model-source modes
 are mutually exclusive.
 
+`job run --curriculum-from-run` warm-starts the adaptive curriculum of a new
+training run from another run. Without `--curriculum-checkpoint-step` it selects
+that run's single final `adaptive-curriculum-state` output; with it, the
+controller state saved at that checkpoint step. Every checkpoint publishes a
+small `checkpoint-<step>/curriculum` view for this, and runs recorded before
+those views fall back to the recovery checkpoint at the step, which holds the
+same controller snapshot. The selection is bound as the `curriculum_state`
+input; the curriculum then keeps the source's task evidence (reward history,
+first evidence, seen tasks, and yield-first statistics) while its decision,
+candidate, and step counters start fresh. Time is re-based so the source run's
+last active step is step 0 of the new run, which keeps yield-first evidence
+ageing continuous. The task inventory, curriculum settings, and group size must
+match the source exactly. It may be combined with `--model-from-run` and is
+mutually exclusive with `--resume-from-run`, because a resumed run already
+restores the curriculum stored in its recovery checkpoint.
+
 The run-scoped inspection commands are bounded and read-only. `checkpoint list`
 returns snapshot summaries newest-first without fetching tensor manifests;
 `show` fetches the selected small manifest and compatibility descriptor;
@@ -243,7 +260,12 @@ registry, or tracking deletion API.
 They require a non-secret reason and report the complete ownership/lineage
 closure, resources retained because they have surviving owners, warnings,
 blockers, logical-byte estimates, and an immutable digest. `--cascade` is
-available only for a same-project run-consumer closure. Apply is exclusively
+available only for a same-project run-consumer closure. `--orphan` previews a
+purge of a run with no local submission receipt (its tracking run, plus a
+proven-abandoned admission entry and exclusively owned job image; a shared job
+image is retained with a warning) under the
+orphaned tracking-run rules in 03-work-and-evidence.md; it never replaces the
+normal preview for a run this machine still controls. Apply is exclusively
 `posttrain purge apply`, which requires the saved plan ID, its exact digest, and
 explicit confirmation. A blocked plan or changed ownership cannot be applied.
 No command performs registry-wide garbage collection.
@@ -492,12 +514,18 @@ records these settings explicitly. Backend adapters reject unsupported
 semantics rather than approximating DAPO with another objective.
 
 `GRPOSettings.adaptive_curriculum` optionally selects rollout exposure before
-the algorithm update. Its initial contract contains `class_field`,
+the algorithm update. Its original quota policy contains `class_field`,
 `class_exploration`, `task_discovery`, `history_groups`, and `seed`. The named
-field must exist on every resolved rollout task. Class exploration is a
-counted cumulative reserve for base-distribution class coverage; task discovery
-is an independent cumulative floor for unseen task identities. Nonreserved
-slots may also discover tasks when the unseen pool has greater predicted yield.
+field must exist on every resolved rollout task. Under that policy, class
+exploration is a counted cumulative reserve for base-distribution class
+coverage; task discovery is an independent cumulative floor for unseen task
+identities. Nonreserved slots may also discover tasks when the unseen pool has
+greater predicted yield. A separate `yield_first` policy keeps the same class
+field and seed but uses `exploration_share` and `uncertainty_weight`: each
+candidate draws from the entire eligible inventory, with the exploratory lane
+adding an uncertainty bonus to the existing useful-group prediction. Its lane
+share is not a task-novelty floor. Policy identity and coefficients are
+snapshotted with controller state and recorded in run evidence.
 The settings can overlap in one selection. Evidence windows advance when that task produces a completed group,
 not merely when an optimizer step passes. Controller state, cumulative
 discovery accounting, current-step exclusions, and write position are recovery
@@ -505,10 +533,11 @@ state and must be retained with a model checkpoint.
 Algorithms without bounded refill sampling call the controller once for the
 initial generation batch. OLMo 3 calls it for every active-sampling refill, so
 evidence from an earlier round can change later task identities while policy
-weights remain fixed. The controller avoids task identities already proposed in
-the optimizer step while distinct candidates remain. If that eligible inventory
-is exhausted, it may reuse a task, records the duplicate fallback, and does not
-fail the run for loss of diversity alone. Each decision records its sampling
+weights remain fixed. The controller excludes task identities already proposed
+in the optimizer step, including across refill rounds and recovery. It never
+reuses a task in that step. Insufficient distinct eligible tasks is a capacity
+shortfall that fails selection before generation or an underfilled optimizer
+update; later optimizer steps may recheck those tasks. Each decision records its sampling
 stage, refill round, selection reasons, and fulfilled or unmet discovery reserve.
 Resolved runtime evidence reports `adaptive_curriculum_sampling_mode` as
 `initial_batch` or `active_sampling_refill`; this is derived from the selected

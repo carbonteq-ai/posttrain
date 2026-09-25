@@ -1180,6 +1180,7 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
                     "mask_truncated_completions": value.mask_truncated_completions,
                     "overlong_buffer_tokens": value.overlong_buffer_tokens,
                     "overlong_penalty_factor": value.overlong_penalty_factor,
+                    "truncation_penalty": value.truncation_penalty,
                 }
             )
         if isinstance(value, (SAMPOSettings, GDPOSettings, CAPOSettings)):

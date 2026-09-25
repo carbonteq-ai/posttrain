@@ -7,7 +7,24 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 
 ## Install / pin
 
-The selected independently maintained CarbonTeq distribution is
+Posttrain 0.4.5 selects
+`carbonteq-ai/verifiers@0cee0a075ddf1883498be0fde34155655cb19146`, released as
+[`carbonteq-v0.3.2.dev91`](https://github.com/carbonteq-ai/verifiers/releases/tag/carbonteq-v0.3.2.dev91)
+(wheel `51bd8314fec11e2e38450b7ecab5eddb0197d27deff091c8d58b901ccbe64dc6`,
+sdist `e7db75fc490cb196f78337de26323b48d13e27268d778e168e99751b0296bd1e`)
+and carried by the fork's release branch `codex/carbonteq-verifiers-latest`. It
+adds renderer reasoning-token accounting on top of `b71ade0a`: the train client
+records `usage.reasoning_tokens` from `carbonteq-renderers` on every call, the
+model-specific parsers live in that fork, and `carbonteq-renderers` has no
+consumer-visible index pin so public consumers install its GitHub Release wheel.
+The environment packages select this commit from
+`verifiers-environments@8b739717adad33e9dd3a4fcef0acd7ce7626a9d3`, released as
+[`carbonteq-2026.09.25`](https://github.com/carbonteq-ai/verifiers-environments/releases/tag/carbonteq-2026.09.25)
+and on that repository's `main`. The dormant veRL runtime kind deliberately
+keeps its previously qualified `b71ade0a` backend closure until veRL is
+requalified.
+
+The previous selection was
 `carbonteq-ai/verifiers@b71ade0a7ac712cdee9e1a4c0e53030d70768aff`, based on
 upstream main commit `27bbd216df0af719a43705866b2cf6139bcc95de` and retaining
 the CarbonTeq host-client, selected-template, and cancellation seams. It adds
@@ -28,7 +45,7 @@ credential-dependent Prime cases skipped. Verifiers is consumed directly by
 immutable Git revision rather than as a private-index wheel; the Posttrain
 manifests and runtime locks therefore constitute its development selection.
 
-Selected commit `b71ade0a7ac712cdee9e1a4c0e53030d70768aff` adds the rollout
+Commit `b71ade0a7ac712cdee9e1a4c0e53030d70768aff` added the rollout
 startup and tool-path work from the agentic inference plan
 (`docs/plan/agentic-workload-inference-optimization.md`): an opt-in fork server
 for subprocess-runtime Python programs (tool servers, preinstalled and
@@ -41,7 +58,13 @@ tool calls: host time per episode 6.6 s to 0.65 s (preinstalled interpreter)
 and 6.65 s to 0.78 s (uv-prepared harness, as in training). The fork's
 `tests/v1/test_subprocess_fork_server.py` and `test_mcp_server_latency.py`
 pass; the rest of the v1 suite fails only its 14 pre-existing
-environment-import cases, identically before and after.
+environment-import cases, identically before and after. In production, the
+VORTEX v2 training run `lfm26-vortex-v2-agentic-20260923-r1` shows episode
+setup of 0.16-0.27 s and harness time of 0.45 s (median) after its first
+collection, against 6.3 s and 3.2 s in earlier AutomationBench training
+traces; the first collection pays about 13 s once while each worker's
+zygotes boot and uv prepares the harness environment. The environment
+packages selected that Verifiers commit from `verifiers-environments@9bbd3116`.
 
 The earlier selected commit added exact ordered task-key selection and records the
 repetition index on native evaluation episodes. These generic seams let a host

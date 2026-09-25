@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from typing import Protocol
+from collections.abc import Mapping
 
 from posttrain.common import JsonValue, SignalSource, TraceFactSet, TraceRewardComponent
 
-VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v4"
-QWEN35_THINKING_END_TOKEN_ID = 248069
+# v5: facts record the task id and prompt-group id, so group rewards aggregate
+# from indexed facts. v6: thinking tokens come only from per-call usage, which
+# the renderer fills on the train path (carbonteq-renderers); model-specific
+# recovery rules are gone.
+VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v6"
 
 _TRUNCATED_STOP_CONDITIONS = frozenset(
     {
@@ -22,90 +23,6 @@ _TRUNCATED_STOP_CONDITIONS = frozenset(
         "harness_timeout",
     }
 )
-
-
-@dataclass(frozen=True, slots=True)
-class ThinkingTokenContext:
-    """Immutable identity and trace evidence available to one family rule."""
-
-    record: Mapping[str, object]
-    model: str
-    model_family: str | None
-    tokenizer_revision: str | None
-    renderer_revision: str | None
-    template_revision: str | None
-    trace_version: int | None
-    is_truncated: bool
-
-
-@dataclass(frozen=True, slots=True)
-class ThinkingTokenResult:
-    tokens: int
-    method: str
-
-
-class ThinkingTokenRule(Protocol):
-    """One versioned model-serialization rule for missing provider usage."""
-
-    @property
-    def id(self) -> str: ...
-
-    def matches(self, context: ThinkingTokenContext) -> bool: ...
-
-    def calculate(self, context: ThinkingTokenContext) -> ThinkingTokenResult | None: ...
-
-
-@dataclass(frozen=True, slots=True)
-class Qwen35ThinkingTokenRule:
-    """Recover Qwen 3.5 thought tokens from retained native token boundaries."""
-
-    id: str = "qwen3.5-native-thinking.v1"
-
-    def matches(self, context: ThinkingTokenContext) -> bool:
-        family = (context.model_family or "").lower()
-        return family == "qwen3.5" or "qwen3.5" in context.model.lower()
-
-    def calculate(self, context: ThinkingTokenContext) -> ThinkingTokenResult | None:
-        nodes = context.record.get("nodes")
-        if not isinstance(nodes, list):
-            return None
-        total = 0
-        observed = False
-        for index, node in enumerate(nodes):
-            if not isinstance(node, Mapping):
-                continue
-            message = node.get("message")
-            if not isinstance(message, Mapping) or not isinstance(message.get("reasoning_content"), str):
-                continue
-            token_ids = node.get("token_ids")
-            sampled_mask = node.get("mask")
-            if not isinstance(token_ids, list) or not isinstance(sampled_mask, list):
-                return None
-            if len(token_ids) != len(sampled_mask):
-                return None
-            sampled_start = next((offset for offset, sampled in enumerate(sampled_mask) if sampled is True), None)
-            if sampled_start is None:
-                return None
-            end = next(
-                (
-                    offset
-                    for offset in range(sampled_start, len(token_ids))
-                    if token_ids[offset] == QWEN35_THINKING_END_TOKEN_ID and sampled_mask[offset] is True
-                ),
-                None,
-            )
-            if end is None:
-                if not _is_proven_terminal_thinking_suffix(context, index, message):
-                    return None
-                end = len(token_ids)
-            total += sum(sampled is True for sampled in sampled_mask[sampled_start:end])
-            observed = True
-        if not observed:
-            return None
-        return ThinkingTokenResult(total, self.id)
-
-
-DEFAULT_THINKING_TOKEN_RULES: tuple[ThinkingTokenRule, ...] = (Qwen35ThinkingTokenRule(),)
 
 
 def verifiers_trace_attributes(record: Mapping[str, object]) -> dict[str, JsonValue]:
@@ -123,7 +40,12 @@ def verifiers_trace_has_error(record: Mapping[str, object]) -> bool:
     # Modern traces expose execution standing even when no exception was saved.
     # Missing `ok` is the legacy schema, not an implicit unsuccessful episode.
     errors = record.get("errors")
-    return record.get("ok") is False or (isinstance(errors, list) and bool(errors))
+    if record.get("ok") is False or (isinstance(errors, list) and bool(errors)):
+        return True
+    calls = record.get("calls")
+    return isinstance(calls, list) and any(
+        isinstance(call, Mapping) and call.get("error") not in (None, False, "") for call in calls
+    )
 
 
 def verifiers_trace_is_truncated(record: Mapping[str, object]) -> bool:
@@ -142,12 +64,13 @@ def project_verifiers_trace_facts(
     *,
     attributes: Mapping[str, JsonValue] | None = None,
     reward_component_sources: Mapping[str, SignalSource] | None = None,
-    thinking_rules: Sequence[ThinkingTokenRule] = DEFAULT_THINKING_TOKEN_RULES,
 ) -> TraceFactSet:
     """Project one native record into facts shared by train, OPD, and eval.
 
-    Provider usage is preferred. Model-family rules are compatibility paths for
-    retained traces whose provider omitted reasoning-token usage.
+    Thinking tokens come only from each model call's ``usage.reasoning_tokens``:
+    reported by the provider on API and chat-completion paths, and by the
+    renderer that parsed the completion on the token-in/token-out train path.
+    A trace without it records ``thinking_tokens`` as unsupported.
     """
 
     supplied = attributes or {}
@@ -160,6 +83,8 @@ def project_verifiers_trace_facts(
     template_revision = _identity_value(record, supplied, "template_revision")
     is_truncated = bool(shared["is_truncated"])
     has_error = bool(shared["has_error"])
+    info = record.get("info")
+    info = info if isinstance(info, Mapping) else {}
 
     dimensions: dict[str, str | int | float | bool | None] = {
         "model": model or None,
@@ -169,6 +94,8 @@ def project_verifiers_trace_facts(
         "template_revision": template_revision,
         "trace_schema_version": trace_version,
         "task_type": _task_type(record),
+        "task_id": _string(supplied.get("example_id")) or _string(info.get("example_id")),
+        "prompt_group_id": _string(info.get("posttrain_prompt_group_id")),
         "rollout_step": _rollout_step(record, supplied),
         "is_truncated": is_truncated,
         "has_error": has_error,
@@ -190,26 +117,7 @@ def project_verifiers_trace_facts(
             "provider_reasoning_usage" if reasoning_complete else "provider_reasoning_usage_partial"
         )
     else:
-        context = ThinkingTokenContext(
-            record=record,
-            model=model,
-            model_family=model_family,
-            tokenizer_revision=tokenizer_revision,
-            renderer_revision=renderer_revision,
-            template_revision=template_revision,
-            trace_version=trace_version,
-            is_truncated=is_truncated,
-        )
-        result = None
-        for rule in thinking_rules:
-            if not rule.matches(context):
-                continue
-            result = rule.calculate(context)
-            if result is not None:
-                break
-        reasoning_tokens = result.tokens if result is not None else None
-        provenance["thinking_tokens"] = result.method if result is not None else "unsupported"
-        reasoning_complete = result is not None
+        provenance["thinking_tokens"] = "unsupported"
 
     output_tokens, output_complete, output_method = _model_output_tokens(
         record,
@@ -467,19 +375,6 @@ def _last_successful_call(record: Mapping[str, object]) -> Mapping[str, object] 
     return next((call for call in reversed(calls) if not call.get("error")), None)
 
 
-def _is_proven_terminal_thinking_suffix(
-    context: ThinkingTokenContext,
-    node_index: int,
-    message: Mapping[object, object],
-) -> bool:
-    if not context.is_truncated or message.get("content") not in (None, ""):
-        return False
-    last = _last_successful_call(context.record)
-    if last is None or last.get("finish_reason") != "length":
-        return False
-    return _nonnegative_int(last.get("node")) == node_index
-
-
 def _nonnegative_int(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
@@ -496,12 +391,6 @@ def _string(value: object) -> str | None:
 
 
 __all__ = [
-    "DEFAULT_THINKING_TOKEN_RULES",
-    "QWEN35_THINKING_END_TOKEN_ID",
-    "Qwen35ThinkingTokenRule",
-    "ThinkingTokenContext",
-    "ThinkingTokenResult",
-    "ThinkingTokenRule",
     "VERIFIERS_FACT_CALCULATOR_VERSION",
     "project_verifiers_trace_facts",
     "verifiers_trace_attributes",

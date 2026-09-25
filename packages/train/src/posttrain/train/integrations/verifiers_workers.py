@@ -61,7 +61,6 @@ def create_verifiers_train_client_config(
     """
 
     try:
-        from verifiers.v1.clients.renderer_extensions import register_renderer_extensions
         from verifiers.v1.configs.client import TrainClientConfig
     except ImportError as error:
         raise RuntimeError("install the Verifiers integration dependencies") from error
@@ -69,7 +68,6 @@ def create_verifiers_train_client_config(
         raise RuntimeError(
             "native rollout workers require a Verifiers TrainClientConfig with exact chat-template support"
         )
-    register_renderer_extensions()
     values: dict[str, Any] = {
         "base_url": base_url,
         "api_key_var": api_key_var,

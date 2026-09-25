@@ -19,6 +19,7 @@ from posttrain.tracking import (
     TraceAggregateResult,
     TraceFactsQuery,
     TracePage,
+    TracePayloadQuery,
     TraceQuery,
     TraceRecord,
     TrackingCapabilities,
@@ -605,12 +606,18 @@ class FixtureRunDataSource(RunDataSource):
         values = self._traces[run_id]
         if query.trace_type is not None:
             values = tuple(value for value in values if value.trace_type == query.trace_type)
+        if query.order == "newest_first":
+            values = tuple(reversed(values))
         offset = int(query.cursor or 0)
         page = values[offset : offset + query.limit]
         next_cursor = str(offset + query.limit) if offset + query.limit < len(values) else None
         return TracePage(items=page, next_cursor=next_cursor, live=True)
 
     async def aggregate_trace_facts(self, run_id: str, query: TraceFactsQuery) -> TraceAggregateResult:
+        del run_id, query
+        return TraceAggregateResult(state="unavailable")
+
+    async def aggregate_trace_payload(self, run_id: str, query: TracePayloadQuery) -> TraceAggregateResult:
         del run_id, query
         return TraceAggregateResult(state="unavailable")
 

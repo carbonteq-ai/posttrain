@@ -34,13 +34,7 @@ from .requests import (
 )
 from .task_inventory import TaskDescriptor, TaskFacetValue, task_inventory_digest
 from .verifiers_evidence import (
-    DEFAULT_THINKING_TOKEN_RULES,
-    QWEN35_THINKING_END_TOKEN_ID,
     VERIFIERS_FACT_CALCULATOR_VERSION,
-    Qwen35ThinkingTokenRule,
-    ThinkingTokenContext,
-    ThinkingTokenResult,
-    ThinkingTokenRule,
     project_verifiers_trace_facts,
     verifiers_trace_attributes,
     verifiers_trace_has_error,
@@ -74,12 +68,6 @@ __all__ = [
     "SignalSourceSchema",
     "TaskDescriptor",
     "TaskFacetValue",
-    "DEFAULT_THINKING_TOKEN_RULES",
-    "QWEN35_THINKING_END_TOKEN_ID",
-    "Qwen35ThinkingTokenRule",
-    "ThinkingTokenContext",
-    "ThinkingTokenResult",
-    "ThinkingTokenRule",
     "VERIFIERS_FACT_CALCULATOR_VERSION",
     "VerifiersV1ConfigActivation",
     "VerifiersV1ConfigActivationSchema",

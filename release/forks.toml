@@ -10,7 +10,7 @@ schema_version = 1
 id = "carbonteq-trackio"
 scope = "direct-package"
 repository = "https://github.com/carbonteq-ai/trackio"
-release_tag = "carbonteq-v0.31.5.post14.dev24"
+release_tag = "carbonteq-v0.31.5.post14.dev27"
 required = true
 
 [[fork]]
@@ -18,6 +18,13 @@ id = "trl"
 scope = "direct-package"
 repository = "https://github.com/carbonteq-ai/trl"
 release_tag = "carbonteq-v1.12.0.post9"
+required = true
+
+[[fork]]
+id = "carbonteq-renderers"
+scope = "direct-package"
+repository = "https://github.com/carbonteq-ai/renderers"
+release_tag = "carbonteq-v0.1.12.post1.dev1"
 required = true
 
 [[fork]]

@@ -55,6 +55,49 @@ from packages.tracking.tests.conformance import (
     terminal_outcome,
 )
 
+
+def test_pinned_trackio_accepts_indexed_task_trace_dimensions() -> None:
+    """A runtime with task/group facts must never silently lose every trace."""
+
+    update = _trackio_trace_facts(
+        "verifiers",
+        "trace-a",
+        TraceFactSet(
+            namespace="verifiers.trace",
+            calculator_version="verifiers-trace-facts.v5",
+            dimensions={"task_id": "task-a", "prompt_group_id": "group-a"},
+        ),
+    )
+    assert update.dimensions["task_id"] == "task-a"
+    assert update.dimensions["prompt_group_id"] == "group-a"
+
+
+def test_incompatible_eval_trace_schema_fails_before_opening_provider_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.trackio.TraceFactUpdate",
+        lambda **kwargs: (_ for _ in ()).throw(ValueError("unsupported trace fact dimension 'task_id'")),
+    )
+    opened = False
+
+    def fake_init(**kwargs: object) -> None:
+        nonlocal opened
+        opened = True
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.init", fake_init)
+    spec = RunSpec(
+        project_id="conformance",
+        work_package_id="qualify/heldout",
+        stage="qualify",
+        run_id="00000000-0000-4000-8000-000000000012",
+        job_kind="eval.general",
+        job_definition_version="eval/general@1",
+    )
+
+    with pytest.raises(ContractError, match="before starting the run"):
+        TrackioBackend(TrackioSettings(project="conformance")).start_run(spec)
+    assert not opened
+
+
 STARTED = datetime(2026, 7, 22, 2, 0, tzinfo=UTC)
 
 
@@ -906,6 +949,25 @@ async def test_trackio_trace_reader_requests_full_payload_only_when_requested(
 
 
 @pytest.mark.asyncio
+async def test_trackio_trace_reader_requests_newest_recorded_traces(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    class ProviderRun:
+        def traces(self, **kwargs: Any) -> list[dict[str, Any]]:
+            calls.append(kwargs)
+            return []
+
+    source = TrackioDataSource("trackio-newest-traces")
+    monkeypatch.setattr(source, "_provider_run", lambda _run_id: ProviderRun())
+
+    await source.traces("run-1", TraceQuery(trace_type="verifiers", order="newest_first"))
+
+    assert calls[0]["sort"] == "request_time_desc"
+
+
+@pytest.mark.asyncio
 async def test_trackio_trace_detail_reads_one_full_record(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1464,3 +1526,60 @@ async def test_trackio_rejects_materialized_input_with_wrong_expected_digest(
             {"base_model": artifact_input},
             trackio_dir / "integrity-inputs",
         )
+
+
+def test_run_activity_lookup_reads_status_provider_and_newest_activity(monkeypatch: pytest.MonkeyPatch) -> None:
+    from posttrain_tracking_trackio import TrackioRunActivityLookup
+
+    class Run:
+        id = "trackio-orphan"
+        created_at = "2026-09-17T22:24:38+00:00"
+
+        def summary(self) -> dict[str, Any]:
+            return {"num_logs": 3}
+
+        def history(self, *, keys, limit, offset):
+            assert keys == ("event/occurred_at",) and offset == 0
+            return [
+                {"timestamp": "2026-09-17T23:00:00+00:00"},
+                {"timestamp": "2026-09-17T23:27:24+00:00", "event/occurred_at": "2026-09-17T22:28:22+00:00"},
+            ]
+
+        def system_history(self, *, limit, offset, keys):
+            assert keys == []
+            return [{"timestamp": "2026-09-17T22:40:18+00:00"}] if offset == 0 else []
+
+    class Api:
+        def __init__(self, server_url: str) -> None:
+            assert server_url == "https://trackio.test"
+
+        def run_configs(self, project: str) -> dict[str, Any]:
+            return {
+                "trackio-orphan": {
+                    "run_id": "orphan-run",
+                    "started_at": "2026-09-17T22:24:33+00:00",
+                    "evidence_retention": "standard",
+                    "source_metadata": {"execution": {"provider": "dstack", "job_image": "registry/job@sha256:1"}},
+                },
+                "trackio-other": {"run_id": "other-run"},
+            }
+
+        def run_lifecycles(self, project: str) -> dict[str, Any]:
+            return {}
+
+        def run(self, project: str, run_id: str) -> Run:
+            assert run_id == "trackio-orphan"
+            return Run()
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.Api", Api)
+    lookup = TrackioRunActivityLookup("fixture", server_url="https://trackio.test")
+
+    activity = lookup.find("orphan-run")
+
+    assert activity is not None
+    assert activity.provider_run_id == "trackio-orphan"
+    assert activity.status == "running"
+    assert activity.recorded_provider == "dstack"
+    assert activity.recorded_job_image == "registry/job@sha256:1"
+    assert activity.last_activity_at == datetime(2026, 9, 17, 23, 27, 24, tzinfo=UTC)
+    assert lookup.find("missing-run") is None

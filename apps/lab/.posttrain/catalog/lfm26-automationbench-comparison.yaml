@@ -6,7 +6,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+      revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -47,7 +47,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+      revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -79,7 +79,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+      revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -157,12 +157,277 @@ environment:
     <<: *automationbench_train_mix_v3
     max_concurrent: 40
 
+  # Yield-first qualification keeps the task mix and concurrency but raises
+  # the episode and per-call output limits after v3 marked 492/1284 traces
+  # truncated; sampled trace calls frequently ended at exactly 4096 tokens.
+  # This is a two-factor comparison, not a policy-only ablation.
+  automationbench-lfm26-train-mix-v5:
+    <<: *automationbench_train_mix_v3
+    max_concurrent: 40
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 16384
+    sampling: &policy_sampling_8k
+      max_tokens: 8192
+      temperature: 0.8
+      top_p: 0.95
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 16384
+
+  # v5 settings on task population lfm26-automationbench-mix-v3: mix-v2 minus the
+  # 20 difficulty-tiered evaluation tasks, plus 20 domain-matched replacements
+  # (scripts/qualification/fixtures/lfm26_automationbench_mix_v3.json). The
+  # explicit list keeps both the held-out 20 and the tiered 20 out of training,
+  # so later descendants can treat the tiered set as a true holdout.
+  automationbench-lfm26-train-mix-v6:
+    <<: *automationbench_train_mix_v3
+    max_concurrent: 40
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task_names:
+            - simple.email_sf_contact_account_update
+            - simple.email_sf_contact_assistant_update
+            - simple.sf_opp_amount_update
+            - simple.email_sf_log_task
+            - simple.sf_create_contact_note
+            - simple.sf_lead_source_web
+            - simple.sf_lead_description_update
+            - simple.hs_create_contact
+            - simple.hs_update_contact_tag
+            - simple.buffer_linkedin_partnership
+            - simple.buffer_webinar_dual_post
+            - simple.buffer_product_tip
+            - simple.gmail_weekly_status
+            - simple.gmail_reply_customer_inquiry
+            - simple.gmail_onboarding_welcome
+            - simple.slack_dm_meeting_reminder
+            - simple.slack_dm_task_assignment
+            - simple.slack_deployment_notice
+            - simple.sheets_log_email_inquiry
+            - simple.sheets_update_status
+            - simple.sheets_budget_expense
+            - simple.sheets_log_sales_call
+            - simple.asana_rfp_response
+            - simple.jira_login_bug_from_email
+            - simple.jira_dashboard_perf_bug
+            - simple.jira_legacy_data_migration
+            - simple.jira_mobile_redesign_epic
+            - simple.jira_cicd_pipeline
+            - simple.trello_q1_marketing_budget
+            - simple.trello_manager_feedback_from_email
+            - simple.zoom_ai_webinar
+            - simple.zoom_meeting_email_invite
+            - simple.weekly_report_sheets_email
+            - simple.event_asana_calendar
+            - simple.email_airtable_lead
+            - simple.airtable_find_update
+            - simple.airtable_update_slack_notify
+            - simple.zoom_calendar_sync
+            - simple.milestone_sheets_slack
+            - simple.weekly_digest_sheets_email
+            - sales.priority_selection
+            - sales.email_zoom_fuzzy
+            - sales.create_contact_for_account
+            - sales.add_contact_to_campaign
+            - sales.create_note_on_contact
+            - sales.slack_deal_notification
+            - sales.linkedin_content_engagement
+            - sales.meeting_action_items
+            - sales.chatgpt_lead_classification_pipeline
+            - sales.cross_platform_account_health_score
+            - sales.chatgpt_lead_summary_generator
+            - sales.chatgpt_email_sentiment_routing
+            - sales.calendly_availability_based_routing
+            - sales.gcal_travel_time_buffer
+            - sales.full_sales_cycle_orchestrator
+            - sales.contract_renewal_coordinator
+            - sales.historical_context_pipeline_report
+            - sales.unreliable_label_account_review
+            - sales.overdue_followup_flag
+            - marketing.influencer_outreach
+            - marketing.referral_processing
+            - marketing.partner_comarketing
+            - marketing.press_release_distribution
+            - marketing.campaign_retrospective
+            - marketing.editorial_calendar
+            - marketing.content_scoring
+            - marketing.tam_analysis
+            - marketing.social_audit
+            - marketing.trial_extension_processing
+            - marketing.competitor_product_launch
+            - marketing.analyst_mention_tracking
+            - marketing.partner_content_approval
+            - marketing.blog_refresh_queue
+            - marketing.customer_story_intake
+            - marketing.event_sponsorship_screen
+            - marketing.utm_audit_and_fix
+            - marketing.influencer_contract_reminders
+            - marketing.email_blast_suppression
+            - marketing.linkedin_company_update
+            - marketing.google_ads_pause_low_ctr
+            - operations.asana_safety_walk_log
+            - operations.trello_vendor_hold_email
+            - operations.drive_slack_dock_schedule
+            - operations.asana_basecamp_move_planning
+            - operations.calendar_airtable_gmail_maintenance_notice
+            - operations.salesforce_escalated_customer
+            - operations.insurance_cert_validation
+            - operations.twilio_facilities_emergency
+            - operations.linkedin_abm_outreach
+            - operations.fleet_vehicle_maintenance
+            - operations.sla_breach_early_warning
+            - operations.fire_extinguisher_inspection_schedule
+            - operations.overtime_threshold_monitoring
+            - operations.contract_renewal_pipeline
+            - operations.utility_cost_allocation
+            - operations.cross_department_budget_reconciliation
+            - operations.parking_allocation_management
+            - operations.space_utilization_analysis
+            - operations.mailroom_package_routing
+            - operations.procurement_card_reconciliation
+            - support.helpscout_jira_bugs
+            - support.zoho_sf_enrichment
+            - support.freshdesk_faq_drafts
+            - support.intercom_winback
+            - support.intercom_freshdesk_escalation
+            - support.gorgias_refund_processing
+            - support.freshdesk_reamaze_migration
+            - support.hiver_csat_analysis
+            - support.intercom_usage_health_scoring
+            - support.gorgias_quality_audit
+            - support.zendesk_gdpr_purge
+            - support.zendesk_weekend_handoff
+            - support.freshdesk_auto_merge
+            - support.intercom_auto_response_drafts
+            - support.helpscout_customer_merge
+            - support.reamaze_lifecycle_tagging
+            - support.hiver_mailbox_audit
+            - support.gorgias_loyalty_program
+            - support.intercom_zoho_customer_360
+            - support.reamaze_intercom_sync
+            - finance.expense_anomaly_detection
+            - finance.timesheet_to_invoice
+            - finance.slack_receipt_capture
+            - finance.vendor_payment_approval
+            - finance.multicurrency_invoice
+            - finance.dept_expense_rollup
+            - finance.xero_vendor_onboard
+            - finance.petty_cash_reconciliation
+            - finance.qb_estimate_conversion
+            - finance.xero_bank_reconcile
+            - finance.wave_product_catalog
+            - finance.refund_processing
+            - finance.payment_terms_tracking
+            - finance.expense_policy_violation
+            - finance.subscription_billing
+            - finance.qb_bill_payment_batch
+            - finance.gl_variance_analysis
+            - finance.qb_void_stale_invoices
+            - finance.xero_quote_to_invoice
+            - hr.training_compliance
+            - hr.pto_balance_alert
+            - hr.airtable_skills_matrix
+            - hr.asana_compliance_tasks
+            - hr.disciplinary_action_tracking
+            - hr.docusign_nda_collection
+            - hr.monday_pip_tracking
+            - hr.offboarding_multi_system
+            - hr.recruitment_channel_roi
+            - hr.return_from_leave
+            - hr.docusign_policy_acknowledgment
+            - hr.payroll_bonus_processing
+            - hr.candidate_offer_negotiation_tracking
+            - hr.performance_review_kickoff
+            - hr.org_restructure_update
+            - hr.diversity_metrics_report
+            - hr.background_check_followup
+            - hr.mandatory_meeting_scheduling
+            - hr.rto_compliance_check
+            - hr.intern_cohort_onboarding
+            - hr.quarterly_termination_queue
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 16384
+    sampling: *policy_sampling_8k
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v3
+      task_mix_sha256: b9e142b3ae7ad5e6620d489520a0add1c29f42be0902fb6f6d522d6d633e54d8
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 16384
+
+  # train-mix-v4 on verifiers-environments acb3043 for VORTEX v5. Committed as
+  # train-mix-v5, renamed twice on merge: the release's train-mix-v5 is the 8K
+  # per-call yield-first mix and train-mix-v6 is the mix-v3 task population that
+  # reserves both evaluation sets. This entry still trains on mix-v2. In limited_zapier
+  # mode the 100 HR and 6 marketing tasks whose spreadsheet IDs could not be
+  # discovered gain the read-only Drive file search, and turn_budget replaces the
+  # upstream "~50 tool-using turns" system sentence with the real 12-turn budget.
+  # 64 concurrent episodes match v5's 16 prompt groups x 4 generations.
+  automationbench-lfm26-train-mix-v7:
+    <<: *automationbench_train_mix_v3
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: acb3043ed7b8c24df62c5b8e5232b13fd92710e1
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 12
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 12288
+    max_concurrent: 64
+
   automationbench-lfm26-train-mix-episode-judged-v2: &automationbench_train_mix_episode_judged_v2
     category: agentic-tool-use
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+      revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -177,7 +442,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+                code_revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
                 model: google/gemma-4-12B-it
                 model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
                 attempts: 2
@@ -233,7 +498,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+                code_revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
                 model: google/gemma-4-12B-it
                 model_revision: 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7
                 attempts: 2
@@ -275,7 +540,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+                code_revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
                 model: XHToken/Spark-X2.5-4B
                 model_revision: 5e10fcc0286756aebf7c41dc52c1e42d95c70281
                 attempts: 2
@@ -326,7 +591,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+                code_revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
                 model: deepseek/deepseek-v4.1-flash
                 model_revision: "20260910"
                 attempts: 2
@@ -366,7 +631,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+      revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -381,7 +646,7 @@ environment:
               - id: automationbench-v1
                 name: quality
                 weight: 0.0
-                code_revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+                code_revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
                 model: deepseek/deepseek-v4-flash-0731
                 model_revision: "0731"
                 attempts: 2
@@ -429,12 +694,12 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 9bbd3116e6b5a444d6cf103dce18b1866ae32787
+      revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
       config:
-        taskset:
+        taskset: &lfm26_heldout_taskset
           id: automationbench-v1
           domains: [simple, sales, marketing, operations, support, finance, hr]
           task_names:
@@ -491,6 +756,267 @@ environment:
       pass_rate_metric: task_completed_correctly
       facets:
         - {field: domain, dimension: domain, label: Domain}
+
+  # Same immutable task population as v1. Only the generation envelope changes:
+  # 8K per request and 16K across the episode, matching the v4 rollout budget.
+  automationbench-lfm26-heldout-mix-v2:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset: *lfm26_heldout_taskset
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 300}
+          max_turns: 12
+          max_output_tokens: 16384
+    sampling:
+      max_tokens: 8192
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    num_tasks: 20
+    num_rollouts: 3
+    max_concurrent: 20
+    parameters:
+      task_mix_id: lfm26-automationbench-mix-v1-heldout
+      task_mix_sha256: 4526f8a12081555b9061fa5c45924fa2d2b635dee832c27e6bb72cb9234941d7
+      sampling_seed: 43
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 16384
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
+  # Bounded context and transport gate, not part of the matched score.
+  automationbench-lfm26-heldout-context-canary-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [operations, finance]
+          task_names:
+            - operations.server_capacity_threshold_alerts
+            - finance.cash_flow_forecast
+          task: {toolset: limited_zapier, search_top_k: 20}
+        retries: {max_retries: 0}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 300}
+          max_turns: 12
+          max_output_tokens: 16384
+    sampling:
+      max_tokens: 8192
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    num_tasks: 2
+    num_rollouts: 1
+    max_concurrent: 2
+    parameters:
+      task_names: [operations.server_capacity_threshold_alerts, finance.cash_flow_forecast]
+      toolset: limited_zapier
+      max_turns: 12
+      max_output_tokens: 16384
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+
+  # Difficulty-tiered companion to the held-out mix. The held-out 20 put 7 tasks
+  # at the ceiling and 4 at the floor for every model, so these 20 are chosen
+  # from the 160-task training pool by mean training reward over 9,808 rollouts
+  # of eight LFM2.5-2.6B runs (>= 8 prompt groups each): 6 easy (0.70-0.90),
+  # 7 medium (0.35-0.70), 7 hard (0.15-0.35), every domain present, always-1.0
+  # and always-0 tasks excluded. These are NOT held out: every trained arm saw
+  # them. Future training mixes must exclude them so later runs can use them as
+  # a true holdout. Evidence: outputs/qualification/vortex-matched-eval-20260924/
+  # task_variance.json in the main checkout.
+  automationbench-lfm26-difficulty-tiered-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task_names: &lfm26_difficulty_tiered_v1_tasks
+            # easy
+            - simple.zendesk_urgent_reply
+            - simple.customer_question_zendesk_reply
+            - simple.trello_case_study_draft
+            - marketing.seo_audit
+            - finance.commission_calculation
+            - finance.wire_transfer_approval
+            # medium
+            - simple.asana_performance_reviews
+            - sales.event_followup_outreach
+            - sales.calendly_multi_stakeholder_scheduling
+            - marketing.content_syndication
+            - operations.calendar_airtable_maintenance
+            - operations.inventory_enrichment
+            - finance.escrow_tracking
+            # hard
+            - sales.form_to_crm_qualification
+            - marketing.event_followup_personalization
+            - operations.purchase_order_three_way_match
+            - support.reamaze_multi_channel_dedup
+            - support.zendesk_freshdesk_sync
+            - support.hiver_slack_digest
+            - hr.headcount_planning
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 2700, finalize: 60, scoring: 300}
+          max_turns: 20
+          max_output_tokens: 32768
+    sampling:
+      max_tokens: 8192
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    num_tasks: 20
+    num_rollouts: 3
+    max_concurrent: 20
+    parameters:
+      task_names: *lfm26_difficulty_tiered_v1_tasks
+      selection_basis: training-reward-tiers-20260924
+      toolset: limited_zapier
+      max_turns: 20
+      max_output_tokens: 32768
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
+
+  # Same 20 held-out tasks as v1/v2 (task-mix checksum unchanged). Only the
+  # episode envelope changes: 20 turns and 32K output across the episode. On
+  # 2026-09-24 at 12 turns/16K, v3 exhausted the episode output limit 9/60 times
+  # and v4 hit the turn cap 12/60 and the output limit 7/60 times.
+  automationbench-lfm26-heldout-mix-v3:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset: *lfm26_heldout_taskset
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 2700, finalize: 60, scoring: 300}
+          max_turns: 20
+          max_output_tokens: 32768
+    sampling:
+      max_tokens: 8192
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    num_tasks: 20
+    num_rollouts: 3
+    max_concurrent: 20
+    parameters:
+      task_mix_id: lfm26-automationbench-mix-v1-heldout
+      task_mix_sha256: 4526f8a12081555b9061fa5c45924fa2d2b635dee832c27e6bb72cb9234941d7
+      sampling_seed: 43
+      toolset: limited_zapier
+      max_turns: 20
+      max_output_tokens: 32768
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
+  # 64K/20-turn context gate on the two tasks whose v4 step-20 episodes reached
+  # the longest prompts at 12 turns. Not part of any score.
+  automationbench-lfm26-context-canary-64k-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [sales, finance]
+          task_names:
+            - sales.zoom_attendance_pipeline
+            - finance.ap_aging_report
+          task: {toolset: limited_zapier, search_top_k: 20}
+        retries: {max_retries: 0}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 2700, finalize: 60, scoring: 300}
+          max_turns: 20
+          max_output_tokens: 32768
+    sampling:
+      max_tokens: 8192
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    num_tasks: 2
+    num_rollouts: 1
+    max_concurrent: 2
+    parameters:
+      task_names: [sales.zoom_attendance_pipeline, finance.ap_aging_report]
+      toolset: limited_zapier
+      max_turns: 20
+      max_output_tokens: 32768
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
 
 training:
   lfm2.5-1.2b/automationbench-changed-weight-local-v1:
@@ -806,6 +1332,138 @@ training:
     shuffle_prompts: true
     mask_truncated_completions: false
     max_admission_attempts: 1
+
+  # VORTEX v1 settings with the LoRA learning rate from the literature review in
+  # docs/plan/agentic-workload-inference-optimization.md: Tinker's RL recipes
+  # (1e-5 to 4e-5 at LoRA alpha 32, constant schedule) are 4e-5 to 1.6e-4 at this
+  # binding's alpha 8, since the LoRA update scales with learning rate x alpha.
+  # v1's 1e-5 with linear decay to zero over 20 updates was about 8x below the
+  # lowest Tinker RL recipe. Revision 2 takes the aggressive end (2e-4); the OLMo3
+  # clipped objective bounds each update (the recipe deliberately has no KL term).
+  # Revision 1 (1e-4) was cancelled before training.
+  lfm2.5-2.6b/automationbench-vortex-20-local-v3: &vortex_20_local_v3
+    selection_type: grpo-settings
+    revision: "2"
+    loop:
+      max_steps: 20
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 40
+      learning_rate: 0.0002
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 10
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    adaptive_curriculum:
+      class_field: domain
+      class_exploration: 0.2
+      task_discovery: 0.2
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
+  # Same model, optimizer, reward and 20-step budget as v3, with the new
+  # controller and a larger rollout budget. This is not policy-only.
+  lfm2.5-2.6b/automationbench-vortex-yield-first-20-local-v4:
+    <<: *vortex_20_local_v3
+    revision: "2"
+    loop:
+      max_steps: 20
+      max_length: 32768
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 40
+      learning_rate: 0.0002
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    max_prompt_length: 24576
+    max_completion_length: 8192
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+
+  # VORTEX v5: v4's yield-first curriculum with three changes and unchanged
+  # per-reply, turn, and context budgets.
+  # - LoRA learning rate 1e-4, inside the 4e-5..1.6e-4 range the v3 note derives
+  #   from Tinker's LoRA RL recipes at alpha 8. v3/v4's 2e-4 sat above it, and v3's
+  #   truncation rate climbed from 19% to 73%.
+  # - 16 prompt groups per update (64 rollouts) to use more of the RTX PRO 6000.
+  # - A 0.2 truncation penalty so a truncated rollout ranks below an equally
+  #   scored finished one before OLMo 3 active sampling measures reward spread.
+  lfm2.5-2.6b/automationbench-vortex-yield-first-64-local-v5:
+    <<: *vortex_20_local_v3
+    revision: "1"
+    loop:
+      max_steps: 20
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 64
+      learning_rate: 0.0001
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 16
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    truncation_penalty: 0.2
+
+  # VORTEX v5 extended to 100 updates. Identical to the v5 settings above except
+  # max_steps; run by resuming v5 run r4's step-20 recovery checkpoint, so the
+  # constant learning rate, optimizer state and curriculum state carry over.
+  lfm2.5-2.6b/automationbench-vortex-yield-first-64-100-local-v5:
+    <<: *vortex_20_local_v3
+    revision: "1"
+    loop:
+      max_steps: 100
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 64
+      learning_rate: 0.0001
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 16
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    truncation_penalty: 0.2
 
   # Matched 50-update adaptive-GRPO ablation requested after the 0.4.4 release.
   # Full VORTEX requires OLMo3 active refill, so the no-oversampling arm uses
@@ -1123,7 +1781,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
+      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local@1:
     selection_type: training-binding
@@ -1147,6 +1805,40 @@ training:
       timeout_seconds: 43200
     backend_options:
       rollout_execution: {env_workers: 4, episodes_per_worker: 8, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      vllm_policy_parity_max_sequence_tokens: 4096
+      dependency_lock: trl-fork@current
+      source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
+      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
+
+  # g40@1 scaled to 16 prompt groups x 4 generations. Eight environment workers
+  # of eight episodes give the 64 concurrent episodes one rollout batch needs.
+  # (Named -w8 because an unrelated g64@1 with 32 episode slots already exists
+  # below; YAML keeps the last duplicate key, which broke run
+  # lfm26-vortex-v5-yield-first-64-20260925-r1.)
+  training/lfm2.5-2.6b-trl-lora-automationbench-local-g64-w8@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post9
+    renderer:
+      id: lfm2.5-tools-thinking@2
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update:
+      kind: lora
+      rank: 4
+      alpha: 8
+      target_modules: all-linear
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 64
+      devices_per_node: 1
+      timeout_seconds: 43200
+    backend_options:
+      rollout_execution: {env_workers: 8, episodes_per_worker: 8, worker_native_threads: 1}
       use_liger_kernel: false
       logits_chunk_size: 128
       vllm_policy_parity_max_sequence_tokens: 4096
@@ -1181,7 +1873,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
+      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g40@1: &k2_horizon_trl_lora_automationbench_local_g40
     selection_type: training-binding
@@ -1210,7 +1902,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
+      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g16-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1226,7 +1918,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
+      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g8-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1242,7 +1934,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
+      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g4-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -1258,7 +1950,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
+      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
     selection_type: training-binding
@@ -1307,7 +1999,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
+      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
 
   training/lfm2.5-1.2b-trl-lora-changed-weight-local@1:
     selection_type: training-binding
@@ -1329,7 +2021,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
-      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
+      dependency_lock_sha256: 63906f6b5e00edd57552066090108c65078d81925eb2d8809678c65a28182371
 
   reward/automationbench-episode-gdpo@1:
     selection_type: reward-projection
@@ -1588,6 +2280,70 @@ inference:
       max_num_seqs: 40
       max_num_batched_tokens: 40960
       kv_cache_memory_bytes: 5368709120
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: *policy_sampling_4k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  # Larger output/context budget with more KV headroom. v3 reached 100% of
+  # its 5 GiB KV pool; this 9 GiB candidate requires live GPU qualification.
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-8k@1:
+    revision: "1"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.25
+      tensor_parallel_size: 1
+      max_model_len: 32768
+      max_num_seqs: 40
+      max_num_batched_tokens: 40960
+      kv_cache_memory_bytes: 9663676416
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      free_cache_engine: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: *policy_sampling_8k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  # c40-4k@2 scaled to VORTEX v5's 16 prompt groups x 4 generations. Sequence
+  # slots, batched tokens, and KV capacity grow 1.6x with the rollout batch; the
+  # per-reply and context budgets are unchanged. The larger KV reservation is not
+  # yet measured on the RTX PRO 6000 and must pass a one-update probe first.
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c64-4k@1:
+    revision: "1"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.20
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 64
+      max_num_batched_tokens: 65536
+      kv_cache_memory_bytes: 8589934592
       weight_sync_mode: lora
       enforce_eager: false
       enable_chunked_prefill: true
@@ -1906,6 +2662,71 @@ inference:
     purpose: [eval]
     capabilities: [tool-calling]
 
+  # Candidate for a new matched comparison. 48K leaves 40K input tokens even
+  # when the full per-call 8K output is reserved; live tokenizer and KV gates
+  # must pass before either descendant is evaluated.
+  inference/lfm2.5-2.6b-vllm-automationbench-eval-local@3:
+    revision: "3"
+    startup_timeout_seconds: 900
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      gpu_memory_utilization: 0.90
+      tensor_parallel_size: 1
+      max_model_len: 49152
+      max_num_seqs: 20
+      max_num_batched_tokens: 65536
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 8192
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+
+  # Revision 3 with a 64K context for 20-turn episodes. On 2026-09-24 the
+  # longest 12-turn step-20 episode reached a 28,416-token prompt, growing up to
+  # 2,191 tokens per turn; 20 turns projects to about 46K, which overflows the
+  # 40,960 prompt tokens that 48K leaves beside the 8,192-token call reservation.
+  inference/lfm2.5-2.6b-vllm-automationbench-eval-local@4:
+    revision: "4"
+    startup_timeout_seconds: 900
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      gpu_memory_utilization: 0.90
+      tensor_parallel_size: 1
+      max_model_len: 65536
+      max_num_seqs: 20
+      max_num_batched_tokens: 65536
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 8192
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+
   inference/spark-x2.5-4b-vllm-automationbench-judge-nothink-local@1:
     revision: "1"
     startup_timeout_seconds: 900
@@ -1950,5 +2771,95 @@ evaluation:
         kind: full
     measurement:
       automationbench-lfm26-heldout-mix-v1:
+        estimator: task_mean
+        missing: strict
+
+  lfm26-automationbench-heldout-v2:
+    revision: "2"
+    kind: general
+    environments: [automationbench-lfm26-heldout-mix-v2]
+    success:
+      automationbench-lfm26-heldout-mix-v2:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-lfm26-heldout-mix-v2:
+        kind: full
+    measurement:
+      automationbench-lfm26-heldout-mix-v2:
+        estimator: task_mean
+        missing: strict
+
+  lfm26-automationbench-heldout-context-canary-v1:
+    revision: "1"
+    kind: general
+    environments: [automationbench-lfm26-heldout-context-canary-v1]
+    success:
+      automationbench-lfm26-heldout-context-canary-v1:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-lfm26-heldout-context-canary-v1:
+        kind: full
+    measurement:
+      automationbench-lfm26-heldout-context-canary-v1:
+        estimator: task_mean
+        missing: strict
+
+  lfm26-automationbench-difficulty-tiered-v1:
+    revision: "1"
+    kind: general
+    environments: [automationbench-lfm26-difficulty-tiered-v1]
+    success:
+      automationbench-lfm26-difficulty-tiered-v1:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-lfm26-difficulty-tiered-v1:
+        kind: full
+    measurement:
+      automationbench-lfm26-difficulty-tiered-v1:
+        estimator: task_mean
+        missing: strict
+
+  lfm26-automationbench-heldout-v3:
+    revision: "1"
+    kind: general
+    environments: [automationbench-lfm26-heldout-mix-v3]
+    success:
+      automationbench-lfm26-heldout-mix-v3:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-lfm26-heldout-mix-v3:
+        kind: full
+    measurement:
+      automationbench-lfm26-heldout-mix-v3:
+        estimator: task_mean
+        missing: strict
+
+  lfm26-automationbench-context-canary-64k-v1:
+    revision: "1"
+    kind: general
+    environments: [automationbench-lfm26-context-canary-64k-v1]
+    success:
+      automationbench-lfm26-context-canary-64k-v1:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-lfm26-context-canary-64k-v1:
+        kind: full
+    measurement:
+      automationbench-lfm26-context-canary-64k-v1:
         estimator: task_mean
         missing: strict

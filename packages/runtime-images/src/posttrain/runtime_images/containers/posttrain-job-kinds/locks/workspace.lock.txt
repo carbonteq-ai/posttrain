@@ -166,7 +166,11 @@ cachetools==7.1.4 \
     --hash=sha256:323dc4127934744db5b54eb4924482d7edafbf9554e820d1531c2e08c0e4ef54 \
     --hash=sha256:437f55a4e0c1b01a4f3077cc470e6991d47430970e36fbcb77e2be0df4fc1cd6
     # via vllm
-carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/fea/18a183a7493a0/carbonteq_trackio-0.31.5.post14.dev24-py3-none-any.whl#sha256=fea18a183a7493a0a1cd69218ccc2e1442cfcdbdea9c7d19f247ab7bbbf0fc21
+carbonteq-renderers @ https://pypi.lan/carbonteq/dev/+f/2e3/231784729b917/carbonteq_renderers-0.1.12.post1.dev1-py3-none-any.whl#sha256=2e3231784729b9177bfc25eb06e3a6a958f9ba420ff8e241c010266cc9422d0b
+    # via
+    #   posttrain-train
+    #   verifiers
+carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/228/651b05e88409c/carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl#sha256=228651b05e88409cb374296ad8a675057cf75377adcbe104a6fd0903b922c57c
     # via posttrain-tracking-trackio
 cbor2==6.1.3 \
     --hash=sha256:21c74b8ab67977c8b87b727247eeb730145b0068ad6d47f71e9f80f6b48c65f8 \
@@ -544,6 +548,7 @@ httpx==0.28.1 \
     --hash=sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc \
     --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
     # via
+    #   carbonteq-renderers
     #   datasets
     #   fastapi
     #   fastapi-cloud-cli
@@ -629,9 +634,9 @@ jinja2==3.1.6 \
     --hash=sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d \
     --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
     # via
+    #   carbonteq-renderers
     #   fastapi
     #   humming-kernels
-    #   renderers
     #   torch
     #   trl
 jiter==0.16.0 \
@@ -956,6 +961,7 @@ numpy==2.3.5 \
     # via
     #   accelerate
     #   bitsandbytes
+    #   carbonteq-renderers
     #   carbonteq-trackio
     #   cuda-core
     #   datasets
@@ -972,7 +978,6 @@ numpy==2.3.5 \
     #   opencv-python-headless
     #   pandas
     #   peft
-    #   renderers
     #   textual-hires-canvas
     #   textual-plot
     #   tilelang
@@ -1160,7 +1165,7 @@ openai==2.54.0 \
     --hash=sha256:89089789197ccdb87f173a03145ed1598d00795220c93e96cf712b1cbf5e5f2b \
     --hash=sha256:e3e6f8bc1ba30ddf381ace1a14340eed381cb984a1a59bd0f34b5be3b5d49cfa
     # via
-    #   renderers
+    #   carbonteq-renderers
     #   verifiers
     #   vllm
 openai-harmony==0.0.8 \
@@ -1178,7 +1183,7 @@ openai-harmony==0.0.8 \
     --hash=sha256:cbaa3bda75ef0d8836e1f8cc84af62f971b1d756d740efc95c38c3e04c0bfde2 \
     --hash=sha256:e4f709815924ec325b9a890e6ab2bbb0ceec8e319a4e257328eb752cf36b2efc
     # via
-    #   renderers
+    #   carbonteq-renderers
     #   vllm
 opencv-python-headless==5.0.0.93 \
     --hash=sha256:030ca5e0837a2963ab36ef896baa9767eb8d2b83353fb28af5a521e40dd8756f \
@@ -1335,9 +1340,9 @@ pillow==12.3.0 \
     --hash=sha256:d69141514cc30b774ceea5e3ed3a6635c8d8a96edf664689b890f4089111fb35 \
     --hash=sha256:f7401aebd7f581d7f83a439d87d474999317ee099218e5ad25d125290990ba65
     # via
+    #   carbonteq-renderers
     #   carbonteq-trackio
     #   mistral-common
-    #   renderers
     #   torchvision
     #   vllm
 platformdirs==4.10.1 \
@@ -1358,7 +1363,7 @@ prime-pydantic-config==0.4.3 \
     --hash=sha256:13e8a0c39d0f88c3f75eb1df74a56198d1e907670e63e4918558a2e852b4e015 \
     --hash=sha256:1f0a6bd78c69e21da389bbd0e1177ca5440888488708a625e355d98712d4374d
     # via
-    #   renderers
+    #   carbonteq-renderers
     #   verifiers
 prime-sandboxes==0.2.41 \
     --hash=sha256:ca2b5c275710fd98302b3f8cebb2fb51cc3b360597901d3d17ac5480bb0ba356 \
@@ -1807,12 +1812,6 @@ regex==2026.7.19 \
     #   tiktoken
     #   transformers
     #   vllm
-renderers==0.1.12.dev3 \
-    --hash=sha256:0d4d41dfe668328b75d2d9e6331ac27f6a39686e316c109cf392b7a4d8632026 \
-    --hash=sha256:d058702c83446e7d4c4887cf740fc42851aae65ae4e1c5011d1177d34ac6d9f4
-    # via
-    #   posttrain-train
-    #   verifiers
 requests==2.34.2 \
     --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0 \
     --hash=sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed
@@ -2049,8 +2048,8 @@ tiktoken==0.13.0 \
     --hash=sha256:c9435714c3a84c2319499de9a300c0e604449dd0799ff246458b3bb6a7f433c1 \
     --hash=sha256:e28157350f7ebf35008dd8e9e0fdb621f976e4230c881099c85e8cf07eaa50e2
     # via
+    #   carbonteq-renderers
     #   mistral-common
-    #   renderers
     #   vllm
 tilelang==0.1.12 \
     --hash=sha256:595b39581d099a53f875bd8d553863e7e4f58998052b58764f5472cbfbb87043 \
@@ -2184,11 +2183,11 @@ transformers==5.14.1 \
     --hash=sha256:60d196c27781eacf8637e2b533f517582907ad6f9ae142046d6b69431a5b2173 \
     --hash=sha256:9db974c4079ede2d1a3ea7ca5a240df33f2cc26fc2b36ba64c5f2a4f43b6e725
     # via
+    #   carbonteq-renderers
     #   compressed-tensors
     #   peft
     #   posttrain-eval
     #   posttrain-train
-    #   renderers
     #   trl
     #   vllm
     #   xgrammar
@@ -2304,7 +2303,7 @@ uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'c
     --hash=sha256:6e2ea3d6190a2968f4a14a23019d3b16870dd2190cd69c8180f7c632d21de68d \
     --hash=sha256:bc5ef13bbc10b5335792360623cc378d52d7e62c2de64660616478c32cd0598e
     # via uvicorn
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@b71ade0a7ac712cdee9e1a4c0e53030d70768aff
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@0cee0a075ddf1883498be0fde34155655cb19146
     # via
     #   posttrain-data
     #   posttrain-eval

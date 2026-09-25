@@ -1,15 +1,62 @@
 # Trackio fork and maintenance
 
+Posttrain 0.4.5 pins and deploys `0.31.5.post14.dev27` (fork commit
+`f4d1027441449d3d59870541edb275fa859fee35`, tag
+`carbonteq-v0.31.5.post14.dev27`; wheel
+`228651b05e88409cb374296ad8a675057cf75377adcbe104a6fd0903b922c57c`, sdist
+`c48db39df03b4dfa4764d79d88a0bce113cd6a3c803320a61d7ef959cbc4a73a`). It is
+published to `carbonteq/dev`, promoted byte-for-byte to `carbonteq/stable`, and
+the shared server reports it. Dev27 adds server-side aggregates over stored
+trace payloads (`TracePayloadQuery`: bounded JSON paths with mean, sum, count,
+min, and max, grouped and filtered by fact dimensions) on Doris and SQLite;
+Observatory's rollout-time view uses it. Dev26 and dev25 below remain the
+history of the server importer and indexed group facts.
+
+The indexed group-facts release, `0.31.5.post14.dev25`, added the dimensions below. It
+adds materialized `task_id` and `prompt_group_id` trace-fact dimensions and a
+`sum_squares` aggregate. Observatory uses those grouped moments to show exact
+prompt-group reward mean/std and the nearest older complete task-group
+observation without paging all native traces. The producer reads identities
+from recorded Verifiers info, never prompt text. Historical fact rows require
+an idempotent reprojection from their retained native traces; the live trainer
+still emits the prior projection until its process finishes, so reconcile the
+tail again after the run ends.
+
+Deployment used a fresh retained, restore-verified Doris backup, explicit
+v2-to-v3 schema migration, `BUILD INDEX idx_trace_run_id ON traces` and
+`BUILD INDEX idx_trace_prompt_group_id ON traces` for existing segments, and
+verification that both build jobs finished. A new isolated v3 database on the
+real Doris host passed a write/aggregate regression. Candidate and production
+databases were then backed up and migrated to v3; the public Trackio service
+then reported dev25. Historical projection backfill is checkpointed and may lag
+the live trainer's new writes until post-run reconciliation. Do not restart or
+modify the running training job.
+
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
-`import trackio` API. The current framework dependency is
-`carbonteq-trackio==0.31.5.post14.dev24`, built from immutable fork commit
-`3a67722d2a2c0f40d3db98721ab2fc6933b93494`. Its wheel
-(`fea18a183a7493a0a1cd69218ccc2e1442cfcdbdea9c7d19f247ab7bbbf0fc21`) and
-sdist (`7ba6ac88cb6f50b1682c4a6e196c5722dd9973626a896aa3ce13cc894135eb62`)
-were released manually as `carbonteq-v0.31.5.post14.dev24` and published
-unchanged to `carbonteq/dev` by Posttrain workflow `34588926837`. Promotion to
-`carbonteq/stable` remains gated on the real training canary. This revision
+`import trackio` API. The shared server at `https://trackio.carbonteq.com` ran
+`0.31.5.post14.dev26` (fork commit `5593ef84865c1ab134ed24ac2534f6c018027052`,
+wheel `c4ecb89aed2f6620b93ddd4d20d2cfbfb364d75dd6b0f6c73fc8b50e9d2ef64f`,
+deployed 2026-09-25 with ai-infra `scripts/deploy-trackio`). Dev26 changes
+only the server inbox importer: a failed import batch is retried one fragment
+at a time, and fragments that can never import (Doris string-length rejection,
+or trace facts whose parent trace is still missing after
+`TRACKIO_INBOX_RETRY_MAX_AGE`, default 24 hours) move with an error sidecar to
+`inbox-dead-letter/` instead of blocking every batch they join. Before dev26,
+two oversized August fragments silently held other runs' evidence in the inbox;
+see `docs/plan/vortex-v3-v4-matched-heldout-evaluation.md`. The client API is
+unchanged, so the framework dependency stayed at dev25 until the next runtime
+image refresh. The previous framework dependency was
+`carbonteq-trackio==0.31.5.post14.dev25`, built from immutable fork commit
+`bb40b7e333b7f74f4cf6923e3ff6030255ed746d`. Its wheel
+(`a349d7cb5848865255019204fc2c1cc538d12164bda634a5360c2a9ff52a0f90`) and
+sdist (`72091a9064cbd0e1ba171bfbb080d16abf83798a32af85deca8bd98c01c59b61`)
+are published to `carbonteq/dev`. Dev25 accepts indexed `task_id` and
+`prompt_group_id` trace-fact dimensions. A Posttrain runtime that projects
+either dimension must pin dev25 or later: the v3 held-out evaluation image
+paired that projection with dev24, so all 60 native trace uploads were rejected
+while the bundle itself remained intact. The framework has a direct conversion
+test to prevent that mismatch at release time. The preceding dev24 revision
 adds bounded wait-for-one-slot artifact backpressure, a configurable
 600-second finalization barrier, and one per-run remote publication transaction
 that prevents overlapping manifests from transferring the same absent blob.

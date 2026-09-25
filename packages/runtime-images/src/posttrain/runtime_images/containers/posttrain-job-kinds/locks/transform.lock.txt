@@ -86,8 +86,8 @@ brotli==1.2.0 \
     --hash=sha256:c8565e3cdc1808b1a34714b553b262c5de5fbda202285782173ec137fd13709f \
     --hash=sha256:e310f77e41941c13340a95976fe66a8a95b01e783d430eeaf7a2f87e0a57dd0a
     # via carbonteq-trackio
-carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/fea/18a183a7493a0/carbonteq_trackio-0.31.5.post14.dev24-py3-none-any.whl \
-    --hash=sha256:fea18a183a7493a0a1cd69218ccc2e1442cfcdbdea9c7d19f247ab7bbbf0fc21
+carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/228/651b05e88409c/carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl \
+    --hash=sha256:228651b05e88409cb374296ad8a675057cf75377adcbe104a6fd0903b922c57c
     # via posttrain-awq-runtime
 certifi==2026.6.17 \
     --hash=sha256:024c88eeec92ca068db80f02b8b07c9cef7b9fe261d1d535abfd5abd6f6af432 \

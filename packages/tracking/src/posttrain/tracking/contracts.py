@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         TraceAggregateResult,
         TraceFactsQuery,
         TracePage,
+        TracePayloadQuery,
         TraceQuery,
         TrackingCapabilities,
     )
@@ -197,6 +198,8 @@ class RunDataSource(Protocol):
     async def traces(self, run_id: str, query: TraceQuery) -> TracePage: ...
 
     async def aggregate_trace_facts(self, run_id: str, query: TraceFactsQuery) -> TraceAggregateResult: ...
+
+    async def aggregate_trace_payload(self, run_id: str, query: TracePayloadQuery) -> TraceAggregateResult: ...
 
     async def artifacts(self, run_id: str) -> ArtifactSet: ...
 

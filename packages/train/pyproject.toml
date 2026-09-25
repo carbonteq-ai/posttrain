@@ -15,7 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 verifiers = [
-    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@b71ade0a7ac712cdee9e1a4c0e53030d70768aff",
+    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@0cee0a075ddf1883498be0fde34155655cb19146",
 ]
 trl = [
     "torch>=2.13,<2.14",
@@ -26,7 +26,7 @@ trl = [
     "datasets>=4.6.1,<4.7",
     "accelerate>=1.14,<1.15",
     "bitsandbytes>=0.49,<0.50",
-    "renderers==0.1.12.dev3",
+    "carbonteq-renderers==0.1.12.post1.dev1",
     "liger-kernel>=0.8.2,<0.9",
     "sentencepiece>=0.2,<0.3",
     "protobuf>=7.35,<8",
@@ -53,6 +53,7 @@ posttrain-environment = { workspace = true }
 torch = { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" }
 torchvision = { index = "pytorch-cu130" }
 trl = { index = "carbonteq-dev" }
+carbonteq-renderers = { index = "carbonteq-dev" }
 
 [tool.posttrain.trl]
 version = "1.12.0.post9"
@@ -60,6 +61,13 @@ release-tag = "carbonteq-v1.12.0.post9"
 source-revision = "3b7a582e011a32de74d1f2b6e572b794360fbfd7"
 wheel-sha256 = "c5d204da587a9a45dd279f1407d0e20816344075d001da9fe03f6dd4879fa710"
 sdist-sha256 = "146e46b37f6795a206d684e286e137edb1eec673b658d0168d45c603870156fa"
+
+[tool.posttrain.renderers]
+version = "0.1.12.post1.dev1"
+release-tag = "carbonteq-v0.1.12.post1.dev1"
+source-revision = "6aba28a8c9a597475addc2c123dd18b28a462766"
+wheel-sha256 = "2e3231784729b9177bfc25eb06e3a6a958f9ba420ff8e241c010266cc9422d0b"
+sdist-sha256 = "bf529fc910f66494770a96e0ee5ec986344ed5f8b48258b50a55b82baa876fa3"
 
 [build-system]
 requires = ["hatchling"]

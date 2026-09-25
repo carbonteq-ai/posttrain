@@ -472,6 +472,21 @@ def register(app: typer.Typer) -> None:
                 help="model seat replaced by --model-from-run when a job has more than one model (default: model)",
             ),
         ] = "model",
+        curriculum_from_run_id: Annotated[
+            str | None,
+            typer.Option(
+                "--curriculum-from-run",
+                help="warm-start the adaptive curriculum from another run's published curriculum state",
+            ),
+        ] = None,
+        curriculum_checkpoint_step: Annotated[
+            int | None,
+            typer.Option(
+                "--curriculum-checkpoint-step",
+                min=0,
+                help="use the curriculum controller state saved at this checkpoint step of --curriculum-from-run",
+            ),
+        ] = None,
         host: Annotated[
             str | None,
             typer.Option(
@@ -564,6 +579,8 @@ def register(app: typer.Typer) -> None:
             model_from_run_id=model_from_run_id,
             model_checkpoint_step=model_checkpoint_step,
             model_seat=model_seat,
+            curriculum_from_run_id=curriculum_from_run_id,
+            curriculum_checkpoint_step=curriculum_checkpoint_step,
             project_packages=(tuple(project_packages) if project_packages is not None else None),
             source_includes=(tuple(source_includes) if source_includes is not None else None),
             build_missing=build_missing,

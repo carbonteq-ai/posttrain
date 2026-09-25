@@ -61,6 +61,8 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
     _validate_model(request.policy, "policy")
     if request.settings.algorithm == "olmo3":
         raise ValueError("the OLMo 3 GRPO recipe is currently supported by the TRL backend only")
+    if request.settings.truncation_penalty is not None:
+        raise ValueError("GRPO truncation_penalty is currently supported by the TRL backend only")
     return _plan(
         request,
         output_dir,

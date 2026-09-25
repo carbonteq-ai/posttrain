@@ -12,6 +12,7 @@ from typing import Any, cast
 from posttrain.common import JsonValue, RunContext
 
 from ...adaptive_curriculum import (
+    CURRICULUM_SNAPSHOT_NAME,
     AdaptiveCurriculumController,
     CurriculumDecision,
     CurriculumObservation,
@@ -19,7 +20,7 @@ from ...adaptive_curriculum import (
 )
 from ...profiles import AdaptiveCurriculum
 
-_SNAPSHOT_NAME = "adaptive-curriculum-state.json"
+_SNAPSHOT_NAME = CURRICULUM_SNAPSHOT_NAME
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -35,6 +36,7 @@ class AdaptiveCurriculumRuntime:
         num_generations: int,
         state_dir: Path,
         resume_checkpoint: Path | None,
+        warm_start_state_dir: Path | None = None,
     ) -> None:
         task_rows: dict[str, dict[str, object]] = {}
         task_classes: dict[str, str] = {}
@@ -65,6 +67,15 @@ class AdaptiveCurriculumRuntime:
                     f"adaptive curriculum recovery snapshot is missing from checkpoint {resume_checkpoint}"
                 )
             restored_state = backend.read_snapshot(snapshot_path)
+        warm_start_state = None
+        if warm_start_state_dir is not None and resume_checkpoint is None:
+            # A published adaptive-curriculum-state artifact is the source run's state
+            # directory: its final snapshot plus the decision journal.
+            snapshot_path = warm_start_state_dir / _SNAPSHOT_NAME
+            if not snapshot_path.is_file():
+                backend.close()
+                raise RuntimeError(f"adaptive curriculum warm-start snapshot is missing from {warm_start_state_dir}")
+            warm_start_state = backend.read_snapshot(snapshot_path)
         self.context = context
         self.settings = settings
         self.num_generations = num_generations
@@ -77,6 +88,7 @@ class AdaptiveCurriculumRuntime:
                 backend,
                 group_size=num_generations,
                 restored_state=restored_state,
+                warm_start_state=warm_start_state,
             )
         except BaseException:
             backend.close()
@@ -84,14 +96,18 @@ class AdaptiveCurriculumRuntime:
         context.event(
             "adaptive_curriculum_started",
             {
+                "policy": settings.policy,
                 "class_field": settings.class_field,
-                "class_exploration": settings.class_exploration,
-                "task_discovery": settings.task_discovery,
+                "class_exploration": settings.class_exploration if settings.policy == "quota" else None,
+                "task_discovery": settings.task_discovery if settings.policy == "quota" else None,
+                "exploration_share": settings.exploration_share if settings.policy == "yield_first" else None,
+                "uncertainty_weight": settings.uncertainty_weight if settings.policy == "yield_first" else None,
                 "history_groups": settings.history_groups,
                 "seed": settings.seed,
                 "task_count": len(task_rows),
                 "class_count": len(set(task_classes.values())),
                 "restored": restored_state is not None,
+                "warm_started": warm_start_state is not None,
             },
         )
 
@@ -448,6 +464,16 @@ def _prepare_adaptive_active_sampling_inputs(
     trainer._metrics["train"]["active_sampling/candidate_groups_unused"].append(
         len(candidate_inputs) - candidate_cursor
     )
+    # The candidate_groups_* series above count rows (completions), and the
+    # TRL frac_reward_zero_std / advantages/zero_fraction series average every
+    # generation round before filtering. Report the batch actually optimized.
+    trainer._metrics["train"]["active_sampling/retained_groups"].append(retained_count / trainer.num_generations)
+    trainer._metrics["train"]["active_sampling/generated_groups"].append(candidate_count / trainer.num_generations)
+    advantages = batch.get("advantages")
+    if isinstance(advantages, torch.Tensor) and advantages.numel() % trainer.num_generations == 0:
+        zero = advantages.detach().abs().reshape(-1, trainer.num_generations) <= 1e-8
+        trainer._metrics["train"]["trained/frac_reward_zero_std"].append(zero.all(dim=1).float().mean().item())
+        trainer._metrics["train"]["trained/advantages_zero_fraction"].append(zero.float().mean().item())
     return cast(dict[str, Any], batch)
 
 

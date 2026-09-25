@@ -400,6 +400,7 @@ def _online_rl_runtime_attributes(
     if isinstance(request, GRPORequest):
         attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
         attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
+        attributes["truncation_penalty"] = request.settings.truncation_penalty
     elif isinstance(request, SAMPORequest):
         attributes["discount_gamma"] = request.settings.discount_gamma
         attributes["step_advantage_weight"] = request.settings.step_advantage_weight

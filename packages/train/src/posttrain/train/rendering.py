@@ -28,71 +28,30 @@ class RenderedPreferenceExample:
     rejected_ids: tuple[int, ...]
 
 
-def bridge_lfm25_tool_cycle(
-    renderer: Any,
-    tokenizer: Any,
-    previous_prompt_ids: list[int],
-    previous_completion_ids: list[int],
-    new_messages: list[dict[str, Any]],
-) -> Any | None:
-    """Extend an LFM tool cycle without retokenizing sampled assistant tokens.
-
-    LFM's Jinja template appends a newline after an assistant ``im_end`` when it
-    renders history. That newline is not part of a stop-terminated completion,
-    so a full rerender changes the final BPE boundary and forks Verifiers' token
-    graph. Render only the new tool messages, remove their standalone BOS, and
-    join them to the retained sampled prefix with the template's exact newline.
-    """
-
-    if not new_messages or any(message.get("role") != "tool" for message in new_messages):
-        return None
-    if not previous_completion_ids:
-        return None
-    bos_token_id = getattr(tokenizer, "bos_token_id", None)
-    eos_token_id = getattr(tokenizer, "eos_token_id", None)
-    if not isinstance(bos_token_id, int) or not isinstance(eos_token_id, int):
-        return None
-    suffix = renderer.render(new_messages, tools=None, add_generation_prompt=True)
-    if not suffix.token_ids or int(suffix.token_ids[0]) != bos_token_id:
-        return None
-    newline_ids = [int(value) for value in tokenizer.encode("\n", add_special_tokens=False)]
-    if not newline_ids:
-        return None
-    try:
-        from renderers import RenderedTokens  # pyright: ignore[reportMissingImports]
-    except ImportError as error:
-        raise RuntimeError("install posttrain-train with the trl extra") from error
-    close_ids = [] if previous_completion_ids[-1] == eos_token_id else [eos_token_id]
-    prefix_length = len(previous_prompt_ids) + len(previous_completion_ids) + len(close_ids) + len(newline_ids)
-    suffix_is_content = list(suffix.is_content[1:]) if suffix.is_content else []
-    suffix_sampled = list(suffix.sampled_mask[1:]) if suffix.sampled_mask else []
-    return RenderedTokens(
-        token_ids=[
-            *previous_prompt_ids,
-            *previous_completion_ids,
-            *close_ids,
-            *newline_ids,
-            *suffix.token_ids[1:],
-        ],
-        message_indices=[-1] * prefix_length + list(suffix.message_indices[1:]),
-        sampled_mask=([False] * prefix_length + suffix_sampled) if suffix_sampled else [],
-        is_content=([False] * prefix_length + suffix_is_content) if suffix_is_content else [],
-        message_roles=list(suffix.message_roles),
-        message_tool_names=list(suffix.message_tool_names),
-    )
-
-
 def create_renderer_config(
     model: ModelVariant,
     renderer: TrainingRenderer,
     *,
     structured_output: bool = False,
 ) -> Any:
-    """Create the serializable renderer config for a model contract."""
+    """Create the serializable renderer config for a model contract.
+
+    Every catalog family has a dedicated renderer in the pinned
+    ``carbonteq-renderers`` fork. It owns the family's reasoning markers,
+    tool-call format, turn-end tokens and tool-result bridge, and it reports
+    ``reasoning_tokens`` on every parse. ``structured_output`` is accepted for
+    compatibility; dedicated renderers always parse their own tool calls.
+    """
+    del structured_output
     try:
         from renderers import (  # pyright: ignore[reportMissingImports]
             DefaultRendererConfig,
+            Gemma4RendererConfig,
+            K2HorizonRendererConfig,
+            LFM25RendererConfig,
+            Nanbeige42RendererConfig,
             Qwen35RendererConfig,
+            Spark25RendererConfig,
         )
     except ImportError as error:
         raise RuntimeError("install posttrain-train with the trl extra") from error
@@ -104,23 +63,17 @@ def create_renderer_config(
         enable_thinking = mode.kwargs().get("enable_thinking")
         if enable_thinking is not None and not isinstance(enable_thinking, bool):
             raise TypeError("Qwen enable_thinking must be a boolean")
-        config = Qwen35RendererConfig(enable_thinking=enable_thinking)
-    else:
-        template_kwargs = cast(dict[str, Any], mode.kwargs())
-        tool_parser = None
-        reasoning_parser = None
-        protocol = model.conversation.tool_calls
-        if structured_output and protocol is not None and protocol.id == "lfm2_pythonic":
-            tool_parser = "lfm2"
-        elif structured_output and protocol is not None and protocol.id == "k2_ifm_xml":
-            tool_parser = "k2-ifm"
-            reasoning_parser = "k2-ifm"
-        config = DefaultRendererConfig(
-            tool_parser=tool_parser,
-            reasoning_parser=reasoning_parser,
-            **template_kwargs,
-        )
-    return config
+        return Qwen35RendererConfig(enable_thinking=enable_thinking)
+    template_kwargs = cast(dict[str, Any], mode.kwargs())
+    family_configs: dict[str, Any] = {
+        "lfm2.5": LFM25RendererConfig,
+        "k2-horizon": K2HorizonRendererConfig,
+        "nanbeige4.2": Nanbeige42RendererConfig,
+        "spark2.5": Spark25RendererConfig,
+        "gemma4": Gemma4RendererConfig,
+    }
+    config_class = family_configs.get(model.family, DefaultRendererConfig)
+    return config_class(**template_kwargs)
 
 
 def create_renderer(tokenizer: Any, model: ModelVariant, renderer: TrainingRenderer) -> Any:
@@ -220,7 +173,6 @@ def render_preferences(
 __all__ = [
     "RenderedPreferenceExample",
     "RenderedSFTExample",
-    "bridge_lfm25_tool_cycle",
     "create_renderer",
     "create_renderer_config",
     "render_preferences",

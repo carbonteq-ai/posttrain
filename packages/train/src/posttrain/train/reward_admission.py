@@ -7,12 +7,15 @@ This is evidence admission, not scalar reward-variance filtering.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from .online_rl import EnvironmentRollout, PartialRolloutBatchError, RolloutBatch
 from .profiles import CAPOSettings, GDPOSettings, GRPOSettings
 from .reward_evidence import InvalidRewardEvidence
+
+_LOG = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +155,17 @@ def admit_rollout_groups(
                 local_error = error
                 failures.extend((group, type(error).__name__) for group in set(current.prompt_group_ids))
         failed_rollouts += len(failures)
+        if failures:
+            # Only exception types cross ranks; keep the full local diagnosis in this
+            # rank's log so a rejected collection is never silent.
+            _LOG.warning(
+                "rollout admission attempt %d/%d rejected %d rollout groups on this rank; reasons=%s; local_error=%s",
+                attempt + 1,
+                attempt_limit,
+                len({group for group, _ in failures}),
+                sorted({reason[:300] for _, reason in failures}),
+                "none" if local_error is None else f"{type(local_error).__name__}: {local_error}"[:2000],
+            )
         global_failures = gather_failures(failures)
         pending = {group for group, _ in global_failures}
         if not pending:

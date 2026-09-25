@@ -1,0 +1,906 @@
+{
+  "schema": "automationbench-replay-results-v1",
+  "runs": [
+    {
+      "name": "train.grpo-lfm26-olmo3-random20-20260912-r3",
+      "observed_groups": 158,
+      "excluded_incomplete_groups": 0,
+      "excluded_truncated_groups": 224,
+      "observed_tasks": 75,
+      "observed_classes": 7,
+      "replayable_full_rounds": true,
+      "observed_useful_fraction": 0.36075949367088606,
+      "group_sizes": {
+        "4": 158
+      },
+      "observed_profile": {
+        "new_groups": 75,
+        "new_useful": 28,
+        "known_groups": 83,
+        "known_useful": 29,
+        "new_group_fraction": 0.47468354430379744,
+        "new_useful_fraction": 0.37333333333333335,
+        "known_useful_fraction": 0.3493975903614458
+      },
+      "calibration": {
+        "groups": 158,
+        "known_task_groups": 83,
+        "brier_hierarchical": 0.17685525381967465,
+        "brier_global": 0.23433340298694463,
+        "brier_known_task": 0.13702552191232467
+      },
+      "policies": {
+        "uniform": {
+          "candidate_groups": 1796.65,
+          "useful_groups": 682.15,
+          "completed_steps": 27.15,
+          "useful_fraction": 0.37980569724202573,
+          "new_fraction": 0.04175440502200578,
+          "input_tokens": 156125355.95,
+          "output_tokens": 15417103.15,
+          "candidates_per_completed_step": 67.82034886149452
+        },
+        "posterior_mean": {
+          "candidate_groups": 975.3,
+          "useful_groups": 796.6,
+          "completed_steps": 96.8,
+          "useful_fraction": 0.8172065397661927,
+          "new_fraction": 0.030600425359061226,
+          "input_tokens": 135887596.2,
+          "output_tokens": 14163289.1,
+          "candidates_per_completed_step": 10.078330379276148
+        },
+        "posterior_sample": {
+          "candidate_groups": 1001.35,
+          "useful_groups": 797.25,
+          "completed_steps": 97.35,
+          "useful_fraction": 0.796470690513927,
+          "new_fraction": 0.050351181933661754,
+          "input_tokens": 142972335.45,
+          "output_tokens": 14459589.6,
+          "candidates_per_completed_step": 10.288980213936066
+        },
+        "posterior_sample_cost": {
+          "candidate_groups": 2135.6,
+          "useful_groups": 588.5,
+          "completed_steps": 5.9,
+          "useful_fraction": 0.27571335252553486,
+          "new_fraction": 0.03391153623387512,
+          "input_tokens": 81248958.4,
+          "output_tokens": 11465253.05,
+          "candidates_per_completed_step": 451.5506746031746
+        },
+        "posterior_sample_cost_guarded": {
+          "candidate_groups": 1002.05,
+          "useful_groups": 796.45,
+          "completed_steps": 96.6,
+          "useful_fraction": 0.7963744690343322,
+          "new_fraction": 0.03266885728088077,
+          "input_tokens": 128954114,
+          "output_tokens": 14426293.25,
+          "candidates_per_completed_step": 10.40042198877967
+        }
+      },
+      "paired_comparison": {
+        "seed_count": 20,
+        "mean_candidate_per_completed_step_reduction": 0.844492422357638,
+        "min_seed_reduction": 0.7939190367159079,
+        "max_seed_reduction": 0.8939738142720888
+      }
+    },
+    {
+      "name": "train.grpo-lfm26-olmo3-adaptive20-20260912-r4",
+      "observed_groups": 52,
+      "excluded_incomplete_groups": 0,
+      "excluded_truncated_groups": 147,
+      "observed_tasks": 8,
+      "observed_classes": 6,
+      "replayable_full_rounds": false,
+      "observed_useful_fraction": 0.7692307692307693,
+      "group_sizes": {
+        "4": 52
+      },
+      "observed_profile": {
+        "new_groups": 9,
+        "new_useful": 4,
+        "known_groups": 43,
+        "known_useful": 36,
+        "new_group_fraction": 0.17307692307692307,
+        "new_useful_fraction": 0.4444444444444444,
+        "known_useful_fraction": 0.8372093023255814
+      },
+      "calibration": {
+        "groups": 52,
+        "known_task_groups": 43,
+        "brier_hierarchical": 0.15517045888108746,
+        "brier_global": 0.19500579719066818,
+        "brier_known_task": 0.13494869937254622
+      },
+      "policies": {},
+      "paired_comparison": null
+    },
+    {
+      "name": "train.grpo-lfm26-olmo3-adaptive20-discovery-v4-20260912-r1",
+      "observed_groups": 112,
+      "excluded_incomplete_groups": 0,
+      "excluded_truncated_groups": 176,
+      "observed_tasks": 74,
+      "observed_classes": 7,
+      "replayable_full_rounds": true,
+      "observed_useful_fraction": 0.48214285714285715,
+      "group_sizes": {
+        "4": 112
+      },
+      "observed_profile": {
+        "new_groups": 74,
+        "new_useful": 28,
+        "known_groups": 38,
+        "known_useful": 26,
+        "new_group_fraction": 0.6607142857142857,
+        "new_useful_fraction": 0.3783783783783784,
+        "known_useful_fraction": 0.6842105263157895
+      },
+      "calibration": {
+        "groups": 112,
+        "known_task_groups": 38,
+        "brier_hierarchical": 0.19870613090052014,
+        "brier_global": 0.2616361739800298,
+        "brier_known_task": 0.15456665898984784
+      },
+      "policies": {
+        "uniform": {
+          "candidate_groups": 1698.15,
+          "useful_groups": 708.3,
+          "completed_steps": 36.2,
+          "useful_fraction": 0.41730120913009633,
+          "new_fraction": 0.043593390687049385,
+          "input_tokens": 140918036.55,
+          "output_tokens": 13959529.25,
+          "candidates_per_completed_step": 47.84920170175397
+        },
+        "posterior_mean": {
+          "candidate_groups": 990.2,
+          "useful_groups": 795.35,
+          "completed_steps": 95.55,
+          "useful_fraction": 0.8051863137302412,
+          "new_fraction": 0.028419889834867623,
+          "input_tokens": 162455330.15,
+          "output_tokens": 12794725.05,
+          "candidates_per_completed_step": 10.380202560464507
+        },
+        "posterior_sample": {
+          "candidate_groups": 1001.3,
+          "useful_groups": 795.9,
+          "completed_steps": 96.05,
+          "useful_fraction": 0.7952047737937112,
+          "new_fraction": 0.052015865759101616,
+          "input_tokens": 159114331.35,
+          "output_tokens": 12860451.5,
+          "candidates_per_completed_step": 10.430575428667655
+        },
+        "posterior_sample_cost": {
+          "candidate_groups": 2229.45,
+          "useful_groups": 553.1,
+          "completed_steps": 2.8,
+          "useful_fraction": 0.2483257105592917,
+          "new_fraction": 0.033187863303989006,
+          "input_tokens": 86903256,
+          "output_tokens": 10936289.95
+        },
+        "posterior_sample_cost_guarded": {
+          "candidate_groups": 1088.4,
+          "useful_groups": 793.8,
+          "completed_steps": 93.95,
+          "useful_fraction": 0.7312212932356132,
+          "new_fraction": 0.03089077398451119,
+          "input_tokens": 152062277.85,
+          "output_tokens": 14044157.6,
+          "candidates_per_completed_step": 11.624231029406076
+        }
+      },
+      "paired_comparison": {
+        "seed_count": 20,
+        "mean_candidate_per_completed_step_reduction": 0.7777388755921104,
+        "min_seed_reduction": 0.7244335578689529,
+        "max_seed_reduction": 0.824788176391296
+      }
+    },
+    {
+      "name": "train.grpo-lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1",
+      "observed_groups": 152,
+      "excluded_incomplete_groups": 0,
+      "excluded_truncated_groups": 132,
+      "observed_tasks": 102,
+      "observed_classes": 7,
+      "replayable_full_rounds": true,
+      "observed_useful_fraction": 0.6644736842105263,
+      "group_sizes": {
+        "4": 152
+      },
+      "observed_profile": {
+        "new_groups": 102,
+        "new_useful": 60,
+        "known_groups": 50,
+        "known_useful": 41,
+        "new_group_fraction": 0.6710526315789473,
+        "new_useful_fraction": 0.5882352941176471,
+        "known_useful_fraction": 0.82
+      },
+      "calibration": {
+        "groups": 152,
+        "known_task_groups": 50,
+        "brier_hierarchical": 0.15609069953625548,
+        "brier_global": 0.22980435214683367,
+        "brier_known_task": 0.11509111032101361
+      },
+      "policies": {
+        "uniform": {
+          "candidate_groups": 1289,
+          "useful_groups": 782.7,
+          "completed_steps": 84,
+          "useful_fraction": 0.6074611060282227,
+          "new_fraction": 0.07916095725006352,
+          "input_tokens": 180707612.95,
+          "output_tokens": 17531144,
+          "candidates_per_completed_step": 15.380310027546754
+        },
+        "posterior_mean": {
+          "candidate_groups": 848.2,
+          "useful_groups": 799.9,
+          "completed_steps": 99.9,
+          "useful_fraction": 0.9439385731740922,
+          "new_fraction": 0.02839574230490248,
+          "input_tokens": 200713056.35,
+          "output_tokens": 16236667.2,
+          "candidates_per_completed_step": 8.49069696969697
+        },
+        "posterior_sample": {
+          "candidate_groups": 843.6,
+          "useful_groups": 800,
+          "completed_steps": 100,
+          "useful_fraction": 0.9489342343384883,
+          "new_fraction": 0.05708933160533451,
+          "input_tokens": 216133930.95,
+          "output_tokens": 17321215.45,
+          "candidates_per_completed_step": 8.436
+        },
+        "posterior_sample_cost": {
+          "candidate_groups": 2019.85,
+          "useful_groups": 596.55,
+          "completed_steps": 7.7,
+          "useful_fraction": 0.2954777014511413,
+          "new_fraction": 0.036519241016581834,
+          "input_tokens": 65277659.3,
+          "output_tokens": 10054615.25,
+          "candidates_per_completed_step": 296.4830717893218
+        },
+        "posterior_sample_cost_guarded": {
+          "candidate_groups": 970.5,
+          "useful_groups": 799.2,
+          "completed_steps": 99.2,
+          "useful_fraction": 0.8248130787619531,
+          "new_fraction": 0.05125156460281677,
+          "input_tokens": 146039757,
+          "output_tokens": 15651174.45,
+          "candidates_per_completed_step": 9.785153115416739
+        }
+      },
+      "paired_comparison": {
+        "seed_count": 20,
+        "mean_candidate_per_completed_step_reduction": 0.45024239097732666,
+        "min_seed_reduction": 0.4006075139888089,
+        "max_seed_reduction": 0.5017647058823529
+      }
+    },
+    {
+      "name": "train.grpo-lfm26-adaptive-grpo-50-c32-20260920f",
+      "observed_groups": 217,
+      "excluded_incomplete_groups": 0,
+      "excluded_truncated_groups": 183,
+      "observed_tasks": 109,
+      "observed_classes": 7,
+      "replayable_full_rounds": true,
+      "observed_useful_fraction": 0.6866359447004609,
+      "group_sizes": {
+        "4": 217
+      },
+      "observed_profile": {
+        "new_groups": 109,
+        "new_useful": 58,
+        "known_groups": 108,
+        "known_useful": 91,
+        "new_group_fraction": 0.5023041474654378,
+        "new_useful_fraction": 0.5321100917431193,
+        "known_useful_fraction": 0.8425925925925926
+      },
+      "calibration": {
+        "groups": 217,
+        "known_task_groups": 108,
+        "brier_hierarchical": 0.16452356195756113,
+        "brier_global": 0.2212679974751125,
+        "brier_known_task": 0.12356040183971567
+      },
+      "policies": {
+        "uniform": {
+          "candidate_groups": 1293.95,
+          "useful_groups": 780.85,
+          "completed_steps": 82.1,
+          "useful_fraction": 0.6037613266760365,
+          "new_fraction": 0.08427186232712636,
+          "input_tokens": 203004365.4,
+          "output_tokens": 19507709.25,
+          "candidates_per_completed_step": 15.825721740284592
+        },
+        "posterior_mean": {
+          "candidate_groups": 860,
+          "useful_groups": 799.55,
+          "completed_steps": 99.55,
+          "useful_fraction": 0.9349101965177533,
+          "new_fraction": 0.030048130965825245,
+          "input_tokens": 233511930,
+          "output_tokens": 20248140.1,
+          "candidates_per_completed_step": 8.642210265924552
+        },
+        "posterior_sample": {
+          "candidate_groups": 817.5,
+          "useful_groups": 799.85,
+          "completed_steps": 99.85,
+          "useful_fraction": 0.9786015113769744,
+          "new_fraction": 0.052866455833502315,
+          "input_tokens": 259790061.25,
+          "output_tokens": 22090276.85,
+          "candidates_per_completed_step": 8.187459595959595
+        },
+        "posterior_sample_cost": {
+          "candidate_groups": 2019.05,
+          "useful_groups": 593.85,
+          "completed_steps": 7.3,
+          "useful_fraction": 0.29434495474841893,
+          "new_fraction": 0.03585148638163826,
+          "input_tokens": 71151303.4,
+          "output_tokens": 12483470.05,
+          "candidates_per_completed_step": 347.03598151031974
+        },
+        "posterior_sample_cost_guarded": {
+          "candidate_groups": 963.7,
+          "useful_groups": 798.5,
+          "completed_steps": 98.5,
+          "useful_fraction": 0.8297754190476911,
+          "new_fraction": 0.051841653169113315,
+          "input_tokens": 148579175.95,
+          "output_tokens": 16233598.25,
+          "candidates_per_completed_step": 9.787263264748262
+        }
+      },
+      "paired_comparison": {
+        "seed_count": 20,
+        "mean_candidate_per_completed_step_reduction": 0.4799625727802779,
+        "min_seed_reduction": 0.4296132596685084,
+        "max_seed_reduction": 0.5755777777777777
+      }
+    },
+    {
+      "name": "train.grpo-lfm26-vortex-v2-agentic-20260923-r1",
+      "observed_groups": 176,
+      "excluded_incomplete_groups": 0,
+      "excluded_truncated_groups": 133,
+      "observed_tasks": 98,
+      "observed_classes": 7,
+      "replayable_full_rounds": true,
+      "observed_useful_fraction": 0.625,
+      "group_sizes": {
+        "4": 176
+      },
+      "observed_profile": {
+        "new_groups": 98,
+        "new_useful": 54,
+        "known_groups": 78,
+        "known_useful": 56,
+        "new_group_fraction": 0.5568181818181818,
+        "new_useful_fraction": 0.5510204081632653,
+        "known_useful_fraction": 0.717948717948718
+      },
+      "calibration": {
+        "groups": 176,
+        "known_task_groups": 78,
+        "brier_hierarchical": 0.1679958495802071,
+        "brier_global": 0.24178778094591877,
+        "brier_known_task": 0.1431921512282984
+      },
+      "policies": {
+        "uniform": {
+          "candidate_groups": 1402.85,
+          "useful_groups": 766.25,
+          "completed_steps": 69.9,
+          "useful_fraction": 0.5465069970742349,
+          "new_fraction": 0.06988861770615148,
+          "input_tokens": 191344615.65,
+          "output_tokens": 18058545.1,
+          "candidates_per_completed_step": 20.161788236901234
+        },
+        "posterior_mean": {
+          "candidate_groups": 865.35,
+          "useful_groups": 799.45,
+          "completed_steps": 99.45,
+          "useful_fraction": 0.9293945952027781,
+          "new_fraction": 0.026360363882159323,
+          "input_tokens": 233992621.95,
+          "output_tokens": 19713850.45,
+          "candidates_per_completed_step": 8.70667853476911
+        },
+        "posterior_sample": {
+          "candidate_groups": 818.35,
+          "useful_groups": 799.85,
+          "completed_steps": 99.85,
+          "useful_fraction": 0.9775357197181123,
+          "new_fraction": 0.04568746614756244,
+          "input_tokens": 268276124.3,
+          "output_tokens": 21591321,
+          "candidates_per_completed_step": 8.19590909090909
+        },
+        "posterior_sample_cost": {
+          "candidate_groups": 2213,
+          "useful_groups": 569.95,
+          "completed_steps": 4.8,
+          "useful_fraction": 0.2578963111113912,
+          "new_fraction": 0.03787219042094157,
+          "input_tokens": 88769657.25,
+          "output_tokens": 12205259.15,
+          "candidates_per_completed_step": 615.5203571428572
+        },
+        "posterior_sample_cost_guarded": {
+          "candidate_groups": 1013.7,
+          "useful_groups": 798,
+          "completed_steps": 98,
+          "useful_fraction": 0.787403627669742,
+          "new_fraction": 0.04139340130931343,
+          "input_tokens": 156245118.7,
+          "output_tokens": 16535739.95,
+          "candidates_per_completed_step": 10.345495911330463
+        }
+      },
+      "paired_comparison": {
+        "seed_count": 20,
+        "mean_candidate_per_completed_step_reduction": 0.5910234342348624,
+        "min_seed_reduction": 0.5227844311377245,
+        "max_seed_reduction": 0.6638180565127498
+      }
+    },
+    {
+      "name": "train.grpo-lfm26-vortex-v3-lr2e4-20260923-r1",
+      "observed_groups": 74,
+      "excluded_incomplete_groups": 7,
+      "excluded_truncated_groups": 92,
+      "observed_tasks": 57,
+      "observed_classes": 7,
+      "replayable_full_rounds": true,
+      "observed_useful_fraction": 0.6486486486486487,
+      "group_sizes": {
+        "4": 74
+      },
+      "observed_profile": {
+        "new_groups": 57,
+        "new_useful": 32,
+        "known_groups": 17,
+        "known_useful": 16,
+        "new_group_fraction": 0.7702702702702703,
+        "new_useful_fraction": 0.5614035087719298,
+        "known_useful_fraction": 0.9411764705882353
+      },
+      "calibration": {
+        "groups": 74,
+        "known_task_groups": 17,
+        "brier_hierarchical": 0.15674588796033795,
+        "brier_global": 0.24029765981852635,
+        "brier_known_task": 0.07196403065640229
+      },
+      "policies": {
+        "uniform": {
+          "candidate_groups": 1311.45,
+          "useful_groups": 780.2,
+          "completed_steps": 81.4,
+          "useful_fraction": 0.5951498742108023,
+          "new_fraction": 0.04347988041650927,
+          "input_tokens": 185212213.25,
+          "output_tokens": 17382305.1,
+          "candidates_per_completed_step": 16.14651066477957
+        },
+        "posterior_mean": {
+          "candidate_groups": 882.7,
+          "useful_groups": 799.1,
+          "completed_steps": 99.1,
+          "useful_fraction": 0.9086566798586453,
+          "new_fraction": 0.02346770346041862,
+          "input_tokens": 196403827.4,
+          "output_tokens": 17261229.4,
+          "candidates_per_completed_step": 8.911663685428874
+        },
+        "posterior_sample": {
+          "candidate_groups": 855.7,
+          "useful_groups": 799.9,
+          "completed_steps": 99.9,
+          "useful_fraction": 0.9350110361674668,
+          "new_fraction": 0.0434296193273629,
+          "input_tokens": 209229969.35,
+          "output_tokens": 18386953.55,
+          "candidates_per_completed_step": 8.565772727272726
+        },
+        "posterior_sample_cost": {
+          "candidate_groups": 1414.45,
+          "useful_groups": 738.2,
+          "completed_steps": 48.25,
+          "useful_fraction": 0.5231361609090169,
+          "new_fraction": 0.03594156582680896,
+          "input_tokens": 130043288.8,
+          "output_tokens": 14543595.75,
+          "candidates_per_completed_step": 29.990301197230913
+        },
+        "posterior_sample_cost_guarded": {
+          "candidate_groups": 1023.4,
+          "useful_groups": 797.75,
+          "completed_steps": 97.75,
+          "useful_fraction": 0.7812757519867115,
+          "new_fraction": 0.03202848989620642,
+          "input_tokens": 145811066.8,
+          "output_tokens": 15123373.7,
+          "candidates_per_completed_step": 10.47717019449293
+        }
+      },
+      "paired_comparison": {
+        "seed_count": 20,
+        "mean_candidate_per_completed_step_reduction": 0.4679302650978799,
+        "min_seed_reduction": 0.41516483516483516,
+        "max_seed_reduction": 0.5343900543900544
+      }
+    }
+  ],
+  "cross_run_calibration": [
+    {
+      "source": "train.grpo-lfm26-olmo3-random20-20260912-r3",
+      "target": "train.grpo-lfm26-olmo3-adaptive20-20260912-r4",
+      "target_groups": 52,
+      "shared_task_groups": 36,
+      "brier_hierarchical": 0.3131322347968804,
+      "brier_source_global": 0.3429447115384615
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-random20-20260912-r3",
+      "target": "train.grpo-lfm26-olmo3-adaptive20-discovery-v4-20260912-r1",
+      "target_groups": 112,
+      "shared_task_groups": 102,
+      "brier_hierarchical": 0.15416432775021296,
+      "brier_source_global": 0.2639955357142857
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-random20-20260912-r3",
+      "target": "train.grpo-lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1",
+      "target_groups": 152,
+      "shared_task_groups": 100,
+      "brier_hierarchical": 0.16490524300221926,
+      "brier_source_global": 0.3141365131578947
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-random20-20260912-r3",
+      "target": "train.grpo-lfm26-adaptive-grpo-50-c32-20260920f",
+      "target_groups": 217,
+      "shared_task_groups": 127,
+      "brier_hierarchical": 0.1846018006842741,
+      "brier_source_global": 0.3202311347926267
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-random20-20260912-r3",
+      "target": "train.grpo-lfm26-vortex-v2-agentic-20260923-r1",
+      "target_groups": 176,
+      "shared_task_groups": 119,
+      "brier_hierarchical": 0.16443134118399336,
+      "brier_source_global": 0.30328125
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-random20-20260912-r3",
+      "target": "train.grpo-lfm26-vortex-v3-lr2e4-20260923-r1",
+      "target_groups": 74,
+      "shared_task_groups": 47,
+      "brier_hierarchical": 0.17096407180303616,
+      "brier_source_global": 0.30978462837837833
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive20-20260912-r4",
+      "target": "train.grpo-lfm26-olmo3-random20-20260912-r3",
+      "target_groups": 158,
+      "shared_task_groups": 10,
+      "brier_hierarchical": 0.39150015319332726,
+      "brier_source_global": 0.3894141445712004
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive20-20260912-r4",
+      "target": "train.grpo-lfm26-olmo3-adaptive20-discovery-v4-20260912-r1",
+      "target_groups": 112,
+      "shared_task_groups": 9,
+      "brier_hierarchical": 0.36119475180724087,
+      "brier_source_global": 0.3264746227709191
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive20-20260912-r4",
+      "target": "train.grpo-lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1",
+      "target_groups": 152,
+      "shared_task_groups": 11,
+      "brier_hierarchical": 0.362840425128341,
+      "brier_source_global": 0.23193271243953506
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive20-20260912-r4",
+      "target": "train.grpo-lfm26-adaptive-grpo-50-c32-20260920f",
+      "target_groups": 217,
+      "shared_task_groups": 14,
+      "brier_hierarchical": 0.3345721717950353,
+      "brier_source_global": 0.2204411699632727
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive20-20260912-r4",
+      "target": "train.grpo-lfm26-vortex-v2-agentic-20260923-r1",
+      "target_groups": 176,
+      "shared_task_groups": 14,
+      "brier_hierarchical": 0.3512224318507745,
+      "brier_source_global": 0.252400548696845
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive20-20260912-r4",
+      "target": "train.grpo-lfm26-vortex-v3-lr2e4-20260923-r1",
+      "target_groups": 74,
+      "shared_task_groups": 8,
+      "brier_hierarchical": 0.39341317886816085,
+      "brier_source_global": 0.24013828643458274
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive20-discovery-v4-20260912-r1",
+      "target": "train.grpo-lfm26-olmo3-random20-20260912-r3",
+      "target_groups": 158,
+      "shared_task_groups": 148,
+      "brier_hierarchical": 0.15135097500856165,
+      "brier_source_global": 0.2454221552103666
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive20-discovery-v4-20260912-r1",
+      "target": "train.grpo-lfm26-olmo3-adaptive20-20260912-r4",
+      "target_groups": 52,
+      "shared_task_groups": 50,
+      "brier_hierarchical": 0.1945677700904403,
+      "brier_source_global": 0.2597544806686081
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive20-discovery-v4-20260912-r1",
+      "target": "train.grpo-lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1",
+      "target_groups": 152,
+      "shared_task_groups": 106,
+      "brier_hierarchical": 0.1404246910476864,
+      "brier_source_global": 0.2560787934749154
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive20-discovery-v4-20260912-r1",
+      "target": "train.grpo-lfm26-adaptive-grpo-50-c32-20260920f",
+      "target_groups": 217,
+      "shared_task_groups": 137,
+      "brier_hierarchical": 0.1596708385955988,
+      "brier_source_global": 0.2568564166500008
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive20-discovery-v4-20260912-r1",
+      "target": "train.grpo-lfm26-vortex-v2-agentic-20260923-r1",
+      "target_groups": 176,
+      "shared_task_groups": 128,
+      "brier_hierarchical": 0.14565567801922535,
+      "brier_source_global": 0.25469375192366883
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive20-discovery-v4-20260912-r1",
+      "target": "train.grpo-lfm26-vortex-v3-lr2e4-20260923-r1",
+      "target_groups": 74,
+      "shared_task_groups": 49,
+      "brier_hierarchical": 0.1465597003406857,
+      "brier_source_global": 0.2555235290692355
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1",
+      "target": "train.grpo-lfm26-olmo3-random20-20260912-r3",
+      "target_groups": 158,
+      "shared_task_groups": 151,
+      "brier_hierarchical": 0.16798361197375855,
+      "brier_source_global": 0.3215614732136185
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1",
+      "target": "train.grpo-lfm26-olmo3-adaptive20-20260912-r4",
+      "target_groups": 52,
+      "shared_task_groups": 50,
+      "brier_hierarchical": 0.20891096257088929,
+      "brier_source_global": 0.18894092920066946
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1",
+      "target": "train.grpo-lfm26-olmo3-adaptive20-discovery-v4-20260912-r1",
+      "target_groups": 112,
+      "shared_task_groups": 107,
+      "brier_hierarchical": 0.15253322841689013,
+      "brier_source_global": 0.28215129026817337
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1",
+      "target": "train.grpo-lfm26-adaptive-grpo-50-c32-20260920f",
+      "target_groups": 217,
+      "shared_task_groups": 198,
+      "brier_hierarchical": 0.13899768281499003,
+      "brier_source_global": 0.21575743067154882
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1",
+      "target": "train.grpo-lfm26-vortex-v2-agentic-20260923-r1",
+      "target_groups": 176,
+      "shared_task_groups": 164,
+      "brier_hierarchical": 0.12717327742374038,
+      "brier_source_global": 0.23576910102884127
+    },
+    {
+      "source": "train.grpo-lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1",
+      "target": "train.grpo-lfm26-vortex-v3-lr2e4-20260923-r1",
+      "target_groups": 74,
+      "shared_task_groups": 70,
+      "brier_hierarchical": 0.1013652610716611,
+      "brier_source_global": 0.2280909683507086
+    },
+    {
+      "source": "train.grpo-lfm26-adaptive-grpo-50-c32-20260920f",
+      "target": "train.grpo-lfm26-olmo3-random20-20260912-r3",
+      "target_groups": 158,
+      "shared_task_groups": 149,
+      "brier_hierarchical": 0.1560697080262798,
+      "brier_source_global": 0.3356995755253675
+    },
+    {
+      "source": "train.grpo-lfm26-adaptive-grpo-50-c32-20260920f",
+      "target": "train.grpo-lfm26-olmo3-adaptive20-20260912-r4",
+      "target_groups": 52,
+      "shared_task_groups": 50,
+      "brier_hierarchical": 0.20126696870256522,
+      "brier_source_global": 0.18462115853746555
+    },
+    {
+      "source": "train.grpo-lfm26-adaptive-grpo-50-c32-20260920f",
+      "target": "train.grpo-lfm26-olmo3-adaptive20-discovery-v4-20260912-r1",
+      "target_groups": 112,
+      "shared_task_groups": 106,
+      "brier_hierarchical": 0.14614981053860274,
+      "brier_source_global": 0.29080435889874806
+    },
+    {
+      "source": "train.grpo-lfm26-adaptive-grpo-50-c32-20260920f",
+      "target": "train.grpo-lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1",
+      "target_groups": 152,
+      "shared_task_groups": 144,
+      "brier_hierarchical": 0.11558419301762748,
+      "brier_source_global": 0.22336692970933622
+    },
+    {
+      "source": "train.grpo-lfm26-adaptive-grpo-50-c32-20260920f",
+      "target": "train.grpo-lfm26-vortex-v2-agentic-20260923-r1",
+      "target_groups": 176,
+      "shared_task_groups": 165,
+      "brier_hierarchical": 0.12041035243099552,
+      "brier_source_global": 0.2379667855132295
+    },
+    {
+      "source": "train.grpo-lfm26-adaptive-grpo-50-c32-20260920f",
+      "target": "train.grpo-lfm26-vortex-v3-lr2e4-20260923-r1",
+      "target_groups": 74,
+      "shared_task_groups": 73,
+      "brier_hierarchical": 0.09330471653070505,
+      "brier_source_global": 0.22922002505414027
+    },
+    {
+      "source": "train.grpo-lfm26-vortex-v2-agentic-20260923-r1",
+      "target": "train.grpo-lfm26-olmo3-random20-20260912-r3",
+      "target_groups": 158,
+      "shared_task_groups": 150,
+      "brier_hierarchical": 0.15195754747011048,
+      "brier_source_global": 0.29969485057346357
+    },
+    {
+      "source": "train.grpo-lfm26-vortex-v2-agentic-20260923-r1",
+      "target": "train.grpo-lfm26-olmo3-adaptive20-20260912-r4",
+      "target_groups": 52,
+      "shared_task_groups": 50,
+      "brier_hierarchical": 0.2076598994751743,
+      "brier_source_global": 0.19872442290697562
+    },
+    {
+      "source": "train.grpo-lfm26-vortex-v2-agentic-20260923-r1",
+      "target": "train.grpo-lfm26-olmo3-adaptive20-discovery-v4-20260912-r1",
+      "target_groups": 112,
+      "shared_task_groups": 108,
+      "brier_hierarchical": 0.14243603170875965,
+      "brier_source_global": 0.26968997420960555
+    },
+    {
+      "source": "train.grpo-lfm26-vortex-v2-agentic-20260923-r1",
+      "target": "train.grpo-lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1",
+      "target_groups": 152,
+      "shared_task_groups": 137,
+      "brier_hierarchical": 0.11481507553720319,
+      "brier_source_global": 0.22461943268726037
+    },
+    {
+      "source": "train.grpo-lfm26-vortex-v2-agentic-20260923-r1",
+      "target": "train.grpo-lfm26-adaptive-grpo-50-c32-20260920f",
+      "target_groups": 217,
+      "shared_task_groups": 184,
+      "brier_hierarchical": 0.13203693719795398,
+      "brier_source_global": 0.21914112110547881
+    },
+    {
+      "source": "train.grpo-lfm26-vortex-v2-agentic-20260923-r1",
+      "target": "train.grpo-lfm26-vortex-v3-lr2e4-20260923-r1",
+      "target_groups": 74,
+      "shared_task_groups": 69,
+      "brier_hierarchical": 0.09796666555443367,
+      "brier_source_global": 0.22853123923064586
+    },
+    {
+      "source": "train.grpo-lfm26-vortex-v3-lr2e4-20260923-r1",
+      "target": "train.grpo-lfm26-olmo3-random20-20260912-r3",
+      "target_groups": 158,
+      "shared_task_groups": 86,
+      "brier_hierarchical": 0.1898723513878125,
+      "brier_source_global": 0.3112552158210316
+    },
+    {
+      "source": "train.grpo-lfm26-vortex-v3-lr2e4-20260923-r1",
+      "target": "train.grpo-lfm26-olmo3-adaptive20-20260912-r4",
+      "target_groups": 52,
+      "shared_task_groups": 35,
+      "brier_hierarchical": 0.3317101735566021,
+      "brier_source_global": 0.1930135307905391
+    },
+    {
+      "source": "train.grpo-lfm26-vortex-v3-lr2e4-20260923-r1",
+      "target": "train.grpo-lfm26-olmo3-adaptive20-discovery-v4-20260912-r1",
+      "target_groups": 112,
+      "shared_task_groups": 71,
+      "brier_hierarchical": 0.1745249352121801,
+      "brier_source_global": 0.2761179263949347
+    },
+    {
+      "source": "train.grpo-lfm26-vortex-v3-lr2e4-20260923-r1",
+      "target": "train.grpo-lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1",
+      "target_groups": 152,
+      "shared_task_groups": 96,
+      "brier_hierarchical": 0.13620615415025658,
+      "brier_source_global": 0.22333795013850416
+    },
+    {
+      "source": "train.grpo-lfm26-vortex-v3-lr2e4-20260923-r1",
+      "target": "train.grpo-lfm26-adaptive-grpo-50-c32-20260920f",
+      "target_groups": 217,
+      "shared_task_groups": 130,
+      "brier_hierarchical": 0.1515846985798928,
+      "brier_source_global": 0.21692255894404944
+    },
+    {
+      "source": "train.grpo-lfm26-vortex-v3-lr2e4-20260923-r1",
+      "target": "train.grpo-lfm26-vortex-v2-agentic-20260923-r1",
+      "target_groups": 176,
+      "shared_task_groups": 112,
+      "brier_hierarchical": 0.14227589189084724,
+      "brier_source_global": 0.2347645429362881
+    }
+  ],
+  "exclude_truncated": true,
+  "method_limits": [
+    "Only tasks selected in the source run are replayable; no unseen-task counterfactuals exist.",
+    "Empirical outcomes are sampled with replacement; tasks with little support borrow outcomes from peers in their class at weight 4/(task observations + 4).",
+    "Outcome distributions stay stationary across 100 simulated steps; model learning, task difficulty drift, and policy feedback are not modeled.",
+    "Input plus output tokens are a work proxy, not measured GPU time.",
+    "Runs remain separate because model policy and rollout configuration changed.",
+    "Groups with fewer than four observed rollouts are excluded from fitted probabilities and replay, not labeled as zero-variance failures.",
+    "This does not replay the production VORTEX controller or a fixed 20-percent exploration quota; it compares candidate selection rules on empirical outcome pools.",
+    "The cost guard uses a binomial independent-group approximation and does not guarantee the intended completion probability under correlated task outcomes."
+  ]
+}

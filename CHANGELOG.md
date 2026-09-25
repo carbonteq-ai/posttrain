@@ -6,20 +6,105 @@ version across first-party distributions.
 
 ## Unreleased
 
-### Changed
+## 0.4.5 - 2026-09-25
+
+This release makes VORTEX yield-first, counts thinking tokens for every catalog
+model from the renderer instead of model-specific rules, and turns Observatory
+into a place to debug a rollout: where its time went, turn by turn, and which
+tool calls failed.
+
+### Training and curriculum (VORTEX)
+
+- Yield-first curriculum: full-pool class-then-task sampling by useful-group
+  probability, with an exploration lane (`exploration_share` 0.2) that adds
+  aged binary-yield uncertainty. Same-step repeats are a hard capacity error.
+- VORTEX v2 on the CUDA-graph c40 rollout profile, and VORTEX v5 with a
+  truncation penalty and a 64-rollout batch, extended to 100 updates by resume.
+- A curriculum can warm-start from another run's controller state.
+- Resume works from a final checkpoint that is also a periodic checkpoint;
+  rejected rollout collections are logged instead of dropped.
+- Matched LFM adaptive GRPO and GDPO arms fit a colocated GPU budget and keep
+  32K of Gemma judge headroom.
+
+### Evaluation
+
+- 20-turn 64K AutomationBench evaluations and a difficulty-tiered held-out set,
+  both reserved from training; matched VORTEX evaluation packages are candidate
+  gates, with a 48K canary.
+- Evaluation keeps provider-error evidence, and a Trackio trace-schema
+  preflight fails before submission instead of mid-run.
+
+### Thinking-token accounting
+
+- New maintained fork `carbonteq-renderers` `0.1.12.post1.dev1` (internal
+  index). Every renderer reports `reasoning_tokens` for its completion, and
+  every catalog model has one: LFM2.5, K2 Horizon, Nanbeige 4.2, Spark 2.5,
+  Gemma 4 (including 12B) and Qwen 3.5.
+- Verifiers `0cee0a07`: the train client records the renderer's count as
+  `usage.reasoning_tokens` on each call. Verifiers environments move to
+  `8b739717`, which selects the same Verifiers commit.
+- Trace facts are calculator `verifiers-trace-facts.v6`. v5 added task and
+  prompt-group ids; v6 takes thinking tokens only from per-call usage and drops
+  the Qwen-specific recovery rules.
+- `posttrain trace-facts backfill --renderer-model` re-scores historical traces
+  and refuses `--apply` when it would erase recorded thinking counts.
+
+### Tracking
+
+- Trackio `0.31.5.post14.dev27`: server-side aggregates over stored trace
+  payloads (`TracePayloadQuery`: bounded JSON paths, mean, sum, count, min, max)
+  on Doris and SQLite. The tracking contract gains `aggregate_trace_payload`;
+  providers without it report `unsupported`.
+- Trace pages can be read newest first.
+
+### Observatory
+
+- Per-turn rollout transcript: one row per model call with its timing, tokens
+  and finish reason; each tool call beside its result, matched by call id within
+  the turn; failed calls and a missing final answer are flagged; a pinned turn
+  index; timeline segments jump to their turn. The same rollout that rendered
+  33,000px tall now renders about 3,200px.
+- Where rollout time goes: real elapsed generation time, average rollouts in
+  flight, and the per-rollout split between GPU inference and CPU tools, setup
+  and scoring. Finished steps are cached, so a refresh reads only changed steps.
+- Per-trajectory timeline of setup, model calls, tool execution and scoring.
+- Prompt-group reward mean and standard deviation across the whole run from
+  indexed facts, with explicit partial and unavailable states.
+- Trace filters by step, slice, outcome and text search, backed by the server.
+- VORTEX sampling evidence in plain terms: whole-run useful and tied groups
+  (which add up to 100%), groups kept and discarded per step, sampling rounds,
+  and first-time versus repeat tasks, with a step-range slider.
+- Sticky page header and turn index now stay pinned while scrolling.
+
+### Operations
+
+- `posttrain run purge --orphan` previews and purges a tracking run that has no
+  local submission receipt, with provider, registry, lineage and
+  terminal-or-stale checks. A shared job image is retained with a warning.
+
+### Inference and runtime
 
 - CarbonTeq vLLM `0.29.1.dev3`: multi-turn prefix reuse for hybrid and
   sliding-window models (agentic turns no longer re-prefill the previous
   turn's generated tokens), generic SM120 batch-invariant GEMM, split-KV
   attention, GDN chunk alignment and invariant CUDA RMSNorm.
-- CarbonTeq Verifiers `b71ade0a`: a fork server for rollout tool servers and
-  harness programs, faster port discovery, and no-delay MCP tool-server
-  sockets. Posttrain enables the fork server for Verifiers jobs by default
-  (`VF_FORK_SERVER=0` opts out); AutomationBench host time per episode falls
-  from about 6.6 s to under 1 s at concurrency 16.
+- Verifiers fork server for rollout tool servers and harness programs, faster
+  port discovery, and no-delay MCP tool-server sockets. Posttrain enables it
+  for Verifiers jobs by default (`VF_FORK_SERVER=0` opts out); AutomationBench
+  host time per episode falls from about 6.6 s to under 1 s at concurrency 16.
 - The TRL policy endpoint skips detokenization when no stop strings are set
   and no longer echoes prompt token IDs; Verifiers episode preservation runs
   off the event loop.
+- Native FlashAttention 4 is rejected on SM120 targets, and attention-backend
+  priority compiles to the vLLM backend setting.
+
+### Upgrade notes
+
+- Deploy Trackio `dev27` before using Observatory's rollout-time view; older
+  servers report the view as unavailable.
+- Re-score runs recorded before this release with
+  `posttrain trace-facts backfill <provider-run> --renderer-model <model> --apply`
+  to fill task ids, prompt-group ids and thinking tokens.
 
 ## 0.4.4 - 2026-09-20
 

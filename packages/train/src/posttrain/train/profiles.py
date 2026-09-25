@@ -125,15 +125,33 @@ class AdaptiveCurriculum:
     """Select distinct rollout tasks from observed class and task evidence."""
 
     class_field: str
+    policy: Literal["quota", "yield_first"] = "quota"
     class_exploration: float = 0.2
     task_discovery: float = 0.2
     history_groups: int = 4
     seed: int = 42
+    exploration_share: float = 0.2
+    uncertainty_weight: float = 4.0
+    evidence_half_life_steps: float = 20.0
+    yield_prior_strength: float = 4.0
     exploration: InitVar[float | None] = None
 
     def __post_init__(self, exploration: float | None) -> None:
         if not self.class_field or not self.class_field.strip():
             raise ValueError("adaptive curriculum class field is required")
+        if self.policy not in {"quota", "yield_first"}:
+            raise ValueError("adaptive curriculum policy must be quota or yield_first")
+        if self.policy == "yield_first" and (
+            exploration is not None or self.class_exploration != 0.2 or self.task_discovery != 0.2
+        ):
+            raise ValueError("yield_first does not use quota exploration or task discovery settings")
+        if self.policy == "quota" and (
+            self.exploration_share != 0.2
+            or self.uncertainty_weight != 4.0
+            or self.evidence_half_life_steps != 20.0
+            or self.yield_prior_strength != 4.0
+        ):
+            raise ValueError("quota policy does not use yield_first exploration settings")
         if exploration is not None:
             if self.class_exploration != 0.2 or self.task_discovery != 0.2:
                 raise ValueError("legacy exploration cannot be combined with class exploration or task discovery")
@@ -147,6 +165,14 @@ class AdaptiveCurriculum:
             raise ValueError("adaptive curriculum task discovery must be in [0, 1]")
         if self.history_groups < 1:
             raise ValueError("adaptive curriculum history groups must be positive")
+        if not math.isfinite(self.exploration_share) or not 0 <= self.exploration_share <= 1:
+            raise ValueError("adaptive curriculum exploration share must be in [0, 1]")
+        if not math.isfinite(self.uncertainty_weight) or self.uncertainty_weight < 0:
+            raise ValueError("adaptive curriculum uncertainty weight must be nonnegative")
+        if not math.isfinite(self.evidence_half_life_steps) or self.evidence_half_life_steps <= 0:
+            raise ValueError("adaptive curriculum evidence half-life must be positive")
+        if not math.isfinite(self.yield_prior_strength) or self.yield_prior_strength <= 0:
+            raise ValueError("adaptive curriculum yield prior strength must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,6 +201,10 @@ class GRPOSettings:
     mask_truncated_completions: bool = False
     overlong_buffer_tokens: int | None = None
     overlong_penalty_factor: float = 1.0
+    # Subtracted from a truncated rollout's reward before group statistics, so a
+    # rollout that hit a length, turn, or context limit ranks below an equally
+    # scored rollout that finished. None keeps truncated rollouts at task reward.
+    truncation_penalty: float | None = None
     max_admission_attempts: int = 3
 
     def __post_init__(self) -> None:
@@ -236,6 +266,11 @@ class GRPOSettings:
                 raise ValueError("DAPO overlong buffer must be positive and smaller than the completion limit")
         if not math.isfinite(self.overlong_penalty_factor) or self.overlong_penalty_factor <= 0:
             raise ValueError("DAPO overlong penalty factor must be a finite positive number")
+        if self.truncation_penalty is not None:
+            if not math.isfinite(self.truncation_penalty) or self.truncation_penalty <= 0:
+                raise ValueError("GRPO truncation penalty must be a finite positive number")
+            if self.mask_truncated_completions:
+                raise ValueError("GRPO truncation penalty has no effect when truncated completions are masked")
         if self.max_admission_attempts < 1:
             raise ValueError("GRPO group admission attempts must be positive")
 
@@ -425,19 +460,23 @@ class CAPOSettings(_StructuredRLSettings):
             raise ValueError("unsupported CAPO numerical profile")
 
 
-def shape_online_reward(settings: GRPOSettings, reward: float, completion_tokens: int) -> float:
-    """Apply the selected portable DAPO soft overlong punishment."""
+def shape_online_reward(
+    settings: GRPOSettings, reward: float, completion_tokens: int, *, is_truncated: bool = False
+) -> float:
+    """Apply the selected portable DAPO soft overlong punishment and truncation penalty."""
 
     buffer = settings.overlong_buffer_tokens
-    if settings.algorithm != "dapo" or buffer is None:
-        return reward
-    return shape_soft_overlong_reward(
-        reward,
-        completion_tokens,
-        max_completion_tokens=settings.max_completion_length,
-        buffer_tokens=buffer,
-        penalty_factor=settings.overlong_penalty_factor,
-    )
+    if settings.algorithm == "dapo" and buffer is not None:
+        reward = shape_soft_overlong_reward(
+            reward,
+            completion_tokens,
+            max_completion_tokens=settings.max_completion_length,
+            buffer_tokens=buffer,
+            penalty_factor=settings.overlong_penalty_factor,
+        )
+    if is_truncated and settings.truncation_penalty is not None:
+        reward -= settings.truncation_penalty
+    return reward
 
 
 def shape_soft_overlong_reward(

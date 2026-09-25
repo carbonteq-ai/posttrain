@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import tomllib
 from collections.abc import Mapping
 from pathlib import Path
@@ -181,7 +182,7 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert isinstance(environment.source, EnvironmentSource)
     assert environment.source.package == "automationbench-v1"
     assert environment.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-    assert environment.source.revision == "9bbd3116e6b5a444d6cf103dce18b1866ae32787"
+    assert environment.source.revision == "8b739717adad33e9dd3a4fcef0acd7ce7626a9d3"
     assert environment.source.subdirectory == "environments/automationbench_v1"
     assert environment.parameters["domains"] == ["simple"]
     assert environment.parameters["sampling_seed"] == 17
@@ -208,6 +209,36 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert rollout.capabilities == ("tool-calling",)
     assert rollout.model.conversation.tool_calls is not None
     assert rollout.model.conversation.tool_calls.id == "qwen3_xml"
+
+
+def test_lfm26_train_mix_v6_reserves_both_evaluation_task_sets() -> None:
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    fixture_path = WORKSPACE / "scripts/qualification/fixtures/lfm26_automationbench_mix_v3.json"
+    fixture = json.loads(fixture_path.read_text())
+
+    def names(environment_id: str) -> list[str]:
+        environment = catalog.resolve(CatalogRef("environment", environment_id)).value
+        assert isinstance(environment, EnvironmentBinding)
+        assert isinstance(environment.activation, VerifiersV1ConfigActivation)
+        taskset = environment.activation.config["taskset"]
+        assert isinstance(taskset, Mapping)
+        return list(cast(list[str], taskset["task_names"]))
+
+    training = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-v6")).value
+    assert isinstance(training, EnvironmentBinding)
+    training_names = names("automationbench-lfm26-train-mix-v6")
+    assert training.num_tasks == len(training_names) == len(set(training_names)) == 160
+    assert training_names == fixture["task_names"]
+    assert training.parameters["task_mix_id"] == "lfm26-automationbench-mix-v3"
+    assert training.parameters["task_mix_sha256"] == hashlib.sha256(fixture_path.read_bytes()).hexdigest()
+    names_digest = hashlib.sha256(json.dumps(training_names, separators=(",", ":")).encode()).hexdigest()
+    assert names_digest == fixture["selected_names_sha256"]
+    heldout = set(names("automationbench-lfm26-heldout-mix-v3"))
+    tiered = set(names("automationbench-lfm26-difficulty-tiered-v1"))
+    assert len(heldout) == len(tiered) == 20
+    assert not set(training_names) & (heldout | tiered)
+    assert sorted(heldout) == fixture["reserved_evaluation_tasks"]["heldout"]
+    assert sorted(tiered) == fixture["reserved_evaluation_tasks"]["difficulty_tiered"]
 
 
 def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> None:
@@ -413,6 +444,38 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
     assert "weight_name_prefix" not in changed_weight_rollout.engine
 
 
+def test_lfm26_vortex_heldout_v2_preserves_tasks_and_expands_episode_budget() -> None:
+    catalog = open_catalog(
+        scope="posttrain-lab",
+        overlays=(WORKSPACE / "apps" / "lab" / ".posttrain" / "catalog",),
+    )
+    original = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-heldout-mix-v1")).value
+    matched = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-heldout-mix-v2")).value
+    inference = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-eval-local@3")
+    ).value
+    plan = catalog.resolve(CatalogRef("evaluation", "lfm26-automationbench-heldout-v2")).value
+
+    assert isinstance(original, EnvironmentBinding)
+    assert isinstance(matched, EnvironmentBinding)
+    assert isinstance(original.activation, VerifiersV1ConfigActivation)
+    assert isinstance(matched.activation, VerifiersV1ConfigActivation)
+    original_taskset = cast(Mapping[str, Any], original.activation.config["taskset"])
+    matched_taskset = cast(Mapping[str, Any], matched.activation.config["taskset"])
+    assert original_taskset == matched_taskset
+    assert original.parameters["task_mix_sha256"] == matched.parameters["task_mix_sha256"]
+    assert original.num_tasks == matched.num_tasks == 20
+    assert original.num_rollouts == matched.num_rollouts == 3
+    assert matched.parameters["max_output_tokens"] == 16_384
+    assert matched.sampling.max_tokens == 8_192
+    assert isinstance(inference, InferenceBinding)
+    assert inference.engine["max_model_len"] == 49_152
+    assert inference.engine["enforce_eager"] is False
+    assert inference.sampling["max_tokens"] == 8_192
+    assert isinstance(plan, EvaluationPlan)
+    assert plan.environment("automationbench-lfm26-heldout-mix-v2") is matched
+
+
 def test_lfm26_three_step_qualification_retains_a_12k_episode_budget() -> None:
     catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
     scalar = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-v3")).value
@@ -441,7 +504,7 @@ def test_lfm26_three_step_qualification_retains_a_12k_episode_budget() -> None:
     judged_task = cast(Mapping[str, Any], taskset["task"])
     judges = cast(list[Mapping[str, Any]], judged_task["judges"])
     assert judges[0]["input_budget_tokens"] == 12_288
-    assert judges[0]["code_revision"] == "9bbd3116e6b5a444d6cf103dce18b1866ae32787"
+    assert judges[0]["code_revision"] == "8b739717adad33e9dd3a4fcef0acd7ce7626a9d3"
     assert "assessment_scope" not in judges[0]
     assert "context_scope" not in judges[0]
 
@@ -565,7 +628,7 @@ def test_general_capability_catalog_and_library_qualification_are_pinned() -> No
     for item in plan.environments:
         assert isinstance(item.source, EnvironmentSource)
         assert item.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-        assert item.source.revision == "9bbd3116e6b5a444d6cf103dce18b1866ae32787"
+        assert item.source.revision == "8b739717adad33e9dd3a4fcef0acd7ce7626a9d3"
 
 
 def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:
@@ -754,6 +817,44 @@ def test_base_catalog_manifest_is_complete_and_manifest_controlled() -> None:
         "training",
         "quantization",
     }
+
+
+def test_vortex_yield_first_uses_versioned_policy_and_larger_output_budget() -> None:
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    prior = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-vortex-20-local-v3")).value
+    candidate = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-vortex-yield-first-20-local-v4")
+    ).value
+    environment = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-v5")).value
+    inference = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-8k@1")
+    ).value
+
+    assert isinstance(prior, GRPOSettings)
+    assert isinstance(candidate, GRPOSettings)
+    assert isinstance(environment, EnvironmentBinding)
+    assert isinstance(inference, InferenceBinding)
+    assert candidate.loop.max_steps == prior.loop.max_steps == 20
+    assert candidate.loop.learning_rate == prior.loop.learning_rate
+    assert candidate.loop.max_length == 32768
+    assert candidate.max_prompt_length == 24576
+    assert candidate.max_completion_length == 8192
+    assert candidate.num_prompts_per_step == prior.num_prompts_per_step == 10
+    assert candidate.num_generations == prior.num_generations == 4
+    assert candidate.active_sampling == prior.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
+    assert candidate.active_sampling is not None
+    assert candidate.algorithm == prior.algorithm == "olmo3"
+    assert candidate.adaptive_curriculum is not None
+    assert candidate.adaptive_curriculum.policy == "yield_first"
+    assert candidate.adaptive_curriculum.exploration_share == 0.2
+    assert candidate.adaptive_curriculum.uncertainty_weight == 4.0
+    assert environment.num_tasks == 160
+    assert environment.sampling.max_tokens == 8192
+    assert environment.parameters["max_output_tokens"] == 16384
+    assert inference.sampling["max_tokens"] == 8192
+    assert inference.engine["max_model_len"] == 32768
+    assert inference.engine["kv_cache_memory_bytes"] == 9663676416
+    assert environment.num_tasks >= candidate.num_prompts_per_step * candidate.active_sampling.max_candidate_batches
 
 
 def _layer(root: Path, layer_id: str, document: str) -> Path:

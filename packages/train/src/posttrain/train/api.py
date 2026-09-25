@@ -765,6 +765,8 @@ def _seat_attributes(
         if request.settings.active_sampling is not None:
             attributes["active_sampling_max_candidate_batches"] = request.settings.active_sampling.max_candidate_batches
         attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
+        if request.settings.truncation_penalty is not None:
+            attributes["truncation_penalty"] = request.settings.truncation_penalty
         if request.settings.overlong_buffer_tokens is not None:
             attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
         attributes["environment_id"] = request.environment.id
