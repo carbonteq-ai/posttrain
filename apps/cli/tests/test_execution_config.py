@@ -1015,7 +1015,7 @@ def test_derived_constraint_profiles_carry_published_provided_packages(
     loaded = load_local_execution_config(layout)
     assert loaded.registry is not None
     profiles = loaded.registry.constraint_profiles
-    assert profiles["online-rl-trl-py312"].provided_packages == ("verifiers",)
+    assert profiles["online-rl-trl-py312"].provided_packages == ("carbonteq-renderers", "verifiers")
     assert profiles["supervised"].provided_packages == ()
     assert profiles["supervised"].contents_digest == _candidate_manifest().kinds["supervised"].lock_digest
 
