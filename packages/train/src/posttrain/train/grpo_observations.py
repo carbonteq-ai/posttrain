@@ -21,7 +21,8 @@ class GRPOObservationFeatures:
     clipping_enabled: bool = True
     decoupled_rollout: bool = False
     asynchronous_rollout: bool = False
-    mtp_rollout_enabled: bool = False
+    speculative_rollout_enabled: bool = False
+    """Any drafting method (MTP, DSpark, Uno, ...): vLLM reports the same speculative counters."""
     quantized_kv_cache: bool = False
     tool_environment: bool = False
 
@@ -42,7 +43,7 @@ class GRPOObservationFeatures:
             clipping_enabled=True,
             decoupled_rollout=inference_product == "vllm",
             asynchronous_rollout=mode == "async",
-            mtp_rollout_enabled=isinstance(speculative, Mapping) and speculative.get("method") == "mtp",
+            speculative_rollout_enabled=isinstance(speculative, Mapping) and bool(speculative.get("method")),
             quantized_kv_cache=isinstance(kv_cache_dtype, str) and kv_cache_dtype.startswith("turboquant_"),
             tool_environment=tool_environment,
         )
@@ -386,8 +387,8 @@ def normalize_grpo_metrics(
     if observed_mtp and observed_mtp != _MTP_REQUIRED:
         missing = ", ".join(sorted(_MTP_REQUIRED - observed_mtp))
         raise ValueError(f"partial MTP evidence; missing {missing}")
-    if not features.mtp_rollout_enabled and observed_mtp:
-        raise ValueError("MTP metrics were emitted for a run without MTP selected")
+    if not features.speculative_rollout_enabled and observed_mtp:
+        raise ValueError("speculative decoding metrics were emitted for a run without speculative rollout")
 
     rollout_seconds = normalized.get("train/rl/time/rollout_seconds")
     completion_tokens = normalized.get("train/rl/completion_tokens_total")
@@ -432,7 +433,7 @@ def required_grpo_metrics(features: GRPOObservationFeatures) -> frozenset[str]:
                 "train/rl/trajectory_version_span_mean",
             }
         )
-    if features.mtp_rollout_enabled:
+    if features.speculative_rollout_enabled:
         required.update(_MTP_REQUIRED)
     if features.quantized_kv_cache:
         required.add("serve/backend/kv_cache_peak_usage_ratio")
