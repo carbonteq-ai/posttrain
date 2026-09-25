@@ -100,7 +100,15 @@ jobs:
           test "$(sha256sum "candidate-dist/${WHEEL_FILENAME}" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
           test "$(sha256sum "candidate-dist/${SDIST_FILENAME}" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
           sha256sum "candidate-dist/${WHEEL_FILENAME}" "candidate-dist/${SDIST_FILENAME}" > promotion-SHA256SUMS
-          stable_page="$(curl --fail --location --retry 3 "${STABLE_SIMPLE_URL}${PACKAGE}/")"
+          # A package's first promotion has no stable page yet; any other
+          # failure to read the stable index stops the promotion.
+          stable_status="$(curl --location --retry 3 --silent --show-error \
+            --output stable-page.html --write-out '%{http_code}' "${STABLE_SIMPLE_URL}${PACKAGE}/")"
+          case "${stable_status}" in
+            200) stable_page="$(cat stable-page.html)" ;;
+            404) stable_page="" ;;
+            *) echo "stable index returned HTTP ${stable_status} for ${PACKAGE}" >&2; exit 1 ;;
+          esac
           stable_wheel="$(printf '%s\n' "${stable_page}" | grep -F ">${WHEEL_FILENAME}<" || true)"
           stable_sdist="$(printf '%s\n' "${stable_page}" | grep -F ">${SDIST_FILENAME}<" || true)"
           if test -n "${stable_wheel}" || test -n "${stable_sdist}"; then
