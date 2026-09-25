@@ -11,6 +11,7 @@ on:
           - trl
           - verl
           - trackio
+          - renderers
       release_tag:
         description: Immutable carbonteq-v release tag already published to carbonteq/dev
         required: true
@@ -57,6 +58,11 @@ jobs:
               package=carbonteq-trackio
               repository=carbonteq-ai/trackio
               filename_prefix=carbonteq_trackio
+              ;;
+            renderers)
+              package=carbonteq-renderers
+              repository=carbonteq-ai/renderers
+              filename_prefix=carbonteq_renderers
               ;;
             *)
               echo "unsupported maintained fork: ${FORK}" >&2
