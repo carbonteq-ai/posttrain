@@ -104,8 +104,8 @@ def test_reference_is_digest_pinned_and_prefix_overridable() -> None:
 
 def test_provided_packages_are_carried_from_the_published_image() -> None:
     manifest = _candidate_manifest()
-    assert manifest.image("online-rl-trl-py312").provided_packages == ("verifiers",)
-    assert manifest.image("eval").provided_packages == ("verifiers",)
+    assert manifest.image("online-rl-trl-py312").provided_packages == ("verifiers", "carbonteq-renderers")
+    assert manifest.image("eval").provided_packages == ("verifiers", "carbonteq-renderers")
     assert manifest.image("supervised").provided_packages == ()
 
 

@@ -1786,3 +1786,22 @@ def test_release_can_read_prior_manifest_while_adding_a_variant(
         dependency for extra in consumer["project"].get("optional-dependencies", {}).values() for dependency in extra
     ]
     assert not any("posttrain-release" in item for item in [*declared, *optional])
+
+
+def test_kinds_that_provide_verifiers_also_provide_its_locked_renderers_fork() -> None:
+    """A provided package's maintained dependency must not reach the portable environment lock.
+
+    The kind lock pins carbonteq-renderers as an internal-index URL; emitting it
+    made every Verifiers environment compile fail with a non-portable source.
+    """
+    from posttrain_release.publish import _provided_packages
+
+    root = (
+        Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+        / "packages/runtime-images/src/posttrain/runtime_images"
+    )
+    assert _provided_packages("online-rl-trl-py312", root) == ("verifiers", "carbonteq-renderers")
+    assert _provided_packages("eval", root) == ("verifiers", "carbonteq-renderers")
+    assert _provided_packages("serve", root) == ()
+    manifest = (root / "published.toml").read_text(encoding="utf-8")
+    assert 'provided_packages = ["verifiers"]\n' not in manifest
