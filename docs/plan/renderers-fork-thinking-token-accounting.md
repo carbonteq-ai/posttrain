@@ -18,15 +18,14 @@ The same change makes the renderer the one home for model-specific output knowle
 - [x] (2026-09-25) Prototype 2, on upstream `main`: `DefaultRenderer` keeps a cut-off LFM2.5 thought (`reasoning_complete=False`), so the fork starts from upstream `main`.
 - [x] (2026-09-25) Milestone 1: created the public GitHub fork `carbonteq-ai/renderers` (parent `PrimeIntellect-ai/renderers`). Local clone `/home/hammad/projects/renderers` has remotes `origin` (fork) and `upstream`. Branch `carbonteq/thinking-token-accounting` from upstream `20f2b38c`. The distribution is renamed `carbonteq-renderers`; the version comes from `renderers/_version.py` (`0.1.12.post1.dev1`); ledger `CARBONTEQ_FORK.md` added (commit `582d1ec`). Clean upstream baseline: 11100 passed, 124 skipped.
 - [x] (2026-09-25) Milestone 2: `ReasoningBoundary.token_count` and `ParsedResponse.reasoning_tokens` for every scan-based parser; Gemma 4, DeepSeek V4 and Llama 3 special cases (commit `e9d65aa`). Full suite on that commit: 11247 passed, 99 skipped, 0 failed.
-- [x] (2026-09-25) Milestone 3 (uncommitted in worktree `/home/hammad/projects/renderers-catalog`, branch `carbonteq/catalog-renderers`):
+- [x] (2026-09-25) Milestone 3, commit `a3ab346` (fast-forwarded onto `carbonteq/thinking-token-accounting`):
   - LFM2.5, K2-Horizon, Nanbeige 4.2 and Spark X2.5 renderers in `renderers/catalog_models.py`;
   - LFM2/K2 parsers moved into `renderers/catalog_parsers.py`;
-  - Gemma 4 12B mapping and prefill set;
+  - Gemma 4 12B mapped for text only, with the 26B/31B prefill set;
   - `generate()` returns `reasoning_tokens`;
-  - `tests/test_catalog_model_renderers.py` (32 passed);
-  - the catalog models added to upstream's `MODEL_CATALOG`.
+  - `tests/test_catalog_model_renderers.py`, and the catalog models added to upstream's `MODEL_CATALOG`.
 
-  Full-suite run pending.
+  Full suite: 11799 passed, 107 skipped. The one failure asserted that Gemma 4 12B is image-registered; 12B is Gemma 4 Unified (image and audio), whose media path is not qualified, so it was moved out of the image-checkpoint suite. The Gemma and reasoning suites were then rerun: 430 and 1291 passed.
 - [x] (2026-09-25) Milestone 4, Verifiers: worktree `/home/hammad/projects/worktrees/verifiers-thinking-tokens`, branch `codex/renderer-thinking-tokens`, commit `c7388dbe` on `b71ade0a`. `Usage.reasoning_tokens` is filled from the renderer; `renderer_extensions.py` and the LFM bridge fallback are removed; the dependency is now `carbonteq-renderers`; its ledger is updated. Tests against the local fork: 114 passed, 76 skipped (need `PRIME_API_KEY`). `uv.lock` not yet updated (needs the published fork).
 - [x] (2026-09-25) Milestone 6, this repository: worktree `/home/hammad/projects/rl-thinking-tokens`, branch `codex/renderer-thinking-tokens`, commits `9e02fd77` and `e3a3e817` on `49c43a4e`.
   - The Qwen rules are removed from `verifiers_evidence.py` (calculator `verifiers-trace-facts.v5`) and from Observatory `traces.py`.
