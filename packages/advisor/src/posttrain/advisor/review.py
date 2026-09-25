@@ -259,6 +259,22 @@ def _only_consumed_keys(snapshot: Snapshot, seat: Seat, suggestion: Suggestion) 
     return replace(suggestion, settings=settings, engine={item.key: item.value for item in settings})
 
 
+def draft_reference(engine: Mapping[str, Any]) -> tuple[str, str | None] | None:
+    """The separate drafter an engine speculates with, as (repository, revision).
+
+    MTP assistants are recorded as ``draft_model``; vLLM's own schema (DSpark,
+    DFlash, EAGLE) names the drafter ``model`` at ``revision``.
+    """
+    speculative = mapping(engine.get("speculative_config", engine.get("speculative")))
+    draft_model = mapping(speculative.get("draft_model"))
+    repository, revision = draft_model.get("repo_id"), draft_model.get("revision")
+    if not isinstance(repository, str):
+        repository, revision = speculative.get("model"), speculative.get("revision")
+    if not isinstance(repository, str):
+        return None
+    return repository, revision if isinstance(revision, str) else None
+
+
 def recommend(snapshot: Snapshot, seat: Seat, load_architecture: ArchitectureLoader) -> dict[str, JsonValue]:
     """The calculator's payload for one inference seat, with the seats its findings point at."""
 
@@ -270,17 +286,15 @@ def recommend(snapshot: Snapshot, seat: Seat, load_architecture: ArchitectureLoa
     revision = base.get("revision")
     architecture = load_architecture(base["repo_id"], revision if isinstance(revision, str) else None)
     engine: Mapping[str, Any] = seat.resolved["engine"]
-    draft_model = mapping(mapping(engine.get("speculative_config", engine.get("speculative"))).get("draft_model"))
     draft = None
     draft_note = None
-    if isinstance(draft_model.get("repo_id"), str):
-        draft_revision = draft_model.get("revision")
+    if (drafter := draft_reference(engine)) is not None:
         try:
-            draft = load_architecture(
-                draft_model["repo_id"], draft_revision if isinstance(draft_revision, str) else None
-            )
+            draft = load_architecture(*drafter)
         except Exception as error:  # noqa: BLE001 - size the target alone and say so
-            draft_note = f"draft model {draft_model['repo_id']} could not be read ({type(error).__name__}); memory excludes the drafter"
+            draft_note = (
+                f"draft model {drafter[0]} could not be read ({type(error).__name__}); memory excludes the drafter"
+            )
     task = replace(
         binding_task(snapshot, seat, architecture, draft),
         co_tenant_gb=_co_tenant_gb(snapshot, seat, hardware.memory_gb, load_architecture),

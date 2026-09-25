@@ -2,6 +2,7 @@
 
 import pytest
 from posttrain.advisor.calculator import Architecture, Hardware, Task, suggest
+from posttrain.advisor.review import draft_reference
 
 # config.json excerpts of the pinned checkpoints (hybrid layouts preserved).
 LFM25_26B = {
@@ -193,3 +194,22 @@ def test_other_engines_on_the_device_shrink_the_share() -> None:
     assert alone.engine["gpu_memory_utilization"] == 0.9
     assert shared.engine["gpu_memory_utilization"] < 0.5
     assert shared.memory_gb["other_engines"] == 45.0 and "kv_cache_memory_bytes" in shared.engine
+
+
+@pytest.mark.parametrize(
+    ("speculative", "expected"),
+    [
+        (
+            {"method": "mtp", "draft_model": {"repo_id": "google/gemma-4-assistant", "revision": "a" * 40}},
+            ("google/gemma-4-assistant", "a" * 40),
+        ),
+        (
+            {"method": "dspark", "model": "LiquidAI/LFM2.5-2.6B-DSpark", "revision": "b" * 40},
+            ("LiquidAI/LFM2.5-2.6B-DSpark", "b" * 40),
+        ),
+        ({"method": "mtp", "num_speculative_tokens": 2}, None),
+    ],
+)
+def test_review_finds_the_drafter_in_either_speculative_schema(speculative, expected) -> None:
+    assert draft_reference({"speculative_config": speculative}) == expected
+    assert draft_reference({}) is None

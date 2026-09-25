@@ -1503,6 +1503,44 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
+  # Five updates of the adaptive-GRPO arm on the DSpark rollout profile, to
+  # qualify DSpark beside the colocated trainer: memory fit at 0.20 with the
+  # 6.5 GiB cache, rollout time per update against the matched @2 arm, and
+  # draft acceptance as the LoRA policy moves away from the drafter's base.
+  lfm2.5-2.6b/automationbench-adaptive-grpo-dspark-5-local-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 5
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00001
+      logging_steps: 1
+      checkpoint_steps: 5
+      checkpoint_limit: 1
+    num_prompts_per_step: 8
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    algorithm: grpo
+    beta: 0.0
+    advantage_scaling: group
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.2
+    importance_sampling_mode: sequence_truncate
+    importance_sampling_clip_min: 0.1
+    importance_sampling_clip_max: 3.0
+    adaptive_curriculum:
+      class_field: domain
+      class_exploration: 0.2
+      task_discovery: 0.2
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
   # One bounded K2-Horizon/Uno qualification run of the VORTEX controller.
   # It keeps the released ten-group/four-generation policy and 20 updates;
   # only model-specific memory and rollout runtime controls differ.
@@ -2322,6 +2360,50 @@ inference:
         lfm26_automationbench_gdpo_episode_50_local_8x4_v1), so it stays unchanged to
         keep them reproducible; new work takes `posttrain settings suggest` values in a
         new revision.
+
+  # DSpark speculative rollout. The target verifies every drafted token, so
+  # sampled tokens are the target's own; batch-invariant greedy output equals
+  # target-only output. Replaying 32 recorded episodes per collection on the
+  # RTX PRO 6000, DSpark with nine tokens takes 46 s per collection at 88%
+  # prefix hits against 84-87 s without speculation. The drafter's KV shares
+  # the cache (26 KiB per token with the target's 16 KiB), so the 4 GiB of
+  # revision 2 overflows: the 32 live episodes reach about 250K tokens against
+  # its 157K slots, preempting 50-60 running requests per collection at 42%
+  # prefix hits. 6.5 GiB measured 88% with no preemption; the calculator's
+  # 7 GiB and 0.16 (target and drafter weights, cache, graphs and workspace
+  # beside the 15.7 GB trainer) are used.
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@3:
+    revision: "3"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.16
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 32
+      max_num_batched_tokens: 32768
+      kv_cache_memory_bytes: 7516192768
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+      speculative_config:
+        method: dspark
+        model: LiquidAI/LFM2.5-2.6B-DSpark
+        revision: 458cedab07d0f7b2b05700c77e1aa463d43d6f04
+        num_speculative_tokens: 9
+    sampling: *policy_sampling_4k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
 
   inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-4k@1:
     revision: "1"
