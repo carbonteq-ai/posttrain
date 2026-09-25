@@ -1,0 +1,32 @@
+project_id: posttrain-lab
+work_package_id: eval/lfm2.5-2.6b/automationbench-vortex-context-canary-48k-v1
+stage: qualify
+description: Two-task, one-repetition gate for 48K LFM held-out evaluation serving, trace transport, and request budgeting.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-vortex-context-canary-48k-v1@1
+  revision: "1"
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: evaluate
+      kind: eval.general
+      definition: eval/verifiers-managed-general@1
+  expected_artifacts: [native evaluation result]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  evaluation_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-eval-local@3}
+  target: {type: ref, family: target, id: targets/carbonteq-rtx-pro-6000-96gb}
+  evaluation_plan: {type: ref, family: evaluation, id: lfm26-automationbench-heldout-context-canary-v1}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-heldout-context-canary-v1}
+enabled_optional_jobs: []
+metadata:
+  evaluation_population: context-canary-2
+  policy_call_output_budget: "8192"
+  episode_output_budget: "16384"
+  labels: [qualification, evaluation, automationbench, lfm2.5, vortex, context48k, canary]

@@ -68,8 +68,14 @@ jobs:
               source = source.replace(stable, candidate)
           path.write_text(source, encoding="utf-8")
           PY
-          uv lock --upgrade-package trl --upgrade-package carbonteq-trackio
-          uv sync --all-packages --group dev --frozen --python 3.13
+          # The pushed branch's uv.lock is the candidate authority. A broad
+          # upgrade re-resolves unrelated Git packages (including vLLM) and
+          # requires CUDA on this CPU-only release runner. Resolve and review
+          # new dependency receipts on the source branch before dispatch.
+          # Image publication uses only the release tool. Installing the
+          # entire workspace needlessly builds the pinned vLLM source on this
+          # CPU-only runner and fails without CUDA_HOME.
+          uv sync --package posttrain-release --frozen --python 3.13
           # The authored profile retains stable consumer pins. This disposable
           # candidate checkout must instead constrain images to the same
           # immutable dev receipts as its freshly resolved lock.
@@ -80,6 +86,16 @@ jobs:
           uv run --no-sync posttrain-release lock-dependencies
           uv run --no-sync posttrain-release check --allow-pending-runtime-lock
           uv run --no-sync posttrain-release lock-runtime-dependencies
+          # Transform uses the isolated quantization lock, not uv.lock. Keep
+          # its installed Trackio receipt aligned with profiles/common.txt.
+          uv export \
+            --project tools/quantization \
+            --frozen \
+            --python 3.13.12 \
+            --no-emit-project \
+            --no-dev \
+            --format requirements.txt \
+            --output-file packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/transform.lock.txt
           uv run --no-sync python - <<'PY'
           import os
           import tomllib

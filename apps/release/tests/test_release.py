@@ -802,7 +802,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
 
     entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
 
-    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev24"
+    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev25"
     assert entries["trl"].revision == "3b7a582e011a32de74d1f2b6e572b794360fbfd7"
     assert entries["verl"].release_tag == "carbonteq-v0.9.0.post3"
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
@@ -1274,9 +1274,17 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
     assert "- dev" in runtime_candidate
     assert "- stable" in runtime_candidate
     assert "candidate index source must be unambiguous" in runtime_candidate
-    assert "uv lock --upgrade-package trl --upgrade-package carbonteq-trackio" in runtime_candidate
+    assert "uv lock --upgrade-package" not in runtime_candidate
+    assert "The pushed branch's uv.lock is the candidate authority" in runtime_candidate
+    assert "uv sync --package posttrain-release --frozen --python 3.13" in runtime_candidate
+    assert "uv sync --all-packages" not in runtime_candidate
     assert "posttrain-release sync-runtime-profile-pins" in runtime_candidate
     assert "posttrain-release lock-dependencies" in runtime_candidate
+    assert "--project tools/quantization" in runtime_candidate
+    assert (
+        "--output-file packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/locks/transform.lock.txt"
+        in runtime_candidate
+    )
     assert "runtime lock resolved an internal package outside" in runtime_candidate
     assert "posttrain-release images plan" in runtime_candidate
     assert ".release/runtime-image-plan.json" in runtime_candidate
@@ -1306,8 +1314,8 @@ def test_required_fork_index_check_uses_every_python_fork_hash(monkeypatch: pyte
     artifacts = captured["artifacts"]
     assert isinstance(artifacts, list)
     assert {item["filename"] for item in artifacts} == {
-        "carbonteq_trackio-0.31.5.post14.dev24-py3-none-any.whl",
-        "carbonteq_trackio-0.31.5.post14.dev24.tar.gz",
+        "carbonteq_trackio-0.31.5.post14.dev25-py3-none-any.whl",
+        "carbonteq_trackio-0.31.5.post14.dev25.tar.gz",
         "trl-1.12.0.post9-py3-none-any.whl",
         "trl-1.12.0.post9.tar.gz",
         "verl-0.9.0.post3-py3-none-any.whl",

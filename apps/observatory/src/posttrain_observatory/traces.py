@@ -276,13 +276,27 @@ def _wire_error(payload: Mapping[str, JsonValue]) -> str | None:
     if error not in (None, False, ""):
         return str(error)
     errors = payload.get("errors")
-    if not isinstance(errors, list) or not errors:
-        return None
-    latest = errors[-1]
-    if isinstance(latest, Mapping):
-        error_type = latest.get("type")
-        return str(error_type) if error_type else "trace reported an error"
-    return "trace reported an error"
+    if isinstance(errors, list) and errors:
+        latest = errors[-1]
+        if isinstance(latest, Mapping):
+            error_type = latest.get("type")
+            return str(error_type) if error_type else "trace reported an error"
+        return "trace reported an error"
+    calls = payload.get("calls")
+    if isinstance(calls, list):
+        for call in reversed(calls):
+            if not isinstance(call, Mapping):
+                continue
+            call_error = call.get("error")
+            if call_error in (None, False, ""):
+                continue
+            if isinstance(call_error, Mapping):
+                error_type = call_error.get("type")
+                status = call_error.get("status_code")
+                label = str(error_type) if isinstance(error_type, str) and error_type else "model call failed"
+                return f"{label} (HTTP {status})" if isinstance(status, int) else label
+            return "model call failed"
+    return None
 
 
 def _wire_truncated(
@@ -971,10 +985,10 @@ def _summary(record: TraceRecord, evaluation_metadata: EvaluationMetadata | None
     metadata = metadata if isinstance(metadata, Mapping) else {}
     info = payload.get("info")
     info = info if isinstance(info, Mapping) else {}
-    reward = _wire_reward(payload)
-    success = _wire_success(payload)
-    truncated = _wire_truncated(payload, record.attributes)
     error = _wire_error(payload)
+    reward = None if error is not None else _wire_reward(payload)
+    success = None if error is not None else _wire_success(payload)
+    truncated = _wire_truncated(payload, record.attributes)
     task = _wire_task(payload, metadata, info)
     response_tokens, response_chars, thinking_tokens, thinking_chars = _wire_text_stats(payload, record.attributes)
     input_tokens, completion_tokens = _wire_usage(payload)
@@ -1041,7 +1055,7 @@ def _apply_evaluation_semantics(
 ) -> TraceSummary:
     """Apply the environment-declared score and pass-rate metrics to one trace."""
 
-    if metadata is None:
+    if metadata is None or summary.error is not None:
         return summary
     reward = summary.metrics.get(metadata.primary_metric) if metadata.primary_metric else None
     success = None

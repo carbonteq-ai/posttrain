@@ -2,14 +2,29 @@
 
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
-`import trackio` API. The current framework dependency is
-`carbonteq-trackio==0.31.5.post14.dev24`, built from immutable fork commit
-`3a67722d2a2c0f40d3db98721ab2fc6933b93494`. Its wheel
-(`fea18a183a7493a0a1cd69218ccc2e1442cfcdbdea9c7d19f247ab7bbbf0fc21`) and
-sdist (`7ba6ac88cb6f50b1682c4a6e196c5722dd9973626a896aa3ce13cc894135eb62`)
-were released manually as `carbonteq-v0.31.5.post14.dev24` and published
-unchanged to `carbonteq/dev` by Posttrain workflow `34588926837`. Promotion to
-`carbonteq/stable` remains gated on the real training canary. This revision
+`import trackio` API. The shared server at `https://trackio.carbonteq.com` runs
+`0.31.5.post14.dev26` (fork commit `5593ef84865c1ab134ed24ac2534f6c018027052`,
+wheel `c4ecb89aed2f6620b93ddd4d20d2cfbfb364d75dd6b0f6c73fc8b50e9d2ef64f`,
+deployed 2026-09-25 with ai-infra `scripts/deploy-trackio`). Dev26 changes
+only the server inbox importer: a failed import batch is retried one fragment
+at a time, and fragments that can never import (Doris string-length rejection,
+or trace facts whose parent trace is still missing after
+`TRACKIO_INBOX_RETRY_MAX_AGE`, default 24 hours) move with an error sidecar to
+`inbox-dead-letter/` instead of blocking every batch they join. Before dev26,
+two oversized August fragments silently held other runs' evidence in the inbox;
+see `docs/plan/vortex-v3-v4-matched-heldout-evaluation.md`. The client API is
+unchanged, so the framework dependency stays at dev25 until the next runtime
+image refresh. The current framework dependency is
+`carbonteq-trackio==0.31.5.post14.dev25`, built from immutable fork commit
+`bb40b7e333b7f74f4cf6923e3ff6030255ed746d`. Its wheel
+(`a349d7cb5848865255019204fc2c1cc538d12164bda634a5360c2a9ff52a0f90`) and
+sdist (`72091a9064cbd0e1ba171bfbb080d16abf83798a32af85deca8bd98c01c59b61`)
+are published to `carbonteq/dev`. Dev25 accepts indexed `task_id` and
+`prompt_group_id` trace-fact dimensions. A Posttrain runtime that projects
+either dimension must pin dev25 or later: the v3 held-out evaluation image
+paired that projection with dev24, so all 60 native trace uploads were rejected
+while the bundle itself remained intact. The framework has a direct conversion
+test to prevent that mismatch at release time. The preceding dev24 revision
 adds bounded wait-for-one-slot artifact backpressure, a configurable
 600-second finalization barrier, and one per-run remote publication transaction
 that prevents overlapping manifests from transferring the same absent blob.
