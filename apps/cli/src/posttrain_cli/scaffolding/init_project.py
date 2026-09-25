@@ -287,6 +287,9 @@ def starter_grpo_environment() -> str:
     return """environment:
   starter-gsm8k-train:
     category: math-reasoning
+    # The dataset loads from the Hub; image builds are offline, so check it at
+    # job start rather than during the build.
+    qualification: deferred
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments

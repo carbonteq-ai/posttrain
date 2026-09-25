@@ -3,6 +3,7 @@
 environment:
   starter-qualification-gsm8k-train:
     category: math-reasoning
+    qualification: deferred
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
