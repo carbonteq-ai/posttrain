@@ -5,12 +5,15 @@ from posttrain_cli.commands.work_package import _select_checkpoint_output
 
 
 def _link(name, digest, metadata, kind="training-checkpoint"):
-    return SimpleNamespace(direction="output", kind=kind, name=name,
-                           artifact=SimpleNamespace(digest=digest, provider_metadata=metadata))
+    return SimpleNamespace(
+        direction="output", kind=kind, name=name, artifact=SimpleNamespace(digest=digest, provider_metadata=metadata)
+    )
 
 
 def _select(links, step):
-    return _select_checkpoint_output(tuple(links), source_run_id="source", kinds=frozenset({"training-checkpoint"}), step=step)
+    return _select_checkpoint_output(
+        tuple(links), source_run_id="source", kinds=frozenset({"training-checkpoint"}), step=step
+    )
 
 
 def test_final_checkpoint_registered_twice_at_the_same_step_selects_the_periodic_view():

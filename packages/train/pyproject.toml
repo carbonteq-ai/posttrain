@@ -62,6 +62,13 @@ source-revision = "3b7a582e011a32de74d1f2b6e572b794360fbfd7"
 wheel-sha256 = "c5d204da587a9a45dd279f1407d0e20816344075d001da9fe03f6dd4879fa710"
 sdist-sha256 = "146e46b37f6795a206d684e286e137edb1eec673b658d0168d45c603870156fa"
 
+[tool.posttrain.renderers]
+version = "0.1.12.post1.dev1"
+release-tag = "carbonteq-v0.1.12.post1.dev1"
+source-revision = "6aba28a8c9a597475addc2c123dd18b28a462766"
+wheel-sha256 = "2e3231784729b9177bfc25eb06e3a6a958f9ba420ff8e241c010266cc9422d0b"
+sdist-sha256 = "bf529fc910f66494770a96e0ee5ec986344ed5f8b48258b50a55b82baa876fa3"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

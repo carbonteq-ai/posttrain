@@ -78,7 +78,9 @@ def test_curriculum_state_rejects_resume_wrong_kinds_and_same_run() -> None:
         direction="output",
         logical_name="training/model/olmo3/recovery-checkpoint",
         kind="training-checkpoint",
-        artifact=StoredArtifact(provider="trackio", namespace="example", name="checkpoint", version="v1", digest="a" * 64),
+        artifact=StoredArtifact(
+            provider="trackio", namespace="example", name="checkpoint", version="v1", digest="a" * 64
+        ),
     )
     resumed = with_recovery_checkpoint(_planned(), source_run_id="old-run", artifact=recovery)
     with pytest.raises(ContractError, match="restores its own curriculum"):
@@ -101,17 +103,19 @@ def test_job_run_exposes_curriculum_warm_start(capsys) -> None:
 
 
 def test_job_run_rejects_warm_start_together_with_resume(capsys) -> None:
-    code = main(
-        ["job", "run", "missing.yaml", "--resume-from-run", "old-run", "--curriculum-from-run", "vortex-run"]
-    )
+    code = main(["job", "run", "missing.yaml", "--resume-from-run", "old-run", "--curriculum-from-run", "vortex-run"])
     assert code != 0
     assert "cannot be combined with --resume-from-run" in capsys.readouterr().err
 
 
 def test_curriculum_selection_uses_the_final_state_or_the_state_at_a_checkpoint_step() -> None:
     final = _link(digest="f" * 64)
-    view10 = _link(digest="a" * 64, metadata={"checkpoint_step": 10, "global_step": 10}, name="checkpoint-10-curriculum")
-    view20 = _link(digest="b" * 64, metadata={"checkpoint_step": 20, "global_step": 20}, name="checkpoint-20-curriculum")
+    view10 = _link(
+        digest="a" * 64, metadata={"checkpoint_step": 10, "global_step": 10}, name="checkpoint-10-curriculum"
+    )
+    view20 = _link(
+        digest="b" * 64, metadata={"checkpoint_step": 20, "global_step": 20}, name="checkpoint-20-curriculum"
+    )
     recovery10 = _link(kind="training-checkpoint", digest="d" * 64, metadata={"checkpoint_step": 10, "global_step": 10})
     links = (final, view10, view20, recovery10)
 
@@ -135,4 +139,3 @@ def test_curriculum_selection_without_a_final_state_names_the_available_steps() 
 def test_curriculum_checkpoint_step_requires_a_curriculum_source(capsys) -> None:
     assert main(["job", "run", "missing.yaml", "--curriculum-checkpoint-step", "20"]) != 0
     assert "--curriculum-checkpoint-step requires --curriculum-from-run" in capsys.readouterr().err
-

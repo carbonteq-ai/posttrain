@@ -157,9 +157,7 @@ def test_trl_lfm_tool_cycle_keeps_sampled_prefix_and_appends_only_new_tool_messa
     class LfmRenderer:
         # The fork's LFM25Renderer bridges tool results itself.
         def bridge_to_next_turn(self, previous_prompt_ids, previous_completion_ids, new_messages, *, tools):
-            return bridge_lfm25_tool_cycle(
-                self, tokenizer, previous_prompt_ids, previous_completion_ids, new_messages
-            )
+            return bridge_lfm25_tool_cycle(self, tokenizer, previous_prompt_ids, previous_completion_ids, new_messages)
 
         def render(self, messages, *, tools, add_generation_prompt):
             assert messages == [{"role": "tool", "content": "created", "tool_call_id": "call_0"}]

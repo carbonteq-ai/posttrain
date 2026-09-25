@@ -952,7 +952,10 @@ def _yield_first_source(inventory: Mapping[str, str]) -> AdaptiveCurriculumContr
     for step in range(1, 6):
         decision = controller.select(2, step=step)
         controller.observe(
-            [(task_id, [0.0, 1.0, 1.0, 0.0] if index == 0 else [1.0, 1.0, 1.0, 1.0]) for index, task_id in enumerate(decision.task_ids)],
+            [
+                (task_id, [0.0, 1.0, 1.0, 0.0] if index == 0 else [1.0, 1.0, 1.0, 1.0])
+                for index, task_id in enumerate(decision.task_ids)
+            ],
             step=step,
         )
     return controller
@@ -974,7 +977,11 @@ def test_yield_first_warm_start_keeps_task_evidence_and_resets_run_counters() ->
     # A resumed controller refuses to go back to step 1; a warm-started one starts there.
     with pytest.raises(ValueError, match="cannot move backwards"):
         _controller(
-            RecordingBackend(), task_classes=inventory, policy="yield_first", exploration_share=0.5, restored_state=source.state()
+            RecordingBackend(),
+            task_classes=inventory,
+            policy="yield_first",
+            exploration_share=0.5,
+            restored_state=source.state(),
         ).select(1, step=1)
     assert warm.select(2, step=1).index == 0
 
@@ -983,8 +990,12 @@ def test_yield_first_warm_start_continues_evidence_ageing_across_runs() -> None:
     inventory = {f"a{i}": "a" for i in range(1, 5)} | {f"b{i}": "b" for i in range(1, 5)}
     source = _yield_first_source(inventory)
     state = source.state()
-    warm = _controller(RecordingBackend(), task_classes=inventory, policy="yield_first", exploration_share=0.5, warm_start_state=state)
-    resumed = _controller(RecordingBackend(), task_classes=inventory, policy="yield_first", exploration_share=0.5, restored_state=state)
+    warm = _controller(
+        RecordingBackend(), task_classes=inventory, policy="yield_first", exploration_share=0.5, warm_start_state=state
+    )
+    resumed = _controller(
+        RecordingBackend(), task_classes=inventory, policy="yield_first", exploration_share=0.5, restored_state=state
+    )
 
     # Step k of the new run carries exactly the decay of k further source steps (source ended at step 5).
     for k in (1, 7, 40):
@@ -995,28 +1006,52 @@ def test_warm_start_keeps_never_selected_tasks_least_recently_used() -> None:
     inventory = {f"a{i}": "a" for i in range(1, 5)} | {f"b{i}": "b" for i in range(1, 5)}
     source = _yield_first_source(inventory)
     warm = _controller(
-        RecordingBackend(), task_classes=inventory, policy="yield_first", exploration_share=0.5, warm_start_state=source.state()
+        RecordingBackend(),
+        task_classes=inventory,
+        policy="yield_first",
+        exploration_share=0.5,
+        warm_start_state=source.state(),
     )
 
     never = [task_id for task_id, value in source._last_selected.items() if value < 0]
     selected = [task_id for task_id, value in source._last_selected.items() if value >= 0]
     assert never and selected
     assert all(warm._last_selected[task_id] < 0 for task_id in inventory)
-    assert max(warm._last_selected[task_id] for task_id in never) < min(warm._last_selected[task_id] for task_id in selected)
-    assert sorted(selected, key=warm._last_selected.__getitem__) == sorted(selected, key=source._last_selected.__getitem__)
+    assert max(warm._last_selected[task_id] for task_id in never) < min(
+        warm._last_selected[task_id] for task_id in selected
+    )
+    assert sorted(selected, key=warm._last_selected.__getitem__) == sorted(
+        selected, key=source._last_selected.__getitem__
+    )
 
 
 def test_warm_start_requires_a_matching_curriculum_and_excludes_resume() -> None:
     inventory = {f"a{i}": "a" for i in range(1, 5)} | {f"b{i}": "b" for i in range(1, 5)}
     state = _yield_first_source(inventory).state()
     with pytest.raises(ValueError, match="inventory does not match"):
-        _controller(RecordingBackend(), task_classes={**inventory, "c1": "c"}, policy="yield_first", exploration_share=0.5, warm_start_state=state)
+        _controller(
+            RecordingBackend(),
+            task_classes={**inventory, "c1": "c"},
+            policy="yield_first",
+            exploration_share=0.5,
+            warm_start_state=state,
+        )
     with pytest.raises(ValueError, match="settings do not match"):
-        _controller(RecordingBackend(), task_classes=inventory, policy="yield_first", exploration_share=0.3, warm_start_state=state)
+        _controller(
+            RecordingBackend(),
+            task_classes=inventory,
+            policy="yield_first",
+            exploration_share=0.3,
+            warm_start_state=state,
+        )
     with pytest.raises(ValueError, match="both resume"):
         _controller(
-            RecordingBackend(), task_classes=inventory, policy="yield_first", exploration_share=0.5,
-            restored_state=state, warm_start_state=state,
+            RecordingBackend(),
+            task_classes=inventory,
+            policy="yield_first",
+            exploration_share=0.5,
+            restored_state=state,
+            warm_start_state=state,
         )
 
 
@@ -1035,5 +1070,10 @@ def test_runtime_warm_starts_from_a_published_curriculum_state_directory(tmp_pat
     warm.close()
 
     with pytest.raises(RuntimeError, match="warm-start snapshot is missing"):
-        _runtime(tmp_path, EventContext(), policy="yield_first", state_name="missing", warm_start_state_dir=tmp_path / "empty")
-
+        _runtime(
+            tmp_path,
+            EventContext(),
+            policy="yield_first",
+            state_name="missing",
+            warm_start_state_dir=tmp_path / "empty",
+        )

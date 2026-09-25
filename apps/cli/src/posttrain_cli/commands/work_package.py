@@ -77,7 +77,9 @@ def _select_checkpoint_output(
             candidates = tuple(
                 sorted(
                     candidates,
-                    key=lambda link: "checkpoint_step" not in getattr(getattr(link, "artifact", None), "provider_metadata", {}),
+                    key=lambda link: (
+                        "checkpoint_step" not in getattr(getattr(link, "artifact", None), "provider_metadata", {})
+                    ),
                 )
             )[:1]
     if len(candidates) != 1:
@@ -117,7 +119,9 @@ def _select_curriculum_output(links: tuple[object, ...], *, source_run_id: str, 
         return _select_checkpoint_output(
             views, source_run_id=source_run_id, kinds=frozenset({"adaptive-curriculum-state"}), step=step
         )
-    return _select_checkpoint_output(links, source_run_id=source_run_id, kinds=frozenset({"training-checkpoint"}), step=step)
+    return _select_checkpoint_output(
+        links, source_run_id=source_run_id, kinds=frozenset({"training-checkpoint"}), step=step
+    )
 
 
 def validate_work_package_cmd(
