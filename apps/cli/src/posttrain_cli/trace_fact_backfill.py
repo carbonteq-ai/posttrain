@@ -6,9 +6,9 @@ import asyncio
 import importlib
 import json
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from posttrain.common import ContractError, TraceFactSet
@@ -20,6 +20,70 @@ from .output import emit, json_value
 from .tracking_config import project_tracking_environment
 
 _TRACE_FACT_READ_CHUNK_SIZE = 1000
+
+
+def fill_renderer_reasoning_tokens(payload: Mapping[str, Any], renderer: Any) -> tuple[dict[str, Any], int]:
+    """Return a copy of a native trace whose calls carry renderer reasoning counts.
+
+    Traces recorded before the renderer reported ``reasoning_tokens`` keep each
+    call's generated tokens on its committed node. Re-parsing them with the
+    model's renderer gives the same count a new rollout would record. The prompt
+    is the node's ancestor chain plus its unsampled prefix, which lets the
+    renderer see reasoning the generation prompt opened. Calls that already
+    report the count, failed, or have no token evidence are left unchanged.
+    Returns the updated payload and how many calls were filled.
+    """
+
+    nodes = payload.get("nodes")
+    calls = payload.get("calls")
+    if not isinstance(nodes, list) or not isinstance(calls, list):
+        return dict(payload), 0
+    filled = 0
+    updated_calls: list[Any] = []
+    for call in calls:
+        count = _renderer_reasoning_count(call, nodes, renderer)
+        if count is None:
+            updated_calls.append(call)
+            continue
+        usage = dict(call["usage"])
+        usage["reasoning_tokens"] = count
+        updated_calls.append({**call, "usage": usage})
+        filled += 1
+    return {**payload, "calls": updated_calls}, filled
+
+
+def _renderer_reasoning_count(call: Any, nodes: list[Any], renderer: Any) -> int | None:
+    if not isinstance(call, Mapping) or call.get("error") not in (None, False, ""):
+        return None
+    usage = call.get("usage")
+    index = call.get("node")
+    if not isinstance(usage, Mapping) or usage.get("reasoning_tokens") is not None:
+        return None
+    if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(nodes):
+        return None
+    node = nodes[index]
+    token_ids = node.get("token_ids") if isinstance(node, Mapping) else None
+    mask = node.get("mask") if isinstance(node, Mapping) else None
+    if not isinstance(token_ids, list) or not isinstance(mask, list) or len(token_ids) != len(mask):
+        return None
+    first = next((offset for offset, sampled in enumerate(mask) if sampled is True), None)
+    if first is None or not all(sampled is True for sampled in mask[first:]):
+        return None
+    prompt: list[int] = []
+    seen = {index}
+    parent = node.get("parent")
+    while isinstance(parent, int) and not isinstance(parent, bool) and 0 <= parent < len(nodes) and parent not in seen:
+        seen.add(parent)
+        ancestor = nodes[parent]
+        ids = ancestor.get("token_ids") if isinstance(ancestor, Mapping) else None
+        if not isinstance(ids, list):
+            return None
+        prompt[:0] = ids
+        parent = ancestor.get("parent")
+    prompt.extend(token_ids[:first])
+    parsed = renderer.parse_response(list(token_ids[first:]), prompt_ids=prompt)
+    count = getattr(parsed, "reasoning_tokens", None)
+    return count if isinstance(count, int) and not isinstance(count, bool) and count >= 0 else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +100,7 @@ class TraceFactBackfillPage:
     partial: int
     applied: int
     preview: bool
+    reasoning_filled: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,6 +118,7 @@ class TraceFactBackfillWindow:
     applied: int
     preview: bool
     pages: tuple[TraceFactBackfillPage, ...]
+    reasoning_filled: int = 0
 
 
 def backfill_verifiers_trace_page(
@@ -91,6 +157,7 @@ def backfill_verifiers_trace_window(
     window_size: int,
     apply: bool,
     checkpoint: Callable[[TraceFactBackfillPage], None] | None = None,
+    renderer: Any = None,
 ) -> TraceFactBackfillWindow:
     """Process a bounded window while checkpointing every physical page.
 
@@ -129,9 +196,14 @@ def backfill_verifiers_trace_window(
         )
         complete = 0
         partial = 0
+        reasoning_filled = 0
         updates: list[tuple[str, TraceFactSet]] = []
         for trace in raw_page.items:
-            facts = project_verifiers_trace_facts(trace.payload, attributes=trace.attributes)
+            payload = trace.payload
+            if renderer is not None:
+                payload, filled = fill_renderer_reasoning_tokens(payload, renderer)
+                reasoning_filled += filled
+            facts = project_verifiers_trace_facts(payload, attributes=trace.attributes)
             if facts.state == "complete":
                 complete += 1
             else:
@@ -158,6 +230,7 @@ def backfill_verifiers_trace_window(
             partial=partial,
             applied=len(raw_page.items) if apply else 0,
             preview=not apply,
+            reasoning_filled=reasoning_filled,
         )
         pages.append(page)
         if checkpoint is not None:
@@ -180,6 +253,7 @@ def backfill_verifiers_trace_window(
         applied=sum(page.applied for page in pages),
         preview=not apply,
         pages=tuple(pages),
+        reasoning_filled=sum(page.reasoning_filled for page in pages),
     )
 
 
@@ -215,6 +289,16 @@ def register(app: typer.Typer) -> None:
                 "--trackio-project", help="override the configured Trackio project for cross-project maintenance"
             ),
         ] = None,
+        renderer_model: Annotated[
+            str | None,
+            typer.Option(
+                "--renderer-model",
+                help=(
+                    "Hugging Face model id whose renderer re-parses each call's generated tokens to fill "
+                    "reasoning_tokens missing from traces recorded before renderers reported them"
+                ),
+            ),
+        ] = None,
     ) -> None:
         state: CliState = ctx.obj
         layout = state.layout()
@@ -225,6 +309,14 @@ def register(app: typer.Typer) -> None:
         if not server_url:
             raise ContractError("trace-fact backfill requires POSTTRAIN_TRACKIO_SERVER_URL")
         project = trackio_project or environment.get("POSTTRAIN_TRACKIO_PROJECT") or layout.project_id
+        renderer = None
+        if renderer_model is not None:
+            try:
+                from renderers import create_renderer  # pyright: ignore[reportMissingImports]
+                from renderers.base import load_tokenizer  # pyright: ignore[reportMissingImports]
+            except ImportError as error:
+                raise ContractError("--renderer-model requires the carbonteq-renderers package") from error
+            renderer = create_renderer(load_tokenizer(renderer_model))
 
         def report_checkpoint(page: TraceFactBackfillPage) -> None:
             if state.json_output:
@@ -237,7 +329,8 @@ def register(app: typer.Typer) -> None:
             mode = "applied" if apply else "previewed"
             print(
                 f"Trace-fact page {mode}: {page.project}/{page.provider_run_id} "
-                f"({page.inspected} traces, {page.complete} complete, {page.partial} partial; "
+                f"({page.inspected} traces, {page.complete} complete, {page.partial} partial, "
+                f"{page.reasoning_filled} calls given renderer reasoning counts; "
                 f"next cursor: {page.next_cursor or 'done'})",
                 flush=True,
             )
@@ -251,6 +344,7 @@ def register(app: typer.Typer) -> None:
             window_size=window_size,
             apply=apply,
             checkpoint=report_checkpoint,
+            renderer=renderer,
         )
         mode = "applied" if apply else "previewed"
         emit(
@@ -267,5 +361,6 @@ __all__ = [
     "TraceFactBackfillWindow",
     "backfill_verifiers_trace_page",
     "backfill_verifiers_trace_window",
+    "fill_renderer_reasoning_tokens",
     "register",
 ]

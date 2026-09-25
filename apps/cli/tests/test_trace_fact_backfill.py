@@ -232,3 +232,41 @@ def test_apply_uses_exact_provider_identity_and_shared_projection(monkeypatch) -
     assert updates[0][0] == "trace-1"
     facts = cast(TraceFactSet, updates[0][1])
     assert facts.dimensions["rollout_step"] == 7
+
+
+class _CountingRenderer:
+    """Reports every sampled token before token 99 as reasoning."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[list[int], list[int]]] = []
+
+    def parse_response(self, token_ids, *, prompt_ids):
+        self.calls.append((list(token_ids), list(prompt_ids)))
+        return SimpleNamespace(reasoning_tokens=token_ids.index(99) + 1 if 99 in token_ids else len(token_ids))
+
+
+def test_renderer_fills_missing_reasoning_tokens_from_each_calls_node() -> None:
+    from posttrain_cli.trace_fact_backfill import fill_renderer_reasoning_tokens
+
+    payload = {
+        "nodes": [
+            {"token_ids": [1, 2], "mask": [False, False], "parent": None},
+            {"token_ids": [3, 10, 11, 99, 12], "mask": [False, True, True, True, True], "parent": 0},
+            {"token_ids": [4, 20, 99], "mask": [False, True, True], "parent": 1},
+        ],
+        "calls": [
+            {"node": 1, "usage": {"completion_tokens": 4, "reasoning_tokens": None}},
+            {"node": 2, "usage": {"completion_tokens": 2}},
+            {"node": 2, "usage": {"completion_tokens": 2, "reasoning_tokens": 1}},
+            {"node": 2, "error": {"type": "timeout"}, "usage": {"completion_tokens": 2}},
+        ],
+    }
+    renderer = _CountingRenderer()
+
+    filled, count = fill_renderer_reasoning_tokens(payload, renderer)
+
+    assert count == 2
+    assert [call["usage"].get("reasoning_tokens") for call in filled["calls"]] == [3, 2, 1, None]
+    # The prompt is the ancestor chain plus the node's unsampled prefix.
+    assert renderer.calls == [([10, 11, 99, 12], [1, 2, 3]), ([20, 99], [1, 2, 3, 10, 11, 99, 12, 4])]
+    assert payload["calls"][0]["usage"]["reasoning_tokens"] is None
