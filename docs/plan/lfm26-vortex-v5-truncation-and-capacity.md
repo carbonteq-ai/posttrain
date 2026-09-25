@@ -23,7 +23,7 @@ This does not change the frozen product baseline in `docs/post-training/01`–`0
   - training binding `training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1`;
   - inference binding `inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c64-4k@1`.
 - [x] (2026-09-25) Adapter committed on top of the pinned base 9bbd3116, not the stale local branch, in a separate worktree so other uncommitted judge edits stay untouched. Commit `acb3043ed7b8c24df62c5b8e5232b13fd92710e1`, pushed on branch `codex/automationbench-v5-hr-tools-turn-budget`. 30 adapter tests passed.
-- [x] (2026-09-25) Environment binding `automationbench-lfm26-train-mix-v5`: train-mix-v3 activation plus `task.turn_budget: 12`, source revision acb3043, `max_concurrent: 64`. Only this entry moves; every other environment entry and eval program stays on 9bbd3116. Verifiers environment packages are pinned per catalog entry, not in `uv.lock`.
+- [x] (2026-09-25) Environment binding `automationbench-lfm26-train-mix-v6` (committed as `train-mix-v5`; renamed when the release branch was merged, see Decision Log): train-mix-v3 activation plus `task.turn_budget: 12`, source revision acb3043, `max_concurrent: 64`. Only this entry moves; every other environment entry and eval program stays on 9bbd3116. Verifiers environment packages are pinned per catalog entry, not in `uv.lock`.
 - [x] (2026-09-25) Work package `apps/lab/.posttrain/work_packages/lfm26_automationbench_vortex_yield_first_64_local_v5.yaml`. `posttrain job plan --explain` resolves 29 settings with no errors (configuration digest e746a45c...).
 - [ ] Launch the 20-update run and watch its first two updates as the capacity probe (user decision 2026-09-25, replacing a separate one-update probe). Check that rollout collection holds 64 episodes without OOM or refill exhaustion, the truncation rate and the HR reward, then let it finish.
 
@@ -69,6 +69,9 @@ This does not change the frozen product baseline in `docs/post-training/01`–`0
 - **Decision:** 16 prompt groups × 4 generations per update.
   **Rationale:** The user reports spare RTX PRO 6000 capacity. The v4 rollout phase averaged 220 s with vLLM at a 5 GiB KV reservation.
   **Date/Author:** 2026-09-24, user.
+- **Decision:** Rename this plan's environment binding from `automationbench-lfm26-train-mix-v5` to `automationbench-lfm26-train-mix-v6`.
+  **Rationale:** `codex/vortex-yield-first-release` (57e3797c) already defined `train-mix-v5` as the 8K-per-call, 16K-episode yield-first qualification mix, and recorded run `…yield-first-v4-8k-20260923-r1` under it. The release keeps the id. The v5 runs r4 and `lfm26-vortex-v5-100-from-r4-step20-20260925-r2` were recorded under the old id, and their environment revision acb3043 identifies them unambiguously. VORTEX resumes do not compare environment ids.
+  **Date/Author:** 2026-09-25, user.
 
 ## Outcomes & Retrospective
 

@@ -431,9 +431,7 @@ def test_yield_first_can_fill_worst_case_vortex_refills_without_repeating_tasks(
 
 def test_yield_first_uncertainty_ages_and_resume_preserves_step_exclusions() -> None:
     inventory = {"a1": "a", "a2": "a", "a3": "a", "b1": "b"}
-    controller = _controller(
-        RecordingBackend(), task_classes=inventory, policy="yield_first", exploration_share=1.0
-    )
+    controller = _controller(RecordingBackend(), task_classes=inventory, policy="yield_first", exploration_share=1.0)
     for _ in range(12):
         controller.observe([("a1", [0.0, 1.0, 0.0, 1.0])], step=1)
     current = controller._yield_uncertainties(1)
@@ -445,8 +443,11 @@ def test_yield_first_uncertainty_ages_and_resume_preserves_step_exclusions() -> 
     state = controller.state()
     expected = controller.select(2, step=81, selection_kind="active_sampling_refill", round_index=2)
     restored = _controller(
-        RecordingBackend(), task_classes=inventory, policy="yield_first",
-        exploration_share=1.0, restored_state=state,
+        RecordingBackend(),
+        task_classes=inventory,
+        policy="yield_first",
+        exploration_share=1.0,
+        restored_state=state,
     )
     actual = restored.select(2, step=81, selection_kind="active_sampling_refill", round_index=2)
     assert actual == expected

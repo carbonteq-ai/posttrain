@@ -756,6 +756,44 @@ def test_base_catalog_manifest_is_complete_and_manifest_controlled() -> None:
     }
 
 
+def test_vortex_yield_first_uses_versioned_policy_and_larger_output_budget() -> None:
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    prior = catalog.resolve(CatalogRef("training", "lfm2.5-2.6b/automationbench-vortex-20-local-v3")).value
+    candidate = catalog.resolve(
+        CatalogRef("training", "lfm2.5-2.6b/automationbench-vortex-yield-first-20-local-v4")
+    ).value
+    environment = catalog.resolve(CatalogRef("environment", "automationbench-lfm26-train-mix-v5")).value
+    inference = catalog.resolve(
+        CatalogRef("inference", "inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-8k@1")
+    ).value
+
+    assert isinstance(prior, GRPOSettings)
+    assert isinstance(candidate, GRPOSettings)
+    assert isinstance(environment, EnvironmentBinding)
+    assert isinstance(inference, InferenceBinding)
+    assert candidate.loop.max_steps == prior.loop.max_steps == 20
+    assert candidate.loop.learning_rate == prior.loop.learning_rate
+    assert candidate.loop.max_length == 32768
+    assert candidate.max_prompt_length == 24576
+    assert candidate.max_completion_length == 8192
+    assert candidate.num_prompts_per_step == prior.num_prompts_per_step == 10
+    assert candidate.num_generations == prior.num_generations == 4
+    assert candidate.active_sampling == prior.active_sampling == ActiveGroupSampling(max_candidate_batches=10)
+    assert candidate.active_sampling is not None
+    assert candidate.algorithm == prior.algorithm == "olmo3"
+    assert candidate.adaptive_curriculum is not None
+    assert candidate.adaptive_curriculum.policy == "yield_first"
+    assert candidate.adaptive_curriculum.exploration_share == 0.2
+    assert candidate.adaptive_curriculum.uncertainty_weight == 4.0
+    assert environment.num_tasks == 160
+    assert environment.sampling.max_tokens == 8192
+    assert environment.parameters["max_output_tokens"] == 16384
+    assert inference.sampling["max_tokens"] == 8192
+    assert inference.engine["max_model_len"] == 32768
+    assert inference.engine["kv_cache_memory_bytes"] == 9663676416
+    assert environment.num_tasks >= candidate.num_prompts_per_step * candidate.active_sampling.max_candidate_batches
+
+
 def _layer(root: Path, layer_id: str, document: str) -> Path:
     directory = root / layer_id
     directory.mkdir()

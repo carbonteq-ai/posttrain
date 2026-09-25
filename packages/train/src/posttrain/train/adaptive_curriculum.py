@@ -513,9 +513,7 @@ class AdaptiveCurriculumController:
             index=self._decision_index,
             step=step,
             task_ids=tuple(selected),
-            class_probabilities={
-                class_id: value / group_count for class_id, value in class_probability_sums.items()
-            },
+            class_probabilities={class_id: value / group_count for class_id, value in class_probability_sums.items()},
             task_probabilities=task_probabilities,
             task_priorities=task_priorities,
             class_discovery_priorities={
@@ -561,8 +559,7 @@ class AdaptiveCurriculumController:
         for task_id, class_id in self.task_classes.items():
             own = own_contributions.get(task_id, (0.0, 0.0, 0.0))
             peer_n, peer_first, peer_second = (
-                max(0.0, total - own[index])
-                for index, total in enumerate(class_moments[class_id])
+                max(0.0, total - own[index]) for index, total in enumerate(class_moments[class_id])
             )
             prior_mean = (1 + peer_first) / (2 + peer_n)
             prior_second = (2 / 3 + peer_second) / (2 + peer_n)

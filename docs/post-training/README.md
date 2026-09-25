@@ -71,6 +71,16 @@ input for supervised and preference training. Details:
 [02 · Primitives](./02-primitives.md#training-selection),
 [05 · APIs](./05-apis.md), and the
 [GRPO implementation plan](../plan/grpo-research-observability.md).
+**Amendment — yield-first curriculum and step uniqueness (2026-09-23):**
+adaptive curriculum may select a yield-first, full-inventory policy with an
+uncertainty-biased exploration lane instead of the original cumulative novelty
+reserves. Every curriculum policy must select each task at most once within an
+optimizer step, including all active-sampling refills and recovery. Exhausting
+distinct tasks is an explicit capacity shortfall, never a duplicate fallback or
+an underfilled optimizer update. Later-step rechecks remain allowed. Details:
+[02 · Primitives](./02-primitives.md#training-selection),
+[05 · APIs](./05-apis.md), and the
+[VORTEX next plan](../plan/vortex-next-variance-curriculum.md).
 **Amendment — portable project layout and catalog distribution (2026-07-23):**
 tracked project overlays and work packages live under `.posttrain/`, ignored
 runtime state lives under `.posttrain/state/`, and the framework base catalog

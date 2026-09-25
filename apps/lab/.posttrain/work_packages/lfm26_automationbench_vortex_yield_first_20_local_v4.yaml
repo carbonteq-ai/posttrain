@@ -1,7 +1,7 @@
 project_id: posttrain-lab
 work_package_id: train/lfm2.5-2.6b/automationbench-vortex-yield-first-20-local-v4
 stage: train
-description: Matched 20-step VORTEX v3 comparison with yield-first full-pool curriculum, 20% uncertainty-biased exploration, and no same-step task repeats.
+description: 20-step VORTEX yield-first full-pool curriculum with an 8K per-call output budget, 16K episode budget, and no same-step task repeats; controller and output budget both differ from v3.
 recipe:
   type: inline
   id: recipes/lfm2.5-2.6b-automationbench-vortex-yield-first-20-local-v4@1
@@ -20,13 +20,14 @@ recipe:
   expected_artifacts: [trained adapter, native Verifiers trajectories, adaptive curriculum state, training summary]
 bindings:
   model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
-  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-v4}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-v5}
   settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-vortex-yield-first-20-local-v4}
   training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-local-g40@1}
-  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-4k@2}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c40-8k@1}
 enabled_optional_jobs: []
 metadata:
   comparison_family: lfm26-automationbench-vortex-20-local-v1
   arm: vortex-yield-first-soft-exploration
+  output_budget: 8k-per-call-16k-episode
   task_mix: lfm26-automationbench-mix-v2
   labels: [experiment, automationbench, lfm2.5, vortex, yield-first, adaptive-curriculum, active-sampling, local-rtx-pro-6000]

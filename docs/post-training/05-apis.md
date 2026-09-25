@@ -509,12 +509,18 @@ records these settings explicitly. Backend adapters reject unsupported
 semantics rather than approximating DAPO with another objective.
 
 `GRPOSettings.adaptive_curriculum` optionally selects rollout exposure before
-the algorithm update. Its initial contract contains `class_field`,
+the algorithm update. Its original quota policy contains `class_field`,
 `class_exploration`, `task_discovery`, `history_groups`, and `seed`. The named
-field must exist on every resolved rollout task. Class exploration is a
-counted cumulative reserve for base-distribution class coverage; task discovery
-is an independent cumulative floor for unseen task identities. Nonreserved
-slots may also discover tasks when the unseen pool has greater predicted yield.
+field must exist on every resolved rollout task. Under that policy, class
+exploration is a counted cumulative reserve for base-distribution class
+coverage; task discovery is an independent cumulative floor for unseen task
+identities. Nonreserved slots may also discover tasks when the unseen pool has
+greater predicted yield. A separate `yield_first` policy keeps the same class
+field and seed but uses `exploration_share` and `uncertainty_weight`: each
+candidate draws from the entire eligible inventory, with the exploratory lane
+adding an uncertainty bonus to the existing useful-group prediction. Its lane
+share is not a task-novelty floor. Policy identity and coefficients are
+snapshotted with controller state and recorded in run evidence.
 The settings can overlap in one selection. Evidence windows advance when that task produces a completed group,
 not merely when an optimizer step passes. Controller state, cumulative
 discovery accounting, current-step exclusions, and write position are recovery
@@ -522,10 +528,11 @@ state and must be retained with a model checkpoint.
 Algorithms without bounded refill sampling call the controller once for the
 initial generation batch. OLMo 3 calls it for every active-sampling refill, so
 evidence from an earlier round can change later task identities while policy
-weights remain fixed. The controller avoids task identities already proposed in
-the optimizer step while distinct candidates remain. If that eligible inventory
-is exhausted, it may reuse a task, records the duplicate fallback, and does not
-fail the run for loss of diversity alone. Each decision records its sampling
+weights remain fixed. The controller excludes task identities already proposed
+in the optimizer step, including across refill rounds and recovery. It never
+reuses a task in that step. Insufficient distinct eligible tasks is a capacity
+shortfall that fails selection before generation or an underfilled optimizer
+update; later optimizer steps may recheck those tasks. Each decision records its sampling
 stage, refill round, selection reasons, and fulfilled or unmet discovery reserve.
 Resolved runtime evidence reports `adaptive_curriculum_sampling_mode` as
 `initial_batch` or `active_sampling_refill`; this is derived from the selected

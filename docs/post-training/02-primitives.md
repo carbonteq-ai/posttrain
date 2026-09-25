@@ -594,15 +594,25 @@ not DAPO flags.
 policy rather than an update objective. It names a class field already carried
 by the resolved environment tasks and uses completed rollout evidence to choose
 future classes and tasks. The environment still owns the task population and
-reward meaning. `class_exploration` reserves a cumulative fraction of candidate
-groups for base-distribution class coverage. `task_discovery` independently
-reserves a cumulative fraction for task identities not yet selected in the run;
-fractional obligations carry across initial and refill requests. That discovery
-fraction is a floor: other slots may also select unseen tasks when their
-predicted yield exceeds the familiar pool. The controller remembers every task
+reward meaning. The original quota policy keeps `class_exploration` as a
+cumulative reserve for base-distribution class coverage and `task_discovery` as
+an independent cumulative floor for task identities not yet selected in the
+run. Fractional obligations carry across initial and refill requests; other
+slots may also discover tasks when their predicted yield exceeds the familiar
+pool. The optional yield-first policy instead lets both an ordinary lane and
+an uncertainty-biased exploration lane draw from the whole eligible inventory.
+Its ordinary score retains the controller's predicted probability of a useful,
+nonconstant reward group; the exploration lane adds uncertainty to favor tasks
+whose yield evidence is sparse or stale. A lane is a per-candidate sampling
+choice, not a novelty quota. Class weights derive from eligible task scores, so
+classes and tasks start equal when evidence is absent and adapt as evidence
+accumulates. Neither lane uses reward-variance magnitude or a stability penalty
+as its primary task-selection score. The controller remembers every task
 identity proposed in the current optimizer step, including rejected refill
-groups, and excludes them while distinct candidates remain. Exhausted
-inventory degrades to recorded repeat selection instead of failing training. The
+groups and recovered state, and never proposes the same identity twice within
+that step. If a requested batch cannot be filled with distinct eligible tasks,
+selection reports an explicit capacity shortfall before generation or optimizer
+update; it does not repeat a task or count an underfilled update. The
 curriculum records proposed and observed task identities, discovery accounting,
 step exclusions, recent reward means and within-group variation, and
 checkpoints that state with the model.
