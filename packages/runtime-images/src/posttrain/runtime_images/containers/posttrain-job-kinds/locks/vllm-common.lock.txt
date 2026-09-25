@@ -522,6 +522,7 @@ httpx==0.28.1 \
     #   huggingface-hub
     #   model-hosting-container-standards
     #   openai
+    #   posttrain-advisor
     #   posttrain-execution-job-builder
     #   posttrain-jobs
     #   posttrain-observatory

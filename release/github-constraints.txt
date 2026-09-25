@@ -1,13 +1,13 @@
 # Immutable maintained-fork sources used by GitHub-first framework releases.
 trl @ git+https://github.com/carbonteq-ai/trl.git@3b7a582e011a32de74d1f2b6e572b794360fbfd7
 vllm @ git+https://github.com/carbonteq-ai/vllm.git@564ff2b43d499f5d17bcee554d126360b768dd98
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@0cee0a075ddf1883498be0fde34155655cb19146
-alphabet-sort @ git+https://github.com/PrimeIntellect-ai/verifiers.git@b2e4e8157783b2c0dffc7821044c87f29f1c3ccf#subdirectory=environments/alphabet_sort
-code-golf @ git+https://github.com/PrimeIntellect-ai/verifiers.git@b2e4e8157783b2c0dffc7821044c87f29f1c3ccf#subdirectory=environments/code_golf
-gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@8b739717adad33e9dd3a4fcef0acd7ce7626a9d3#subdirectory=environments/gsm8k_v1
-automationbench-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@8b739717adad33e9dd3a4fcef0acd7ce7626a9d3#subdirectory=environments/automationbench_v1
-mmlu-pro-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@8b739717adad33e9dd3a4fcef0acd7ce7626a9d3#subdirectory=environments/mmlu_pro_v1
-ifeval-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@8b739717adad33e9dd3a4fcef0acd7ce7626a9d3#subdirectory=environments/ifeval_v1
-reasoning-gym-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@8b739717adad33e9dd3a4fcef0acd7ce7626a9d3#subdirectory=environments/reasoning_gym_v1
-math-python-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@8b739717adad33e9dd3a4fcef0acd7ce7626a9d3#subdirectory=environments/math_python_v1
-reverse-text @ git+https://github.com/PrimeIntellect-ai/verifiers.git@b2e4e8157783b2c0dffc7821044c87f29f1c3ccf#subdirectory=environments/reverse_text
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@cdd2ec7614131545df66484f9de11250daf16065
+alphabet-sort @ git+https://github.com/carbonteq-ai/verifiers.git@cdd2ec7614131545df66484f9de11250daf16065#subdirectory=environments/alphabet_sort
+code-golf @ git+https://github.com/carbonteq-ai/verifiers.git@cdd2ec7614131545df66484f9de11250daf16065#subdirectory=environments/code_golf
+gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@e040e9e57863d6e9743eb7897264588e45f40fb9#subdirectory=environments/gsm8k_v1
+automationbench-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@e040e9e57863d6e9743eb7897264588e45f40fb9#subdirectory=environments/automationbench_v1
+mmlu-pro-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@e040e9e57863d6e9743eb7897264588e45f40fb9#subdirectory=environments/mmlu_pro_v1
+ifeval-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@e040e9e57863d6e9743eb7897264588e45f40fb9#subdirectory=environments/ifeval_v1
+reasoning-gym-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@e040e9e57863d6e9743eb7897264588e45f40fb9#subdirectory=environments/reasoning_gym_v1
+math-python-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@e040e9e57863d6e9743eb7897264588e45f40fb9#subdirectory=environments/math_python_v1
+reverse-text @ git+https://github.com/carbonteq-ai/verifiers.git@cdd2ec7614131545df66484f9de11250daf16065#subdirectory=environments/reverse_text

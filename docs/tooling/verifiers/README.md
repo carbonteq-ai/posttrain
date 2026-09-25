@@ -8,7 +8,7 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 ## Install / pin
 
 Posttrain 0.4.5 selects
-`carbonteq-ai/verifiers@0cee0a075ddf1883498be0fde34155655cb19146`, released as
+`carbonteq-ai/verifiers@cdd2ec7614131545df66484f9de11250daf16065`, released as
 [`carbonteq-v0.3.2.dev91`](https://github.com/carbonteq-ai/verifiers/releases/tag/carbonteq-v0.3.2.dev91)
 (wheel `51bd8314fec11e2e38450b7ecab5eddb0197d27deff091c8d58b901ccbe64dc6`,
 sdist `e7db75fc490cb196f78337de26323b48d13e27268d778e168e99751b0296bd1e`)
@@ -18,7 +18,7 @@ records `usage.reasoning_tokens` from `carbonteq-renderers` on every call, the
 model-specific parsers live in that fork, and `carbonteq-renderers` has no
 consumer-visible index pin so public consumers install its GitHub Release wheel.
 The environment packages select this commit from
-`verifiers-environments@8b739717adad33e9dd3a4fcef0acd7ce7626a9d3`, released as
+`verifiers-environments@e040e9e57863d6e9743eb7897264588e45f40fb9`, released as
 [`carbonteq-2026.09.25`](https://github.com/carbonteq-ai/verifiers-environments/releases/tag/carbonteq-2026.09.25)
 and on that repository's `main`. The dormant veRL runtime kind deliberately
 keeps its previously qualified `b71ade0a` backend closure until veRL is
