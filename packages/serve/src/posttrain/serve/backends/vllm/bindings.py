@@ -158,6 +158,9 @@ def benchmark_config(request: ServeBenchmarkRequest) -> VllmBenchmarkConfig:
     )
 
 
+_CHECKPOINT_DTYPE = {"bf16": "bfloat16", "fp16": "float16", "fp32": "float32"}
+
+
 def engine_config(binding: InferenceBinding) -> VllmEngineConfig:
     values: dict[str, Any] = dict(binding.engine)
     speculative = values.pop("speculative_config", values.pop("speculative", None))
@@ -169,6 +172,15 @@ def engine_config(binding: InferenceBinding) -> VllmEngineConfig:
         if isinstance(draft_model, Mapping):
             speculative_values["draft_model"] = VllmDraftModel(**dict(draft_model))
         values["speculative"] = VllmSpeculativeConfig(**speculative_values)
+    # Defaults a binding may override: compute in the checkpoint's own precision
+    # (float16 on a bf16 checkpoint can overflow activations and shifts logprobs
+    # from training; TurboQuant KV requires float16), and reuse shared prompt
+    # context across multi-turn and grouped requests.
+    if "dtype" not in values:
+        kv_cache_dtype = values.get("kv_cache_dtype")
+        turboquant = isinstance(kv_cache_dtype, str) and kv_cache_dtype.startswith("turboquant_")
+        values["dtype"] = "float16" if turboquant else _CHECKPOINT_DTYPE.get(binding.model.weight_precision, "auto")
+    values.setdefault("enable_prefix_caching", True)
     engine = VllmEngineConfig(**values)
     if engine.speculative is not None and engine.speculative.method == "mtp" and not binding.model.capabilities.mtp:
         raise ValueError(f"model variant {binding.model.id!r} does not declare MTP capability")

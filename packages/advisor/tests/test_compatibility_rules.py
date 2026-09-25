@@ -129,11 +129,14 @@ def test_trl_rollout_rules(snap) -> None:
 def test_verl_overrides_are_reported(snap) -> None:
     training = snap.training()
     training["resolved"]["backend"] = "verl@0.6"
-    rollout = _seat(snap, {"enable_prefix_caching": True}, purpose=("rollout",))
+    rollout = _seat(snap, {}, purpose=("rollout",))
     codes = _codes({"training": training, "rollout_inference": rollout})
     assert codes["VERL_ROLLOUT_EAGER_BY_DEFAULT"] == "error"
-    assert codes["VERL_PREFIX_CACHING_FORCED_OFF"] == "warning"
+    assert codes["VERL_PREFIX_CACHING_OFF_BY_DEFAULT"] == "warning"
     assert codes["VERL_ROLLOUT_SEQS_DEFAULT_TO_GROUP"] == "warning"
+    # The worker honours an explicit choice, so only an omitted key is reported.
+    explicit = _seat(snap, {"enable_prefix_caching": True}, purpose=("rollout",))
+    assert "VERL_PREFIX_CACHING_OFF_BY_DEFAULT" not in _codes({"training": training, "rollout_inference": explicit})
 
 
 def test_acknowledged_compatibility_findings_become_information(snap) -> None:

@@ -28,9 +28,9 @@ This plan does not change the frozen product baseline: bindings stay versioned s
 - [x] (2026-09-23 23:30Z) Snapshot records the served model's facts on each inference seat (family, precision, base repo, parameters, MTP capability, native context) and `lr_scheduler_type`.
 - [x] (2026-09-23 23:30Z) Calculator: speculative decoding (draft weights, drafter or native-MTP KV per token, k+1 verification tokens), co-tenant engines and trainer on the same target (the Gemma judge beside LFM rollouts now sizes to 0.46, against the hand-tuned 0.47), TRL-colocated suggestions limited to keys TRL reads; the unconditional draft-free speculation note is gone.
 - [x] (2026-09-23 23:40Z) Re-audit of 78 lab work packages: 67 have errors (66 eager, 22 hybrid prefix reuse on vllm 0.25.1/0.26.1/dev2, 19 TRL-ignored keys, 3 float16 on bf16); warnings include 68 implicit prefix caching, 37 speculative decoding available, 34 LoRA learning rate, 23 evaluations without batch invariance.
-- [ ] veRL worker: honour the binding's `enable_prefix_caching`, `enforce_eager` and `batch_invariant` instead of hard-coded defaults.
-- [ ] New binding revisions with calculator values; move work packages, starter templates and tests to them; acknowledge superseded revisions naming their successor.
-- [ ] Framework defaults: serving `enable_prefix_caching` true and `dtype` from the checkpoint precision.
+- [x] (2026-09-25) veRL worker honours the binding's `enable_prefix_caching` (off when omitted; LoRA syncs with it are unqualified), `enforce_eager` and `batch_invariant` (`VLLM_BATCH_INVARIANT=1` for the veRL subprocess). `VERL_PREFIX_CACHING_FORCED_OFF` became `VERL_PREFIX_CACHING_OFF_BY_DEFAULT`, reported only when the binding omits the key.
+- [x] (2026-09-25) Rebased onto `codex/release-0.4.5` as `codex/performance-guard`. New revisions from `posttrain settings suggest`: `inference/qwen3.5-0.8b-vllm-distill-rollout@4` (vllm 0.29.1.dev3, CUDA graphs, colocated 8 GB sizing; revision 1 forced eager after GDN CUDA graphs illegal-addressed on vllm 0.25.1) for the `posttrain init` GRPO starter and lab jobs, and `inference/qwen3.5-2b-vllm-eval@3` (CUDA graphs, prefix caching, 8,192 batched tokens) for the foundation screen and release-gate evaluation. The 37 bindings that recorded runs used acknowledge their error codes with the recorded packages and the successor. 85 of 86 lab work packages validate; `environment_library_automationbench_qualification` fails before and after this plan (its eval binding does not declare tool calling).
+- [x] (2026-09-25) Serving defaults (`posttrain.serve.backends.vllm.bindings.engine_config`): an omitted `dtype` follows the checkpoint precision (bf16 -> bfloat16; float16 with a TurboQuant KV cache), and an omitted `enable_prefix_caching` is on.
 - [ ] Qualify the colocated small-GPU starter (Qwen3.5-0.8B GRPO on 8 GB) with CUDA graphs through a real `job run` on the 8 GB instance.
 
 ## Surprises & Discoveries
@@ -63,7 +63,7 @@ This plan does not change the frozen product baseline: bindings stay versioned s
 
 ## Outcomes & Retrospective
 
-Rules, calculator and Observatory review are implemented and verified on real runs (VORTEX v1/v2, the September GRPO runs and held-out evals all show findings). Binding revisions and the remaining optimization rules are pending.
+Rules, calculator and Observatory review are implemented and verified on real runs (VORTEX v1/v2, the September GRPO runs and held-out evals all show findings). Catalog bindings are migrated (new revisions for live paths, acknowledgements for recorded ones), the veRL worker honours the binding, and serving defaults follow the checkpoint. Remaining: the 8 GB starter qualification with CUDA graphs on vllm 0.29.1.dev3, which also settles whether the GDN colocated-LoRA illegal-address seen on vllm 0.25.1 is gone.
 
 ## Context and Orientation
 

@@ -50,6 +50,10 @@ def main() -> None:
     os.environ["VERL_FILE_LOGGER_PATH"] = str(metrics_file.resolve())
     if _uses_turboquant(payload):
         os.environ["VERL_ENABLE_TURBOQUANT_COMPAT"] = "1"
+    if payload.rollout.engine.get("batch_invariant") is True:
+        # vLLM reads batch invariance only from the environment of the process
+        # that starts the engine; the veRL subprocess inherits it.
+        os.environ["VLLM_BATCH_INVARIANT"] = "1"
     trainer_module = "verl.trainer.main_ppo"
     started = time.perf_counter()
     completed = _run_tee(
@@ -205,7 +209,10 @@ def build_hydra_overrides(
         f"actor_rollout_ref.rollout.enforce_eager={str(bool(engine.get('enforce_eager', True))).lower()}",
         f"actor_rollout_ref.rollout.load_format={rollout_load_format}",
         f"actor_rollout_ref.rollout.n={algorithm.num_generations}",
-        "actor_rollout_ref.rollout.enable_prefix_caching=False",
+        # Prefix caching stays off unless the binding enables it: veRL rollouts
+        # with prefix caching across LoRA weight syncs are not yet qualified.
+        "actor_rollout_ref.rollout.enable_prefix_caching="
+        f"{str(bool(engine.get('enable_prefix_caching', False))).lower()}",
         f"actor_rollout_ref.rollout.agent.agent_loop_config_path={agent_config_path}",
         "actor_rollout_ref.rollout.agent.default_agent_loop=posttrain_verifiers",
         "reward.custom_reward_function.path=null",

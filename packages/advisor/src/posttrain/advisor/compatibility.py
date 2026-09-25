@@ -238,9 +238,8 @@ def _binding_findings(snapshot: Snapshot, seat: Seat) -> Iterator[ConfigurationI
             "VLLM_PREFIX_CACHING_IMPLICIT",
             "warning",
             f"{role}.engine.enable_prefix_caching",
-            "prefix caching is not set, so it depends on the path's default (the offline serving profile turns it "
-            "off, the managed server and TRL follow the vLLM version); the LFM2.5 replay served 80-89% of prompt "
-            "tokens from the cache",
+            "prefix caching is not set, so it depends on the path's default (serving turns it on, TRL rollouts "
+            "follow the vLLM version); the LFM2.5 replay served 80-89% of prompt tokens from the cache",
             "Set enable_prefix_caching: true.",
         )
 
@@ -532,14 +531,15 @@ def _training_findings(snapshot: Snapshot) -> Iterator[ConfigurationIssue]:
                 "eager decode was 2.32x slower on the LFM2.5 rollout replay",
                 "Set enforce_eager: false explicitly.",
             )
-        yield issue(
-            "VERL_PREFIX_CACHING_FORCED_OFF",
-            "warning",
-            f"{role}.engine.enable_prefix_caching",
-            "the veRL worker hard-codes enable_prefix_caching=False regardless of the binding, so grouped and "
-            "multi-turn prompts re-prefill shared context",
-            "Fix the veRL worker to honour the binding; until then this cost applies to every veRL rollout.",
-        )
+        if "enable_prefix_caching" not in engine:
+            yield issue(
+                "VERL_PREFIX_CACHING_OFF_BY_DEFAULT",
+                "warning",
+                f"{role}.engine.enable_prefix_caching",
+                "the veRL worker turns prefix caching off when the binding omits it, so grouped and multi-turn "
+                "prompts re-prefill shared context",
+                "Set enable_prefix_caching explicitly; enable it once veRL LoRA weight syncs are qualified with it.",
+            )
         if "max_num_seqs" not in engine:
             yield issue(
                 "VERL_ROLLOUT_SEQS_DEFAULT_TO_GROUP",
