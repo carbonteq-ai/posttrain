@@ -335,8 +335,10 @@ gh pr checks <n>
    publishes the receipt-listed files to `carbonteq/dev`.
 7. **If the constraint lock or image inputs changed, publish the images locally
    before dispatching the candidate.** Rebuilding the kinds takes the candidate
-   17-23 minutes, while its planner reuses any image the destination registry
-   already holds with identical immutable inputs (the step then takes seconds).
+   17-23 minutes, while its planner reuses the images the committed
+   `published.toml` names when their immutable inputs are unchanged (the step
+   then takes seconds). It looks only at those digests, so images pushed
+   without committing the regenerated manifest are rebuilt.
    The workstation `posttrain-builder` keeps a warm cache, so plan and publish
    from there, with the same trust bundle the protected runner passes, and
    commit the regenerated `published.toml` before dispatch:
