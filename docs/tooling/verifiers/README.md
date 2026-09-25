@@ -9,17 +9,20 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 
 Posttrain 0.4.5 selects
 `carbonteq-ai/verifiers@cdd2ec7614131545df66484f9de11250daf16065`, released as
-[`carbonteq-v0.3.2.dev91`](https://github.com/carbonteq-ai/verifiers/releases/tag/carbonteq-v0.3.2.dev91)
-(wheel `51bd8314fec11e2e38450b7ecab5eddb0197d27deff091c8d58b901ccbe64dc6`,
-sdist `e7db75fc490cb196f78337de26323b48d13e27268d778e168e99751b0296bd1e`)
+[`carbonteq-v0.3.2.dev93`](https://github.com/carbonteq-ai/verifiers/releases/tag/carbonteq-v0.3.2.dev93)
+(wheel `6aca3ce60a6f6b71ee4b3705623b6d5e9c622ec0e41385b9260c91ac8c3f11a4`,
+sdist recorded in the release notes)
 and carried by the fork's release branch `codex/carbonteq-verifiers-latest`. It
 adds renderer reasoning-token accounting on top of `b71ade0a`: the train client
 records `usage.reasoning_tokens` from `carbonteq-renderers` on every call, the
 model-specific parsers live in that fork, and `carbonteq-renderers` has no
-consumer-visible index pin so public consumers install its GitHub Release wheel.
+consumer-visible index pin so public consumers install its GitHub Release wheel, and
+runtime uv-script and MCP-install locks are kept per event loop (a scoring call
+abandoned in an earlier collection's loop poisoned later calls). GSM8K scores in-process
+from environments 0.3.0.
 The environment packages select this commit from
 `verifiers-environments@e040e9e57863d6e9743eb7897264588e45f40fb9`, released as
-[`carbonteq-2026.09.25`](https://github.com/carbonteq-ai/verifiers-environments/releases/tag/carbonteq-2026.09.25)
+[`carbonteq-2026.09.25.1`](https://github.com/carbonteq-ai/verifiers-environments/releases/tag/carbonteq-2026.09.25.1)
 and on that repository's `main`. The dormant veRL runtime kind deliberately
 keeps its previously qualified `b71ade0a` backend closure until veRL is
 requalified.
