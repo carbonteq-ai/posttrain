@@ -1,0 +1,37 @@
+# The posttrain init GRPO starter's settings and environment, owned by the lab so
+# the 8 GB CUDA-graph qualification packs from this workspace.
+environment:
+  starter-qualification-gsm8k-train:
+    category: math-reasoning
+    source:
+      package: gsm8k-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
+      subdirectory: environments/gsm8k_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: gsm8k-v1
+          dataset_repo: openai/gsm8k
+          dataset_revision: 740312add88f781978c0658806c59bc2815b9866
+          dataset_config: main
+          split: train
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+    num_tasks: 1
+    num_rollouts: 2
+training:
+  starter-qualification/grpo@1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 1
+      max_length: 640
+      per_device_batch_size: 2
+      learning_rate: 0.00001
+    num_prompts_per_step: 1
+    num_generations: 2
+    max_prompt_length: 256
+    max_completion_length: 384
