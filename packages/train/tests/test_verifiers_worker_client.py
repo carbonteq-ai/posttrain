@@ -20,7 +20,7 @@ AutoTokenizer = pytest.importorskip("transformers").AutoTokenizer
 pytest.importorskip("renderers")
 
 
-def test_native_worker_selects_k2_ifm_tool_parser():
+def test_native_worker_selects_the_k2_horizon_renderer_with_its_effort():
     config = create_verifiers_train_client_config(
         base_url="http://127.0.0.1:8123/v1",
         renderer_model_name=K2_HORIZON_7B.base.repo_id,
@@ -28,8 +28,20 @@ def test_native_worker_selects_k2_ifm_tool_parser():
         renderer=TrainingRenderer("k2-horizon-tools-thinking@2", "k2-horizon", "default", "medium"),
     )
 
-    assert config.renderer.tool_parser == "k2-ifm"
-    assert config.renderer.reasoning_parser == "k2-ifm"
+    # The renderer fork owns K2's IFM tool calls and <ifm|think_fast> channel.
+    assert config.renderer.name == "k2-horizon"
+    assert config.renderer.model_extra["reasoning_effort"] == "medium"
+
+
+def test_native_worker_selects_the_lfm_renderer():
+    config = create_verifiers_train_client_config(
+        base_url="http://127.0.0.1:8123/v1",
+        renderer_model_name=LFM_25_12B_THINKING.base.repo_id,
+        model=LFM_25_12B_THINKING,
+        renderer=LFM25_RENDERER,
+    )
+
+    assert config.renderer.name == "lfm2.5"
 
 
 def test_native_worker_uses_exact_lfm_template_and_tokens(monkeypatch):
@@ -95,7 +107,7 @@ def test_native_worker_uses_exact_lfm_template_and_tokens(monkeypatch):
 
     assert config.chat_template == LFM_25_12B_THINKING.conversation.chat_template.text()
     assert config.renderer_model_name == model_name
-    assert config.renderer.tool_parser == "lfm2"
+    assert config.renderer.name == "lfm2.5"
     assert worker_tokens.token_ids == direct_tokens.token_ids
     assert worker_tokens.message_indices == direct_tokens.message_indices
     assert worker_tokens.is_content == direct_tokens.is_content

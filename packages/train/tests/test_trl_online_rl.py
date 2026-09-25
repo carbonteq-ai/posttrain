@@ -150,10 +150,16 @@ def test_trl_policy_generator_reuses_loaded_trainer_and_preserves_exact_tokens(m
 
 def test_trl_lfm_tool_cycle_keeps_sampled_prefix_and_appends_only_new_tool_messages(monkeypatch) -> None:
     from renderers import RenderedTokens
+    from renderers.catalog_models import bridge_lfm25_tool_cycle
+
+    tokenizer = SimpleNamespace(bos_token_id=99, eos_token_id=4, encode=lambda text, **kwargs: [10])
 
     class LfmRenderer:
+        # The fork's LFM25Renderer bridges tool results itself.
         def bridge_to_next_turn(self, previous_prompt_ids, previous_completion_ids, new_messages, *, tools):
-            return None
+            return bridge_lfm25_tool_cycle(
+                self, tokenizer, previous_prompt_ids, previous_completion_ids, new_messages
+            )
 
         def render(self, messages, *, tools, add_generation_prompt):
             assert messages == [{"role": "tool", "content": "created", "tool_call_id": "call_0"}]
@@ -181,7 +187,6 @@ def test_trl_lfm_tool_cycle_keeps_sampled_prefix_and_appends_only_new_tool_messa
 
     renderer = LfmRenderer()
     monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: renderer)
-    tokenizer = SimpleNamespace(bos_token_id=99, eos_token_id=4, encode=lambda text, **kwargs: [10])
     generator = TrlPolicyGenerator(
         LfmTrainer(),
         tokenizer,
