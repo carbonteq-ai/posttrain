@@ -52,6 +52,21 @@ def fill_renderer_reasoning_tokens(payload: Mapping[str, Any], renderer: Any) ->
     return {**payload, "calls": updated_calls}, filled
 
 
+def _has_unscored_thinking(payload: Mapping[str, Any], facts: TraceFactSet) -> bool:
+    """True when a trace shows reasoning text but its facts carry no thinking count."""
+
+    if facts.provenance.get("thinking_tokens") != "unsupported":
+        return False
+    nodes = payload.get("nodes")
+    return isinstance(nodes, list) and any(
+        isinstance(node, Mapping)
+        and isinstance(message := node.get("message"), Mapping)
+        and isinstance(message.get("reasoning_content"), str)
+        and bool(message.get("reasoning_content"))
+        for node in nodes
+    )
+
+
 def _renderer_reasoning_count(call: Any, nodes: list[Any], renderer: Any) -> int | None:
     if not isinstance(call, Mapping) or call.get("error") not in (None, False, ""):
         return None
@@ -101,6 +116,7 @@ class TraceFactBackfillPage:
     applied: int
     preview: bool
     reasoning_filled: int = 0
+    thinking_unscored: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +135,7 @@ class TraceFactBackfillWindow:
     preview: bool
     pages: tuple[TraceFactBackfillPage, ...]
     reasoning_filled: int = 0
+    thinking_unscored: int = 0
 
 
 def backfill_verifiers_trace_page(
@@ -197,6 +214,7 @@ def backfill_verifiers_trace_window(
         complete = 0
         partial = 0
         reasoning_filled = 0
+        thinking_unscored = 0
         updates: list[tuple[str, TraceFactSet]] = []
         for trace in raw_page.items:
             payload = trace.payload
@@ -204,12 +222,22 @@ def backfill_verifiers_trace_window(
                 payload, filled = fill_renderer_reasoning_tokens(payload, renderer)
                 reasoning_filled += filled
             facts = project_verifiers_trace_facts(payload, attributes=trace.attributes)
+            if _has_unscored_thinking(payload, facts):
+                thinking_unscored += 1
             if facts.state == "complete":
                 complete += 1
             else:
                 partial += 1
             if writer is not None:
                 updates.append((trace.external_id, facts))
+        if writer is not None and renderer is None and thinking_unscored:
+            # Facts are replaced per trace. Without a renderer, reasoning that
+            # earlier calculators or providers counted would be overwritten as
+            # unsupported, so refuse before writing anything from this page.
+            raise ContractError(
+                f"{thinking_unscored} traces in this page contain reasoning but no reasoning-token usage; "
+                "apply with --renderer-model so their thinking counts are re-scored instead of erased"
+            )
         if writer is not None:
             writer.upsert_many(
                 project=project,
@@ -231,6 +259,7 @@ def backfill_verifiers_trace_window(
             applied=len(raw_page.items) if apply else 0,
             preview=not apply,
             reasoning_filled=reasoning_filled,
+            thinking_unscored=thinking_unscored,
         )
         pages.append(page)
         if checkpoint is not None:
@@ -254,6 +283,7 @@ def backfill_verifiers_trace_window(
         preview=not apply,
         pages=tuple(pages),
         reasoning_filled=sum(page.reasoning_filled for page in pages),
+        thinking_unscored=sum(page.thinking_unscored for page in pages),
     )
 
 
@@ -330,7 +360,8 @@ def register(app: typer.Typer) -> None:
             print(
                 f"Trace-fact page {mode}: {page.project}/{page.provider_run_id} "
                 f"({page.inspected} traces, {page.complete} complete, {page.partial} partial, "
-                f"{page.reasoning_filled} calls given renderer reasoning counts; "
+                f"{page.reasoning_filled} calls given renderer reasoning counts, "
+                f"{page.thinking_unscored} traces with reasoning but no count; "
                 f"next cursor: {page.next_cursor or 'done'})",
                 flush=True,
             )

@@ -270,3 +270,77 @@ def test_renderer_fills_missing_reasoning_tokens_from_each_calls_node() -> None:
     # The prompt is the ancestor chain plus the node's unsampled prefix.
     assert renderer.calls == [([10, 11, 99, 12], [1, 2, 3]), ([20, 99], [1, 2, 3, 10, 11, 99, 12, 4])]
     assert payload["calls"][0]["usage"]["reasoning_tokens"] is None
+
+
+def _reasoning_trace() -> TraceRecord:
+    return TraceRecord(
+        trace_type="verifiers",
+        external_id="qwen-trace",
+        payload={
+            "id": "qwen-trace",
+            "version": 3,
+            "agent": {"model": "models/qwen3.5-2b@bf16"},
+            "calls": [{"node": 1, "usage": {"prompt_tokens": 2, "completion_tokens": 3}}],
+            "nodes": [
+                {"token_ids": [1, 2], "mask": [False, False], "parent": None},
+                {
+                    "sampled": True,
+                    "parent": 0,
+                    "message": {"role": "assistant", "reasoning_content": "plan", "content": "answer"},
+                    "token_ids": [10, 99, 11],
+                    "mask": [True, True, True],
+                },
+            ],
+            "rewards": {"task": 1.0},
+        },
+    )
+
+
+def _reasoning_adapter(written: list):
+    class Source:
+        def __init__(self, project: str, *, server_url: str) -> None:
+            pass
+
+        def _provider_run_by_id(self, run_id: str):
+            return SimpleNamespace(name="run-name", id=run_id)
+
+        async def traces_by_provider_run_id(self, run_id: str, query):
+            return TracePage(items=(_reasoning_trace(),), next_cursor=None)
+
+    class Writer:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def upsert_many(self, **kwargs) -> None:
+            written.extend(kwargs["updates"])
+
+    return SimpleNamespace(TrackioDataSource=Source, TrackioTraceFactWriter=Writer)
+
+
+def test_apply_refuses_to_erase_reasoning_counts_without_a_renderer(monkeypatch) -> None:
+    import pytest
+    from posttrain.common import ContractError
+
+    written: list = []
+    monkeypatch.setattr(trace_fact_backfill.importlib, "import_module", lambda _: _reasoning_adapter(written))
+    arguments = dict(
+        project="p",
+        server_url="https://trackio.invalid",
+        write_token=None,
+        provider_run_id="run",
+        cursor=None,
+        window_size=10,
+    )
+
+    preview = trace_fact_backfill.backfill_verifiers_trace_window(**arguments, apply=False)
+    assert preview.thinking_unscored == 1
+    with pytest.raises(ContractError, match="--renderer-model"):
+        trace_fact_backfill.backfill_verifiers_trace_window(**arguments, apply=True)
+    assert written == []
+
+    applied = trace_fact_backfill.backfill_verifiers_trace_window(**arguments, apply=True, renderer=_CountingRenderer())
+    assert applied.reasoning_filled == 1
+    assert applied.thinking_unscored == 0
+    [(external_id, facts)] = written
+    assert external_id == "qwen-trace"
+    assert facts.measures["thinking_tokens"] == 2
