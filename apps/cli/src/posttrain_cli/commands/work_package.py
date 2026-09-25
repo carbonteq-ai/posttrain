@@ -67,6 +67,18 @@ def _select_checkpoint_output(
             )
             == step
         )
+    if len(candidates) > 1:
+        digests = {getattr(getattr(link, "artifact", None), "digest", None) for link in candidates}
+        if len(digests) == 1 and None not in digests:
+            # One checkpoint registered twice, e.g. a periodic save at the final step is also
+            # published as the run's final recovery checkpoint. Identical bytes, so keep the
+            # explicit per-step view instead of refusing the selection.
+            candidates = tuple(
+                sorted(
+                    candidates,
+                    key=lambda link: "checkpoint_step" not in getattr(getattr(link, "artifact", None), "provider_metadata", {}),
+                )
+            )[:1]
     if len(candidates) != 1:
         requested = f" at step {step}" if step is not None else ""
         raise ContractError(
