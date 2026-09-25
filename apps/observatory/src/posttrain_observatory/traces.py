@@ -55,11 +55,6 @@ _TRUNCATED_STOP_CONDITIONS = frozenset(
     }
 )
 
-# Qwen3.5's pinned tokenizer represents ``</think>`` with this single special
-# token. A Verifiers node keeps the exact generated token ids and sampled mask,
-# which lets historical traces recover a precise thinking-token count even when
-# the OpenAI-compatible usage block did not report ``reasoning_tokens``.
-_QWEN35_THINKING_END_TOKEN_ID = 248069
 
 
 def _manifest_measurement(
@@ -479,58 +474,8 @@ def _messages(payload: Mapping[str, JsonValue]) -> tuple[Mapping[str, JsonValue]
     return ()
 
 
-def _trace_reasoning_tokens(
-    payload: Mapping[str, JsonValue],
-    attributes: Mapping[str, JsonValue],
-) -> int | None:
-    """Recover exact Qwen3.5 reasoning tokens from retained generated ids.
-
-    This intentionally requires a parsed ``reasoning_content`` message and an
-    explicit Qwen3.5 model identity. It never estimates from characters.
-    """
-
-    model = attributes.get("model")
-    agent = payload.get("agent")
-    if not isinstance(model, str) and isinstance(agent, Mapping):
-        model = agent.get("model")
-    if not isinstance(model, str) or "qwen3.5" not in model.lower():
-        return None
-    nodes = payload.get("nodes")
-    if not isinstance(nodes, list):
-        return None
-    total = 0
-    observed = False
-    for node in nodes:
-        if not isinstance(node, Mapping):
-            continue
-        message = node.get("message")
-        if not isinstance(message, Mapping) or not isinstance(message.get("reasoning_content"), str):
-            continue
-        token_ids = node.get("token_ids")
-        sampled_mask = node.get("mask")
-        if not isinstance(token_ids, list) or not isinstance(sampled_mask, list) or len(token_ids) != len(sampled_mask):
-            return None
-        sampled_start = next((index for index, value in enumerate(sampled_mask) if value is True), None)
-        if sampled_start is None:
-            return None
-        end = next(
-            (
-                index
-                for index in range(sampled_start, len(token_ids))
-                if token_ids[index] == _QWEN35_THINKING_END_TOKEN_ID and sampled_mask[index] is True
-            ),
-            None,
-        )
-        if end is None:
-            return None
-        total += sum(1 for value in sampled_mask[sampled_start:end] if value is True)
-        observed = True
-    return total if observed else None
-
-
 def _wire_text_stats(
     payload: Mapping[str, JsonValue],
-    attributes: Mapping[str, JsonValue],
 ) -> tuple[int | None, int, int | None, int]:
     response_text: list[str] = []
     thinking_text: list[str] = []
@@ -559,8 +504,9 @@ def _wire_text_stats(
             reasoning = _integer(usage.get("reasoning_tokens"))
             if reasoning is not None:
                 usage_thinking_tokens.append(reasoning)
-    recovered_thinking_tokens = _trace_reasoning_tokens(payload, attributes)
-    thinking_tokens = sum(usage_thinking_tokens) if usage_thinking_tokens else recovered_thinking_tokens
+    # Thinking comes only from per-call usage: providers report it on API paths
+    # and the renderer reports it on the train path. No model-specific recovery.
+    thinking_tokens = sum(usage_thinking_tokens) if usage_thinking_tokens else None
     response_tokens = None
     if usage_completion_tokens and thinking_tokens is not None:
         # ``completion_tokens`` includes the thought block. Expose output as
@@ -990,7 +936,7 @@ def _summary(record: TraceRecord, evaluation_metadata: EvaluationMetadata | None
     success = None if error is not None else _wire_success(payload)
     truncated = _wire_truncated(payload, record.attributes)
     task = _wire_task(payload, metadata, info)
-    response_tokens, response_chars, thinking_tokens, thinking_chars = _wire_text_stats(payload, record.attributes)
+    response_tokens, response_chars, thinking_tokens, thinking_chars = _wire_text_stats(payload)
     input_tokens, completion_tokens = _wire_usage(payload)
     if response_tokens is None and completion_tokens is not None and thinking_tokens is not None:
         response_tokens = max(0, completion_tokens - thinking_tokens)

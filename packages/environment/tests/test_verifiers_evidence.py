@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import pytest
 from posttrain.common import SignalSource
 from posttrain.environment import (
-    ThinkingTokenContext,
-    ThinkingTokenResult,
     project_verifiers_trace_facts,
     verifiers_trace_has_error,
 )
@@ -205,26 +201,33 @@ def test_visible_and_reasoning_usage_normalize_to_total_model_output() -> None:
     assert facts.provenance["model_output_tokens"] == "provider_visible_plus_reasoning"
 
 
-def test_qwen_rule_recovers_complete_and_proven_truncated_thinking() -> None:
+@pytest.mark.parametrize("model", ["models/lfm2.5-2.6b@bf16", "models/qwen3.5-2b@bf16", "models/k2-horizon-7b"])
+def test_renderer_reported_thinking_is_projected_for_any_model(model: str) -> None:
+    """The train path's renderer fills usage.reasoning_tokens; no model rules apply."""
+
     complete = {
         "id": "complete",
-        "version": 2,
-        "agent": {"model": "models/qwen3.5-2b@bf16"},
-        "calls": [{"node": 0, "finish_reason": "stop", "usage": {"completion_tokens": 6}}],
+        "version": 3,
+        "agent": {"model": model},
+        "calls": [
+            {"node": 0, "finish_reason": "stop", "usage": {"completion_tokens": 6, "reasoning_tokens": 4}}
+        ],
         "nodes": [
             {
                 "message": {"role": "assistant", "reasoning_content": "think", "content": "answer"},
                 "sampled": True,
-                "token_ids": [11, 12, 13, 248069, 14, 15],
+                "token_ids": [11, 12, 13, 14, 15, 16],
                 "mask": [True, True, True, True, True, True],
             }
         ],
     }
     truncated = {
         "id": "truncated",
-        "version": 2,
-        "agent": {"model": "models/qwen3.5-2b@bf16"},
-        "calls": [{"node": 0, "finish_reason": "length", "usage": {"completion_tokens": 3}}],
+        "version": 3,
+        "agent": {"model": model},
+        "calls": [
+            {"node": 0, "finish_reason": "length", "usage": {"completion_tokens": 3, "reasoning_tokens": 3}}
+        ],
         "nodes": [
             {
                 "message": {"role": "assistant", "reasoning_content": "unfinished", "content": None},
@@ -238,10 +241,37 @@ def test_qwen_rule_recovers_complete_and_proven_truncated_thinking() -> None:
     complete_facts = project_verifiers_trace_facts(complete)
     truncated_facts = project_verifiers_trace_facts(truncated)
 
-    assert complete_facts.measures["thinking_tokens"] == 3
+    assert complete_facts.measures["thinking_tokens"] == 4
+    assert complete_facts.measures["model_output_tokens"] == 6
+    assert complete_facts.provenance["thinking_tokens"] == "provider_reasoning_usage"
     assert truncated_facts.dimensions["is_truncated"] is True
     assert truncated_facts.measures["thinking_tokens"] == 3
-    assert truncated_facts.provenance["thinking_tokens"] == "qwen3.5-native-thinking.v1"
+    assert truncated_facts.measures["model_output_tokens"] == 3
+
+
+def test_qwen_token_ids_without_usage_are_not_reinterpreted() -> None:
+    """Model-specific recovery from token ids is gone; missing usage stays missing."""
+
+    record = {
+        "id": "legacy-qwen",
+        "version": 2,
+        "agent": {"model": "models/qwen3.5-2b@bf16"},
+        "calls": [{"node": 0, "finish_reason": "stop", "usage": {"completion_tokens": 6}}],
+        "nodes": [
+            {
+                "message": {"role": "assistant", "reasoning_content": "think", "content": "answer"},
+                "sampled": True,
+                "token_ids": [11, 12, 13, 248069, 14, 15],
+                "mask": [True, True, True, True, True, True],
+            }
+        ],
+    }
+
+    facts = project_verifiers_trace_facts(record)
+
+    assert facts.measures["thinking_tokens"] is None
+    assert facts.provenance["thinking_tokens"] == "unsupported"
+    assert facts.measures["model_output_tokens"] == 6
 
 
 def test_ambiguous_unterminated_thinking_remains_missing() -> None:
@@ -282,37 +312,7 @@ def test_evaluation_step_is_not_promoted_to_rollout_step() -> None:
     assert facts.dimensions["rollout_step"] is None
 
 
-@dataclass(frozen=True)
-class FutureModelRule:
-    id: str = "future-model-thinking.v1"
-
-    def matches(self, context: ThinkingTokenContext) -> bool:
-        return context.model_family == "future-model" and context.tokenizer_revision == "tokenizer-sha-1"
-
-    def calculate(self, context: ThinkingTokenContext) -> ThinkingTokenResult | None:
-        del context
-        return ThinkingTokenResult(tokens=7, method=self.id)
-
-
-def test_new_model_family_is_added_as_a_versioned_rule_with_immutable_identity() -> None:
-    facts = project_verifiers_trace_facts(
-        {
-            "id": "future",
-            "version": 3,
-            "agent": {"model": "models/future-2b"},
-            "nodes": [],
-            "calls": [{"finish_reason": "stop", "usage": {"completion_tokens": 11}}],
-        },
-        attributes={"model_family": "future-model", "tokenizer_revision": "tokenizer-sha-1"},
-        thinking_rules=(FutureModelRule(),),
-    )
-
-    assert facts.measures["thinking_tokens"] == 7
-    assert facts.provenance["thinking_tokens"] == "future-model-thinking.v1"
-    assert facts.dimensions["tokenizer_revision"] == "tokenizer-sha-1"
-
-
-def test_incompatible_thinking_fallback_is_not_persisted_as_more_than_total_output() -> None:
+def test_incompatible_thinking_usage_is_not_persisted_as_more_than_total_output() -> None:
     facts = project_verifiers_trace_facts(
         {
             "id": "incompatible-thinking",
@@ -326,10 +326,8 @@ def test_incompatible_thinking_fallback_is_not_persisted_as_more_than_total_outp
                     "mask": [True, True, True],
                 }
             ],
-            "calls": [{"finish_reason": "stop", "usage": {"completion_tokens": 3}}],
+            "calls": [{"finish_reason": "stop", "usage": {"completion_tokens": 3, "reasoning_tokens": 7}}],
         },
-        attributes={"model_family": "future-model", "tokenizer_revision": "tokenizer-sha-1"},
-        thinking_rules=(FutureModelRule(),),
     )
 
     assert facts.measures["model_output_tokens"] == 3

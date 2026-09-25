@@ -15,7 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 verifiers = [
-    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@b71ade0a7ac712cdee9e1a4c0e53030d70768aff",
+    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@d223c3207c142a1ac4b8ef21a9faca7fe336a8ac",
 ]
 trl = [
     "torch>=2.13,<2.14",
@@ -26,7 +26,7 @@ trl = [
     "datasets>=4.6.1,<4.7",
     "accelerate>=1.14,<1.15",
     "bitsandbytes>=0.49,<0.50",
-    "renderers==0.1.12.dev3",
+    "carbonteq-renderers==0.1.12.post1.dev1",
     "liger-kernel>=0.8.2,<0.9",
     "sentencepiece>=0.2,<0.3",
     "protobuf>=7.35,<8",
@@ -53,6 +53,7 @@ posttrain-environment = { workspace = true }
 torch = { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" }
 torchvision = { index = "pytorch-cu130" }
 trl = { index = "carbonteq-dev" }
+carbonteq-renderers = { index = "carbonteq-dev" }
 
 [tool.posttrain.trl]
 version = "1.12.0.post9"
