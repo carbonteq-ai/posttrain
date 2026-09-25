@@ -24,7 +24,7 @@ vllm = [
     "nvidia-nvvm==13.0.88; sys_platform == 'linux'",
     "nvidia-ml-py>=13.580.82; sys_platform == 'linux'",
     "ninja>=1.13",
-    "vllm @ git+https://github.com/carbonteq-ai/vllm.git@564ff2b43d499f5d17bcee554d126360b768dd98",
+    "vllm @ git+https://github.com/carbonteq-ai/vllm.git@f09e4479123d348cee87d217c695a22f9b2daacc",
     "vllm-spark2-5-plugin",
 ]
 [tool.uv]

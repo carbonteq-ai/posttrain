@@ -18,8 +18,19 @@ version across first-party distributions.
 - Bindings can acknowledge a finding with a written reason
   (`performance_acknowledgements`). Bindings that recorded runs used keep their
   engine and acknowledge their findings, naming the successor.
+- DSpark speculative rollout: TRL rollouts accept a DSpark drafter pinned to a
+  commit, and `inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@3`
+  uses LFM2.5-2.6B-DSpark with nine tokens and a 7 GiB KV cache sized for
+  target plus drafter (replay: 46 s per 32-episode collection against 84-87 s
+  without speculation). The settings calculator counts drafters named in
+  vLLM's speculative schema.
 
 ### Changed
+
+- vLLM `carbonteq-v0.29.1.dev4` (`f09e4479`): LFM2 DSpark speculative
+  decoding, DFlash/DSpark keep their trailing prefix-cache block, and
+  session-aware prefix-cache eviction (`release_session`,
+  `POST /v1/sessions/release`).
 
 - The `posttrain init` GRPO starter uses `qwen3.5-0.8b-vllm-distill-rollout@4`
   (vLLM 0.29.1.dev3, CUDA graphs, calculator sizing for a colocated 8 GB GPU);
@@ -27,7 +38,7 @@ version across first-party distributions.
 - Serving computes in the checkpoint's precision when a binding omits `dtype`
   and enables prefix caching when it omits `enable_prefix_caching`; the veRL
   worker honours the binding's prefix caching and batch invariance.
-- Verifiers `cdd2ec76` and environments `e040e9e5` for every base environment;
+- Verifiers `cdd2ec76` and environments `5264ec15` for every base environment;
   GSM8K scores in-process.
 
 ### Fixed

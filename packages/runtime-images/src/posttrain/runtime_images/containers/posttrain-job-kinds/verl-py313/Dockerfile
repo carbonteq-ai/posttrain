@@ -77,7 +77,7 @@ RUN test -n "${DEPENDENCY_LOCK_SHA256}" && \
 
 ARG VLLM_BINARY_WHEEL_URL="https://wheels.vllm.ai/44dd18fe0bb0f13157f97a5aa029b6604468fca6/vllm-0.29.1rc1.dev366%2Bg44dd18fe0-cp38-abi3-manylinux_2_28_x86_64.whl"
 ARG VLLM_BINARY_WHEEL_SHA256="2b8f85d32b952cb05743c2edb02c4ae5be59921445b97069a609f186fdf6c5f0"
-ARG VLLM_RUNTIME_VERSION="0.29.1.dev3+precompiled"
+ARG VLLM_RUNTIME_VERSION="0.29.1.dev4+precompiled"
 ARG CUTLASS_BASE_WHEEL_URL="https://files.pythonhosted.org/packages/da/cd/14545cf33b22a0ddeaa7486d49fdfe278d1fd95e0c9ab3e3e5c8202044ab/nvidia_cutlass_dsl_libs_base-4.7.1-cp313-cp313-manylinux_2_28_x86_64.whl"
 ARG CUTLASS_BASE_WHEEL_SHA256="61097c5c355e1e42f8531efd4e8ead0ba61ae1ab6b0b9acfcbf2ca665b3dae5a"
 ARG CUTLASS_CU13_WHEEL_URL="https://files.pythonhosted.org/packages/d3/fa/46e2e4db696c35923dff02c5135f0a0f9e00ab7be6456aaeb80dfb7e9769/nvidia_cutlass_dsl_libs_cu13-4.7.1-cp313-cp313-manylinux_2_28_x86_64.whl"
@@ -227,7 +227,7 @@ RUN test -x "${CUDA_HOME}/bin/nvcc" && \
     command -v g++ >/dev/null && \
     PYTHONNOUSERSITE=1 PYTHONSAFEPATH=1 \
     /opt/posttrain-verl/bin/python -I -c \
-    "import importlib.metadata, sys; import ray, torch, transformers, tensordict, verl, verifiers, vllm; assert sys.version_info[:3] == (3, 13, 12); assert importlib.metadata.version('vllm') == '0.29.1.dev3+precompiled'" && \
+    "import importlib.metadata, sys; import ray, torch, transformers, tensordict, verl, verifiers, vllm; assert sys.version_info[:3] == (3, 13, 12); assert importlib.metadata.version('vllm') == '0.29.1.dev4+precompiled'" && \
     PYTHONNOUSERSITE=1 PYTHONSAFEPATH=1 \
     "${VIRTUAL_ENV}/bin/python" -c \
     "import sys, hatchling, pydantic, yaml, verifiers; assert sys.version_info[:3] == (3, 13, 12)"

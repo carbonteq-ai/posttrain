@@ -251,7 +251,7 @@ uvloop==0.22.1 ; platform_machine == 'x86_64' and platform_python_implementation
 verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@b71ade0a7ac712cdee9e1a4c0e53030d70768aff ; platform_machine == 'x86_64' and sys_platform == 'linux'
 verl @ git+https://github.com/carbonteq-ai/verl.git@18338a0efbd6f103378d2861f4a078ad243db455 ; platform_machine == 'x86_64' and sys_platform == 'linux'
 virtualenv==21.7.0 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-vllm @ git+https://github.com/carbonteq-ai/vllm.git@564ff2b43d499f5d17bcee554d126360b768dd98 ; platform_machine == 'x86_64' and sys_platform == 'linux'
+vllm @ git+https://github.com/carbonteq-ai/vllm.git@f09e4479123d348cee87d217c695a22f9b2daacc ; platform_machine == 'x86_64' and sys_platform == 'linux'
 wandb==0.28.1 ; platform_machine == 'x86_64' and sys_platform == 'linux'
 watchfiles==1.2.0 ; platform_machine == 'x86_64' and sys_platform == 'linux'
 websockets==16.1.1 ; platform_machine == 'x86_64' and sys_platform == 'linux'

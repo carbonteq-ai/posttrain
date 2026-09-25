@@ -3181,7 +3181,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'vllm'", url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" },
     { name = "torchaudio", marker = "extra == 'vllm'", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", marker = "extra == 'vllm'", index = "https://download.pytorch.org/whl/cu130" },
-    { name = "vllm", marker = "extra == 'vllm'", git = "https://github.com/carbonteq-ai/vllm.git?rev=564ff2b43d499f5d17bcee554d126360b768dd98" },
+    { name = "vllm", marker = "extra == 'vllm'", git = "https://github.com/carbonteq-ai/vllm.git?rev=f09e4479123d348cee87d217c695a22f9b2daacc" },
     { name = "vllm-spark2-5-plugin", marker = "extra == 'vllm'", git = "https://github.com/XHToken/Spark-plugin.git?rev=3e1040e63a5907e4c748a485d6795d739dcd5bd6" },
 ]
 provides-extras = ["vllm"]
@@ -3306,7 +3306,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'trl'", specifier = ">=5.14,<5.15" },
     { name = "trl", marker = "extra == 'trl'", specifier = "==1.12.0.post9", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=cdd2ec7614131545df66484f9de11250daf16065" },
-    { name = "vllm", marker = "extra == 'trl-vllm'", git = "https://github.com/carbonteq-ai/vllm.git?rev=564ff2b43d499f5d17bcee554d126360b768dd98" },
+    { name = "vllm", marker = "extra == 'trl-vllm'", git = "https://github.com/carbonteq-ai/vllm.git?rev=f09e4479123d348cee87d217c695a22f9b2daacc" },
 ]
 provides-extras = ["verifiers", "trl", "trl-vllm"]
 
@@ -4891,8 +4891,8 @@ dependencies = [
 
 [[package]]
 name = "vllm"
-version = "0.29.1.dev3"
-source = { git = "https://github.com/carbonteq-ai/vllm.git?rev=564ff2b43d499f5d17bcee554d126360b768dd98#564ff2b43d499f5d17bcee554d126360b768dd98" }
+version = "0.29.1.dev4"
+source = { git = "https://github.com/carbonteq-ai/vllm.git?rev=f09e4479123d348cee87d217c695a22f9b2daacc#f09e4479123d348cee87d217c695a22f9b2daacc" }
 dependencies = [
     { name = "aiohttp" },
     { name = "anthropic" },

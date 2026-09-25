@@ -38,7 +38,7 @@ required = true
 id = "vllm"
 scope = "runtime-kind-source-overlay"
 repository = "https://github.com/carbonteq-ai/vllm"
-release_tag = "carbonteq-v0.29.1.dev3"
+release_tag = "carbonteq-v0.29.1.dev4"
 required = true
 
 [[fork]]

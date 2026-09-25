@@ -2310,7 +2310,7 @@ verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@cdd2ec7614131545df
     #   posttrain-eval
     #   posttrain-train
     #   prime
-vllm @ git+https://github.com/carbonteq-ai/vllm.git@564ff2b43d499f5d17bcee554d126360b768dd98
+vllm @ git+https://github.com/carbonteq-ai/vllm.git@f09e4479123d348cee87d217c695a22f9b2daacc
     # via
     #   posttrain-serve
     #   posttrain-train
