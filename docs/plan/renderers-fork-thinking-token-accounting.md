@@ -173,6 +173,14 @@ Expected: the partial thought and `False`.
 
 Milestone commands are added here as each milestone runs, with the working directory for each.
 
+Pin-bump inventory (verified 2026-09-25 on `49c43a4e`). `renderers==0.1.12.dev3` appears in:
+
+- `packages/train/pyproject.toml` and `uv.lock`;
+- the runtime-image locks `locks/{workspace,supervised,eval,online-rl-trl-py312,online-rl-verl-py313}.lock.txt` and profile `profiles/supervised.txt`;
+- the veRL image's `verl-py313/release/{uv.lock,backend-constraints.txt}`.
+
+All runtime-image paths are under `packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/`. The Verifiers commit `b71ade0a` is pinned in `packages/{data,eval}/pyproject.toml`, the profiles `{eval,online-rl-trl-py312,online-rl-verl-py313-control}.txt`, the matching `.lock.txt` files, and `verl-py313/{profile.toml,release/pyproject.toml}`. Regenerate these through the repository's runtime-image lock tooling, not by hand.
+
 ## Validation and Acceptance
 
 The fork's conformance suite passes for every catalog model id and fails on the unmodified base, because `reasoning_tokens` does not exist there. Verifiers' tests pass, including a new test that a train-client response built from an LFM2.5 thought-then-answer completion carries `usage.reasoning_tokens` equal to the position just past `</think>`.
