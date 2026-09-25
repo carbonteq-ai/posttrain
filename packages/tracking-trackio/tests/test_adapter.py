@@ -55,6 +55,49 @@ from packages.tracking.tests.conformance import (
     terminal_outcome,
 )
 
+
+def test_pinned_trackio_accepts_indexed_task_trace_dimensions() -> None:
+    """A runtime with task/group facts must never silently lose every trace."""
+
+    update = _trackio_trace_facts(
+        "verifiers",
+        "trace-a",
+        TraceFactSet(
+            namespace="verifiers.trace",
+            calculator_version="verifiers-trace-facts.v5",
+            dimensions={"task_id": "task-a", "prompt_group_id": "group-a"},
+        ),
+    )
+    assert update.dimensions["task_id"] == "task-a"
+    assert update.dimensions["prompt_group_id"] == "group-a"
+
+
+def test_incompatible_eval_trace_schema_fails_before_opening_provider_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "posttrain_tracking_trackio.adapter.trackio.TraceFactUpdate",
+        lambda **kwargs: (_ for _ in ()).throw(ValueError("unsupported trace fact dimension 'task_id'")),
+    )
+    opened = False
+
+    def fake_init(**kwargs: object) -> None:
+        nonlocal opened
+        opened = True
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.init", fake_init)
+    spec = RunSpec(
+        project_id="conformance",
+        work_package_id="qualify/heldout",
+        stage="qualify",
+        run_id="00000000-0000-4000-8000-000000000012",
+        job_kind="eval.general",
+        job_definition_version="eval/general@1",
+    )
+
+    with pytest.raises(ContractError, match="before starting the run"):
+        TrackioBackend(TrackioSettings(project="conformance")).start_run(spec)
+    assert not opened
+
+
 STARTED = datetime(2026, 7, 22, 2, 0, tzinfo=UTC)
 
 

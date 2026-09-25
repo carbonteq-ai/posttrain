@@ -1534,13 +1534,17 @@ function EvaluationOverview({ selected, response, evaluation, onTraces, onCompar
   const rewardComponents = nestedValue(environment, 'reward_components');
   const measurement = evaluation.measurement;
   const expected = evaluation.expected;
+  const failedSummary = view.summary?.find((item) => item.key === 'rollouts_failed');
+  const modelCallErrorSummary = view.summary?.find((item) => item.key === 'model_call_error_rollouts');
+  const failedAttempts = typeof failedSummary?.value === 'number' ? failedSummary.value : evaluation.failures;
+  const modelCallErrors = typeof modelCallErrorSummary?.value === 'number' ? modelCallErrorSummary.value : 0;
   const coverageLabel = measurement
     ? `${measurement.coverage.valid_repetitions.toLocaleString()}/${measurement.coverage.planned_repetitions.toLocaleString()} repetitions valid`
     : `${evaluation.included.toLocaleString()}${expected == null ? '' : `/${expected.toLocaleString()}`} traces observed`;
   const evidenceReady = measurement
-    ? measurement.state === 'complete'
-    : evaluation.state === 'complete' && evaluation.failures === 0 && evaluation.truncated === 0;
-  const outcomeLabel = evidenceReady ? 'Evidence complete' : evaluation.failures > 0 ? 'Needs review' : 'Partial evidence';
+    ? measurement.state === 'complete' && failedAttempts === 0 && modelCallErrors === 0
+    : evaluation.state === 'complete' && failedAttempts === 0 && evaluation.truncated === 0;
+  const outcomeLabel = evidenceReady && modelCallErrors === 0 ? 'Evidence complete' : failedAttempts > 0 ? 'Needs review' : 'Partial evidence';
   const scoreLabel = evaluation.metadata?.primary_metric_label
     ?? (typeof rewardComponents === 'string'
     ? rewardComponents
@@ -1613,12 +1617,12 @@ function EvaluationOverview({ selected, response, evaluation, onTraces, onCompar
               value: evaluation.success_rate == null ? '—' : `${(evaluation.success_rate * 100).toFixed(1)}%`,
               note: evaluation.success_rate == null ? undefined : `${(evaluation.passed ?? 0).toLocaleString()} passed / ${(evaluation.pass_scored ?? 0).toLocaleString()} evaluated`,
             },
-            { label: 'Errors', value: evaluation.failures.toLocaleString() },
+            { label: 'Errors', value: failedAttempts.toLocaleString(), note: failedAttempts !== evaluation.failures ? 'Run-level failures; some traces unavailable' : undefined },
             { label: 'Truncated', value: evaluation.truncated.toLocaleString() },
           ].map((item) => <div key={item.label} className="border-b border-r border-divider px-4 py-4 last:border-r-0"><span className="type-label block">{item.label}</span><strong className="mt-1 block font-serif text-2xl font-normal">{item.value}</strong>{item.note && <span className="mt-1 block text-[10px] text-muted">{item.note}</span>}</div>)}
         </div>
       </div>
-      {(evaluation.failures > 0 || evaluation.truncated > 0 || evaluation.state !== 'complete') && <div className="flex items-start gap-2 border-t border-amber-200 bg-[#fffaf1] px-4 py-3 text-[11px] text-amber-900"><Warning size={15} weight="fill" className="mt-0.5 shrink-0 text-amber-600" /><span>{evaluation.failures > 0 ? `${evaluation.failures} task${evaluation.failures === 1 ? '' : 's'} reported an error. ` : ''}{evaluation.truncated > 0 ? `${evaluation.truncated} response${evaluation.truncated === 1 ? '' : 's'} reached the configured output boundary. ` : ''}Interpret the score with this evidence-quality caveat.</span></div>}
+      {(failedAttempts > 0 || evaluation.truncated > 0 || evaluation.state !== 'complete') && <div className="flex items-start gap-2 border-t border-amber-200 bg-[#fffaf1] px-4 py-3 text-[11px] text-amber-900"><Warning size={15} weight="fill" className="mt-0.5 shrink-0 text-amber-600" /><span>{modelCallErrors > 0 ? `${modelCallErrors} evaluation attempt${modelCallErrors === 1 ? '' : 's'} had model-call errors and must not be scored as semantic failures. ` : failedAttempts > 0 ? `${failedAttempts} attempt${failedAttempts === 1 ? '' : 's'} failed. ` : ''}{evaluation.truncated > 0 ? `${evaluation.truncated} response${evaluation.truncated === 1 ? '' : 's'} reached the configured output boundary. ` : ''}Interpret the score with this evidence-quality caveat.</span></div>}
     </section>
     {measurement && <section className="obs-card mt-4 overflow-hidden" aria-label="Evaluation population and repetitions">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-divider px-4 py-3">
@@ -1768,9 +1772,9 @@ function GenericOverview({
   const missingRequirement = completeness?.requirements.find(
     (item) => item.state === 'missing' && item.level !== 'diagnostic',
   );
-  const healthAlert = view.alerts?.find(
+  const healthAlerts = view.alerts?.filter(
     (item) => !item.id.startsWith('evidence-') && !item.id.startsWith('missing-'),
-  );
+  ) ?? [];
   const summaryByKey = new Map(summary.map((item) => [item.key, item]));
   const sampling = view.grpo?.sampling;
   const grpoReward = summaryByKey.get('reward_mean');
@@ -1823,7 +1827,7 @@ function GenericOverview({
         <div><p className="type-eyebrow">{copy.eyebrow}</p><h1 className="type-page-title mt-1.5">{copy.title}</h1><p className="type-page-subtitle mt-2">{copy.question}</p>{jobDefinitionDescription && <p className="mt-2 max-w-3xl text-[10px] leading-4 text-muted"><code className="mr-2 text-violet-700">{jobDefinition?.id}</code>{jobDefinitionDescription}</p>}</div>
       </div>
       {response.fallback_reason && <div className="mt-5 flex items-center gap-2 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"><Warning size={16} weight="fill" />{response.fallback_reason}</div>}
-      {healthAlert && <div className="obs-card mt-5 flex items-center gap-3 border-amber-200 bg-[#fffaf1] px-3 py-2 text-[11px]"><Warning size={16} weight="fill" className="text-amber-500" /><strong>Live health</strong><span className="text-secondary">{healthAlert.message}</span><button className="ml-auto text-violet-700">View evidence</button></div>}
+      {healthAlerts.map((alert) => <div key={alert.id} className="obs-card mt-3 flex items-center gap-3 border-amber-200 bg-[#fffaf1] px-3 py-2 text-[11px]"><Warning size={16} weight="fill" className="text-amber-500" /><strong>Evidence warning</strong><span className="text-secondary">{alert.message}</span></div>)}
       {(isDpo || isGroupPolicy || isSampo || isDistill) && completeness && (
         <section aria-label={`${groupPolicyLabel ?? (isSampo ? 'SAMPO' : isDistill ? 'Distillation' : 'DPO')} evidence completeness`} className="obs-card mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 text-[11px]">
           <div className="flex items-center gap-2">

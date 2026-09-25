@@ -123,7 +123,12 @@ def verifiers_trace_has_error(record: Mapping[str, object]) -> bool:
     # Modern traces expose execution standing even when no exception was saved.
     # Missing `ok` is the legacy schema, not an implicit unsuccessful episode.
     errors = record.get("errors")
-    return record.get("ok") is False or (isinstance(errors, list) and bool(errors))
+    if record.get("ok") is False or (isinstance(errors, list) and bool(errors)):
+        return True
+    calls = record.get("calls")
+    return isinstance(calls, list) and any(
+        isinstance(call, Mapping) and call.get("error") not in (None, False, "") for call in calls
+    )
 
 
 def verifiers_trace_is_truncated(record: Mapping[str, object]) -> bool:

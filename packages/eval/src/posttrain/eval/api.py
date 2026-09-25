@@ -19,6 +19,11 @@ type EvaluationContext = RunContext
 type EvaluationRunner = Callable[[EvaluationContext, EvaluateRequest, Path], VerifiersRunResult]
 
 
+def _sync_error_class(error: str) -> str:
+    candidate = error.partition(":")[0].strip()
+    return candidate if candidate.isidentifier() else "UnknownError"
+
+
 def _directory_digest(path: Path) -> str:
     digest = hashlib.sha256()
     for child in sorted(item for item in path.rglob("*") if item.is_file()):
@@ -107,6 +112,7 @@ def evaluate(
         unsynchronized=backend.synchronization.unsynchronized_records,
         errors=tuple(backend.synchronization.errors),
     )
+    trace_schema_mismatch = any("unsupported trace fact dimension" in error for error in sync.errors)
     context.metrics(
         {
             "eval/run/rollouts_attempted": backend.population.attempted,
@@ -114,16 +120,39 @@ def evaluate(
             "eval/run/rollouts_failed": backend.population.failed,
             "eval/run/rollouts_truncated": backend.population.truncated,
             "eval/run/coverage_missing": backend.population.coverage_missing,
+            "eval/run/model_call_error_rollouts": backend.population.model_call_error_rollouts,
+            "eval/run/model_call_http_400_rollouts": backend.population.model_call_http_400_rollouts,
+            "eval/run/context_overflow_rollouts": backend.population.context_overflow_rollouts,
             "eval/traces_observed": sync.observed,
             "eval/traces_emitted": sync.emitted,
             "eval/trace_records_invalid": sync.invalid,
             "eval/trace_sync_failed_batches": sync.failed_batches,
             "eval/traces_unsynchronized": sync.unsynchronized,
             "eval/trace_sync_complete": int(sync.complete),
+            "eval/trace_sync_schema_mismatch": int(trace_schema_mismatch),
         },
         attributes=attributes,
     )
-    evaluation_status = "complete" if sync.complete and backend.population.coverage_missing == 0 else "partial"
+    evaluation_status = (
+        "complete"
+        if sync.complete
+        and backend.population.coverage_missing == 0
+        and backend.population.failed == 0
+        and backend.population.truncated == 0
+        else "partial"
+    )
+    if not sync.complete:
+        context.event(
+            "evaluation_trace_sync_failed",
+            {
+                **attributes,
+                "failed_batches": sync.failed_batches,
+                "unsynchronized_records": sync.unsynchronized,
+                "schema_mismatch": trace_schema_mismatch,
+                "error_classes": ", ".join(sorted({_sync_error_class(error) for error in sync.errors})),
+                "native_artifact_retained": True,
+            },
+        )
     context.event(
         "evaluation_completed",
         {
@@ -133,6 +162,9 @@ def evaluate(
             "rollouts_failed": backend.population.failed,
             "rollouts_truncated": backend.population.truncated,
             "coverage_missing": backend.population.coverage_missing,
+            "model_call_error_rollouts": backend.population.model_call_error_rollouts,
+            "model_call_http_400_rollouts": backend.population.model_call_http_400_rollouts,
+            "context_overflow_rollouts": backend.population.context_overflow_rollouts,
             "trace_sync_complete": sync.complete,
             "evaluation_status": evaluation_status,
         },
