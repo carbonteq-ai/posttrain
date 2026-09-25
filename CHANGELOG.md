@@ -6,6 +6,22 @@ version across first-party distributions.
 
 ## Unreleased
 
+## 0.4.6 - 2026-09-25
+
+A patch release for 0.4.5.
+
+### Fixed
+
+- Jobs that package a Verifiers environment (GRPO and VORTEX training, and
+  evaluations with environments) failed to pack on 0.4.5 with "compiled
+  dependency lock contains a mutable or non-portable source". The runtime
+  images declared only `verifiers` as provided, so its `carbonteq-renderers`
+  dependency, pinned in the image lock as an internal-index URL, leaked into
+  the portable environment lock. Kinds that provide Verifiers now also provide
+  the renderers fork their lock installs.
+- `main` pins the runtime images 0.4.5 published, so jobs launched from a
+  source checkout resolve images that match the committed runtime locks.
+
 ## 0.4.5 - 2026-09-25
 
 This release makes VORTEX yield-first, counts thinking tokens for every catalog
