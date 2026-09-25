@@ -18,6 +18,7 @@ from typing import Any, Literal
 
 from posttrain.common import JsonValue, LocalArtifactRef, ModelVariant, ProducedArtifact, RunContext
 
+from ...adaptive_curriculum import CURRICULUM_SNAPSHOT_NAME
 from ...bindings import FullParameterUpdate, LoRAUpdate, ParameterUpdatePlan, QLoRAUpdate, QuantizationAwareUpdate
 from ...profiles import TrainingLoop
 from ...results import TrainingSummary
@@ -652,6 +653,22 @@ def publish_checkpoint_views(
                 role="checkpoint-model",
             )
         )
+    curriculum_snapshot = checkpoint / CURRICULUM_SNAPSHOT_NAME
+    if curriculum_snapshot.is_file():
+        # A small standalone view of the adaptive-curriculum controller state at this
+        # step, so another run can warm-start from it without fetching the recovery view.
+        curriculum_dir = workspace / "checkpoints" / f"step-{checkpoint_step:08d}" / "curriculum"
+        curriculum_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(curriculum_snapshot, curriculum_dir / CURRICULUM_SNAPSHOT_NAME)
+        context.artifact(
+            ProducedArtifact(
+                name=f"training/{model.id}/{technique}/checkpoint-{checkpoint_step:08d}/curriculum",
+                kind="adaptive-curriculum-state",
+                reference=LocalArtifactRef(curriculum_dir, _digest_path(curriculum_dir)),
+                metadata={**metadata, "checkpoint_view": "curriculum", "interrupted": interrupted},
+                role="checkpoint-curriculum",
+            )
+        )
     context.event(
         "checkpoint_saved",
         {
@@ -660,6 +677,7 @@ def publish_checkpoint_views(
             "checkpoint_snapshot_id": snapshot_id,
             "recovery_only": not isinstance(update, LoRAUpdate | QLoRAUpdate),
             "model_view_published": isinstance(update, LoRAUpdate | QLoRAUpdate),
+            "curriculum_view_published": curriculum_snapshot.is_file(),
             "interrupted": interrupted,
         },
     )

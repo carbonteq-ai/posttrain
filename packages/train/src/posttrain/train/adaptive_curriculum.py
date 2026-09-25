@@ -18,6 +18,9 @@ from typing import Protocol, cast
 from .profiles import AdaptiveCurriculum
 
 _STATE_VERSION = 5
+# File name of a controller snapshot inside a recovery checkpoint, a checkpoint
+# curriculum view, or a run's published adaptive-curriculum-state directory.
+CURRICULUM_SNAPSHOT_NAME = "adaptive-curriculum-state.json"
 _CLASS_PRIOR_STRENGTH = 2.0
 _CLASS_UNCERTAINTY_WEIGHT = 1.0
 
@@ -279,9 +282,12 @@ class AdaptiveCurriculumController:
         *,
         group_size: int = 4,
         restored_state: Mapping[str, object] | None = None,
+        warm_start_state: Mapping[str, object] | None = None,
     ) -> None:
         if not task_classes:
             raise ValueError("adaptive curriculum requires at least one task")
+        if restored_state is not None and warm_start_state is not None:
+            raise ValueError("adaptive curriculum cannot both resume a run and warm-start from another run")
         normalized = {str(task_id): str(class_id) for task_id, class_id in task_classes.items()}
         if any(not task_id or not class_id for task_id, class_id in normalized.items()):
             raise ValueError("adaptive curriculum task and class identities must be non-empty")
@@ -309,6 +315,8 @@ class AdaptiveCurriculumController:
         self._inventory_digest = _inventory_digest(self.task_classes)
         if restored_state is not None:
             self._restore(restored_state)
+        elif warm_start_state is not None:
+            self._warm_start(warm_start_state)
         self.backend.append(
             {
                 "type": "controller_started",
@@ -318,6 +326,7 @@ class AdaptiveCurriculumController:
                 "class_count": len(self.tasks_by_class),
                 "settings": self._settings_record(),
                 "restored": restored_state is not None,
+                "warm_started": warm_start_state is not None,
                 "decision_index": self._decision_index,
             }
         )
@@ -894,6 +903,40 @@ class AdaptiveCurriculumController:
         self._seen = {str(task_id) for task_id in seen}
         self._active_step = active_step
         self._step_selected = {str(task_id) for task_id in step_selected}
+
+    def _warm_start(self, state: Mapping[str, object]) -> None:
+        """Adopt another run's task evidence while this run's own counters start fresh.
+
+        The snapshot must match this controller exactly (task inventory, curriculum
+        settings, group size), as for resume. Reward history, first evidence and
+        seen tasks are kept as recorded; their ``step`` fields keep naming source-run
+        steps and are not used for selection. Time is re-based so the source run's
+        last active step becomes step 0 here: yield moments are aged to that step and
+        re-stamped at 0, so at step k of this run they carry exactly the decay of k
+        further source steps. Least-recently-selected order is kept below this run's
+        candidate counter, with never-selected tasks still the oldest.
+        """
+
+        self._restore(state)
+        source_step = self._active_step or 0
+        if self.settings.policy == "yield_first":
+            for moments in self._yield_moments.values():
+                last_step = moments[3]
+                if last_step < 0:
+                    continue
+                if source_step > last_step:
+                    decay = 2 ** (-(source_step - last_step) / self.settings.evidence_half_life_steps)
+                    for index in range(3):
+                        moments[index] *= decay
+                moments[3] = 0.0
+        offset = self._candidate_count
+        self._last_selected = {
+            task_id: value - offset if value >= 0 else -offset - 1 for task_id, value in self._last_selected.items()
+        }
+        self._active_step = None
+        self._step_selected = set()
+        self._candidate_count = 0
+        self._decision_index = 0
 
 
 def _normalized_scores(

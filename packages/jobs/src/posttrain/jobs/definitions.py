@@ -270,7 +270,14 @@ def grpo_definition(
                     run_id=context.run_id,
                     tasks=tasks,
                 )
-                return operation(context, replace(request, resume_from=_recovery_checkpoint(context)))
+                return operation(
+                    context,
+                    replace(
+                        request,
+                        resume_from=_recovery_checkpoint(context),
+                        curriculum_from=_curriculum_state(context),
+                    ),
+                )
 
     return JobDefinition(
         definition_id,
@@ -1008,6 +1015,12 @@ def _recovery_checkpoint(context: RunContext) -> LocalArtifactRef | None:
     """Return explicitly materialized trainer state without treating it as a model selection."""
 
     return context.input_artifacts.get("recovery_checkpoint")
+
+
+def _curriculum_state(context: RunContext) -> LocalArtifactRef | None:
+    """Return another run's published adaptive-curriculum-state for a curriculum warm start."""
+
+    return context.input_artifacts.get("curriculum_state")
 
 
 def _seat[SelectionT: object](

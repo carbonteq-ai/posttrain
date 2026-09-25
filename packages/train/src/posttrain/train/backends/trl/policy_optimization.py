@@ -163,6 +163,7 @@ def _run_online_rl(
             num_generations=request.settings.num_generations,
             state_dir=output_dir.parent / "adaptive-curriculum",
             resume_checkpoint=request.resume_from.path if request.resume_from is not None else None,
+            warm_start_state_dir=request.curriculum_from.path if request.curriculum_from is not None else None,
         )
         trainer_type = _adaptive_curriculum_trainer_type(trainer_type, curriculum)
     checkpoint_callback = checkpoint_callback_type(

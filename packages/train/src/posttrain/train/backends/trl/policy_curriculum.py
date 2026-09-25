@@ -12,6 +12,7 @@ from typing import Any, cast
 from posttrain.common import JsonValue, RunContext
 
 from ...adaptive_curriculum import (
+    CURRICULUM_SNAPSHOT_NAME,
     AdaptiveCurriculumController,
     CurriculumDecision,
     CurriculumObservation,
@@ -19,7 +20,7 @@ from ...adaptive_curriculum import (
 )
 from ...profiles import AdaptiveCurriculum
 
-_SNAPSHOT_NAME = "adaptive-curriculum-state.json"
+_SNAPSHOT_NAME = CURRICULUM_SNAPSHOT_NAME
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -35,6 +36,7 @@ class AdaptiveCurriculumRuntime:
         num_generations: int,
         state_dir: Path,
         resume_checkpoint: Path | None,
+        warm_start_state_dir: Path | None = None,
     ) -> None:
         task_rows: dict[str, dict[str, object]] = {}
         task_classes: dict[str, str] = {}
@@ -65,6 +67,15 @@ class AdaptiveCurriculumRuntime:
                     f"adaptive curriculum recovery snapshot is missing from checkpoint {resume_checkpoint}"
                 )
             restored_state = backend.read_snapshot(snapshot_path)
+        warm_start_state = None
+        if warm_start_state_dir is not None and resume_checkpoint is None:
+            # A published adaptive-curriculum-state artifact is the source run's state
+            # directory: its final snapshot plus the decision journal.
+            snapshot_path = warm_start_state_dir / _SNAPSHOT_NAME
+            if not snapshot_path.is_file():
+                backend.close()
+                raise RuntimeError(f"adaptive curriculum warm-start snapshot is missing from {warm_start_state_dir}")
+            warm_start_state = backend.read_snapshot(snapshot_path)
         self.context = context
         self.settings = settings
         self.num_generations = num_generations
@@ -77,6 +88,7 @@ class AdaptiveCurriculumRuntime:
                 backend,
                 group_size=num_generations,
                 restored_state=restored_state,
+                warm_start_state=warm_start_state,
             )
         except BaseException:
             backend.close()
@@ -95,6 +107,7 @@ class AdaptiveCurriculumRuntime:
                 "task_count": len(task_rows),
                 "class_count": len(set(task_classes.values())),
                 "restored": restored_state is not None,
+                "warm_started": warm_start_state is not None,
             },
         )
 

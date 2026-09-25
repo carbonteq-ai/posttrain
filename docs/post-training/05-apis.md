@@ -140,6 +140,7 @@ posttrain job plan WORK_PACKAGE --job JOB_ID [--builder local|remote]
 posttrain job pack WORK_PACKAGE --job JOB_ID [--builder local|remote]
 posttrain job run WORK_PACKAGE --job JOB_ID [--provider local|dstack] [--builder local|remote] [--build-missing] [--resume-from-run RUN_ID] [--checkpoint-step STEP]
 posttrain job run WORK_PACKAGE --job JOB_ID [--model-from-run RUN_ID] [--checkpoint-step STEP] [--model-seat SEAT]
+posttrain job run WORK_PACKAGE --job JOB_ID [--curriculum-from-run RUN_ID] [--curriculum-checkpoint-step STEP] [--model-from-run RUN_ID ...]
 posttrain job diff WORK_PACKAGE --job JOB_ID [--from KEY] [--to KEY]
 posttrain run list
 posttrain run status RUN_ID
@@ -218,6 +219,22 @@ the adapter view; the consumer resolves the immutable base model separately.
 When a job has multiple model seats, `--model-seat` is required unless the job
 definition declares one unambiguous default. The resume and model-source modes
 are mutually exclusive.
+
+`job run --curriculum-from-run` warm-starts the adaptive curriculum of a new
+training run from another run. Without `--curriculum-checkpoint-step` it selects
+that run's single final `adaptive-curriculum-state` output; with it, the
+controller state saved at that checkpoint step. Every checkpoint publishes a
+small `checkpoint-<step>/curriculum` view for this, and runs recorded before
+those views fall back to the recovery checkpoint at the step, which holds the
+same controller snapshot. The selection is bound as the `curriculum_state`
+input; the curriculum then keeps the source's task evidence (reward history,
+first evidence, seen tasks, and yield-first statistics) while its decision,
+candidate, and step counters start fresh. Time is re-based so the source run's
+last active step is step 0 of the new run, which keeps yield-first evidence
+ageing continuous. The task inventory, curriculum settings, and group size must
+match the source exactly. It may be combined with `--model-from-run` and is
+mutually exclusive with `--resume-from-run`, because a resumed run already
+restores the curriculum stored in its recovery checkpoint.
 
 The run-scoped inspection commands are bounded and read-only. `checkpoint list`
 returns snapshot summaries newest-first without fetching tensor manifests;

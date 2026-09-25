@@ -202,7 +202,7 @@ class ExecutionRequest:
                 "resolved_inputs": {
                     name: value
                     for name, value in self.run_spec.resolved_inputs.items()
-                    if name in {"model_source", "recovery_checkpoint"}
+                    if name in {"model_source", "recovery_checkpoint", "curriculum_state"}
                 },
             },
         }

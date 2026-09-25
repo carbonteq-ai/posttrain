@@ -402,7 +402,14 @@ def test_checkpoint_callback_publishes_paired_views_on_save(tmp_path: Path) -> N
     )
 
     assert result == "control"
-    assert [artifact.kind for artifact in context.artifacts] == ["training-checkpoint", "model-adapter"]
+    # The controller wrote its snapshot into the checkpoint, so the save also publishes the
+    # curriculum view on the same cadence as the recovery and model views.
+    assert [artifact.kind for artifact in context.artifacts] == [
+        "training-checkpoint",
+        "model-adapter",
+        "adaptive-curriculum-state",
+    ]
+    assert context.artifacts[2].metadata["checkpoint_view"] == "curriculum"
     assert state_writes == [checkpoint.resolve()]
     assert (checkpoint / "adaptive-curriculum-state.json").is_file()
     model_path = context.artifacts[1].reference.path  # type: ignore[union-attr]

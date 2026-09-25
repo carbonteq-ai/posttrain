@@ -70,8 +70,14 @@ class GRPORequest:
     quantization: QuantizationPlan | None = None
     reference: ModelVariant | None = None
     resume_from: LocalArtifactRef | None = None
+    # A finished run's published adaptive-curriculum-state; warm-starts a new run's curriculum.
+    curriculum_from: LocalArtifactRef | None = None
 
     def __post_init__(self) -> None:
+        if self.curriculum_from is not None and self.settings.adaptive_curriculum is None:
+            raise ValueError("curriculum warm start requires adaptive curriculum settings")
+        if self.curriculum_from is not None and self.resume_from is not None:
+            raise ValueError("a resumed run restores its own curriculum; do not also warm-start it")
         _validate_online_rl(
             "GRPO",
             self.policy,
