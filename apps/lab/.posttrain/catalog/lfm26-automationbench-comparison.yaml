@@ -930,6 +930,34 @@ training:
       seed: 172846
     truncation_penalty: 0.2
 
+  # VORTEX v5 extended to 100 updates. Identical to the v5 settings above except
+  # max_steps; run by resuming v5 run r4's step-20 recovery checkpoint, so the
+  # constant learning rate, optimizer state and curriculum state carry over.
+  lfm2.5-2.6b/automationbench-vortex-yield-first-64-100-local-v5:
+    <<: *vortex_20_local_v3
+    revision: "1"
+    loop:
+      max_steps: 100
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 64
+      learning_rate: 0.0001
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 16
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    truncation_penalty: 0.2
+
   # Matched 50-update adaptive-GRPO ablation requested after the 0.4.4 release.
   # Full VORTEX requires OLMo3 active refill, so the no-oversampling arm uses
   # ordinary GRPO with curriculum allocation over the initial batch. Eight
