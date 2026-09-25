@@ -2326,13 +2326,12 @@ inference:
       mode: colocate
       request_mode: async
       sleep_during_optimization: true
-      # vLLM 0.29 treats this as a hard fraction of total device memory. The
-      # colocated trainer leaves about 9.48 GiB free on the 96 GiB RTX PRO, so
-      # 9% admits the engine with bounded headroom while retaining the explicit
-      # 4 GiB KV cache and c32 scheduler. Attempts d/e initially appeared to
-      # exhaust this budget, but host inspection found an unrelated retained
-      # Uno development service holding 80.8 GiB; do not encode that contention
-      # by reducing the intended benchmark capacity.
+      # vLLM 0.29 treats this as a hard fraction of total device memory. 9%
+      # was chosen when vLLM saw only 9.48 GiB free, which was first blamed on
+      # the colocated trainer. Host inspection found a leftover Uno development
+      # vLLM server (remote-dev `start`) holding 80.8 GiB; the trainer itself
+      # keeps about 15.7 GB. The value is kept because recorded runs used it;
+      # it still fits the weights, the explicit 4 GiB KV cache and c32.
       gpu_memory_utilization: 0.09
       tensor_parallel_size: 1
       max_model_len: 24576
