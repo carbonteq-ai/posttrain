@@ -4,11 +4,21 @@ environment:
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 180
+            finalize: 60
+            scoring: 120
         taskset:
           id: gsm8k-v1
           split: train
@@ -43,11 +53,21 @@ environment:
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 180
+            finalize: 60
+            scoring: 120
         taskset:
           id: gsm8k-v1
           split: train
@@ -83,11 +103,21 @@ environment:
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 180
+            finalize: 60
+            scoring: 120
         taskset:
           id: gsm8k-v1
           dataset_repo: openai/gsm8k
@@ -122,11 +152,21 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 1800
+            finalize: 60
+            scoring: 120
         taskset:
           id: automationbench-v1
           domains: [simple]
@@ -168,11 +208,21 @@ environment:
     source:
       package: mmlu-pro-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/mmlu_pro_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: mmlu-pro-v1
           dataset_repo: TIGER-Lab/MMLU-Pro
@@ -213,11 +263,21 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: ifeval-v1
           dataset_repo: google/IFEval
@@ -254,11 +314,21 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: ifeval-v1
           dataset_repo: google/IFEval
@@ -296,11 +366,21 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: ifeval-v1
           dataset_repo: google/IFEval
@@ -338,11 +418,21 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: ifeval-v1
           dataset_repo: google/IFEval
@@ -382,11 +472,21 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: ifeval-v1
           dataset_repo: google/IFEval
@@ -426,11 +526,21 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: ifeval-v1
           dataset_repo: google/IFEval
@@ -471,11 +581,21 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: ifeval-v1
           dataset_repo: google/IFEval
@@ -515,11 +635,21 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: reasoning-gym-v1
           split: eval
@@ -564,11 +694,21 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: reasoning-gym-v1
           split: eval
@@ -614,11 +754,21 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: reasoning-gym-v1
           split: eval
@@ -664,11 +814,21 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: reasoning-gym-v1
           split: eval
@@ -710,11 +870,21 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: reasoning-gym-v1
           split: eval
@@ -762,11 +932,21 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: reasoning-gym-v1
           split: eval
@@ -815,11 +995,21 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: reasoning-gym-v1
           split: eval
@@ -861,11 +1051,21 @@ environment:
     source:
       package: math-python-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/math_python_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: math-python-v1
           repository: DigitalLearningGmbH/MATH-lighteval
@@ -907,11 +1107,21 @@ environment:
     source:
       package: math-python-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/math_python_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 300
+            finalize: 60
+            scoring: 120
         taskset:
           id: math-python-v1
           repository: DigitalLearningGmbH/MATH-lighteval
@@ -958,11 +1168,21 @@ environment:
     source:
       package: reverse-text
       repository: https://github.com/carbonteq-ai/verifiers
-      revision: 8e8f3042481c0996a58c3de0f86d55406725b6c1
+      revision: cdd2ec7614131545df66484f9de11250daf16065
       subdirectory: environments/reverse_text
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 180
+            finalize: 60
+            scoring: 120
         taskset:
           id: reverse-text
           dataset_name: PrimeIntellect/Reverse-Text-RL

@@ -5,11 +5,21 @@ environment:
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 7c2ba218a2368b2fd2dd45ea29e6511b4aea7f41
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
       config:
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 180
+            finalize: 60
+            scoring: 120
         taskset:
           id: gsm8k-v1
           split: train

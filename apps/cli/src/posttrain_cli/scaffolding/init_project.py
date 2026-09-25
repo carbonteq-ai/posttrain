@@ -19,7 +19,7 @@ from ..constants import DISTRIBUTION
 STARTER_GSM8K_REQUIREMENT = (
     "gsm8k-v1 @ "
     "git+https://github.com/carbonteq-ai/verifiers-environments.git"
-    "@e040e9e57863d6e9743eb7897264588e45f40fb9#subdirectory=environments/gsm8k_v1"
+    "@5264ec153a543c62688efaa1ffe28aedb247d5bb#subdirectory=environments/gsm8k_v1"
 )
 
 
@@ -293,7 +293,7 @@ def starter_grpo_environment() -> str:
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: e040e9e57863d6e9743eb7897264588e45f40fb9
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
