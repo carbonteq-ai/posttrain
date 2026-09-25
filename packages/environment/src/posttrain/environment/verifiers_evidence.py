@@ -9,7 +9,7 @@ from typing import Protocol
 
 from posttrain.common import JsonValue, SignalSource, TraceFactSet, TraceRewardComponent
 
-VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v4"
+VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v5"
 QWEN35_THINKING_END_TOKEN_ID = 248069
 
 _TRUNCATED_STOP_CONDITIONS = frozenset(
@@ -165,6 +165,8 @@ def project_verifiers_trace_facts(
     template_revision = _identity_value(record, supplied, "template_revision")
     is_truncated = bool(shared["is_truncated"])
     has_error = bool(shared["has_error"])
+    info = record.get("info")
+    info = info if isinstance(info, Mapping) else {}
 
     dimensions: dict[str, str | int | float | bool | None] = {
         "model": model or None,
@@ -174,6 +176,8 @@ def project_verifiers_trace_facts(
         "template_revision": template_revision,
         "trace_schema_version": trace_version,
         "task_type": _task_type(record),
+        "task_id": _string(supplied.get("example_id")) or _string(info.get("example_id")),
+        "prompt_group_id": _string(info.get("posttrain_prompt_group_id")),
         "rollout_step": _rollout_step(record, supplied),
         "is_truncated": is_truncated,
         "has_error": has_error,

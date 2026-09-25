@@ -183,6 +183,8 @@ class GRPOSamplingStep(ObservatoryModel):
     duplicate_fallbacks: int = Field(ge=0)
     refill_rounds: int = Field(ge=0)
     class_counts: dict[str, int]
+    retained_groups: int | None = Field(default=None, ge=0)
+    """Sampled groups whose rollouts scored differently and so entered the update."""
 
 
 class GRPOSamplingEvidence(ObservatoryModel):
@@ -252,6 +254,108 @@ class ExecutionTargetContext(ObservatoryModel):
     state: Literal["complete", "partial"]
 
 
+type FindingSeverity = Literal["error", "warning", "recommendation", "info"]
+
+
+class ConfigurationFinding(ObservatoryModel):
+    """One configuration finding, located against the run's recorded selections."""
+
+    code: str = Field(min_length=1)
+    severity: FindingSeverity
+    source: Literal["rule", "calculator"]
+    role: str = Field(min_length=1)
+    path: str = Field(min_length=1)
+    """Dotted path into the recorded selections: ``<role>.<field>...`` under the role's resolved values."""
+    value: JsonPayload = None
+    """The recorded value at ``path``; ``None`` when the run did not record it."""
+    message: str = Field(min_length=1)
+    hint: str | None = None
+    related_paths: StringTuple = ()
+
+
+class RecommendedSetting(ObservatoryModel):
+    key: str = Field(min_length=1)
+    suggested: JsonPayload = None
+    current: JsonPayload = None
+    changed: bool | None = None
+    reason: str = ""
+
+
+class StepOptionView(ObservatoryModel):
+    label: str = Field(min_length=1)
+    prompts_per_step: int = Field(ge=0)
+    oversample_groups: int = Field(ge=0)
+    rows: int = Field(ge=0)
+    waves: int = Field(ge=0)
+    relative_step_time: float
+    relative_rows_per_second: float
+    estimated_rollout_seconds: float | None = None
+    """Rollout seconds per step: decoding scales with the decode-bound estimate; tool calls, prefill and
+    waiting for the slowest episode repeat per wave but do not grow with parallel episodes."""
+    estimated_step_seconds: float | None = None
+    """Estimated rollout time plus the measured non-rollout time scaled by rows."""
+    estimated_relative_rows_per_second: float | None = None
+    """Rows per second of the whole step, relative to this run's measured step."""
+
+
+class StepCapacityView(ObservatoryModel):
+    step_sequences: int = Field(ge=0)
+    fits: int = Field(ge=0)
+    useful: int = Field(ge=0)
+    waves: int = Field(ge=0)
+    margin_sequences: int = Field(ge=0)
+    oversample_groups: int = Field(ge=0)
+    extra_prompts_per_step: int = Field(ge=0)
+    recommended_prompts_per_step: int = Field(ge=0)
+    recommended_in_flight: int = Field(ge=0)
+    reason: str
+    options: tuple[StepOptionView, ...] = ()
+
+
+class SettingsRecommendation(ObservatoryModel):
+    """The settings calculator's answer for one inference seat of the run."""
+
+    role: str = Field(min_length=1)
+    state: Literal["available", "unavailable"]
+    unavailable_reason: str | None = None
+    binding_id: str | None = None
+    model: str | None = None
+    hardware: dict[str, JsonPayload] = Field(default_factory=dict)
+    task: dict[str, JsonPayload] = Field(default_factory=dict)
+    settings: tuple[RecommendedSetting, ...] = ()
+    environment: dict[str, str] = Field(default_factory=dict)
+    memory_gb: dict[str, float] = Field(default_factory=dict)
+    max_concurrency: int | None = None
+    decode_tokens_per_s_upper_bound: float | None = None
+    notes: StringTuple = ()
+    step: StepCapacityView | None = None
+
+
+class StepCalibration(ObservatoryModel):
+    """This run's measured per-step times, used to turn relative step times into seconds."""
+
+    rollout_seconds: float = Field(gt=0)
+    """Mean seconds per rollout round (active sampling runs several rounds per step)."""
+    rounds_per_step: float = Field(default=1.0, ge=1)
+    step_seconds: float | None = Field(default=None, gt=0)
+    completion_tokens: float | None = Field(default=None, gt=0)
+    """Mean generated tokens per sequence, used to split a round into decoding and waiting."""
+    steps: int = Field(ge=1)
+
+
+class ConfigurationReview(ObservatoryModel):
+    """Configuration rules and settings-calculator advice computed from the run's recorded selections.
+
+    Observatory computes the review itself, so it covers every run, including
+    runs recorded before the rules existed.
+    """
+
+    findings: tuple[ConfigurationFinding, ...] = ()
+    recommendations: tuple[SettingsRecommendation, ...] = ()
+    calculator: Literal["available", "disabled"] = "available"
+    calibration: StepCalibration | None = None
+
+
 class RunView(ObservatoryModel):
     """Registered metric-job projection. Kept as the stable Python name."""
 
@@ -268,6 +372,7 @@ class RunView(ObservatoryModel):
     artifacts: ArtifactSet
     execution_targets: tuple[ExecutionTargetContext, ...] = ()
     resolved_inputs: dict[str, JsonPayload] = Field(default_factory=dict)
+    configuration: ConfigurationReview | None = None
     source_metadata: dict[str, JsonPayload] = Field(default_factory=dict)
     trace_count: int = Field(ge=0)
     trace_evaluation_enabled: bool
@@ -285,6 +390,7 @@ class GenericRunView(ObservatoryModel):
     artifacts: ArtifactSet
     execution_targets: tuple[ExecutionTargetContext, ...] = ()
     resolved_inputs: dict[str, JsonPayload]
+    configuration: ConfigurationReview | None = None
     source_metadata: dict[str, JsonPayload]
     trace_count: int = Field(ge=0)
     trace_evaluation_enabled: bool
@@ -394,6 +500,7 @@ class ServingBenchmarkRunView(ObservatoryModel):
     artifacts: ArtifactSet
     execution_targets: tuple[ExecutionTargetContext, ...] = ()
     resolved_inputs: dict[str, JsonPayload] = Field(default_factory=dict)
+    configuration: ConfigurationReview | None = None
     source_metadata: dict[str, JsonPayload] = Field(default_factory=dict)
     trace_count: int = Field(ge=0)
     trace_evaluation_enabled: bool = False
@@ -578,9 +685,46 @@ class EvaluationMetadata(ObservatoryModel):
     metrics: tuple[EvaluationMetricDefinition, ...] = ()
 
 
+class TraceTimelineSegment(ObservatoryModel):
+    """One contiguous span of a rollout, offset from the rollout's start."""
+
+    kind: Literal["setup", "inference", "tools", "harness", "scoring"]
+    start_ms: float = Field(ge=0)
+    duration_ms: float = Field(ge=0)
+    call_index: int | None = Field(default=None, ge=0)
+    node: int | None = Field(default=None, ge=0)
+    """Transcript node the model call committed, linking timing to its turn."""
+    prompt_tokens: int | None = Field(default=None, ge=0)
+    completion_tokens: int | None = Field(default=None, ge=0)
+    thinking_tokens: int | None = Field(default=None, ge=0)
+    finish_reason: str | None = None
+    tools: tuple[str, ...] = ()
+
+
+class TraceTiming(ObservatoryModel):
+    """Where a rollout's wall-clock time went: GPU inference vs CPU harness work.
+
+    ``inference_ms`` sums model-call spans, which include any queueing in the
+    inference server. ``tools_ms`` is harness time between and around calls.
+    """
+
+    total_ms: float = Field(ge=0)
+    inference_ms: float = Field(ge=0)
+    tools_ms: float = Field(ge=0)
+    setup_ms: float = Field(ge=0)
+    scoring_ms: float = Field(ge=0)
+    model_calls: int = Field(ge=0)
+
+
+class TraceTimeline(TraceTiming):
+    segments: tuple[TraceTimelineSegment, ...] = ()
+
+
 class TraceSummary(ObservatoryModel):
     external_id: str = Field(min_length=1)
     trace_type: str = Field(min_length=1)
+    optimizer_step: int | None = Field(default=None, ge=1)
+    prompt_group_id: str | None = None
     prompt_preview: str | None = None
     task: str | None = None
     task_label: str | None = None
@@ -600,6 +744,7 @@ class TraceSummary(ObservatoryModel):
     response_chars: int | None = Field(default=None, ge=0)
     thinking_tokens: int | None = Field(default=None, ge=0)
     thinking_chars: int | None = Field(default=None, ge=0)
+    timing: TraceTiming | None = None
     reward_components: dict[str, float] = Field(default_factory=dict)
     native_metrics: dict[str, float] = Field(default_factory=dict)
     metrics: dict[str, float] = Field(default_factory=dict)
@@ -607,6 +752,7 @@ class TraceSummary(ObservatoryModel):
 
 class TraceDetail(ObservatoryModel):
     summary: TraceSummary
+    timeline: TraceTimeline | None = None
     reward_components: tuple[RewardComponent, ...] = ()
     transcript: tuple[dict[str, JsonPayload], ...] = ()
     attributes: dict[str, JsonPayload] = Field(default_factory=dict)
@@ -620,6 +766,77 @@ class TraceSummaryPage(ObservatoryModel):
     items: tuple[TraceSummary, ...] = ()
     next_cursor: str | None = None
     total: int = Field(ge=0)
+    live: bool = False
+
+
+class TraceFilterSlice(ObservatoryModel):
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+
+
+class TraceFilterOptions(ObservatoryModel):
+    """Choices derived from the complete recorded trace population."""
+
+    total: int = Field(ge=0)
+    steps: tuple[int, ...] = ()
+    slices: tuple[TraceFilterSlice, ...] = ()
+    outcomes: tuple[TraceOutcome, ...] = ()
+
+
+class PromptGroupRewardStats(ObservatoryModel):
+    mean: float
+    std: float = Field(ge=0)
+
+
+class PromptGroupReward(ObservatoryModel):
+    group_id: str = Field(min_length=1)
+    step: int | None = None
+    task_id: str | None = None
+    rollouts: int = Field(ge=0)
+    reward_coverage: int = Field(ge=0)
+    current: PromptGroupRewardStats | None = None
+    prior: PromptGroupRewardStats | None = None
+    prior_step: int | None = None
+    prior_rollouts: int | None = None
+
+
+class RolloutTimeStep(ObservatoryModel):
+    """Summed rollout phase time for one optimizer step (None: facts not projected yet)."""
+
+    step: int | None = None
+    rollouts: int = Field(ge=0)
+    timed_rollouts: int = Field(ge=0)
+    inference_ms: float | None = Field(default=None, ge=0)
+    tools_ms: float | None = Field(default=None, ge=0)
+    setup_ms: float | None = Field(default=None, ge=0)
+    scoring_ms: float | None = Field(default=None, ge=0)
+    rollout_ms: float | None = Field(default=None, ge=0)
+    elapsed_ms: float | None = Field(default=None, ge=0)
+    """First rollout start to last rollout end within the step."""
+
+
+class RolloutTimeView(ObservatoryModel):
+    """Where rollout time went across a run: GPU inference vs CPU harness work.
+
+    Inference sums model-call spans, which include queueing in the inference
+    server while other rollouts are served.
+    """
+
+    state: Literal["available", "unavailable"] = "unavailable"
+    steps: tuple[RolloutTimeStep, ...] = ()
+    elapsed_ms: float | None = Field(default=None, ge=0)
+    """Wall-clock spent generating rollouts: the union of every step's span."""
+    live: bool = False
+
+
+class PromptGroupRewardView(ObservatoryModel):
+    """Bounded group aggregates from indexed, rebuildable trace facts."""
+
+    state: Literal["complete", "partial", "unavailable"] = "unavailable"
+    groups: tuple[PromptGroupReward, ...] = ()
+    expected_group_size: int | None = None
+    fact_rows: int = Field(ge=0)
+    recorded_traces: int = Field(ge=0)
     live: bool = False
 
 
@@ -976,6 +1193,7 @@ class EvaluationRunView(ObservatoryModel):
     artifacts: ArtifactSet
     execution_targets: tuple[ExecutionTargetContext, ...] = ()
     resolved_inputs: dict[str, JsonPayload] = Field(default_factory=dict)
+    configuration: ConfigurationReview | None = None
     source_metadata: dict[str, JsonPayload] = Field(default_factory=dict)
     trace_evaluation_enabled: bool = True
     capabilities: TrackingCapabilities
@@ -1212,6 +1430,8 @@ __all__ = [
     "SystemMetricsView",
     "TraceDetail",
     "TraceEvaluationView",
+    "TraceFilterOptions",
+    "TraceFilterSlice",
     "TraceSummary",
     "TraceSummaryPage",
     "ViewMode",

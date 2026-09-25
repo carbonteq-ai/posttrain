@@ -1,5 +1,7 @@
 # Run the matched LFM2.5 adaptive-GRPO and GDPO comparison
 
+**Superseded as the primary comparison on 2026-09-20.** The completed GRPO run and failed GDPO attempts below remain historical evidence, not a GDPO-versus-SAMPO result. The corrected objective and remaining work are in [the VORTEX/GDPO/SAMPO plan](lfm26-vortex-gdpo-sampo-comparison.md). Do not submit another job from this plan's old two-arm design.
+
 This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds. It follows `docs/templates/PLAN.md`.
 
 ## Purpose / Big Picture

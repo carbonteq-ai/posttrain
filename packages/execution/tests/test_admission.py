@@ -801,3 +801,81 @@ def test_terminal_snapshot_pruning_retains_compact_receipts(
     assert datetime.fromisoformat(archived["terminal_at"]).tzinfo is not None
     assert "plan" not in archived
     assert receipts[0].stat().st_mode & 0o777 == 0o600
+
+
+def test_settle_orphaned_releases_only_its_placement_and_never_pumps(request_factory, tmp_path) -> None:
+    from posttrain.execution import SETTLE_ADMISSION_KIND, AdmissionSettlePurgeExecutor, PurgeAction
+
+    providers = {"local-docker": FakeProvider("local-docker")}
+    admission = _admission(tmp_path, providers)
+    first = _on_worker(ExecutionPlan("local-docker", request_factory("first")), "worker-a.lan")
+    waiter = _on_worker(ExecutionPlan("local-docker", request_factory("waiter")), "worker-a.lan")
+    other = _on_worker(ExecutionPlan("local-docker", request_factory("other")), "worker-b.lan")
+    first_run_id = first.request.run_spec.run_id
+    admission.enqueue(first, evidence_source=None)
+    admission.enqueue(waiter, evidence_source=None)
+    admission.enqueue(other, evidence_source=None)
+    provider_id = f"local-docker-{first_run_id}"
+    providers["local-docker"].records[provider_id] = replace(
+        providers["local-docker"].records[provider_id], state="failed", native_state="exited"
+    )
+    admission.status(first_run_id)
+    entry = admission.get(first_run_id)
+    assert entry.state == "terminal_pending_evidence"
+    assert entry.admission_key == "host:worker-a.lan"
+    submitted_before = len(providers["local-docker"].submitted)
+
+    action = PurgeAction(
+        action_id=f"local:{first_run_id}:admission",
+        plane="local",
+        kind=SETTLE_ADMISSION_KIND,
+        target={
+            "run_id": first_run_id,
+            "admission_key": "host:worker-a.lan",
+            "provider": "local-docker",
+            "provider_id": None,
+            "note": "settled by orphan purge (abandoned-run)",
+        },
+    )
+    executor = AdmissionSettlePurgeExecutor(admission)
+    executor.revalidate(action)
+    executor.apply(action)
+
+    settled = admission.get(first_run_id)
+    assert settled.state == "completed"
+    assert settled.message == "settled by orphan purge (abandoned-run)"
+    # The freed placement is not pumped: a purge must not submit other work.
+    assert admission.get(waiter.request.run_spec.run_id).state == "waiting"
+    assert len(providers["local-docker"].submitted) == submitted_before
+    assert admission.get(other.request.run_spec.run_id).state == "submitted"
+    holders = {placement.key: placement.holder for placement in admission.placements()}
+    assert holders["host:worker-a.lan"] is None
+    assert holders["host:worker-b.lan"] == other.request.run_spec.run_id
+    # Idempotent on resume.
+    executor.revalidate(action)
+    executor.apply(action)
+    assert (
+        admission.settle_orphaned(first_run_id, admission_key="host:worker-a.lan", provider_id=None, note="x") is False
+    )
+
+
+def test_settle_orphaned_rejects_changed_or_unsettleable_entries(request_factory, tmp_path) -> None:
+    providers = {"local-docker": FakeProvider("local-docker")}
+    admission = _admission(tmp_path, providers)
+    plan = _on_worker(ExecutionPlan("local-docker", request_factory("live")), "worker-a.lan")
+    run_id = plan.request.run_spec.run_id
+    admission.enqueue(plan, evidence_source=None)
+
+    with pytest.raises(ContractError, match="only terminal_pending_evidence"):
+        admission.settle_orphaned(run_id, admission_key="host:worker-a.lan", provider_id=None, note="x")
+
+    provider_id = f"local-docker-{run_id}"
+    providers["local-docker"].records[provider_id] = replace(
+        providers["local-docker"].records[provider_id], state="failed", native_state="exited"
+    )
+    admission.status(run_id)
+    with pytest.raises(ContractError, match="placement changed"):
+        admission.settle_orphaned(run_id, admission_key="host:other.lan", provider_id=None, note="x")
+    with pytest.raises(ContractError, match="provider identity changed"):
+        admission.settle_orphaned(run_id, admission_key="host:worker-a.lan", provider_id="pt-other", note="x")
+    assert admission.get(run_id).state == "terminal_pending_evidence"

@@ -1,5 +1,25 @@
 # Trackio fork and maintenance
 
+The indexed group-facts release, `0.31.5.post14.dev25`, is pinned and deployed. It
+adds materialized `task_id` and `prompt_group_id` trace-fact dimensions and a
+`sum_squares` aggregate. Observatory uses those grouped moments to show exact
+prompt-group reward mean/std and the nearest older complete task-group
+observation without paging all native traces. The producer reads identities
+from recorded Verifiers info, never prompt text. Historical fact rows require
+an idempotent reprojection from their retained native traces; the live trainer
+still emits the prior projection until its process finishes, so reconcile the
+tail again after the run ends.
+
+Deployment used a fresh retained, restore-verified Doris backup, explicit
+v2-to-v3 schema migration, `BUILD INDEX idx_trace_run_id ON traces` and
+`BUILD INDEX idx_trace_prompt_group_id ON traces` for existing segments, and
+verification that both build jobs finished. A new isolated v3 database on the
+real Doris host passed a write/aggregate regression. Candidate and production
+databases were then backed up and migrated to v3; the public Trackio service
+now reports dev25. Historical projection backfill is checkpointed and may lag
+the live trainer's new writes until post-run reconciliation. Do not restart or
+modify the running training job.
+
 The platform uses [`carbonteq-ai/trackio`](https://github.com/carbonteq-ai/trackio),
 an additive fork of upstream Trackio. Workspace packages keep the normal
 `import trackio` API. The shared server at `https://trackio.carbonteq.com` runs

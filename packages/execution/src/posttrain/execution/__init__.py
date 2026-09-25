@@ -8,6 +8,7 @@ from .admission import (
     Placement,
     ProjectControlLocator,
 )
+from .admission_purge import SETTLE_ADMISSION_KIND, AdmissionSettlePurgeExecutor
 from .bundles import (
     ExecutionBundlePlan,
     build_bundle,
@@ -90,10 +91,17 @@ from .purge import (
     apply_purge_plan,
 )
 from .purge_planner import (
+    DEFAULT_ORPHAN_STALE_AFTER,
+    ORPHAN_TRACKING_RUN_BASIS,
+    OrphanAdmissionEntry,
+    OrphanProviderInventory,
+    OrphanTrackingRun,
     PurgeRunCandidate,
     PurgeRunCatalog,
+    build_orphan_run_purge_plan,
     build_project_purge_plan,
     build_run_purge_plan,
+    orphan_run_blockers,
 )
 from .receipts import ExecutionJournal, latest_runtime_image
 from .reconciliation import (
@@ -161,6 +169,8 @@ __all__ = [
     "ExecutionState",
     "LogCursor",
     "LogPage",
+    "AdmissionSettlePurgeExecutor",
+    "SETTLE_ADMISSION_KIND",
     "LocalStatePurgeExecutor",
     "JobExecutionService",
     "JOB_PACKAGE_MANIFEST_PATH",
@@ -183,8 +193,15 @@ __all__ = [
     "RegistryManifestDeletePlan",
     "RegistryManifestDeleteReceipt",
     "RegistryManifestRef",
+    "DEFAULT_ORPHAN_STALE_AFTER",
+    "ORPHAN_TRACKING_RUN_BASIS",
+    "OrphanAdmissionEntry",
+    "OrphanProviderInventory",
+    "OrphanTrackingRun",
     "PurgeRunCandidate",
     "PurgeRunCatalog",
+    "build_orphan_run_purge_plan",
+    "orphan_run_blockers",
     "build_run_purge_plan",
     "build_project_purge_plan",
     "compare_job_packages",

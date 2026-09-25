@@ -407,6 +407,28 @@ class DstackExecutionProvider:
         next_offset = offset + len(page)
         return LogPage(page, LogCursor(next_offset), next_offset < len(all_lines))
 
+    @property
+    def inventory_scope(self) -> str:
+        return f"dstack project {self._project!r}"
+
+    def active_executions_for_run(self, run_id: str) -> tuple[str, ...]:
+        """Return active dstack runs tagged with one posttrain run id.
+
+        Every posttrain dstack submission carries the ``posttrain_run_id``
+        tag, so this proves provider attribution without a submission receipt.
+        It raises when dstack cannot return a complete active-run inventory.
+        """
+
+        response = self._gateway.invoke("active_runs", {"project": self._project})
+        runs = response.get("runs")
+        if not isinstance(runs, list) or response.get("complete") is not True:
+            raise RuntimeError("dstack active-run inventory is incomplete")
+        return tuple(
+            f"dstack:{item.get('run_name')} ({item.get('status')})"
+            for item in runs
+            if isinstance(item, Mapping) and item.get("posttrain_run_id") == run_id
+        )
+
     def cancel(self, handle: ExecutionHandle) -> None:
         self._gateway.invoke(
             "cancel",

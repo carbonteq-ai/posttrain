@@ -225,6 +225,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{run_key}/rollout-time": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rollout Time */
+        get: operations["rollout_time_api_v1_runs__run_key__rollout_time_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{run_key}/semantic-summary": {
         parameters: {
             query?: never;
@@ -251,6 +268,40 @@ export interface paths {
         };
         /** System Metrics */
         get: operations["system_metrics_api_v1_runs__run_key__system_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_key}/trace-filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trace Filters */
+        get: operations["trace_filters_api_v1_runs__run_key__trace_filters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_key}/trace-group-rewards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trace Group Rewards */
+        get: operations["trace_group_rewards_api_v1_runs__run_key__trace_group_rewards_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -529,6 +580,57 @@ export interface components {
         CompareRequest: {
             /** Run Keys */
             run_keys: string[];
+        };
+        /**
+         * ConfigurationFinding
+         * @description One configuration finding, located against the run's recorded selections.
+         */
+        ConfigurationFinding: {
+            /** Code */
+            code: string;
+            /** Hint */
+            hint?: string | null;
+            /** Message */
+            message: string;
+            /** Path */
+            path: string;
+            /** @default [] */
+            related_paths: components["schemas"]["StringTuple"];
+            /** Role */
+            role: string;
+            severity: components["schemas"]["FindingSeverity"];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "rule" | "calculator";
+            value?: components["schemas"]["JsonPayload"];
+        };
+        /**
+         * ConfigurationReview
+         * @description Configuration rules and settings-calculator advice computed from the run's recorded selections.
+         *
+         *     Observatory computes the review itself, so it covers every run, including
+         *     runs recorded before the rules existed.
+         */
+        ConfigurationReview: {
+            /**
+             * Calculator
+             * @default available
+             * @enum {string}
+             */
+            calculator: "available" | "disabled";
+            calibration?: components["schemas"]["StepCalibration"] | null;
+            /**
+             * Findings
+             * @default []
+             */
+            findings: components["schemas"]["ConfigurationFinding"][];
+            /**
+             * Recommendations
+             * @default []
+             */
+            recommendations: components["schemas"]["SettingsRecommendation"][];
         };
         /**
          * EvaluationBreakdown
@@ -895,6 +997,7 @@ export interface components {
             /** Comparison Key */
             comparison_key: string;
             completeness: components["schemas"]["EvidenceCompleteness"];
+            configuration?: components["schemas"]["ConfigurationReview"] | null;
             evaluation: components["schemas"]["TraceEvaluationView"];
             /**
              * Execution Targets
@@ -1128,6 +1231,8 @@ export interface components {
             /** Work Package Id */
             work_package_id?: string | null;
         };
+        /** @enum {string} */
+        FindingSeverity: "error" | "warning" | "recommendation" | "info";
         /** GRPOAccelerationEvidence */
         GRPOAccelerationEvidence: {
             accepted_speculative_length: components["schemas"]["SummaryValue"];
@@ -1202,6 +1307,8 @@ export interface components {
             new_tasks: number;
             /** Refill Rounds */
             refill_rounds: number;
+            /** Retained Groups */
+            retained_groups?: number | null;
             /** Step */
             step: number;
             /** Unique Tasks */
@@ -1211,6 +1318,7 @@ export interface components {
         GenericRunView: {
             artifacts: components["schemas"]["ArtifactSet"];
             capabilities: components["schemas"]["TrackingCapabilities"];
+            configuration?: components["schemas"]["ConfigurationReview"] | null;
             /** Events */
             events: components["schemas"]["EventRecord"][];
             /**
@@ -1346,6 +1454,74 @@ export interface components {
             /** Series */
             series: components["schemas"]["MetricSeries"][];
         };
+        /** PromptGroupReward */
+        PromptGroupReward: {
+            current?: components["schemas"]["PromptGroupRewardStats"] | null;
+            /** Group Id */
+            group_id: string;
+            prior?: components["schemas"]["PromptGroupRewardStats"] | null;
+            /** Prior Rollouts */
+            prior_rollouts?: number | null;
+            /** Prior Step */
+            prior_step?: number | null;
+            /** Reward Coverage */
+            reward_coverage: number;
+            /** Rollouts */
+            rollouts: number;
+            /** Step */
+            step?: number | null;
+            /** Task Id */
+            task_id?: string | null;
+        };
+        /** PromptGroupRewardStats */
+        PromptGroupRewardStats: {
+            /** Mean */
+            mean: number;
+            /** Std */
+            std: number;
+        };
+        /**
+         * PromptGroupRewardView
+         * @description Bounded group aggregates from indexed, rebuildable trace facts.
+         */
+        PromptGroupRewardView: {
+            /** Expected Group Size */
+            expected_group_size?: number | null;
+            /** Fact Rows */
+            fact_rows: number;
+            /**
+             * Groups
+             * @default []
+             */
+            groups: components["schemas"]["PromptGroupReward"][];
+            /**
+             * Live
+             * @default false
+             */
+            live: boolean;
+            /** Recorded Traces */
+            recorded_traces: number;
+            /**
+             * State
+             * @default unavailable
+             * @enum {string}
+             */
+            state: "complete" | "partial" | "unavailable";
+        };
+        /** RecommendedSetting */
+        RecommendedSetting: {
+            /** Changed */
+            changed?: boolean | null;
+            current?: components["schemas"]["JsonPayload"];
+            /** Key */
+            key: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            suggested?: components["schemas"]["JsonPayload"];
+        };
         /**
          * RolloutBehaviorPoint
          * @description Trace-derived rollout averages for one optimizer step.
@@ -1393,6 +1569,57 @@ export interface components {
              * @default 0
              */
             unattributed: number;
+        };
+        /**
+         * RolloutTimeStep
+         * @description Summed rollout phase time for one optimizer step (None: facts not projected yet).
+         */
+        RolloutTimeStep: {
+            /** Elapsed Ms */
+            elapsed_ms?: number | null;
+            /** Inference Ms */
+            inference_ms?: number | null;
+            /** Rollout Ms */
+            rollout_ms?: number | null;
+            /** Rollouts */
+            rollouts: number;
+            /** Scoring Ms */
+            scoring_ms?: number | null;
+            /** Setup Ms */
+            setup_ms?: number | null;
+            /** Step */
+            step?: number | null;
+            /** Timed Rollouts */
+            timed_rollouts: number;
+            /** Tools Ms */
+            tools_ms?: number | null;
+        };
+        /**
+         * RolloutTimeView
+         * @description Where rollout time went across a run: GPU inference vs CPU harness work.
+         *
+         *     Inference sums model-call spans, which include queueing in the inference
+         *     server while other rollouts are served.
+         */
+        RolloutTimeView: {
+            /** Elapsed Ms */
+            elapsed_ms?: number | null;
+            /**
+             * Live
+             * @default false
+             */
+            live: boolean;
+            /**
+             * State
+             * @default unavailable
+             * @enum {string}
+             */
+            state: "available" | "unavailable";
+            /**
+             * Steps
+             * @default []
+             */
+            steps: components["schemas"]["RolloutTimeStep"][];
         };
         /** RunAlert */
         RunAlert: {
@@ -1454,6 +1681,7 @@ export interface components {
             /** Charts */
             charts: components["schemas"]["ChartView"][];
             completeness: components["schemas"]["EvidenceCompleteness"];
+            configuration?: components["schemas"]["ConfigurationReview"] | null;
             /**
              * Execution Targets
              * @default []
@@ -1555,6 +1783,7 @@ export interface components {
             alerts: components["schemas"]["RunAlert"][];
             artifacts: components["schemas"]["ArtifactSet"];
             capabilities: components["schemas"]["TrackingCapabilities"];
+            configuration?: components["schemas"]["ConfigurationReview"] | null;
             eligibility: components["schemas"]["ServingEligibility"];
             /** Execution Target Id */
             execution_target_id?: string | null;
@@ -1710,6 +1939,53 @@ export interface components {
             /** Unit */
             unit: string;
         };
+        /**
+         * SettingsRecommendation
+         * @description The settings calculator's answer for one inference seat of the run.
+         */
+        SettingsRecommendation: {
+            /** Binding Id */
+            binding_id?: string | null;
+            /** Decode Tokens Per S Upper Bound */
+            decode_tokens_per_s_upper_bound?: number | null;
+            /** Environment */
+            environment?: {
+                [key: string]: string;
+            };
+            /** Hardware */
+            hardware?: {
+                [key: string]: components["schemas"]["JsonPayload"];
+            };
+            /** Max Concurrency */
+            max_concurrency?: number | null;
+            /** Memory Gb */
+            memory_gb?: {
+                [key: string]: number;
+            };
+            /** Model */
+            model?: string | null;
+            /** @default [] */
+            notes: components["schemas"]["StringTuple"];
+            /** Role */
+            role: string;
+            /**
+             * Settings
+             * @default []
+             */
+            settings: components["schemas"]["RecommendedSetting"][];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "unavailable";
+            step?: components["schemas"]["StepCapacityView"] | null;
+            /** Task */
+            task?: {
+                [key: string]: components["schemas"]["JsonPayload"];
+            };
+            /** Unavailable Reason */
+            unavailable_reason?: string | null;
+        };
         /** SourceRefreshStatus */
         SourceRefreshStatus: {
             /** @default [] */
@@ -1730,6 +2006,76 @@ export interface components {
         };
         /** @enum {string} */
         Stage: "screen" | "train" | "qualify";
+        /**
+         * StepCalibration
+         * @description This run's measured per-step times, used to turn relative step times into seconds.
+         */
+        StepCalibration: {
+            /** Completion Tokens */
+            completion_tokens?: number | null;
+            /** Rollout Seconds */
+            rollout_seconds: number;
+            /**
+             * Rounds Per Step
+             * @default 1
+             */
+            rounds_per_step: number;
+            /** Step Seconds */
+            step_seconds?: number | null;
+            /** Steps */
+            steps: number;
+        };
+        /** StepCapacityView */
+        StepCapacityView: {
+            /** Extra Prompts Per Step */
+            extra_prompts_per_step: number;
+            /** Fits */
+            fits: number;
+            /** Margin Sequences */
+            margin_sequences: number;
+            /**
+             * Options
+             * @default []
+             */
+            options: components["schemas"]["StepOptionView"][];
+            /** Oversample Groups */
+            oversample_groups: number;
+            /** Reason */
+            reason: string;
+            /** Recommended In Flight */
+            recommended_in_flight: number;
+            /** Recommended Prompts Per Step */
+            recommended_prompts_per_step: number;
+            /** Step Sequences */
+            step_sequences: number;
+            /** Useful */
+            useful: number;
+            /** Waves */
+            waves: number;
+        };
+        /** StepOptionView */
+        StepOptionView: {
+            /** Estimated Relative Rows Per Second */
+            estimated_relative_rows_per_second?: number | null;
+            /** Estimated Rollout Seconds */
+            estimated_rollout_seconds?: number | null;
+            /** Estimated Step Seconds */
+            estimated_step_seconds?: number | null;
+            /** Label */
+            label: string;
+            /** Oversample Groups */
+            oversample_groups: number;
+            /** Prompts Per Step */
+            prompts_per_step: number;
+            /** Relative Rows Per Second */
+            relative_rows_per_second: number;
+            /** Relative Step Time */
+            relative_step_time: number;
+            /** Rows */
+            rows: number;
+            /** Waves */
+            waves: number;
+        };
         /** StoredArtifact */
         StoredArtifact: {
             /** Digest */
@@ -1896,6 +2242,36 @@ export interface components {
              */
             truncated: number;
         };
+        /**
+         * TraceFilterOptions
+         * @description Choices derived from the complete recorded trace population.
+         */
+        TraceFilterOptions: {
+            /**
+             * Outcomes
+             * @default []
+             */
+            outcomes: components["schemas"]["TraceOutcome"][];
+            /**
+             * Slices
+             * @default []
+             */
+            slices: components["schemas"]["TraceFilterSlice"][];
+            /**
+             * Steps
+             * @default []
+             */
+            steps: number[];
+            /** Total */
+            total: number;
+        };
+        /** TraceFilterSlice */
+        TraceFilterSlice: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
         /** @enum {string} */
         TraceOutcome: "pass" | "review" | "scored" | "error" | "truncated" | "unknown";
         /** TraceSummary */
@@ -1920,8 +2296,12 @@ export interface components {
             native_metrics?: {
                 [key: string]: number;
             };
+            /** Optimizer Step */
+            optimizer_step?: number | null;
             /** @default unknown */
             outcome: components["schemas"]["TraceOutcome"];
+            /** Prompt Group Id */
+            prompt_group_id?: string | null;
             /** Prompt Preview */
             prompt_preview?: string | null;
             /** Response Chars */
@@ -1945,6 +2325,7 @@ export interface components {
             thinking_chars?: number | null;
             /** Thinking Tokens */
             thinking_tokens?: number | null;
+            timing?: components["schemas"]["TraceTiming"] | null;
             /** Tokens */
             tokens?: number | null;
             /** Tool Calls */
@@ -1976,6 +2357,27 @@ export interface components {
             next_cursor?: string | null;
             /** Total */
             total: number;
+        };
+        /**
+         * TraceTiming
+         * @description Where a rollout's wall-clock time went: GPU inference vs CPU harness work.
+         *
+         *     ``inference_ms`` sums model-call spans, which include any queueing in the
+         *     inference server. ``tools_ms`` is harness time between and around calls.
+         */
+        TraceTiming: {
+            /** Inference Ms */
+            inference_ms: number;
+            /** Model Calls */
+            model_calls: number;
+            /** Scoring Ms */
+            scoring_ms: number;
+            /** Setup Ms */
+            setup_ms: number;
+            /** Tools Ms */
+            tools_ms: number;
+            /** Total Ms */
+            total_ms: number;
         };
         /** TrackingCapabilities */
         TrackingCapabilities: {
@@ -2461,6 +2863,37 @@ export interface operations {
             };
         };
     };
+    rollout_time_api_v1_runs__run_key__rollout_time_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolloutTimeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     semantic_summary_api_v1_runs__run_key__semantic_summary_post: {
         parameters: {
             query?: never;
@@ -2531,11 +2964,77 @@ export interface operations {
             };
         };
     };
+    trace_filters_api_v1_runs__run_key__trace_filters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TraceFilterOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trace_group_rewards_api_v1_runs__run_key__trace_group_rewards_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptGroupRewardView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     trace_summaries_api_v1_runs__run_key__traces_get: {
         parameters: {
             query?: {
                 cursor?: string | null;
                 limit?: number;
+                step?: number | null;
+                slice_key?: string | null;
+                outcome?: components["schemas"]["TraceOutcome"] | null;
+                search?: string | null;
             };
             header?: never;
             path: {

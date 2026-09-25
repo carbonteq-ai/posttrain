@@ -28,8 +28,10 @@ import {
 } from '@phosphor-icons/react';
 
 import { FilterPopover } from './components/FilterPopover';
+import { RolloutTimeline, RolloutTimeSummary } from './components/RolloutTime';
 import { PhaseMemoryTimeline } from './components/PhaseMemoryTimeline';
 import { SamplingDistribution, SamplingSummary } from './components/SamplingEvidence';
+import { ConfigPage, ConfigurationStrip } from './features/config/ConfigPage';
 import { ServingBenchmarkOverview } from './features/serving/ServingBenchmarkOverview';
 import { ServingCapacityWorkPackageView } from './features/serving/ServingCapacityWorkPackage';
 
@@ -41,6 +43,8 @@ import {
   type MetricCatalog,
   type MetricSeries,
   type MetricSeriesSet,
+  type PromptGroupRewardView,
+  type RolloutTimeView,
   type RolloutBehavior,
   type RunItem,
   type RunComparison,
@@ -51,13 +55,15 @@ import {
   type SystemMetrics,
   type TraceDetail,
   type TraceEvaluation,
+  type TraceFilterOptions,
+  type TraceFilters,
   type TraceSummary,
   type TraceSummaryPage,
   type WorkPackageView,
 } from './lib/api';
 import { tracePresentation, traceSignalColumns, traceSurfaceMode, type TracePresentation } from './lib/trace-presentation';
 
-const Transcript = lazy(async () => ({ default: (await import('./components/TranscriptMessage')).Transcript }));
+const RunTranscript = lazy(async () => ({ default: (await import('./components/RunTranscript')).RunTranscript }));
 
 const EvidenceChart = lazy(() =>
   import('./components/EvidenceChart').then((module) => ({ default: module.EvidenceChart })),
@@ -67,6 +73,9 @@ const EvaluationCharts = lazy(() =>
 );
 const TraceTable = lazy(() =>
   import('./components/TraceTable').then((module) => ({ default: module.TraceTable })),
+);
+const RolloutGroupTable = lazy(() =>
+  import('./components/RolloutGroupTable').then((module) => ({ default: module.RolloutGroupTable })),
 );
 
 type Section = 'Overview' | 'Metrics' | 'System metrics' | 'Traces & evaluation' | 'Artifacts & lineage' | 'Run config';
@@ -318,6 +327,12 @@ const selectionLabels: Record<string, string> = {
   execution_target: 'Execution target',
   settings: 'Optimization settings',
   training: 'Training binding',
+  rollout_inference: 'Rollout inference',
+  evaluation_inference: 'Evaluation inference',
+  judge_inference: 'Judge inference',
+  execution_targets: 'Execution targets',
+  project_brief: 'Project brief',
+  catalog: 'Catalog',
   job_definition: 'Job definition',
   work_package: 'Work package',
 };
@@ -1270,7 +1285,7 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="ml-[244px] min-w-0 overflow-x-hidden">
+      <main className="ml-[244px] min-w-0 overflow-x-clip">
         <header className="sticky top-0 z-20 flex h-[66px] items-center gap-4 border-b border-divider bg-panel/95 px-7 backdrop-blur">
           <Crumb label="Project" value={projectLabel(activeProject)} mobileGrow />
           <span className="hidden items-center gap-4 sm:contents">
@@ -1319,12 +1334,15 @@ export default function App() {
                   rolloutBehaviorLoading={rolloutBehaviorLoading}
                   onTraces={() => void openSection('Traces & evaluation')}
                   onCompare={() => { void openCompare(selected.run_key); }}
+                  onRunConfig={() => void openSection('Run config')}
                 />
           )}
           {section === 'Metrics' && <GenericMetrics runKey={selected.run_key} />}
           {section === 'System metrics' && <SystemView system={system} />}
           {section === 'Traces & evaluation' && (
             <TraceView
+              key={selected.run_key}
+              runKey={selected.run_key}
               response={response}
               jobKind={selected.run.job_kind}
               evaluation={evaluation}
@@ -1439,6 +1457,7 @@ type OverviewProps = {
   rolloutBehaviorLoading: boolean;
   onTraces: () => void;
   onCompare: () => void;
+  onRunConfig: () => void;
 };
 
 function Overview(props: OverviewProps) {
@@ -1520,7 +1539,7 @@ export function CapabilityBreakdown({ evaluation, onTraces }: { evaluation: Trac
   </section>;
 }
 
-function EvaluationOverview({ selected, response, evaluation, onTraces, onCompare }: OverviewProps & { evaluation: TraceEvaluation }) {
+function EvaluationOverview({ selected, response, evaluation, onTraces, onCompare, onRunConfig }: OverviewProps & { evaluation: TraceEvaluation }) {
   const view = response.view;
   const environment = selectionValue(view.resolved_inputs, 'environment');
   const model = selectionValue(view.resolved_inputs, 'model');
@@ -1593,6 +1612,7 @@ function EvaluationOverview({ selected, response, evaluation, onTraces, onCompar
       title={evaluation.metadata?.label ?? (environment?.id ? packageLabel(environment.id) : 'Evaluation overview')}
       subtitle={`${evaluation.metadata?.category ? `${evaluation.metadata.category} · ` : ''}A single-run verdict over the selected task population. Rollout traces remain supporting evidence, not the headline.`}
     />
+    <ConfigurationStrip review={response.view.configuration} onOpen={onRunConfig} />
     <section aria-label="Benchmark verdict" className="obs-card mt-5 overflow-hidden border-violet-200">
       <div className="flex items-center justify-end border-b border-divider px-4 py-3"><button type="button" onClick={onCompare} className="inline-flex items-center gap-1.5 rounded-[4px] border border-violet-300 bg-surface px-3 py-2 text-xs font-medium text-violet-800 hover:bg-violet-50">Compare this run <GitDiff size={14} /></button></div>
       <div className="grid lg:grid-cols-[minmax(250px,.9fr)_minmax(0,1.6fr)]">
@@ -1680,6 +1700,7 @@ function GenericOverview({
   rolloutBehavior,
   rolloutBehaviorLoading,
   onTraces,
+  onRunConfig,
 }: OverviewProps) {
   const view = response.view;
   const summary = view.summary ?? [];
@@ -1827,6 +1848,7 @@ function GenericOverview({
         <div><p className="type-eyebrow">{copy.eyebrow}</p><h1 className="type-page-title mt-1.5">{copy.title}</h1><p className="type-page-subtitle mt-2">{copy.question}</p>{jobDefinitionDescription && <p className="mt-2 max-w-3xl text-[10px] leading-4 text-muted"><code className="mr-2 text-violet-700">{jobDefinition?.id}</code>{jobDefinitionDescription}</p>}</div>
       </div>
       {response.fallback_reason && <div className="mt-5 flex items-center gap-2 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"><Warning size={16} weight="fill" />{response.fallback_reason}</div>}
+      <ConfigurationStrip review={view.configuration} onOpen={onRunConfig} />
       {healthAlerts.map((alert) => <div key={alert.id} className="obs-card mt-3 flex items-center gap-3 border-amber-200 bg-[#fffaf1] px-3 py-2 text-[11px]"><Warning size={16} weight="fill" className="text-amber-500" /><strong>Evidence warning</strong><span className="text-secondary">{alert.message}</span></div>)}
       {(isDpo || isGroupPolicy || isSampo || isDistill) && completeness && (
         <section aria-label={`${groupPolicyLabel ?? (isSampo ? 'SAMPO' : isDistill ? 'Distillation' : 'DPO')} evidence completeness`} className="obs-card mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 text-[11px]">
@@ -2149,6 +2171,7 @@ function SystemView({ system }: { system: SystemMetrics | null }) {
 }
 
 function TraceView({
+  runKey,
   response,
   jobKind,
   evaluation,
@@ -2159,6 +2182,7 @@ function TraceView({
   onLoadMore,
   onSelect,
 }: {
+  runKey: string;
   response: RunView;
   jobKind: string;
   evaluation: TraceEvaluation | null;
@@ -2170,12 +2194,121 @@ function TraceView({
   onSelect: (trace: TraceSummary) => Promise<void>;
 }) {
   const [slice, setSlice] = useState('all');
+  const [step, setStep] = useState('all');
   const [outcome, setOutcome] = useState('all');
   const [query, setQuery] = useState('');
+  const [filterOptions, setFilterOptions] = useState<TraceFilterOptions | null>(null);
+  const [filterOptionsError, setFilterOptionsError] = useState('');
+  const [groupRewards, setGroupRewards] = useState<PromptGroupRewardView | null>(null);
+  const [rolloutTime, setRolloutTime] = useState<RolloutTimeView | null>(null);
+  const [groupRewardError, setGroupRewardError] = useState('');
+  const [filteredPage, setFilteredPage] = useState<TraceSummaryPage | null>(null);
+  const [filterLoading, setFilterLoading] = useState(false);
+  const [filteredLoadingMore, setFilteredLoadingMore] = useState(false);
+  const filterGeneration = useRef(0);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'reward', desc: false }]);
+  const activeFilters = Number(slice !== 'all') + Number(step !== 'all') + Number(outcome !== 'all') + Number(Boolean(query.trim()));
+  const filters: TraceFilters = {
+    ...(step !== 'all' ? { step: Number(step) } : {}),
+    ...(slice !== 'all' ? { slice_key: slice } : {}),
+    ...(outcome !== 'all' ? { outcome: outcome as TraceSummary['outcome'] } : {}),
+    ...(query.trim() ? { search: query.trim() } : {}),
+  };
+  useEffect(() => {
+    let active = true;
+    void api.traceFilters(runKey).then((options) => {
+      if (active) setFilterOptions(options);
+    }).catch((cause: unknown) => {
+      if (active) setFilterOptionsError(cause instanceof Error ? cause.message : String(cause));
+    });
+    return () => { active = false; };
+  }, [runKey]);
+  useEffect(() => {
+    let active = true;
+    setGroupRewards(null);
+    setGroupRewardError('');
+    if (jobKind !== 'train.grpo') return () => { active = false; };
+    const refresh = () => {
+      void api.promptGroupRewards(runKey).then((result) => {
+        if (active) {
+          setGroupRewards(result);
+          setGroupRewardError('');
+        }
+      }).catch((cause: unknown) => {
+        if (active) {
+          setGroupRewards(null);
+          setGroupRewardError(cause instanceof Error ? cause.message : String(cause));
+        }
+      });
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 60_000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [runKey, jobKind]);
+  useEffect(() => {
+    let active = true;
+    setRolloutTime(null);
+    const refresh = () => {
+      void api.rolloutTime(runKey).then((result) => {
+        if (active) setRolloutTime(result);
+      }).catch(() => {
+        if (active) setRolloutTime(null);
+      });
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 60_000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [runKey]);
+  useEffect(() => {
+    filterGeneration.current += 1;
+    if (!activeFilters) {
+      setFilteredPage(null);
+      setFilterLoading(false);
+      return;
+    }
+    let active = true;
+    setFilterOptionsError('');
+    setFilteredPage(null);
+    setFilterLoading(true);
+    const timer = window.setTimeout(() => {
+      void api.tracePage(runKey, null, 100, filters).then((result) => {
+        if (active) setFilteredPage(result);
+      }).catch((cause: unknown) => {
+        if (active) setFilterOptionsError(cause instanceof Error ? cause.message : String(cause));
+      }).finally(() => {
+        if (active) setFilterLoading(false);
+      });
+    }, query.trim() ? 300 : 0);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [runKey, step, slice, outcome, query]);
+  const loadMoreFiltered = async () => {
+    if (!filteredPage?.next_cursor || filteredLoadingMore) return;
+    const generation = filterGeneration.current;
+    setFilteredLoadingMore(true);
+    try {
+      const next = await api.tracePage(runKey, filteredPage.next_cursor, 100, filters);
+      if (generation !== filterGeneration.current) return;
+      setFilteredPage((current) => current ? {
+        ...next,
+        items: [...current.items, ...next.items.filter((item) => !current.items.some((existing) => existing.external_id === item.external_id))],
+      } : next);
+    } catch (cause) {
+      if (generation === filterGeneration.current) setFilterOptionsError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setFilteredLoadingMore(false);
+    }
+  };
   const presentation = useMemo(() => tracePresentation(jobKind, evaluation), [evaluation, jobKind]);
   const distillation = useMemo(() => distillationPairing(response), [response]);
-  const pageTraces = page?.items ?? [];
+  const visiblePage = activeFilters ? filteredPage : page;
+  const pageTraces = visiblePage?.items ?? [];
+  const canGroupRollouts = jobKind === 'train.grpo' && Boolean(page?.items.some((trace) => trace.prompt_group_id));
+  const inspectorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (canGroupRollouts && detail) inspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [canGroupRollouts, detail?.summary.external_id]);
+  const groupSizeValue = nestedValue(selectionValue(response.view.resolved_inputs, 'settings'), 'num_generations');
+  const expectedGroupSize = typeof groupSizeValue === 'number' && Number.isInteger(groupSizeValue) && groupSizeValue > 0 ? groupSizeValue : null;
   const metricColumns = useMemo(() => {
     if (evaluation) return traceSignalColumns(evaluation);
     const names = [...new Set(pageTraces.flatMap((trace) => Object.keys(trace.reward_components)))].slice(0, 8);
@@ -2184,27 +2317,16 @@ function TraceView({
       label: name.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()),
     }));
   }, [evaluation, pageTraces]);
-  const traces = useMemo(() => pageTraces.filter((trace) => {
-    const matchesTask = trace.task === slice;
-    const matchesFacet = slice.startsWith('facet:') && Boolean(trace.task_metadata?.facets.some((facet) => facet.key === slice.slice('facet:'.length)));
-    return (slice === 'all' || matchesTask || matchesFacet)
-      && (outcome === 'all' || trace.outcome === outcome)
-      && (!query || `${trace.external_id} ${trace.task} ${trace.task_label ?? ''}`.toLowerCase().includes(query.toLowerCase()));
-  }), [outcome, pageTraces, query, slice]);
+  const traces = pageTraces;
   if (!page) return <EmptyState title="Loading trace summaries" body="Fetching the first bounded page without loading transcript bodies." />;
   if (!total && !page.items.length) return <EmptyState title="No traces were captured" body="This job has run-level evidence only. Trace-derived evaluation and example-level investigation are unavailable." />;
-  const activeFilters = Number(slice !== 'all') + Number(outcome !== 'all') + Number(Boolean(query));
-  const pageSlices = [...new Map(pageTraces.flatMap((trace) => trace.task
-    ? [[trace.task, trace.task_label ?? trace.task] as const]
-    : [])).entries()];
-  const filterOptions = [
+  const stepOptions = [
     { value: 'all', label: 'Any' },
-    ...(evaluation?.slices.map((item) => ({ value: item.key, label: item.label }))
-      ?? pageSlices.map(([value, label]) => ({ value, label }))),
-    ...(evaluation?.facets ?? []).map((item) => ({
-      value: `facet:${item.key}`,
-      label: `${item.label} · ${item.dimension_label}`,
-    })),
+    ...(filterOptions?.steps ?? []).map((value) => ({ value: String(value), label: String(value) })),
+  ];
+  const sliceOptions = [
+    { value: 'all', label: 'Any' },
+    ...(filterOptions?.slices ?? []).map((item) => ({ value: item.key, label: item.label })),
   ];
   const hasRewardEvidence = evaluation?.mean_reward != null || pageTraces.some((trace) => trace.reward != null);
   const summaryItems = evaluation ? [
@@ -2222,13 +2344,13 @@ function TraceView({
     { label: 'Truncated', value: evaluation.truncated, note: 'Output boundary reached' },
     { label: 'Trace sync', value: evaluation.state, note: `${evaluation.scanned}/${evaluation.expected ?? evaluation.included} observed` },
   ] : [
-    { label: presentation.mode === 'optimization' ? 'Recorded rollouts' : 'Recorded traces', value: total, note: 'Provider count' },
+    { label: activeFilters ? 'Matching traces' : presentation.mode === 'optimization' ? 'Recorded rollouts' : 'Recorded traces', value: activeFilters ? (visiblePage?.total ?? '…') : total, note: activeFilters ? 'Full-run filter query' : 'Provider count' },
     { label: 'Loaded summaries', value: pageTraces.length, note: 'Paged rows without transcripts' },
     ...(hasRewardEvidence ? [{ label: 'Rewarded in page', value: pageTraces.filter((trace) => trace.reward != null).length, note: `${pageTraces.length} loaded` }] : []),
     { label: 'Errors in page', value: pageTraces.filter((trace) => trace.error != null).length, note: 'Loaded summaries only' },
     { label: 'Truncated in page', value: pageTraces.filter((trace) => trace.truncated).length, note: 'Loaded summaries only' },
   ];
-  const observedOutcomes = new Set(pageTraces.map((trace) => trace.outcome));
+  const observedOutcomes = new Set(filterOptions?.outcomes ?? []);
   const outcomeOptions = [
     { value: 'all', label: 'Any' },
     ...(['pass', 'review', 'scored', 'error', 'truncated', 'unknown'] as const)
@@ -2249,22 +2371,27 @@ function TraceView({
     )}
     <div className="obs-card mt-3 flex flex-wrap items-center gap-2 px-2.5 py-2 text-xs">
       <SlidersHorizontal size={15} className="mx-0.5 text-muted" />
-      <FilterPopover label={evaluation?.facets.length ? 'Slice / facet' : 'Slice'} value={slice} onChange={setSlice} options={filterOptions} />
+      {presentation.mode === 'optimization' && <FilterPopover label="Step" value={step} onChange={setStep} options={stepOptions} />}
+      <FilterPopover label={evaluation?.facets.length ? 'Slice / facet' : 'Slice'} value={slice} onChange={setSlice} options={sliceOptions} />
       <FilterPopover label={presentation.outcomeHeading} value={outcome} onChange={setOutcome} options={outcomeOptions} />
-      {activeFilters > 0 && <button type="button" onClick={() => { setSlice('all'); setOutcome('all'); setQuery(''); }} className="inline-flex h-8 items-center gap-1 px-2 text-[11px] text-violet-700 hover:text-violet-900"><X size={12} /> Clear {activeFilters}</button>}
+      {activeFilters > 0 && <button type="button" onClick={() => { setStep('all'); setSlice('all'); setOutcome('all'); setQuery(''); }} className="inline-flex h-8 items-center gap-1 px-2 text-[11px] text-violet-700 hover:text-violet-900"><X size={12} /> Clear {activeFilters}</button>}
       <label className="obs-control ml-auto flex h-8 min-w-[250px] items-center gap-2 px-2.5 focus-within:border-violet-400"><MagnifyingGlass size={13} /><input aria-label="Search traces" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tasks, prompts, IDs…" className="w-full bg-transparent outline-none" /></label>
     </div>
+    {filterOptionsError && <p role="alert" className="mt-2 text-xs text-rose-700">Run-wide trace query failed: {filterOptionsError}</p>}
     {evaluation && hasRewardEvidence ? <div className="mt-3"><Suspense fallback={<ChartFallback height={230} />}><EvaluationCharts evaluation={evaluation} traces={pageTraces} presentation={presentation} /></Suspense></div> : <section className="obs-card mt-3 px-4 py-3" aria-label="Trace evidence semantics"><h2 className="text-[13px] font-medium">Paged request evidence</h2><p className="mt-1 text-xs leading-5 text-muted">Aggregate learning signals remain on Overview. This tab loads summary rows in bounded pages; selecting one row fetches its complete transcript and verifier evidence.</p></section>}
-    <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_410px]">
-      <div>
-        <Suspense fallback={<ChartFallback height={430} />}><TraceTable traces={traces} total={total} hasMore={page.next_cursor != null} loadingMore={loadingMore} onLoadMore={onLoadMore} selectedId={detail?.summary.external_id ?? null} metricColumns={metricColumns} presentation={presentation} sorting={sorting} onSortingChange={setSorting} onSelect={(trace) => void onSelect(trace)} distillation={distillation} /></Suspense>
+    <div className={canGroupRollouts ? 'mt-3 space-y-3' : 'mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_410px]'}>
+      <div className="space-y-3">
+        {!filterLoading && <RolloutTimeSummary view={rolloutTime} />}
+        {filterLoading ? <EmptyState title="Filtering the full run" body="Reading matching trace summaries across the recorded population." /> : <Suspense fallback={<ChartFallback height={430} />}>{canGroupRollouts
+          ? <RolloutGroupTable traces={traces} allLoadedTraces={pageTraces} total={visiblePage?.total ?? total} filtered={activeFilters > 0} expectedSize={expectedGroupSize} rewards={groupRewards} rewardError={groupRewardError} metricColumns={metricColumns} selectedId={detail?.summary.external_id ?? null} hasMore={visiblePage?.next_cursor != null} loadingMore={activeFilters ? filteredLoadingMore : loadingMore} onLoadMore={activeFilters ? () => void loadMoreFiltered() : onLoadMore} onSelect={(trace) => void onSelect(trace)} />
+          : <TraceTable traces={traces} total={visiblePage?.total ?? total} hasMore={visiblePage?.next_cursor != null} loadingMore={activeFilters ? filteredLoadingMore : loadingMore} onLoadMore={activeFilters ? () => void loadMoreFiltered() : onLoadMore} selectedId={detail?.summary.external_id ?? null} metricColumns={metricColumns} presentation={presentation} sorting={sorting} onSortingChange={setSorting} onSelect={(trace) => void onSelect(trace)} distillation={distillation} />}</Suspense>}
       </div>
-      <TraceInspector
+      {(!canGroupRollouts || detail) && <div ref={inspectorRef}><TraceInspector
         detail={detail}
         presentation={presentation}
         metricColumns={metricColumns}
         successMetric={evaluation?.metadata?.pass_rate_metric ?? null}
-      />
+      /></div>}
     </div>
   </>;
 }
@@ -2288,7 +2415,7 @@ function TraceInspector({
       ?? detail.summary.metrics[metric.name];
     return value == null ? [] : [{ ...metric, value }];
   });
-  return <aside className="obs-card self-start overflow-hidden">
+  return <aside className="obs-card self-start overflow-clip">
     <div className="border-b border-divider p-4">
       <p className="type-label">SELECTED {presentation.mode === 'optimization' ? 'ROLLOUT' : 'TRACE'}</p>
       <h2 className="mt-1 truncate text-sm font-medium" title={detail.summary.task ?? undefined}>{detail.summary.task_label ?? detail.summary.task ?? (presentation.mode === 'generic' ? 'Request' : 'Unspecified task')}</h2>
@@ -2301,6 +2428,7 @@ function TraceInspector({
         <span className="rounded-full bg-subtle px-2 py-1">{detail.summary.tool_calls == null ? '—' : `${detail.summary.tool_calls} tools`}</span>
       </div>
     </div>
+    {detail.timeline && <RolloutTimeline timeline={detail.timeline} />}
     {(detail.summary.reward != null || detail.reward_components.length > 0) && <section className="border-b border-divider p-4" aria-labelledby="reward-components-heading">
       <div className="flex items-center justify-between gap-3"><h3 id="reward-components-heading" className="type-label">Reward components</h3><span className="text-[10px] text-muted">{detail.reward_components.length ? `${detail.reward_components.length} signals` : 'Not exposed'}</span></div>
       {detail.reward_components.length ? <div className="mt-3 space-y-2.5">{detail.reward_components.map((item) => {
@@ -2334,9 +2462,9 @@ function TraceInspector({
         </div>)}
       </div>
     </section>}
-    <div className="max-h-[600px] overflow-auto p-4">
+    <div className="p-4">
       <h3 className="type-label">Rollout transcript</h3>
-      <Suspense fallback={<p className="mt-3 text-xs text-muted">Formatting transcript…</p>}><Transcript messages={detail.transcript} /></Suspense>
+      <Suspense fallback={<p className="mt-3 text-xs text-muted">Formatting transcript…</p>}><RunTranscript messages={detail.transcript} timeline={detail.timeline} /></Suspense>
       <details className="mt-5 border-t border-divider pt-3"><summary className="cursor-pointer text-[10px] font-medium uppercase tracking-[.1em] text-muted">Trace metadata</summary><pre className="mt-2 overflow-auto rounded-[4px] bg-subtle p-3 text-[11px] leading-4">{JSON.stringify(detail.attributes, null, 2)}</pre></details>
     </div>
   </aside>;
@@ -2513,66 +2641,23 @@ function ConfigFields({ value, depth = 0 }: { value: Record<string, unknown>; de
   </div>;
 }
 
-function ConfigSelectionCard({ name, value }: { name: string; value: ConfigEntryValue }) {
-  const label = selectionLabels[name] ?? humanizeKey(name);
-  const wide = name === 'training' || name === 'work_package';
-  return <article aria-label={`${label} selection`} className={`obs-card min-w-0 overflow-hidden ${wide ? 'lg:col-span-2' : ''}`}>
-    <header className="border-b border-divider bg-subtle/50 px-4 py-3">
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0"><p className="type-label">{label}</p><code title={value.id} className="mt-1.5 block truncate font-mono text-[11px] font-medium text-ink">{value.id}</code></div>
-        <Stack size={17} className="shrink-0 text-violet-700" aria-hidden="true" />
-      </div>
-      {(value.revision || value.sourceLayer || value.overlayId) && <div className="mt-2 flex flex-wrap gap-1.5 text-[9px] text-muted">
-        {value.revision && <span title={value.revision} className="rounded border border-divider bg-surface px-1.5 py-0.5">revision {value.revision.length > 16 ? `${value.revision.slice(0, 12)}…` : value.revision}</span>}
-        {value.sourceLayer && <span className="rounded border border-divider bg-surface px-1.5 py-0.5">{value.sourceLayer}</span>}
-        {value.overlayId && <span title={value.overlayId} className="rounded border border-divider bg-surface px-1.5 py-0.5">overlay {value.overlayId}</span>}
-      </div>}
-    </header>
-    <dl className="bg-divider"><ConfigFields value={value.detail} /></dl>
-  </article>;
-}
-
-function ConfigGroup({ definition, inputs }: { definition: ConfigGroupDefinition; inputs: Record<string, unknown> }) {
-  const entries = definition.keys.flatMap((key) => {
-    const value = configEntry(inputs, key);
-    return value ? [{ key, value }] : [];
-  });
-  if (!entries.length) return null;
-  return <section aria-labelledby={`config-group-${definition.title.replaceAll(' ', '-').toLowerCase()}`}>
-    <div className="mb-3 max-w-3xl">
-      <h2 id={`config-group-${definition.title.replaceAll(' ', '-').toLowerCase()}`} className="font-serif text-xl font-normal text-ink">{definition.title}</h2>
-      <p className="mt-1 text-xs leading-5 text-muted">{definition.description}</p>
-    </div>
-    <div className="grid items-start gap-3 lg:grid-cols-2">{entries.map((entry) => <ConfigSelectionCard key={entry.key} name={entry.key} value={entry.value} />)}</div>
-  </section>;
-}
-
 function ConfigView({ response }: { response: RunView }) {
   const inputs = response.view.resolved_inputs ?? {};
   const source = response.view.source_metadata ?? {};
   const run = response.view.run;
-  const groups = configGroups(run.job_kind, inputs);
-  const raw = { selections: inputs, source_metadata: source };
-  return <>
-    <PageHeading eyebrow="REPRODUCIBLE INPUTS" title="Run configuration" subtitle="Resolved selections are organized by this job’s schema. Values remain server-redacted and provider-neutral." />
-    <section aria-label="Run contract" className="obs-card mt-5 grid overflow-hidden sm:grid-cols-2 xl:grid-cols-4">
-      {[
-        ['Job kind', run.job_kind],
-        ['Job definition', run.job_definition_version],
-        ['Stage', run.stage],
-        ['View schema', `v${response.view.schema_version ?? 1}`],
-      ].map(([label, value]) => <div key={label} className="min-w-0 border-b border-r border-divider px-4 py-3"><span className="type-label">{label}</span><code title={value} className="mt-1.5 block truncate font-mono text-[10px] text-ink">{value}</code></div>)}
-    </section>
-    {Object.keys(inputs).length ? <div className="mt-7 space-y-8">{groups.map((group) => <ConfigGroup key={group.title} definition={group} inputs={inputs} />)}</div> : <div className="mt-6"><EmptyState title="No resolved selections" body="This run did not expose a redacted configuration projection. Its identity and recorded source provenance remain available below." /></div>}
-    {Object.keys(source).length > 0 && <section aria-labelledby="source-provenance" className="mt-8">
-      <div className="mb-3"><h2 id="source-provenance" className="font-serif text-xl font-normal text-ink">Source provenance</h2><p className="mt-1 text-xs leading-5 text-muted">The code revision and working-tree state recorded when the run started.</p></div>
-      <div className="obs-card overflow-hidden"><dl><ConfigFields value={source} /></dl></div>
-    </section>}
-    <details className="obs-card mt-8 overflow-hidden">
-      <summary className="cursor-pointer select-none px-4 py-3 text-[11px] font-medium text-secondary hover:bg-subtle">View redacted JSON</summary>
-      <pre className="max-h-[520px] overflow-auto border-t border-divider bg-subtle p-4 font-mono text-[10px] leading-5 text-secondary">{JSON.stringify(raw, null, 2)}</pre>
-    </details>
-  </>;
+  return <ConfigPage
+    jobKind={run.job_kind}
+    jobDefinition={run.job_definition_version}
+    stage={run.stage}
+    schemaVersion={response.view.schema_version ?? 1}
+    inputs={inputs}
+    source={source}
+    review={response.view.configuration}
+    groups={configGroups(run.job_kind, inputs)}
+    labels={selectionLabels}
+    heading={<PageHeading eyebrow="REPRODUCIBLE INPUTS" title="Run configuration" subtitle="The selections this run recorded, reviewed against measured defaults, reference recipes and the settings calculator." />}
+    sourceFields={<div className="obs-card overflow-hidden"><dl><ConfigFields value={source} /></dl></div>}
+  />;
 }
 
 function PageHeading({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle: string }) {

@@ -72,6 +72,16 @@ def test_run_list_view_metrics_semantics_and_traces_share_one_api() -> None:
         assert first_page["total"] == 12
         assert len(first_page["items"]) == 3
         assert first_page["next_cursor"] == "3"
+        filters = client.get(f"/api/v1/runs/{evaluation['run_key']}/trace-filters").json()
+        assert filters["total"] == 12
+        assert filters["slices"]
+        selected_slice = next(item["key"] for item in filters["slices"] if not item["key"].startswith("facet:"))
+        filtered = client.get(
+            f"/api/v1/runs/{evaluation['run_key']}/traces",
+            params={"slice_key": selected_slice, "limit": 3},
+        ).json()
+        assert filtered["total"] > 0
+        assert all(item["task"] == selected_slice for item in filtered["items"])
 
 
 def test_openapi_contains_bounded_product_routes() -> None:
@@ -84,6 +94,8 @@ def test_openapi_contains_bounded_product_routes() -> None:
     assert "/api/v1/runs/{run_key}/traces-evaluation" in schema["paths"]
     assert "/api/v1/runs/{run_key}/rollout-behavior" in schema["paths"]
     assert "/api/v1/runs/{run_key}/traces" in schema["paths"]
+    assert "/api/v1/runs/{run_key}/trace-filters" in schema["paths"]
+    assert "/api/v1/runs/{run_key}/trace-group-rewards" in schema["paths"]
     assert "/api/v1/runs/{run_key}/comparison-key" in schema["paths"]
     assert "/api/v1/serving-capacity/work-packages/{work_package_id}" in schema["paths"]
     assert set(schema["paths"]["/api/v1/sources/refresh"]) == {"post"}

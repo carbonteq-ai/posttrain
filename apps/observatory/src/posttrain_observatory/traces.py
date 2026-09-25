@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Mapping
@@ -11,7 +12,14 @@ from statistics import fmean
 from typing import Any, Literal, cast
 
 from posttrain.common import JsonValue
-from posttrain.tracking import RunDataSource, TraceFactAggregate, TraceFactsQuery, TraceQuery, TraceRecord
+from posttrain.tracking import (
+    RunDataSource,
+    TraceAggregateResult,
+    TraceFactAggregate,
+    TraceFactsQuery,
+    TraceQuery,
+    TraceRecord,
+)
 
 from .evaluation_measurement import measure_evaluation
 from .models import (
@@ -31,6 +39,9 @@ from .models import (
     EvaluationMetricDefinition,
     EvaluationPerformance,
     EvaluationSlice,
+    PromptGroupReward,
+    PromptGroupRewardStats,
+    PromptGroupRewardView,
     RewardComponent,
     RolloutBehaviorPoint,
     RolloutBehaviorView,
@@ -38,11 +49,15 @@ from .models import (
     TaskSliceMetadata,
     TraceDetail,
     TraceEvaluationView,
+    TraceFilterOptions,
+    TraceFilterSlice,
     TraceOutcome,
     TraceSummary,
     TraceSummaryPage,
+    TraceTiming,
 )
 from .redaction import RedactionPolicy
+from .timeline import trace_timeline
 
 _TRUNCATED_STOP_CONDITIONS = frozenset(
     {
@@ -992,6 +1007,7 @@ def _summary(record: TraceRecord, evaluation_metadata: EvaluationMetadata | None
     task = _wire_task(payload, metadata, info)
     response_tokens, response_chars, thinking_tokens, thinking_chars = _wire_text_stats(payload, record.attributes)
     input_tokens, completion_tokens = _wire_usage(payload)
+    timeline = trace_timeline(payload)
     if response_tokens is None and completion_tokens is not None and thinking_tokens is not None:
         response_tokens = max(0, completion_tokens - thinking_tokens)
     explicit_tokens = _integer(payload.get("tokens"))
@@ -1001,9 +1017,17 @@ def _summary(record: TraceRecord, evaluation_metadata: EvaluationMetadata | None
         info.get("task"),
         evaluation_metadata.facet_specs if evaluation_metadata is not None else (),
     )
+    optimizer_step = _integer(record.attributes.get("optimizer_step"))
+    if optimizer_step is None:
+        posttrain_run = info.get("posttrain_run")
+        if isinstance(posttrain_run, Mapping):
+            optimizer_step = _integer(posttrain_run.get("step"))
+    prompt_group_id = info.get("posttrain_prompt_group_id")
     return TraceSummary(
         external_id=record.external_id,
         trace_type=record.trace_type,
+        optimizer_step=optimizer_step if optimizer_step and optimizer_step > 0 else None,
+        prompt_group_id=prompt_group_id if isinstance(prompt_group_id, str) and prompt_group_id else None,
         prompt_preview=_wire_prompt_preview(payload),
         task=task,
         task_label=task_metadata.label if task_metadata is not None else None,
@@ -1023,6 +1047,7 @@ def _summary(record: TraceRecord, evaluation_metadata: EvaluationMetadata | None
         response_chars=response_chars,
         thinking_tokens=thinking_tokens,
         thinking_chars=thinking_chars,
+        timing=TraceTiming.model_validate(timeline.model_dump(exclude={"segments"})) if timeline else None,
         reward_components=_wire_reward_components(payload),
         native_metrics=_wire_numeric_container(payload, "metrics"),
         metrics=_wire_metrics(payload),
@@ -1114,6 +1139,7 @@ def project_trace(record: TraceRecord, redaction: RedactionPolicy) -> TraceDetai
             transcript.append(entry)
     return TraceDetail(
         summary=_summary(record),
+        timeline=trace_timeline(record.payload),
         reward_components=components,
         transcript=tuple(transcript),
         attributes=redaction.mapping(record.attributes),
@@ -1349,13 +1375,19 @@ async def trace_summary_page(
     cursor: str | None = None,
     limit: int = 100,
     trace_type: str = "verifiers",
+    newest_first: bool = False,
     metadata: EvaluationMetadata | None = None,
 ) -> TraceSummaryPage:
     """Project one provider-bounded trace page without population aggregation."""
 
     page = await source.traces(
         run_id,
-        TraceQuery(trace_type=trace_type, cursor=cursor, limit=limit),
+        TraceQuery(
+            trace_type=trace_type,
+            cursor=cursor,
+            limit=limit,
+            order="newest_first" if newest_first else "oldest_first",
+        ),
     )
     summaries = tuple(_apply_evaluation_semantics(_summary(record, metadata), metadata) for record in page.items)
     return TraceSummaryPage(
@@ -1363,6 +1395,189 @@ async def trace_summary_page(
         next_cursor=page.next_cursor,
         total=total,
         live=page.live,
+    )
+
+
+async def trace_summary_population(
+    source: RunDataSource,
+    run_id: str,
+    *,
+    trace_type: str,
+    newest_first: bool,
+    metadata: EvaluationMetadata | None,
+) -> tuple[tuple[TraceSummary, ...], bool]:
+    """Read the whole summary population for exact run-wide filters."""
+
+    summaries: list[TraceSummary] = []
+    seen: set[str] = set()
+    cursor: str | None = None
+    live = False
+    while True:
+        page = await source.traces(
+            run_id,
+            TraceQuery(
+                trace_type=trace_type,
+                cursor=cursor,
+                limit=1000,
+                order="newest_first" if newest_first else "oldest_first",
+            ),
+        )
+        live = live or page.live
+        for record in page.items:
+            if record.external_id in seen:
+                continue
+            seen.add(record.external_id)
+            summaries.append(_apply_evaluation_semantics(_summary(record, metadata), metadata))
+        if page.next_cursor is None:
+            break
+        if page.next_cursor == cursor:
+            raise ValueError("trace provider did not advance its cursor")
+        cursor = page.next_cursor
+    return tuple(summaries), live
+
+
+def prompt_group_reward_view(
+    result: TraceAggregateResult, *, expected_size: int | None, recorded_traces: int, live: bool
+) -> PromptGroupRewardView:
+    """Interpret indexed fact buckets without loading native trace rows."""
+
+    if result.state != "available":
+        return PromptGroupRewardView(
+            expected_group_size=expected_size, fact_rows=0, recorded_traces=recorded_traces, live=live,
+        )
+    fact_rows = sum(bucket.trace_count for bucket in result.buckets)
+    by_id: dict[str, list[tuple[int | None, str | None, int, int, PromptGroupRewardStats | None]]] = defaultdict(list)
+    for bucket in result.buckets:
+        group_id = bucket.dimensions.get("prompt_group_id")
+        if not isinstance(group_id, str) or not group_id:
+            continue
+        step = _integer(bucket.dimensions.get("rollout_step"))
+        task = bucket.dimensions.get("task_id")
+        task_id = task if isinstance(task, str) and task else None
+        coverage = bucket.coverage.get("sum_task_reward", 0)
+        reward_sum = _number(bucket.values.get("sum_task_reward"))
+        reward_squares = _number(bucket.values.get("sum_squares_task_reward"))
+        current = None
+        if (
+            expected_size is not None
+            and bucket.trace_count == expected_size
+            and coverage == expected_size
+            and bucket.coverage.get("sum_squares_task_reward") == expected_size
+            and reward_sum is not None and reward_squares is not None
+        ):
+            mean = reward_sum / expected_size
+            variance = reward_squares / expected_size - mean * mean
+            if variance >= -1e-10:
+                current = PromptGroupRewardStats(mean=mean, std=math.sqrt(max(0.0, variance)))
+        by_id[group_id].append((step, task_id, bucket.trace_count, coverage, current))
+
+    prepared = [
+        (group_id, *entries[0])
+        for group_id, entries in by_id.items()
+        if len(entries) == 1
+    ]
+    prepared.sort(key=lambda item: (item[1] is None, item[1] or 0, item[0]))
+    latest_by_task: dict[str, tuple[int, PromptGroupRewardStats, int]] = {}
+    groups: list[PromptGroupReward] = []
+    steps = sorted({step for _, step, _, _, _, _ in prepared if step is not None})
+    for step in steps:
+        at_step = [item for item in prepared if item[1] == step]
+        for group_id, _, task_id, count, coverage, current in at_step:
+            prior = latest_by_task.get(task_id) if task_id else None
+            groups.append(PromptGroupReward(
+                group_id=group_id, step=step, task_id=task_id, rollouts=count,
+                reward_coverage=coverage, current=current, prior=prior[1] if prior else None,
+                prior_step=prior[0] if prior else None, prior_rollouts=prior[2] if prior else None,
+            ))
+        combined: dict[str, tuple[int, float, float]] = {}
+        for _, _, task_id, count, _, current in at_step:
+            if task_id and current:
+                prior_count, prior_sum, prior_squares = combined.get(task_id, (0, 0.0, 0.0))
+                combined[task_id] = (
+                    prior_count + count,
+                    prior_sum + count * current.mean,
+                    prior_squares + count * (current.std * current.std + current.mean * current.mean),
+                )
+        for task_id, (count, reward_sum, reward_squares) in combined.items():
+            mean = reward_sum / count
+            variance = reward_squares / count - mean * mean
+            latest_by_task[task_id] = (step, PromptGroupRewardStats(mean=mean, std=math.sqrt(max(0.0, variance))), count)
+    for group_id, step, task_id, count, coverage, current in prepared:
+        if step is None:
+            groups.append(PromptGroupReward(
+                group_id=group_id, task_id=task_id, rollouts=count,
+                reward_coverage=coverage, current=current,
+            ))
+    complete = (
+        bool(groups) and expected_size is not None and fact_rows == recorded_traces
+        and sum(group.rollouts for group in groups) == fact_rows
+        and all(group.step is not None and group.task_id is not None and group.current is not None for group in groups)
+        and not any(len(entries) > 1 for entries in by_id.values())
+    )
+    return PromptGroupRewardView(
+        state="complete" if complete else ("partial" if groups else "unavailable"),
+        groups=tuple(groups), expected_group_size=expected_size,
+        fact_rows=fact_rows, recorded_traces=recorded_traces, live=live,
+    )
+
+
+def trace_filter_options(summaries: tuple[TraceSummary, ...]) -> TraceFilterOptions:
+    slices: dict[str, str] = {}
+    outcomes: set[TraceOutcome] = set()
+    for item in summaries:
+        if item.task:
+            slices.setdefault(item.task, item.task_label or item.task)
+        if item.task_metadata:
+            for facet in item.task_metadata.facets:
+                slices.setdefault(f"facet:{facet.key}", f"{facet.label} · {facet.dimension_label}")
+        outcomes.add(item.outcome)
+    return TraceFilterOptions(
+        total=len(summaries),
+        steps=tuple(sorted({item.optimizer_step for item in summaries if item.optimizer_step is not None})),
+        slices=tuple(TraceFilterSlice(key=key, label=label) for key, label in sorted(slices.items())),
+        outcomes=tuple(sorted(outcomes)),
+    )
+
+
+def filtered_trace_summary_page(
+    summaries: tuple[TraceSummary, ...],
+    *,
+    cursor: str | None,
+    limit: int,
+    step: int | None,
+    slice_key: str | None,
+    outcome: TraceOutcome | None,
+    search: str | None,
+    live: bool,
+) -> TraceSummaryPage:
+    needle = (search or "").strip().casefold()
+    matched = []
+    for item in summaries:
+        if step is not None and item.optimizer_step != step:
+            continue
+        if slice_key:
+            if slice_key.startswith("facet:"):
+                facets = item.task_metadata.facets if item.task_metadata else ()
+                if not any(facet.key == slice_key[6:] for facet in facets):
+                    continue
+            elif item.task != slice_key:
+                continue
+        if outcome and item.outcome != outcome:
+            continue
+        if needle and needle not in " ".join(
+            (item.external_id, item.task or "", item.task_label or "", item.prompt_preview or "", item.prompt_group_id or "")
+        ).casefold():
+            continue
+        matched.append(item)
+    offset = int(cursor or 0)
+    if offset < 0:
+        raise ValueError("trace cursor must be nonnegative")
+    end = offset + limit
+    return TraceSummaryPage(
+        items=tuple(matched[offset:end]),
+        next_cursor=str(end) if end < len(matched) else None,
+        total=len(matched),
+        live=live,
     )
 
 
@@ -1394,9 +1609,12 @@ async def get_trace_detail(
 
 
 __all__ = [
+    "filtered_trace_summary_page",
     "get_trace_detail",
     "project_trace",
     "rollout_behavior_view",
     "trace_evaluation_view",
+    "trace_filter_options",
     "trace_summary_page",
+    "trace_summary_population",
 ]

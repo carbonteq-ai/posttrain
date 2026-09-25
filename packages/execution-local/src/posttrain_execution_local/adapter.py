@@ -142,6 +142,22 @@ class DockerCli:
                 "exit_code": int(state["ExitCode"]),
                 "error": str(state.get("Error") or ""),
             }
+        if action == "active_by_run":
+            result = self._run(
+                "container",
+                "ls",
+                "--all",
+                "--filter",
+                f"label=posttrain.run_id={payload['run_id']}",
+                "--format",
+                "{{.Names}}\t{{.State}}",
+            )
+            containers = []
+            for line in result.stdout.splitlines():
+                container, _, state = line.partition("\t")
+                if container and state not in {"exited", "dead"}:
+                    containers.append({"name": container, "state": state})
+            return {"containers": containers}
         if action == "logs":
             result = self._run("logs", name, check=False)
             return {"lines": (result.stdout + result.stderr).splitlines()}
@@ -281,6 +297,21 @@ class LocalDockerExecutionProvider:
                     f"existing Docker execution conflicts with the idempotent submission identity: {name}"
                 )
         return ExecutionHandle("local-docker", name, request.idempotency_key)
+
+    @property
+    def inventory_scope(self) -> str:
+        return "local Docker"
+
+    def active_executions_for_run(self, run_id: str) -> tuple[str, ...]:
+        """Return non-exited containers labeled with one posttrain run id."""
+
+        response = self._gateway.invoke("active_by_run", {"run_id": run_id})
+        containers = response.get("containers")
+        if not isinstance(containers, list):
+            raise RuntimeError("local Docker container inventory is invalid")
+        return tuple(
+            f"local-docker:{item.get('name')} ({item.get('state')})" for item in containers if isinstance(item, Mapping)
+        )
 
     def status(self, handle: ExecutionHandle) -> ExecutionRecord:
         response = self._gateway.invoke("inspect", {"name": handle.provider_id})

@@ -15,6 +15,7 @@ resolution-markers = [
 [manifest]
 members = [
     "posttrain",
+    "posttrain-advisor",
     "posttrain-catalog",
     "posttrain-common",
     "posttrain-data",
@@ -340,7 +341,7 @@ wheels = [
 
 [[package]]
 name = "carbonteq-trackio"
-version = "0.31.5.post14.dev25"
+version = "0.31.5.post14.dev27"
 source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
 dependencies = [
     { name = "boto3" },
@@ -356,9 +357,9 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://pypi.lan/carbonteq/dev/+f/720/91a9064cbd0e1/carbonteq_trackio-0.31.5.post14.dev25.tar.gz", hash = "sha256:72091a9064cbd0e1ba171bfbb080d16abf83798a32af85deca8bd98c01c59b61" }
+sdist = { url = "https://pypi.lan/carbonteq/dev/+f/c48/db39df03b4dfa/carbonteq_trackio-0.31.5.post14.dev27.tar.gz", hash = "sha256:c48db39df03b4dfa4764d79d88a0bce113cd6a3c803320a61d7ef959cbc4a73a" }
 wheels = [
-    { url = "https://pypi.lan/carbonteq/dev/+f/a34/9d7cb58488652/carbonteq_trackio-0.31.5.post14.dev25-py3-none-any.whl", hash = "sha256:a349d7cb5848865255019204fc2c1cc538d12164bda634a5360c2a9ff52a0f90" },
+    { url = "https://pypi.lan/carbonteq/dev/+f/228/651b05e88409c/carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl", hash = "sha256:228651b05e88409cb374296ad8a675057cf75377adcbe104a6fd0903b922c57c" },
 ]
 
 [[package]]
@@ -2600,6 +2601,7 @@ name = "posttrain"
 version = "0.0.0"
 source = { editable = "apps/cli" }
 dependencies = [
+    { name = "posttrain-advisor" },
     { name = "posttrain-catalog" },
     { name = "posttrain-data" },
     { name = "posttrain-environment" },
@@ -2642,6 +2644,7 @@ wandb = [
 
 [package.metadata]
 requires-dist = [
+    { name = "posttrain-advisor", editable = "packages/advisor" },
     { name = "posttrain-catalog", editable = "packages/catalog" },
     { name = "posttrain-data", editable = "packages/data" },
     { name = "posttrain-environment", editable = "packages/environment" },
@@ -2666,6 +2669,21 @@ requires-dist = [
     { name = "typer", specifier = ">=0.25.1" },
 ]
 provides-extras = ["observatory", "trackio", "wandb", "dstack", "trl", "verifiers", "vllm"]
+
+[[package]]
+name = "posttrain-advisor"
+version = "0.0.0"
+source = { editable = "packages/advisor" }
+dependencies = [
+    { name = "httpx" },
+    { name = "posttrain-common" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "posttrain-common", editable = "packages/common" },
+]
 
 [[package]]
 name = "posttrain-catalog"
@@ -2992,6 +3010,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "mcp" },
+    { name = "posttrain-advisor" },
     { name = "posttrain-common" },
     { name = "posttrain-tracking" },
     { name = "posttrain-tracking-trackio" },
@@ -3005,6 +3024,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.136.3,<0.137" },
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "mcp", specifier = ">=2,<3" },
+    { name = "posttrain-advisor", editable = "packages/advisor" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-tracking", editable = "packages/tracking" },
     { name = "posttrain-tracking-trackio", editable = "packages/tracking-trackio" },
@@ -3169,7 +3189,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "carbonteq-trackio", specifier = "==0.31.5.post14.dev25", index = "https://pypi.lan/carbonteq/dev/+simple/" },
+    { name = "carbonteq-trackio", specifier = "==0.31.5.post14.dev27", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-tracking", editable = "packages/tracking" },
 ]
@@ -3271,6 +3291,7 @@ name = "posttrain-work"
 version = "0.0.0"
 source = { editable = "packages/work" }
 dependencies = [
+    { name = "posttrain-advisor" },
     { name = "posttrain-common" },
     { name = "posttrain-data" },
     { name = "posttrain-environment" },
@@ -3283,6 +3304,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "posttrain-advisor", editable = "packages/advisor" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-data", editable = "packages/data" },
     { name = "posttrain-environment", editable = "packages/environment" },
@@ -4838,7 +4860,7 @@ wheels = [
 
 [[package]]
 name = "verifiers"
-version = "0.3.2.dev82"
+version = "0.3.2.dev87"
 source = { git = "https://github.com/carbonteq-ai/verifiers.git?rev=b71ade0a7ac712cdee9e1a4c0e53030d70768aff#b71ade0a7ac712cdee9e1a4c0e53030d70768aff" }
 dependencies = [
     { name = "aiohttp" },

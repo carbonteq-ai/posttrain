@@ -654,6 +654,8 @@ class WandbDataSource:
                     if query.trace_type is not None and raw["trace_type"] != query.trace_type:
                         continue
                     records.append(TraceRecord.model_validate(raw, strict=True))
+        if query.order == "newest_first":
+            records.reverse()
         offset = int(query.cursor or 0)
         page = records[offset : offset + query.limit]
         next_cursor = str(offset + query.limit) if offset + query.limit < len(records) else None

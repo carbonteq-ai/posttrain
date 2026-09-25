@@ -4,15 +4,27 @@ from __future__ import annotations
 
 import importlib
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from posttrain.catalog import load_project_layout
 from posttrain.common import ContractError
 from posttrain.execution import (
+    DEFAULT_ORPHAN_STALE_AFTER,
+    ORPHAN_TRACKING_RUN_BASIS,
+    SETTLE_ADMISSION_KIND,
+    AdmissionEntry,
+    AdmissionSettlePurgeExecutor,
+    ExecutionHandle,
     ExecutionProviderPurgeExecutor,
     ExecutionSubmissionStore,
     LocalStatePurgeExecutor,
+    OrphanAdmissionEntry,
+    OrphanProviderInventory,
+    OrphanTrackingRun,
+    PurgeAction,
     PurgeActionExecutor,
     PurgePlan,
     PurgePlane,
@@ -22,8 +34,10 @@ from posttrain.execution import (
     PurgeTombstone,
     RegistryManifestRef,
     apply_purge_plan,
+    build_orphan_run_purge_plan,
     build_project_purge_plan,
     build_run_purge_plan,
+    orphan_run_blockers,
 )
 
 from .context import CliState
@@ -145,7 +159,9 @@ def candidate_catalog(
     submission_ids = {submission.run_id for submission in submissions}
     retired_run_ids: set[str] = set()
     for purge_store in purge_stores:
-        retired_run_ids.update(_completed_purge_run_ids(purge_store.root))
+        # ``_completed_purge_run_ids`` takes the state root that owns the
+        # ``purges`` directory, not the store's own ``purges`` root.
+        retired_run_ids.update(_completed_purge_run_ids(purge_store.root.parent))
     try:
         admission_entries = execution_admission_service(layout).list()
     except Exception:
@@ -395,7 +411,13 @@ def save_run_preview(
     *,
     cascade: bool,
     reason: PurgeReason,
+    orphan: bool = False,
+    stale_after: timedelta = DEFAULT_ORPHAN_STALE_AFTER,
 ) -> PurgePlan:
+    if orphan:
+        if cascade:
+            raise ValueError("--orphan purges one tracking run and cannot be combined with --cascade")
+        return plan_store(layout).save_plan(_orphan_preview(layout, run_id, reason=reason, stale_after=stale_after))
     candidates = candidate_catalog(
         layout,
         discover_lineage_for=(run_id,) if not cascade else None,
@@ -413,6 +435,311 @@ def save_run_preview(
         cascade=cascade,
     )
     return plan_store(layout).save_plan(plan)
+
+
+def _orphan_preview(
+    layout: Any,
+    run_id: str,
+    *,
+    reason: PurgeReason,
+    stale_after: timedelta,
+) -> PurgePlan:
+    """Build an explicit tracking-only plan for a run with no local receipt."""
+
+    candidates, local_blocker = _orphan_local_control_check(layout, run_id)
+    orphan = _collect_orphan(layout, run_id) if local_blocker is None else local_blocker
+    if isinstance(orphan, str):
+        return PurgePlan.build(
+            mode="run",
+            project_id=layout.project_id,
+            run_ids=(run_id,),
+            root_run_id=run_id,
+            reason=reason,
+            blockers=(orphan,),
+        )
+    registry_owners, registry_blockers = _registry_image_inventory(layout, candidates)
+    return build_orphan_run_purge_plan(
+        orphan,
+        reason=reason,
+        registry_image_owners=registry_owners,
+        registry_inventory_blockers=registry_blockers,
+        now=datetime.now(UTC),
+        stale_after=stale_after,
+    )
+
+
+def _orphan_local_control_check(layout: Any, run_id: str) -> tuple[dict[str, PurgeRunCandidate], str | None]:
+    """Refuse orphan mode for a run that this machine still controls."""
+
+    # No lineage discovery or provider refresh: the local inventory is only
+    # the identity map and the registry-ownership seed here.
+    candidates = candidate_catalog(layout, discover_lineage_for=(), refresh_status_for=())
+    if run_id in candidates:
+        return candidates, (
+            f"run {run_id!r} has local control state on this machine; omit --orphan to use the normal purge"
+        )
+    return candidates, None
+
+
+def _collect_orphan(layout: Any, run_id: str) -> OrphanTrackingRun | str:
+    """Gather tracking, lineage, and provider evidence; return a blocker on failure."""
+
+    if getattr(layout, "tracking", "trackio") != "trackio":
+        return f"orphan purge requires Trackio evidence; project tracking is {layout.tracking!r}"
+    project = layout.project_id
+    try:
+        module = importlib.import_module("posttrain_tracking_trackio")
+        environment = project_tracking_environment(layout)
+        server_url = environment.get("POSTTRAIN_TRACKIO_SERVER_URL")
+        if not server_url:
+            raise RuntimeError("POSTTRAIN_TRACKIO_SERVER_URL is not configured")
+        activity = module.TrackioRunActivityLookup(project, server_url=server_url).find(run_id)
+    except Exception as error:
+        return f"tracking lookup for orphan run {run_id!r} failed ({type(error).__name__}: {_short(error)})"
+    if activity is None:
+        return f"run {run_id!r} was not found in tracking project {project!r}"
+
+    consumers: tuple[str, ...] = ()
+    lineage_blockers: tuple[str, ...] = ()
+    lineage_complete = True
+    tracked_artifacts = 0
+    try:
+        admin = module.TrackioLifecycleAdmin(
+            server_url,
+            write_token=environment.get("TRACKIO_WRITE_TOKEN"),
+            ca_bundle=_machine_trust_bundle(),
+        )
+        lineage = admin.plan_run_purge(project=project, provider_run_ids=(activity.provider_run_id,))
+        consumers = tuple(
+            sorted(
+                {
+                    consumer
+                    for artifact in lineage.artifacts
+                    for consumer in artifact.consumer_run_ids
+                    if consumer != activity.provider_run_id
+                }
+            )
+        )
+        lineage_blockers = tuple(lineage.blockers)
+        lineage_complete = not lineage.blockers
+        tracked_artifacts = len(lineage.artifacts)
+    except Exception as error:
+        lineage_complete = False
+        lineage_blockers = (f"tracking lineage preview failed ({type(error).__name__})",)
+
+    inventory, admission = _orphan_provider_inventory(layout, run_id, activity.recorded_provider)
+    return OrphanTrackingRun(
+        run_id=run_id,
+        project_id=project,
+        evidence_provider="trackio",
+        evidence_project=project,
+        tracking_provider_run_id=activity.provider_run_id,
+        tracking_status=activity.status,
+        last_activity_at=activity.last_activity_at,
+        provider=inventory,
+        admission=admission,
+        recorded_provider=activity.recorded_provider,
+        recorded_job_image=activity.recorded_job_image,
+        consumers=consumers,
+        lineage_complete=lineage_complete,
+        lineage_blockers=lineage_blockers,
+        tracked_artifacts=tracked_artifacts,
+        evidence_retention=activity.evidence_retention,
+    )
+
+
+_PROVIDER_ALIASES = {"local": "local-docker", "local-docker": "local-docker", "dstack": "dstack"}
+_SETTLED_ADMISSION_STATES = frozenset({"completed", "cancelled"})
+
+
+def _orphan_provider_inventory(
+    layout: Any,
+    run_id: str,
+    recorded_provider: str | None,
+) -> tuple[OrphanProviderInventory, OrphanAdmissionEntry | None]:
+    """Prove no provider execution still references an orphaned run id.
+
+    A provider recorded in the run's tracking configuration must be queried
+    successfully. Without one, every configured provider is queried. The
+    machine admission ledger is read as well because it spans projects and
+    removed checkouts on this machine; an entry for the run is returned with
+    the evidence the planner needs to decide whether it may be settled.
+    """
+
+    checked: list[str] = []
+    active: list[str] = []
+    blockers: list[str] = []
+    entry: AdmissionEntry | None = None
+    try:
+        entries = execution_admission_service(layout).list()
+    except Exception as error:
+        blockers.append(f"machine admission ledger is unavailable ({type(error).__name__})")
+    else:
+        checked.append("machine admission ledger")
+        entry = next((item for item in entries if item.run_id == run_id), None)
+    try:
+        local_config = load_local_execution_config(layout, verify_published_locks=False, resolve_registry=False)
+    except Exception as error:
+        blockers.append(f"execution provider configuration is unavailable ({type(error).__name__})")
+        admission = _orphan_admission(layout, None, entry) if entry is not None else None
+        return OrphanProviderInventory(tuple(checked), tuple(active), tuple(blockers)), admission
+    if recorded_provider is not None:
+        name = _PROVIDER_ALIASES.get(recorded_provider)
+        if name is None:
+            blockers.append(f"recorded provider {recorded_provider!r} has no inventory adapter")
+            names: tuple[str, ...] = ()
+        else:
+            names = (name,)
+    else:
+        names = tuple(
+            name
+            for name, binding in (("dstack", local_config.dstack), ("local-docker", local_config.local))
+            if binding is not None
+        )
+    provider_checked = False
+    for name in names:
+        try:
+            provider = _inventory_provider(layout, local_config, name)
+            active.extend(provider.active_executions_for_run(run_id))
+        except Exception as error:
+            blockers.append(f"{name} inventory is unavailable ({type(error).__name__}: {_short(error)})")
+            continue
+        checked.append(str(provider.inventory_scope))
+        provider_checked = True
+    if not provider_checked and not blockers:
+        blockers.append("no execution provider inventory is configured")
+    admission = _orphan_admission(layout, local_config, entry) if entry is not None else None
+    return OrphanProviderInventory(tuple(checked), tuple(active), tuple(blockers)), admission
+
+
+def _orphan_admission(layout: Any, local_config: Any, entry: AdmissionEntry) -> OrphanAdmissionEntry:
+    """Describe one ledger entry: owning control store and named execution now."""
+
+    control_store: Path | None = None
+    status = "unknown"
+    try:
+        if entry.control_locator is not None:
+            control_store = entry.control_locator.control_store
+        elif entry.control_store_uri is not None:
+            parsed = urlparse(entry.control_store_uri)
+            if parsed.scheme == "file" and parsed.path:
+                control_store = Path(unquote(parsed.path)).resolve()
+        if control_store is not None:
+            if not control_store.exists():
+                status = "absent"
+            else:
+                receipts = ExecutionSubmissionStore(control_store)
+                status = "has-receipt" if receipts.run_root(entry.run_id).exists() else "no-receipt"
+    except Exception:
+        status = "unknown"
+    provider_id = entry.plan.native_plan_id
+    provider_state: str | None = None
+    native_state: str | None = None
+    query_error: str | None = None
+    if entry.state not in _SETTLED_ADMISSION_STATES:
+        if not provider_id:
+            query_error = "the admission entry records no provider execution id"
+        else:
+            try:
+                provider = _entry_provider(layout, local_config, entry)
+                record = provider.status(
+                    ExecutionHandle(entry.plan.provider, provider_id, entry.plan.request.idempotency_key)
+                )
+                provider_state = str(record.state)
+                native_state = str(record.native_state) if record.native_state is not None else None
+            except Exception as error:
+                query_error = f"{type(error).__name__}: {_short(error)}"
+    return OrphanAdmissionEntry(
+        state=entry.state,
+        admission_key=entry.admission_key or "",
+        provider=entry.plan.provider,
+        provider_id=provider_id,
+        control_store=str(control_store) if control_store is not None else None,
+        control_store_status=status,
+        provider_state=provider_state,
+        provider_native_state=native_state,
+        provider_query_error=query_error,
+        job_image=entry.plan.request.image.value,
+    )
+
+
+def _entry_provider(layout: Any, local_config: Any, entry: AdmissionEntry) -> Any:
+    """Build the provider binding the entry recorded, else the configured one."""
+
+    source = entry.provider_source
+    if entry.plan.provider == "dstack" and source is not None and source.adapter_python is not None:
+        module = importlib.import_module("posttrain_execution_dstack")
+        return module.DstackExecutionProvider.from_sdk_environment(
+            project=source.endpoint_scope,
+            python=source.adapter_python,
+            environment_file=source.credential_file,
+        )
+    if local_config is None:
+        raise RuntimeError("execution provider configuration is unavailable")
+    name = _PROVIDER_ALIASES.get(entry.plan.provider)
+    if name is None:
+        raise RuntimeError(f"admission provider {entry.plan.provider!r} has no adapter")
+    return _inventory_provider(layout, local_config, name)
+
+
+def _inventory_provider(layout: Any, local_config: Any, name: str) -> Any:
+    if name == "dstack":
+        binding = local_config.dstack
+        if binding is None:
+            raise RuntimeError("dstack provider binding is not configured")
+        module = importlib.import_module("posttrain_execution_dstack")
+        return module.DstackExecutionProvider.from_sdk_environment(
+            project=binding.project,
+            python=binding.python,
+            environment_file=binding.environment_file,
+        )
+    if name == "local-docker":
+        module = importlib.import_module("posttrain_execution_local")
+        return module.LocalDockerExecutionProvider(state_root=layout.state)
+    raise RuntimeError(f"unsupported provider {name!r}")
+
+
+def _short(error: Exception) -> str:
+    return " ".join(str(error).split())[:200]
+
+
+def _revalidate_orphan(layout: Any, store: PurgeStore, plan: PurgePlan) -> None:
+    """Re-prove every orphan check immediately before tracking deletion."""
+
+    basis = plan.basis
+    if basis is None or basis.get("kind") != ORPHAN_TRACKING_RUN_BASIS:
+        return
+    run_id = plan.root_run_id
+    if run_id is None:
+        raise RuntimeError("orphan purge plan has no root run")
+    settled = {
+        str(event.get("action_id"))
+        for event in store.journal(plan.purge_id)
+        if event.get("status") in {"completed", "skipped"}
+    }
+    # Once the tracking run is gone the orphan cannot be re-read; a resumed
+    # apply relies on each remaining executor's own exact revalidation.
+    if any(action.plane == "tracking" and action.action_id in settled for action in plan.actions):
+        return
+    candidates, local_blocker = _orphan_local_control_check(layout, run_id)
+    orphan = _collect_orphan(layout, run_id) if local_blocker is None else local_blocker
+    if isinstance(orphan, str):
+        raise RuntimeError(f"orphan purge revalidation failed: {orphan}")
+    if orphan.tracking_provider_run_id != basis.get("tracking_provider_run_id"):
+        raise RuntimeError("orphan purge revalidation failed: the tracking run identity changed after preview")
+    stale_seconds = basis.get("stale_after_seconds")
+    if not isinstance(stale_seconds, int) or stale_seconds <= 0:
+        raise RuntimeError("orphan purge plan has an invalid stale threshold")
+    registry_owners, registry_blockers = _registry_image_inventory(layout, candidates)
+    blockers = orphan_run_blockers(
+        orphan,
+        registry_image_owners=registry_owners,
+        registry_inventory_blockers=registry_blockers,
+        now=datetime.now(UTC),
+        stale_after=timedelta(seconds=stale_seconds),
+    )
+    if blockers:
+        raise RuntimeError("orphan purge revalidation failed: " + "; ".join(blockers))
 
 
 def save_project_preview(layout: Any, *, reason: PurgeReason) -> PurgePlan:
@@ -451,6 +778,7 @@ def render_plan(plan: PurgePlan, *, tombstone: PurgeTombstone | None = None) -> 
         f"Plan: {plan.purge_id}",
         f"Digest: {plan.digest}",
     ]
+    lines[1:1] = _orphan_lines(plan)
     if plan.blockers:
         lines.append("Next: resolve blockers and create a new preview")
     else:
@@ -464,6 +792,43 @@ def render_plan(plan: PurgePlan, *, tombstone: PurgeTombstone | None = None) -> 
             )
         )
     return "\n".join(lines)
+
+
+def _orphan_lines(plan: PurgePlan) -> list[str]:
+    basis = plan.basis
+    if basis is None or basis.get("kind") != ORPHAN_TRACKING_RUN_BASIS:
+        return []
+
+    def joined(key: str) -> str:
+        value = basis.get(key)
+        return ", ".join(str(item) for item in value) if isinstance(value, list) and value else "none"
+
+    stale_seconds = basis.get("stale_after_seconds")
+    threshold = f"{stale_seconds / 3600:g} h" if isinstance(stale_seconds, int) else "unknown"
+    admission_state = basis.get("admission_state")
+    if admission_state is None:
+        admission = "admission entry: none"
+    else:
+        admission = (
+            f"admission entry: {admission_state}, control store {basis.get('admission_control_store') or 'unknown'} "
+            f"({basis.get('admission_control_store_status')}), provider execution "
+            f"{basis.get('admission_provider_execution')}; "
+            + ("settle to completed" if basis.get("admission_settle") else "not settled by this plan")
+        )
+    return [
+        "Kind: orphan purge (no local submission receipt; deletes the tracking run, plus a proven-exclusive "
+        "job image and abandoned admission entry; provider records and workspaces are not cleaned)",
+        f"  (a) provider: recorded provider {basis.get('recorded_provider') or 'none'}; "
+        f"inventories checked: {joined('provider_inventories')}; "
+        f"active executions: {joined('active_provider_executions')}; {admission}",
+        f"  (b) registry: attributed images: {joined('registry_attributed_images')}; "
+        f"delete: {joined('registry_deletions')}; retain (shared): {joined('registry_retained_shared')}; "
+        f"inventory {'complete' if basis.get('registry_inventory_complete') else 'incomplete'}",
+        f"  (c) lineage: Trackio run {basis.get('tracking_provider_run_id')}; "
+        f"tracked artifacts: {basis.get('tracked_artifacts')}; surviving consumers: {joined('surviving_consumers')}",
+        f"  (d) state: tracking status {basis.get('tracking_status')}; "
+        f"last activity {basis.get('last_activity_at') or 'unknown'}; stale threshold {threshold}",
+    ]
 
 
 def apply_saved_plan(
@@ -493,6 +858,7 @@ def apply_saved_plan(
         raise ValueError("non-interactive purge apply requires --expect-digest")
 
     _revalidate_registry_ownership(layout, plan)
+    _revalidate_orphan(layout, store, plan)
     executors = _apply_executors(layout, plan)
     return apply_purge_plan(
         store,
@@ -520,6 +886,27 @@ def _revalidate_registry_ownership(layout: Any, plan: PurgePlan) -> None:
             )
 
 
+class _LocalPlaneExecutor:
+    """Dispatch local-plane actions by kind to the exact executor for each."""
+
+    def __init__(self, remove: PurgeActionExecutor, settle: PurgeActionExecutor | None) -> None:
+        self._remove = remove
+        self._settle = settle
+
+    def _executor(self, action: PurgeAction) -> PurgeActionExecutor:
+        if action.kind == SETTLE_ADMISSION_KIND:
+            if self._settle is None:
+                raise ContractError("admission settle executor is unavailable")
+            return self._settle
+        return self._remove
+
+    def revalidate(self, action: PurgeAction) -> None:
+        self._executor(action).revalidate(action)
+
+    def apply(self, action: PurgeAction) -> None:
+        self._executor(action).apply(action)
+
+
 def _apply_executors(layout: Any, plan: PurgePlan) -> dict[PurgePlane, PurgeActionExecutor]:
     services = {
         str(action.target["run_id"]): execution_service_for_run(layout, str(action.target["run_id"]))
@@ -541,7 +928,14 @@ def _apply_executors(layout: Any, plan: PurgePlan) -> dict[PurgePlane, PurgeActi
         # Submission receipts live in the project state root, while the
         # local provider's run workspaces live in the configured machine
         # storage root. Both are exact, framework-owned state roots.
-        "local": LocalStatePurgeExecutor(tuple(local_roots)),
+        "local": _LocalPlaneExecutor(
+            LocalStatePurgeExecutor(tuple(local_roots)),
+            (
+                AdmissionSettlePurgeExecutor(execution_admission_service(layout))
+                if any(action.kind == SETTLE_ADMISSION_KIND for action in plan.local_actions)
+                else None
+            ),
+        ),
     }
     if plan.registry_actions:
         try:

@@ -126,6 +126,7 @@ def starter_pyproject(project_id: str, template: str) -> str:
         local_sources = {
             "posttrain": "apps/cli",
             "posttrain-observatory": "apps/observatory",
+            "posttrain-advisor": "packages/advisor",
             "posttrain-catalog": "packages/catalog",
             "posttrain-common": "packages/common",
             "posttrain-data": "packages/data",

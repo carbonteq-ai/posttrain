@@ -57,6 +57,34 @@ def _timestamp(value: datetime, label: str) -> None:
         raise ContractError(f"purge {label} must be timezone-aware")
 
 
+def _basis(value: Mapping[str, JsonValue] | None) -> Mapping[str, JsonValue] | None:
+    """Validate the flat, secret-free basis that justifies a special plan kind.
+
+    A basis records *why* a plan is allowed (for example the evidence behind
+    an orphaned tracking-run purge). It is digest-bound and copied into the
+    tombstone, so it may hold only short scalars or lists of short strings.
+    """
+
+    if value is None:
+        return None
+    items = dict(value)
+    if not isinstance(items.get("kind"), str) or not _REASON_CATEGORY.fullmatch(str(items["kind"])):
+        raise ContractError("purge basis kind must be a lowercase slug")
+    for key, item in items.items():
+        if not isinstance(key, str) or not key.strip():
+            raise ContractError("purge basis keys must be non-empty strings")
+        if item is None or isinstance(item, bool | int | float):
+            continue
+        if isinstance(item, str):
+            if len(item) > 512 or "\x00" in item:
+                raise ContractError(f"purge basis value {key!r} is too long or invalid")
+            continue
+        if isinstance(item, list) and all(isinstance(entry, str) and len(entry) <= 512 for entry in item):
+            continue
+        raise ContractError(f"purge basis value {key!r} must be a scalar or a list of strings")
+    return MappingProxyType(items)
+
+
 @dataclass(frozen=True, slots=True)
 class PurgeReason:
     """Safe, non-secret authorization context bound into a v2 purge plan."""
@@ -96,6 +124,7 @@ class PurgeTombstone:
     status: PurgeTombstoneStatus
     plane_outcomes: Mapping[PurgePlane, PurgeTombstonePlaneOutcome]
     updated_at: datetime
+    basis: Mapping[str, JsonValue] | None = None
 
     def __post_init__(self) -> None:
         if not _PURGE_ID.fullmatch(self.purge_id):
@@ -122,9 +151,11 @@ class PurgeTombstone:
             raise ContractError("purged tombstone cannot retain pending plane outcomes")
         object.__setattr__(self, "plane_outcomes", MappingProxyType(outcomes))
         _timestamp(self.updated_at, "tombstone update time")
+        object.__setattr__(self, "basis", _basis(self.basis))
 
     def payload(self) -> dict[str, object]:
         return {
+            **({"basis": dict(self.basis)} if self.basis is not None else {}),
             "schema": "posttrain.execution-purge-tombstone.v1",
             "purge_id": self.purge_id,
             "plan_digest": self.plan_digest,
@@ -187,6 +218,7 @@ class PurgeTombstone:
             status=status,
             plane_outcomes=outcomes,
             updated_at=updated_at or datetime.now(UTC),
+            basis=plan.basis,
         )
 
 
@@ -265,6 +297,7 @@ class PurgePlan:
     digest: str
     created_at: datetime
     schema: PurgePlanSchema = _PLAN_SCHEMA_V2
+    basis: Mapping[str, JsonValue] | None = None
 
     def __post_init__(self) -> None:
         if not _PURGE_ID.fullmatch(self.purge_id):
@@ -277,6 +310,9 @@ class PurgePlan:
             raise ContractError("purge plan reason is required")
         if self.schema == _PLAN_SCHEMA_V1 and self.reason is not None:
             raise ContractError("legacy purge plan cannot contain a reason")
+        if self.schema == _PLAN_SCHEMA_V1 and self.basis is not None:
+            raise ContractError("legacy purge plan cannot contain a basis")
+        object.__setattr__(self, "basis", _basis(self.basis))
         _require_text(self.project_id, "project id")
         if not self.run_ids and self.mode == "run":
             raise ContractError("run purge plan must select at least one run")
@@ -348,6 +384,7 @@ class PurgePlan:
             "warnings": list(self.warnings),
             "blockers": list(self.blockers),
             **({"reason": self.reason.payload()} if self.reason is not None else {}),
+            **({"basis": dict(self.basis)} if self.basis is not None else {}),
         }
 
     def computed_digest(self) -> str:
@@ -370,10 +407,12 @@ class PurgePlan:
         blockers: Sequence[str] = (),
         reason: PurgeReason,
         created_at: datetime | None = None,
+        basis: Mapping[str, JsonValue] | None = None,
     ) -> PurgePlan:
         """Build a plan and derive its collision-checked content address."""
 
         creation = created_at or datetime.now(UTC)
+        validated_basis = _basis(basis)
         payload = {
             "schema": _PLAN_SCHEMA_V2,
             "mode": mode,
@@ -388,6 +427,7 @@ class PurgePlan:
             "warnings": list(warnings),
             "blockers": list(blockers),
             "reason": reason.payload(),
+            **({"basis": dict(validated_basis)} if validated_basis is not None else {}),
         }
         digest = _digest(payload)
         return cls(
@@ -407,6 +447,7 @@ class PurgePlan:
             digest=digest,
             created_at=creation,
             schema=_PLAN_SCHEMA_V2,
+            basis=validated_basis,
         )
 
 
@@ -547,6 +588,7 @@ class PurgeStore:
                 digest=str(payload["digest"]),
                 created_at=datetime.fromisoformat(str(payload["created_at"])),
                 schema=cast(PurgePlanSchema, schema),
+                basis=(_object(payload["basis"], "plan basis") if payload.get("basis") is not None else None),
             )
         except (KeyError, TypeError, ValueError, IndexError) as error:
             raise ContractError(f"purge plan {purge_id} is invalid") from error
@@ -623,6 +665,7 @@ class PurgeStore:
             or tombstone.project_id != plan.project_id
             or tombstone.run_ids != plan.run_ids
             or tombstone.reason != plan.reason
+            or _plain(tombstone.basis) != _plain(plan.basis)
         ):
             raise ContractError(f"purge tombstone {tombstone.purge_id} does not match its plan")
         self._write_json(self.tombstone_path(tombstone.purge_id), tombstone.payload())
@@ -652,6 +695,7 @@ class PurgeStore:
                     for plane, outcome in outcomes.items()
                 },
                 updated_at=datetime.fromisoformat(str(payload["updated_at"])),
+                basis=(_object(payload["basis"], "tombstone basis") if payload.get("basis") is not None else None),
             )
         except (KeyError, TypeError, ValueError) as error:
             raise ContractError(f"purge tombstone {purge_id} is invalid") from error
@@ -753,6 +797,10 @@ class PurgeStore:
             os.fsync(descriptor)
         finally:
             os.close(descriptor)
+
+
+def _plain(value: Mapping[str, JsonValue] | None) -> dict[str, JsonValue] | None:
+    return dict(value) if value is not None else None
 
 
 def _sequence(value: object, label: str) -> list[object]:

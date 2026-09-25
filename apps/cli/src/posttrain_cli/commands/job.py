@@ -68,6 +68,10 @@ def register(app: typer.Typer) -> None:
             bool,
             typer.Option("--skip-preflight", help="skip only an optional host readiness probe"),
         ] = False,
+        strict: Annotated[
+            bool,
+            typer.Option("--strict", help="fail on configuration warnings that no binding acknowledges"),
+        ] = False,
         provider: Annotated[
             _ProviderChoice | None,
             typer.Option(
@@ -177,6 +181,7 @@ def register(app: typer.Typer) -> None:
             builder=(builder.value if builder is not None else None),
             explain=explain,
             skip_preflight=skip_preflight,
+            strict=strict,
         )
 
     @job_app.command(

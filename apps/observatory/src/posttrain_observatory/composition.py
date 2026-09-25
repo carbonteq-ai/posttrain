@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from posttrain.advisor import HubModelReader
 from posttrain_tracking_trackio import TrackioDataSource, TrackioProjectCatalog
 from posttrain_tracking_wandb import WandbDataSource, WandbSettings
 
@@ -64,7 +65,12 @@ def create_service(settings: ObservatorySettings | None = None) -> ObservatorySe
             api_key=settings.semantic_api_key,
             model=settings.semantic_model,
         )
-    return ObservatoryService(registry, semantic_provider=semantic, source_discovery=discovery)
+    return ObservatoryService(
+        registry,
+        semantic_provider=semantic,
+        source_discovery=discovery,
+        architecture_loader=HubModelReader() if settings.model_config_source == "hub" else None,
+    )
 
 
 __all__ = ["create_service"]

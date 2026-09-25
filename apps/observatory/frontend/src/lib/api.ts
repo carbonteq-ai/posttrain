@@ -1,3 +1,4 @@
+import type { components } from './api-schema';
 export type RunItem = {
   locator: { source_id: string; run_id: string };
   run_key: string;
@@ -56,6 +57,7 @@ export type GRPOSamplingStep = {
   duplicate_fallbacks: number;
   refill_rounds: number;
   class_counts: Record<string, number>;
+  retained_groups?: number | null;
 };
 
 export type GRPOSamplingEvidence = {
@@ -216,6 +218,8 @@ export type Artifact = {
 export type TraceSummary = {
   external_id: string;
   trace_type: string;
+  optimizer_step?: number | null;
+  prompt_group_id?: string | null;
   prompt_preview: string | null;
   task: string | null;
   task_label: string | null;
@@ -254,10 +258,36 @@ export type TraceSummary = {
   response_chars: number | null;
   thinking_tokens: number | null;
   thinking_chars: number | null;
+  timing?: TraceTiming | null;
   reward_components: Record<string, number>;
   native_metrics: Record<string, number>;
   metrics: Record<string, number>;
 };
+
+/** Where a rollout's wall-clock time went. Inference spans include server queueing. */
+export type TraceTiming = {
+  total_ms: number;
+  inference_ms: number;
+  tools_ms: number;
+  setup_ms: number;
+  scoring_ms: number;
+  model_calls: number;
+};
+
+export type TraceTimelineSegment = {
+  kind: 'setup' | 'inference' | 'tools' | 'harness' | 'scoring';
+  start_ms: number;
+  duration_ms: number;
+  call_index: number | null;
+  node: number | null;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  thinking_tokens: number | null;
+  finish_reason: string | null;
+  tools: string[];
+};
+
+export type TraceTimeline = TraceTiming & { segments: TraceTimelineSegment[] };
 
 export type TraceEvaluation = {
   state: 'complete' | 'partial' | 'unavailable';
@@ -440,6 +470,59 @@ export type TraceSummaryPage = {
   live: boolean;
 };
 
+export type RolloutTimeStep = {
+  step: number | null;
+  rollouts: number;
+  timed_rollouts: number;
+  inference_ms: number | null;
+  tools_ms: number | null;
+  setup_ms: number | null;
+  scoring_ms: number | null;
+  rollout_ms: number | null;
+  elapsed_ms: number | null;
+};
+
+/** Run-wide rollout phase time from stored timing; inference includes server queueing. */
+export type RolloutTimeView = {
+  state: 'available' | 'unavailable';
+  steps: RolloutTimeStep[];
+  elapsed_ms: number | null;
+  live: boolean;
+};
+
+export type PromptGroupRewardView = {
+  state: 'complete' | 'partial' | 'unavailable';
+  groups: Array<{
+    group_id: string;
+    step: number | null;
+    task_id: string | null;
+    rollouts: number;
+    reward_coverage: number;
+    current: { mean: number; std: number } | null;
+    prior: { mean: number; std: number } | null;
+    prior_step: number | null;
+    prior_rollouts: number | null;
+  }>;
+  expected_group_size: number | null;
+  fact_rows: number;
+  recorded_traces: number;
+  live: boolean;
+};
+
+export type TraceFilters = {
+  step?: number;
+  slice_key?: string;
+  outcome?: TraceSummary['outcome'];
+  search?: string;
+};
+
+export type TraceFilterOptions = {
+  total: number;
+  steps: number[];
+  slices: Array<{ key: string; label: string }>;
+  outcomes: Array<TraceSummary['outcome']>;
+};
+
 export type EvaluationDistribution = {
   samples: number;
   mean: number;
@@ -450,6 +533,7 @@ export type EvaluationDistribution = {
 
 export type TraceDetail = {
   summary: TraceSummary;
+  timeline?: TraceTimeline | null;
   reward_components: Array<{
     name: string;
     value: number;
@@ -501,6 +585,15 @@ export type MetricSeriesSet = {
   requested_points: number;
   returned_points: number;
 };
+
+type Schemas = components['schemas'];
+export type ConfigurationReview = Schemas['ConfigurationReview'];
+export type ConfigurationFinding = Schemas['ConfigurationFinding'];
+export type SettingsRecommendation = Schemas['SettingsRecommendation'];
+export type RecommendedSetting = Schemas['RecommendedSetting'];
+export type StepCapacityView = Schemas['StepCapacityView'];
+export type StepOptionView = Schemas['StepOptionView'];
+export type StepCalibration = Schemas['StepCalibration'];
 
 export type RunView = {
   requested_mode: 'auto' | 'job' | 'generic';
@@ -593,6 +686,7 @@ export type RunView = {
     artifacts: { items: Artifact[] };
     execution_targets?: ExecutionTargetContext[];
     resolved_inputs?: Record<string, unknown>;
+    configuration?: ConfigurationReview | null;
     source_metadata?: Record<string, unknown>;
     events?: Array<{ name: string; occurred_at: string; attributes: Record<string, unknown> }>;
     trace_count?: number;
@@ -776,6 +870,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     };
     throw new Error(body.message ?? body.detail ?? `Request failed (${response.status})`);
   }
+  const contentType = response.headers?.get?.('content-type');
+  if (contentType?.includes('text/html')) {
+    throw new Error('This Observatory server does not provide the requested API endpoint');
+  }
   return response.json() as Promise<T>;
 }
 
@@ -823,11 +921,18 @@ export const api = {
     return request<TraceEvaluation>(`/api/v1/runs/${key}/traces-evaluation?${query}`);
   },
   rolloutBehavior: (key: string) => request<RolloutBehavior>(`/api/v1/runs/${key}/rollout-behavior`),
-  tracePage: (key: string, cursor: string | null = null, limit = 100) => {
+  tracePage: (key: string, cursor: string | null = null, limit = 100, filters: TraceFilters = {}) => {
     const query = new URLSearchParams({ limit: String(limit) });
     if (cursor) query.set('cursor', cursor);
+    if (filters.step != null) query.set('step', String(filters.step));
+    if (filters.slice_key) query.set('slice_key', filters.slice_key);
+    if (filters.outcome) query.set('outcome', filters.outcome);
+    if (filters.search) query.set('search', filters.search);
     return request<TraceSummaryPage>(`/api/v1/runs/${key}/traces?${query}`);
   },
+  traceFilters: (key: string) => request<TraceFilterOptions>(`/api/v1/runs/${key}/trace-filters`),
+  promptGroupRewards: (key: string) => request<PromptGroupRewardView>(`/api/v1/runs/${key}/trace-group-rewards`),
+  rolloutTime: (key: string) => request<RolloutTimeView>(`/api/v1/runs/${key}/rollout-time`),
   trace: (key: string, traceId: string) =>
     request<TraceDetail>(`/api/v1/runs/${key}/traces/${encodeURIComponent(traceId)}`),
   compare: (runKeys: string[]) =>

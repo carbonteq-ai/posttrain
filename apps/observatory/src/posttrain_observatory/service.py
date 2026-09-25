@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from statistics import fmean
 from typing import Any, Literal, cast
 
+from posttrain.advisor import ArchitectureLoader
 from posttrain.common import JsonValue
 from posttrain.tracking import (
     EventRecord,
@@ -22,9 +23,13 @@ from posttrain.tracking import (
     RunDataSource,
     RunDetail,
     RunQuery,
+    TraceAggregateBucket,
+    TraceFactAggregate,
+    TraceFactsQuery,
     TraceQuery,
 )
 
+from .configuration import configuration_review
 from .discovery import TrackioSourceDiscovery
 from .evaluation_contracts import read_evaluation_contract
 from .execution_targets import execution_target_capacity, execution_target_contexts
@@ -53,7 +58,9 @@ from .models import (
     MetricNamespace,
     MetricSeriesQuery,
     MetricSeriesSet,
+    PromptGroupRewardView,
     RolloutBehaviorView,
+    RolloutTimeView,
     RunAlert,
     RunComparison,
     RunDelta,
@@ -77,11 +84,15 @@ from .models import (
     SystemMetricsView,
     TraceDetail,
     TraceEvaluationView,
+    TraceFilterOptions,
+    TraceOutcome,
+    TraceSummary,
     TraceSummaryPage,
     ViewMode,
     WorkPackageView,
 )
 from .redaction import RedactionPolicy
+from .rollout_time import PayloadAggregate, refresh_rollout_time_buckets, rollout_time_view
 from .runtime_phases import project_runtime_phases
 from .semantic import SemanticAnalysisService, SemanticSummaryProvider
 from .serving_capacity import project_serving_benchmark
@@ -93,8 +104,16 @@ from .telemetry import (
     HealthRuleDefinition,
     JobTelemetryDefinition,
 )
+from .traces import (
+    filtered_trace_summary_page,
+    prompt_group_reward_view,
+    rollout_behavior_view,
+    trace_evaluation_view,
+    trace_filter_options,
+    trace_summary_page,
+    trace_summary_population,
+)
 from .traces import get_trace_detail as load_trace_detail
-from .traces import rollout_behavior_view, trace_evaluation_view, trace_summary_page
 
 
 def _reduce(series: MetricSeries, reducer: str) -> float | None:
@@ -628,14 +647,56 @@ def _grpo_projection(
     strategy: Literal["standard", "dynamic", "olmo3_active"] = (
         "olmo3_active" if olmo_active else "dynamic" if dynamic else "standard"
     )
-    controller_steps = _adaptive_sampling_steps(series, events)
     num_generations = _config_positive_int(resolved_inputs, "num_generations") or 1
+    controller_steps = _with_retained_groups(_adaptive_sampling_steps(series, events), series, num_generations)
 
     def active_group_summary(*, key: str, label: str, metric: str) -> SummaryValue:
-        raw = _metric_summary(series, key=key, label=label, metric=metric)
+        # Whole-run total: every step's sampled or kept groups, not the latest step alone.
+        raw = _metric_summary(series, key=key, label=label, metric=metric, reducer="sum")
         value = raw.value
         return raw.model_copy(
             update={"value": float(value) / num_generations if isinstance(value, int | float) else None}
+        )
+
+    generated_groups = active_group_summary(
+        key="generated_groups",
+        label="Candidate task groups",
+        metric="train/rl/active_sampling_candidate_groups_generated",
+    )
+    retained_groups = active_group_summary(
+        key="retained_groups",
+        label="Retained task groups",
+        metric="train/rl/active_sampling_candidate_groups_retained",
+    )
+    retained_fraction = _metric_summary(
+        series,
+        key="retained_fraction",
+        label="Candidate retention",
+        metric=(
+            "train/rl/active_sampling_retained_fraction"
+            if olmo_active
+            else "train/rl/dynamic_sampling_retained_fraction"
+        ),
+        unit="ratio",
+    )
+    zero_variance = _metric_summary(
+        series,
+        key="candidate_zero_variance" if olmo_active else "training_zero_variance",
+        label="Candidate zero-variance groups" if olmo_active else "Training zero-variance groups",
+        metric="train/rl/group_zero_variance_fraction",
+        unit="ratio",
+    )
+    sampled, trained = generated_groups.value, retained_groups.value
+    if olmo_active and isinstance(sampled, float) and sampled > 0 and isinstance(trained, float):
+        # The trainer's zero-variance series averages each refill round's tied
+        # fraction, which matches neither the sampled nor the trained population.
+        # Over a whole run, kept and tied groups partition everything sampled.
+        kept = trained / sampled
+        retained_fraction = retained_fraction.model_copy(
+            update={"value": kept, "state": "available", "metric": retained_groups.metric}
+        )
+        zero_variance = zero_variance.model_copy(
+            update={"value": 1 - kept, "state": "available", "metric": retained_groups.metric}
         )
 
     return GRPOProjection(
@@ -692,40 +753,17 @@ def _grpo_projection(
             algorithm=algorithm,
             adaptive_controller=bool(controller_steps),
             zero_variance_scope="candidate" if olmo_active else "training",
-            zero_variance=_metric_summary(
-                series,
-                key="candidate_zero_variance" if olmo_active else "training_zero_variance",
-                label="Candidate zero-variance groups" if olmo_active else "Training zero-variance groups",
-                metric="train/rl/group_zero_variance_fraction",
-                unit="ratio",
-            ),
-            retained_fraction=_metric_summary(
-                series,
-                key="retained_fraction",
-                label="Candidate retention",
-                metric=(
-                    "train/rl/active_sampling_retained_fraction"
-                    if olmo_active
-                    else "train/rl/dynamic_sampling_retained_fraction"
-                ),
-                unit="ratio",
-            ),
+            zero_variance=zero_variance,
+            retained_fraction=retained_fraction,
             generation_rounds=_metric_summary(
                 series,
                 key="generation_rounds",
                 label="Refill rounds",
                 metric="train/rl/active_sampling_generation_rounds",
+                reducer="mean",
             ),
-            generated_groups=active_group_summary(
-                key="generated_groups",
-                label="Candidate task groups",
-                metric="train/rl/active_sampling_candidate_groups_generated",
-            ),
-            retained_groups=active_group_summary(
-                key="retained_groups",
-                label="Retained task groups",
-                metric="train/rl/active_sampling_candidate_groups_retained",
-            ),
+            generated_groups=generated_groups,
+            retained_groups=retained_groups,
             steps=controller_steps,
         ),
     )
@@ -739,6 +777,26 @@ _CURRICULUM_METRIC_FIELDS = {
     "train/rl/curriculum/discovery_fulfilled": "discovery_fulfilled",
     "train/rl/curriculum/duplicate_fallbacks": "duplicate_fallbacks",
 }
+
+
+def _with_retained_groups(
+    steps: tuple[GRPOSamplingStep, ...],
+    series: Mapping[str, MetricSeries],
+    num_generations: int,
+) -> tuple[GRPOSamplingStep, ...]:
+    """Attach each step's kept-group count from the trainer's active-sampling rows."""
+
+    metric = "train/rl/active_sampling_candidate_groups_retained"
+    kept_rows: dict[int, float] = {}
+    for point in series.get(metric, MetricSeries(name=metric)).points:
+        if point.step is not None and point.step >= 0:
+            kept_rows[point.step] = float(point.value)
+    return tuple(
+        step.model_copy(update={"retained_groups": round(kept_rows[step.step] / num_generations)})
+        if step.step in kept_rows
+        else step
+        for step in steps
+    )
 
 
 def _adaptive_sampling_steps(
@@ -1148,6 +1206,7 @@ class ObservatoryService:
         semantic_provider: SemanticSummaryProvider | None = None,
         redaction: RedactionPolicy | None = None,
         source_discovery: TrackioSourceDiscovery | None = None,
+        architecture_loader: ArchitectureLoader | None = None,
     ) -> None:
         if isinstance(source, RunSourceRegistry):
             self.registry = source
@@ -1158,9 +1217,19 @@ class ObservatoryService:
         self._redaction = redaction or RedactionPolicy()
         self._semantic = SemanticAnalysisService(semantic_provider)
         self._source_discovery = source_discovery
+        # Reads model configs for the settings calculator; None keeps reviews to rule findings.
+        self._architecture_loader = architecture_loader
         self._trace_read_contexts: dict[tuple[str, str], _TraceReadContext] = {}
+        self._trace_summary_cache: dict[tuple[str, str], tuple[float, tuple[TraceSummary, ...], bool]] = {}
+        self._trace_summary_locks: dict[tuple[str, str], asyncio.Lock] = {}
         self._rollout_behavior_cache: dict[tuple[str, str], tuple[float, RolloutBehaviorView]] = {}
         self._rollout_behavior_locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._prompt_group_reward_cache: dict[tuple[str, str], tuple[float, PromptGroupRewardView]] = {}
+        self._prompt_group_reward_locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._rollout_time_cache: dict[
+            tuple[str, str], tuple[float, RolloutTimeView, dict[int | None, TraceAggregateBucket] | None]
+        ] = {}
+        self._rollout_time_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
     def _locator(self, value: str | RunLocator) -> RunLocator:
         if isinstance(value, RunLocator):
@@ -1287,11 +1356,13 @@ class ObservatoryService:
                 view=generic,
             )
         if detail.summary.job_kind == "serve.benchmark":
-            view: RunView | EvaluationRunView | ServingBenchmarkRunView = await project_serving_benchmark(
-                locator,
-                source,
-                detail,
-                self._redaction,
+            serving = await project_serving_benchmark(locator, source, detail, self._redaction)
+            view: RunView | EvaluationRunView | ServingBenchmarkRunView = serving.model_copy(
+                update={
+                    "configuration": await configuration_review(
+                        self._redaction.mapping(detail.resolved_inputs), self._architecture_loader
+                    )
+                }
             )
         else:
             metric_view = await self._metric_job_view(locator, definition, detail=detail)
@@ -1319,6 +1390,7 @@ class ObservatoryService:
                     artifacts=metric_view.artifacts,
                     execution_targets=metric_view.execution_targets,
                     resolved_inputs=metric_view.resolved_inputs,
+                    configuration=metric_view.configuration,
                     source_metadata=metric_view.source_metadata,
                     trace_evaluation_enabled=metric_view.trace_evaluation_enabled,
                     capabilities=metric_view.capabilities,
@@ -1379,6 +1451,8 @@ class ObservatoryService:
             trace_count=detail.trace_count,
         )
         execution_targets = execution_target_contexts(detail.resolved_inputs)
+        resolved_inputs = self._redaction.mapping(detail.resolved_inputs)
+        configuration = await configuration_review(resolved_inputs, self._architecture_loader, series_values)
         return RunView(
             schema_version=definition.schema_version,
             locator=locator,
@@ -1402,7 +1476,8 @@ class ObservatoryService:
             ),
             artifacts=artifacts,
             execution_targets=execution_targets,
-            resolved_inputs=self._redaction.mapping(detail.resolved_inputs),
+            resolved_inputs=resolved_inputs,
+            configuration=configuration,
             source_metadata=self._redaction.mapping(detail.source_metadata),
             trace_count=detail.trace_count,
             trace_evaluation_enabled=bool(definition.trace_sections),
@@ -1433,6 +1508,7 @@ class ObservatoryService:
             )
             for event in detail.events
         )
+        resolved_inputs = self._redaction.mapping(detail.resolved_inputs)
         return GenericRunView(
             locator=locator,
             run=detail.summary,
@@ -1441,7 +1517,8 @@ class ObservatoryService:
             events=events,
             artifacts=artifacts,
             execution_targets=execution_target_contexts(detail.resolved_inputs),
-            resolved_inputs=self._redaction.mapping(detail.resolved_inputs),
+            resolved_inputs=resolved_inputs,
+            configuration=await configuration_review(resolved_inputs, self._architecture_loader),
             source_metadata=self._redaction.mapping(detail.source_metadata),
             trace_count=detail.trace_count,
             trace_evaluation_enabled=detail.trace_count > 0,
@@ -1955,11 +2032,27 @@ class ObservatoryService:
         *,
         cursor: str | None = None,
         limit: int = 100,
+        step: int | None = None,
+        slice_key: str | None = None,
+        outcome: TraceOutcome | None = None,
+        search: str | None = None,
     ) -> TraceSummaryPage:
         locator = self._locator(run)
         source = self.registry.resolve(locator)
         context = await self._trace_read_context(locator)
         detail = context.detail
+        if step is not None or slice_key or outcome or (search and search.strip()):
+            summaries, live = await self._trace_filter_population(locator, context)
+            return filtered_trace_summary_page(
+                summaries,
+                cursor=cursor,
+                limit=limit,
+                step=step,
+                slice_key=slice_key,
+                outcome=outcome,
+                search=search,
+                live=live,
+            )
         return await trace_summary_page(
             source,
             locator.run_id,
@@ -1967,10 +2060,121 @@ class ObservatoryService:
             cursor=cursor,
             limit=limit,
             trace_type=context.trace_type,
+            newest_first=detail.summary.job_kind.startswith("train."),
             metadata=(
                 _evaluation_metadata(detail.resolved_inputs) if detail.summary.job_kind.startswith("eval.") else None
             ),
         )
+
+    async def get_trace_filter_options(self, run: str | RunLocator) -> TraceFilterOptions:
+        locator = self._locator(run)
+        context = await self._trace_read_context(locator)
+        summaries, _ = await self._trace_filter_population(locator, context)
+        return trace_filter_options(summaries)
+
+    async def get_rollout_time(self, run: str | RunLocator) -> RolloutTimeView:
+        """Per-step rollout phase time; finished steps are reused across refreshes."""
+
+        locator = self._locator(run)
+        key = (locator.source_id, locator.run_id)
+        cached = self._rollout_time_cache.get(key)
+        if cached is not None and cached[0] > time.monotonic():
+            return cached[1]
+        lock = self._rollout_time_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            cached = self._rollout_time_cache.get(key)
+            if cached is not None and cached[0] > time.monotonic():
+                return cached[1]
+            context = await self._trace_read_context(locator)
+            live = context.detail.summary.status == "running"
+            source = self.registry.resolve(locator)
+            aggregate_payload: PayloadAggregate | None = getattr(source, "aggregate_trace_payload", None)
+            buckets = (
+                await refresh_rollout_time_buckets(
+                    locator.run_id,
+                    context.trace_type,
+                    cached[2] if cached is not None else None,
+                    aggregate_payload=aggregate_payload,
+                    aggregate_facts=getattr(source, "aggregate_trace_facts", None),
+                )
+                if callable(aggregate_payload)
+                else None
+            )
+            view = rollout_time_view(buckets, live=live)
+            self._rollout_time_cache[key] = (time.monotonic() + (20.0 if live else 600.0), view, buckets)
+            if len(self._rollout_time_cache) > 64:
+                self._rollout_time_cache.pop(next(iter(self._rollout_time_cache)))
+            return view
+
+    async def get_prompt_group_rewards(self, run: str | RunLocator) -> PromptGroupRewardView:
+        locator = self._locator(run)
+        key = (locator.source_id, locator.run_id)
+        cached = self._prompt_group_reward_cache.get(key)
+        if cached is not None and cached[0] > time.monotonic():
+            return cached[1]
+        lock = self._prompt_group_reward_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            cached = self._prompt_group_reward_cache.get(key)
+            if cached is not None and cached[0] > time.monotonic():
+                return cached[1]
+            context = await self._trace_read_context(locator)
+            detail = context.detail
+            if detail.summary.job_kind != "train.grpo":
+                raise ValueError("prompt-group rewards are only available for train.grpo runs")
+            result = await self.registry.resolve(locator).aggregate_trace_facts(
+                locator.run_id,
+                TraceFactsQuery(
+                    trace_type=context.trace_type,
+                    group_by=("prompt_group_id", "task_id", "rollout_step"),
+                    aggregates=(
+                        TraceFactAggregate(measure="task_reward", operation="sum"),
+                        TraceFactAggregate(measure="task_reward", operation="sum_squares"),
+                    ),
+                ),
+            )
+            view = prompt_group_reward_view(
+                result,
+                expected_size=_config_positive_int(detail.resolved_inputs, "num_generations"),
+                recorded_traces=detail.trace_count,
+                live=detail.summary.status == "running",
+            )
+            self._prompt_group_reward_cache[key] = (time.monotonic() + (15.0 if view.live else 300.0), view)
+            if len(self._prompt_group_reward_cache) > 512:
+                self._prompt_group_reward_cache.pop(next(iter(self._prompt_group_reward_cache)))
+            return view
+
+    async def _trace_filter_population(
+        self,
+        locator: RunLocator,
+        context: _TraceReadContext,
+    ) -> tuple[tuple[TraceSummary, ...], bool]:
+        key = (locator.source_id, locator.run_id)
+        cached = self._trace_summary_cache.get(key)
+        if cached is not None and cached[0] > time.monotonic():
+            return cached[1], cached[2]
+        lock = self._trace_summary_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            cached = self._trace_summary_cache.get(key)
+            if cached is not None and cached[0] > time.monotonic():
+                return cached[1], cached[2]
+            detail = context.detail
+            summaries, live = await trace_summary_population(
+                self.registry.resolve(locator),
+                locator.run_id,
+                trace_type=context.trace_type,
+                newest_first=detail.summary.job_kind.startswith("train."),
+                metadata=(
+                    _evaluation_metadata(detail.resolved_inputs) if detail.summary.job_kind.startswith("eval.") else None
+                ),
+            )
+            self._trace_summary_cache[key] = (
+                time.monotonic() + (15.0 if detail.summary.status == "running" else 120.0),
+                summaries,
+                live,
+            )
+            if len(self._trace_summary_cache) > 4:
+                self._trace_summary_cache.pop(next(iter(self._trace_summary_cache)))
+            return summaries, live
 
     async def get_run_comparison_key(self, run: str | RunLocator) -> tuple[str, str] | None:
         """Return the lightweight population key used to populate Compare."""

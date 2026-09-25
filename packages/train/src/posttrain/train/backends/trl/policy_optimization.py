@@ -25,6 +25,7 @@ from .common import (
     trainer_lifecycle,
 )
 from .policy_config import (
+    _configure_batch_invariance,
     _configure_liger_loss,
     _configure_torch_compile,
     _online_rl_arguments,
@@ -98,6 +99,7 @@ def _run_online_rl(
         if request.resume_from is not None:
             validate_reward_recovery(request.resume_from.path, reward_contract)
     _configure_torch_compile(request.inference.engine)
+    _configure_batch_invariance(request.inference.engine)
     if request.inference.backend.split("@", 1)[0] == "vllm":
         try:
             import torch

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from posttrain.execution import (
@@ -343,3 +345,509 @@ def test_single_run_preview_discovers_only_the_selected_root_lineage(
 
     assert observed["discover_lineage_for"] == (candidate.run_id,)
     assert observed["refresh_status_for"] == (candidate.run_id,)
+
+
+# --- orphaned tracking-run purge -------------------------------------------------
+
+_ORPHAN = "orphan-run"
+_ORPHAN_IMAGE = "registry.lan/carbonteq/posttrain-job@sha256:" + "c" * 64
+
+
+class _FakeProvider:
+    def __init__(self, scope: str, active: tuple[str, ...] = ()) -> None:
+        self.inventory_scope = scope
+        self.active = active
+
+    def active_executions_for_run(self, run_id: str) -> tuple[str, ...]:
+        assert run_id == _ORPHAN
+        return self.active
+
+
+def _install_orphan_fakes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+    *,
+    status: str = "failed",
+    last_activity: datetime | None = None,
+    recorded_provider: str | None = "dstack",
+    consumers: tuple[str, ...] = (),
+    active: tuple[str, ...] = (),
+    admission: tuple[object, ...] = (),
+    registry_owners: dict[str, tuple[str, ...]] | None = None,
+    local_candidates: dict[str, PurgeRunCandidate] | None = None,
+) -> tuple[SimpleNamespace, PurgeStore, dict[str, object]]:
+    from datetime import timedelta
+
+    state: dict[str, object] = {
+        "status": status,
+        "last_activity": last_activity or datetime.now(UTC) - timedelta(days=5),
+        "active": active,
+        "consumers": consumers,
+        "admission": admission,
+        "registry_owners": registry_owners or {},
+        "local_candidates": local_candidates or {},
+    }
+
+    class Lookup:
+        def __init__(self, project: str, *, server_url: str) -> None:
+            assert project == "fixture" and server_url == "https://trackio.test"
+
+        def find(self, run_id: str):
+            if run_id != _ORPHAN:
+                return None
+            return SimpleNamespace(
+                run_id=run_id,
+                provider_run_id="trackio-orphan",
+                status=state["status"],
+                created_at=None,
+                last_activity_at=state["last_activity"],
+                recorded_provider=recorded_provider,
+                recorded_job_image=_ORPHAN_IMAGE,
+                evidence_retention="standard",
+            )
+
+    class Admin:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def plan_run_purge(self, *, project: str, provider_run_ids: tuple[str, ...]):
+            assert project == "fixture" and provider_run_ids == ("trackio-orphan",)
+            return SimpleNamespace(
+                artifacts=(SimpleNamespace(consumer_run_ids=("trackio-orphan", *state["consumers"])),),  # type: ignore[misc]
+                blockers=(),
+            )
+
+    tracking_module = SimpleNamespace(TrackioRunActivityLookup=Lookup, TrackioLifecycleAdmin=Admin)
+    monkeypatch.setattr(
+        purge_surface,
+        "importlib",
+        SimpleNamespace(import_module=lambda name: tracking_module),
+    )
+    monkeypatch.setattr(
+        purge_surface,
+        "project_tracking_environment",
+        lambda _layout: {"POSTTRAIN_TRACKIO_SERVER_URL": "https://trackio.test", "TRACKIO_WRITE_TOKEN": "fixture"},
+    )
+    monkeypatch.setattr(purge_surface, "_machine_trust_bundle", lambda: None)
+    monkeypatch.setattr(
+        purge_surface,
+        "execution_admission_service",
+        lambda _layout: SimpleNamespace(list=lambda: state["admission"]),
+    )
+    monkeypatch.setattr(
+        purge_surface,
+        "load_local_execution_config",
+        lambda *_args, **_kwargs: SimpleNamespace(dstack=SimpleNamespace(), local=SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        purge_surface,
+        "_inventory_provider",
+        lambda _layout, _config, name: _FakeProvider(
+            "dstack project 'main'" if name == "dstack" else "local Docker",
+            tuple(state["active"]) if name == "dstack" else (),  # type: ignore[arg-type]
+        ),
+    )
+    monkeypatch.setattr(
+        purge_surface,
+        "candidate_catalog",
+        lambda _layout, **_kwargs: dict(state["local_candidates"]),  # type: ignore[arg-type]
+    )
+    monkeypatch.setattr(
+        purge_surface,
+        "_registry_image_inventory",
+        lambda _layout, _candidates: (dict(state["registry_owners"]), ()),  # type: ignore[arg-type]
+    )
+    store = PurgeStore((tmp_path / "machine").resolve())
+    monkeypatch.setattr(purge_surface, "plan_store", lambda _layout: store)
+    monkeypatch.setattr(purge_surface, "saved_plan_store", lambda _layout, _purge_id: store)
+    layout = SimpleNamespace(project_id="fixture", tracking="trackio", state=(tmp_path / "state").resolve())
+    return layout, store, state
+
+
+def _orphan_preview(layout: SimpleNamespace) -> PurgePlan:
+    return purge_surface.save_run_preview(
+        layout,
+        _ORPHAN,
+        cascade=False,
+        reason=PurgeReason(category="abandoned-run"),
+        orphan=True,
+    )
+
+
+def test_orphan_terminal_run_plans_only_tracking_deletion(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    layout, _store, _state = _install_orphan_fakes(monkeypatch, tmp_path)
+
+    plan = _orphan_preview(layout)
+
+    assert plan.blockers == ()
+    assert plan.provider_actions == plan.registry_actions == plan.local_actions == ()
+    assert [action.action_id for action in plan.tracking_actions] == [f"tracking:{_ORPHAN}"]
+    assert plan.basis is not None
+    assert plan.basis["provider_inventories"] == ["machine admission ledger", "dstack project 'main'"]
+    rendered = purge_surface.render_plan(plan)
+    assert "Kind: orphan purge (no local submission receipt" in rendered
+    assert "(a) provider: recorded provider dstack" in rendered
+    assert "admission entry: none" in rendered
+    assert "(b) registry: attributed images: none; delete: none; retain (shared): none; inventory complete" in rendered
+    assert "(c) lineage: Trackio run trackio-orphan; tracked artifacts: 1; surviving consumers: none" in rendered
+    assert "(d) state: tracking status failed" in rendered
+
+
+def test_orphan_without_recorded_provider_queries_every_configured_provider(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    layout, _store, _state = _install_orphan_fakes(monkeypatch, tmp_path, recorded_provider=None)
+
+    plan = _orphan_preview(layout)
+
+    assert plan.blockers == ()
+    assert plan.basis is not None
+    assert plan.basis["provider_inventories"] == [
+        "machine admission ledger",
+        "dstack project 'main'",
+        "local Docker",
+    ]
+
+
+def test_orphan_stale_running_run_is_allowed(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    from datetime import timedelta
+
+    layout, _store, _state = _install_orphan_fakes(
+        monkeypatch,
+        tmp_path,
+        status="running",
+        last_activity=datetime.now(UTC) - timedelta(days=6),
+    )
+
+    plan = _orphan_preview(layout)
+
+    assert plan.blockers == ()
+    assert any("recorded as running but stale" in warning for warning in plan.warnings)
+
+
+def test_orphan_recently_active_running_run_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    from datetime import timedelta
+
+    layout, _store, _state = _install_orphan_fakes(
+        monkeypatch,
+        tmp_path,
+        status="running",
+        last_activity=datetime.now(UTC) - timedelta(hours=1),
+    )
+
+    plan = _orphan_preview(layout)
+
+    assert any("recorded as running and was active" in blocker for blocker in plan.blockers)
+
+
+def test_orphan_active_provider_execution_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    layout, _store, _state = _install_orphan_fakes(monkeypatch, tmp_path, active=("dstack:pt-0123 (running)",))
+
+    plan = _orphan_preview(layout)
+
+    assert any("dstack:pt-0123 (running)" in blocker for blocker in plan.blockers)
+
+
+def _ledger_entry(control_store: Path, *, state: str = "terminal_pending_evidence") -> SimpleNamespace:
+    return SimpleNamespace(
+        run_id=_ORPHAN,
+        state=state,
+        admission_key=f"run:{_ORPHAN}",
+        control_locator=None,
+        control_store_uri=control_store.as_uri(),
+        provider_source=None,
+        plan=SimpleNamespace(
+            provider="dstack",
+            native_plan_id="pt-48b3564ae80357d610c47259",
+            request=SimpleNamespace(idempotency_key="posttrain-key", image=SimpleNamespace(value=_ORPHAN_IMAGE)),
+        ),
+    )
+
+
+def _named_execution(monkeypatch: pytest.MonkeyPatch, state: str, native: str) -> list[Any]:
+    handles: list[Any] = []
+
+    class Provider:
+        def status(self, handle):
+            handles.append(handle)
+            return SimpleNamespace(state=state, native_state=native)
+
+    monkeypatch.setattr(purge_surface, "_entry_provider", lambda _layout, _config, _entry: Provider())
+    return handles
+
+
+def test_orphan_abandoned_admission_entry_is_settled_with_its_exclusive_image(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    gone = (tmp_path / "removed-worktree" / ".posttrain" / "state").resolve()
+    layout, _store, _state = _install_orphan_fakes(
+        monkeypatch,
+        tmp_path,
+        admission=(_ledger_entry(gone),),
+        registry_owners={_ORPHAN_IMAGE: (_ORPHAN,)},
+    )
+    handles = _named_execution(monkeypatch, "cancelled", "terminated")
+
+    plan = _orphan_preview(layout)
+
+    assert plan.blockers == ()
+    assert [handle.provider_id for handle in handles] == ["pt-48b3564ae80357d610c47259"]
+    assert [action.kind for action in plan.registry_actions] == ["registry.delete_manifest"]
+    assert [action.kind for action in plan.tracking_actions] == ["tracking.delete_run"]
+    assert [action.kind for action in plan.local_actions] == ["local.settle_admission"]
+    assert plan.provider_actions == ()
+    rendered = purge_surface.render_plan(plan)
+    assert f"control store {gone} (absent)" in rendered
+    assert "dstack:pt-48b3564ae80357d610c47259 (cancelled, terminated); settle to completed" in rendered
+    assert f"delete: {_ORPHAN_IMAGE}" in rendered
+
+
+def test_orphan_admission_entry_whose_project_still_exists_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    owner = (tmp_path / "live-worktree" / ".posttrain" / "state").resolve()
+    (owner / "executions" / _ORPHAN).mkdir(parents=True)
+    layout, _store, _state = _install_orphan_fakes(
+        monkeypatch,
+        tmp_path,
+        admission=(_ledger_entry(owner),),
+        registry_owners={_ORPHAN_IMAGE: (_ORPHAN,)},
+    )
+    _named_execution(monkeypatch, "cancelled", "terminated")
+
+    plan = _orphan_preview(layout)
+
+    assert any("holds its submission receipt" in blocker for blocker in plan.blockers)
+    assert plan.local_actions == ()
+
+
+def test_orphan_admission_entry_whose_provider_execution_is_active_blocks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    gone = (tmp_path / "removed-worktree" / ".posttrain" / "state").resolve()
+    layout, _store, _state = _install_orphan_fakes(
+        monkeypatch,
+        tmp_path,
+        admission=(_ledger_entry(gone),),
+        registry_owners={_ORPHAN_IMAGE: (_ORPHAN,)},
+    )
+    _named_execution(monkeypatch, "running", "running")
+
+    plan = _orphan_preview(layout)
+
+    assert any("pt-48b3564ae80357d610c47259 which is running (running)" in blocker for blocker in plan.blockers)
+
+
+def test_orphan_admission_image_shared_with_another_run_is_retained(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    gone = (tmp_path / "removed-worktree" / ".posttrain" / "state").resolve()
+    layout, _store, _state = _install_orphan_fakes(
+        monkeypatch,
+        tmp_path,
+        admission=(_ledger_entry(gone),),
+        registry_owners={_ORPHAN_IMAGE: (_ORPHAN, "surviving-run")},
+    )
+    _named_execution(monkeypatch, "failed", "failed")
+
+    plan = _orphan_preview(layout)
+
+    assert plan.blockers == ()
+    assert plan.registry_actions == ()
+    assert [action.kind for action in plan.tracking_actions] == ["tracking.delete_run"]
+    assert [action.kind for action in plan.local_actions] == ["local.settle_admission"]
+    assert any("retained; referenced by unselected run(s): 'surviving-run'" in warning for warning in plan.warnings)
+    assert f"retain (shared): {_ORPHAN_IMAGE}" in purge_surface.render_plan(plan)
+
+
+def test_orphan_apply_settles_admission_after_tracking_deletion(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    gone = (tmp_path / "removed-worktree" / ".posttrain" / "state").resolve()
+    layout, store, _state = _install_orphan_fakes(
+        monkeypatch,
+        tmp_path,
+        admission=(_ledger_entry(gone),),
+        registry_owners={_ORPHAN_IMAGE: (_ORPHAN,)},
+    )
+    _named_execution(monkeypatch, "failed", "failed")
+    plan = _orphan_preview(layout)
+    assert plan.blockers == ()
+    applied: list[str] = []
+
+    class Executor:
+        def revalidate(self, action) -> None:
+            del action
+
+        def apply(self, action) -> None:
+            applied.append(action.action_id)
+
+    executor = Executor()
+    monkeypatch.setattr(
+        purge_surface,
+        "_apply_executors",
+        lambda _layout, _plan: {"registry": executor, "tracking": executor, "local": executor},
+    )
+    monkeypatch.setattr(purge_surface, "_revalidate_registry_ownership", lambda _layout, _plan: None)
+    cli_state = cast(Any, SimpleNamespace(layout=lambda: layout, json_output=False))
+
+    purge_surface.apply_saved_plan(cli_state, plan.purge_id, expected_digest=plan.digest, assume_yes=True)
+
+    assert applied == [f"registry:{_ORPHAN}", f"tracking:{_ORPHAN}", f"local:{_ORPHAN}:admission"]
+    tombstone = store.load_tombstone(plan.purge_id)
+    assert tombstone.status == "purged"
+    assert dict(tombstone.plane_outcomes) == {
+        "provider": "not-applicable",
+        "registry": "completed",
+        "tracking": "completed",
+        "local": "completed",
+    }
+    assert tombstone.basis is not None and tombstone.basis["admission_settle"] is True
+
+
+def test_candidate_catalog_skips_runs_retired_by_a_completed_purge(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    machine = PurgeStore((tmp_path / "machine").resolve())
+    retired = "cancelled-and-purged"
+    plan = machine.save_plan(
+        PurgePlan.build(
+            mode="run",
+            project_id="fixture",
+            run_ids=(retired,),
+            root_run_id=retired,
+            reason=PurgeReason(category="disposable-fixture"),
+        )
+    )
+    from posttrain.execution import apply_purge_plan
+
+    apply_purge_plan(machine, plan.purge_id, {})
+    image = RegistryManifestRef("registry.lan/posttrain-job", "sha256:" + "e" * 64)
+    entry = SimpleNamespace(
+        run_id=retired,
+        state="cancelled",
+        plan=SimpleNamespace(
+            provider="local-docker",
+            native_plan_id=None,
+            request=SimpleNamespace(run_spec=SimpleNamespace(project_id="fixture"), image=image),
+        ),
+    )
+
+    class Store:
+        def list_submissions(self):
+            return ()
+
+    monkeypatch.setattr(purge_surface, "ExecutionSubmissionStore", lambda _state: Store())
+    monkeypatch.setattr(purge_surface, "_plan_stores", lambda _layout: (machine,))
+    monkeypatch.setattr(
+        purge_surface, "execution_admission_service", lambda _layout: SimpleNamespace(list=lambda: (entry,))
+    )
+    monkeypatch.setattr(purge_surface, "_populate_trackio_lineage", lambda *_args, **_kwargs: None)
+
+    candidates = purge_surface.candidate_catalog(SimpleNamespace(state=tmp_path.resolve(), project_id="fixture"))
+
+    assert retired not in candidates
+
+
+def test_orphan_attributed_registry_image_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    layout, _store, _state = _install_orphan_fakes(
+        monkeypatch,
+        tmp_path,
+        registry_owners={_ORPHAN_IMAGE: (_ORPHAN,)},
+    )
+
+    plan = _orphan_preview(layout)
+
+    assert any(f"attributed registry image {_ORPHAN_IMAGE!r}" in blocker for blocker in plan.blockers)
+
+
+def test_orphan_surviving_consumer_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    layout, _store, _state = _install_orphan_fakes(monkeypatch, tmp_path, consumers=("trackio-consumer",))
+
+    plan = _orphan_preview(layout)
+
+    assert any("consumed by surviving run 'trackio-consumer'" in blocker for blocker in plan.blockers)
+
+
+def test_orphan_flag_refuses_run_with_local_receipt(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    candidate = PurgeRunCandidate(
+        run_id=_ORPHAN,
+        project_id="fixture",
+        provider="dstack",
+        provider_id="pt-local",
+        state="failed",
+        reconciled=True,
+        evidence_provider="trackio",
+        evidence_project="fixture",
+        tracking_provider_run_id="trackio-orphan",
+    )
+    layout, _store, _state = _install_orphan_fakes(monkeypatch, tmp_path, local_candidates={_ORPHAN: candidate})
+
+    plan = _orphan_preview(layout)
+
+    assert plan.blockers == (
+        f"run {_ORPHAN!r} has local control state on this machine; omit --orphan to use the normal purge",
+    )
+    assert plan.actions == ()
+
+
+def test_run_missing_from_tracking_blocks_orphan_preview(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    layout, _store, _state = _install_orphan_fakes(monkeypatch, tmp_path)
+
+    plan = purge_surface.save_run_preview(
+        layout,
+        "not-in-tracking",
+        cascade=False,
+        reason=PurgeReason(category="abandoned-run"),
+        orphan=True,
+    )
+
+    assert plan.blockers == ("run 'not-in-tracking' was not found in tracking project 'fixture'",)
+
+
+def test_without_orphan_flag_missing_receipt_keeps_not_found_blocker(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    layout, _store, _state = _install_orphan_fakes(monkeypatch, tmp_path)
+
+    plan = purge_surface.save_run_preview(
+        layout,
+        _ORPHAN,
+        cascade=False,
+        reason=PurgeReason(category="abandoned-run"),
+    )
+
+    assert plan.blockers == (f"run {_ORPHAN!r} was not found",)
+    assert plan.basis is None
+
+
+def test_orphan_apply_revalidates_before_deleting(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    layout, store, state = _install_orphan_fakes(monkeypatch, tmp_path)
+    plan = _orphan_preview(layout)
+    assert plan.blockers == ()
+    applied: list[str] = []
+
+    class Executor:
+        def revalidate(self, action) -> None:
+            del action
+
+        def apply(self, action) -> None:
+            applied.append(action.action_id)
+
+    monkeypatch.setattr(purge_surface, "_apply_executors", lambda _layout, _plan: {"tracking": Executor()})
+    cli_state = cast(Any, SimpleNamespace(layout=lambda: layout, json_output=False))
+
+    state["active"] = ("dstack:pt-late (running)",)
+    with pytest.raises(RuntimeError, match="orphan purge revalidation failed"):
+        purge_surface.apply_saved_plan(cli_state, plan.purge_id, expected_digest=plan.digest, assume_yes=True)
+    assert applied == []
+
+    state["active"] = ()
+    purge_surface.apply_saved_plan(cli_state, plan.purge_id, expected_digest=plan.digest, assume_yes=True)
+    assert applied == [f"tracking:{_ORPHAN}"]
+    tombstone = store.load_tombstone(plan.purge_id)
+    assert tombstone.status == "purged"
+    assert tombstone.basis is not None and tombstone.basis["kind"] == "orphan-tracking-run"
+
+
+def test_orphan_rejects_cascade(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    layout, _store, _state = _install_orphan_fakes(monkeypatch, tmp_path)
+
+    with pytest.raises(ValueError, match="cannot be combined with --cascade"):
+        purge_surface.save_run_preview(
+            layout,
+            _ORPHAN,
+            cascade=True,
+            reason=PurgeReason(category="abandoned-run"),
+            orphan=True,
+        )
