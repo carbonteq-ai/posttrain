@@ -40,9 +40,9 @@ tool calls failed.
   index). Every renderer reports `reasoning_tokens` for its completion, and
   every catalog model has one: LFM2.5, K2 Horizon, Nanbeige 4.2, Spark 2.5,
   Gemma 4 (including 12B) and Qwen 3.5.
-- Verifiers `d223c320`: the train client records the renderer's count as
+- Verifiers `0cee0a07`: the train client records the renderer's count as
   `usage.reasoning_tokens` on each call. Verifiers environments move to
-  `144051d5`, which selects the same Verifiers commit.
+  `8b739717`, which selects the same Verifiers commit.
 - Trace facts are calculator `verifiers-trace-facts.v6`. v5 added task and
   prompt-group ids; v6 takes thinking tokens only from per-call usage and drops
   the Qwen-specific recovery rules.

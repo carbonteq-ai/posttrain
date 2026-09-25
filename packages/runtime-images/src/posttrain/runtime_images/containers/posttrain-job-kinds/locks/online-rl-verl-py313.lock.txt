@@ -1380,7 +1380,7 @@ uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'c
     --hash=sha256:bc5ef13bbc10b5335792360623cc378d52d7e62c2de64660616478c32cd0598e
     # via uvicorn
 
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@d223c3207c142a1ac4b8ef21a9faca7fe336a8ac
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@0cee0a075ddf1883498be0fde34155655cb19146
     # via
     #   posttrain-data
     #   posttrain-eval
