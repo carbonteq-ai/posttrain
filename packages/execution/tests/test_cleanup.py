@@ -487,3 +487,26 @@ async def test_local_cleanup_removes_only_the_exact_run_workspace(
     assert receipt.workspace_reclaimed_bytes == 32
     assert not workspace.exists()
     assert (sibling / "keep.bin").read_bytes() == b"keep"
+
+
+@pytest.mark.asyncio
+async def test_terminal_disagreement_before_any_output_releases_an_empty_workspace(
+    tmp_path: Path,
+) -> None:
+    """A run that failed before writing outputs has nothing cleanup could lose."""
+    provider, service, store, workspace = _service(tmp_path, provider_state="failed")
+    (workspace / "disposable.bin").unlink()
+    (workspace / "scratch").mkdir()
+    (workspace / ".posttrain-terminal.json").write_text("{}", encoding="utf-8")
+
+    receipt = await cleanup_execution(
+        service,
+        store,
+        _Source(status="cancelled", retain_artifact=False),  # type: ignore[arg-type]
+        "cleanup-run-1",
+        diagnostic_limit=1,
+    )
+
+    assert receipt.evidence_state == "terminal-disagreement"
+    assert receipt.diagnostic_file == "diagnostic.log"
+    assert provider.cleanup_calls == 1
