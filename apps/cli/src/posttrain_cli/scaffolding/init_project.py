@@ -304,6 +304,18 @@ def starter_grpo_environment() -> str:
           dataset_revision: 740312add88f781978c0658806c59bc2815b9866
           dataset_config: main
           split: train
+        # Run the environment's tools and scoring in local subprocesses; without an
+        # agent runtime Verifiers defaults to Prime sandboxes, which need an API key.
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 180
+            finalize: 60
+            scoring: 120
     sampling:
       max_tokens: 384
       temperature: 1.0
