@@ -45,19 +45,34 @@ _BASE_REPOSITORY = "posttrain-base"
 # resolve again. Recording them by hand in the manifest is another transcription
 # of something the profile already states, so they are derived from it.
 _PROVIDABLE = ("verifiers",)
+# Maintained packages a provided package brings into the image. Environment
+# dependency compilation must not emit them either: the kind lock pins them as
+# internal-index URLs, which a portable environment lock rejects. They are
+# provided only when the kind's lock actually installs them.
+_PROVIDED_WITH = {"verifiers": ("carbonteq-renderers",)}
+
+
+def _requirement_names(path: Path) -> set[str]:
+    names = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        entry = line.strip()
+        if not entry or entry.startswith(("#", "-", "--")):
+            continue
+        names.add(entry.split()[0].split("==")[0].split("@")[0].split(";")[0].strip().lower())
+    return names
 
 
 def _provided_packages(variant: str, root: Path) -> tuple[str, ...]:
     profile = root / KIND_DEFINITION / "profiles" / f"{variant}.txt"
     if not profile.is_file():
         return ()
-    installed = set()
-    for line in profile.read_text(encoding="utf-8").splitlines():
-        entry = line.strip()
-        if not entry or entry.startswith(("#", "-r ")):
-            continue
-        installed.add(entry.split()[0].split("==")[0].split("@")[0].strip().lower())
-    return tuple(name for name in _PROVIDABLE if name in installed)
+    installed = _requirement_names(profile)
+    provided = [name for name in _PROVIDABLE if name in installed]
+    lock = root / KIND_DEFINITION / "locks" / f"{variant}.lock.txt"
+    locked = _requirement_names(lock) if lock.is_file() else set()
+    for name in tuple(provided):
+        provided.extend(companion for companion in _PROVIDED_WITH.get(name, ()) if companion in locked)
+    return tuple(provided)
 
 
 _KIND_REPOSITORY_PREFIX = "posttrain-kind-"

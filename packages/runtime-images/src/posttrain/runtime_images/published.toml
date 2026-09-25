@@ -33,7 +33,7 @@ lock_digest = "b6e442575f2c03ebe7212f57db69387ecb93ab407f27b13f344a1e6606bc7523"
 constraint_lock = "containers/posttrain-job-kinds/locks/eval.lock.txt"
 runtime_source_digest = "abdf44b02e93637f510675fc0d50378772bc95383556cabbde6d1d2295b13409"
 base_digest = "sha256:1083e11ce1c540d8d7816f1c8ccd15011012ebe8771f0ecd6d5a685c4921d76b"
-provided_packages = ["verifiers"]
+provided_packages = ["verifiers", "carbonteq-renderers"]
 
 [kinds.online-rl-trl-py312]
 repository = "posttrain-kind-online-rl-trl-py312"
@@ -42,7 +42,7 @@ lock_digest = "eb69d8829c1f8d1fcc136a256f7882f112252165cc1ffb0da392d1db2d157485"
 constraint_lock = "containers/posttrain-job-kinds/locks/online-rl-trl-py312.lock.txt"
 runtime_source_digest = "2c585da2f626105706da669504b4c99e2204d54434d03b2862a3eb09f1c2fb97"
 base_digest = "sha256:1083e11ce1c540d8d7816f1c8ccd15011012ebe8771f0ecd6d5a685c4921d76b"
-provided_packages = ["verifiers"]
+provided_packages = ["verifiers", "carbonteq-renderers"]
 
 [kinds.online-rl-verl-py313]
 repository = "posttrain-kind-online-rl-verl-py313"
