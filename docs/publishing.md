@@ -333,8 +333,28 @@ gh pr checks <n>
 6. **Open or update the release PR and dispatch Prepare candidate.** The
    workflow stages the authored `X.Y.Z`, builds its distributions once, and
    publishes the receipt-listed files to `carbonteq/dev`.
-7. **If the constraint lock or image inputs changed, let the candidate workflow
-   publish and qualify the images.** It publishes to the registry projects
+7. **If the constraint lock or image inputs changed, publish the images locally
+   before dispatching the candidate.** Rebuilding the kinds takes the candidate
+   17-23 minutes, while its planner reuses any image the destination registry
+   already holds with identical immutable inputs (the step then takes seconds).
+   The workstation `posttrain-builder` keeps a warm cache, so plan and publish
+   from there, with the same trust bundle the protected runner passes, and
+   commit the regenerated `published.toml` before dispatch:
+
+   ```bash
+   uv run posttrain-release images plan --registry registry.lan/carbonteq \
+     --receipt-root .posttrain/state/release-receipts \
+     --trust-bundle /usr/local/share/ca-certificates/carbonteq-local-ai-caddy.crt
+   uv run posttrain-release images publish --registry registry.lan/carbonteq \
+     --receipt-root .posttrain/state/release-receipts \
+     --trust-bundle /usr/local/share/ca-certificates/carbonteq-local-ai-caddy.crt \
+     --framework-version <version>
+   ```
+
+   A different trust bundle changes the image inputs and the candidate rebuilds.
+   Check free disk before a local build; the build cache is tens of gigabytes.
+   The candidate workflow can still build when a local build is not possible. It
+   publishes to the registry projects
    actual jobs pull from (`registry.lan/carbonteq`). Posttrain does not use GHCR
    as a release registry. The protected workflow verifies a sanitized dstack
    capacity receipt and places the bounded canary on the known idle
