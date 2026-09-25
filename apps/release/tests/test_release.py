@@ -1241,6 +1241,7 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
         ("publish-trl-internal.yml", "trl"),
         ("publish-verl-internal.yml", "verl"),
         ("publish-trackio-internal.yml", "carbonteq-trackio"),
+        ("publish-renderers-internal.yml", "carbonteq-renderers"),
     ):
         workflow = (root / ".github/workflows" / filename).read_text(encoding="utf-8")
         assert "https://pypi.lan/carbonteq/dev/" in workflow
@@ -1257,6 +1258,7 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
     assert "carbonteq-ai/trl" in promotion
     assert "carbonteq-ai/verl" in promotion
     assert "carbonteq-ai/trackio" in promotion
+    assert "carbonteq-ai/renderers" in promotion
     assert '"${DEVPI_CLIENT}" push -y "${PACKAGE}==${VERSION}" carbonteq/stable' in promotion
     assert "DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi" in promotion
     assert "REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt" in promotion

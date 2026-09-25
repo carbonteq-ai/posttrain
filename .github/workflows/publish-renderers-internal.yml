@@ -1,0 +1,97 @@
+name: Publish retained renderers candidate to development
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Immutable carbonteq-v renderers release tag
+        required: true
+        type: string
+      wheel_sha256:
+        description: Expected SHA-256 of the retained wheel
+        required: true
+        type: string
+      sdist_sha256:
+        description: Expected SHA-256 of the retained source distribution
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish-renderers:
+    runs-on: [self-hosted, linux, x64, lan-release]
+    env:
+      UV_SYSTEM_CERTS: "true"
+      INTERNAL_UPLOAD_URL: https://pypi.lan/carbonteq/dev/
+      INTERNAL_SIMPLE_URL: https://pypi.lan/carbonteq/dev/+simple/
+    steps:
+      - name: Download the immutable GitHub Release assets
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          version="${RELEASE_TAG#carbonteq-v}"
+          test "${RELEASE_TAG}" = "carbonteq-v${version}"
+          mkdir -p renderers-dist
+          base_url="https://github.com/carbonteq-ai/renderers/releases/download/${RELEASE_TAG}"
+          curl --fail --location --retry 3 \
+            "${base_url}/carbonteq_renderers-${version}-py3-none-any.whl" \
+            --output "renderers-dist/carbonteq_renderers-${version}-py3-none-any.whl"
+          curl --fail --location --retry 3 \
+            "${base_url}/carbonteq_renderers-${version}.tar.gz" \
+            --output "renderers-dist/carbonteq_renderers-${version}.tar.gz"
+
+      - name: Verify the retained artifact identities
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          WHEEL_SHA256: ${{ inputs.wheel_sha256 }}
+          SDIST_SHA256: ${{ inputs.sdist_sha256 }}
+        run: |
+          version="${RELEASE_TAG#carbonteq-v}"
+          wheel="renderers-dist/carbonteq_renderers-${version}-py3-none-any.whl"
+          sdist="renderers-dist/carbonteq_renderers-${version}.tar.gz"
+          test "$(sha256sum "${wheel}" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
+          test "$(sha256sum "${sdist}" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
+          uvx twine check "${wheel}" "${sdist}"
+          sha256sum "${wheel}" "${sdist}" > renderers-internal-SHA256SUMS
+
+      - name: Publish exact bytes to the development index
+        run: uv publish --publish-url "${INTERNAL_UPLOAD_URL}" --check-url "${INTERNAL_SIMPLE_URL}" renderers-dist/* || true
+
+      - name: Prove the candidate is stored in development and installs cleanly
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          WHEEL_SHA256: ${{ inputs.wheel_sha256 }}
+          SDIST_SHA256: ${{ inputs.sdist_sha256 }}
+        run: |
+          version="${RELEASE_TAG#carbonteq-v}"
+          simple_page="$(curl --fail --location --retry 3 "${INTERNAL_SIMPLE_URL}carbonteq-renderers/")"
+          printf '%s\n' "${simple_page}" | grep -F "carbonteq_renderers-${version}-py3-none-any.whl" | grep -F '../../+f/'
+          printf '%s\n' "${simple_page}" | grep -F "carbonteq_renderers-${version}.tar.gz" | grep -F '../../+f/'
+          mkdir -p renderers-index
+          uv venv .renderers-index --clear --python 3.12
+          for filename in "carbonteq_renderers-${version}-py3-none-any.whl" "carbonteq_renderers-${version}.tar.gz"; do
+            href="$(printf '%s\n' "${simple_page}" | grep -F ">${filename}<" | grep -F '../../+f/' | \
+              sed -n 's/.*href="\([^"]*\)".*/\1/p' | head -n 1)"
+            test -n "${href}"
+            href="${href%%#*}"
+            url="$(.renderers-index/bin/python -c \
+              'import sys; from urllib.parse import urljoin; print(urljoin(sys.argv[1], sys.argv[2]))' \
+              "${INTERNAL_SIMPLE_URL}carbonteq-renderers/" "${href}")"
+            curl --fail --location --retry 3 "${url}" --output "renderers-index/${filename}"
+          done
+          test "$(sha256sum "renderers-index/carbonteq_renderers-${version}-py3-none-any.whl" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
+          test "$(sha256sum "renderers-index/carbonteq_renderers-${version}.tar.gz" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
+          uv venv .renderers-consumer --clear --python 3.12
+          uv pip install --python .renderers-consumer/bin/python \
+            --index-url "${INTERNAL_SIMPLE_URL}" "carbonteq-renderers==${version}"
+          .renderers-consumer/bin/python -c \
+            'import importlib.metadata, renderers; assert importlib.metadata.version("carbonteq-renderers") == renderers.__version__'
+
+      - name: Retain the internal publication receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: renderers-candidate-${{ inputs.release_tag }}
+          path: renderers-internal-SHA256SUMS
+          if-no-files-found: error
