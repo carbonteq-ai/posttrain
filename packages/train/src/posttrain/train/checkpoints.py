@@ -291,6 +291,24 @@ def _record_step(views: Mapping[str, CheckpointArtifactRecord]) -> int:
     return step
 
 
+def _committed_over_interrupted(
+    first: CheckpointArtifactRecord, second: CheckpointArtifactRecord
+) -> CheckpointArtifactRecord | None:
+    """Keep the periodic view when an interrupted run re-published the same step.
+
+    A cancelled run publishes its last complete checkpoint again, marked
+    ``interrupted``. When that step was already committed by the periodic save,
+    the committed view is the one training wrote; any other duplicate stays
+    ambiguous.
+    """
+    interrupted = [record.metadata.get("interrupted") is True for record in (first, second)]
+    if interrupted == [False, True]:
+        return first
+    if interrupted == [True, False]:
+        return second
+    return None
+
+
 def inspect_checkpoint_artifacts(records: Iterable[Mapping[str, object]]) -> tuple[CheckpointInspection, ...]:
     """Group committed checkpoint views without downloading manifests or bytes."""
 
@@ -303,7 +321,11 @@ def inspect_checkpoint_artifacts(records: Iterable[Mapping[str, object]]) -> tup
             continue
         views = grouped.setdefault(snapshot_id, {})
         if view in views:
-            raise ContractError(f"checkpoint snapshot {snapshot_id!r} has duplicate {view} views")
+            committed = _committed_over_interrupted(views[view], record)
+            if committed is None:
+                raise ContractError(f"checkpoint snapshot {snapshot_id!r} has duplicate {view} views")
+            views[view] = committed
+            continue
         views[view] = record
     inspections = [
         CheckpointInspection(snapshot_id, _record_step(views), views.get("recovery"), views.get("model"))

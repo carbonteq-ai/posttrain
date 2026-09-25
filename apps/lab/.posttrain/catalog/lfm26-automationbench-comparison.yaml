@@ -2562,6 +2562,45 @@ inference:
         free_cache_engine is read only by the veRL backend; it is kept so this
         binding differs from c40-4k@2 only in rollout batch capacity.
 
+  # Revision 1 with DSpark speculative rollout (nine tokens, vllm 0.29.1.dev4):
+  # the target verifies every drafted token, so sampled tokens are the
+  # target's own. The drafter's KV shares the cache (26 KiB per token with
+  # the target's 16 KiB), so revision 1's 8 GiB would hold about 37 of the 64
+  # episodes in flight; the calculator's 13.75 GiB and 0.23 (weights, cache,
+  # graphs and workspace beside the 15.7 GB trainer) are used.
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c64-4k@2:
+    revision: "2"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.23
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 64
+      max_num_batched_tokens: 65536
+      kv_cache_memory_bytes: 14763950080
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+      speculative_config:
+        method: dspark
+        model: LiquidAI/LFM2.5-2.6B-DSpark
+        revision: 458cedab07d0f7b2b05700c77e1aa463d43d6f04
+        num_speculative_tokens: 9
+    sampling: *policy_sampling_4k
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
   inference/k2-horizon-7b-vllm-uno-automationbench-rollout-local-c16-4k@1:
     revision: "1"
     model: models/k2-horizon-7b@bf16
