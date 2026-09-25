@@ -969,3 +969,64 @@ def test_dstack_legacy_bundle_is_plan_only_and_never_uploaded(
     with pytest.raises(RuntimeError, match="no longer accepts execution bundles"):
         provider.submit(plan)
     assert [action for action, _ in gateway.calls] == ["plan"]
+
+
+def test_active_executions_for_run_matches_only_the_posttrain_run_tag() -> None:
+    class InventoryGateway:
+        def __init__(self, response: dict) -> None:
+            self.response = response
+            self.calls: list[tuple[str, dict]] = []
+
+        def invoke(self, action: str, payload):
+            self.calls.append((action, dict(payload)))
+            return self.response
+
+    gateway = InventoryGateway(
+        {
+            "runs": [
+                {"run_name": "pt-a", "status": "running", "posttrain_run_id": "orphan-run"},
+                {"run_name": "pt-b", "status": "running", "posttrain_run_id": "other-run"},
+                {"run_name": "manual", "status": "pending", "posttrain_run_id": None},
+            ],
+            "complete": True,
+        }
+    )
+    provider = DstackExecutionProvider(gateway, project="main")
+
+    assert provider.active_executions_for_run("orphan-run") == ("dstack:pt-a (running)",)
+    assert provider.inventory_scope == "dstack project 'main'"
+    assert gateway.calls == [("active_runs", {"project": "main"})]
+
+    gateway.response = {"runs": [], "complete": False}
+    with pytest.raises(RuntimeError, match="incomplete"):
+        provider.active_executions_for_run("orphan-run")
+
+
+def test_sdk_bridge_active_runs_skips_terminal_runs_and_reports_page_completeness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _sdk_bridge_module(monkeypatch)
+
+    def run(name: str, status: str, tags: dict | None) -> types.SimpleNamespace:
+        configuration = types.SimpleNamespace(tags=tags)
+        return types.SimpleNamespace(
+            name=name,
+            status=types.SimpleNamespace(value=status),
+            _run=types.SimpleNamespace(run_spec=types.SimpleNamespace(configuration=configuration)),
+        )
+
+    runs = [
+        run("pt-live", "running", {"posttrain_run_id": "orphan-run"}),
+        run("pt-done", "done", {"posttrain_run_id": "orphan-run"}),
+        run("manual", "pending", None),
+    ]
+    client = types.SimpleNamespace(runs=types.SimpleNamespace(list=lambda: runs))
+    monkeypatch.setattr(module, "_client", lambda _payload: client)
+
+    assert module.active_runs({"project": "main"}) == {
+        "runs": [
+            {"run_name": "pt-live", "status": "running", "posttrain_run_id": "orphan-run"},
+            {"run_name": "manual", "status": "pending", "posttrain_run_id": None},
+        ],
+        "complete": True,
+    }

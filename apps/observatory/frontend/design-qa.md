@@ -124,3 +124,36 @@ and the table correctly changed from 12 of 12 to 8 of 12 traces. No browser
 developer-tools integration was used for the final validation.
 
 Final result: passed.
+
+## 2026-09-23 controller evidence chart revision
+
+Source visual truth: `/home/hammad/.codex/generated_images/01a0ce24-5d5b-73d0-bcfd-1c85fec9e39d/exec-99c3b924-b638-4eb5-be4a-7e43a077d78c.png` (1586 × 992 px, selected concept 3 revised with a step-range slider and near-contiguous bars). The live implementation was captured inline through the Codex in-app Browser on `http://127.0.0.1:7871/` at 2550 × 1226 px; that browser capture was not exported to a filesystem path. Comparison focused on the controller-evidence panel because the source mock shows 20 illustrative steps while the real run currently has 13 steps. This content difference is expected; both use the same desktop layout, light theme, and selected run route.
+
+### Findings and comparison history
+
+1. P2 - The first rendered pass lacked candidate totals above the stacked bars. The generated source places totals over each step. Fixed by aligning a numeric label row to the chart's category columns. The second live browser capture shows totals above all 13 bars.
+2. No remaining P0/P1/P2 findings in the target panel. The final capture shows two aligned data views, class colors retained from the prior UI, bars separated by approximately 2% of one category width, and a compact outcome matrix. The panel is shorter than the old full-width row list at this data size. The first and last range handles are visible and do not obscure the chart.
+
+### Fidelity surfaces
+
+- Typography: existing Instrument Serif heading and Inter evidence labels are preserved. Candidate totals and matrix values use tabular numerals; the mock's small-label hierarchy is retained.
+- Spacing and layout: one slider sits above the legend and chart; the outcome matrix follows immediately below. The chart and matrix share a 96 px left label/axis inset. The browser capture shows no clipped content in the target panel at the checked desktop viewport.
+- Color: the seven recorded class colors remain stable; the slider uses the existing violet accent. The matrix uses distinct muted markers alongside numeric values, not color alone.
+- Image and assets: the target contains data charts and existing UI icons, with no new image asset to reproduce. The distribution is rendered from live values rather than a raster mock.
+- Copy and content: the panel title is retained, and the visible range reads `Steps 1–13 of 13` for the current run. The default follows the latest 20 when at least 20 steps exist; with fewer steps, it shows all available steps.
+
+### Interaction and validation
+
+The browser showed the real `lfm26-vortex-v3-lr2e4-20260923-r1` evidence. Dragging the first handle changed the view from steps 1–13 to 2–13; keyboard Right made the same change, and `Latest 20` restored steps 1–13. A component test verifies the initial 6–25 window for 25 steps and moving both bounds. TypeScript check, 82 frontend tests, production Vite build, and `git diff --check` passed. The browser console had one older dynamic-import error while assets were being rebuilt; after the final reload the page and chart rendered and no new error appeared. Narrow-screen visual QA remains a follow-up check.
+
+Final result: passed.
+
+### Class-order follow-up
+
+The class stack now uses descending candidate count across the full run, with alphabetical ties. This same order is applied to every step and does not change with the range slider. Colors remain assigned by class identity, so changing the range cannot recolor a class. A component test covers a class that dominates the full run but is absent from the default latest-20 window. The live browser check on the 13-step run showed one consistent legend and band sequence across all columns; segment heights and boundaries still vary with the observed class shares. TypeScript check, all 83 frontend tests, production build, and `git diff --check` passed.
+
+### Prompt-group investigation follow-up
+
+Latest-first and aligned-expansion update (2026-09-23): Training trace pages now request newest recorded summaries first; other trace views retain their previous default order. The local Trackio-backed preview returned optimizer step 13 in its first five records instead of step 1, and a later live refresh displayed step 14 groups at the top of the first 100. Group rows are shown newest first while previous reward/variance is calculated chronologically from complete loaded groups. Page offsets on a running source are not a frozen snapshot; repeated trace IDs across pages are removed client-side, and group statistics remain limited to loaded records. Expanded rollouts now occupy child rows in the same HTML table and share its seven-column grid. The live browser accessibility tree showed a group row followed by four rollout rows, each with an aligned reward cell and trace-selection button. Frontend tests (86), TypeScript check, production build, and targeted backend tests (91) passed. Repository-wide pyright remains blocked by a type error in `packages/train/tests/test_adaptive_curriculum.py:773` outside this change.
+
+The annotated trace table lacked four pieces of context: optimizer-step filtering, exact within-step prompt grouping, update-selection state, and prior reward spread. The revised preview on port 7872 groups only by the recorded `posttrain_prompt_group_id`, projects the recorded `optimizer_step`, offers a step filter over loaded summaries, and shows reward mean and population variance only for complete scored groups. Previous mean and variance refer to the most recent complete group for the same task among loaded summaries. In the browser, choosing step 2 reduced the visible groups from 28 to 9; a partial group displayed `2 / 4` and suppressed its current statistics. The table explicitly says `Not recorded` for update selection because this run has no per-group inclusion decision. Trackio's physical `step` was checked and differs from `optimizer_step`, so filtering physical steps would be wrong. The page stays provider-bounded rather than scanning the whole run to make a filter appear complete. Full-population step filtering and definitive retained/rejected status need additional indexed producer/provider evidence. The screenshot and interaction were inspected in the local browser; the browser capture was not exported to a file.

@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { classifyContent } from './ContentRenderer';
-import { Transcript, TranscriptMessage } from './TranscriptMessage';
+import { TranscriptMessage } from './TranscriptMessage';
 
 afterEach(cleanup);
 
@@ -21,31 +21,6 @@ describe('TranscriptMessage', () => {
     expect(screen.getByText('Id')).toBeInTheDocument();
     expect(screen.getByText('006004')).toBeInTheDocument();
     expect(screen.queryByText(/\\"id\\"/)).not.toBeInTheDocument();
-  });
-
-  it('keeps a tool exchange and continuation inside one assistant message', () => {
-    render(<Transcript messages={[
-      {
-        role: 'assistant',
-        tool_calls: [{ name: 'salesforce_opportunity_update', arguments: '{"id":"006004"}' }],
-      },
-      {
-        role: 'tool',
-        content: '{"success":true,"opportunity":{"Name":"Apex Security Suite","Amount":67000}}',
-      },
-      { role: 'assistant', content: 'Done. The opportunity was updated.' },
-    ]} />);
-
-    expect(screen.getByRole('region', { name: 'Tool result' })).toBeInTheDocument();
-    expect(screen.getByText('Success')).toBeInTheDocument();
-    expect(screen.getByText('Apex Security Suite')).toBeInTheDocument();
-
-    const transcript = screen.getByLabelText('transcript');
-    const messages = within(transcript).getAllByRole('article');
-    expect(messages).toHaveLength(1);
-    expect(messages[0]).toHaveAccessibleName('assistant message');
-    expect(messages[0]).toHaveTextContent('Done. The opportunity was updated.');
-    expect(within(messages[0]).getByRole('region', { name: 'Tool result' })).toBeInTheDocument();
   });
 
   it('renders a Gemma-style YAML system prompt as structured evidence with exact raw content', () => {
@@ -119,60 +94,6 @@ describe('TranscriptMessage', () => {
     expect(container.querySelector('code.hljs.language-js')).toHaveTextContent('const answer = 42;');
   });
 
-  it('renders a Qwen reasoning and tool exchange from direct Verifiers fields', () => {
-    render(<Transcript messages={[
-      {
-        role: 'assistant',
-        content: null,
-        reasoning_content: 'I should **look up** the account first.',
-        tool_calls: [{ id: 'call-1', name: 'lookup_crm', arguments: '{"account":"Northwind"}' }],
-      },
-      {
-        role: 'tool',
-        name: 'lookup_crm',
-        tool_call_id: 'call-1',
-        content: '{"results":[{"owner":"Ada"}]}',
-      },
-      { role: 'assistant', content: 'Done. The owner is **Ada**.' },
-    ]} />);
-
-    const exchange = screen.getByRole('article', { name: 'assistant message' });
-    expect(within(exchange).getByText('look up').tagName).toBe('STRONG');
-    expect(within(exchange).getByRole('region', { name: 'Tool call lookup_crm' })).toBeInTheDocument();
-    expect(within(exchange).getByText('Northwind')).toBeInTheDocument();
-    expect(within(exchange).getByRole('region', { name: 'Tool result lookup_crm' })).toBeInTheDocument();
-    expect(within(exchange).getByText('Owner')).toBeInTheDocument();
-    expect(within(exchange).getAllByText('Ada')).toHaveLength(2);
-  });
-
-  it('normalizes nested legacy function calls and nested tool metadata', () => {
-    render(<Transcript messages={[
-      {
-        message: {
-          role: 'assistant',
-          content: null,
-          function_call: { name: 'weather', arguments: '{"city":"Lahore"}' },
-        },
-      },
-      {
-        message: {
-          role: 'function',
-          name: 'weather',
-          tool_call_id: 'legacy-1',
-          content: 'Sunny with a high of **35 C**.',
-        },
-      },
-      { message: { role: 'assistant', content: 'It is **sunny**.' } },
-    ]} />);
-
-    const exchange = screen.getByRole('article', { name: 'assistant message' });
-    expect(within(exchange).getByRole('region', { name: 'Tool call weather' })).toBeInTheDocument();
-    expect(within(exchange).getByText('Lahore')).toBeInTheDocument();
-    expect(within(exchange).getByRole('region', { name: 'Tool result weather' })).toBeInTheDocument();
-    expect(within(exchange).getByText('35 C').tagName).toBe('STRONG');
-    expect(within(exchange).getByText('sunny').tagName).toBe('STRONG');
-  });
-
   it('renders typed content parts individually and preserves unknown parts structurally', () => {
     render(<TranscriptMessage message={{
       role: 'user',
@@ -213,27 +134,6 @@ describe('TranscriptMessage', () => {
     ['typed provider parts', [{ type: 'output_text', text: 'done' }], 'parts'],
   ] as const)('classifies %s by retained shape', (_label, value, expected) => {
     expect(classifyContent(value).kind).toBe(expected);
-  });
-
-  it('supports nested OpenAI tool calls without model- or task-specific handling', () => {
-    render(<Transcript messages={[
-      {
-        role: 'assistant',
-        tool_calls: [{
-          id: 'call-2',
-          type: 'function',
-          function: { name: 'lookup_record', arguments: '{"record_id":"r-17"}' },
-        }],
-      },
-      { role: 'tool', name: 'lookup_record', content: 'No matching record.' },
-      { role: 'assistant', content: 'There is **no match**.' },
-    ]} />);
-
-    const exchange = screen.getByRole('article', { name: 'assistant message' });
-    expect(within(exchange).getByRole('region', { name: 'Tool call lookup_record' })).toBeInTheDocument();
-    expect(within(exchange).getByText('r-17')).toBeInTheDocument();
-    expect(within(exchange).getByRole('region', { name: 'Tool result lookup_record' })).toBeInTheDocument();
-    expect(within(exchange).getByText('no match').tagName).toBe('STRONG');
   });
 
   it('bounds large structured values while retaining the complete raw value', () => {

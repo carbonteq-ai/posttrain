@@ -1348,6 +1348,7 @@ describe('Observatory React product shell', () => {
     const trace = (externalId: string) => ({
       external_id: externalId,
       trace_type: 'verifiers',
+      optimizer_step: externalId === 'rollout-old' ? 1 : 10,
       prompt_preview: `Prompt ${externalId}`,
       task: 'task-a',
       task_label: 'Task A',
@@ -1380,11 +1381,17 @@ describe('Observatory React product shell', () => {
       metrics: { correct: 0.25 },
     });
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-            const path = String(input);
+      const path = String(input);
       if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
       if (path === '/api/v1/runs?source_id=fixture&limit=1000') return new Response(JSON.stringify([jobRun]));
       if (path.includes('/traces-evaluation')) throw new Error('optimization view must not request evaluation aggregation');
+      if (path.includes('/trace-filters')) return new Response(JSON.stringify({
+        total: 250, steps: [1, 10], slices: [{ key: 'task-a', label: 'Task A' }], outcomes: ['scored'],
+      }));
       if (path.includes('/traces?')) {
+        if (path.includes('step=1')) return new Response(JSON.stringify({
+          items: [trace('rollout-old')], next_cursor: null, total: 1, live: true,
+        }));
         const second = path.includes('cursor=100');
         return new Response(JSON.stringify({
           items: second ? [trace('rollout-3')] : [trace('rollout-1'), trace('rollout-2')],
@@ -1407,6 +1414,11 @@ describe('Observatory React product shell', () => {
 
     await user.click(screen.getByRole('button', { name: 'Load 100 more' }));
     expect(await screen.findByText('3 of 250 loaded')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Step: Any' }));
+    await user.click(screen.getByRole('option', { name: '1' }));
+    expect(await screen.findByText('1 of 1 loaded')).toBeVisible();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/traces?') && String(input).includes('step=1'))).toBe(true);
   });
 
   it('shows independent provider-error and trace-sync warnings on a succeeded evaluation', async () => {

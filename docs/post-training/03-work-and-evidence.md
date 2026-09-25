@@ -296,6 +296,37 @@ surviving run consumes selected evidence, an image/artifact has an unselected
 owner, or ownership inventory is incomplete. A requested cascade may include
 only a complete same-project consumer closure; cross-project consumers block.
 
+An **orphaned tracking run** is a run present in the project's tracking
+backend for which this machine holds no submission receipt, for example because
+it was launched from a removed checkout. Orphan purge is requested explicitly
+(`posttrain run purge <run-id> --reason <slug> --orphan`) and is never an
+automatic fallback for a missing receipt; a run that still has local control
+state uses the normal purge instead. Its plan deletes that tracking run and the
+tracking artifacts it exclusively owns. The plan must prove, and apply must
+recheck, that (a) no provider execution is attributable to the run: no active
+execution in the provider inventory references the run id, a provider recorded
+in the run's tracking configuration is queryable, and any machine admission
+entry for the run is either settled (completed or cancelled) or abandoned as
+defined below; (b) every actual-job image or registry manifest the ownership
+inventory attributes to the run is the one recorded by the run's own admission
+entry, and that inventory is complete; (c) no surviving run consumes its tracked artifacts according to
+tracking lineage; and (d) the run is terminal, or it is recorded as running but
+has no metric or event newer than a stale threshold (default 24 hours). Any
+failed or unavailable check blocks.
+
+An admission entry is **abandoned** when it is in `terminal_pending_evidence`,
+the owning control store it records no longer exists or holds no submission
+receipt for the run, and the provider execution it names is terminal or absent
+when queried now. Only then may the orphan plan also (1) settle that entry to
+`completed`, releasing its own placement reservation and no other entry, and
+without admitting a waiting run as a side effect; and (2) delete the job image
+that entry records when the run is its only owner. As in a normal purge, an
+image that other runs also own is retained with a warning rather than blocking. Provider records and
+workspaces are not cleaned without a submission receipt; the named execution's
+terminal state is recorded as evidence instead. The tombstone records the orphan
+basis (tracking status, last activity, threshold, admission and registry
+evidence, and each check's outcome) alongside the usual fields.
+
 After a successful purge, Posttrain retains a minimal **tombstone** outside the
 purged run/project state: logical IDs, plan ID and digest, safe reason, time,
 actor when available, and per-plane outcomes. A tombstone contains no prompts,

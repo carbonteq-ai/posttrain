@@ -22,12 +22,16 @@ from .models import (
     ExportRequest,
     MetricSeriesQuery,
     ObservatoryModel,
+    PromptGroupRewardView,
     RolloutBehaviorView,
+    RolloutTimeView,
     RunLocator,
     RunViewResponse,
     SemanticSummaryRequest,
     SourceRefreshStatus,
     TraceEvaluationView,
+    TraceFilterOptions,
+    TraceOutcome,
     TraceSummaryPage,
     ViewMode,
 )
@@ -196,12 +200,32 @@ def create_http_app(
         run_key: str,
         cursor: str | None = None,
         limit: int = Query(default=100, ge=1, le=250),
+        step: int | None = Query(default=None, ge=1),
+        slice_key: str | None = None,
+        outcome: TraceOutcome | None = None,
+        search: str | None = Query(default=None, max_length=200),
     ) -> TraceSummaryPage:
         return await service.get_trace_summary_page(
             _locator(run_key),
             cursor=cursor,
             limit=limit,
+            step=step,
+            slice_key=slice_key,
+            outcome=outcome,
+            search=search,
         )
+
+    @app.get("/api/v1/runs/{run_key}/trace-filters")
+    async def trace_filters(run_key: str) -> TraceFilterOptions:
+        return await service.get_trace_filter_options(_locator(run_key))
+
+    @app.get("/api/v1/runs/{run_key}/rollout-time")
+    async def rollout_time(run_key: str) -> RolloutTimeView:
+        return await service.get_rollout_time(_locator(run_key))
+
+    @app.get("/api/v1/runs/{run_key}/trace-group-rewards")
+    async def trace_group_rewards(run_key: str) -> PromptGroupRewardView:
+        return await service.get_prompt_group_rewards(_locator(run_key))
 
     @app.get("/api/v1/runs/{run_key}/traces/{trace_id}")
     async def trace_detail(run_key: str, trace_id: str) -> dict[str, object]:

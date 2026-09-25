@@ -318,3 +318,35 @@ def test_local_docker_legacy_bundle_is_plan_only(tmp_path: Path) -> None:
     assert plan.details["submission_ready"] is False
     with pytest.raises(RuntimeError, match="no longer accepts execution bundles"):
         provider.submit(plan)
+
+
+def test_active_executions_for_run_reports_non_exited_labeled_containers(tmp_path: Path) -> None:
+    class InventoryDocker:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        def invoke(self, action: str, payload):
+            self.calls.append((action, dict(payload)))
+            return {"containers": [{"name": "pt-live", "state": "running"}]}
+
+    docker = InventoryDocker()
+    provider = LocalDockerExecutionProvider(docker, state_root=tmp_path)
+
+    assert provider.active_executions_for_run("orphan-run") == ("local-docker:pt-live (running)",)
+    assert provider.inventory_scope == "local Docker"
+    assert docker.calls == [("active_by_run", {"run_id": "orphan-run"})]
+
+
+def test_docker_cli_active_by_run_filters_on_the_run_label(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[list[str]] = []
+
+    def run(arguments, **_kwargs):
+        captured.append(list(arguments))
+        return subprocess.CompletedProcess(arguments, 0, stdout="pt-live\trunning\npt-old\texited\n", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+    response = DockerCli().invoke("active_by_run", {"run_id": "orphan-run"})
+
+    assert response == {"containers": [{"name": "pt-live", "state": "running"}]}
+    assert captured[0][:6] == ["docker", "container", "ls", "--all", "--filter", "label=posttrain.run_id=orphan-run"]

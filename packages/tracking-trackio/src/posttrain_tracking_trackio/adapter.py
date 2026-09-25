@@ -50,6 +50,7 @@ from posttrain.tracking import (
     TraceAggregateResult,
     TraceFactsQuery,
     TracePage,
+    TracePayloadQuery,
     TraceQuery,
     TraceRecord,
     TrackingArtifactPurge,
@@ -906,6 +907,114 @@ class TrackioLifecycleAdmin:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class TrackioRunActivity:
+    """Read-only facts about one Trackio run located by its posttrain run id."""
+
+    run_id: str
+    provider_run_id: str
+    status: str
+    created_at: datetime | None
+    last_activity_at: datetime | None
+    recorded_provider: str | None
+    recorded_job_image: str | None
+    evidence_retention: str
+
+
+class TrackioRunActivityLookup:
+    """Locate a posttrain run in Trackio without local control state.
+
+    Orphan purge needs the provider run id, lifecycle status, the provider and
+    job image the run recorded about itself, and the newest metric, event, or
+    host-metric timestamp. Everything here is a read; no run is reopened.
+    """
+
+    _PAGE = 5000
+
+    def __init__(self, project: str, *, server_url: str) -> None:
+        if not server_url.strip():
+            raise ValueError("Trackio server URL cannot be empty")
+        self.project = project
+        self._api = trackio.Api(server_url=server_url)
+
+    def find(self, run_id: str) -> TrackioRunActivity | None:
+        configs = self._api.run_configs(self.project)
+        if not isinstance(configs, Mapping):
+            raise ContractError("Trackio run configurations must be an object")
+        matches = sorted(
+            str(provider_run_id)
+            for provider_run_id, config in configs.items()
+            if isinstance(config, Mapping) and config.get("run_id") == run_id
+        )
+        if not matches:
+            return None
+        if len(matches) > 1:
+            raise ContractError(f"posttrain run {run_id!r} maps to several Trackio runs: {', '.join(matches)}")
+        provider_run_id = matches[0]
+        config = configs[provider_run_id]
+        lifecycles = self._api.run_lifecycles(self.project)
+        lifecycle = lifecycles.get(provider_run_id) if isinstance(lifecycles, Mapping) else None
+        status = (
+            str(lifecycle.get("run/status"))
+            if isinstance(lifecycle, Mapping) and lifecycle.get("run/status")
+            else "running"
+        )
+        source = config.get("source_metadata")
+        execution = source.get("execution") if isinstance(source, Mapping) else None
+        recorded_provider = execution.get("provider") if isinstance(execution, Mapping) else None
+        recorded_image = execution.get("job_image") if isinstance(execution, Mapping) else None
+        run = self._api.run(self.project, provider_run_id)
+        created_at = _optional_datetime(getattr(run, "created_at", None))
+        retention = config.get("evidence_retention")
+        return TrackioRunActivity(
+            run_id=run_id,
+            provider_run_id=provider_run_id,
+            status=status,
+            created_at=created_at,
+            last_activity_at=self._last_activity(run, config, created_at),
+            recorded_provider=recorded_provider if isinstance(recorded_provider, str) else None,
+            recorded_job_image=recorded_image if isinstance(recorded_image, str) else None,
+            evidence_retention=retention if retention in {"standard", "pinned"} else "standard",
+        )
+
+    def _last_activity(self, run: Any, config: Mapping[str, Any], created_at: datetime | None) -> datetime | None:
+        """Return the newest metric, event, or host-metric timestamp."""
+
+        candidates: list[datetime] = [value for value in (created_at,) if value is not None]
+        started = _optional_datetime(config.get("started_at"))
+        if started is not None:
+            candidates.append(started)
+        summary = run.summary()
+        count = summary.get("num_logs") if isinstance(summary, Mapping) else None
+        offset = max(int(count) - 1000, 0) if isinstance(count, int) else 0
+        for row in run.history(keys=("event/occurred_at",), limit=1000, offset=offset):
+            for key in ("timestamp", "event/occurred_at"):
+                value = _optional_datetime(row.get(key))
+                if value is not None:
+                    candidates.append(value)
+        offset = 0
+        while True:
+            rows = run.system_history(limit=self._PAGE, offset=offset, keys=[])
+            for row in rows:
+                value = _optional_datetime(row.get("timestamp"))
+                if value is not None:
+                    candidates.append(value)
+            if len(rows) < self._PAGE:
+                break
+            offset += self._PAGE
+        return max(candidates) if candidates else None
+
+
+def _optional_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
 class TrackioTraceFactWriter:
     """Authenticated, exact-run writer for already-retained trace facts.
 
@@ -1649,6 +1758,50 @@ class TrackioDataSource:
             ),
         )
 
+    async def aggregate_trace_payload(self, run_id: str, query: TracePayloadQuery) -> TraceAggregateResult:
+        return await asyncio.to_thread(self._aggregate_trace_payload, run_id, query)
+
+    def _aggregate_trace_payload(self, run_id: str, query: TracePayloadQuery) -> TraceAggregateResult:
+        """Aggregate payload values server-side (Trackio 0.31.5.post14.dev27 and later)."""
+
+        query_type = getattr(trackio, "TracePayloadQuery", None)
+        measure_type = getattr(trackio, "TracePayloadMeasure", None)
+        provider_run = self._provider_run(run_id)
+        aggregate = getattr(provider_run, "aggregate_trace_payload", None)
+        if query_type is None or measure_type is None or not callable(aggregate):
+            return TraceAggregateResult(state="unavailable")
+        response = cast(
+            Any,
+            aggregate(
+                query_type(
+                    measures=tuple(
+                        measure_type(
+                            key=item.key,
+                            path=item.path,
+                            minus=item.minus,
+                            operation=item.operation,
+                        )
+                        for item in query.measures
+                    ),
+                    trace_type=query.trace_type,
+                    group_by=tuple(query.group_by),
+                    dimensions=dict(query.dimensions),
+                )
+            ),
+        )
+        return TraceAggregateResult(
+            state="available",
+            buckets=tuple(
+                TraceAggregateBucket(
+                    dimensions=dict(bucket.dimensions),
+                    trace_count=bucket.trace_count,
+                    values=dict(bucket.values),
+                    coverage=dict(bucket.coverage),
+                )
+                for bucket in response.buckets
+            ),
+        )
+
     def _traces(self, run_id: str, query: TraceQuery) -> TracePage:
         provider_run = self._provider_run(run_id)
         return self._traces_for_provider_run(provider_run, query)
@@ -1661,7 +1814,7 @@ class TrackioDataSource:
         provider_kwargs = {
             "limit": query.limit,
             "offset": offset,
-            "sort": "step_asc",
+            "sort": "request_time_desc" if query.order == "newest_first" else "step_asc",
             "include_payload": query.include_payload,
         }
         # Trackio's physical trace_type distinguishes Verifiers traces from

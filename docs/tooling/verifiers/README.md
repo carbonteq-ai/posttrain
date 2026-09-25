@@ -41,7 +41,13 @@ tool calls: host time per episode 6.6 s to 0.65 s (preinstalled interpreter)
 and 6.65 s to 0.78 s (uv-prepared harness, as in training). The fork's
 `tests/v1/test_subprocess_fork_server.py` and `test_mcp_server_latency.py`
 pass; the rest of the v1 suite fails only its 14 pre-existing
-environment-import cases, identically before and after.
+environment-import cases, identically before and after. In production, the
+VORTEX v2 training run `lfm26-vortex-v2-agentic-20260923-r1` shows episode
+setup of 0.16-0.27 s and harness time of 0.45 s (median) after its first
+collection, against 6.3 s and 3.2 s in earlier AutomationBench training
+traces; the first collection pays about 13 s once while each worker's
+zygotes boot and uv prepares the harness environment. The environment
+packages select this Verifiers commit from `verifiers-environments@9bbd3116`.
 
 The earlier selected commit added exact ordered task-key selection and records the
 repetition index on native evaluation episodes. These generic seams let a host

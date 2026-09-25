@@ -150,7 +150,7 @@ posttrain run cancel RUN_ID
 posttrain run retry-submit RUN_ID
 posttrain run reconcile RUN_ID
 posttrain run cleanup RUN_ID
-posttrain run purge RUN_ID --reason REASON [--note SAFE_NOTE] [--cascade]
+posttrain run purge RUN_ID --reason REASON [--note SAFE_NOTE] [--cascade | --orphan [--stale-after-hours H]]
 posttrain run show RUN_ID
 posttrain project purge --reason REASON [--note SAFE_NOTE]
 posttrain purge show PURGE_ID
@@ -260,7 +260,12 @@ registry, or tracking deletion API.
 They require a non-secret reason and report the complete ownership/lineage
 closure, resources retained because they have surviving owners, warnings,
 blockers, logical-byte estimates, and an immutable digest. `--cascade` is
-available only for a same-project run-consumer closure. Apply is exclusively
+available only for a same-project run-consumer closure. `--orphan` previews a
+purge of a run with no local submission receipt (its tracking run, plus a
+proven-abandoned admission entry and exclusively owned job image; a shared job
+image is retained with a warning) under the
+orphaned tracking-run rules in 03-work-and-evidence.md; it never replaces the
+normal preview for a run this machine still controls. Apply is exclusively
 `posttrain purge apply`, which requires the saved plan ID, its exact digest, and
 explicit confirmation. A blocked plan or changed ownership cannot be applied.
 No command performs registry-wide garbage collection.

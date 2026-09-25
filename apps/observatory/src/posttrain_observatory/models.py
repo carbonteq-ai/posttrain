@@ -183,6 +183,8 @@ class GRPOSamplingStep(ObservatoryModel):
     duplicate_fallbacks: int = Field(ge=0)
     refill_rounds: int = Field(ge=0)
     class_counts: dict[str, int]
+    retained_groups: int | None = Field(default=None, ge=0)
+    """Sampled groups whose rollouts scored differently and so entered the update."""
 
 
 class GRPOSamplingEvidence(ObservatoryModel):
@@ -250,6 +252,9 @@ class ExecutionTargetContext(ObservatoryModel):
     placement: dict[str, JsonPayload] = Field(default_factory=dict)
     host_constraints: dict[str, JsonPayload] = Field(default_factory=dict)
     state: Literal["complete", "partial"]
+
+
+type FindingSeverity = Literal["error", "warning", "recommendation", "info"]
 
 
 class RunView(ObservatoryModel):
@@ -578,9 +583,46 @@ class EvaluationMetadata(ObservatoryModel):
     metrics: tuple[EvaluationMetricDefinition, ...] = ()
 
 
+class TraceTimelineSegment(ObservatoryModel):
+    """One contiguous span of a rollout, offset from the rollout's start."""
+
+    kind: Literal["setup", "inference", "tools", "harness", "scoring"]
+    start_ms: float = Field(ge=0)
+    duration_ms: float = Field(ge=0)
+    call_index: int | None = Field(default=None, ge=0)
+    node: int | None = Field(default=None, ge=0)
+    """Transcript node the model call committed, linking timing to its turn."""
+    prompt_tokens: int | None = Field(default=None, ge=0)
+    completion_tokens: int | None = Field(default=None, ge=0)
+    thinking_tokens: int | None = Field(default=None, ge=0)
+    finish_reason: str | None = None
+    tools: tuple[str, ...] = ()
+
+
+class TraceTiming(ObservatoryModel):
+    """Where a rollout's wall-clock time went: GPU inference vs CPU harness work.
+
+    ``inference_ms`` sums model-call spans, which include any queueing in the
+    inference server. ``tools_ms`` is harness time between and around calls.
+    """
+
+    total_ms: float = Field(ge=0)
+    inference_ms: float = Field(ge=0)
+    tools_ms: float = Field(ge=0)
+    setup_ms: float = Field(ge=0)
+    scoring_ms: float = Field(ge=0)
+    model_calls: int = Field(ge=0)
+
+
+class TraceTimeline(TraceTiming):
+    segments: tuple[TraceTimelineSegment, ...] = ()
+
+
 class TraceSummary(ObservatoryModel):
     external_id: str = Field(min_length=1)
     trace_type: str = Field(min_length=1)
+    optimizer_step: int | None = Field(default=None, ge=1)
+    prompt_group_id: str | None = None
     prompt_preview: str | None = None
     task: str | None = None
     task_label: str | None = None
@@ -600,6 +642,7 @@ class TraceSummary(ObservatoryModel):
     response_chars: int | None = Field(default=None, ge=0)
     thinking_tokens: int | None = Field(default=None, ge=0)
     thinking_chars: int | None = Field(default=None, ge=0)
+    timing: TraceTiming | None = None
     reward_components: dict[str, float] = Field(default_factory=dict)
     native_metrics: dict[str, float] = Field(default_factory=dict)
     metrics: dict[str, float] = Field(default_factory=dict)
@@ -607,6 +650,7 @@ class TraceSummary(ObservatoryModel):
 
 class TraceDetail(ObservatoryModel):
     summary: TraceSummary
+    timeline: TraceTimeline | None = None
     reward_components: tuple[RewardComponent, ...] = ()
     transcript: tuple[dict[str, JsonPayload], ...] = ()
     attributes: dict[str, JsonPayload] = Field(default_factory=dict)
@@ -620,6 +664,77 @@ class TraceSummaryPage(ObservatoryModel):
     items: tuple[TraceSummary, ...] = ()
     next_cursor: str | None = None
     total: int = Field(ge=0)
+    live: bool = False
+
+
+class TraceFilterSlice(ObservatoryModel):
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+
+
+class TraceFilterOptions(ObservatoryModel):
+    """Choices derived from the complete recorded trace population."""
+
+    total: int = Field(ge=0)
+    steps: tuple[int, ...] = ()
+    slices: tuple[TraceFilterSlice, ...] = ()
+    outcomes: tuple[TraceOutcome, ...] = ()
+
+
+class PromptGroupRewardStats(ObservatoryModel):
+    mean: float
+    std: float = Field(ge=0)
+
+
+class PromptGroupReward(ObservatoryModel):
+    group_id: str = Field(min_length=1)
+    step: int | None = None
+    task_id: str | None = None
+    rollouts: int = Field(ge=0)
+    reward_coverage: int = Field(ge=0)
+    current: PromptGroupRewardStats | None = None
+    prior: PromptGroupRewardStats | None = None
+    prior_step: int | None = None
+    prior_rollouts: int | None = None
+
+
+class RolloutTimeStep(ObservatoryModel):
+    """Summed rollout phase time for one optimizer step (None: facts not projected yet)."""
+
+    step: int | None = None
+    rollouts: int = Field(ge=0)
+    timed_rollouts: int = Field(ge=0)
+    inference_ms: float | None = Field(default=None, ge=0)
+    tools_ms: float | None = Field(default=None, ge=0)
+    setup_ms: float | None = Field(default=None, ge=0)
+    scoring_ms: float | None = Field(default=None, ge=0)
+    rollout_ms: float | None = Field(default=None, ge=0)
+    elapsed_ms: float | None = Field(default=None, ge=0)
+    """First rollout start to last rollout end within the step."""
+
+
+class RolloutTimeView(ObservatoryModel):
+    """Where rollout time went across a run: GPU inference vs CPU harness work.
+
+    Inference sums model-call spans, which include queueing in the inference
+    server while other rollouts are served.
+    """
+
+    state: Literal["available", "unavailable"] = "unavailable"
+    steps: tuple[RolloutTimeStep, ...] = ()
+    elapsed_ms: float | None = Field(default=None, ge=0)
+    """Wall-clock spent generating rollouts: the union of every step's span."""
+    live: bool = False
+
+
+class PromptGroupRewardView(ObservatoryModel):
+    """Bounded group aggregates from indexed, rebuildable trace facts."""
+
+    state: Literal["complete", "partial", "unavailable"] = "unavailable"
+    groups: tuple[PromptGroupReward, ...] = ()
+    expected_group_size: int | None = None
+    fact_rows: int = Field(ge=0)
+    recorded_traces: int = Field(ge=0)
     live: bool = False
 
 
@@ -1212,6 +1327,8 @@ __all__ = [
     "SystemMetricsView",
     "TraceDetail",
     "TraceEvaluationView",
+    "TraceFilterOptions",
+    "TraceFilterSlice",
     "TraceSummary",
     "TraceSummaryPage",
     "ViewMode",

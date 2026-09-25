@@ -209,9 +209,7 @@ def test_renderer_reported_thinking_is_projected_for_any_model(model: str) -> No
         "id": "complete",
         "version": 3,
         "agent": {"model": model},
-        "calls": [
-            {"node": 0, "finish_reason": "stop", "usage": {"completion_tokens": 6, "reasoning_tokens": 4}}
-        ],
+        "calls": [{"node": 0, "finish_reason": "stop", "usage": {"completion_tokens": 6, "reasoning_tokens": 4}}],
         "nodes": [
             {
                 "message": {"role": "assistant", "reasoning_content": "think", "content": "answer"},
@@ -225,9 +223,7 @@ def test_renderer_reported_thinking_is_projected_for_any_model(model: str) -> No
         "id": "truncated",
         "version": 3,
         "agent": {"model": model},
-        "calls": [
-            {"node": 0, "finish_reason": "length", "usage": {"completion_tokens": 3, "reasoning_tokens": 3}}
-        ],
+        "calls": [{"node": 0, "finish_reason": "length", "usage": {"completion_tokens": 3, "reasoning_tokens": 3}}],
         "nodes": [
             {
                 "message": {"role": "assistant", "reasoning_content": "unfinished", "content": None},

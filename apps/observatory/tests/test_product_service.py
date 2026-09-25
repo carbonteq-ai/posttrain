@@ -14,6 +14,7 @@ from posttrain.tracking import (
     MetricSeries,
     TraceAggregateBucket,
     TraceAggregateResult,
+    TraceFactsQuery,
     TracePage,
     TraceRecord,
 )
@@ -433,6 +434,152 @@ async def test_trace_summary_page_is_provider_bounded_and_cursor_driven() -> Non
 
 
 @pytest.mark.asyncio
+async def test_trace_summary_page_projects_recorded_optimizer_step_and_prompt_group() -> None:
+    source = FixtureRunDataSource()
+    run_id = "runs/grpo-silver-pine"
+    source._traces[run_id] = (  # noqa: SLF001 - deterministic fixture construction
+        TraceRecord(
+            trace_type="verifiers",
+            external_id="rollout-one",
+            payload={
+                "task": "train/000154",
+                "rewards": {"native_reward": 0.5},
+                "info": {"posttrain_prompt_group_id": "step/3/batch/1/group/2"},
+            },
+            attributes={"optimizer_step": 3},
+        ),
+    )
+
+    page = await ObservatoryService({"fixture": source}).get_trace_summary_page(
+        RunLocator(source_id="fixture", run_id=run_id), limit=2
+    )
+
+    assert page.items[0].optimizer_step == 3
+    assert page.items[0].prompt_group_id == "step/3/batch/1/group/2"
+
+
+@pytest.mark.asyncio
+async def test_training_trace_page_starts_with_latest_rollouts() -> None:
+    source = FixtureRunDataSource()
+    run_id = "runs/grpo-silver-pine"
+    source._traces[run_id] = tuple(  # noqa: SLF001 - deterministic fixture construction
+        TraceRecord(
+            trace_type="verifiers",
+            external_id=f"rollout-{step}",
+            payload={"rewards": {"native_reward": float(step)}},
+            attributes={"optimizer_step": step},
+        )
+        for step in range(1, 5)
+    )
+    service = ObservatoryService({"fixture": source})
+    locator = RunLocator(source_id="fixture", run_id=run_id)
+
+    first = await service.get_trace_summary_page(locator, limit=2)
+    second = await service.get_trace_summary_page(locator, cursor=first.next_cursor, limit=2)
+
+    assert [item.optimizer_step for item in first.items] == [4, 3]
+    assert [item.optimizer_step for item in second.items] == [2, 1]
+
+
+@pytest.mark.asyncio
+async def test_trace_filters_query_the_full_run_not_the_loaded_page() -> None:
+    source = FixtureRunDataSource()
+    run_id = "runs/grpo-silver-pine"
+    source._traces[run_id] = tuple(  # noqa: SLF001 - deterministic fixture construction
+        TraceRecord(
+            trace_type="verifiers",
+            external_id=f"rollout-{step}",
+            payload={
+                "task": "older-task" if step == 1 else "newer-task",
+                "rewards": {"native_reward": float(step)},
+            },
+            attributes={"optimizer_step": step},
+        )
+        for step in range(1, 5)
+    )
+    service = ObservatoryService({"fixture": source})
+    locator = RunLocator(source_id="fixture", run_id=run_id)
+
+    first = await service.get_trace_summary_page(locator, limit=2)
+    options = await service.get_trace_filter_options(locator)
+    filtered = await service.get_trace_summary_page(locator, step=1, slice_key="older-task", limit=2)
+    searched = await service.get_trace_summary_page(locator, search="rollout-1", limit=2)
+
+    assert [item.external_id for item in first.items] == ["rollout-4", "rollout-3"]
+    assert options.steps == (1, 2, 3, 4)
+    assert {item.key for item in options.slices} == {"older-task", "newer-task"}
+    assert filtered.total == 1
+    assert [item.external_id for item in filtered.items] == ["rollout-1"]
+    assert [item.external_id for item in searched.items] == ["rollout-1"]
+
+
+@pytest.mark.asyncio
+async def test_prompt_group_rewards_use_fact_aggregates_without_listing_traces() -> None:
+    class AggregatedSource(FixtureRunDataSource):
+        queries: list[TraceFactsQuery]
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.queries = []
+
+        async def traces(self, run_id, query):  # type: ignore[override]
+            raise AssertionError("group reward query must not list native traces")
+
+        async def aggregate_trace_facts(self, run_id, query):  # type: ignore[override]
+            self.queries.append(query)
+            return TraceAggregateResult(
+                state="available",
+                buckets=(
+                    TraceAggregateBucket(
+                        dimensions={"prompt_group_id": "step/1/group/1", "task_id": "task-a", "rollout_step": 1},
+                        trace_count=4,
+                        values={"sum_task_reward": 2.0, "sum_squares_task_reward": 2.0},
+                        coverage={"sum_task_reward": 4, "sum_squares_task_reward": 4},
+                    ),
+                    TraceAggregateBucket(
+                        dimensions={"prompt_group_id": "step/1/group/2", "task_id": "task-a", "rollout_step": 1},
+                        trace_count=4,
+                        values={"sum_task_reward": 4.0, "sum_squares_task_reward": 4.0},
+                        coverage={"sum_task_reward": 4, "sum_squares_task_reward": 4},
+                    ),
+                    TraceAggregateBucket(
+                        dimensions={"prompt_group_id": "step/3/group/1", "task_id": "task-a", "rollout_step": 3},
+                        trace_count=4,
+                        values={"sum_task_reward": 0.0, "sum_squares_task_reward": 0.0},
+                        coverage={"sum_task_reward": 4, "sum_squares_task_reward": 4},
+                    ),
+                    TraceAggregateBucket(
+                        dimensions={"prompt_group_id": "step/4/group/1", "task_id": "task-a", "rollout_step": 4},
+                        trace_count=2,
+                        values={"sum_task_reward": 1.0, "sum_squares_task_reward": 0.5},
+                        coverage={"sum_task_reward": 2, "sum_squares_task_reward": 2},
+                    ),
+                ),
+            )
+
+    source = AggregatedSource()
+    service = ObservatoryService({"fixture": source})
+    locator = RunLocator(source_id="fixture", run_id="runs/grpo-silver-pine")
+    view = await service.get_prompt_group_rewards(locator)
+    groups = {group.group_id: group for group in view.groups}
+
+    assert len(source.queries) == 1
+    assert source.queries[0].group_by == ("prompt_group_id", "task_id", "rollout_step")
+    assert [item.operation for item in source.queries[0].aggregates] == ["sum", "sum_squares"]
+    assert view.fact_rows == 14
+    assert view.expected_group_size == 4
+    assert groups["step/3/group/1"].prior_step == 1
+    assert groups["step/3/group/1"].prior_rollouts == 8
+    assert groups["step/3/group/1"].prior is not None
+    assert groups["step/3/group/1"].prior.mean == pytest.approx(0.75)
+    assert groups["step/3/group/1"].prior.std == pytest.approx(0.4330127019)
+    assert groups["step/4/group/1"].current is None
+    assert groups["step/4/group/1"].prior_step == 3
+    assert await service.get_prompt_group_rewards(locator) is view
+    assert len(source.queries) == 1
+
+
+@pytest.mark.asyncio
 async def test_trace_evaluation_can_omit_trace_rows_without_losing_aggregates() -> None:
     service = ObservatoryService({"fixture": FixtureRunDataSource()})
     locator = RunLocator(source_id="fixture", run_id="runs/eval-violet-river")
@@ -493,6 +640,11 @@ async def test_olmo_adaptive_sampling_projects_candidate_semantics_and_step_dist
             "train/rl/active_sampling_candidate_groups_retained": MetricSeries(
                 name="train/rl/active_sampling_candidate_groups_retained",
                 points=(MetricPoint(value=12, step=1),),
+            ),
+            # TRL averages each round's tied fraction; it must not drive the tied-group card.
+            "train/rl/group_zero_variance_fraction": MetricSeries(
+                name="train/rl/group_zero_variance_fraction",
+                points=(MetricPoint(value=0.0625, step=1),),
             ),
             "train/rl/curriculum/candidate_groups": MetricSeries(
                 name="train/rl/curriculum/candidate_groups",
@@ -581,6 +733,8 @@ async def test_olmo_adaptive_sampling_projects_candidate_semantics_and_step_dist
     assert sampling.generated_groups.value == 6
     assert sampling.retained_groups.value == 3
     assert sampling.retained_fraction.value == 0.5
+    assert sampling.zero_variance.value == 0.5
+    assert sampling.steps[0].retained_groups == 3
     assert sampling.steps[0].candidate_groups == 6
     assert sampling.steps[0].unique_tasks == 6
     assert sampling.steps[0].new_tasks == 6
@@ -1565,3 +1719,44 @@ async def test_nested_runtime_phases_do_not_double_count_host_samples(
     assert system.backend_runtime.rollout_seconds_latest == 14
     assert system.backend_runtime.rollouts_per_prompt == 4
     assert system.backend_runtime.mtp_selected is False
+
+
+@pytest.mark.asyncio
+async def test_olmo_sampling_cards_total_the_whole_run() -> None:
+    source = FixtureRunDataSource()
+    run_id = "runs/grpo-silver-pine"
+    detail = source._details[run_id]  # noqa: SLF001 - deterministic fixture mutation
+    resolved = deepcopy(detail.resolved_inputs)
+    cast(dict[str, JsonValue], resolved["settings"])["algorithm"] = "olmo3"
+    metrics = source._metrics[run_id]  # noqa: SLF001 - deterministic fixture mutation
+
+    def series(name: str, *values: float) -> MetricSeries:
+        return MetricSeries(
+            name=name, points=tuple(MetricPoint(value=value, step=step) for step, value in enumerate(values, 1))
+        )
+
+    # Rows, with num_generations=4: step 1 sampled 4 groups and kept 4; step 2 sampled 6 and kept 4.
+    for name, values in {
+        "train/rl/active_sampling_generation_rounds": (1, 2),
+        "train/rl/active_sampling_retained_fraction": (1.0, 4 / 6),
+        "train/rl/active_sampling_candidate_groups_generated": (16, 24),
+        "train/rl/active_sampling_candidate_groups_retained": (16, 16),
+        "train/rl/group_zero_variance_fraction": (0.0, 0.25),
+    }.items():
+        metrics[name] = series(name, *values)
+    source._details[run_id] = detail.model_copy(  # noqa: SLF001
+        update={"resolved_inputs": resolved, "metric_names": tuple(metrics)}
+    )
+
+    response = await ObservatoryService({"fixture": source}).get_run_view_response(
+        RunLocator(source_id="fixture", run_id=run_id)
+    )
+
+    assert response.view.view_kind == "job.metrics"
+    assert response.view.grpo is not None
+    sampling = response.view.grpo.sampling
+    assert sampling.generated_groups.value == 10
+    assert sampling.retained_groups.value == 8
+    assert sampling.retained_fraction.value == pytest.approx(0.8)
+    assert sampling.zero_variance.value == pytest.approx(0.2)
+    assert sampling.generation_rounds.value == 1.5

@@ -28,7 +28,7 @@ The same change makes the renderer the one home for model-specific output knowle
   Full suite: 11799 passed, 107 skipped. The one failure asserted that Gemma 4 12B is image-registered; 12B is Gemma 4 Unified (image and audio), whose media path is not qualified, so it was moved out of the image-checkpoint suite. The Gemma and reasoning suites were then rerun: 430 and 1291 passed.
 - [x] (2026-09-25) Milestone 4, Verifiers: worktree `/home/hammad/projects/worktrees/verifiers-thinking-tokens`, branch `codex/renderer-thinking-tokens`, commit `c7388dbe` on `b71ade0a`. `Usage.reasoning_tokens` is filled from the renderer; `renderer_extensions.py` and the LFM bridge fallback are removed; the dependency is now `carbonteq-renderers`; its ledger is updated. Tests against the local fork: 114 passed, 76 skipped (need `PRIME_API_KEY`). `uv.lock` not yet updated (needs the published fork).
 - [x] (2026-09-25) Milestone 6, this repository: worktree `/home/hammad/projects/rl-thinking-tokens`, branch `codex/renderer-thinking-tokens`, commits `9e02fd77` and `e3a3e817` on `49c43a4e`.
-  - The Qwen rules are removed from `verifiers_evidence.py` (calculator `verifiers-trace-facts.v5`) and from Observatory `traces.py`.
+  - The Qwen rules are removed from `verifiers_evidence.py` (calculator `verifiers-trace-facts.v6`, after v5 added task and prompt-group ids) and from Observatory `traces.py`.
   - `create_renderer_config` maps every catalog family to the fork's renderer; the LFM bridge copies are removed.
   - `posttrain trace-facts backfill --renderer-model` re-scores historical traces.
   - Against the local fork and Verifiers branch: 1270 passed, 14 skipped (only the known vLLM loopback test deselected); ruff, pyright and import contracts clean.

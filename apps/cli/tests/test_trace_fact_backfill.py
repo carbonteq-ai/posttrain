@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 from posttrain.common import TraceFactSet
 from posttrain.tracking import TracePage, TraceRecord
@@ -323,7 +323,7 @@ def test_apply_refuses_to_erase_reasoning_counts_without_a_renderer(monkeypatch)
 
     written: list = []
     monkeypatch.setattr(trace_fact_backfill.importlib, "import_module", lambda _: _reasoning_adapter(written))
-    arguments = dict(
+    arguments: dict[str, Any] = dict(
         project="p",
         server_url="https://trackio.invalid",
         write_token=None,

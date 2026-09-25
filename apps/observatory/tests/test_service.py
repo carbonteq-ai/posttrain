@@ -18,6 +18,7 @@ from posttrain.tracking import (
     TraceAggregateResult,
     TraceFactsQuery,
     TracePage,
+    TracePayloadQuery,
     TrackingCapabilities,
 )
 from posttrain_observatory import (
@@ -96,6 +97,10 @@ class FakeRunDataSource:
         return TracePage(live=True)
 
     async def aggregate_trace_facts(self, run_id: str, query: TraceFactsQuery) -> TraceAggregateResult:
+        del run_id, query
+        return TraceAggregateResult(state="unsupported")
+
+    async def aggregate_trace_payload(self, run_id: str, query: TracePayloadQuery) -> TraceAggregateResult:
         del run_id, query
         return TraceAggregateResult(state="unsupported")
 
