@@ -86,7 +86,7 @@ QWEN_SCREEN_VLLM = _selection(
 )
 QWEN_EVAL_VLLM = _selection(
     _REFERENCE_CATALOG,
-    CatalogRef("inference", "inference/qwen3.5-2b-vllm-eval@2"),
+    CatalogRef("inference", "inference/qwen3.5-2b-vllm-eval@3"),
     InferenceBinding,
 )
 QWEN_GRPO_VLLM = _selection(
@@ -106,7 +106,7 @@ QWEN_AUTOMATIONBENCH_GRPO_MTP_VLLM = _selection(
 )
 QWEN_DISTILL_ROLLOUT_VLLM = _selection(
     _REFERENCE_CATALOG,
-    CatalogRef("inference", "inference/qwen3.5-0.8b-vllm-distill-rollout@1"),
+    CatalogRef("inference", "inference/qwen3.5-0.8b-vllm-distill-rollout@4"),
     InferenceBinding,
 )
 QWEN_TEACHER_SCORE_VLLM = _selection(

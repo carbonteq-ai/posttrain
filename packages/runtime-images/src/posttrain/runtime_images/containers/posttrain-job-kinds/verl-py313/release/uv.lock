@@ -2038,7 +2038,7 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.52,<0.53" },
     { name = "verifiers", git = "https://github.com/carbonteq-ai/verifiers.git?rev=b71ade0a7ac712cdee9e1a4c0e53030d70768aff" },
     { name = "verl", git = "https://github.com/carbonteq-ai/verl.git?rev=18338a0efbd6f103378d2861f4a078ad243db455" },
-    { name = "vllm", git = "https://github.com/carbonteq-ai/vllm.git?rev=564ff2b43d499f5d17bcee554d126360b768dd98" },
+    { name = "vllm", git = "https://github.com/carbonteq-ai/vllm.git?rev=f09e4479123d348cee87d217c695a22f9b2daacc" },
     { name = "wandb", specifier = ">=0.28,<0.29" },
 ]
 
@@ -3179,7 +3179,7 @@ wheels = [
 
 [[package]]
 name = "verifiers"
-version = "0.3.2.dev82"
+version = "0.3.2.dev87"
 source = { git = "https://github.com/carbonteq-ai/verifiers.git?rev=b71ade0a7ac712cdee9e1a4c0e53030d70768aff#b71ade0a7ac712cdee9e1a4c0e53030d70768aff" }
 dependencies = [
     { name = "aiohttp" },
@@ -3254,8 +3254,8 @@ wheels = [
 
 [[package]]
 name = "vllm"
-version = "0.29.1.dev3"
-source = { git = "https://github.com/carbonteq-ai/vllm.git?rev=564ff2b43d499f5d17bcee554d126360b768dd98#564ff2b43d499f5d17bcee554d126360b768dd98" }
+version = "0.29.1.dev4"
+source = { git = "https://github.com/carbonteq-ai/vllm.git?rev=f09e4479123d348cee87d217c695a22f9b2daacc#f09e4479123d348cee87d217c695a22f9b2daacc" }
 dependencies = [
     { name = "aiohttp" },
     { name = "anthropic" },

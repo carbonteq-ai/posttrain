@@ -8,5 +8,6 @@ files:
   - iwopd-sampling-qualification.yaml
   - lfm26-automationbench-comparison.yaml
   - serving-capacity.yaml
+  - starter-qualification.yaml
   - transform-qualification.yaml
   - verl-capsule-qualification.yaml

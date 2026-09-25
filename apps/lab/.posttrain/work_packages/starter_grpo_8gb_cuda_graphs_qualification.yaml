@@ -1,0 +1,47 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/starter-grpo-8gb-cuda-graphs
+stage: train
+description: Qualify the posttrain init GRPO starter on 8 GB with CUDA graphs (distill-rollout@4, vllm 0.29.1.dev3).
+recipe:
+  type: inline
+  id: recipes/starter-grpo@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: train
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts:
+    - trained adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-0.8b@bf16
+  environment:
+    type: ref
+    family: environment
+    id: starter-qualification-gsm8k-train
+  settings:
+    type: ref
+    family: training
+    id: starter-qualification/grpo@1
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-0.8b-trl-distill-lora@1
+  rollout_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-0.8b-vllm-distill-rollout@4
+enabled_optional_jobs: []
+metadata:
+  labels: [starter, grpo, verifiers]

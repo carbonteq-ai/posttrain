@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import statistics
 import threading
 import time
@@ -309,6 +310,7 @@ def run_offline_benchmark(
     memory.start()
     try:
         with phase("model_loading", {"backend": "vllm"}):
+            os.environ.update(engine.environment())
             LLM, SamplingParams = _load_vllm()
             engine_started = time.perf_counter()
             active_llm = LLM(

@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.136.3,<0.137",
     "httpx>=0.28,<1",
     "mcp>=2,<3",
+    "posttrain-advisor",
     "posttrain-common",
     "posttrain-tracking",
     "posttrain-tracking-trackio",
@@ -22,6 +23,7 @@ posttrain-observatory = "posttrain_observatory.cli:main"
 posttrain-observatory-qualify = "posttrain_observatory.deployment_qualification:main"
 
 [tool.uv.sources]
+posttrain-advisor = { workspace = true }
 posttrain-common = { workspace = true }
 posttrain-tracking = { workspace = true }
 posttrain-tracking-trackio = { workspace = true }

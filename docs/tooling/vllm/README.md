@@ -18,19 +18,34 @@ locally: the runtime, headers, NVCC, NVVM, CRT, and CCCL cannot safely float to
 different CUDA releases.
 
 The selected development release is
-[`carbonteq-v0.29.1.dev3`](https://github.com/carbonteq-ai/vllm/releases/tag/carbonteq-v0.29.1.dev3),
-commit `564ff2b43d499f5d17bcee554d126360b768dd98`, based exactly on upstream
+[`carbonteq-v0.29.1.dev4`](https://github.com/carbonteq-ai/vllm/releases/tag/carbonteq-v0.29.1.dev4),
+commit `f09e4479123d348cee87d217c695a22f9b2daacc`, based exactly on upstream
 `44dd18fe0bb0f13157f97a5aa029b6604468fca6`. Its retained source archive has
-SHA-256 `28d20ff20893e1570b3789fb1367af4ca78a8bd71e31c03d43476a6f89aa57d0`.
-Over dev2 (`fbbba6698b2f8a912b94705cfc09eb4fd7243716`) it adds the generic
-SM120 batch-invariant GEMM rule, batch-invariant split-KV attention, GDN chunk
-alignment and invariant CUDA RMSNorm (see
+SHA-256 `7ba6018dd6bbc5872876c69a661cf136a6705221f937c3b5cbd826483c476bcb`.
+Over dev3 (`564ff2b43d499f5d17bcee554d126360b768dd98`) it adds:
+
+- LFM2 DSpark speculative decoding (`LiquidAI/LFM2.5-2.6B-DSpark`). The
+  target verifies every drafted token, so sampled tokens are the target's own;
+  batch-invariant greedy output equals target-only output.
+- DFlash and DSpark keep their trailing prefix-cache block. On the LFM2.5
+  AutomationBench replay (32 episodes per collection) DSpark with nine tokens
+  takes 46 s per collection at 88% prefix hits against 84-87 s without
+  speculation. The drafter's KV shares the cache (26 KiB per token with the
+  target's 16 KiB), so a DSpark binding needs a larger `kv_cache_memory_bytes`:
+  at 4 GiB the live episodes overflow the cache and running requests are
+  preempted (65 s at 42%). `posttrain settings suggest` sizes it.
+- Session-aware prefix-cache eviction: requests tagged with a session id
+  (`X-Session-ID` or `session_id`) are tracked, and `release_session`
+  (`POST /v1/sessions/release`) evicts a finished session's prefix before live
+  sessions', keeping blocks shared with sibling rollouts. Releasing each
+  replayed episode at its end took collections from 65 s to 62-63 s at the
+  4 GiB budget; rollout callers do not release sessions yet.
+
+dev3 added the generic SM120 batch-invariant GEMM rule, batch-invariant
+split-KV attention, GDN chunk alignment and invariant CUDA RMSNorm (see
 [the optimization architecture](../../architecture/vllm-inference-optimization.md)),
-and multi-turn prefix reuse for hybrid and sliding-window models: a decoding
-request's last computed block stays reachable under sparse retention, so an
-agentic turn no longer re-prefills the previous turn's generated tokens
-(LFM2.5 AutomationBench replay at c16: 43% fewer prefilled tokens, 0.1% instead
-of 9.6% of reusable context recomputed, collection 1.023x).
+and multi-turn prefix reuse for hybrid and sliding-window models (LFM2.5
+AutomationBench replay at c16: 43% fewer prefilled tokens).
 The independent SM120 kernel is
 [`sm120-paged-attention` v0.1.0](https://github.com/carbonteq-ai/sm120-paged-attention/releases/tag/v0.1.0),
 commit `99a6fe0acbb4756735aa8e47236f8b74e3f7c4be`, with wheel SHA-256

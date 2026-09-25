@@ -69,6 +69,8 @@ class ObservatorySettings(ObservatoryModel):
     semantic_model: str | None = None
     semantic_api_key: str | None = Field(default=None, repr=False)
     frontend_dir: str | None = None
+    model_config_source: Literal["hub", "disabled"] = "hub"
+    """Where the settings calculator reads model configs; ``disabled`` keeps reviews to rule findings."""
     sources: tuple[ObservatorySourceSettings, ...] = ()
 
     @model_validator(mode="after")
@@ -149,6 +151,7 @@ class ObservatorySettings(ObservatoryModel):
             "semantic_model": os.getenv("POSTTRAIN_OBSERVATORY_LLM_MODEL"),
             "semantic_api_key": os.getenv("POSTTRAIN_OBSERVATORY_LLM_API_KEY"),
             "frontend_dir": os.getenv("POSTTRAIN_OBSERVATORY_FRONTEND_DIR"),
+            "model_config_source": os.getenv("POSTTRAIN_OBSERVATORY_MODEL_CONFIG", "hub"),
             "sources": sources,
         }
 

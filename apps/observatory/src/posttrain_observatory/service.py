@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from statistics import fmean
 from typing import Any, Literal, cast
 
+from posttrain.advisor import ArchitectureLoader
 from posttrain.common import JsonValue
 from posttrain.tracking import (
     EventRecord,
@@ -28,6 +29,7 @@ from posttrain.tracking import (
     TraceQuery,
 )
 
+from .configuration import configuration_review
 from .discovery import TrackioSourceDiscovery
 from .evaluation_contracts import read_evaluation_contract
 from .execution_targets import execution_target_capacity, execution_target_contexts
@@ -1204,6 +1206,7 @@ class ObservatoryService:
         semantic_provider: SemanticSummaryProvider | None = None,
         redaction: RedactionPolicy | None = None,
         source_discovery: TrackioSourceDiscovery | None = None,
+        architecture_loader: ArchitectureLoader | None = None,
     ) -> None:
         if isinstance(source, RunSourceRegistry):
             self.registry = source
@@ -1215,6 +1218,7 @@ class ObservatoryService:
         self._semantic = SemanticAnalysisService(semantic_provider)
         self._source_discovery = source_discovery
         # Reads model configs for the settings calculator; None keeps reviews to rule findings.
+        self._architecture_loader = architecture_loader
         self._trace_read_contexts: dict[tuple[str, str], _TraceReadContext] = {}
         self._trace_summary_cache: dict[tuple[str, str], tuple[float, tuple[TraceSummary, ...], bool]] = {}
         self._trace_summary_locks: dict[tuple[str, str], asyncio.Lock] = {}
@@ -1353,7 +1357,13 @@ class ObservatoryService:
             )
         if detail.summary.job_kind == "serve.benchmark":
             serving = await project_serving_benchmark(locator, source, detail, self._redaction)
-            view: RunView | EvaluationRunView | ServingBenchmarkRunView = serving
+            view: RunView | EvaluationRunView | ServingBenchmarkRunView = serving.model_copy(
+                update={
+                    "configuration": await configuration_review(
+                        self._redaction.mapping(detail.resolved_inputs), self._architecture_loader
+                    )
+                }
+            )
         else:
             metric_view = await self._metric_job_view(locator, definition, detail=detail)
             if detail.summary.job_kind.startswith("eval."):
@@ -1380,6 +1390,7 @@ class ObservatoryService:
                     artifacts=metric_view.artifacts,
                     execution_targets=metric_view.execution_targets,
                     resolved_inputs=metric_view.resolved_inputs,
+                    configuration=metric_view.configuration,
                     source_metadata=metric_view.source_metadata,
                     trace_evaluation_enabled=metric_view.trace_evaluation_enabled,
                     capabilities=metric_view.capabilities,
@@ -1441,6 +1452,7 @@ class ObservatoryService:
         )
         execution_targets = execution_target_contexts(detail.resolved_inputs)
         resolved_inputs = self._redaction.mapping(detail.resolved_inputs)
+        configuration = await configuration_review(resolved_inputs, self._architecture_loader, series_values)
         return RunView(
             schema_version=definition.schema_version,
             locator=locator,
@@ -1465,6 +1477,7 @@ class ObservatoryService:
             artifacts=artifacts,
             execution_targets=execution_targets,
             resolved_inputs=resolved_inputs,
+            configuration=configuration,
             source_metadata=self._redaction.mapping(detail.source_metadata),
             trace_count=detail.trace_count,
             trace_evaluation_enabled=bool(definition.trace_sections),
@@ -1505,6 +1518,7 @@ class ObservatoryService:
             artifacts=artifacts,
             execution_targets=execution_target_contexts(detail.resolved_inputs),
             resolved_inputs=resolved_inputs,
+            configuration=await configuration_review(resolved_inputs, self._architecture_loader),
             source_metadata=self._redaction.mapping(detail.source_metadata),
             trace_count=detail.trace_count,
             trace_evaluation_enabled=detail.trace_count > 0,

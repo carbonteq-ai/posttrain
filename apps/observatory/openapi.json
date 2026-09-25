@@ -298,6 +298,114 @@
         "title": "CompareRequest",
         "type": "object"
       },
+      "ConfigurationFinding": {
+        "additionalProperties": false,
+        "description": "One configuration finding, located against the run's recorded selections.",
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "path": {
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "related_paths": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          },
+          "role": {
+            "minLength": 1,
+            "title": "Role",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/FindingSeverity"
+          },
+          "source": {
+            "enum": [
+              "rule",
+              "calculator"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/JsonPayload"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "source",
+          "role",
+          "path",
+          "message"
+        ],
+        "title": "ConfigurationFinding",
+        "type": "object"
+      },
+      "ConfigurationReview": {
+        "additionalProperties": false,
+        "description": "Configuration rules and settings-calculator advice computed from the run's recorded selections.\n\nObservatory computes the review itself, so it covers every run, including\nruns recorded before the rules existed.",
+        "properties": {
+          "calculator": {
+            "default": "available",
+            "enum": [
+              "available",
+              "disabled"
+            ],
+            "title": "Calculator",
+            "type": "string"
+          },
+          "calibration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StepCalibration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "findings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ConfigurationFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "recommendations": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SettingsRecommendation"
+            },
+            "title": "Recommendations",
+            "type": "array"
+          }
+        },
+        "title": "ConfigurationReview",
+        "type": "object"
+      },
       "EvaluationBreakdown": {
         "additionalProperties": false,
         "description": "One declared compound report with structured groups.",
@@ -1301,6 +1409,16 @@
           "completeness": {
             "$ref": "#/components/schemas/EvidenceCompleteness"
           },
+          "configuration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfigurationReview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "evaluation": {
             "$ref": "#/components/schemas/TraceEvaluationView"
           },
@@ -1981,6 +2099,15 @@
         "title": "ExportRequest",
         "type": "object"
       },
+      "FindingSeverity": {
+        "enum": [
+          "error",
+          "warning",
+          "recommendation",
+          "info"
+        ],
+        "type": "string"
+      },
       "GRPOAccelerationEvidence": {
         "additionalProperties": false,
         "properties": {
@@ -2228,6 +2355,16 @@
           },
           "capabilities": {
             "$ref": "#/components/schemas/TrackingCapabilities"
+          },
+          "configuration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfigurationReview"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "events": {
             "items": {
@@ -2770,6 +2907,43 @@
         "title": "PromptGroupRewardView",
         "type": "object"
       },
+      "RecommendedSetting": {
+        "additionalProperties": false,
+        "properties": {
+          "changed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changed"
+          },
+          "current": {
+            "$ref": "#/components/schemas/JsonPayload"
+          },
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "suggested": {
+            "$ref": "#/components/schemas/JsonPayload"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "RecommendedSetting",
+        "type": "object"
+      },
       "RolloutBehaviorPoint": {
         "additionalProperties": false,
         "description": "Trace-derived rollout averages for one optimizer step.",
@@ -3231,6 +3405,16 @@
           "completeness": {
             "$ref": "#/components/schemas/EvidenceCompleteness"
           },
+          "configuration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfigurationReview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "execution_targets": {
             "default": [],
             "items": {
@@ -3542,6 +3726,16 @@
           },
           "capabilities": {
             "$ref": "#/components/schemas/TrackingCapabilities"
+          },
+          "configuration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfigurationReview"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "eligibility": {
             "$ref": "#/components/schemas/ServingEligibility"
@@ -4133,6 +4327,136 @@
         "title": "ServingRequirementView",
         "type": "object"
       },
+      "SettingsRecommendation": {
+        "additionalProperties": false,
+        "description": "The settings calculator's answer for one inference seat of the run.",
+        "properties": {
+          "binding_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Binding Id"
+          },
+          "decode_tokens_per_s_upper_bound": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decode Tokens Per S Upper Bound"
+          },
+          "environment": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Environment",
+            "type": "object"
+          },
+          "hardware": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Hardware",
+            "type": "object"
+          },
+          "max_concurrency": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Concurrency"
+          },
+          "memory_gb": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Memory Gb",
+            "type": "object"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "notes": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          },
+          "role": {
+            "minLength": 1,
+            "title": "Role",
+            "type": "string"
+          },
+          "settings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RecommendedSetting"
+            },
+            "title": "Settings",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StepCapacityView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "task": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Task",
+            "type": "object"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "required": [
+          "role",
+          "state"
+        ],
+        "title": "SettingsRecommendation",
+        "type": "object"
+      },
       "SourceRefreshStatus": {
         "additionalProperties": false,
         "properties": {
@@ -4205,6 +4529,216 @@
           "qualify"
         ],
         "type": "string"
+      },
+      "StepCalibration": {
+        "additionalProperties": false,
+        "description": "This run's measured per-step times, used to turn relative step times into seconds.",
+        "properties": {
+          "completion_tokens": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completion Tokens"
+          },
+          "rollout_seconds": {
+            "exclusiveMinimum": 0.0,
+            "title": "Rollout Seconds",
+            "type": "number"
+          },
+          "rounds_per_step": {
+            "default": 1.0,
+            "minimum": 1.0,
+            "title": "Rounds Per Step",
+            "type": "number"
+          },
+          "step_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Seconds"
+          },
+          "steps": {
+            "minimum": 1.0,
+            "title": "Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rollout_seconds",
+          "steps"
+        ],
+        "title": "StepCalibration",
+        "type": "object"
+      },
+      "StepCapacityView": {
+        "additionalProperties": false,
+        "properties": {
+          "extra_prompts_per_step": {
+            "minimum": 0.0,
+            "title": "Extra Prompts Per Step",
+            "type": "integer"
+          },
+          "fits": {
+            "minimum": 0.0,
+            "title": "Fits",
+            "type": "integer"
+          },
+          "margin_sequences": {
+            "minimum": 0.0,
+            "title": "Margin Sequences",
+            "type": "integer"
+          },
+          "options": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/StepOptionView"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "oversample_groups": {
+            "minimum": 0.0,
+            "title": "Oversample Groups",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "recommended_in_flight": {
+            "minimum": 0.0,
+            "title": "Recommended In Flight",
+            "type": "integer"
+          },
+          "recommended_prompts_per_step": {
+            "minimum": 0.0,
+            "title": "Recommended Prompts Per Step",
+            "type": "integer"
+          },
+          "step_sequences": {
+            "minimum": 0.0,
+            "title": "Step Sequences",
+            "type": "integer"
+          },
+          "useful": {
+            "minimum": 0.0,
+            "title": "Useful",
+            "type": "integer"
+          },
+          "waves": {
+            "minimum": 0.0,
+            "title": "Waves",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "step_sequences",
+          "fits",
+          "useful",
+          "waves",
+          "margin_sequences",
+          "oversample_groups",
+          "extra_prompts_per_step",
+          "recommended_prompts_per_step",
+          "recommended_in_flight",
+          "reason"
+        ],
+        "title": "StepCapacityView",
+        "type": "object"
+      },
+      "StepOptionView": {
+        "additionalProperties": false,
+        "properties": {
+          "estimated_relative_rows_per_second": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Relative Rows Per Second"
+          },
+          "estimated_rollout_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Rollout Seconds"
+          },
+          "estimated_step_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Step Seconds"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "oversample_groups": {
+            "minimum": 0.0,
+            "title": "Oversample Groups",
+            "type": "integer"
+          },
+          "prompts_per_step": {
+            "minimum": 0.0,
+            "title": "Prompts Per Step",
+            "type": "integer"
+          },
+          "relative_rows_per_second": {
+            "title": "Relative Rows Per Second",
+            "type": "number"
+          },
+          "relative_step_time": {
+            "title": "Relative Step Time",
+            "type": "number"
+          },
+          "rows": {
+            "minimum": 0.0,
+            "title": "Rows",
+            "type": "integer"
+          },
+          "waves": {
+            "minimum": 0.0,
+            "title": "Waves",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "label",
+          "prompts_per_step",
+          "oversample_groups",
+          "rows",
+          "waves",
+          "relative_step_time",
+          "relative_rows_per_second"
+        ],
+        "title": "StepOptionView",
+        "type": "object"
       },
       "StoredArtifact": {
         "additionalProperties": false,

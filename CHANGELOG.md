@@ -6,6 +6,50 @@ version across first-party distributions.
 
 ## Unreleased
 
+## 0.4.7 - unreleased
+
+### Added
+
+- Configuration rules and a settings calculator (`posttrain.advisor`):
+  `work-package validate`, `job plan` and `job run` report every configuration
+  finding and reject unacknowledged performance errors (`--strict` also rejects
+  warnings); `posttrain settings suggest` calculates engine settings, memory and
+  step sizing; Observatory shows the same review on every run.
+- Bindings can acknowledge a finding with a written reason
+  (`performance_acknowledgements`). Bindings that recorded runs used keep their
+  engine and acknowledge their findings, naming the successor.
+- DSpark speculative rollout: TRL rollouts accept a DSpark drafter pinned to a
+  commit, and `inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c32-4k@3`
+  uses LFM2.5-2.6B-DSpark with nine tokens and a 7 GiB KV cache sized for
+  target plus drafter (replay: 46 s per 32-episode collection against 84-87 s
+  without speculation). The settings calculator counts drafters named in
+  vLLM's speculative schema.
+
+### Changed
+
+- vLLM `carbonteq-v0.29.1.dev4` (`f09e4479`): LFM2 DSpark speculative
+  decoding, DFlash/DSpark keep their trailing prefix-cache block, and
+  session-aware prefix-cache eviction (`release_session`,
+  `POST /v1/sessions/release`).
+
+- The `posttrain init` GRPO starter uses `qwen3.5-0.8b-vllm-distill-rollout@4`
+  (vLLM 0.29.1.dev3, CUDA graphs, calculator sizing for a colocated 8 GB GPU);
+  the release-gate evaluation uses `qwen3.5-2b-vllm-eval@3`.
+- Serving computes in the checkpoint's precision when a binding omits `dtype`
+  and enables prefix caching when it omits `enable_prefix_caching`; the veRL
+  worker honours the binding's prefix caching and batch invariance.
+- Verifiers `cdd2ec76` and environments `5264ec15` for every base environment;
+  GSM8K scores in-process.
+
+### Fixed
+
+- A failed GSM8K scoring call no longer poisons later calls with "bound to a
+  different event loop".
+- The GRPO starter's environment runs in local subprocesses (not Prime
+  sandboxes) and checks its dataset at job start, not during the offline build.
+- `run cleanup` releases a failed-versus-cancelled local run that never wrote
+  outputs, which previously held the GPU placement forever.
+
 ## 0.4.6 - 2026-09-25
 
 A patch release for 0.4.5.

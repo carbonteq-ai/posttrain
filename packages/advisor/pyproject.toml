@@ -1,0 +1,24 @@
+[project]
+name = "posttrain-advisor"
+version = "0.0.0"
+description = "Settings calculator and configuration rules over recorded run selections"
+authors = [{ name = "CarbonTeq" }]
+license = "Apache-2.0"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "httpx>=0.28,<1",
+    "posttrain-common",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+posttrain-common = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/posttrain"]

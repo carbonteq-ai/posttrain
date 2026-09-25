@@ -30,6 +30,16 @@ def _configure_torch_compile(engine: Mapping[str, object]) -> None:
         os.environ["TORCH_COMPILE_DISABLE"] = "1"
 
 
+def _configure_batch_invariance(engine: Mapping[str, object]) -> None:
+    """vLLM reads batch invariance from the environment when the engine starts."""
+
+    value = engine.get("batch_invariant")
+    if value is not None and not isinstance(value, bool):
+        raise ValueError("TRL rollout batch_invariant must be a boolean")
+    if value:
+        os.environ["VLLM_BATCH_INVARIANT"] = "1"
+
+
 def _online_rl_arguments(
     request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
     output_dir: Path,

@@ -114,6 +114,7 @@ class InferenceBindingSchema(CatalogSchema):
     capabilities: tuple[str, ...] = ()
     reasoning_mode: str | None = None
     startup_timeout_seconds: float = Field(default=180.0, gt=0)
+    performance_acknowledgements: dict[str, str] = Field(default_factory=dict)
 
 
 class HostedModelSchema(CatalogSchema):

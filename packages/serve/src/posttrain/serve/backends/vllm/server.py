@@ -94,7 +94,7 @@ class VllmServer:
             stdout=self._log,
             stderr=subprocess.STDOUT,
             text=True,
-            env=_server_environment(),
+            env={**_server_environment(), **resolve_binding_configuration(self.request.inference).engine.environment()},
         )
         deadline = time.monotonic() + self.request.effective_startup_timeout_seconds
         while time.monotonic() < deadline:

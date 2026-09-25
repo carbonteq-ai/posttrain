@@ -554,6 +554,9 @@ async def test_structured_group_policy_jobs_resolve_a_curated_view(job_kind: str
     assert isinstance(response.view, RunView)
     assert response.view.run.job_kind == job_kind
     assert response.view.grpo is not None
+    # Every run view carries a configuration review; without a model reader it holds rule findings only.
+    assert response.view.configuration is not None
+    assert response.view.configuration.calculator == "disabled"
 
 
 def _dpo_source(*, missing: str | None = None, validation_configured: bool = False) -> FakeRunDataSource:

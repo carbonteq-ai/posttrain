@@ -82,8 +82,8 @@ def vllm_rollout_options(
         if not isinstance(speculative, Mapping):
             raise ValueError("TRL rollout speculative_config must be a mapping")
         method = speculative.get("method")
-        if method not in {"mtp", "uno"}:
-            raise ValueError("TRL supports only native MTP or Uno speculative rollout")
+        if method not in {"mtp", "uno", "dspark"}:
+            raise ValueError("TRL supports only native MTP, Uno, or DSpark speculative rollout")
         count = speculative.get("num_speculative_tokens")
         if not isinstance(count, int) or isinstance(count, bool) or count < 1:
             raise ValueError("TRL speculative num_speculative_tokens must be a positive integer")
@@ -91,6 +91,8 @@ def vllm_rollout_options(
             if not model.capabilities.mtp:
                 raise ValueError(f"model variant {model.id!r} does not declare MTP capability")
             speculative = _resolve_speculative_assistant(model, speculative)
+        elif method == "dspark":
+            _require_pinned_drafter(speculative)
         else:
             speculative, _ = _resolve_uno_adapter(speculative)
 
@@ -162,6 +164,20 @@ def vllm_rollout_options(
     if speculative is not None:
         values["disable_log_stats"] = False
     return dict(speculative) if isinstance(speculative, Mapping) else None, values or None
+
+
+def _require_pinned_drafter(speculative: Mapping[str, JsonValue]) -> None:
+    """Require a DSpark drafter named by repository and immutable commit.
+
+    The target verifies every drafted token, so the drafter changes speed but
+    never the sampled tokens; pinning it keeps that speed reproducible.
+    """
+    drafter = speculative.get("model")
+    revision = speculative.get("revision")
+    if not isinstance(drafter, str) or drafter.count("/") != 1:
+        raise ValueError("TRL DSpark speculative rollout requires model as an owner/repository string")
+    if not isinstance(revision, str) or _COMMIT_SHA.fullmatch(revision) is None:
+        raise ValueError("TRL DSpark speculative revision must be a full 40-character commit SHA")
 
 
 def _resolve_uno_adapter(

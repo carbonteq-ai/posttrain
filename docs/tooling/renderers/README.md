@@ -30,7 +30,7 @@ Posttrain 0.4.5 selects `carbonteq-renderers==0.1.12.post1.dev1` from
 `carbonteq-v0.1.12.post1.dev1`, based on upstream `20f2b38c`); wheel
 `2e3231784729b9177bfc25eb06e3a6a958f9ba420ff8e241c010266cc9422d0b`, sdist
 `bf529fc910f66494770a96e0ee5ec986344ed5f8b48258b50a55b82baa876fa3`. Verifiers
-`0cee0a07` depends on it without an index pin, so public consumers (including
+`cdd2ec76` depends on it without an index pin, so public consumers (including
 the Quality `external-consumer` job) install the GitHub Release wheel instead of
 reaching `pypi.lan`. `release/forks.toml` and the stable-index fork check cover
 it.

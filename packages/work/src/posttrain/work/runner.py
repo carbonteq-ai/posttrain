@@ -8,6 +8,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import cast
 
+from posttrain.advisor import rule_findings
 from posttrain.common import (
     Catalog,
     CatalogRef,
@@ -362,7 +363,7 @@ def prepare_work_package_job(
         required_artifact_roles=definition.required_artifact_roles,
         evidence_retention=package.evidence_retention,
     )
-    issues, checks = _configuration_findings(seats)
+    issues, checks = _configuration_findings(seats, resolved_inputs)
     readiness = _readiness_checks(context, seats, skip_preflight=skip_preflight)
     errors = [issue for issue in issues if issue.severity == "error"]
     if errors:
@@ -457,6 +458,7 @@ def _setting_origins(seats: ResolvedSeats) -> tuple[SettingOrigin, ...]:
 
 def _configuration_findings(
     seats: ResolvedSeats,
+    snapshot: Mapping[str, JsonValue] | None = None,
 ) -> tuple[tuple[ConfigurationIssue, ...], tuple[ValidationCheck, ...]]:
     """Assess declared model/target compatibility without loading a runtime."""
 
@@ -515,163 +517,33 @@ def _configuration_findings(
                     )
                 )
             continue
-        if not isinstance(value, InferenceBinding):
-            continue
-        hardware = value.target.hardware
-        engine = value.engine
-        speculative = engine.get("speculative_config", engine.get("speculative"))
-        is_mtp = isinstance(speculative, Mapping) and speculative.get("method") == "mtp"
-        kv_cache_dtype = engine.get("kv_cache_dtype")
-        turboquant = isinstance(kv_cache_dtype, str) and kv_cache_dtype.startswith("turboquant_")
-        flash_attn_version = engine.get("flash_attn_version")
-        accelerator_model = hardware.accelerator_model if hardware is not None else None
-        if accelerator_model in {"RTXPRO4500", "RTXPRO6000"} and flash_attn_version == 4:
-            issues.append(
-                ConfigurationIssue(
-                    "VLLM_NATIVE_FA4_UNSUPPORTED_ON_SM120",
-                    "error",
-                    "static",
-                    role,
-                    f"{role}.engine.flash_attn_version",
-                    (
-                        f"native vLLM FlashAttention 4 does not support SM120 target {accelerator_model}; "
-                        "the separately qualified extracted SM120 kernel is not the native FLASH_ATTN backend"
-                    ),
-                    "Set flash_attn_version to 2 or select a runtime with a qualified SM120 attention backend.",
-                    (f"{role}.target.hardware.accelerator_model",),
-                )
-            )
-        if turboquant and isinstance(flash_attn_version, int) and flash_attn_version >= 3:
-            issues.append(
-                ConfigurationIssue(
-                    "VLLM_TURBOQUANT_FLASH_ATTN_INCOMPATIBLE",
-                    "error",
-                    "static",
-                    role,
-                    f"{role}.engine.flash_attn_version",
-                    (
-                        f"TurboQuant KV cache cannot be compiled with FlashAttention {flash_attn_version}; "
-                        "the selected vLLM runtime requires FlashAttention 2 for TurboQuant boundary layers"
-                    ),
-                    "Set flash_attn_version to 2 or select a non-TurboQuant KV-cache dtype.",
-                    (f"{role}.engine.kv_cache_dtype",),
-                )
-            )
-        if (
-            value.backend == "vllm@62f6de733d7ae63b759329993bc209e67afdf431"
-            and value.model.family == "nanbeige4.2"
-            and turboquant
-            and isinstance(speculative, Mapping)
-            and speculative.get("method") == "dspark"
-        ):
-            issues.append(
-                ConfigurationIssue(
-                    "VLLM_DSPARK_TURBOQUANT_INCOMPATIBLE",
-                    "error",
-                    "static",
-                    role,
-                    f"{role}.engine.speculative_config",
-                    (
-                        "DSpark cannot be compiled with TurboQuant in vLLM 62f6de733 because its "
-                        "non-causal draft attention is unsupported by the TurboQuant backend"
-                    ),
-                    "Use the native KV cache for DSpark or select a runtime that explicitly qualifies this composition.",
-                    (f"{role}.engine.kv_cache_dtype",),
-                )
-            )
-        if is_mtp and not value.model.capabilities.mtp:
-            issues.append(
-                ConfigurationIssue(
-                    "MTP_MODEL_CAPABILITY_MISSING",
-                    "error",
-                    "static",
-                    role,
-                    f"{role}.engine.speculative_config",
-                    f"{value.model.id} does not declare MTP capability",
-                    "Select a qualified MTP-capable variant or remove speculative decoding.",
-                )
-            )
-        if hardware is None:
+        if isinstance(value, InferenceBinding):
             checks.append(
                 ValidationCheck(
                     f"{role}-hardware-capabilities",
-                    "deferred",
-                    "target has no declared hardware capabilities; runtime readiness must verify acceleration support",
-                )
-            )
-            continue
-        checks.append(
-            ValidationCheck(
-                f"{role}-hardware-capabilities",
-                "passed",
-                "declared target capabilities were checked without reserving hardware",
-            )
-        )
-        if value.model.weight_precision == "bf16" and hardware.supports_bf16 is False:
-            issues.append(
-                ConfigurationIssue(
-                    "BF16_TARGET_UNSUPPORTED",
-                    "error",
-                    "static",
-                    role,
-                    f"{role}.target.hardware.supports_bf16",
-                    f"target {value.target.id} declares BF16 unsupported for BF16 model weights",
-                )
-            )
-        if is_mtp and hardware.supports_mtp is False:
-            issues.append(
-                ConfigurationIssue(
-                    "MTP_TARGET_UNSUPPORTED",
-                    "error",
-                    "static",
-                    role,
-                    f"{role}.target.hardware.supports_mtp",
-                    f"target {value.target.id} declares MTP unsupported",
-                )
-            )
-        generation_purposes = {"screen", "eval", "rollout", "smoke"}
-        if (
-            not is_mtp
-            and generation_purposes.intersection(value.purpose)
-            and value.model.capabilities.mtp
-            and hardware.supports_mtp is True
-        ):
-            issues.append(
-                ConfigurationIssue(
-                    "MTP_AVAILABLE",
-                    "recommendation",
-                    "static",
-                    role,
-                    f"{role}.engine.speculative_config",
-                    "the selected model and target advertise MTP capability but this binding does not enable it",
-                    "Select a versioned MTP binding only after qualifying the model/backend/operation combination.",
-                )
-            )
-        if turboquant and hardware.supports_turboquant is False:
-            issues.append(
-                ConfigurationIssue(
-                    "TURBOQUANT_TARGET_UNSUPPORTED",
-                    "error",
-                    "static",
-                    role,
-                    f"{role}.target.hardware.supports_turboquant",
-                    f"target {value.target.id} declares TurboQuant unsupported",
-                )
-            )
-        if not turboquant and hardware.supports_turboquant is True:
-            issues.append(
-                ConfigurationIssue(
-                    "TURBOQUANT_AVAILABLE",
-                    "recommendation",
-                    "static",
-                    role,
-                    f"{role}.engine.kv_cache_dtype",
-                    "the target advertises TurboQuant capability but this binding uses its native KV-cache dtype",
-                    "Enable TurboQuant only after selecting a qualified model/backend/operation combination.",
+                    "passed" if value.target.hardware is not None else "deferred",
+                    (
+                        "declared target capabilities were checked without reserving hardware"
+                        if value.target.hardware is not None
+                        else "target has no declared hardware capabilities; runtime readiness must verify acceleration support"
+                    ),
                 )
             )
     issues.extend(_colocated_trl_weight_floor_findings(seats))
+    # Binding, compatibility and LoRA/training rules read the recorded snapshot, exactly as Observatory does.
+    issues.extend(rule_findings(snapshot if snapshot is not None else _seats_snapshot(seats)))
     return tuple(issues), tuple(checks)
+
+
+def _seats_snapshot(seats: ResolvedSeats) -> dict[str, JsonValue]:
+    """The snapshot a run would record for these seats, for callers that hold only seats."""
+
+    resolved = {role: ResolvedSeat(role, value, None, "inline") for role, value in seats.items()}
+    snapshot: dict[str, JsonValue] = {role: _seat_snapshot(seat) for role, seat in resolved.items()}
+    targets = _execution_target_snapshot(resolved)
+    if targets:
+        snapshot["execution_targets"] = {"schema_version": 1, "targets": targets}
+    return snapshot
 
 
 def _colocated_trl_weight_floor_findings(seats: ResolvedSeats) -> tuple[ConfigurationIssue, ...]:
@@ -818,6 +690,23 @@ def validate_work_package(
 
     resolved, _, _ = _prepare_work_package(context, package)
     return resolved
+
+
+def work_package_findings(
+    context: WorkPackageContext,
+    package: WorkPackage,
+) -> Mapping[str, tuple[ConfigurationIssue, ...]]:
+    """Return every enabled job's static configuration findings, by job id.
+
+    Unlike job preparation this does not raise on error findings, so a caller
+    can show every problem at once; it still raises on contract violations.
+    """
+
+    resolved, _, prepared = _prepare_work_package(context, package)
+    snapshot = _run_snapshot(resolved, context.project_brief)
+    return MappingProxyType(
+        {job_id: _configuration_findings(seats, snapshot)[0] for job_id, (_, _, seats) in prepared.items()}
+    )
 
 
 def _prepare_work_package(
@@ -1023,6 +912,16 @@ def _execution_target_snapshot(
     return result
 
 
+def _model_facts(model: ModelVariant) -> dict[str, JsonValue]:
+    return {
+        "parameters": model.parameters,
+        "capabilities": {
+            "mtp": model.capabilities.mtp,
+            "native_context_window": model.capabilities.native_context_window,
+        },
+    }
+
+
 def _selection_details(value: Selection) -> dict[str, JsonValue]:
     if isinstance(value, ModelVariant):
         artifact: dict[str, JsonValue]
@@ -1055,6 +954,7 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "family": value.family,
             "renderer": value.renderer.id,
             "parent": value.parent,
+            **_model_facts(value),
         }
     if isinstance(value, ExecutionTarget):
         return {
@@ -1076,7 +976,7 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "host_constraints": dict(value.host_constraints),
         }
     if isinstance(value, InferenceBinding):
-        return {
+        payload = {
             "model_variant_id": value.model.id,
             "backend": value.backend,
             "renderer": value.renderer,
@@ -1085,7 +985,18 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "target_id": value.target.id,
             "purpose": list(value.purpose),
             "startup_timeout_seconds": value.startup_timeout_seconds,
+            # The served model's facts, so configuration rules need no separate model seat.
+            "model": {
+                "family": value.model.family,
+                "weight_precision": value.model.weight_precision,
+                "base": {"repo_id": value.model.base.repo_id, "revision": value.model.base.revision},
+                **_model_facts(value.model),
+            },
         }
+        # Only present when declared, so existing bindings keep their snapshot digests.
+        if value.performance_acknowledgements:
+            payload["performance_acknowledgements"] = dict(value.performance_acknowledgements)
+        return payload
     if isinstance(value, HostedInferenceBinding):
         return {
             "hosted_model_id": value.model.id,
@@ -1138,6 +1049,8 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             "learning_rate": loop.learning_rate,
             "seed": loop.seed,
         }
+        # Recorded so readers (training rules, Observatory) see the schedule; older runs omit it.
+        details["lr_scheduler_type"] = loop.lr_scheduler_type
         if isinstance(value, DPOSettings):
             details.update({"beta": value.beta, "loss_kernel": value.loss_kernel})
         if isinstance(value, GRPOSettings):

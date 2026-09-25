@@ -130,6 +130,15 @@ inference:
       top_p: 1.0
     target: targets/carbonteq-cuda-24gb-plus
     purpose: [rollout]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (gsm8k_distillation), so it stays unchanged to keep them reproducible;
+        new work selects inference/qwen3.5-0.8b-vllm-distill-rollout@4.
+      VLLM_HYBRID_CONTINUATION_REUSE_MISSING: >-
+        The pre-fix vLLM backend is the one this revision's runs used; recorded by 1
+        work package (gsm8k_distillation), so it stays unchanged to keep them
+        reproducible; new work selects inference/qwen3.5-0.8b-vllm-distill-rollout@4.
 
   inference/qwen3.5-2b-vllm-teacher-score@2:
     revision: "2"
@@ -149,3 +158,13 @@ inference:
       temperature: 1.0
     target: targets/carbonteq-cuda-24gb-plus
     purpose: [teacher-score]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        Eager decode is the engine this revision's runs used; recorded by 1 work
+        package (gsm8k_distillation), so it stays unchanged to keep them reproducible;
+        new work takes `posttrain settings suggest` values in a new revision.
+      VLLM_HYBRID_CONTINUATION_REUSE_MISSING: >-
+        The pre-fix vLLM backend is the one this revision's runs used; recorded by 1
+        work package (gsm8k_distillation), so it stays unchanged to keep them
+        reproducible; new work takes `posttrain settings suggest` values in a new
+        revision.

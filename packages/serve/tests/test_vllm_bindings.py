@@ -447,3 +447,22 @@ def test_nanbeige_renderer_drives_its_vllm_parsers(qwen_screen_binding: Inferenc
         "--reasoning-parser",
         "nanbeige",
     )
+
+
+def test_omitted_dtype_and_prefix_caching_follow_the_checkpoint_and_default_on(
+    qwen_screen_binding: InferenceBinding,
+) -> None:
+    omitted = {
+        key: value for key, value in qwen_screen_binding.engine.items() if key not in {"dtype", "enable_prefix_caching"}
+    }
+    engine = engine_config(replace(qwen_screen_binding, engine=omitted))
+    assert engine.dtype == "bfloat16"
+    assert engine.enable_prefix_caching is True
+
+    turboquant = engine_config(replace(qwen_screen_binding, engine={**omitted, "kv_cache_dtype": "turboquant_k8v4"}))
+    assert turboquant.dtype == "float16"
+
+    explicit = engine_config(
+        replace(qwen_screen_binding, engine={**omitted, "dtype": "float16", "enable_prefix_caching": False})
+    )
+    assert (explicit.dtype, explicit.enable_prefix_caching) == ("float16", False)

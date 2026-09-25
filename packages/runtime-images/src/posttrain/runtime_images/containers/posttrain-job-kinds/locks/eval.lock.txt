@@ -589,6 +589,7 @@ httpx==0.28.1 \
     #   huggingface-hub
     #   model-hosting-container-standards
     #   openai
+    #   posttrain-advisor
     #   posttrain-execution-job-builder
     #   posttrain-jobs
     #   posttrain-observatory
@@ -2370,14 +2371,14 @@ uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'c
     --hash=sha256:bc5ef13bbc10b5335792360623cc378d52d7e62c2de64660616478c32cd0598e
     # via uvicorn
 
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@0cee0a075ddf1883498be0fde34155655cb19146
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@cdd2ec7614131545df66484f9de11250daf16065
     # via
     #   posttrain-data
     #   posttrain-eval
     #   posttrain-train
     #   prime
 
-vllm @ git+https://github.com/carbonteq-ai/vllm.git@564ff2b43d499f5d17bcee554d126360b768dd98
+vllm @ git+https://github.com/carbonteq-ai/vllm.git@f09e4479123d348cee87d217c695a22f9b2daacc
     # via
     #   posttrain-serve
     #   posttrain-train

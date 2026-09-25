@@ -112,7 +112,7 @@ async def cleanup_execution(
             and reconciliation.outcome in {"failed", "cancelled"}
         ):
             evidence_state = "provider-terminal"
-        elif _is_safe_terminal_disagreement(reconciliation):
+        elif _is_safe_terminal_disagreement(reconciliation, workspace):
             evidence_state = "terminal-disagreement"
         else:
             raise RuntimeError(
@@ -216,13 +216,20 @@ def _retain_diagnostic(
     }
 
 
-def _is_safe_terminal_disagreement(reconciliation: Any) -> bool:
+_TERMINAL_MARKER = ".posttrain-terminal.json"
+
+
+def _is_safe_terminal_disagreement(reconciliation: Any, workspace: Path) -> bool:
     """Allow cleanup without relabeling a closed failed/cancelled run.
 
     Providers and trackers can legitimately disagree when a worker is
     terminated while the observer finalizes its already-retained evidence as a
     cancellation. This is sufficient to reclaim an exact workspace, but not to
     pretend the two terminal outcomes are equivalent for diagnosis.
+
+    The run must have retained its artifacts, or have failed before writing any:
+    a local workspace holding nothing but its terminal marker has no output that
+    cleanup could lose. The provider diagnostic is retained either way.
     """
 
     return (
@@ -230,7 +237,15 @@ def _is_safe_terminal_disagreement(reconciliation: Any) -> bool:
         and reconciliation.provider_record.state in {"failed", "cancelled"}
         and reconciliation.tracking_status in {"failed", "cancelled"}
         and reconciliation.provider_record.state != reconciliation.tracking_status
-        and bool(reconciliation.retained_artifacts)
+        and (bool(reconciliation.retained_artifacts) or _workspace_has_no_outputs(workspace))
+    )
+
+
+def _workspace_has_no_outputs(workspace: Path) -> bool:
+    if not workspace.is_dir():
+        return False
+    return all(
+        path.name == _TERMINAL_MARKER and path.parent == workspace for path in workspace.rglob("*") if not path.is_dir()
     )
 
 

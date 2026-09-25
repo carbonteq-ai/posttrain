@@ -27,6 +27,7 @@ from posttrain.common import ContractError
 # because it defines what a job image contains, which is not something to infer.
 FRAMEWORK_DISTRIBUTIONS = (
     "posttrain",
+    "posttrain-advisor",
     "posttrain-catalog",
     "posttrain-common",
     "posttrain-data",

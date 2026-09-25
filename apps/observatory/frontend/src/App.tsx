@@ -31,6 +31,7 @@ import { FilterPopover } from './components/FilterPopover';
 import { RolloutTimeline, RolloutTimeSummary } from './components/RolloutTime';
 import { PhaseMemoryTimeline } from './components/PhaseMemoryTimeline';
 import { SamplingDistribution, SamplingSummary } from './components/SamplingEvidence';
+import { ConfigPage, ConfigurationStrip } from './features/config/ConfigPage';
 import { ServingBenchmarkOverview } from './features/serving/ServingBenchmarkOverview';
 import { ServingCapacityWorkPackageView } from './features/serving/ServingCapacityWorkPackage';
 
@@ -1611,6 +1612,7 @@ function EvaluationOverview({ selected, response, evaluation, onTraces, onCompar
       title={evaluation.metadata?.label ?? (environment?.id ? packageLabel(environment.id) : 'Evaluation overview')}
       subtitle={`${evaluation.metadata?.category ? `${evaluation.metadata.category} · ` : ''}A single-run verdict over the selected task population. Rollout traces remain supporting evidence, not the headline.`}
     />
+    <ConfigurationStrip review={response.view.configuration} onOpen={onRunConfig} />
     <section aria-label="Benchmark verdict" className="obs-card mt-5 overflow-hidden border-violet-200">
       <div className="flex items-center justify-end border-b border-divider px-4 py-3"><button type="button" onClick={onCompare} className="inline-flex items-center gap-1.5 rounded-[4px] border border-violet-300 bg-surface px-3 py-2 text-xs font-medium text-violet-800 hover:bg-violet-50">Compare this run <GitDiff size={14} /></button></div>
       <div className="grid lg:grid-cols-[minmax(250px,.9fr)_minmax(0,1.6fr)]">
@@ -1846,6 +1848,7 @@ function GenericOverview({
         <div><p className="type-eyebrow">{copy.eyebrow}</p><h1 className="type-page-title mt-1.5">{copy.title}</h1><p className="type-page-subtitle mt-2">{copy.question}</p>{jobDefinitionDescription && <p className="mt-2 max-w-3xl text-[10px] leading-4 text-muted"><code className="mr-2 text-violet-700">{jobDefinition?.id}</code>{jobDefinitionDescription}</p>}</div>
       </div>
       {response.fallback_reason && <div className="mt-5 flex items-center gap-2 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"><Warning size={16} weight="fill" />{response.fallback_reason}</div>}
+      <ConfigurationStrip review={view.configuration} onOpen={onRunConfig} />
       {healthAlerts.map((alert) => <div key={alert.id} className="obs-card mt-3 flex items-center gap-3 border-amber-200 bg-[#fffaf1] px-3 py-2 text-[11px]"><Warning size={16} weight="fill" className="text-amber-500" /><strong>Evidence warning</strong><span className="text-secondary">{alert.message}</span></div>)}
       {(isDpo || isGroupPolicy || isSampo || isDistill) && completeness && (
         <section aria-label={`${groupPolicyLabel ?? (isSampo ? 'SAMPO' : isDistill ? 'Distillation' : 'DPO')} evidence completeness`} className="obs-card mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 text-[11px]">
@@ -2638,67 +2641,23 @@ function ConfigFields({ value, depth = 0 }: { value: Record<string, unknown>; de
   </div>;
 }
 
-function ConfigGroup({ definition, inputs }: { definition: ConfigGroupDefinition; inputs: Record<string, unknown> }) {
-  const entries = definition.keys.flatMap((key) => {
-    const value = configEntry(inputs, key);
-    return value ? [{ key, value }] : [];
-  });
-  if (!entries.length) return null;
-  return <section aria-labelledby={`config-group-${definition.title.replaceAll(' ', '-').toLowerCase()}`}>
-    <div className="mb-3 max-w-3xl">
-      <h2 id={`config-group-${definition.title.replaceAll(' ', '-').toLowerCase()}`} className="font-serif text-xl font-normal text-ink">{definition.title}</h2>
-      <p className="mt-1 text-xs leading-5 text-muted">{definition.description}</p>
-    </div>
-    <div className="grid items-start gap-3 lg:grid-cols-2">{entries.map((entry) => <ConfigSelectionCard key={entry.key} name={entry.key} value={entry.value} />)}</div>
-  </section>;
-}
-
-
-function ConfigSelectionCard({ name, value }: { name: string; value: ConfigEntryValue }) {
-  const label = selectionLabels[name] ?? humanizeKey(name);
-  const wide = name === 'training' || name === 'work_package';
-  return <article aria-label={`${label} selection`} className={`obs-card min-w-0 overflow-hidden ${wide ? 'lg:col-span-2' : ''}`}>
-    <header className="border-b border-divider bg-subtle/50 px-4 py-3">
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0"><p className="type-label">{label}</p><code title={value.id} className="mt-1.5 block truncate font-mono text-[11px] font-medium text-ink">{value.id}</code></div>
-        <Stack size={17} className="shrink-0 text-violet-700" aria-hidden="true" />
-      </div>
-      {(value.revision || value.sourceLayer || value.overlayId) && <div className="mt-2 flex flex-wrap gap-1.5 text-[9px] text-muted">
-        {value.revision && <span title={value.revision} className="rounded border border-divider bg-surface px-1.5 py-0.5">revision {value.revision.length > 16 ? `${value.revision.slice(0, 12)}…` : value.revision}</span>}
-        {value.sourceLayer && <span className="rounded border border-divider bg-surface px-1.5 py-0.5">{value.sourceLayer}</span>}
-        {value.overlayId && <span title={value.overlayId} className="rounded border border-divider bg-surface px-1.5 py-0.5">overlay {value.overlayId}</span>}
-      </div>}
-    </header>
-    <dl className="bg-divider"><ConfigFields value={value.detail} /></dl>
-  </article>;
-}
-
 function ConfigView({ response }: { response: RunView }) {
   const inputs = response.view.resolved_inputs ?? {};
   const source = response.view.source_metadata ?? {};
   const run = response.view.run;
-  const groups = configGroups(run.job_kind, inputs);
-  const raw = { selections: inputs, source_metadata: source };
-  return <>
-    <PageHeading eyebrow="REPRODUCIBLE INPUTS" title="Run configuration" subtitle="Resolved selections are organized by this job’s schema. Values remain server-redacted and provider-neutral." />
-    <section aria-label="Run contract" className="obs-card mt-5 grid overflow-hidden sm:grid-cols-2 xl:grid-cols-4">
-      {[
-        ['Job kind', run.job_kind],
-        ['Job definition', run.job_definition_version],
-        ['Stage', run.stage],
-        ['View schema', `v${response.view.schema_version ?? 1}`],
-      ].map(([label, value]) => <div key={label} className="min-w-0 border-b border-r border-divider px-4 py-3"><span className="type-label">{label}</span><code title={value} className="mt-1.5 block truncate font-mono text-[10px] text-ink">{value}</code></div>)}
-    </section>
-    {Object.keys(inputs).length ? <div className="mt-7 space-y-8">{groups.map((group) => <ConfigGroup key={group.title} definition={group} inputs={inputs} />)}</div> : <div className="mt-6"><EmptyState title="No resolved selections" body="This run did not expose a redacted configuration projection. Its identity and recorded source provenance remain available below." /></div>}
-    {Object.keys(source).length > 0 && <section aria-labelledby="source-provenance" className="mt-8">
-      <div className="mb-3"><h2 id="source-provenance" className="font-serif text-xl font-normal text-ink">Source provenance</h2><p className="mt-1 text-xs leading-5 text-muted">The code revision and working-tree state recorded when the run started.</p></div>
-      <div className="obs-card overflow-hidden"><dl><ConfigFields value={source} /></dl></div>
-    </section>}
-    <details className="obs-card mt-8 overflow-hidden">
-      <summary className="cursor-pointer select-none px-4 py-3 text-[11px] font-medium text-secondary hover:bg-subtle">View redacted JSON</summary>
-      <pre className="max-h-[520px] overflow-auto border-t border-divider bg-subtle p-4 font-mono text-[10px] leading-5 text-secondary">{JSON.stringify(raw, null, 2)}</pre>
-    </details>
-  </>;
+  return <ConfigPage
+    jobKind={run.job_kind}
+    jobDefinition={run.job_definition_version}
+    stage={run.stage}
+    schemaVersion={response.view.schema_version ?? 1}
+    inputs={inputs}
+    source={source}
+    review={response.view.configuration}
+    groups={configGroups(run.job_kind, inputs)}
+    labels={selectionLabels}
+    heading={<PageHeading eyebrow="REPRODUCIBLE INPUTS" title="Run configuration" subtitle="The selections this run recorded, reviewed against measured defaults, reference recipes and the settings calculator." />}
+    sourceFields={<div className="obs-card overflow-hidden"><dl><ConfigFields value={source} /></dl></div>}
+  />;
 }
 
 function PageHeading({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle: string }) {

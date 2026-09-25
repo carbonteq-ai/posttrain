@@ -19,7 +19,7 @@ from ..constants import DISTRIBUTION
 STARTER_GSM8K_REQUIREMENT = (
     "gsm8k-v1 @ "
     "git+https://github.com/carbonteq-ai/verifiers-environments.git"
-    "@8b739717adad33e9dd3a4fcef0acd7ce7626a9d3#subdirectory=environments/gsm8k_v1"
+    "@5264ec153a543c62688efaa1ffe28aedb247d5bb#subdirectory=environments/gsm8k_v1"
 )
 
 
@@ -126,6 +126,7 @@ def starter_pyproject(project_id: str, template: str) -> str:
         local_sources = {
             "posttrain": "apps/cli",
             "posttrain-observatory": "apps/observatory",
+            "posttrain-advisor": "packages/advisor",
             "posttrain-catalog": "packages/catalog",
             "posttrain-common": "packages/common",
             "posttrain-data": "packages/data",
@@ -273,7 +274,7 @@ def starter_work_package(project_id: str, template: str) -> str:
             "  rollout_inference:",
             "    type: ref",
             "    family: inference",
-            "    id: inference/qwen3.5-0.8b-vllm-distill-rollout@1",
+            "    id: inference/qwen3.5-0.8b-vllm-distill-rollout@4",
             "enabled_optional_jobs: []",
             "metadata:",
             "  labels: [starter, grpo, verifiers]",
@@ -286,10 +287,13 @@ def starter_grpo_environment() -> str:
     return """environment:
   starter-gsm8k-train:
     category: math-reasoning
+    # The dataset loads from the Hub; image builds are offline, so check it at
+    # job start rather than during the build.
+    qualification: deferred
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 8b739717adad33e9dd3a4fcef0acd7ce7626a9d3
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
@@ -300,6 +304,18 @@ def starter_grpo_environment() -> str:
           dataset_revision: 740312add88f781978c0658806c59bc2815b9866
           dataset_config: main
           split: train
+        # Run the environment's tools and scoring in local subprocesses; without an
+        # agent runtime Verifiers defaults to Prime sandboxes, which need an API key.
+        agent:
+          harness:
+            id: "null"
+          runtime:
+            type: subprocess
+          timeout:
+            setup: 120
+            rollout: 180
+            finalize: 60
+            scoring: 120
     sampling:
       max_tokens: 384
       temperature: 1.0

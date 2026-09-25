@@ -807,9 +807,9 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
     assert entries["trl"].revision == "3b7a582e011a32de74d1f2b6e572b794360fbfd7"
     assert entries["verl"].release_tag == "carbonteq-v0.9.0.post3"
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
-        "28d20ff20893e1570b3789fb1367af4ca78a8bd71e31c03d43476a6f89aa57d0"
+        "7ba6018dd6bbc5872876c69a661cf136a6705221f937c3b5cbd826483c476bcb"
     )
-    assert entries["automationbench"].artifacts["environment_revision"] == ("8b739717adad33e9dd3a4fcef0acd7ce7626a9d3")
+    assert entries["automationbench"].artifacts["environment_revision"] == ("5264ec153a543c62688efaa1ffe28aedb247d5bb")
     assert entries["dstack"].required is False
     assert entries["dstack"].deployed_image and "@sha256:" in entries["dstack"].deployed_image
     assert render_fork_ledger(repository_root)["schema"] == "posttrain.fork-ledger.v1"

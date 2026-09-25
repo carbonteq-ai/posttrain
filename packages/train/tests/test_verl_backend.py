@@ -1520,3 +1520,24 @@ def test_verl_worker_cycles_small_dataset_to_one_complete_prompt_batch(
 
     assert len(captured_rows) == 2
     assert [row["example_id"] for row in captured_rows] == ["train/000000", "train/000000"]
+
+
+def test_verl_rollout_honours_the_bindings_prefix_caching_and_eager_choice(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    payload = build_grpo_launch_plan(_grpo_request(), tmp_path).model_dump()
+
+    def overrides_for(engine: dict[str, object]) -> list[str]:
+        payload["payload"]["rollout"]["engine"] = {**payload["payload"]["rollout"]["engine"], **engine}
+        manifest = VerlLaunchManifest.model_validate(payload)
+        return build_hydra_overrides(
+            manifest, tmp_path / "rollouts.parquet", tmp_path / "agent-loop.json", tmp_path / "checkpoints"
+        )
+
+    chosen = overrides_for({"enable_prefix_caching": True, "enforce_eager": False})
+    assert "actor_rollout_ref.rollout.enable_prefix_caching=true" in chosen
+    assert "actor_rollout_ref.rollout.enforce_eager=false" in chosen
+    omitted = overrides_for({"enable_prefix_caching": False})
+    assert "actor_rollout_ref.rollout.enable_prefix_caching=false" in omitted

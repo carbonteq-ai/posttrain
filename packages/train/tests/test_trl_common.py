@@ -463,3 +463,32 @@ def test_recovery_publication_failure_does_not_replace_training_error(tmp_path: 
     assert len(error.__notes__) == 1
     assert error.__notes__[0].startswith("failed to retain the latest recovery checkpoint: FileNotFoundError(")
     assert "missing" in error.__notes__[0]
+
+
+DSPARK = {
+    "method": "dspark",
+    "model": "LiquidAI/LFM2.5-2.6B-DSpark",
+    "revision": "458cedab07d0f7b2b05700c77e1aa463d43d6f04",
+    "num_speculative_tokens": 9,
+}
+
+
+def test_dspark_rollout_passes_the_pinned_drafter_to_vllm() -> None:
+    speculative, kwargs = vllm_rollout_options(
+        QWEN_35_2B, {"speculative_config": DSPARK, "kv_cache_memory_bytes": 6979321856}
+    )
+
+    assert speculative == DSPARK
+    assert kwargs == {"kv_cache_memory_bytes": 6979321856, "disable_log_stats": False}
+
+
+@pytest.mark.parametrize(
+    ("override", "match"),
+    [
+        ({"revision": "main"}, "40-character commit SHA"),
+        ({"model": "LFM2.5-2.6B-DSpark"}, "owner/repository"),
+    ],
+)
+def test_dspark_rollout_rejects_an_unpinned_drafter(override: dict[str, JsonValue], match: str) -> None:
+    with pytest.raises(ValueError, match=match):
+        vllm_rollout_options(QWEN_35_2B, {"speculative_config": {**DSPARK, **override}})
