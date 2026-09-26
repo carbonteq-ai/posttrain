@@ -12,7 +12,6 @@ from posttrain.common.variants import GEMMA_4_12B_IT, K2_HORIZON_7B, LFM_25_12B_
 from posttrain.train import LoRAUpdate, TrainingLoop
 from posttrain.train.backends.trl.common import (
     checkpoint_callback_type,
-    compute_lora_in_autocast_dtype,
     load_tokenizer,
     load_trainable_model,
     preserve_recovery_checkpoint_after_error,
@@ -493,19 +492,3 @@ def test_dspark_rollout_passes_the_pinned_drafter_to_vllm() -> None:
 def test_dspark_rollout_rejects_an_unpinned_drafter(override: dict[str, JsonValue], match: str) -> None:
     with pytest.raises(ValueError, match=match):
         vllm_rollout_options(QWEN_35_2B, {"speculative_config": {**DSPARK, **override}})
-
-
-def test_lora_adapters_compute_in_the_autocast_dtype():
-    class Layer:
-        cast_input_dtype_enabled = True
-
-    class Other:
-        pass
-
-    adapter, other = Layer(), Other()
-    model = SimpleNamespace(modules=lambda: [model, adapter, other])
-
-    compute_lora_in_autocast_dtype(model)
-
-    assert adapter.cast_input_dtype_enabled is False
-    assert not hasattr(other, "cast_input_dtype_enabled")

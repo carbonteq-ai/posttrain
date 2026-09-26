@@ -56,6 +56,12 @@ update.
   generated, 4 kept; only the missing group's 4 regenerated, 4 kept), with no
   failed or unscorable rollouts. The first actor update then ran out of memory in
   backward on a 12,288-token episode (see Surprises).
+- [x] (2026-09-26 19:00Z) Lowered the 8 GB package to an 8,192-token context (12
+  turns and 3,072 tokens per reply kept; prompt budget 5,120) and added a task
+  screen, `screen/lfm2.5-1.2b/automationbench-screen-8k`: every simple-domain task
+  and 14 short multi-step tasks, three attempts each, at the training budgets.
+- [ ] Rebuild `automationbench-lfm12-sampo-8gb-v1` from the screen: tasks whose
+  attempts fit 8K and disagree on reward.
 - [ ] Milestone 3 run: confirm on 8 GB that the anchor match rate rises and the
   correction rarely clamps.
 - [ ] Milestone 4: speed on 8 GB (time split, trainer options, rollout options).
@@ -70,15 +76,19 @@ update.
   ran out of memory and replaced the training error. Fixed in `trainer_lifecycle`
   (commit 5d705d64): the training error is kept, the shutdown failure attached as
   a note, and cached CUDA memory is released before shutdown.
-- Observation: PEFT keeps LoRA weights in fp32 and copies every adapter input to
-  fp32 first. The failed allocation in r11 (384 MiB) is exactly one 12,288 × 8,192
-  fp32 copy of the MLP down-projection input. Under the trainer's bf16 autocast the
-  matmul casts the copy straight back, so it only costs memory. Measured for
-  LFM2.5-1.2B, rank 4, one episode with gradient checkpointing: peak 5.21 → 4.74
-  GiB at 12,288 tokens, 4.21 → 3.90 GiB at 8,192. The loss is bit-identical and
-  the gradient differs by 1.7e-2 relative, the same as rerunning either setting
-  (GPU nondeterminism). Online RL now disables the copy
-  (`compute_lora_in_autocast_dtype`).
+- Observation: r11's out-of-memory allocation (384 MiB) is one 12,288 × 8,192
+  fp32 copy that PEFT makes of an adapter input, because it keeps LoRA weights in
+  fp32. Skipping the copy saves 0.47 GiB at 12,288 tokens and is exact under bf16
+  autocast, but TRL's chunked-logits path (`logits_chunk_size`, used by every
+  binding here) calls the inner model outside autocast, so there the LoRA matmul
+  really runs in fp32 and skipping the copy fails with a dtype error (run r12).
+  The change (ea8f156e) was reverted; the 8 GB package uses an 8K context instead.
+  A bf16 chunked path would need a TRL change and alters numerics slightly.
+- Observation: of 56 LFM2.5-1.2B episodes on the 8 GB runs, 14 (25%) ended with a
+  malformed tool call (usually bad quoting of a JSON string argument) that was
+  dropped without an error, so the model never retried; 40 ended with a plain-text
+  answer, often claiming work it had not done. The 1.2B scored 0 on 7 of the 8
+  tasks it saw, including simple ones LFM2.5-2.6B always solves.
 - Observation: LFM2.5-2.6B lost the final tool call of 11.7% of healthy VORTEX v5
   episodes (61 of 520): 28 calls sampled before `</think>` were swallowed as
   reasoning, 20 were malformed Python, 13 were cut off by the 4096-token reply cap.

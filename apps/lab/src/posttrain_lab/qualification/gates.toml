@@ -1130,6 +1130,19 @@ owner = "posttrain-platform"
 replacement_condition = "Promote to a release gate once the run completes 150 updates with entropy and truncation stable; otherwise record the failure and lower the rate or raise the penalty."
 
 [[gates]]
+id = "lfm12-automationbench-screen-8k"
+work_package = ".posttrain/work_packages/lfm12_automationbench_screen_8k.yaml"
+job_id = "evaluate"
+tier = "experimental"
+state = "candidate"
+job_kind = "eval.general"
+acceptance = "native-verifiers-trace"
+experiment_family = "lfm25-sampo-local-8gb-v1"
+hypothesis = "Three LFM2.5-1.2B attempts per task at the 8 GB SAMPO budgets identify AutomationBench tasks that fit 8K tokens and give groups with different rewards."
+owner = "posttrain-platform"
+replacement_condition = "Retire once the 8 GB SAMPO environment is rebuilt from its results."
+
+[[gates]]
 id = "lfm12-sampo-local-8gb"
 work_package = ".posttrain/work_packages/lfm12_automationbench_sampo_local_8gb.yaml"
 job_id = "sampo"
