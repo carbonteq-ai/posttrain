@@ -22,6 +22,7 @@ from .commands import (
     observatory,
     project_cmd,
     purge_cmd,
+    query_cmd,
     run_cmd,
     runtime,
     settings,
@@ -119,5 +120,6 @@ def create_app(*, json_stream: TextIO | None = None) -> typer.Typer:
     state.register(app)
     trace_fact_backfill.register(app)
     observatory.register(app)
+    query_cmd.register(app)
 
     return app

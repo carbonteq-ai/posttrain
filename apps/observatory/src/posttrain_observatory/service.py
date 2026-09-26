@@ -95,6 +95,8 @@ from .redaction import RedactionPolicy
 from .rollout_time import PayloadAggregate, refresh_rollout_time_buckets, rollout_time_view
 from .runtime_phases import project_runtime_phases
 from .semantic import SemanticAnalysisService, SemanticSummaryProvider
+from .semantic_layer.describe import SemanticDescription
+from .semantic_layer.query import DEFAULT_MAX_RUNS, SemanticQuery, SemanticResult, SqlQuery
 from .serving_capacity import project_serving_benchmark
 from .sources import RunSourceRegistry
 from .telemetry import (
@@ -478,7 +480,7 @@ def _comparison_context(view: EvaluationRunView | RunView) -> dict[str, JsonValu
     }
 
 
-def _logical_metric_series(series: MetricSeries) -> MetricSeries:
+def logical_metric_series(series: MetricSeries) -> MetricSeries:
     """Project replayed evidence onto its source step without double plotting.
 
     Isolated environments replay trace-derived metrics during finalization.
@@ -1413,7 +1415,7 @@ class ObservatoryService:
         series_values, artifacts = await asyncio.gather(
             _read_metric_series(source, locator.run_id, names), source.artifacts(locator.run_id)
         )
-        series_values = tuple(_logical_metric_series(series) for series in series_values)
+        series_values = tuple(logical_metric_series(series) for series in series_values)
         by_name = {series.name: series for series in series_values}
         presentation_by_name = {
             name: _presentation_metric_series(_downsample(series, 400)[0]) for name, series in by_name.items()
@@ -1625,7 +1627,7 @@ class ObservatoryService:
             )
         )
         series_values = await _read_metric_series(source, locator.run_id, requested)
-        series_values = tuple(_logical_metric_series(series) for series in series_values)
+        series_values = tuple(logical_metric_series(series) for series in series_values)
         by_name = {series.name: series for series in series_values}
         presentation_by_name = {
             name: _presentation_metric_series(_downsample(series, 400)[0]) for name, series in by_name.items()
@@ -1806,7 +1808,7 @@ class ObservatoryService:
         if unknown:
             raise ValueError(f"unknown metric names: {', '.join(sorted(unknown))}")
         raw = tuple(
-            _logical_metric_series(series)
+            logical_metric_series(series)
             for series in await source.metric_series(
                 locator.run_id,
                 query.names,
@@ -2433,6 +2435,28 @@ class ObservatoryService:
             pareto=pareto,
             rows=tuple(rows),
         )
+
+    async def describe_semantics(
+        self,
+        *,
+        runs: tuple[str, ...] | dict[str, Any] | None = None,
+        job_kinds: tuple[str, ...] = (),
+    ) -> SemanticDescription:
+        """What the semantic layer can answer for these runs or job kinds."""
+        from .semantic_layer import FRAMEWORK_MODEL, describe_semantics
+        from .semantic_layer.reader import ServiceReader
+
+        return await describe_semantics(FRAMEWORK_MODEL, ServiceReader(self), runs=runs, job_kinds=job_kinds)
+
+    async def query_semantics(self, query: SemanticQuery | SqlQuery) -> SemanticResult:
+        """Answer a semantic query or read-only SQL over the semantic tables."""
+        from .semantic_layer import FRAMEWORK_MODEL, run_semantic_query, run_sql_query
+        from .semantic_layer.reader import ServiceReader
+
+        reader = ServiceReader(self)
+        if isinstance(query, SqlQuery):
+            return await run_sql_query(FRAMEWORK_MODEL, reader, query, max_runs=DEFAULT_MAX_RUNS)
+        return await run_semantic_query(FRAMEWORK_MODEL, reader, query)
 
     async def summarize_run(self, run: str | RunLocator, request: SemanticSummaryRequest) -> SemanticSummaryResult:
         response = await self.get_run_view_response(

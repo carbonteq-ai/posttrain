@@ -8,6 +8,7 @@ of squares, so their mean and standard deviation are combined exactly.
 
 from __future__ import annotations
 
+import difflib
 import math
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
@@ -120,7 +121,7 @@ def applies(measure: Measure, job_kind: str) -> bool:
 
 
 async def run_row(context: _Context, summary: RunSummary, dimensions: Iterable[Dimension]) -> dict[str, Any]:
-    row: dict[str, Any] = {"run.id": summary.run_id, "duration_seconds": duration_seconds(summary)}
+    row: dict[str, Any] = {"run.id": summary.run_id, "runs": 1, "duration_seconds": duration_seconds(summary)}
     for dimension in dimensions:
         if dimension.entity != "run":
             continue
@@ -156,7 +157,9 @@ async def resolve_runs(
         try:
             dimension = context.model.dimension(name)
         except KeyError:
-            raise QueryError(f"unknown dimension {name!r}") from None
+            raise QueryError(
+                f"unknown dimension {name!r}{_suggest(name, [d.name for d in context.model.dimensions])}"
+            ) from None
         if dimension.entity != "run":
             raise QueryError(f"{name!r} is not a run dimension")
     if explicit:
@@ -188,12 +191,21 @@ async def resolve_runs(
 # ---------------------------------------------------------------- loaders
 
 
+def _within_step(values: Sequence[float], rule: str) -> float:
+    if rule == "sum":
+        return math.fsum(values)
+    if rule == "mean":
+        return math.fsum(values) / len(values)
+    return values[-1]
+
+
 async def load_updates(context: _Context, summary: RunSummary, measures: Sequence[Measure]) -> list[dict[str, Any]]:
     wanted = [measure for measure in measures if applies(measure, summary.job_kind)]
     if not wanted:
         return []
     names = tuple(dict.fromkeys(measure.source.name for measure in wanted))
     by_step: dict[int, dict[str, Any]] = {}
+    repeated: dict[tuple[int, str], list[float]] = {}
     for start in range(0, len(names), SERIES_BATCH):
         batch = names[start : start + SERIES_BATCH]
         series, downsampled = await context.reader.metric_series(summary.run_id, batch, max_points=MAX_SERIES_POINTS)
@@ -212,8 +224,10 @@ async def load_updates(context: _Context, summary: RunSummary, measures: Sequenc
                 row = by_step.setdefault(
                     point.step, {"run.id": summary.run_id, "update.step": point.step, "update.time": None}
                 )
-                value = 1.0 - point.value if measure.source.transform == "one_minus" else point.value
-                row[measure.name] = value
+                step_values = repeated.setdefault((point.step, measure.name), [])
+                step_values.append(point.value)
+                value = _within_step(step_values, measure.source.within_step)
+                row[measure.name] = 1.0 - value if measure.source.transform == "one_minus" else value
                 if point.observed_at is not None and row["update.time"] is None:
                     row["update.time"] = max((point.observed_at - summary.started_at).total_seconds(), 0.0)
     return [by_step[step] for step in sorted(by_step)]
@@ -367,7 +381,10 @@ def _requested(model: SemanticModel, query: SemanticQuery) -> list[_Requested]:
             try:
                 metric = model.metric(name)
             except KeyError:
-                raise QueryError(f"unknown measure or metric {name!r}") from None
+                raise QueryError(
+                    f"unknown measure or metric {name!r}"
+                    f"{_suggest(name, [*(m.name for m in model.measures), *(m.name for m in model.metrics)])}"
+                ) from None
             if aggregation is not None:
                 raise QueryError(f"metric {name!r} takes no aggregation") from None
             requested.append(_Requested(column, name, "formula", None, metric))
@@ -379,13 +396,31 @@ def _requested(model: SemanticModel, query: SemanticQuery) -> list[_Requested]:
     return requested
 
 
+def _summary_filter(model: SemanticModel, name: str) -> bool:
+    key = name if name.startswith("run.") else f"run.{name}"
+    try:
+        return model.dimension(key).source.kind == "run_field"
+    except KeyError:
+        return False
+
+
+def _suggest(name: str, known: Sequence[str]) -> str:
+    """A hint naming the closest known names, so a mistyped query can be fixed without describe."""
+
+    close = difflib.get_close_matches(name, known, n=3, cutoff=0.5)
+    close += [item for item in known if name.split(".")[-1] in item and item not in close][: 3 - len(close)]
+    return f"; did you mean {', '.join(repr(item) for item in close)}?" if close else "; call describe for the names"
+
+
 def _grain(model: SemanticModel, requested: Sequence[_Requested], dimensions: Iterable[str]) -> str:
     entities = {item.measure.entity if item.measure else item.metric.entity for item in requested}  # type: ignore[union-attr]
     for name in dimensions:
         try:
             entities.add(model.dimension(name).entity)
         except KeyError:
-            raise QueryError(f"unknown dimension {name!r}") from None
+            raise QueryError(
+                f"unknown dimension {name!r}{_suggest(name, [d.name for d in model.dimensions])}"
+            ) from None
     detailed = entities - {"run"}
     if len(detailed) > 1:
         raise QueryError(f"a query can use one entity besides run; this one uses {', '.join(sorted(detailed))}")
@@ -408,8 +443,6 @@ async def run_semantic_query(
     grain = _grain(model, requested, [*query.by, *conditions])
     run_filters = {name: condition for name, condition in conditions.items() if name.startswith("run.")}
     entity_filters = {name: condition for name, condition in conditions.items() if not name.startswith("run.")}
-    runs = await resolve_runs(context, query.runs, run_filters, max_runs=max_runs)
-
     measures: list[Measure] = []
     for item in requested:
         if item.measure is not None:
@@ -418,6 +451,19 @@ async def run_semantic_query(
             for _, name in parse_formula(item.metric.formula).references():  # type: ignore[union-attr]
                 measures.append(model.measure(name))
     measures = list({measure.name: measure for measure in measures}.values())
+    # Questions answered from run summaries alone (how many runs, of which kind,
+    # how long) read nothing per run, so they may cover the whole project.
+    summary_only = (
+        grain == "run"
+        and all(measure.source.kind == "derived" for measure in measures)
+        and all(
+            model.dimension(name).source.kind == "run_field"
+            for name in [*query.by, *run_filters]
+            if name.startswith("run.")
+        )
+        and (not isinstance(query.runs, Mapping) or all(_summary_filter(model, name) for name in query.runs))
+    )
+    runs = await resolve_runs(context, query.runs, run_filters, max_runs=RUN_SCAN_LIMIT if summary_only else max_runs)
     for measure in measures:
         providers = [run for run in runs if applies(measure, run.job_kind)]
         if not providers:

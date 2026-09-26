@@ -81,6 +81,11 @@ class FakeReader:
             ("sampo-b", "train/rl/entropy"): [(1, 0.53), (2, 0.43), (3, 0.48)],
             ("grpo-kl", "train/rl/entropy"): [(1, 0.18), (2, 0.19), (40, 0.25)],
             ("grpo-kl", "train/rl/kl"): [(1, 0.0004), (40, 0.02)],
+            # Active sampling records rollout evidence once per generation round.
+            ("grpo-kl", "train/step_time_seconds"): [(1, 400.0), (2, 100.0)],
+            ("grpo-kl", "train/rl/time/rollout_seconds"): [(1, 250.0), (1, 60.0), (1, 50.0), (2, 80.0)],
+            ("grpo-kl", "train/rl/rollouts_attempted"): [(1, 64.0), (1, 24.0), (1, 8.0), (2, 64.0)],
+            ("grpo-kl", "train/rl/tool_call_frequency"): [(1, 1.0), (1, 0.5), (2, 0.75)],
             ("eval-1", "eval/run/rollouts_failed"): [(0, 44.0)],
         }
         self.calls: list[tuple[str, Any]] = []
@@ -147,8 +152,20 @@ class FakeReader:
 
     async def eval_tasks(self, run_id: str) -> tuple[Mapping[str, Any], ...]:
         return (
-            {"label": "simple.gmail", "mean_reward": 1.0, "success_frequency": 1.0, "valid_repetitions": 3},
-            {"label": "finance.vendor", "mean_reward": 0.2, "success_frequency": 0.0, "valid_repetitions": 3},
+            {
+                "key": "simple.gmail",
+                "label": "Simple.gmail",
+                "mean_reward": 1.0,
+                "success_frequency": 1.0,
+                "valid_repetitions": 3,
+            },
+            {
+                "key": "finance.vendor",
+                "label": "Finance.vendor",
+                "mean_reward": 0.2,
+                "success_frequency": 0.0,
+                "valid_repetitions": 3,
+            },
         )
 
     async def load_levels(self, run_id: str) -> tuple[Mapping[str, Any], ...]:
@@ -269,6 +286,24 @@ def test_metric_formula_and_transform() -> None:
     assert round(rows[0]["step_reward_share_mean"], 4) == round((1.0 + 0.75 + 1.0) / 3, 4)
 
 
+def test_rollout_rounds_within_one_update_are_combined() -> None:
+    reader = FakeReader()
+    rows = _rows(
+        _query(
+            reader,
+            measures=("rollout_seconds:sum", "rollouts_attempted:sum", "tool_call_rate:mean"),
+            by=("update.step",),
+            runs=("grpo-kl",),
+            order_by=("update.step",),
+        )
+    )
+    assert [row["rollout_seconds_sum"] for row in rows] == [360.0, 80.0]
+    assert [row["rollouts_attempted_sum"] for row in rows] == [96.0, 64.0]
+    assert [row["tool_call_rate_mean"] for row in rows] == [0.75, 0.75]
+    share = _rows(_query(reader, measures=("rollout_share",), by=("run.id",), runs=("grpo-kl",)))
+    assert share[0]["rollout_share"] == pytest.approx(440.0 / 500.0)
+
+
 def test_run_dimensions_from_settings_and_wildcard_pushdown() -> None:
     reader = FakeReader()
     rows = _rows(
@@ -303,9 +338,24 @@ def test_query_errors_name_the_problem() -> None:
     with pytest.raises(QueryError, match="cannot be aggregated"):
         _query(FakeReader(), measures=("rollout_reward:last",), runs=("sampo-a",))
     with pytest.raises(QueryError, match="narrow it"):
-        asyncio.run(
-            run_semantic_query(FRAMEWORK_MODEL, FakeReader(), SemanticQuery(measures=("duration_seconds",)), max_runs=2)
+        asyncio.run(run_semantic_query(FRAMEWORK_MODEL, FakeReader(), SemanticQuery(measures=("entropy",)), max_runs=2))
+    with pytest.raises(QueryError, match="did you mean 'reward'"):
+        _query(FakeReader(), measures=("rewrd",), runs=("sampo-a",))
+
+
+def test_questions_about_run_summaries_are_not_capped() -> None:
+    reader = FakeReader()
+    result = asyncio.run(
+        run_semantic_query(
+            FRAMEWORK_MODEL,
+            reader,
+            SemanticQuery(measures=("runs", "duration_seconds"), by=("run.job_kind",)),
+            max_runs=2,
         )
+    )
+    counts = {row["run.job_kind"]: row["runs"] for row in _rows(result)}
+    assert counts == {"train.sampo": 2, "train.grpo": 1, "train.sft": 1, "eval.general": 1}
+    assert not any(call[0] == "run_detail" for call in reader.calls)
 
 
 def test_rollouts_are_aggregated_by_the_backend_and_combined_exactly() -> None:

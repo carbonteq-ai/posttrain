@@ -378,6 +378,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/semantic/describe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Semantic Describe */
+        post: operations["semantic_describe_api_v1_semantic_describe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/semantic/model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Semantic Model */
+        get: operations["semantic_model_api_v1_semantic_model_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/semantic/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Semantic Query */
+        post: operations["semantic_query_api_v1_semantic_query_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/serving-capacity/work-packages/{work_package_id}": {
         parameters: {
             query?: never;
@@ -501,6 +552,8 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {string} */
+        Aggregation: "last" | "first" | "min" | "max" | "mean" | "sum" | "count" | "stddev";
         /** @enum {string} */
         AlertSeverity: "info" | "warning" | "error";
         /** ArtifactLink */
@@ -632,6 +685,44 @@ export interface components {
              */
             recommendations: components["schemas"]["SettingsRecommendation"][];
         };
+        /** DescribedMeasure */
+        DescribedMeasure: {
+            measure: components["schemas"]["Measure"];
+            /**
+             * Runs
+             * @default []
+             */
+            runs: string[];
+        };
+        /** DescribedTable */
+        DescribedTable: {
+            /** Columns */
+            columns: string[];
+            /** Name */
+            name: string;
+        };
+        /** Dimension */
+        Dimension: {
+            /** Description */
+            description: string;
+            entity: components["schemas"]["EntityName"];
+            /** Name */
+            name: string;
+            source: components["schemas"]["Source"];
+            type: components["schemas"]["DimensionType"];
+        };
+        /** @enum {string} */
+        DimensionType: "string" | "integer" | "number" | "time" | "boolean";
+        /** Entity */
+        Entity: {
+            /** Description */
+            description: string;
+            name: components["schemas"]["EntityName"];
+            /** Order Dimension */
+            order_dimension?: string | null;
+        };
+        /** @enum {string} */
+        EntityName: "run" | "update" | "rollout" | "eval_task" | "load_level";
         /**
          * EvaluationBreakdown
          * @description One declared compound report with structured groups.
@@ -1366,6 +1457,54 @@ export interface components {
          * @description Any JSON-compatible value.
          */
         JsonValue: unknown;
+        /** Measure */
+        Measure: {
+            /** @default mean */
+            aggregation: components["schemas"]["Aggregation"];
+            /**
+             * Allowed
+             * @default [
+             *       "last",
+             *       "first",
+             *       "min",
+             *       "max",
+             *       "mean",
+             *       "sum",
+             *       "count",
+             *       "stddev"
+             *     ]
+             */
+            allowed: components["schemas"]["Aggregation"][];
+            /** Description */
+            description: string;
+            entity: components["schemas"]["EntityName"];
+            /** Job Kinds */
+            job_kinds: string[];
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            source: components["schemas"]["Source"];
+            /** Unit */
+            unit?: string | null;
+        };
+        /**
+         * Metric
+         * @description A formula over aggregated measures, for example `sum(rollout_seconds) / sum(update_seconds)`.
+         */
+        Metric: {
+            /** Description */
+            description: string;
+            entity: components["schemas"]["EntityName"];
+            /** Formula */
+            formula: string;
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /** Unit */
+            unit?: string | null;
+        };
         /** MetricCatalog */
         MetricCatalog: {
             /** Namespaces */
@@ -1521,6 +1660,22 @@ export interface components {
              */
             reason: string;
             suggested?: components["schemas"]["JsonPayload"];
+        };
+        /** ResultColumn */
+        ResultColumn: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "dimension" | "measure" | "metric" | "value";
+            /** Label */
+            label?: string | null;
+            /** Name */
+            name: string;
+            /** Type */
+            type?: string | null;
+            /** Unit */
+            unit?: string | null;
         };
         /**
          * RolloutBehaviorPoint
@@ -1764,6 +1919,122 @@ export interface components {
             /** Type */
             type: string;
         };
+        /**
+         * SemanticDescribeRequest
+         * @description Runs (ids or run-dimension filters) or job kinds to describe; neither describes everything.
+         */
+        SemanticDescribeRequest: {
+            /** @default [] */
+            job_kinds: components["schemas"]["StringTuple"];
+            /** Runs */
+            runs?: components["schemas"]["StringTuple"] | {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** SemanticDescription */
+        SemanticDescription: {
+            /** Dimensions */
+            dimensions: components["schemas"]["Dimension"][];
+            /** Entities */
+            entities: components["schemas"]["Entity"][];
+            /** Job Kinds */
+            job_kinds: string[];
+            /** Measures */
+            measures: components["schemas"]["DescribedMeasure"][];
+            /** Metrics */
+            metrics: components["schemas"]["Metric"][];
+            /**
+             * Notes
+             * @default [
+             *       "Query form: measures (name or name:aggregation), by (dimensions), where (dimension: value, [any of], '>= n', or a '*' wildcard), runs (ids or run-dimension filters), order_by (prefix - for descending), limit.",
+             *       "A query may use one entity besides run; run dimensions apply to every entity.",
+             *       "SQL mode: one SELECT over the sql_tables; raw_metrics(run_id, metric, step, value) loads any recorded series by name when listed in load."
+             *     ]
+             */
+            notes: string[];
+            /**
+             * Runs
+             * @default []
+             */
+            runs: string[];
+            /** Sql Tables */
+            sql_tables: components["schemas"]["DescribedTable"][];
+        };
+        /** SemanticModel */
+        SemanticModel: {
+            /** Dimensions */
+            dimensions: components["schemas"]["Dimension"][];
+            /** Entities */
+            entities: components["schemas"]["Entity"][];
+            /** Measures */
+            measures: components["schemas"]["Measure"][];
+            /**
+             * Metrics
+             * @default []
+             */
+            metrics: components["schemas"]["Metric"][];
+        };
+        /**
+         * SemanticQuery
+         * @description Measures (or metrics), grouped by dimensions, filtered by conditions.
+         *
+         *     ``measures`` entries are names, optionally with an aggregation
+         *     (``entropy:last``). ``runs`` is shorthand for run filters: explicit run ids,
+         *     or a mapping of run dimensions to conditions.
+         */
+        SemanticQuery: {
+            /** @default [] */
+            by: components["schemas"]["StringTuple"];
+            /**
+             * Limit
+             * @default 1000
+             */
+            limit: number;
+            measures: components["schemas"]["StringTuple"];
+            /** @default [] */
+            order_by: components["schemas"]["StringTuple"];
+            /** Runs */
+            runs?: components["schemas"]["StringTuple"] | {
+                [key: string]: unknown;
+            } | null;
+            /** Where */
+            where?: {
+                [key: string]: unknown;
+            };
+        };
+        /** SemanticResult */
+        SemanticResult: {
+            /** Columns */
+            columns: components["schemas"]["ResultColumn"][];
+            /**
+             * Downsampled
+             * @default false
+             */
+            downsampled: boolean;
+            /** Grain */
+            grain: string;
+            /** Rows */
+            rows: unknown[][];
+            /**
+             * Runs
+             * @default []
+             */
+            runs: string[];
+            /** Sources */
+            sources?: {
+                [key: string]: string[];
+            };
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /**
+             * Unavailable
+             * @default []
+             */
+            unavailable: string[];
+        };
         /** SemanticSummaryRequest */
         SemanticSummaryRequest: {
             /** @default [] */
@@ -1986,6 +2257,29 @@ export interface components {
             /** Unavailable Reason */
             unavailable_reason?: string | null;
         };
+        /**
+         * Source
+         * @description Where values come from: a field, a settings path, a metric name, a trace fact.
+         */
+        Source: {
+            kind: components["schemas"]["SourceKind"];
+            /** Name */
+            name: string;
+            /**
+             * Transform
+             * @default identity
+             * @enum {string}
+             */
+            transform: "identity" | "one_minus";
+            /**
+             * Within Step
+             * @default last
+             * @enum {string}
+             */
+            within_step: "last" | "sum" | "mean";
+        };
+        /** @enum {string} */
+        SourceKind: "run_field" | "setting" | "metric_series" | "trace_fact" | "eval_task" | "load_level" | "derived";
         /** SourceRefreshStatus */
         SourceRefreshStatus: {
             /** @default [] */
@@ -2003,6 +2297,27 @@ export interface components {
              * @enum {string}
              */
             state: "disabled" | "pending" | "refreshing" | "succeeded" | "failed";
+        };
+        /**
+         * SqlQuery
+         * @description One read-only SELECT over the semantic tables of the runs in scope.
+         */
+        SqlQuery: {
+            /** Load */
+            load?: {
+                [key: string]: components["schemas"]["StringTuple"];
+            } | null;
+            /**
+             * Max Rows
+             * @default 10000
+             */
+            max_rows: number;
+            /** Runs */
+            runs: components["schemas"]["StringTuple"] | {
+                [key: string]: unknown;
+            };
+            /** Sql */
+            sql: string;
         };
         /** @enum {string} */
         Stage: "screen" | "train" | "qualify";
@@ -3152,6 +3467,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunViewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    semantic_describe_api_v1_semantic_describe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SemanticDescribeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SemanticDescription"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    semantic_model_api_v1_semantic_model_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SemanticModel"];
+                };
+            };
+        };
+    };
+    semantic_query_api_v1_semantic_query_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SemanticQuery"] | components["schemas"]["SqlQuery"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SemanticResult"];
                 };
             };
             /** @description Validation Error */

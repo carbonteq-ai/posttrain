@@ -37,6 +37,10 @@ class Source(ObservatoryModel):
     # `one_minus` turns a fraction into its complement (for example the share of
     # rollouts that did not fall back to sparse rewards).
     transform: Literal["identity", "one_minus"] = "identity"
+    # How several points of one metric at one step combine. Active sampling
+    # logs rollout evidence once per generation round, so an update's rollout
+    # seconds and rollout counts are sums and its rates are means over rounds.
+    within_step: Literal["last", "sum", "mean"] = "last"
 
 
 class Entity(ObservatoryModel):

@@ -451,6 +451,182 @@
         "title": "get_job_view_schemaDictOutput",
         "type": "object"
       }
+    },
+    {
+      "description": "Call this before query_semantics. Lists the dimensions, measures, metrics and SQL tables available for\nruns (a list of run ids, or run-dimension filters such as {\"run.work_package\": \"...\"}) or job kinds.",
+      "inputSchema": {
+        "properties": {
+          "job_kinds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Job Kinds"
+          },
+          "runs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Runs"
+          }
+        },
+        "title": "describe_semanticsArguments",
+        "type": "object"
+      },
+      "name": "describe_semantics",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "describe_semanticsDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Answer a question about runs with names from describe_semantics. Either measures (name or\nname:aggregation), grouped by dimensions and filtered by where ({dimension: value, [any of], \">= n\" or a\n\"*\" wildcard}); or sql, one read-only SELECT over the described tables for the runs in scope.",
+      "inputSchema": {
+        "properties": {
+          "by": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "By"
+          },
+          "limit": {
+            "default": 1000,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "load": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Load"
+          },
+          "measures": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Measures"
+          },
+          "order_by": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Order By"
+          },
+          "runs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Runs"
+          },
+          "sql": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sql"
+          },
+          "where": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Where"
+          }
+        },
+        "title": "query_semanticsArguments",
+        "type": "object"
+      },
+      "name": "query_semantics",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "query_semanticsDictOutput",
+        "type": "object"
+      }
     }
   ]
 }

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from mcp.server.mcpserver import MCPServer
 from posttrain.tracking import RunQuery
 
 from .models import MetricSeriesQuery, RunLocator, SemanticSummaryRequest, ViewMode
+from .semantic_layer.query import SemanticQuery, SqlQuery
 from .service import ObservatoryService
 
 
@@ -123,6 +126,47 @@ def create_mcp(service: ObservatoryService) -> MCPServer:
     async def get_job_view_schema(job_kind: str) -> dict[str, object]:
         """Return the versioned deterministic telemetry definition for a job kind."""
         return service.get_job_telemetry_schema(job_kind).model_dump(mode="json")
+
+    @server.tool()
+    async def describe_semantics(
+        runs: list[str] | dict[str, Any] | None = None, job_kinds: list[str] | None = None
+    ) -> dict[str, object]:
+        """Call this before query_semantics. Lists the dimensions, measures, metrics and SQL tables available for
+        runs (a list of run ids, or run-dimension filters such as {"run.work_package": "..."}) or job kinds."""
+        scope = tuple(runs) if isinstance(runs, list) else runs
+        return (await service.describe_semantics(runs=scope, job_kinds=tuple(job_kinds or ()))).model_dump(mode="json")
+
+    @server.tool()
+    async def query_semantics(
+        measures: list[str] | None = None,
+        by: list[str] | None = None,
+        where: dict[str, Any] | None = None,
+        runs: list[str] | dict[str, Any] | None = None,
+        order_by: list[str] | None = None,
+        limit: int = 1000,
+        sql: str | None = None,
+        load: dict[str, list[str]] | None = None,
+    ) -> dict[str, object]:
+        """Answer a question about runs with names from describe_semantics. Either measures (name or
+        name:aggregation), grouped by dimensions and filtered by where ({dimension: value, [any of], ">= n" or a
+        "*" wildcard}); or sql, one read-only SELECT over the described tables for the runs in scope."""
+        scope = tuple(runs) if isinstance(runs, list) else runs
+        if sql is not None:
+            if scope is None:
+                raise ValueError("SQL mode needs runs: run ids or run-dimension filters")
+            query: SemanticQuery | SqlQuery = SqlQuery(
+                sql=sql, runs=scope, load={key: tuple(value) for key, value in load.items()} if load else None
+            )
+        else:
+            query = SemanticQuery(
+                measures=tuple(measures or ()),
+                by=tuple(by or ()),
+                where=where or {},
+                runs=scope,
+                order_by=tuple(order_by or ()),
+                limit=limit,
+            )
+        return (await service.query_semantics(query)).model_dump(mode="json")
 
     return server
 

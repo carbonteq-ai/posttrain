@@ -35,6 +35,10 @@ from .models import (
     TraceSummaryPage,
     ViewMode,
 )
+from .semantic_layer import FRAMEWORK_MODEL
+from .semantic_layer.describe import SemanticDescribeRequest, SemanticDescription
+from .semantic_layer.model import SemanticModel
+from .semantic_layer.query import SemanticQuery, SemanticResult, SqlQuery
 from .service import ObservatoryService
 from .settings import ObservatorySettings
 
@@ -234,6 +238,18 @@ def create_http_app(
     @app.post("/api/v1/runs/{run_key}/semantic-summary")
     async def semantic_summary(run_key: str, request: SemanticSummaryRequest) -> dict[str, object]:
         return (await service.summarize_run(_locator(run_key), request)).model_dump(mode="json")
+
+    @app.get("/api/v1/semantic/model")
+    async def semantic_model() -> SemanticModel:
+        return FRAMEWORK_MODEL
+
+    @app.post("/api/v1/semantic/describe")
+    async def semantic_describe(request: SemanticDescribeRequest) -> SemanticDescription:
+        return await service.describe_semantics(runs=request.runs, job_kinds=request.job_kinds)
+
+    @app.post("/api/v1/semantic/query")
+    async def semantic_query(query: SemanticQuery | SqlQuery) -> SemanticResult:
+        return await service.query_semantics(query)
 
     @app.get("/api/v1/serving-capacity/work-packages/{work_package_id:path}")
     async def serving_capacity_work_package(

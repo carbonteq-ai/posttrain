@@ -1,6 +1,19 @@
 {
   "components": {
     "schemas": {
+      "Aggregation": {
+        "enum": [
+          "last",
+          "first",
+          "min",
+          "max",
+          "mean",
+          "sum",
+          "count",
+          "stddev"
+        ],
+        "type": "string"
+      },
       "AlertSeverity": {
         "enum": [
           "info",
@@ -405,6 +418,132 @@
         },
         "title": "ConfigurationReview",
         "type": "object"
+      },
+      "DescribedMeasure": {
+        "additionalProperties": false,
+        "properties": {
+          "measure": {
+            "$ref": "#/components/schemas/Measure"
+          },
+          "runs": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "measure"
+        ],
+        "title": "DescribedMeasure",
+        "type": "object"
+      },
+      "DescribedTable": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "columns"
+        ],
+        "title": "DescribedTable",
+        "type": "object"
+      },
+      "Dimension": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DimensionType"
+          }
+        },
+        "required": [
+          "name",
+          "entity",
+          "type",
+          "description",
+          "source"
+        ],
+        "title": "Dimension",
+        "type": "object"
+      },
+      "DimensionType": {
+        "enum": [
+          "string",
+          "integer",
+          "number",
+          "time",
+          "boolean"
+        ],
+        "type": "string"
+      },
+      "Entity": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "order_dimension": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Dimension"
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "Entity",
+        "type": "object"
+      },
+      "EntityName": {
+        "enum": [
+          "run",
+          "update",
+          "rollout",
+          "eval_task",
+          "load_level"
+        ],
+        "type": "string"
       },
       "EvaluationBreakdown": {
         "additionalProperties": false,
@@ -2489,6 +2628,131 @@
         "description": "Any JSON-compatible value.",
         "title": "JsonValue"
       },
+      "Measure": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregation": {
+            "$ref": "#/components/schemas/Aggregation",
+            "default": "mean"
+          },
+          "allowed": {
+            "default": [
+              "last",
+              "first",
+              "min",
+              "max",
+              "mean",
+              "sum",
+              "count",
+              "stddev"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Aggregation"
+            },
+            "title": "Allowed",
+            "type": "array"
+          },
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "job_kinds": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Job Kinds",
+            "type": "array"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "name",
+          "entity",
+          "label",
+          "description",
+          "source",
+          "job_kinds"
+        ],
+        "title": "Measure",
+        "type": "object"
+      },
+      "Metric": {
+        "additionalProperties": false,
+        "description": "A formula over aggregated measures, for example `sum(rollout_seconds) / sum(update_seconds)`.",
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "formula": {
+            "minLength": 1,
+            "title": "Formula",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "name",
+          "entity",
+          "label",
+          "description",
+          "formula"
+        ],
+        "title": "Metric",
+        "type": "object"
+      },
       "MetricCatalog": {
         "additionalProperties": false,
         "properties": {
@@ -2942,6 +3206,65 @@
           "key"
         ],
         "title": "RecommendedSetting",
+        "type": "object"
+      },
+      "ResultColumn": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "dimension",
+              "measure",
+              "metric",
+              "value"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "ResultColumn",
         "type": "object"
       },
       "RolloutBehaviorPoint": {
@@ -3676,6 +3999,268 @@
           "message"
         ],
         "title": "SafeRunError",
+        "type": "object"
+      },
+      "SemanticDescribeRequest": {
+        "additionalProperties": false,
+        "description": "Runs (ids or run-dimension filters) or job kinds to describe; neither describes everything.",
+        "properties": {
+          "job_kinds": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          },
+          "runs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StringTuple"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs"
+          }
+        },
+        "title": "SemanticDescribeRequest",
+        "type": "object"
+      },
+      "SemanticDescription": {
+        "additionalProperties": false,
+        "properties": {
+          "dimensions": {
+            "items": {
+              "$ref": "#/components/schemas/Dimension"
+            },
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/Entity"
+            },
+            "title": "Entities",
+            "type": "array"
+          },
+          "job_kinds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Job Kinds",
+            "type": "array"
+          },
+          "measures": {
+            "items": {
+              "$ref": "#/components/schemas/DescribedMeasure"
+            },
+            "title": "Measures",
+            "type": "array"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/Metric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "notes": {
+            "default": [
+              "Query form: measures (name or name:aggregation), by (dimensions), where (dimension: value, [any of], '>= n', or a '*' wildcard), runs (ids or run-dimension filters), order_by (prefix - for descending), limit.",
+              "A query may use one entity besides run; run dimensions apply to every entity.",
+              "SQL mode: one SELECT over the sql_tables; raw_metrics(run_id, metric, step, value) loads any recorded series by name when listed in load."
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "runs": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "sql_tables": {
+            "items": {
+              "$ref": "#/components/schemas/DescribedTable"
+            },
+            "title": "Sql Tables",
+            "type": "array"
+          }
+        },
+        "required": [
+          "job_kinds",
+          "entities",
+          "dimensions",
+          "measures",
+          "metrics",
+          "sql_tables"
+        ],
+        "title": "SemanticDescription",
+        "type": "object"
+      },
+      "SemanticModel": {
+        "additionalProperties": false,
+        "properties": {
+          "dimensions": {
+            "items": {
+              "$ref": "#/components/schemas/Dimension"
+            },
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/Entity"
+            },
+            "title": "Entities",
+            "type": "array"
+          },
+          "measures": {
+            "items": {
+              "$ref": "#/components/schemas/Measure"
+            },
+            "title": "Measures",
+            "type": "array"
+          },
+          "metrics": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Metric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entities",
+          "dimensions",
+          "measures"
+        ],
+        "title": "SemanticModel",
+        "type": "object"
+      },
+      "SemanticQuery": {
+        "additionalProperties": false,
+        "description": "Measures (or metrics), grouped by dimensions, filtered by conditions.\n\n``measures`` entries are names, optionally with an aggregation\n(``entropy:last``). ``runs`` is shorthand for run filters: explicit run ids,\nor a mapping of run dimensions to conditions.",
+        "properties": {
+          "by": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          },
+          "limit": {
+            "default": 1000,
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "measures": {
+            "$ref": "#/components/schemas/StringTuple",
+            "minLength": 1
+          },
+          "order_by": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          },
+          "runs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StringTuple"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs"
+          },
+          "where": {
+            "additionalProperties": true,
+            "title": "Where",
+            "type": "object"
+          }
+        },
+        "required": [
+          "measures"
+        ],
+        "title": "SemanticQuery",
+        "type": "object"
+      },
+      "SemanticResult": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/ResultColumn"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "downsampled": {
+            "default": false,
+            "title": "Downsampled",
+            "type": "boolean"
+          },
+          "grain": {
+            "title": "Grain",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "items": {},
+              "type": "array"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "runs": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "sources": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Sources",
+            "type": "object"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "unavailable": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Unavailable",
+            "type": "array"
+          }
+        },
+        "required": [
+          "columns",
+          "rows",
+          "grain"
+        ],
+        "title": "SemanticResult",
         "type": "object"
       },
       "SemanticSummaryRequest": {
@@ -4457,6 +5042,57 @@
         "title": "SettingsRecommendation",
         "type": "object"
       },
+      "Source": {
+        "additionalProperties": false,
+        "description": "Where values come from: a field, a settings path, a metric name, a trace fact.",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "transform": {
+            "default": "identity",
+            "enum": [
+              "identity",
+              "one_minus"
+            ],
+            "title": "Transform",
+            "type": "string"
+          },
+          "within_step": {
+            "default": "last",
+            "enum": [
+              "last",
+              "sum",
+              "mean"
+            ],
+            "title": "Within Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "Source",
+        "type": "object"
+      },
+      "SourceKind": {
+        "enum": [
+          "run_field",
+          "setting",
+          "metric_series",
+          "trace_fact",
+          "eval_task",
+          "load_level",
+          "derived"
+        ],
+        "type": "string"
+      },
       "SourceRefreshStatus": {
         "additionalProperties": false,
         "properties": {
@@ -4520,6 +5156,56 @@
           "state"
         ],
         "title": "SourceRefreshStatus",
+        "type": "object"
+      },
+      "SqlQuery": {
+        "additionalProperties": false,
+        "description": "One read-only SELECT over the semantic tables of the runs in scope.",
+        "properties": {
+          "load": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/StringTuple"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load"
+          },
+          "max_rows": {
+            "default": 10000,
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Max Rows",
+            "type": "integer"
+          },
+          "runs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StringTuple"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
+            "title": "Runs"
+          },
+          "sql": {
+            "minLength": 1,
+            "title": "Sql",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sql",
+          "runs"
+        ],
+        "title": "SqlQuery",
         "type": "object"
       },
       "Stage": {
@@ -6853,6 +7539,108 @@
           }
         },
         "summary": "Run View"
+      }
+    },
+    "/api/v1/semantic/describe": {
+      "post": {
+        "operationId": "semantic_describe_api_v1_semantic_describe_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SemanticDescribeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticDescription"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Semantic Describe"
+      }
+    },
+    "/api/v1/semantic/model": {
+      "get": {
+        "operationId": "semantic_model_api_v1_semantic_model_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Semantic Model"
+      }
+    },
+    "/api/v1/semantic/query": {
+      "post": {
+        "operationId": "semantic_query_api_v1_semantic_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SemanticQuery"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SqlQuery"
+                  }
+                ],
+                "title": "Query"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Semantic Query"
       }
     },
     "/api/v1/serving-capacity/work-packages/{work_package_id}": {

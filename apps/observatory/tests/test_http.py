@@ -203,3 +203,35 @@ async def test_serving_capacity_http_export_and_mcp_use_the_same_projection() ->
 
     assert exported == http_view
     assert cast(Any, mcp_result).structured_content == http_view
+
+
+def test_semantic_routes_accept_json_arrays_and_report_bad_names() -> None:
+    with _client() as client:
+        model = client.get("/api/v1/semantic/model").json()
+        assert any(measure["name"] == "rollout_seconds" for measure in model["measures"])
+        described = client.post("/api/v1/semantic/describe", json={"job_kinds": ["train.grpo"]}).json()
+        assert "train.grpo" in described["job_kinds"]
+        grpo = {"run.job_kind": "train.grpo"}
+        result = client.post("/api/v1/semantic/query", json={"measures": ["entropy"], "by": ["run.id"], "runs": grpo})
+        assert result.status_code == 200, result.text
+        assert [column["name"] for column in result.json()["columns"]] == ["run.id", "entropy"]
+        sql = client.post("/api/v1/semantic/query", json={"sql": "select count(*) as n from runs", "runs": grpo})
+        assert sql.status_code == 200, sql.text
+        assert sql.json()["rows"][0][0] >= 1
+        unknown = client.post("/api/v1/semantic/query", json={"measures": ["no_such_measure"], "runs": grpo})
+        assert unknown.status_code == 422
+        assert "no_such_measure" in unknown.json()["message"]
+
+
+@pytest.mark.asyncio
+async def test_mcp_semantic_tools_answer_like_http() -> None:
+    grpo = {"run.job_kind": "train.grpo"}
+    with _client() as client:
+        http_result = client.post(
+            "/api/v1/semantic/query", json={"measures": ["entropy"], "by": ["run.id"], "runs": grpo}
+        ).json()
+    server = create_mcp(_service())
+    described = await server.call_tool("describe_semantics", {"job_kinds": ["train.grpo"]})
+    assert "train.grpo" in cast(Any, described).structured_content["job_kinds"]
+    queried = await server.call_tool("query_semantics", {"measures": ["entropy"], "by": ["run.id"], "runs": grpo})
+    assert cast(Any, queried).structured_content == http_result

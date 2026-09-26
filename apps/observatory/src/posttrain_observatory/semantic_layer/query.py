@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from pydantic import Field, field_validator
 
-from ..models import ObservatoryModel
+from ..models import ObservatoryModel, StringTuple
 from .model import AGGREGATIONS
 
 type JsonScalar = str | int | float | bool | None
@@ -27,11 +27,11 @@ class SemanticQuery(ObservatoryModel):
     or a mapping of run dimensions to conditions.
     """
 
-    measures: tuple[str, ...] = Field(min_length=1)
-    by: tuple[str, ...] = ()
+    measures: StringTuple = Field(min_length=1)
+    by: StringTuple = ()
     where: dict[str, Any] = Field(default_factory=dict)
-    runs: tuple[str, ...] | dict[str, Any] | None = None
-    order_by: tuple[str, ...] = ()
+    runs: StringTuple | dict[str, Any] | None = None
+    order_by: StringTuple = ()
     limit: int = Field(default=1000, ge=1, le=100_000)
 
     @field_validator("measures")
@@ -48,8 +48,8 @@ class SqlQuery(ObservatoryModel):
     """One read-only SELECT over the semantic tables of the runs in scope."""
 
     sql: str = Field(min_length=1)
-    runs: tuple[str, ...] | dict[str, Any]
-    load: dict[str, tuple[str, ...]] | None = None
+    runs: StringTuple | dict[str, Any]
+    load: dict[str, StringTuple] | None = None
     max_rows: int = Field(default=10_000, ge=1, le=100_000)
 
 

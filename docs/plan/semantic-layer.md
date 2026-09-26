@@ -23,18 +23,26 @@ To see it working: `posttrain query --measures update_seconds:mean --by run --wh
 ## Progress
 
 - [x] (2026-09-27 03:00Z) Surveyed the existing pieces this plan builds on (Context and Orientation).
-- [ ] Milestone 0: amend the canonical baseline to name the semantic layer as the definition of computed views and to list its query surfaces.
-- [ ] Milestone 1: semantic model types and the framework declarations for the job types in use.
-- [ ] Milestone 2: query compiler and executor (semantic query to reads to SQLite to result).
-- [ ] Milestone 3: raw SQL mode.
-- [ ] Milestone 4: `describe`.
-- [ ] Milestone 5: surfaces: Observatory service, HTTP, MCP, CLI.
-- [ ] Milestone 6: acceptance on real runs in `posttrain-lab`.
+- [x] (2026-09-27 05:10Z) Milestone 0: canonical amendment (`05` lists the query surfaces, `06` names the semantic layer as the vocabulary of computed views), commit 48c56edc.
+- [x] (2026-09-27 09:40Z) Milestones 1 to 4: model, framework declarations (5 entities, 39 dimensions, 108 measures, 3 metrics), executor, SQL mode and `describe`, commit e3a2ec47.
+- [x] (2026-09-27 16:20Z) Milestone 5: `ObservatoryService.describe_semantics` and `query_semantics` over `ServiceReader`; HTTP `GET /api/v1/semantic/model`, `POST /api/v1/semantic/describe`, `POST /api/v1/semantic/query`; MCP `describe_semantics` and `query_semantics`; CLI `posttrain query` and `posttrain query describe`; regenerated `openapi.json`, `mcp-schema.json` and the frontend `api-schema.ts`.
+- [x] (2026-09-27 16:40Z) Milestone 6: acceptance on real runs, except the serving check (no `serve.benchmark` run exists in `posttrain-lab`; see Surprises). Four defects the real data exposed are fixed (per-round rollout evidence, replayed trace metrics, task keys, the run cap for summary-only questions).
 
 ## Surprises & Discoveries
 
 - Observation: the Observatory already holds most of the vocabulary, scattered across views.
   Evidence: `apps/observatory/src/posttrain_observatory/telemetry.py` declares one `JobTelemetryDefinition` per job kind (`GRPO_TELEMETRY`, `SAMPO_TELEMETRY`, `GENERAL_EVAL_TELEMETRY`, `SERVE_BENCHMARK_TELEMETRY`, ...) with summary fields (a metric and a reducer `last|min|max|mean|sum`), charts and a metric help catalog (`_METRIC_HELP`: label, description, interpretation, unit). Trace facts already support a small semantic query (`TraceFactsQuery`: group by `task_id`, `prompt_group_id`, `rollout_step`, ...; aggregate `task_reward`, token counts, `tool_calls`, ... with `mean|sum|sum_squares|count`).
+
+- Observation: active sampling records rollout evidence once per generation round, so one update has several points of `train/rl/time/rollout_seconds`, `train/rl/rollouts_*` and the trace-derived rates. The first executor kept the last point per step, which undercounted rollout time and made `rollout_share` for `lfm12-sampo-8gb-20260926-r14` and `-r15` look like 0.69 and 0.66.
+  Evidence: `lfm26-vortex-v5-150-lr5e5-kl5e3-20260926-r2` step 1 has `rollouts_attempted` 64, 24 and 8 and `rollout_seconds` 251.7, 60.9 and 56.9; r15 step 3 has rollout seconds 178.8 and 108.6. With rounds combined, `rollout_share` is 0.896, 0.895 and 0.892 for r13, r14 and r15 and 0.879 for `lfm12-sampo-turns-8gb-20260926-r1`, as this plan expected.
+- Observation: trace-derived metrics replayed at finalization are stored at their append position, with the real update in the point attribute `source_step`. Read raw, `train/rl/tool_call_frequency` for the 8 GB SAMPO runs sat at steps 58 to 68 instead of 1 to 3.
+  Evidence: `posttrain query --sql "select metric, min(step), max(step) from raw_metrics group by metric" --load raw_metrics=train/rl/tool_call_frequency+train/rl/rollouts_attempted` before the fix. The Observatory already projected these points in `service._logical_metric_series`; the reader now uses the same function (renamed `logical_metric_series`).
+- Observation: `EvaluationTaskResult.label` is a title-cased display label ("Simple.email Jira Bug Slack"); the stable id is `key` ("AutomationBenchTask:simple.email_jira_bug_slack"). `eval_task.task` now reads `key`, and `eval_task.label` is a separate dimension.
+- Observation: a 50-run cap made project inventory questions (runs by job kind and status) impossible, although they read nothing per run. Queries answered from run summaries alone (derived run measures, run-field dimensions and filters) may now scan up to 1,000 runs; the cap still applies once a query reads settings, series, trace facts or views per run. `posttrain-lab` has 76 runs: 27 `train.grpo`, 15 `train.sampo`, 23 `eval.general`, 11 `model.transform`.
+- Observation: `posttrain-lab` has no `serve.benchmark` runs, so the `throughput` by `load_level.concurrency` acceptance check could not run on real data; the load-level path is covered only by unit tests.
+- Observation: served-model identity cannot tell checkpoints apart. Every checkpoint evaluation in `posttrain-lab` reports `rollout.model` `models/lfm2.5-2.6b@bf16` (the model selection id), whatever checkpoint it served; base evaluations report `LiquidAI/LFM2.5-2.6B`. Lineage therefore rests only on `model_source` recorded at launch (`run.parent_run`, `run.parent_step`), and an evaluation that served the wrong weights cannot be detected from its evidence. Fixing this belongs to evaluation launch (serve the checkpoint under a name that includes the source run and step, or record the served adapter digest), not to this layer.
+  Evidence: `posttrain query -m rollouts --by run.id,rollout.model --runs "run.id=eval-lfm26-heldout-64k-*"`.
+- Observation: tables in SQL mode return booleans as 0 and 1 (SQLite has no boolean type); the semantic query form returns real booleans.
 
 ## Decision Log
 
@@ -54,9 +62,19 @@ To see it working: `posttrain query --measures update_seconds:mean --by run --wh
   Rationale: fewer moving parts until the model has been used; a project overlay can be added later the same way catalogs overlay.
   Date/Author: 2026-09-27, Claude.
 
+- Decision: every update measure declares how points recorded at the same step combine (`Source.within_step`: `last`, `sum` or `mean`). Rollout seconds and rollout counts are sums over rounds; trace-derived rates, reward spread and SAMPO advantage and anchor statistics are means over rounds; everything else keeps the last point.
+  Rationale: the rounds are real, separate measurements of one update; silently keeping one of them gave wrong totals. A mean over rounds is not the pooled value for a spread (`reward_std`), which the measure description would need to say if it matters; the exact pooled value needs the per-round counts.
+  Date/Author: 2026-09-27, Claude.
+- Decision: the run cap applies only to queries that read per run; summary-only questions scan up to `RUN_SCAN_LIMIT` (1,000) runs, and a `runs` count measure answers "how many".
+  Rationale: the cap exists to bound reads against Trackio, not to limit answers that cost one `list_runs` call.
+  Date/Author: 2026-09-27, Claude.
+- Decision: an unknown measure or dimension error names the closest known names.
+  Rationale: agents and people mistype (`truncations` for `eval_truncations`); a suggestion avoids a `describe` round trip.
+  Date/Author: 2026-09-27, Claude.
+
 ## Outcomes & Retrospective
 
-Not started.
+(2026-09-27) The layer answers the questions this plan was written for, through the service, HTTP, MCP and CLI, and returns values that match Trackio once per-round evidence is combined. Its first real use found four of its own defects within an hour, all in how raw series map to logical updates; that mapping is the part most worth testing against new job kinds. Remaining: the serving acceptance check (needs a `serve.benchmark` run), and a served-model versus recorded-parent check for evaluations.
 
 ## Context and Orientation
 
@@ -103,7 +121,7 @@ Expected output of the last command:
 
 Unit tests use a fake `RunDataSource` with fixed runs and series. They must show: the model validator rejects duplicate names and formulas across entities; a query on `update` measures fetches only the named series (the fake records calls); grain selection picks `update` for `by: [run, update.step]` and `run` for `by: [run]`; a measure one run lacks yields nulls and an `unavailable` entry; a measure no run provides is an error; more than 50 runs is an error; rollout measures call `aggregate_trace_facts` with the mapped group-by dimensions and never download traces; SQL mode returns rows for a `SELECT` with a window function and rejects `ATTACH`, `PRAGMA`, `INSERT`, `CREATE TEMP TABLE` and a query that runs past the time limit; the telemetry coverage test passes.
 
-On the real project, these queries must return values that match Trackio (checked by reading the same series directly): mean `update_seconds` by run for `lfm12-sampo-turns-8gb-20260926-r1` is 195.5 and for `lfm12-sampo-8gb-20260926-r15` is 255.4; `entropy` and `kl` by `run, update.step` for `lfm26-vortex-v5-150-lr5e5-kl5e3-20260926-r2` reproduce its logged series; `rollout_share` by run for the 8 GB SAMPO runs r13, r14 and r15 is above 0.8; `task_reward` and `success_rate` by `eval_task.task` for `eval-lfm26-heldout-64k-base-20260924-r1` reproduce the Observatory evaluation view; `rollouts` and `rollout_reward` by `rollout.truncated` for `lfm12-screen-8k-20260926-r2` show 33 truncated rollouts (its trace facts were recorded under fact calculator v6, before context-overflow rollouts counted as truncated); `throughput` by `load_level.concurrency` for a serving benchmark run reproduces its capacity view. The MCP tool `query_semantics` returns the same table as the CLI for one of these queries.
+On the real project, these queries must return values that match Trackio (checked by reading the same series directly): mean `update_seconds` by run for `lfm12-sampo-turns-8gb-20260926-r1` is 195.5 and for `lfm12-sampo-8gb-20260926-r15` is 255.4; `entropy` and `kl` by `run, update.step` for `lfm26-vortex-v5-150-lr5e5-kl5e3-20260926-r2` reproduce its logged series; `rollout_share` by run for the 8 GB SAMPO runs r13, r14 and r15 is above 0.8 (observed 0.896, 0.895 and 0.892 once generation rounds within an update are summed); `task_reward` and `success_rate` by `eval_task.task` for `eval-lfm26-heldout-64k-base-20260924-r1` reproduce the Observatory evaluation view; `rollouts` and `rollout_reward` by `rollout.truncated` for `lfm12-screen-8k-20260926-r2` show 33 truncated rollouts (its trace facts were recorded under fact calculator v6, before context-overflow rollouts counted as truncated); `throughput` by `load_level.concurrency` for a serving benchmark run reproduces its capacity view. The MCP tool `query_semantics` returns the same table as the CLI for one of these queries.
 
 ## Idempotence and Recovery
 
@@ -152,7 +170,7 @@ In `semantic_layer/query.py`:
 
 In `service.py`:
 
-    async def describe_semantics(self, scope: SemanticScope) -> SemanticDescription: ...
+    async def describe_semantics(self, *, runs: tuple[str, ...] | dict[str, Any] | None = None, job_kinds: tuple[str, ...] = ()) -> SemanticDescription: ...
     async def query_semantics(self, query: SemanticQuery | SqlQuery) -> SemanticResult: ...
 
 Dependencies: Python's standard `sqlite3` only; no new packages.

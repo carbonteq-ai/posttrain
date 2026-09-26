@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import Field
 
-from ..models import ObservatoryModel
+from ..models import ObservatoryModel, StringTuple
 from .execute import SemanticReader, _Context, applies, resolve_runs
 from .model import Dimension, Entity, Measure, Metric, SemanticModel
 from .query import DEFAULT_MAX_RUNS
@@ -22,6 +22,13 @@ class DescribedMeasure(ObservatoryModel):
 class DescribedTable(ObservatoryModel):
     name: str
     columns: tuple[str, ...]
+
+
+class SemanticDescribeRequest(ObservatoryModel):
+    """Runs (ids or run-dimension filters) or job kinds to describe; neither describes everything."""
+
+    runs: StringTuple | dict[str, Any] | None = None
+    job_kinds: StringTuple = ()
 
 
 class SemanticDescription(ObservatoryModel):
@@ -83,7 +90,7 @@ async def describe_semantics(
                 *(
                     item.measure.name
                     for item in described
-                    if item.measure.entity == "run" and item.measure.name != "duration_seconds"
+                    if item.measure.entity == "run" and item.measure.source.kind != "derived"
                 ),
             ),
         )
@@ -133,4 +140,10 @@ def _formula_measures(metric: Metric) -> tuple[str, ...]:
     return tuple(name for _, name in parse_formula(metric.formula).references())
 
 
-__all__ = ["DescribedMeasure", "DescribedTable", "SemanticDescription", "describe_semantics"]
+__all__ = [
+    "DescribedMeasure",
+    "DescribedTable",
+    "SemanticDescribeRequest",
+    "SemanticDescription",
+    "describe_semantics",
+]
