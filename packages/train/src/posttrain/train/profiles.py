@@ -239,8 +239,9 @@ class GRPOSettings:
         if self.algorithm == "dapo" and clip_high < self.clip_epsilon_low:
             raise ValueError("DAPO upper clipping epsilon cannot be smaller than its lower epsilon")
         if self.algorithm == "olmo3":
+            # The recipe fixes clipping, advantage scaling and importance sampling. A KL
+            # penalty to the reference policy (beta) stays selectable and is recorded.
             olmo3_recipe = {
-                "beta": self.beta == 0,
                 "advantage_scaling": self.advantage_scaling == "none",
                 "clip_epsilon_low": self.clip_epsilon_low == 0.2,
                 "clip_epsilon_high": clip_high == 0.272,

@@ -507,7 +507,9 @@ not replace selected model, data, environment, target, or artifact identities.
 
 Reward **weights** live in algorithm settings; reward **meanings** live on the
 environment. Rollout engine knobs live on `InferenceBinding.engine`.
-`GRPOSettings.algorithm` selects `grpo`, `dapo`, or `olmo3`. The DAPO selection owns its
+`GRPOSettings.algorithm` selects `grpo`, `dapo`, or `olmo3`. The OLMo 3 selection fixes its
+clipping, advantage scaling and importance-sampling correction; a KL penalty to the
+reference policy (`beta`, default 0) remains selectable and is recorded. The DAPO selection owns its
 token-level aggregation, asymmetric clipping, bounded retained-group dynamic
 sampling, truncation handling, and optional soft-overlong shaping. Run evidence
 records these settings explicitly. Backend adapters reject unsupported

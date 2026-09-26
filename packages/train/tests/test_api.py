@@ -1874,8 +1874,9 @@ def test_olmo3_settings_reject_recipe_drift() -> None:
     )
 
     assert settings.resolved_clip_epsilon_high == 0.272
-    with pytest.raises(ValueError, match="requires fixed settings: beta"):
-        replace(settings, beta=0.01)
+    assert replace(settings, beta=0.01).beta == 0.01
+    with pytest.raises(ValueError, match="requires fixed settings: clip_epsilon_low"):
+        replace(settings, clip_epsilon_low=0.1)
     with pytest.raises(ValueError, match="requires active group sampling"):
         replace(settings, active_sampling=None)
 
