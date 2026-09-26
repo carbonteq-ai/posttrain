@@ -238,6 +238,12 @@ class SAMPOSettingsSchema(TrainCatalogSchema):
         default_factory=lambda: ActiveGroupSamplingSchema(max_candidate_batches=3)
     )
     adaptive_curriculum: AdaptiveCurriculumSchema | None = None
+    importance_sampling_mode: Literal["token_truncate", "token_mask", "sequence_truncate", "sequence_mask"] = (
+        "token_truncate"
+    )
+    importance_sampling_clip_min: float | None = Field(default=None, gt=0)
+    importance_sampling_clip_max: float | None = Field(default=2.0, gt=0)
+    truncation_penalty: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
     max_admission_attempts: int = Field(default=1, gt=0)

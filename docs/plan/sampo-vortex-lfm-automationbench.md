@@ -46,8 +46,13 @@ update.
   adaptive curriculum, and computes advantages on admitted groups. 1969 tests pass.
 - [ ] Milestone 2 run: the 8 GB package with oversampling (10 candidate batches, 2
   groups of 4) and the yield-first curriculum completes three updates.
-- [ ] Milestone 3: objective fit (vLLM correction mode, truncation penalty, KL,
-  ID-stripped anchor keys, evidence).
+- [x] (2026-09-26 17:30Z) Milestone 3 code: the vLLM correction is selectable and
+  defaults to VORTEX's per-token cap of 2.0; an optional truncation penalty shapes
+  the episode reward before advantages; anchor keys drop the tool-call id and
+  UUIDs (scheme `content-without-sample-ids@2`, recorded on the run). KL was
+  already selectable. The 8 GB package uses a 0.2 truncation penalty.
+- [ ] Milestone 3 run: confirm on 8 GB that the anchor match rate rises and the
+  correction rarely clamps.
 - [ ] Milestone 4: speed on 8 GB (time split, trainer options, rollout options).
 - [ ] Milestone 5: environment turn rewards in the AutomationBench adapter
   (separate repository).
@@ -91,6 +96,15 @@ update.
   They need new binding revisions or retirement; they do not block this plan.
 
 ## Decision Log
+
+- Decision: SAMPO's vLLM sampler-mismatch correction defaults to VORTEX's
+  per-token truncation capped at 2.0 instead of the former hard-coded
+  `sequence_truncate` in [0.1, 3.0].
+  Rationale: the sequence mode multiplies token ratios over the whole episode;
+  over 4,000-20,000 sampled tokens small differences compound and the clamp
+  engages often. The correction is independent of SAMPO's sequence-level policy
+  ratio, which is unchanged. Existing SAMPO capsules pick up the new default.
+  Date/Author: 2026-09-26, Claude.
 
 - Decision: remove dynamic sampling from SAMPO; it refills only with VORTEX active
   sampling (keep groups with differing episode rewards, generate only the missing

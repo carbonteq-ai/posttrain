@@ -1153,6 +1153,7 @@ training:
       yield_prior_strength: 4.0
       history_groups: 4
       seed: 172846
+    truncation_penalty: 0.2
     mask_truncated_completions: false
 
   lfm2.5-2.6b/automationbench-changed-weight-canary-v1:

@@ -286,3 +286,73 @@ def test_sampo_advantages_use_the_admitted_example_ids() -> None:
         [_rollout(1.0, "a"), _rollout(0.0, "b")],
     )
     assert advantages.episode_advantages == (0.5, -0.5)
+
+
+def _sampo_vllm_request(settings: SAMPOSettings) -> Any:
+    return cast(
+        Any,
+        SimpleNamespace(
+            settings=settings,
+            policy=SimpleNamespace(provenance={}),
+            training=SimpleNamespace(backend_options={}),
+            inference=SimpleNamespace(backend="vllm@0.29.1.dev4", sampling={}, engine={"mode": "colocate"}),
+        ),
+    )
+
+
+def test_sampo_vllm_correction_defaults_to_the_vortex_per_token_cap(tmp_path) -> None:
+    arguments = _online_rl_arguments(_sampo_vllm_request(_settings()), tmp_path, {})
+
+    assert arguments["vllm_importance_sampling_mode"] == "token_truncate"
+    assert arguments["vllm_importance_sampling_clip_min"] is None
+    assert arguments["vllm_importance_sampling_clip_max"] == 2.0
+    # SAMPO's own policy ratio stays sequence-level.
+    assert arguments["importance_sampling_level"] == "sequence"
+
+    sequence = _settings(importance_sampling_mode="sequence_truncate", importance_sampling_clip_min=0.1)
+    arguments = _online_rl_arguments(_sampo_vllm_request(sequence), tmp_path, {})
+    assert arguments["vllm_importance_sampling_mode"] == "sequence_truncate"
+    assert arguments["vllm_importance_sampling_clip_min"] == 0.1
+
+
+def test_sampo_rejects_inconsistent_correction_and_truncation_settings() -> None:
+    with pytest.raises(ValueError, match="minimum must be smaller"):
+        _settings(importance_sampling_clip_min=2.0, importance_sampling_clip_max=2.0)
+    with pytest.raises(ValueError, match="finite and positive"):
+        _settings(importance_sampling_clip_max=0.0)
+    with pytest.raises(ValueError, match="truncation penalty has no effect"):
+        _settings(truncation_penalty=0.2, mask_truncated_completions=True)
+    with pytest.raises(ValueError, match="finite positive"):
+        _settings(truncation_penalty=-0.1)
+
+
+def test_sampo_truncation_penalty_shapes_the_episode_reward() -> None:
+    from posttrain.train.profiles import shape_online_reward
+
+    settings = _settings(truncation_penalty=0.2)
+    assert shape_online_reward(settings, 0.5, 100, is_truncated=True) == pytest.approx(0.3)
+    assert shape_online_reward(settings, 0.5, 100, is_truncated=False) == 0.5
+    assert shape_online_reward(_settings(), 0.5, 100, is_truncated=True) == 0.5
+
+
+def test_anchor_state_key_ignores_per_attempt_identifiers() -> None:
+    from posttrain.train.integrations.verifiers import _anchor_state_key
+
+    first = {
+        "role": "tool",
+        "tool_call_id": "call_0",
+        "content": '{"id": "bc9882d8-7e08-488c-b298-635c5014a043", "ok": true}',
+    }
+    second = {
+        "role": "tool",
+        "tool_call_id": "call_3",
+        "content": '{"id": "0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b", "ok": true}',
+    }
+    different = {
+        "role": "tool",
+        "tool_call_id": "call_0",
+        "content": '{"id": "bc9882d8-7e08-488c-b298-635c5014a043", "ok": false}',
+    }
+
+    assert _anchor_state_key(first) == _anchor_state_key(second)
+    assert _anchor_state_key(first) != _anchor_state_key(different)

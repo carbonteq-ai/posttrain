@@ -67,9 +67,9 @@ def _online_rl_arguments(
         advantage_scaling = "group"
         loss_type = "grpo"
         epsilon_high = settings.clip_epsilon_high
-        importance_sampling_mode = "sequence_truncate"
-        importance_sampling_clip_min = 0.1
-        importance_sampling_clip_max = 3.0
+        importance_sampling_mode = settings.importance_sampling_mode
+        importance_sampling_clip_min = settings.importance_sampling_clip_min
+        importance_sampling_clip_max = settings.importance_sampling_clip_max
     else:
         is_sampo = False
         advantage_scaling = settings.advantage_scaling

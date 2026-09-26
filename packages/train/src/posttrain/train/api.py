@@ -781,6 +781,11 @@ def _seat_attributes(
         attributes.update(
             {
                 "online_rl_algorithm": "sampo",
+                "importance_sampling_mode": request.settings.importance_sampling_mode,
+                "importance_sampling_clip_min": request.settings.importance_sampling_clip_min,
+                "importance_sampling_clip_max": request.settings.importance_sampling_clip_max,
+                "truncation_penalty": request.settings.truncation_penalty,
+                "anchor_state_key_scheme": "content-without-sample-ids@2",
                 "clip_epsilon_low": request.settings.clip_epsilon_low,
                 "clip_epsilon_high": request.settings.clip_epsilon_high,
                 "discount_gamma": request.settings.discount_gamma,

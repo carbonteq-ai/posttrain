@@ -6,6 +6,7 @@ import asyncio
 import math
 import time
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import Any, Literal, cast
 
 from posttrain.common import RunContext, TraceFactSet, TraceFactUpdateObservation, TraceObservation
@@ -209,7 +210,7 @@ def rollout_function(
                 "tokens while mask_truncated_completions is enabled; increase max_completion_length or correct "
                 "the policy's termination behavior before retrying"
             )
-        if isinstance(request, GRPORequest):
+        if isinstance(request, GRPORequest | SAMPORequest):
             shaped_rewards = [
                 shape_online_reward(
                     request.settings,
@@ -323,10 +324,12 @@ def rollout_function(
             # as NoAdmittedRollouts and draws the next candidate round.
             result["precomputed_advantages"] = []
         elif isinstance(request, SAMPORequest):
+            # Hierarchical advantages see the shaped episode reward, so a truncated
+            # rollout ranks below an equally scored finished one, as in VORTEX.
             advantages = compute_sampo_advantages(
                 request.settings,
                 _admitted_example_ids(example_ids, None if admission is None else admission.retained_positions),
-                rollouts,
+                [replace(rollout, reward=reward) for rollout, reward in zip(rollouts, shaped_rewards, strict=True)],
             )
             result["precomputed_advantages"] = [list(values) for values in advantages.token_advantages]
             flat_turn_advantages = [value for values in advantages.turn_advantages for value in values]

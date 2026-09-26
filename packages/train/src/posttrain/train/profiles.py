@@ -316,6 +316,15 @@ class SAMPOSettings:
     clip_epsilon_high: float = 0.004
     active_sampling: ActiveGroupSampling = field(default_factory=lambda: ActiveGroupSampling(3))
     adaptive_curriculum: AdaptiveCurriculum | None = None
+    # Correction for the vLLM sampler/trainer mismatch, separate from SAMPO's
+    # sequence-level policy ratio. VORTEX's per-token cap suits long agentic episodes;
+    # a whole-sequence product of token ratios compounds over thousands of tokens.
+    importance_sampling_mode: Literal["token_truncate", "token_mask", "sequence_truncate", "sequence_mask"] = (
+        "token_truncate"
+    )
+    importance_sampling_clip_min: float | None = None
+    importance_sampling_clip_max: float | None = 2.0
+    truncation_penalty: float | None = None
     shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
     max_admission_attempts: int = 1
@@ -349,6 +358,20 @@ class SAMPOSettings:
             raise ValueError("SAMPO clip epsilons must be positive")
         if self.max_admission_attempts < 1:
             raise ValueError("SAMPO group admission attempts must be positive")
+        bounds = (self.importance_sampling_clip_min, self.importance_sampling_clip_max)
+        if any(value is not None and (not math.isfinite(value) or value <= 0) for value in bounds):
+            raise ValueError("SAMPO importance-sampling bounds must be finite and positive")
+        if (
+            self.importance_sampling_clip_min is not None
+            and self.importance_sampling_clip_max is not None
+            and self.importance_sampling_clip_min >= self.importance_sampling_clip_max
+        ):
+            raise ValueError("SAMPO importance-sampling minimum must be smaller than maximum")
+        if self.truncation_penalty is not None:
+            if not math.isfinite(self.truncation_penalty) or self.truncation_penalty <= 0:
+                raise ValueError("SAMPO truncation penalty must be a finite positive number")
+            if self.mask_truncated_completions:
+                raise ValueError("SAMPO truncation penalty has no effect when truncated completions are masked")
 
     @property
     def max_collection_attempts(self) -> int:
@@ -466,12 +489,12 @@ class CAPOSettings(_StructuredRLSettings):
 
 
 def shape_online_reward(
-    settings: GRPOSettings, reward: float, completion_tokens: int, *, is_truncated: bool = False
+    settings: GRPOSettings | SAMPOSettings, reward: float, completion_tokens: int, *, is_truncated: bool = False
 ) -> float:
     """Apply the selected portable DAPO soft overlong punishment and truncation penalty."""
 
-    buffer = settings.overlong_buffer_tokens
-    if settings.algorithm == "dapo" and buffer is not None:
+    buffer = settings.overlong_buffer_tokens if isinstance(settings, GRPOSettings) else None
+    if isinstance(settings, GRPOSettings) and settings.algorithm == "dapo" and buffer is not None:
         reward = shape_soft_overlong_reward(
             reward,
             completion_tokens,

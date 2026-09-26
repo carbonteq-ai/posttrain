@@ -554,7 +554,10 @@ groups whose episode rewards differ and generates only the missing groups. It
 has no whole-batch dynamic filtering. It may also select the adaptive curriculum
 and a group admission attempt limit with the same meaning as for GRPO; a failed
 occurrence excludes its complete prompt group. Backends without active sampling
-reject SAMPO. The rollout contract supplies
+reject SAMPO. SAMPO also owns its sampler-mismatch correction (the vLLM
+importance-sampling mode and bounds, per-token capped by default and independent
+of its sequence-level policy ratio) and an optional truncation penalty applied to
+the episode reward before advantages. The rollout contract supplies
 sampled assistant-turn token spans and preceding observation keys. A backend
 must support both the sequence objective and hierarchical episode/turn
 advantages or reject the request before launch.
