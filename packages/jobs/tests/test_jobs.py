@@ -108,6 +108,7 @@ def test_standard_definition_registry_covers_every_technique() -> None:
         "train/trl-grpo@1",
         "train/grpo-family-judged@1",
         "train/trl-sampo@1",
+        "train/sampo-turns@1",
         "train/gdpo@1",
         "train/capo@1",
         "train/trl-distill@1",

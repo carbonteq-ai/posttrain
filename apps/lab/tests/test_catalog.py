@@ -866,3 +866,57 @@ def _layer(root: Path, layer_id: str, document: str) -> Path:
     )
     (directory / "entries.yaml").write_text(document.strip() + "\n", encoding="utf-8")
     return directory
+
+
+def test_automationbench_turn_progress_projection_reads_the_adapter_turn_evidence() -> None:
+    """Evidence in automationbench-v1 0.4.2's exact shape projects to SAMPO step rewards."""
+
+    from posttrain.common import TraceObservation
+    from posttrain.train import RewardProjection
+
+    catalog = open_catalog(scope="posttrain-lab", overlays=(WORKSPACE / "apps/lab/.posttrain/catalog",))
+    projection = catalog.resolve(CatalogRef("training", "reward/automationbench-turn-progress@1")).value
+    environment = catalog.resolve(CatalogRef("environment", "automationbench-lfm12-sampo-8gb-turns-v1")).value
+    assert isinstance(projection, RewardProjection)
+    assert isinstance(environment, EnvironmentBinding)
+    assert isinstance(environment.activation, VerifiersV1ConfigActivation)
+    taskset = environment.activation.config["taskset"]
+    assert isinstance(taskset, Mapping)
+    task = taskset["task"]
+    assert isinstance(task, Mapping)
+    assert task["turn_rewards"] == {"tool_failure_penalty": 0.05}
+    assert environment.source.revision == "3a486b0ab173ece56f480f135c4cadfbf0135b57"
+
+    digest = projection.scorer_digest
+    assert digest is not None
+    # Written by automationbench_v1.turn_rewards.turn_evidence for a two-turn episode.
+    evidence = {
+        "trace_id": "trace-1",
+        "branch_id": "0",
+        "projection_id": "assistant-turns@1",
+        "scorer_digest": digest,
+        "assessments": [
+            {
+                "turn_id": f"assistant-{index}",
+                "components": [
+                    {"name": "turn_reward", "status": "valid", "value": reward},
+                    {"name": "assertion_progress", "status": "valid", "value": progress},
+                    {"name": "tool_failures", "status": "valid", "value": failures},
+                ],
+                "evidence_ref": f"trace-1#automationbench_turn_progress/{index + 1}",
+            }
+            for index, (reward, progress, failures) in enumerate(((0.95, 1.0, 1.0), (0.0, 0.0, 0.0)))
+        ],
+    }
+    observation = TraceObservation(
+        trace_type="verifiers",
+        external_id="trace-1",
+        payload={
+            "info": {
+                "posttrain_scorer_digests": {"posttrain_turn_rewards": digest},
+                "posttrain_turn_rewards": evidence,
+            }
+        },
+    )
+
+    assert projection.project_turn_rewards(observation, ("assistant-0", "assistant-1")) == (0.95, 0.0)

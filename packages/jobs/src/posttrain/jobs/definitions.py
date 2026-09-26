@@ -875,6 +875,7 @@ def standard_definitions() -> dict[str, JobDefinition]:
             judge_inference_seats={"quality": ("judge_inference", 8123)},
         ),
         sampo_definition(),
+        sampo_definition(turn_rewards=True),
         structured_rl_definition("gdpo"),
         structured_rl_definition("capo"),
         distillation_definition(),

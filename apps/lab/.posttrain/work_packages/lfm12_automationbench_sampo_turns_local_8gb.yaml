@@ -1,0 +1,32 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-1.2b/automationbench-sampo-turns-local-8gb
+stage: train
+description: SAMPO with environment per-turn rewards on the local 8 GB GPU - three updates of LFM2.5-1.2B-thinking over the 57 screened AutomationBench tasks (8K context, 12 turns, 3072 tokens per reply), where each assistant turn earns its change in partial credit minus 0.05 per failed tool call, measured on the live world by automationbench-v1 0.4.2.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-1.2b-automationbench-sampo-turns-local-8gb@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    reward_projection: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: sampo
+      kind: train.sampo
+      definition: train/sampo-turns@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, per-turn environment reward evidence, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-1.2b-thinking@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm12-sampo-8gb-turns-v1}
+  settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-sampo-local-8gb-v1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-turn-progress@1}
+  training: {type: ref, family: training, id: training/lfm2.5-1.2b-trl-lora-sampo-local-8gb@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-sampo-local-8gb@1}
+enabled_optional_jobs: []
+metadata:
+  question: Do environment-derived per-turn rewards reach SAMPO's step advantages, and how do they spread across turns that share a state?
+  labels: [experiment, sampo, turn-rewards, automationbench, lfm2.5, local, 8gb]
