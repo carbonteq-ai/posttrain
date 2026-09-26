@@ -1913,12 +1913,11 @@ training:
       use_liger_kernel: false
       logits_chunk_size: 128
       # Measured on the RTX PRO 6000 at 9.7K-token episodes: per-layer compile
-      # 0.961 -> 0.672 s, compile without checkpointing 0.476 s (36 GB peak);
-      # 24.6K episodes need 82 GB without checkpointing, so only episodes of
-      # at least 14,336 tokens recompute activations. On-policy, the
-      # importance-sampling ratio comes from the training forward instead of
-      # a separate no-grad pass over the batch (0.301 s per episode).
-      gradient_checkpointing_min_tokens: 14336
+      # 0.961 -> 0.672 s per episode at the same 8.6 GB peak. Every episode
+      # stays checkpointed: skipping recomputation below 14K tokens would save
+      # ~0.2 s per episode but raise peak memory from ~9 GB to ~53 GB. On-policy,
+      # the importance-sampling ratio comes from the training forward instead
+      # of a separate no-grad pass over the batch (0.301 s per episode).
       compile_decoder_layers: true
       importance_sampling_from_training_logps: true
       vllm_policy_parity_max_sequence_tokens: 4096
