@@ -42,6 +42,699 @@ environment:
     reward_components: [partial_credit]
     required_inference_capabilities: [tool-calling]
 
+  # 8 GB SAMPO development set: the 15 train-mix tasks whose longest VORTEX v5
+  # episode (LFM2.5-2.6B, updates 41-56) stayed within 12,288 tokens of context,
+  # excluding three that scored 0 in every attempt. Turn and output budgets match
+  # the training mix; only the task set is narrowed to fit the 8 GB context.
+  # Screen for the 8 GB SAMPO package: every simple-domain task plus 14 short
+  # multi-step tasks where LFM2.5-2.6B earned 0.5-0.85 partial credit, run with
+  # the training budgets and sampling so group reward spread can be measured.
+  automationbench-lfm12-screen-8k-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, finance, hr]
+          task_names:
+            - simple.email_sf_contact_phone_update
+            - simple.email_sf_contact_email_update
+            - simple.email_sf_contact_title_update
+            - simple.email_sf_contact_city_update
+            - simple.email_sf_contact_account_update
+            - simple.email_sf_lead_description_update
+            - simple.email_sf_contact_mobile_update
+            - simple.email_sf_contact_fax_update
+            - simple.email_sf_contact_department_update
+            - simple.email_sf_contact_assistant_update
+            - simple.sf_opp_closed_won
+            - simple.sf_opp_stage_proposal
+            - simple.sf_opp_amount_update
+            - simple.sf_opp_close_date_update
+            - simple.sf_opp_probability_update
+            - simple.sf_opp_description_update
+            - simple.sf_opp_stage_value_prop
+            - simple.sf_opp_campaign_update
+            - simple.sf_opp_next_step_update
+            - simple.sf_opp_type_update
+            - simple.sf_create_followup_task
+            - simple.sf_create_proposal_task
+            - simple.email_sf_log_task
+            - simple.sf_create_account_note
+            - simple.sf_create_contact_note
+            - simple.sf_create_case
+            - simple.sf_case_in_progress
+            - simple.sf_case_priority_high
+            - simple.sf_case_closed
+            - simple.sf_create_event
+            - simple.sf_lead_status_working
+            - simple.sf_lead_status_qualified
+            - simple.sf_lead_source_web
+            - simple.sf_lead_company_update
+            - simple.sf_lead_revenue_update
+            - simple.sf_create_lead_from_card
+            - simple.email_sf_lead_rating_hot
+            - simple.sf_lead_description_update
+            - simple.sf_lead_employees_update
+            - simple.email_sf_create_contact_from_lead
+            - simple.hs_create_contact
+            - simple.email_hs_create_contact
+            - simple.hs_update_contact_title
+            - simple.hs_create_deal
+            - simple.hs_update_deal_stage
+            - simple.hs_update_deal_amount
+            - simple.email_hs_create_contact_inbound
+            - simple.hs_update_contact_tag
+            - simple.hs_create_deal_with_contact
+            - simple.hs_update_contact_phone
+            - simple.buffer_twitter_product_launch
+            - simple.buffer_linkedin_partnership
+            - simple.buffer_facebook_blog_post
+            - simple.buffer_twitter_quarterly_results
+            - simple.buffer_webinar_dual_post
+            - simple.buffer_customer_success_story
+            - simple.buffer_job_opening
+            - simple.buffer_company_award
+            - simple.buffer_product_tip
+            - simple.buffer_trade_show
+            - simple.gmail_meeting_confirm
+            - simple.gmail_demo_followup
+            - simple.gmail_weekly_status
+            - simple.gmail_reply_customer_inquiry
+            - simple.gmail_reply_pricing_inquiry
+            - simple.gmail_reply_meeting_request
+            - simple.gmail_invoice_email
+            - simple.gmail_reply_complaint
+            - simple.gmail_onboarding_welcome
+            - simple.gmail_contract_renewal_reminder
+            - simple.slack_marketing_campaign
+            - simple.slack_office_closure
+            - simple.slack_ceo_announcement
+            - simple.slack_dm_meeting_reminder
+            - simple.slack_dm_task_assignment
+            - simple.slack_sales_closed_deal
+            - simple.slack_customer_escalation
+            - simple.slack_deployment_notice
+            - simple.slack_dm_project_status
+            - simple.slack_weekly_metrics
+            - simple.mailchimp_add_subscriber
+            - simple.mailchimp_email_request
+            - simple.mailchimp_full_contact
+            - simple.mailchimp_conference_lead
+            - simple.mailchimp_dual_list
+            - simple.sheets_add_lead
+            - simple.sheets_log_email_inquiry
+            - simple.sheets_update_status
+            - simple.sheets_project_tracker
+            - simple.sheets_closed_deal
+            - simple.sheets_read_then_email
+            - simple.sheets_read_then_slack_dm
+            - simple.sheets_budget_expense
+            - simple.sheets_update_status_report
+            - simple.sheets_log_support_email
+            - simple.sheets_webinar_registration
+            - simple.sheets_log_sales_call
+            - simple.sheets_update_from_email
+            - simple.sheets_add_vendor
+            - simple.sheets_content_calendar
+            - simple.asana_api_docs_task
+            - simple.asana_dark_mode_from_email
+            - simple.asana_board_presentation
+            - simple.asana_vendor_contracts_urgent
+            - simple.asana_sprint_section_task
+            - simple.asana_monitoring_alerts
+            - simple.asana_performance_reviews
+            - simple.asana_checkout_bug_from_email
+            - simple.asana_rfp_response
+            - simple.asana_team_offsite
+            - simple.jira_auth_improvements
+            - simple.jira_login_bug_from_email
+            - simple.jira_search_filter_story
+            - simple.jira_dashboard_perf_bug
+            - simple.jira_legacy_data_migration
+            - simple.jira_rotate_api_keys
+            - simple.jira_mobile_redesign_epic
+            - simple.jira_data_sync_bug_from_email
+            - simple.jira_cicd_pipeline
+            - simple.jira_accessibility_audit
+            - simple.trello_q1_marketing_budget
+            - simple.trello_onboard_agency_from_email
+            - simple.trello_catering_contract
+            - simple.trello_competitor_pricing
+            - simple.trello_move_card_to_inprog
+            - simple.trello_urgent_support_card
+            - simple.trello_case_study_draft
+            - simple.trello_manager_feedback_from_email
+            - simple.trello_employee_handbook
+            - simple.trello_event_planning_checklist
+            - simple.gcal_weekly_standup
+            - simple.gcal_client_discovery_call
+            - simple.gcal_product_review_from_email
+            - simple.gcal_company_holiday
+            - simple.gcal_quarterly_business_review
+            - simple.gcal_one_on_one
+            - simple.gcal_customer_success_checkin
+            - simple.gcal_team_offsite
+            - simple.gcal_partnership_call_from_email
+            - simple.gcal_new_hire_orientation
+            - simple.zoom_engineering_sync
+            - simple.zoom_client_demo
+            - simple.zoom_ai_webinar
+            - simple.zoom_client_call_from_email
+            - simple.zoom_daily_standup
+            - simple.zoom_board_meeting_password
+            - simple.zoom_vendor_onboarding_with_slack
+            - simple.zoom_team_retro
+            - simple.zoom_sales_pipeline_review
+            - simple.zoom_customer_training
+            - simple.zendesk_billing_ticket
+            - simple.zendesk_login_ticket
+            - simple.zendesk_wrong_order_ticket
+            - simple.zendesk_feature_request
+            - simple.zendesk_urgent_reply
+            - simple.email_sf_update_slack_notify
+            - simple.email_asana_task_reply
+            - simple.email_jira_bug_slack
+            - simple.email_hubspot_contact_reply
+            - simple.email_sf_contact_onboard
+            - simple.email_zendesk_ack_reply
+            - simple.email_sheets_log_reply
+            - simple.email_calendar_meeting_reply
+            - simple.email_hubspot_deal_slack
+            - simple.email_sheets_update_reply
+            - simple.close_deal_sf_slack
+            - simple.new_hire_asana_email
+            - simple.zoom_meeting_email_invite
+            - simple.feature_launch_slack
+            - simple.weekly_report_sheets_email
+            - simple.zendesk_resolve_email
+            - simple.new_lead_sf_jira
+            - simple.event_asana_calendar
+            - simple.api_key_jira_slack
+            - simple.launch_announcement_email
+            - simple.airtable_create_contact
+            - simple.email_airtable_lead
+            - simple.airtable_update_deal
+            - simple.airtable_event_attendee
+            - simple.email_airtable_project
+            - simple.airtable_find_update
+            - simple.airtable_followup_task
+            - simple.email_airtable_customer_welcome
+            - simple.airtable_update_slack_notify
+            - simple.airtable_new_vendor
+            - simple.zoom_calendar_sync
+            - simple.escalation_zendesk_slack
+            - simple.subscriber_welcome_email
+            - simple.milestone_sheets_slack
+            - simple.csat_sheets_slack_alert
+            - simple.weekly_digest_sheets_email
+            - simple.invoice_airtable_slack
+            - simple.partner_hubspot_asana
+            - simple.email_jira_story_reply
+            - simple.campaign_launch_asana
+            - simple.demo_request_zoom_email
+            - simple.sprint_retro_jira_slack
+            - simple.customer_question_zendesk_reply
+            - simple.new_customer_sf_onboard_email
+            - simple.partnership_hubspot_zoom
+            - marketing.multi_touch_attribution
+            - finance.xero_bill_entry
+            - operations.monday_email_update
+            - operations.sheets_asana_approved_request
+            - marketing.event_registration_sync
+            - finance.vendor_spend_analysis
+            - finance.xero_credit_allocation
+            - sales.linkedin_content_engagement
+            - finance.invoice_email_extract
+            - marketing.topic_cluster
+            - marketing.event_sponsorship_screen
+            - finance.expense_policy_violation
+            - hr.mandatory_meeting_scheduling
+            - finance.intercompany_transfer
+          task: {toolset: limited_zapier, search_top_k: 20, turn_budget: 12}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 8192
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 0.95}
+    num_tasks: 214
+    num_rollouts: 3
+    max_concurrent: 8
+    parameters:
+      task_names:
+        - simple.email_sf_contact_phone_update
+        - simple.email_sf_contact_email_update
+        - simple.email_sf_contact_title_update
+        - simple.email_sf_contact_city_update
+        - simple.email_sf_contact_account_update
+        - simple.email_sf_lead_description_update
+        - simple.email_sf_contact_mobile_update
+        - simple.email_sf_contact_fax_update
+        - simple.email_sf_contact_department_update
+        - simple.email_sf_contact_assistant_update
+        - simple.sf_opp_closed_won
+        - simple.sf_opp_stage_proposal
+        - simple.sf_opp_amount_update
+        - simple.sf_opp_close_date_update
+        - simple.sf_opp_probability_update
+        - simple.sf_opp_description_update
+        - simple.sf_opp_stage_value_prop
+        - simple.sf_opp_campaign_update
+        - simple.sf_opp_next_step_update
+        - simple.sf_opp_type_update
+        - simple.sf_create_followup_task
+        - simple.sf_create_proposal_task
+        - simple.email_sf_log_task
+        - simple.sf_create_account_note
+        - simple.sf_create_contact_note
+        - simple.sf_create_case
+        - simple.sf_case_in_progress
+        - simple.sf_case_priority_high
+        - simple.sf_case_closed
+        - simple.sf_create_event
+        - simple.sf_lead_status_working
+        - simple.sf_lead_status_qualified
+        - simple.sf_lead_source_web
+        - simple.sf_lead_company_update
+        - simple.sf_lead_revenue_update
+        - simple.sf_create_lead_from_card
+        - simple.email_sf_lead_rating_hot
+        - simple.sf_lead_description_update
+        - simple.sf_lead_employees_update
+        - simple.email_sf_create_contact_from_lead
+        - simple.hs_create_contact
+        - simple.email_hs_create_contact
+        - simple.hs_update_contact_title
+        - simple.hs_create_deal
+        - simple.hs_update_deal_stage
+        - simple.hs_update_deal_amount
+        - simple.email_hs_create_contact_inbound
+        - simple.hs_update_contact_tag
+        - simple.hs_create_deal_with_contact
+        - simple.hs_update_contact_phone
+        - simple.buffer_twitter_product_launch
+        - simple.buffer_linkedin_partnership
+        - simple.buffer_facebook_blog_post
+        - simple.buffer_twitter_quarterly_results
+        - simple.buffer_webinar_dual_post
+        - simple.buffer_customer_success_story
+        - simple.buffer_job_opening
+        - simple.buffer_company_award
+        - simple.buffer_product_tip
+        - simple.buffer_trade_show
+        - simple.gmail_meeting_confirm
+        - simple.gmail_demo_followup
+        - simple.gmail_weekly_status
+        - simple.gmail_reply_customer_inquiry
+        - simple.gmail_reply_pricing_inquiry
+        - simple.gmail_reply_meeting_request
+        - simple.gmail_invoice_email
+        - simple.gmail_reply_complaint
+        - simple.gmail_onboarding_welcome
+        - simple.gmail_contract_renewal_reminder
+        - simple.slack_marketing_campaign
+        - simple.slack_office_closure
+        - simple.slack_ceo_announcement
+        - simple.slack_dm_meeting_reminder
+        - simple.slack_dm_task_assignment
+        - simple.slack_sales_closed_deal
+        - simple.slack_customer_escalation
+        - simple.slack_deployment_notice
+        - simple.slack_dm_project_status
+        - simple.slack_weekly_metrics
+        - simple.mailchimp_add_subscriber
+        - simple.mailchimp_email_request
+        - simple.mailchimp_full_contact
+        - simple.mailchimp_conference_lead
+        - simple.mailchimp_dual_list
+        - simple.sheets_add_lead
+        - simple.sheets_log_email_inquiry
+        - simple.sheets_update_status
+        - simple.sheets_project_tracker
+        - simple.sheets_closed_deal
+        - simple.sheets_read_then_email
+        - simple.sheets_read_then_slack_dm
+        - simple.sheets_budget_expense
+        - simple.sheets_update_status_report
+        - simple.sheets_log_support_email
+        - simple.sheets_webinar_registration
+        - simple.sheets_log_sales_call
+        - simple.sheets_update_from_email
+        - simple.sheets_add_vendor
+        - simple.sheets_content_calendar
+        - simple.asana_api_docs_task
+        - simple.asana_dark_mode_from_email
+        - simple.asana_board_presentation
+        - simple.asana_vendor_contracts_urgent
+        - simple.asana_sprint_section_task
+        - simple.asana_monitoring_alerts
+        - simple.asana_performance_reviews
+        - simple.asana_checkout_bug_from_email
+        - simple.asana_rfp_response
+        - simple.asana_team_offsite
+        - simple.jira_auth_improvements
+        - simple.jira_login_bug_from_email
+        - simple.jira_search_filter_story
+        - simple.jira_dashboard_perf_bug
+        - simple.jira_legacy_data_migration
+        - simple.jira_rotate_api_keys
+        - simple.jira_mobile_redesign_epic
+        - simple.jira_data_sync_bug_from_email
+        - simple.jira_cicd_pipeline
+        - simple.jira_accessibility_audit
+        - simple.trello_q1_marketing_budget
+        - simple.trello_onboard_agency_from_email
+        - simple.trello_catering_contract
+        - simple.trello_competitor_pricing
+        - simple.trello_move_card_to_inprog
+        - simple.trello_urgent_support_card
+        - simple.trello_case_study_draft
+        - simple.trello_manager_feedback_from_email
+        - simple.trello_employee_handbook
+        - simple.trello_event_planning_checklist
+        - simple.gcal_weekly_standup
+        - simple.gcal_client_discovery_call
+        - simple.gcal_product_review_from_email
+        - simple.gcal_company_holiday
+        - simple.gcal_quarterly_business_review
+        - simple.gcal_one_on_one
+        - simple.gcal_customer_success_checkin
+        - simple.gcal_team_offsite
+        - simple.gcal_partnership_call_from_email
+        - simple.gcal_new_hire_orientation
+        - simple.zoom_engineering_sync
+        - simple.zoom_client_demo
+        - simple.zoom_ai_webinar
+        - simple.zoom_client_call_from_email
+        - simple.zoom_daily_standup
+        - simple.zoom_board_meeting_password
+        - simple.zoom_vendor_onboarding_with_slack
+        - simple.zoom_team_retro
+        - simple.zoom_sales_pipeline_review
+        - simple.zoom_customer_training
+        - simple.zendesk_billing_ticket
+        - simple.zendesk_login_ticket
+        - simple.zendesk_wrong_order_ticket
+        - simple.zendesk_feature_request
+        - simple.zendesk_urgent_reply
+        - simple.email_sf_update_slack_notify
+        - simple.email_asana_task_reply
+        - simple.email_jira_bug_slack
+        - simple.email_hubspot_contact_reply
+        - simple.email_sf_contact_onboard
+        - simple.email_zendesk_ack_reply
+        - simple.email_sheets_log_reply
+        - simple.email_calendar_meeting_reply
+        - simple.email_hubspot_deal_slack
+        - simple.email_sheets_update_reply
+        - simple.close_deal_sf_slack
+        - simple.new_hire_asana_email
+        - simple.zoom_meeting_email_invite
+        - simple.feature_launch_slack
+        - simple.weekly_report_sheets_email
+        - simple.zendesk_resolve_email
+        - simple.new_lead_sf_jira
+        - simple.event_asana_calendar
+        - simple.api_key_jira_slack
+        - simple.launch_announcement_email
+        - simple.airtable_create_contact
+        - simple.email_airtable_lead
+        - simple.airtable_update_deal
+        - simple.airtable_event_attendee
+        - simple.email_airtable_project
+        - simple.airtable_find_update
+        - simple.airtable_followup_task
+        - simple.email_airtable_customer_welcome
+        - simple.airtable_update_slack_notify
+        - simple.airtable_new_vendor
+        - simple.zoom_calendar_sync
+        - simple.escalation_zendesk_slack
+        - simple.subscriber_welcome_email
+        - simple.milestone_sheets_slack
+        - simple.csat_sheets_slack_alert
+        - simple.weekly_digest_sheets_email
+        - simple.invoice_airtable_slack
+        - simple.partner_hubspot_asana
+        - simple.email_jira_story_reply
+        - simple.campaign_launch_asana
+        - simple.demo_request_zoom_email
+        - simple.sprint_retro_jira_slack
+        - simple.customer_question_zendesk_reply
+        - simple.new_customer_sf_onboard_email
+        - simple.partnership_hubspot_zoom
+        - marketing.multi_touch_attribution
+        - finance.xero_bill_entry
+        - operations.monday_email_update
+        - operations.sheets_asana_approved_request
+        - marketing.event_registration_sync
+        - finance.vendor_spend_analysis
+        - finance.xero_credit_allocation
+        - sales.linkedin_content_engagement
+        - finance.invoice_email_extract
+        - marketing.topic_cluster
+        - marketing.event_sponsorship_screen
+        - finance.expense_policy_violation
+        - hr.mandatory_meeting_scheduling
+        - finance.intercompany_transfer
+      toolset: limited_zapier
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
+  # Tasks from screen `lfm12-screen-8k-20260926-r2` whose three LFM2.5-1.2B
+  # attempts earned different rewards at these budgets (every attempt under 7K
+  # tokens). Tasks all attempts solved or all failed give SAMPO no signal.
+  automationbench-lfm12-sampo-8gb-v2:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, finance]
+          task_names:
+            - simple.email_sf_contact_phone_update
+            - simple.sf_opp_closed_won
+            - simple.sf_opp_stage_value_prop
+            - simple.sf_create_case
+            - simple.email_sf_lead_rating_hot
+            - simple.hs_create_contact
+            - simple.email_hs_create_contact
+            - simple.buffer_twitter_product_launch
+            - simple.buffer_linkedin_partnership
+            - simple.buffer_facebook_blog_post
+            - simple.buffer_twitter_quarterly_results
+            - simple.buffer_job_opening
+            - simple.buffer_company_award
+            - simple.buffer_product_tip
+            - simple.gmail_weekly_status
+            - simple.gmail_reply_customer_inquiry
+            - simple.gmail_reply_pricing_inquiry
+            - simple.gmail_invoice_email
+            - simple.gmail_reply_complaint
+            - simple.slack_marketing_campaign
+            - simple.slack_dm_project_status
+            - simple.mailchimp_email_request
+            - simple.sheets_add_lead
+            - simple.sheets_update_status
+            - simple.sheets_closed_deal
+            - simple.sheets_read_then_email
+            - simple.sheets_read_then_slack_dm
+            - simple.sheets_update_from_email
+            - simple.sheets_add_vendor
+            - simple.asana_dark_mode_from_email
+            - simple.asana_board_presentation
+            - simple.asana_sprint_section_task
+            - simple.asana_performance_reviews
+            - simple.asana_rfp_response
+            - simple.jira_legacy_data_migration
+            - simple.trello_q1_marketing_budget
+            - simple.gcal_weekly_standup
+            - simple.gcal_client_discovery_call
+            - simple.gcal_company_holiday
+            - simple.gcal_quarterly_business_review
+            - simple.gcal_new_hire_orientation
+            - simple.zendesk_feature_request
+            - simple.zendesk_urgent_reply
+            - simple.email_sf_update_slack_notify
+            - simple.email_zendesk_ack_reply
+            - simple.email_calendar_meeting_reply
+            - simple.email_hubspot_deal_slack
+            - simple.close_deal_sf_slack
+            - simple.new_hire_asana_email
+            - simple.new_lead_sf_jira
+            - simple.event_asana_calendar
+            - simple.launch_announcement_email
+            - simple.zoom_calendar_sync
+            - simple.weekly_digest_sheets_email
+            - simple.partner_hubspot_asana
+            - simple.campaign_launch_asana
+            - finance.vendor_spend_analysis
+          task: {toolset: limited_zapier, search_top_k: 20, turn_budget: 12}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 8192
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 0.95}
+    num_tasks: 57
+    num_rollouts: 4
+    max_concurrent: 4
+    parameters:
+      task_names:
+        - simple.email_sf_contact_phone_update
+        - simple.sf_opp_closed_won
+        - simple.sf_opp_stage_value_prop
+        - simple.sf_create_case
+        - simple.email_sf_lead_rating_hot
+        - simple.hs_create_contact
+        - simple.email_hs_create_contact
+        - simple.buffer_twitter_product_launch
+        - simple.buffer_linkedin_partnership
+        - simple.buffer_facebook_blog_post
+        - simple.buffer_twitter_quarterly_results
+        - simple.buffer_job_opening
+        - simple.buffer_company_award
+        - simple.buffer_product_tip
+        - simple.gmail_weekly_status
+        - simple.gmail_reply_customer_inquiry
+        - simple.gmail_reply_pricing_inquiry
+        - simple.gmail_invoice_email
+        - simple.gmail_reply_complaint
+        - simple.slack_marketing_campaign
+        - simple.slack_dm_project_status
+        - simple.mailchimp_email_request
+        - simple.sheets_add_lead
+        - simple.sheets_update_status
+        - simple.sheets_closed_deal
+        - simple.sheets_read_then_email
+        - simple.sheets_read_then_slack_dm
+        - simple.sheets_update_from_email
+        - simple.sheets_add_vendor
+        - simple.asana_dark_mode_from_email
+        - simple.asana_board_presentation
+        - simple.asana_sprint_section_task
+        - simple.asana_performance_reviews
+        - simple.asana_rfp_response
+        - simple.jira_legacy_data_migration
+        - simple.trello_q1_marketing_budget
+        - simple.gcal_weekly_standup
+        - simple.gcal_client_discovery_call
+        - simple.gcal_company_holiday
+        - simple.gcal_quarterly_business_review
+        - simple.gcal_new_hire_orientation
+        - simple.zendesk_feature_request
+        - simple.zendesk_urgent_reply
+        - simple.email_sf_update_slack_notify
+        - simple.email_zendesk_ack_reply
+        - simple.email_calendar_meeting_reply
+        - simple.email_hubspot_deal_slack
+        - simple.close_deal_sf_slack
+        - simple.new_hire_asana_email
+        - simple.new_lead_sf_jira
+        - simple.event_asana_calendar
+        - simple.launch_announcement_email
+        - simple.zoom_calendar_sync
+        - simple.weekly_digest_sheets_email
+        - simple.partner_hubspot_asana
+        - simple.campaign_launch_asana
+        - finance.vendor_spend_analysis
+      toolset: limited_zapier
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
+  automationbench-lfm12-sampo-8gb-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance]
+          task_names:
+            - simple.hs_update_contact_tag
+            - simple.sheets_log_sales_call
+            - simple.gmail_onboarding_welcome
+            - simple.trello_q1_marketing_budget
+            - sales.chatgpt_lead_summary_generator
+            - operations.mailroom_package_routing
+            - finance.slack_receipt_capture
+            - finance.wave_product_catalog
+            - sales.email_zoom_fuzzy
+            - marketing.influencer_contract_reminders
+            - sales.event_followup_outreach
+            - finance.vendor_payment_approval
+            - marketing.content_syndication
+            - support.hiver_slack_digest
+            - finance.wire_transfer_approval
+          task: {toolset: limited_zapier, search_top_k: 20, turn_budget: 12}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 8192
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 0.95}
+    num_tasks: 15
+    num_rollouts: 4
+    max_concurrent: 4
+    parameters:
+      task_names:
+        - simple.hs_update_contact_tag
+        - simple.sheets_log_sales_call
+        - simple.gmail_onboarding_welcome
+        - simple.trello_q1_marketing_budget
+        - sales.chatgpt_lead_summary_generator
+        - operations.mailroom_package_routing
+        - finance.slack_receipt_capture
+        - finance.wave_product_catalog
+        - sales.email_zoom_fuzzy
+        - marketing.influencer_contract_reminders
+        - sales.event_followup_outreach
+        - finance.vendor_payment_approval
+        - marketing.content_syndication
+        - support.hiver_slack_digest
+        - finance.wire_transfer_approval
+      toolset: limited_zapier
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
   automationbench-lfm26-changed-weight-canary-v1:
     category: agentic-tool-use
     source:
@@ -1042,6 +1735,49 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
 
+  # SAMPO baseline on the 8 GB card (docs/plan/sampo-vortex-lfm-automationbench.md,
+  # milestone 1): SAMPO exactly as implemented, on the 15-task 8 GB AutomationBench
+  # set with 12 turns, 3072 tokens per reply and 12,288 tokens of context, to
+  # record correctness and time before changing it.
+  lfm2.5-1.2b/automationbench-sampo-local-8gb-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 3
+      max_length: 8192
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00005
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 3
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+    num_prompts_per_step: 2
+    num_generations: 4
+    max_prompt_length: 5120
+    max_completion_length: 3072
+    beta: 0.005
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    # VORTEX-style oversampling: keep groups whose rewards differ and generate
+    # only the missing ones from a pool of up to 10 candidate batches (2 x 10 =
+    # 20 reserved prompts, within the environment's tasks).
+    active_sampling:
+      max_candidate_batches: 10
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    truncation_penalty: 0.2
+    mask_truncated_completions: false
+
   lfm2.5-2.6b/automationbench-changed-weight-canary-v1:
     selection_type: grpo-settings
     revision: "1"
@@ -1493,6 +2229,35 @@ training:
       seed: 172846
     truncation_penalty: 0.2
 
+  # v5 from the base model at half the learning rate with a 0.005 KL penalty to
+  # the base model (a fresh LoRA adapter disabled). At 1e-4 without KL, entropy
+  # rose from 0.18 at update 1 to 0.64 at update 41 and ran away after update 54.
+  lfm2.5-2.6b/automationbench-vortex-yield-first-64-150-lr5e-5-kl5e-3-local-v5:
+    <<: *vortex_20_local_v3
+    revision: "1"
+    loop:
+      max_steps: 150
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 64
+      learning_rate: 0.00005
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+    num_prompts_per_step: 16
+    beta: 0.005
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    truncation_penalty: 0.2
+
   # Matched 50-update adaptive-GRPO ablation requested after the 0.4.4 release.
   # Full VORTEX requires OLMo3 active refill, so the no-oversampling arm uses
   # ordinary GRPO with curriculum allocation over the initial batch. Eight
@@ -1847,7 +2612,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 20d9ede367a06de25424e16e63ea7fcada7b4e7f36c1037dc49707bdb295ca68
+      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local@1:
     selection_type: training-binding
@@ -1876,7 +2641,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 20d9ede367a06de25424e16e63ea7fcada7b4e7f36c1037dc49707bdb295ca68
+      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
 
   # g40@1 scaled to 16 prompt groups x 4 generations. Eight environment workers
   # of eight episodes give the 64 concurrent episodes one rollout batch needs.
@@ -1910,7 +2675,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 20d9ede367a06de25424e16e63ea7fcada7b4e7f36c1037dc49707bdb295ca68
+      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
 
 
   # Revision 1 plus the measured optimizer-phase settings; requires the TRL
@@ -1951,7 +2716,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 20d9ede367a06de25424e16e63ea7fcada7b4e7f36c1037dc49707bdb295ca68
+      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g40@1:
     selection_type: training-binding
@@ -1980,7 +2745,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 20d9ede367a06de25424e16e63ea7fcada7b4e7f36c1037dc49707bdb295ca68
+      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g40@1: &k2_horizon_trl_lora_automationbench_local_g40
     selection_type: training-binding
@@ -2009,7 +2774,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 20d9ede367a06de25424e16e63ea7fcada7b4e7f36c1037dc49707bdb295ca68
+      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g16-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -2025,7 +2790,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 20d9ede367a06de25424e16e63ea7fcada7b4e7f36c1037dc49707bdb295ca68
+      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g8-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -2041,7 +2806,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 20d9ede367a06de25424e16e63ea7fcada7b4e7f36c1037dc49707bdb295ca68
+      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g4-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -2057,7 +2822,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 20d9ede367a06de25424e16e63ea7fcada7b4e7f36c1037dc49707bdb295ca68
+      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
     selection_type: training-binding
@@ -2106,7 +2871,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 20d9ede367a06de25424e16e63ea7fcada7b4e7f36c1037dc49707bdb295ca68
+      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
 
   training/lfm2.5-1.2b-trl-lora-changed-weight-local@1:
     selection_type: training-binding
@@ -2128,7 +2893,31 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 20d9ede367a06de25424e16e63ea7fcada7b4e7f36c1037dc49707bdb295ca68
+      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
+
+  # 8 GB SAMPO development (docs/plan/sampo-vortex-lfm-automationbench.md):
+  # the changed-weight binding with a global batch of 2 prompt groups x 4.
+  training/lfm2.5-1.2b-trl-lora-sampo-local-8gb@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post10
+    renderer:
+      id: lfm2.5-tools@1
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/local-cuda-8gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 8, devices_per_node: 1, timeout_seconds: 1800}
+    backend_options:
+      rollout_execution: {env_workers: 1, episodes_per_worker: 2, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      vllm_policy_parity_max_sequence_tokens: 1024
+      dependency_lock: trl-fork@current
+      source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
+      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
 
   reward/automationbench-episode-gdpo@1:
     selection_type: reward-projection
@@ -2163,6 +2952,27 @@ hosted-inference:
           enabled: false
 
 inference:
+  inference/lfm2.5-1.2b-vllm-screen-local-8gb@1:
+    revision: "1"
+    startup_timeout_seconds: 900
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      gpu_memory_utilization: 0.75
+      tensor_parallel_size: 1
+      max_model_len: 8192
+      max_num_seqs: 8
+      max_num_batched_tokens: 8192
+      enforce_eager: false
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 0.95}
+    target: targets/local-cuda-8gb
+    purpose: [eval]
+    capabilities: [tool-calling]
   inference/lfm2.5-1.2b-vllm-changed-weight-local@1:
     revision: "1"
     model: models/lfm2.5-1.2b-thinking@bf16
@@ -2201,6 +3011,37 @@ inference:
         keep them reproducible; new work takes `posttrain settings suggest` values in a
         new revision.
 
+  # 8 GB SAMPO development rollout (docs/plan/sampo-vortex-lfm-automationbench.md):
+  # revision 1 of the changed-weight binding on the shipped vLLM with prefix
+  # caching and CUDA graphs. vLLM starts after the trainer has loaded, with
+  # about 3.8 of 7.6 GiB free on a desktop GPU. At 0.45 it started but could not
+  # wake for the first collection once the trainer had set up training; 0.40
+  # with a 256 MiB KV cache (~21K tokens at ~12 KB per token) leaves the room.
+  inference/lfm2.5-1.2b-vllm-sampo-local-8gb@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.40
+      tensor_parallel_size: 1
+      max_model_len: 8192
+      max_num_seqs: 4
+      max_num_batched_tokens: 2048
+      kv_cache_memory_bytes: 268435456
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 0.95}
+    target: targets/local-cuda-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
   inference/lfm2.5-2.6b-vllm-changed-weight-canary@1:
     revision: "1"
     model: models/lfm2.5-2.6b@bf16
@@ -3087,6 +3928,24 @@ inference:
     purpose: [eval]
 
 evaluation:
+  lfm12-automationbench-screen-8k-v1:
+    revision: "1"
+    kind: general
+    environments: [automationbench-lfm12-screen-8k-v1]
+    success:
+      automationbench-lfm12-screen-8k-v1:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-lfm12-screen-8k-v1:
+        kind: full
+    measurement:
+      automationbench-lfm12-screen-8k-v1:
+        estimator: task_mean
+        missing: strict
+
   lfm26-automationbench-heldout-v1:
     revision: "1"
     kind: general

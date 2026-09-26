@@ -507,7 +507,9 @@ not replace selected model, data, environment, target, or artifact identities.
 
 Reward **weights** live in algorithm settings; reward **meanings** live on the
 environment. Rollout engine knobs live on `InferenceBinding.engine`.
-`GRPOSettings.algorithm` selects `grpo`, `dapo`, or `olmo3`. The DAPO selection owns its
+`GRPOSettings.algorithm` selects `grpo`, `dapo`, or `olmo3`. The OLMo 3 selection fixes its
+clipping, advantage scaling and importance-sampling correction; a KL penalty to the
+reference policy (`beta`, default 0) remains selectable and is recorded. The DAPO selection owns its
 token-level aggregation, asymmetric clipping, bounded retained-group dynamic
 sampling, truncation handling, and optional soft-overlong shaping. Run evidence
 records these settings explicitly. Backend adapters reject unsupported
@@ -547,7 +549,15 @@ post-generation group selection.
 
 `SAMPOSettings` belongs to the separate `train.sampo` operation. It owns the
 discount factor, turn-advantage weight, sequence clipping bounds, reward
-normalization, and bounded dynamic filtering. The rollout contract supplies
+normalization, and bounded active group sampling: like VORTEX, it keeps prompt
+groups whose episode rewards differ and generates only the missing groups. It
+has no whole-batch dynamic filtering. It may also select the adaptive curriculum
+and a group admission attempt limit with the same meaning as for GRPO; a failed
+occurrence excludes its complete prompt group. Backends without active sampling
+reject SAMPO. SAMPO also owns its sampler-mismatch correction (the vLLM
+importance-sampling mode and bounds, per-token capped by default and independent
+of its sequence-level policy ratio) and an optional truncation penalty applied to
+the episode reward before advantages. The rollout contract supplies
 sampled assistant-turn token spans and preceding observation keys. A backend
 must support both the sequence objective and hierarchical episode/turn
 advantages or reject the request before launch.

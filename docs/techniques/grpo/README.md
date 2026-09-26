@@ -13,3 +13,4 @@ Group Relative Policy Optimization (online RL with group-relative advantages).
 - [Adaptive OLMo 3 curriculum: interim 14-step results](./olmo3-adaptive-curriculum-interim-results.md)
 - [heuristics.md](./heuristics.md)
 - [recipes/](./recipes/)
+- [LFM2.5-2.6B VORTEX on AutomationBench: learning rates, settings and efficiency tried](./recipes/lfm2.5-2.6b-automationbench-vortex.md)

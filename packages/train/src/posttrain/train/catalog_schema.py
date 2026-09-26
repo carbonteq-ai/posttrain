@@ -234,11 +234,19 @@ class SAMPOSettingsSchema(TrainCatalogSchema):
     advantage_normalization: Literal["mean", "mean_std"] = "mean"
     clip_epsilon_low: float = Field(default=0.003, gt=0, allow_inf_nan=False)
     clip_epsilon_high: float = Field(default=0.004, gt=0, allow_inf_nan=False)
-    dynamic_sampling: DynamicGroupSamplingSchema = Field(
-        default_factory=lambda: DynamicGroupSamplingSchema(max_candidate_batches=3)
+    active_sampling: ActiveGroupSamplingSchema = Field(
+        default_factory=lambda: ActiveGroupSamplingSchema(max_candidate_batches=3)
     )
+    adaptive_curriculum: AdaptiveCurriculumSchema | None = None
+    importance_sampling_mode: Literal["token_truncate", "token_mask", "sequence_truncate", "sequence_mask"] = (
+        "token_truncate"
+    )
+    importance_sampling_clip_min: float | None = Field(default=None, gt=0)
+    importance_sampling_clip_max: float | None = Field(default=2.0, gt=0)
+    truncation_penalty: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
+    max_admission_attempts: int = Field(default=1, gt=0)
 
 
 class StructuredRLSettingsSchema(TrainCatalogSchema):
@@ -397,7 +405,10 @@ def decode_training_selection(
         )
     if isinstance(payload, SAMPOSettingsSchema):
         values = payload.model_dump(exclude={"selection_type", "id", "revision", "loop"})
-        values["dynamic_sampling"] = DynamicGroupSampling(**values["dynamic_sampling"])
+        values["active_sampling"] = ActiveGroupSampling(**values["active_sampling"])
+        adaptive_curriculum = values.pop("adaptive_curriculum")
+        if adaptive_curriculum is not None:
+            values["adaptive_curriculum"] = AdaptiveCurriculum(**adaptive_curriculum)
         return SAMPOSettings(
             payload.id,
             TrainingLoop(**payload.loop.model_dump()),

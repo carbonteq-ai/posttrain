@@ -98,44 +98,12 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
 
 
 def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaunchPlan:
-    from ...reward_recovery import reward_contract_digest
+    """veRL has no active group sampling, so SAMPO is TRL-only."""
 
-    _validate_backend(request.training.backend)
-    _validate_model(request.policy, "policy")
-    return _plan(
-        request,
-        output_dir,
-        "sampo",
-        {
-            "policy": _model(request.policy),
-            "reference": _model(request.reference) if request.reference is not None else None,
-            "algorithm": {
-                "advantage_estimator": "sampo",
-                "reward_contract_digest": (
-                    reward_contract_digest(request)
-                    if getattr(request.bridge, "reward_projection", None) is not None
-                    else None
-                ),
-                "beta": request.settings.beta,
-                "num_prompts_per_step": request.settings.num_prompts_per_step,
-                "num_generations": request.settings.num_generations,
-                "max_prompt_length": request.settings.max_prompt_length,
-                "max_completion_length": request.settings.max_completion_length,
-                "online_rl_algorithm": "sampo",
-                "shuffle_prompts": request.settings.shuffle_prompts,
-                "clip_epsilon_low": request.settings.clip_epsilon_low,
-                "clip_epsilon_high": request.settings.clip_epsilon_high,
-                "dynamic_sampling": True,
-                "dynamic_sampling_max_candidate_batches": (request.settings.dynamic_sampling.max_candidate_batches),
-                "mask_truncated_completions": request.settings.mask_truncated_completions,
-                "overlong_penalty_factor": 1.0,
-                "discount_gamma": request.settings.discount_gamma,
-                "step_advantage_weight": request.settings.step_advantage_weight,
-                "advantage_normalization": request.settings.advantage_normalization,
-            },
-            "rollout": _inference(request.inference),
-            "environment": _environment(request, output_dir),
-        },
+    del request, output_dir
+    raise ValueError(
+        "SAMPO refills prompt groups with VORTEX active sampling, which the veRL backend does not provide; "
+        "select the TRL backend"
     )
 
 

@@ -1322,8 +1322,8 @@ def test_required_fork_index_check_uses_every_python_fork_hash(monkeypatch: pyte
         "carbonteq_trackio-0.31.5.post14.dev27.tar.gz",
         "trl-1.12.0.post10-py3-none-any.whl",
         "trl-1.12.0.post10.tar.gz",
-        "carbonteq_renderers-0.1.12.post1.dev1-py3-none-any.whl",
-        "carbonteq_renderers-0.1.12.post1.dev1.tar.gz",
+        "carbonteq_renderers-0.1.12.post1.dev2-py3-none-any.whl",
+        "carbonteq_renderers-0.1.12.post1.dev2.tar.gz",
         "verl-0.9.0.post3-py3-none-any.whl",
         "verl-0.9.0.post3.tar.gz",
     }

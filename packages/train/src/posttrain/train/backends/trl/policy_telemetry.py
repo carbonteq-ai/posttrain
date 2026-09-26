@@ -157,6 +157,15 @@ def actor_update_trainer_type(parent: type[Any], telemetry: ActorUpdateTelemetry
                 self._microstep_started_at = time.perf_counter()
             return cast(dict[str, Any], prepared)
 
+        def _prepare_active_sampling_inputs(self, candidate_inputs: Any) -> Any:
+            try:
+                return super()._prepare_active_sampling_inputs(candidate_inputs)
+            except RuntimeError as error:
+                rejections = getattr(self, "_posttrain_admission_rejections", ())
+                if rejections:
+                    error.add_note(f"rollout admission rejected groups: {sorted(rejections)}")
+                raise
+
         def training_step(self, *args: Any, **kwargs: Any) -> Any:
             loss = super().training_step(*args, **kwargs)
             if self._microstep_started_at is not None:

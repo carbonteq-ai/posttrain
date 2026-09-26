@@ -113,18 +113,15 @@ hypothesis = "The AutomationBench Zapier environment can provide a reproducible 
 owner = "posttrain-environments"
 replacement_condition = "Promote only after the immutable AutomationBench adapter wheel builds and a packaged environment job retains complete trajectory evidence; retire when its successor environment covers that contract."
 
+# Retired 2026-09-26: its global batch does not equal prompt groups times generations; AutomationBench SAMPO is now covered by lfm12-sampo-local-8gb.
 [[gates]]
 id = "automationbench-sampo"
 work_package = ".posttrain/work_packages/automationbench_sampo_qualification.yaml"
 job_id = "sampo"
 tier = "experimental"
-state = "candidate"
+state = "retired"
 job_kind = "train.sampo"
 acceptance = "verifiers-trajectories"
-experiment_family = "automationbench-sampo"
-hypothesis = "SAMPO's hierarchical per-step advantages are best qualified on a long multi-turn tool-use environment, so Zapier AutomationBench is a stronger release signal for the SAMPO contract than the synthetic alphabet-sort environment."
-owner = "posttrain-training"
-replacement_condition = "Promote to an active release gate once the automationbench-v1 environment distribution builds from an immutable published source and one managed run retains complete per-step advantage and trajectory evidence; retire when a successor multi-turn tool-use environment covers that contract."
 
 [[gates]]
 id = "gsm8k-distillation-smoke"
@@ -265,18 +262,15 @@ hypothesis = "The selected veRL source revision and lock can be proved against t
 owner = "posttrain-training"
 replacement_condition = "Promote after the immutable capsule retains complete live evidence; otherwise replace it when a newer published veRL runtime supersedes this exact source and lock."
 
+# Retired 2026-09-26: its multi-turn-alphabet-sort environment samples greedily, which SAMPO's online-RL checks reject; superseded by lfm12-sampo-local-8gb.
 [[gates]]
 id = "sampo-extended"
 work_package = ".posttrain/work_packages/qwen08b_sampo_10_qualification.yaml"
 job_id = "train"
 tier = "experimental"
-state = "candidate"
+state = "retired"
 job_kind = "train.sampo"
 acceptance = "verifiers-trajectories"
-experiment_family = "trl-sampo-baseline"
-hypothesis = "A bounded SAMPO run on GSM8K can characterize the framework multi-turn tool-agent RL contract."
-owner = "posttrain-training"
-replacement_condition = "Promote only if it becomes the selected maintained SAMPO qualification with complete trajectory evidence; otherwise replace it with a parameterized SAMPO candidate matrix."
 
 [[gates]]
 id = "qwen08b-rtn-transform"
@@ -287,57 +281,45 @@ state = "active"
 job_kind = "model.transform"
 acceptance = "model-reload"
 
+# Retired 2026-09-26: SAMPO refills with VORTEX active sampling, which the veRL backend does not provide, so veRL rejects SAMPO.
 [[gates]]
 id = "verl-sampo"
 work_package = ".posttrain/work_packages/qwen08b_verl_sampo_2_qualification.yaml"
 job_id = "sampo"
 tier = "experimental"
-state = "candidate"
+state = "retired"
 job_kind = "train.sampo"
 acceptance = "verifiers-trajectories"
-experiment_family = "verl-sampo-acceleration"
-hypothesis = "The base veRL SAMPO configuration is a useful control for comparing rollout acceleration choices on the same tool-agent RL contract."
-owner = "posttrain-training"
-replacement_condition = "Replace with one parameterized veRL SAMPO candidate matrix that records the control and selected variant; promote only the selected configuration after live qualification."
 
+# Retired 2026-09-26: SAMPO refills with VORTEX active sampling, which the veRL backend does not provide, so veRL rejects SAMPO.
 [[gates]]
 id = "verl-sampo-mtp"
 work_package = ".posttrain/work_packages/qwen08b_verl_sampo_2_mtp_qualification.yaml"
 job_id = "sampo"
 tier = "experimental"
-state = "candidate"
+state = "retired"
 job_kind = "train.sampo"
 acceptance = "verifiers-trajectories"
-experiment_family = "verl-sampo-acceleration"
-hypothesis = "Two-step MTP improves veRL SAMPO rollouts without invalidating the tool-agent trace and optimizer contract."
-owner = "posttrain-training"
-replacement_condition = "Replace with the parameterized veRL SAMPO candidate matrix; promote only if measured rollout and training evidence beats the control within its declared quality guardrails."
 
+# Retired 2026-09-26: SAMPO refills with VORTEX active sampling, which the veRL backend does not provide, so veRL rejects SAMPO.
 [[gates]]
 id = "verl-sampo-turboquant"
 work_package = ".posttrain/work_packages/qwen08b_verl_sampo_2_turboquant_qualification.yaml"
 job_id = "sampo"
 tier = "experimental"
-state = "candidate"
+state = "retired"
 job_kind = "train.sampo"
 acceptance = "verifiers-trajectories"
-experiment_family = "verl-sampo-acceleration"
-hypothesis = "TurboQuant reduces veRL SAMPO rollout cost while preserving the tool-agent trace and optimizer outcomes of the control."
-owner = "posttrain-training"
-replacement_condition = "Replace with the parameterized veRL SAMPO candidate matrix; promote only if measured cost improves without a declared quality or trace-completeness regression."
 
+# Retired 2026-09-26: SAMPO refills with VORTEX active sampling, which the veRL backend does not provide, so veRL rejects SAMPO.
 [[gates]]
 id = "verl-sampo-mtp-turboquant"
 work_package = ".posttrain/work_packages/qwen08b_verl_sampo_2_mtp_turboquant_qualification.yaml"
 job_id = "sampo"
 tier = "experimental"
-state = "candidate"
+state = "retired"
 job_kind = "train.sampo"
 acceptance = "verifiers-trajectories"
-experiment_family = "verl-sampo-acceleration"
-hypothesis = "Combining MTP and TurboQuant can improve veRL SAMPO throughput beyond either isolated acceleration while preserving its tool-agent RL contract."
-owner = "posttrain-training"
-replacement_condition = "Replace with the parameterized veRL SAMPO candidate matrix; promote only if the combined variant is selected over the control and isolated variants by retained evidence."
 
 [[gates]]
 id = "qwen2b-dpo-extended"
@@ -1115,3 +1097,42 @@ experiment_family = "lfm26-automationbench-vortex-20-local-v1"
 hypothesis = "VORTEX v5 continues from run r2's step-40 checkpoint to 150 updates with the optimized trainer and DSpark rollout at about 280 s per update (r2: 823 s), and reward keeps improving past update 100."
 owner = "posttrain-platform"
 replacement_condition = "Promote to a release gate once the continuation reaches 150 updates without preemption or memory failure; otherwise record the failure and resume from the last committed checkpoint."
+
+[[gates]]
+id = "lfm26-vortex-v5-150-lr5e5-kl5e3-dspark-opt"
+work_package = ".posttrain/work_packages/lfm26_automationbench_vortex_yield_first_64_150_lr5e5_kl5e3_local_v5_dspark_opt.yaml"
+job_id = "train"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.grpo"
+acceptance = "vortex-v5-150-lr5e5-kl5e3-dspark-opt"
+experiment_family = "lfm26-automationbench-vortex-20-local-v1"
+hypothesis = "VORTEX v5 from the base model at half the learning rate with a 0.005 KL penalty keeps entropy near its early range for 150 updates, so reward improves without the runaway that 1e-4 without KL hit after update 54."
+owner = "posttrain-platform"
+replacement_condition = "Promote to a release gate once the run completes 150 updates with entropy and truncation stable; otherwise record the failure and lower the rate or raise the penalty."
+
+[[gates]]
+id = "lfm12-automationbench-screen-8k"
+work_package = ".posttrain/work_packages/lfm12_automationbench_screen_8k.yaml"
+job_id = "evaluate"
+tier = "experimental"
+state = "candidate"
+job_kind = "eval.general"
+acceptance = "native-verifiers-trace"
+experiment_family = "lfm25-sampo-local-8gb-v1"
+hypothesis = "Three LFM2.5-1.2B attempts per task at the 8 GB SAMPO budgets identify AutomationBench tasks that fit 8K tokens and give groups with different rewards."
+owner = "posttrain-platform"
+replacement_condition = "Retire once the 8 GB SAMPO environment is rebuilt from its results."
+
+[[gates]]
+id = "lfm12-sampo-local-8gb"
+work_package = ".posttrain/work_packages/lfm12_automationbench_sampo_local_8gb.yaml"
+job_id = "sampo"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.sampo"
+acceptance = "sampo-local-8gb-baseline"
+experiment_family = "lfm25-sampo-local-8gb-v1"
+hypothesis = "SAMPO as implemented completes three LFM2.5-1.2B AutomationBench updates on the 8 GB GPU with finite loss, a step-level signal on matched turns and a recorded time split; failures found here define milestone 2 of docs/plan/sampo-vortex-lfm-automationbench.md."
+owner = "posttrain-platform"
+replacement_condition = "Replace with the milestone-2 package once SAMPO has group admission, refill and the curriculum."

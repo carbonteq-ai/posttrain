@@ -239,8 +239,9 @@ class GRPOSettings:
         if self.algorithm == "dapo" and clip_high < self.clip_epsilon_low:
             raise ValueError("DAPO upper clipping epsilon cannot be smaller than its lower epsilon")
         if self.algorithm == "olmo3":
+            # The recipe fixes clipping, advantage scaling and importance sampling. A KL
+            # penalty to the reference policy (beta) stays selectable and is recorded.
             olmo3_recipe = {
-                "beta": self.beta == 0,
                 "advantage_scaling": self.advantage_scaling == "none",
                 "clip_epsilon_low": self.clip_epsilon_low == 0.2,
                 "clip_epsilon_high": clip_high == 0.272,
@@ -313,9 +314,20 @@ class SAMPOSettings:
     advantage_normalization: Literal["mean", "mean_std"] = "mean"
     clip_epsilon_low: float = 0.003
     clip_epsilon_high: float = 0.004
-    dynamic_sampling: DynamicGroupSampling = field(default_factory=lambda: DynamicGroupSampling(3))
+    active_sampling: ActiveGroupSampling = field(default_factory=lambda: ActiveGroupSampling(3))
+    adaptive_curriculum: AdaptiveCurriculum | None = None
+    # Correction for the vLLM sampler/trainer mismatch, separate from SAMPO's
+    # sequence-level policy ratio. VORTEX's per-token cap suits long agentic episodes;
+    # a whole-sequence product of token ratios compounds over thousands of tokens.
+    importance_sampling_mode: Literal["token_truncate", "token_mask", "sequence_truncate", "sequence_mask"] = (
+        "token_truncate"
+    )
+    importance_sampling_clip_min: float | None = None
+    importance_sampling_clip_max: float | None = 2.0
+    truncation_penalty: float | None = None
     shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
+    max_admission_attempts: int = 1
     revision: str = "1"
 
     def __post_init__(self) -> None:
@@ -344,12 +356,28 @@ class SAMPOSettings:
             raise ValueError("SAMPO step-advantage weight cannot be negative")
         if self.clip_epsilon_low <= 0 or self.clip_epsilon_high <= 0:
             raise ValueError("SAMPO clip epsilons must be positive")
+        if self.max_admission_attempts < 1:
+            raise ValueError("SAMPO group admission attempts must be positive")
+        bounds = (self.importance_sampling_clip_min, self.importance_sampling_clip_max)
+        if any(value is not None and (not math.isfinite(value) or value <= 0) for value in bounds):
+            raise ValueError("SAMPO importance-sampling bounds must be finite and positive")
+        if (
+            self.importance_sampling_clip_min is not None
+            and self.importance_sampling_clip_max is not None
+            and self.importance_sampling_clip_min >= self.importance_sampling_clip_max
+        ):
+            raise ValueError("SAMPO importance-sampling minimum must be smaller than maximum")
+        if self.truncation_penalty is not None:
+            if not math.isfinite(self.truncation_penalty) or self.truncation_penalty <= 0:
+                raise ValueError("SAMPO truncation penalty must be a finite positive number")
+            if self.mask_truncated_completions:
+                raise ValueError("SAMPO truncation penalty has no effect when truncated completions are masked")
 
     @property
     def max_collection_attempts(self) -> int:
         """Maximum bounded trajectory collections for one requested population."""
 
-        return self.dynamic_sampling.max_candidate_batches
+        return self.active_sampling.max_candidate_batches
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -461,12 +489,12 @@ class CAPOSettings(_StructuredRLSettings):
 
 
 def shape_online_reward(
-    settings: GRPOSettings, reward: float, completion_tokens: int, *, is_truncated: bool = False
+    settings: GRPOSettings | SAMPOSettings, reward: float, completion_tokens: int, *, is_truncated: bool = False
 ) -> float:
     """Apply the selected portable DAPO soft overlong punishment and truncation penalty."""
 
-    buffer = settings.overlong_buffer_tokens
-    if settings.algorithm == "dapo" and buffer is not None:
+    buffer = settings.overlong_buffer_tokens if isinstance(settings, GRPOSettings) else None
+    if isinstance(settings, GRPOSettings) and settings.algorithm == "dapo" and buffer is not None:
         reward = shape_soft_overlong_reward(
             reward,
             completion_tokens,

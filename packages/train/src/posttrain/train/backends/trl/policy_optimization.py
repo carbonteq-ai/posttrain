@@ -157,7 +157,9 @@ def _run_online_rl(
     actor_update = _ActorUpdateTelemetry(context)
     trainer_type = _actor_update_trainer_type(GRPOTrainer, actor_update)
     curriculum = None
-    if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None:
+    if isinstance(request, GRPORequest | SAMPORequest) and request.settings.adaptive_curriculum is not None:
+        # SAMPO requests carry no curriculum warm start; the controller starts cold.
+        curriculum_from = request.curriculum_from if isinstance(request, GRPORequest) else None
         curriculum = _AdaptiveCurriculumRuntime(
             context,
             rows,
@@ -165,7 +167,7 @@ def _run_online_rl(
             num_generations=request.settings.num_generations,
             state_dir=output_dir.parent / "adaptive-curriculum",
             resume_checkpoint=request.resume_from.path if request.resume_from is not None else None,
-            warm_start_state_dir=request.curriculum_from.path if request.curriculum_from is not None else None,
+            warm_start_state_dir=curriculum_from.path if curriculum_from is not None else None,
         )
         trainer_type = _adaptive_curriculum_trainer_type(trainer_type, curriculum)
     checkpoint_callback = checkpoint_callback_type(
@@ -200,7 +202,7 @@ def _run_online_rl(
                 model=model,
                 reward_funcs=_reward_functions(request),
                 rollout_func=cast(Any, _rollout_function(context, request, tokenizer)),
-                args=config_type(**arguments),
+                args=_trainer_arguments(config_type, arguments, request),
                 train_dataset=dataset,
                 processing_class=tokenizer,
                 callbacks=callbacks,
@@ -269,6 +271,21 @@ def _run_online_rl(
                 if failure is None:
                     raise
                 failure.add_note(f"failed to close adaptive curriculum state: {close_error!r}")
+
+
+def _trainer_arguments(
+    config_type: Any,
+    arguments: dict[str, Any],
+    request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
+) -> Any:
+    """Build the TRL config; the OLMo 3 recipe takes its selectable KL penalty after construction."""
+
+    config = config_type(**arguments)
+    if isinstance(request, GRPORequest) and request.settings.algorithm == "olmo3":
+        # Olmo3GRPOConfig declares beta as a fixed init=False field (always 0.0), so
+        # the settings' KL penalty is applied here, before the trainer reads it.
+        config.beta = request.settings.beta
+    return config
 
 
 def _digest_curriculum_state(path: Path) -> str:

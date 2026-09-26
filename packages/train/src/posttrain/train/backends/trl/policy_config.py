@@ -67,9 +67,9 @@ def _online_rl_arguments(
         advantage_scaling = "group"
         loss_type = "grpo"
         epsilon_high = settings.clip_epsilon_high
-        importance_sampling_mode = "sequence_truncate"
-        importance_sampling_clip_min = 0.1
-        importance_sampling_clip_max = 3.0
+        importance_sampling_mode = settings.importance_sampling_mode
+        importance_sampling_clip_min = settings.importance_sampling_clip_min
+        importance_sampling_clip_max = settings.importance_sampling_clip_max
     else:
         is_sampo = False
         advantage_scaling = settings.advantage_scaling
@@ -79,6 +79,8 @@ def _online_rl_arguments(
         importance_sampling_clip_min = settings.importance_sampling_clip_min
         importance_sampling_clip_max = settings.importance_sampling_clip_max
     is_olmo3 = isinstance(settings, GRPOSettings) and settings.algorithm == "olmo3"
+    # SAMPO refills only with active sampling; it has no whole-batch dynamic filtering.
+    dynamic_sampling = None if isinstance(settings, SAMPOSettings) else settings.dynamic_sampling
     if is_olmo3 and request.inference.backend.split("@", 1)[0] != "vllm":
         raise ValueError("the OLMo 3 GRPO recipe requires a vLLM rollout binding")
     use_liger_kernel = request.training.backend_options.get("use_liger_kernel", False)
@@ -147,11 +149,9 @@ def _online_rl_arguments(
             "epsilon": request.settings.clip_epsilon_low,
             "epsilon_high": epsilon_high,
             "scale_rewards": advantage_scaling,
-            "dynamic_sampling": (request.settings.dynamic_sampling is not None if not is_sampo else True),
+            "dynamic_sampling": dynamic_sampling is not None,
             "dynamic_sampling_max_batches": (
-                request.settings.dynamic_sampling.max_candidate_batches
-                if request.settings.dynamic_sampling is not None
-                else 10
+                dynamic_sampling.max_candidate_batches if dynamic_sampling is not None else 10
             ),
             "dynamic_sampling_reward_std_epsilon": (0.0),
             "mask_truncated_completions": request.settings.mask_truncated_completions,
@@ -174,6 +174,12 @@ def _online_rl_arguments(
         if request.inference.backend.split("@", 1)[0] != "vllm":
             raise ValueError("TRL presence_penalty requires a vLLM rollout binding")
         arguments["generation_kwargs"] = {"presence_penalty": sampling.presence_penalty}
+    if isinstance(settings, SAMPOSettings):
+        # SAMPO refills like VORTEX: only the missing prompt groups, with OLMo 3's
+        # zero-spread rule; the precomputed SAMPO advantages travel with each group.
+        arguments["active_sampling"] = True
+        arguments["active_sampling_max_batches"] = settings.active_sampling.max_candidate_batches
+        arguments["active_sampling_reward_std_epsilon"] = 0.0
     if is_olmo3:
         # Olmo3GRPOConfig owns these recipe-defining fields as init=False
         # invariants. Posttrain only supplies workload and capacity controls.
@@ -323,6 +329,9 @@ def _online_rl_runtime_attributes(
 
     engine = request.inference.engine
     sampling = policy_sampling_from_binding(request.inference, request.settings.max_completion_length)
+    dynamic_sampling = None if isinstance(request, SAMPORequest) else request.settings.dynamic_sampling
+    active_sampling = request.settings.active_sampling if isinstance(request, GRPORequest | SAMPORequest) else None
+    curriculum = request.settings.adaptive_curriculum if isinstance(request, GRPORequest | SAMPORequest) else None
     speculative = engine.get("speculative_config")
     backend_product, separator, backend_revision = request.training.backend.partition("@")
     attributes: dict[str, JsonValue] = {
@@ -373,52 +382,24 @@ def _online_rl_runtime_attributes(
         ),
         "mask_truncated_completions": request.settings.mask_truncated_completions,
         "shuffle_prompts": request.settings.shuffle_prompts,
-        "dynamic_sampling": request.settings.dynamic_sampling is not None,
+        "dynamic_sampling": dynamic_sampling is not None,
         "dynamic_sampling_max_candidate_batches": (
-            request.settings.dynamic_sampling.max_candidate_batches
-            if request.settings.dynamic_sampling is not None
-            else None
+            dynamic_sampling.max_candidate_batches if dynamic_sampling is not None else None
         ),
-        "active_sampling": (isinstance(request, GRPORequest) and request.settings.active_sampling is not None),
+        "active_sampling": active_sampling is not None,
         "active_sampling_max_candidate_batches": (
-            request.settings.active_sampling.max_candidate_batches
-            if isinstance(request, GRPORequest) and request.settings.active_sampling is not None
-            else None
+            active_sampling.max_candidate_batches if active_sampling is not None else None
         ),
-        "adaptive_curriculum": (isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None),
+        "adaptive_curriculum": curriculum is not None,
         "adaptive_curriculum_sampling_mode": (
-            "active_sampling_refill"
-            if (
-                isinstance(request, GRPORequest)
-                and request.settings.adaptive_curriculum is not None
-                and request.settings.active_sampling is not None
-            )
-            else (
-                "initial_batch"
-                if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
-                else None
-            )
+            None
+            if curriculum is None
+            else ("active_sampling_refill" if active_sampling is not None else "initial_batch")
         ),
-        "adaptive_curriculum_class_field": (
-            request.settings.adaptive_curriculum.class_field
-            if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
-            else None
-        ),
-        "adaptive_curriculum_class_exploration": (
-            request.settings.adaptive_curriculum.class_exploration
-            if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
-            else None
-        ),
-        "adaptive_curriculum_task_discovery": (
-            request.settings.adaptive_curriculum.task_discovery
-            if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
-            else None
-        ),
-        "adaptive_curriculum_history_groups": (
-            request.settings.adaptive_curriculum.history_groups
-            if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None
-            else None
-        ),
+        "adaptive_curriculum_class_field": (curriculum.class_field if curriculum is not None else None),
+        "adaptive_curriculum_class_exploration": (curriculum.class_exploration if curriculum is not None else None),
+        "adaptive_curriculum_task_discovery": (curriculum.task_discovery if curriculum is not None else None),
+        "adaptive_curriculum_history_groups": (curriculum.history_groups if curriculum is not None else None),
     }
     execution = _rollout_execution_config(request)
     if execution is not None:

@@ -1,0 +1,30 @@
+project_id: posttrain-lab
+work_package_id: screen/lfm2.5-1.2b/automationbench-screen-8k
+stage: screen
+description: Choose the 8 GB SAMPO task set - LFM2.5-1.2B-thinking attempts every simple AutomationBench task and 14 short multi-step tasks three times with the training budgets (8,192-token context, 12 turns, 3,072 tokens per reply, temperature 0.8), to find tasks that fit 8K and whose attempts disagree.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-1.2b-automationbench-screen-8k@1
+  revision: "1"
+  stage: screen
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: evaluate
+      kind: eval.general
+      definition: eval/verifiers-managed-general@1
+  expected_artifacts: [native evaluation result]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-1.2b-thinking@bf16}
+  evaluation_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-screen-local-8gb@1}
+  target: {type: ref, family: target, id: targets/local-cuda-8gb}
+  evaluation_plan: {type: ref, family: evaluation, id: lfm12-automationbench-screen-8k-v1}
+  environment: {type: ref, family: environment, id: automationbench-lfm12-screen-8k-v1}
+enabled_optional_jobs: []
+metadata:
+  question: Which AutomationBench tasks fit an 8K context for LFM2.5-1.2B and give groups of attempts with different rewards?
+  labels: [screen, sampo, automationbench, lfm2.5, local, 8gb]

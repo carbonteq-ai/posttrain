@@ -6,6 +6,7 @@ import asyncio
 import math
 import time
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import Any, Literal, cast
 
 from posttrain.common import RunContext, TraceFactSet, TraceFactUpdateObservation, TraceObservation
@@ -123,6 +124,11 @@ def rollout_function(
                     )
                     trainer._posttrain_async_collection_runtime = runtime  # noqa: SLF001 - backend lifecycle state
                 collection_ordinal += 1
+                # Waking colocated vLLM needs the memory the trainer's allocator still
+                # caches; TRL's batch generation path releases it the same way.
+                from trl.generation.vllm_generation import empty_cache
+
+                empty_cache()
                 outcomes = runtime.collect(
                     selected,
                     collection_id=f"step-{optimizer_step:08d}/collection-{collection_ordinal:06d}",
@@ -142,7 +148,7 @@ def rollout_function(
                 return outcomes
 
             if isinstance(request, GDPORequest | CAPORequest) or (
-                isinstance(request, GRPORequest) and batch.prompt_group_ids
+                isinstance(request, GRPORequest | SAMPORequest) and batch.prompt_group_ids
             ):
                 from accelerate.utils import gather_object
 
@@ -155,10 +161,9 @@ def rollout_function(
                 # population. Retrying is controlled independently by the
                 # settings profile and is never required merely to avoid a
                 # batch-wide failure.
-                active_sampling = (
-                    isinstance(request, GRPORequest)
-                    and request.settings.algorithm == "olmo3"
-                    and bool(getattr(trainer, "active_sampling", False))
+                active_sampling = bool(getattr(trainer, "active_sampling", False)) and (
+                    isinstance(request, SAMPORequest)
+                    or (isinstance(request, GRPORequest) and request.settings.algorithm == "olmo3")
                 )
                 admission = admit_rollout_groups(
                     batch,
@@ -169,6 +174,8 @@ def rollout_function(
                     retain_complete_on_exhaustion=True,
                 )
                 rollouts = admission.rollouts
+                if admission.rejection_reasons:
+                    trainer._posttrain_admission_rejections = admission.rejection_reasons  # noqa: SLF001
             else:
                 rollouts = collect(batch)
         elapsed = time.perf_counter() - started_at
@@ -210,7 +217,7 @@ def rollout_function(
                 "tokens while mask_truncated_completions is enabled; increase max_completion_length or correct "
                 "the policy's termination behavior before retrying"
             )
-        if isinstance(request, GRPORequest):
+        if isinstance(request, GRPORequest | SAMPORequest):
             shaped_rewards = [
                 shape_online_reward(
                     request.settings,
@@ -319,8 +326,18 @@ def rollout_function(
                     )
                 )
             result["precomputed_advantages"] = local_advantages
-        if isinstance(request, SAMPORequest):
-            advantages = compute_sampo_advantages(request.settings, example_ids, rollouts)
+        if isinstance(request, SAMPORequest) and not rollouts:
+            # Admission kept no complete group; TRL's refill treats the empty batch
+            # as NoAdmittedRollouts and draws the next candidate round.
+            result["precomputed_advantages"] = []
+        elif isinstance(request, SAMPORequest):
+            # Hierarchical advantages see the shaped episode reward, so a truncated
+            # rollout ranks below an equally scored finished one, as in VORTEX.
+            advantages = compute_sampo_advantages(
+                request.settings,
+                _admitted_example_ids(example_ids, None if admission is None else admission.retained_positions),
+                [replace(rollout, reward=reward) for rollout, reward in zip(rollouts, shaped_rewards, strict=True)],
+            )
             result["precomputed_advantages"] = [list(values) for values in advantages.token_advantages]
             flat_turn_advantages = [value for values in advantages.turn_advantages for value in values]
             flat_group_sizes = [value for values in advantages.anchor_group_sizes for value in values]
@@ -342,6 +359,14 @@ def rollout_function(
     return run_rollouts
 
 
+def _admitted_example_ids(example_ids: tuple[str, ...], retained_positions: Sequence[int] | None) -> tuple[str, ...]:
+    """Example identities of the rollouts group admission kept, in rollout order."""
+
+    if retained_positions is None:
+        return example_ids
+    return tuple(example_ids[position] for position in retained_positions)
+
+
 def _bridge_reward(rollout_reward: list[float], **_: Any) -> list[float]:
     """Return rewards already computed by the native online-RL environment."""
 
@@ -349,9 +374,9 @@ def _bridge_reward(rollout_reward: list[float], **_: Any) -> list[float]:
 
 
 def _rollout_batch(request: Any, trainer: Any, example_ids: tuple[str, ...], step: int, ordinal: int) -> RolloutBatch:
-    if not isinstance(request, GRPORequest | GDPORequest | CAPORequest):
+    if not isinstance(request, GRPORequest | SAMPORequest | GDPORequest | CAPORequest):
         return RolloutBatch(example_ids=example_ids, step=step, model_id=request.policy.id)
-    if isinstance(request, GRPORequest) and not hasattr(trainer, "accelerator"):
+    if isinstance(request, GRPORequest | SAMPORequest) and not hasattr(trainer, "accelerator"):
         # Lightweight bridge consumers predating explicit group identities keep
         # their compatibility path. Real TRL trainers always expose Accelerator
         # and therefore use complete-group admission below.

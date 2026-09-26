@@ -442,10 +442,12 @@ def _prepare_adaptive_active_sampling_inputs(
         retained_counts = trainer.accelerator.gather(
             torch.tensor(retained_count, device=trainer.accelerator.device)
         ).tolist()
+        rejections = getattr(trainer, "_posttrain_admission_rejections", ())
         raise RuntimeError(
             "adaptive active sampling exhausted "
             f"{max_batches} generation rounds before every process filled its generation batch; "
             f"retained rows by process: {retained_counts}"
+            + (f"; rollout admission rejected groups: {sorted(rejections)}" if rejections else "")
         )
 
     batch = trainer._concatenate_dynamic_sampling_batches(retained_batches)

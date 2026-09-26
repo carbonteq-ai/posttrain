@@ -20,13 +20,13 @@ env:
   CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post14.dev27/carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl
   CARBONTEQ_TRACKIO_WHEEL_SHA256: 228651b05e88409cb374296ad8a675057cf75377adcbe104a6fd0903b922c57c
   CARBONTEQ_TRACKIO_WHEEL_PATH: /tmp/carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl
-  CARBONTEQ_RENDERERS_WHEEL_URL: https://github.com/carbonteq-ai/renderers/releases/download/carbonteq-v0.1.12.post1.dev1/carbonteq_renderers-0.1.12.post1.dev1-py3-none-any.whl
-  CARBONTEQ_RENDERERS_WHEEL_SHA256: 2e3231784729b9177bfc25eb06e3a6a958f9ba420ff8e241c010266cc9422d0b
-  CARBONTEQ_RENDERERS_WHEEL_PATH: /tmp/carbonteq_renderers-0.1.12.post1.dev1-py3-none-any.whl
+  CARBONTEQ_RENDERERS_WHEEL_URL: https://github.com/carbonteq-ai/renderers/releases/download/carbonteq-v0.1.12.post1.dev2/carbonteq_renderers-0.1.12.post1.dev2-py3-none-any.whl
+  CARBONTEQ_RENDERERS_WHEEL_SHA256: fdc65e9ed1a8a2f877c127a3456834d5ded996f32a4c70fe22bebe615073a87e
+  CARBONTEQ_RENDERERS_WHEEL_PATH: /tmp/carbonteq_renderers-0.1.12.post1.dev2-py3-none-any.whl
   CARBONTEQ_TRL_WHEEL_URL: https://github.com/carbonteq-ai/trl/releases/download/carbonteq-v1.12.0.post10/trl-1.12.0.post10-py3-none-any.whl
   CARBONTEQ_TRL_WHEEL_SHA256: 96710f9cb530a9adae0de2cc0f37f7d77e0f8d0c9f9dc022489f62ba10d08bfd
   CARBONTEQ_TRL_WHEEL_PATH: /tmp/trl-1.12.0.post10-py3-none-any.whl
-  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl:/tmp/trl-1.12.0.post10-py3-none-any.whl:/tmp/carbonteq_renderers-0.1.12.post1.dev1-py3-none-any.whl
+  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl:/tmp/trl-1.12.0.post10-py3-none-any.whl:/tmp/carbonteq_renderers-0.1.12.post1.dev2-py3-none-any.whl
 
 jobs:
   quality:
@@ -232,4 +232,5 @@ jobs:
             --with pytest-asyncio \
             pytest -q \
               packages/train/tests/test_verifiers_grpo_bridge.py \
-              packages/train/tests/test_trl_async_collection_runtime.py
+              packages/train/tests/test_trl_async_collection_runtime.py \
+              packages/eval/tests/test_runtime_bootstrap.py

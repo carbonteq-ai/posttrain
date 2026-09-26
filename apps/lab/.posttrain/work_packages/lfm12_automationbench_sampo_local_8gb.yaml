@@ -1,0 +1,30 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-1.2b/automationbench-sampo-local-8gb
+stage: train
+description: SAMPO on the local 8 GB GPU - three updates of LFM2.5-1.2B-thinking with VORTEX oversampling and the yield-first curriculum over the 57 AutomationBench tasks whose screened attempts disagree (8K context, 12 turns, 3072 tokens per reply), recording completion, refill rounds, vLLM correction clamping, anchor matching, memory and time.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-1.2b-automationbench-sampo-local-8gb@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: sampo
+      kind: train.sampo
+      definition: train/trl-sampo@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-1.2b-thinking@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm12-sampo-8gb-v2}
+  settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-sampo-local-8gb-v1}
+  training: {type: ref, family: training, id: training/lfm2.5-1.2b-trl-lora-sampo-local-8gb@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-sampo-local-8gb@1}
+enabled_optional_jobs: []
+metadata:
+  question: Where does SAMPO as implemented break on LFM2.5 AutomationBench, and how are memory and time split on an 8 GB GPU?
+  labels: [experiment, sampo, automationbench, lfm2.5, local, 8gb]

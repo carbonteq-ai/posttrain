@@ -87,6 +87,7 @@ from posttrain.train.backends.trl.policy_config import (
     _grpo_arguments,
     _grpo_runtime_attributes,
 )
+from posttrain.train.backends.trl.policy_optimization import _trainer_arguments
 from posttrain.train.backends.trl.policy_rollouts import (
     _validate_group_relative_examples,
 )
@@ -513,6 +514,39 @@ def test_trainer_lifecycle_closes_async_collection_before_distributed_runtime() 
         pass
 
     assert closed == ["rollouts", "accelerator"]
+
+
+def test_trainer_lifecycle_keeps_training_error_when_shutdown_fails() -> None:
+    closed: list[str] = []
+
+    def failing_close() -> None:
+        raise RuntimeError("wake_up out of memory")
+
+    trainer = SimpleNamespace(
+        accelerator=SimpleNamespace(end_training=lambda: closed.append("accelerator")),
+        _posttrain_async_collection_runtime=SimpleNamespace(close=failing_close),
+    )
+
+    with pytest.raises(ValueError, match="training failed") as raised:
+        with trainer_lifecycle(trainer):
+            raise ValueError("training failed")
+
+    assert any("wake_up out of memory" in note for note in raised.value.__notes__)
+    assert closed == ["accelerator"]
+
+
+def test_trainer_lifecycle_reports_shutdown_failure_after_success() -> None:
+    def failing_close() -> None:
+        raise RuntimeError("wake_up out of memory")
+
+    trainer = SimpleNamespace(
+        accelerator=SimpleNamespace(end_training=lambda: None),
+        _posttrain_async_collection_runtime=SimpleNamespace(close=failing_close),
+    )
+
+    with pytest.raises(RuntimeError, match="wake_up out of memory"):
+        with trainer_lifecycle(trainer):
+            pass
 
 
 def test_sft_operation_separates_adapter_recovery_and_summary_artifacts() -> None:
@@ -1834,6 +1868,16 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert olmo3_arguments["active_sampling_max_batches"] == 6
     assert _grpo_runtime_attributes(olmo3_request)["active_sampling"] is True
 
+    @dataclass
+    class FixedRecipeConfig:
+        # Mirrors Olmo3GRPOConfig: beta is a fixed field the constructor rejects.
+        output_dir: str
+        beta: float = field(default=0.0, init=False)
+
+    kl_request = replace(olmo3_request, settings=replace(olmo3_request.settings, beta=0.005))
+    assert _trainer_arguments(FixedRecipeConfig, {"output_dir": "x"}, kl_request).beta == 0.005
+    assert _trainer_arguments(FixedRecipeConfig, {"output_dir": "x"}, olmo3_request).beta == 0.0
+
     adaptive_olmo3_request = replace(
         olmo3_request,
         settings=replace(
@@ -1874,8 +1918,9 @@ def test_olmo3_settings_reject_recipe_drift() -> None:
     )
 
     assert settings.resolved_clip_epsilon_high == 0.272
-    with pytest.raises(ValueError, match="requires fixed settings: beta"):
-        replace(settings, beta=0.01)
+    assert replace(settings, beta=0.01).beta == 0.01
+    with pytest.raises(ValueError, match="requires fixed settings: clip_epsilon_low"):
+        replace(settings, clip_epsilon_low=0.1)
     with pytest.raises(ValueError, match="requires active group sampling"):
         replace(settings, active_sampling=None)
 
@@ -2168,3 +2213,13 @@ def test_preference_contract_rejects_unordered_or_identical_pairs() -> None:
             1.0,
             0.0,
         )
+
+
+def test_trl_olmo3_config_still_fixes_beta() -> None:
+    """Olmo3GRPOConfig rejects beta; `_trainer_arguments` must apply the selected KL penalty."""
+
+    import dataclasses
+
+    olmo3_config = pytest.importorskip("trl.trainer.olmo3_grpo_config").Olmo3GRPOConfig
+    beta = {item.name: item for item in dataclasses.fields(olmo3_config)}["beta"]
+    assert beta.init is False

@@ -52,9 +52,12 @@ from posttrain.jobs.definitions import (
     _judge_service_bindings,
     _materialize_grpo_policy,
     _materialize_selected_model_variant,
+    _validate_task_supply,
+    sampo_definition,
 )
 from posttrain.train import (
     GRPOSettings,
+    SAMPOSettings,
     SFTRequest,
     SFTSettings,
     TrainingBinding,
@@ -483,6 +486,68 @@ def test_static_grpo_preparation_rejects_training_batch_mismatch() -> None:
                 "training": training,
             }
         )
+
+
+def test_static_sampo_preparation_rejects_training_batch_mismatch() -> None:
+    catalog = open_catalog(scope="jobs-test")
+    settings = SAMPOSettings(
+        id="sampo-static-mismatch",
+        loop=TrainingLoop(max_steps=1, max_length=384, per_device_batch_size=1, gradient_accumulation_steps=8),
+        num_prompts_per_step=2,
+        num_generations=4,
+    )
+    training = _selection(catalog, "training", "training/qwen3.5-0.8b-trl-distill-lora@1")
+    assert isinstance(training, TrainingBinding)
+    definition = sampo_definition()
+    assert definition.static_validator is not None
+
+    with pytest.raises(ContractError, match="global batch must equal prompt groups times generations"):
+        definition.static_validator({"settings": settings, "training": training})
+
+
+def test_static_preparation_rejects_curriculum_field_the_environment_does_not_declare() -> None:
+    from types import SimpleNamespace
+
+    from posttrain.train.profiles import ActiveGroupSampling, AdaptiveCurriculum
+
+    settings = SAMPOSettings(
+        id="sampo-curriculum-facet",
+        loop=TrainingLoop(max_steps=1, max_length=384, per_device_batch_size=1, gradient_accumulation_steps=8),
+        num_prompts_per_step=2,
+        num_generations=4,
+        active_sampling=ActiveGroupSampling(3),
+        adaptive_curriculum=AdaptiveCurriculum(class_field="domain", policy="yield_first", seed=1),
+    )
+    definition = sampo_definition()
+    assert definition.static_validator is not None
+    undeclared = SimpleNamespace(observation=SimpleNamespace(facets=()))
+
+    with pytest.raises(ContractError, match="class field 'domain' must be an observation facet"):
+        _validate_task_supply(settings, undeclared, None)
+
+
+def test_static_preparation_rejects_a_candidate_pool_larger_than_the_environment() -> None:
+    from types import SimpleNamespace
+
+    from posttrain.train.profiles import ActiveGroupSampling
+
+    settings = SAMPOSettings(
+        id="sampo-candidate-pool",
+        loop=TrainingLoop(max_steps=1, max_length=384, per_device_batch_size=1, gradient_accumulation_steps=8),
+        num_prompts_per_step=2,
+        num_generations=4,
+        active_sampling=ActiveGroupSampling(10),
+    )
+    definition = sampo_definition()
+    assert definition.static_validator is not None
+    catalog = open_catalog(scope="jobs-test")
+    training = _selection(catalog, "training", "training/qwen3.5-0.8b-trl-distill-lora@1")
+    assert isinstance(training, TrainingBinding) and training.backend.startswith("trl@")
+    training = replace(training, runtime=replace(training.runtime, global_batch_size=8))
+    small = SimpleNamespace(num_tasks=15, observation=None)
+
+    with pytest.raises(ContractError, match="15 tasks but each update reserves 20 candidate prompts"):
+        _validate_task_supply(settings, small, training)
 
 
 def test_static_grpo_preparation_rejects_sampling_policy_mismatch() -> None:

@@ -6,7 +6,60 @@ version across first-party distributions.
 
 ## Unreleased
 
-## 0.4.8 - unreleased
+## 0.4.9 - unreleased
+
+SAMPO collects like VORTEX, training parses tool calls the way serving does, and
+evaluations report running out of context as truncation.
+
+### Changed
+
+- SAMPO refills with VORTEX active sampling (dynamic sampling removed): it keeps
+  prompt groups whose rewards differ and generates only the missing groups from
+  a reserved candidate pool, admits groups before computing advantages, and can
+  select the adaptive curriculum. The vLLM sampler correction defaults to a
+  per-token cap of 2.0, an optional truncation penalty shapes the episode
+  reward, and anchor-state keys drop tool-call and other sample IDs
+  (`content-without-sample-ids@2`). The veRL backend rejects SAMPO, since it has
+  no active sampling.
+- `carbonteq-renderers` `0.1.12.post1.dev2` (`6f712616`): a tool-call opener ends
+  an unclosed thought, and LFM2.5 pythonic tool calls get the vLLM fork's `lfm2`
+  repairs (nested quotes, raw control characters, zero-padded integers,
+  keyword-named parameters). Training dropped such calls while serving accepted
+  them; LFM2.5-1.2B scored 0 in training and 1.0 in evaluation on the same task.
+- Evaluation: a rollout whose final model request exceeds the context is
+  truncated, not failed, and keeps the reward the environment scored (trace
+  fact calculator v7). Evaluation status is `complete`, `truncated`, `partial`
+  or `failed`; a run whose rollouts all fail now fails after recording its
+  evidence.
+- The OLMo 3 recipe selects a KL penalty (`beta`) and applies it; TRL's
+  `Olmo3GRPOConfig` fixed it at 0.
+
+### Added
+
+- `train/lfm2.5-1.2b/automationbench-sampo-local-8gb`: SAMPO on an 8 GB GPU over
+  the 57 AutomationBench tasks whose LFM2.5-1.2B attempts disagree, at an 8K
+  context; and `screen/lfm2.5-1.2b/automationbench-screen-8k`, the task screen
+  that chose them.
+- VORTEX v5 for LFM2.5-2.6B at learning rate 5e-5 with a 0.005 KL penalty, and
+  `docs/techniques/grpo/recipes/lfm2.5-2.6b-automationbench-vortex.md`, the
+  learning rates, settings and efficiency changes tried.
+- Launch checks: an online-RL training batch must equal prompt groups times
+  generations for SAMPO too, a curriculum class field must be an environment
+  facet, and a TRL candidate pool must fit the environment's tasks.
+
+### Fixed
+
+- Managed evaluations failed every rollout in harness setup since 0.4.7: the
+  preinstalled runtime called `.setdefault` on Verifiers' new `LoopLocks`.
+- A rollout-runtime shutdown failure no longer hides the training error, and
+  cached GPU memory is released before an asynchronous collection wakes vLLM.
+
+### Removed
+
+- Six SAMPO qualification gates the new contract cannot run are retired:
+  `sampo-extended`, `automationbench-sampo` and four `verl-sampo*`.
+
+## 0.4.8 - 2026-09-26
 
 A VORTEX v5 LFM2.5-2.6B update now takes about 276 seconds instead of 823.
 
