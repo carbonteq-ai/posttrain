@@ -1346,7 +1346,8 @@ def test_grpo_actor_update_phase_starts_after_retained_rollouts_and_ends_at_opti
         "posttrain.train.backends.trl.online_rl.TrlPolicyGenerator",
         lambda *args: object(),
     )
-    monotonic = iter((10.0, 12.0, 15.0, 18.5))
+    # rollout start/end, actor start, two micro-step starts, backward end, optimizer start/end, actor end
+    monotonic = iter((10.0, 12.0, 15.0, 15.0, 15.5, 17.5, 17.6, 18.0, 18.5))
     monkeypatch.setattr("posttrain.train.backends.trl.policy_telemetry.time.perf_counter", lambda: next(monotonic))
     actor_update = _ActorUpdateTelemetry(context)
     rollout = _rollout_function(context, request, object())
@@ -1384,6 +1385,9 @@ def test_grpo_actor_update_phase_starts_after_retained_rollouts_and_ends_at_opti
             self.prepare_calls += 1
             return generation_batch
 
+        def training_step(self, *args: object, **kwargs: object) -> float:
+            return 0.0
+
     trainer = _actor_update_trainer_type(PreparingTrainer, actor_update)()
     prepared = trainer._prepare_inputs({"rollout_reward": [1.0]})
     assert prepared == {"rollout_reward": [1.0]}
@@ -1398,13 +1402,21 @@ def test_grpo_actor_update_phase_starts_after_retained_rollouts_and_ends_at_opti
     ]
     assert phase_events[-1] == ("runtime_phase_started", "actor_update", 4)
     assert sum(event[1] == "actor_update" for event in phase_events) == 1
+    assert trainer.training_step() == 0.0
     callback = _actor_update_callback_type({"TrainerCallback": object}, actor_update)()
     control = SimpleNamespace()
+    assert callback.on_pre_optimizer_step(SimpleNamespace(), SimpleNamespace(), control) is control
+    assert callback.on_optimizer_step(SimpleNamespace(), SimpleNamespace(), control) is control
     assert callback.on_step_end(SimpleNamespace(), SimpleNamespace(global_step=4), control) is control
     assert observer.events[-1].name == "runtime_phase_completed"
     assert observer.events[-1].attributes["phase"] == "actor_update"
-    assert observer.metrics_seen[-1].values == {"train/rl/time/actor_update_seconds": 3.5}
-    assert observer.metrics_seen[-1].step == 4
+    timings = {name: value for record in observer.metrics_seen[-3:] for name, value in record.values.items()}
+    assert timings == {
+        "train/rl/time/actor_update_seconds": 3.5,
+        "train/rl/time/actor_forward_backward_seconds": 2.0,
+        "train/rl/time/optimizer_step_seconds": pytest.approx(0.4),
+    }
+    assert {record.step for record in observer.metrics_seen[-3:]} == {4}
     assert (
         callback.on_log(
             SimpleNamespace(),
@@ -1644,6 +1656,9 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
             "logits_chunk_size": 128,
             "vllm_policy_parity_max_mean_logp_delta": 0.075,
             "vllm_policy_parity_max_sequence_tokens": 4096,
+            "gradient_checkpointing_min_tokens": 14336,
+            "compile_decoder_layers": True,
+            "importance_sampling_from_training_logps": True,
         },
     )
     optimized_request = replace(request, training=optimized_training)
@@ -1656,6 +1671,10 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert optimized_arguments["logits_chunk_size"] == 128
     assert optimized_arguments["vllm_policy_parity_max_mean_logp_delta"] == 0.075
     assert optimized_arguments["vllm_policy_parity_max_sequence_tokens"] == 4096
+    assert optimized_arguments["gradient_checkpointing_min_tokens"] == 14336
+    assert optimized_arguments["compile_decoder_layers"] is True
+    assert optimized_arguments["vllm_importance_sampling_from_training_logps"] is True
+    assert _grpo_runtime_attributes(optimized_request)["gradient_checkpointing_min_tokens"] == 14336
     trainer = SimpleNamespace(liger_loss=SimpleNamespace(compiled=True))
     _configure_liger_loss(trainer, optimized_request)
     assert trainer.liger_loss.compiled is False

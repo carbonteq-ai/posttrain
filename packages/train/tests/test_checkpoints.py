@@ -131,3 +131,27 @@ def test_inspection_keeps_digestless_views_visible_but_does_not_resolve_them() -
             [record],
             CheckpointSelector("run/example", 3, "model"),
         )
+
+
+def test_committed_view_wins_over_an_interrupted_republication_of_its_step() -> None:
+    committed = _artifact(40, "recovery")
+    interrupted = _artifact(40, "recovery")
+    interrupted["artifact"] = {**interrupted["artifact"], "version": "v2", "digest": "sha256:" + "c" * 64}  # type: ignore[dict-item]
+    interrupted["metadata"] = {**interrupted["metadata"], "interrupted": True}  # type: ignore[dict-item]
+
+    for records in ([committed, interrupted], [interrupted, committed]):
+        (inspection,) = inspect_checkpoint_artifacts(records)
+        assert inspection.recovery is not None
+        assert inspection.recovery.version == "v1"
+
+    selected = resolve_checkpoint_artifacts(
+        [interrupted, committed, _artifact(40, "model")], CheckpointSelector("run/example", 40, "recovery")
+    )
+    assert selected.artifact.version == "v1"
+
+
+def test_two_interrupted_or_two_committed_views_stay_ambiguous() -> None:
+    interrupted = _artifact(1, "model")
+    interrupted["metadata"] = {**interrupted["metadata"], "interrupted": True}  # type: ignore[dict-item]
+    with pytest.raises(ContractError, match="duplicate model views"):
+        inspect_checkpoint_artifacts([interrupted, interrupted])

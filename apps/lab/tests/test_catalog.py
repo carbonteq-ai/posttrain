@@ -403,7 +403,7 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
         (WORKSPACE / "packages/catalog/src/posttrain/catalog/base/locks.toml").read_text(encoding="utf-8")
     )
     current_trl_lock = lock_document["locks"]["trl-fork@current"]
-    assert remote_training.backend == "trl@1.12.0.post9"
+    assert remote_training.backend == "trl@1.12.0.post10"
     assert remote_training.backend_options["dependency_lock"] == "trl-fork@current"
     assert remote_training.backend_options["source_revision"] == current_trl_lock["source_revision"]
     assert remote_training.backend_options["dependency_lock_sha256"] == current_trl_lock["dependency_lock_sha256"]

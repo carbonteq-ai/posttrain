@@ -36,3 +36,12 @@ def test_missing_digests_never_count_as_identical():
     second = _link("recovery-checkpoint", None, {"global_step": 20})
     with pytest.raises(Exception, match="expected 1"):
         _select([first, second], 20)
+
+
+def test_a_cancelled_runs_republication_yields_to_the_committed_periodic_view():
+    periodic = _link("checkpoint-00000040-recovery", "sha256:a", {"checkpoint_step": 40, "interrupted": False})
+    republished = _link("checkpoint-00000040-recovery", "sha256:d", {"checkpoint_step": 40, "interrupted": True})
+    assert _select([republished, periodic], 40) is periodic
+    other = _link("checkpoint-00000040-recovery", "sha256:e", {"checkpoint_step": 40, "interrupted": True})
+    with pytest.raises(Exception, match="expected 1"):
+        _select([republished, other], 40)

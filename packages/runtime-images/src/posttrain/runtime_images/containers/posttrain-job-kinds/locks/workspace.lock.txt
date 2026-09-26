@@ -2204,7 +2204,7 @@ triton==3.7.1 ; sys_platform != 'darwin' and sys_platform != 'emscripten' and sy
     #   liger-kernel
     #   torch
     #   xgrammar
-trl @ https://pypi.lan/carbonteq/dev/+f/c5d/204da587a9a45/trl-1.12.0.post9-py3-none-any.whl#sha256=c5d204da587a9a45dd279f1407d0e20816344075d001da9fe03f6dd4879fa710
+trl @ https://pypi.lan/carbonteq/dev/+f/967/10f9cb530a9ad/trl-1.12.0.post10-py3-none-any.whl#sha256=96710f9cb530a9adae0de2cc0f37f7d77e0f8d0c9f9dc022489f62ba10d08bfd
     # via posttrain-train
 truststore==0.10.4 ; sys_platform != 'emscripten' \
     --hash=sha256:9d91bd436463ad5e4ee4aba766628dd6cd7010cf3e2461756b3303710eebc301 \

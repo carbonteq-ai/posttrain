@@ -82,6 +82,17 @@ def _select_checkpoint_output(
                     ),
                 )
             )[:1]
+    if len(candidates) > 1:
+        # A cancelled run re-publishes its last complete checkpoint marked
+        # interrupted. When the periodic save already committed that step,
+        # continue from the committed view training wrote.
+        committed = tuple(
+            link
+            for link in candidates
+            if getattr(getattr(link, "artifact", None), "provider_metadata", {}).get("interrupted") is not True
+        )
+        if len(committed) == 1:
+            candidates = committed
     if len(candidates) != 1:
         requested = f" at step {step}" if step is not None else ""
         raise ContractError(

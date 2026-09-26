@@ -54,7 +54,7 @@ def training(*, alpha: int = 8, rank: int = 4, targets: str = "all-linear", kind
         "selection_id": "training/lfm",
         "revision": "1",
         "resolved": {
-            "backend": "trl@1.12.0.post9",
+            "backend": "trl@1.12.0.post10",
             "parameter_update_kind": kind,
             "parameter_update": {"kind": kind, "rank": rank, "alpha": alpha, "dropout": 0.0, "target_modules": targets},
             "target_id": TARGET_ID,

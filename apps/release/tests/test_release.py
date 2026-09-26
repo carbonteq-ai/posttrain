@@ -804,7 +804,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
     entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
 
     assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev27"
-    assert entries["trl"].revision == "3b7a582e011a32de74d1f2b6e572b794360fbfd7"
+    assert entries["trl"].revision == "4950b99d457faacbec856cbd5305732e7b3cf7b0"
     assert entries["verl"].release_tag == "carbonteq-v0.9.0.post3"
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
         "7ba6018dd6bbc5872876c69a661cf136a6705221f937c3b5cbd826483c476bcb"
@@ -1320,8 +1320,8 @@ def test_required_fork_index_check_uses_every_python_fork_hash(monkeypatch: pyte
     assert {item["filename"] for item in artifacts} == {
         "carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl",
         "carbonteq_trackio-0.31.5.post14.dev27.tar.gz",
-        "trl-1.12.0.post9-py3-none-any.whl",
-        "trl-1.12.0.post9.tar.gz",
+        "trl-1.12.0.post10-py3-none-any.whl",
+        "trl-1.12.0.post10.tar.gz",
         "carbonteq_renderers-0.1.12.post1.dev1-py3-none-any.whl",
         "carbonteq_renderers-0.1.12.post1.dev1.tar.gz",
         "verl-0.9.0.post3-py3-none-any.whl",

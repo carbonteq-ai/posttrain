@@ -1079,12 +1079,12 @@ def _condition_active(
             for value in _config_values(dict(resolved_inputs), "mode")
         )
     if condition == "mtp_rollout_enabled":
+        # Every drafting method (MTP, DSpark, Uno, ...) reports the same vLLM
+        # speculative counters, so the condition covers any selected method.
         speculative = _config_values(dict(resolved_inputs), "speculative_config")
-        selected = any(
-            isinstance(value, Mapping) and str(value.get("method", "")).lower() == "mtp" for value in speculative
-        )
+        selected = any(isinstance(value, Mapping) and str(value.get("method", "")).strip() for value in speculative)
         methods = _config_values(dict(resolved_inputs), "speculative_method")
-        return selected or any(isinstance(value, str) and value.lower() == "mtp" for value in methods)
+        return selected or any(isinstance(value, str) and value.strip() for value in methods)
     if condition == "quantized_kv_cache":
         return any(
             isinstance(value, str) and value.lower().startswith("turboquant_")

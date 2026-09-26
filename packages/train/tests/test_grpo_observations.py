@@ -27,7 +27,7 @@ def _full_features() -> GRPOObservationFeatures:
     return GRPOObservationFeatures(
         reference_kl_enabled=True,
         decoupled_rollout=True,
-        mtp_rollout_enabled=True,
+        speculative_rollout_enabled=True,
     )
 
 
@@ -62,7 +62,7 @@ def test_feature_flags_make_selected_runtime_evidence_required() -> None:
         clipping_enabled=True,
         decoupled_rollout=True,
         asynchronous_rollout=True,
-        mtp_rollout_enabled=True,
+        speculative_rollout_enabled=True,
         quantized_kv_cache=True,
         tool_environment=True,
     )
@@ -197,7 +197,7 @@ def test_verl_runtime_totals_use_backend_neutral_names() -> None:
             "rollout/spec_accept_rate": 4 / 7,
             "rollout/spec_accept_length": 1 + 4 / 7,
         },
-        features=GRPOObservationFeatures(mtp_rollout_enabled=True),
+        features=GRPOObservationFeatures(speculative_rollout_enabled=True),
     )
 
     assert step.metrics == {
@@ -280,14 +280,14 @@ def test_partial_mtp_evidence_is_rejected() -> None:
             backend="trl",
             step=payload["step"],
             native=payload["native"],
-            features=GRPOObservationFeatures(mtp_rollout_enabled=True),
+            features=GRPOObservationFeatures(speculative_rollout_enabled=True),
         )
 
 
 def test_mtp_evidence_is_rejected_when_the_feature_was_not_selected() -> None:
     payload = _fixture("mtp_step.json")
 
-    with pytest.raises(ValueError, match="without MTP selected"):
+    with pytest.raises(ValueError, match="without speculative rollout"):
         normalize_grpo_metrics(
             backend="trl",
             step=payload["step"],
@@ -368,3 +368,20 @@ def test_trl_raw_policy_parity_evidence_is_persisted_separately_from_sampling_de
         "train/rl/policy_parity_logp_delta_max": 0.021,
         "train/rl/policy_parity_token_count": 16384.0,
     }
+
+
+@pytest.mark.parametrize("method", ["mtp", "dspark", "uno"])
+def test_any_drafting_method_owes_speculative_evidence(method: str) -> None:
+    from types import SimpleNamespace
+
+    request = SimpleNamespace(
+        inference=SimpleNamespace(
+            engine={"speculative_config": {"method": method, "num_speculative_tokens": 9}, "mode": "colocate"},
+            backend="vllm@0.29.1.dev4",
+        ),
+        settings=SimpleNamespace(beta=0.0),
+    )
+    features = GRPOObservationFeatures.from_request(request)  # type: ignore[arg-type]
+    assert features.speculative_rollout_enabled
+    payload = _fixture("mtp_step.json")
+    normalize_grpo_metrics(backend="trl", step=payload["step"], native=payload["native"], features=features)

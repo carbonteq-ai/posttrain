@@ -22,6 +22,12 @@ class ActorUpdateTelemetry:
         self._optimizer_step: int | None = None
         self._completed_durations: dict[int, float] = {}
         self._last_token_count = 0.0
+        # Measured parts of the active phase: micro-step forward/backward and the optimizer step.
+        self._parts: dict[str, float] = {}
+
+    def add_part(self, name: str, seconds: float) -> None:
+        if self._phase is not None:
+            self._parts[name] = self._parts.get(name, 0.0) + seconds
 
     @property
     def active(self) -> bool:
@@ -56,6 +62,9 @@ class ActorUpdateTelemetry:
             duration = time.perf_counter() - started_at
             self._completed_durations[optimizer_step] = duration
             self._context.metric("train/rl/time/actor_update_seconds", duration, step=optimizer_step)
+            for name, seconds in self._parts.items():
+                self._context.metric(f"train/rl/time/{name}_seconds", seconds, step=optimizer_step)
+        self._parts = {}
 
     def record_tokens(self, optimizer_step: int, cumulative_tokens: float) -> None:
         completed_steps = [step for step in self._completed_durations if step <= optimizer_step]
@@ -95,6 +104,22 @@ def actor_update_callback_type(imports: Mapping[str, Any], telemetry: ActorUpdat
     parent = imports["TrainerCallback"]
 
     class ActorUpdateCallback(parent):
+        _optimizer_started_at: float | None = None
+
+        def on_pre_optimizer_step(self, args: Any, state: Any, control: Any, **_: Any) -> Any:
+            del args, state
+            _synchronize_cuda()
+            self._optimizer_started_at = time.perf_counter()
+            return control
+
+        def on_optimizer_step(self, args: Any, state: Any, control: Any, **_: Any) -> Any:
+            del args, state
+            if self._optimizer_started_at is not None:
+                _synchronize_cuda()
+                telemetry.add_part("optimizer_step", time.perf_counter() - self._optimizer_started_at)
+                self._optimizer_started_at = None
+            return control
+
         def on_step_end(self, args: Any, state: Any, control: Any, **_: Any) -> Any:
             del args
             telemetry.complete(int(state.global_step))
@@ -121,13 +146,34 @@ def actor_update_trainer_type(parent: type[Any], telemetry: ActorUpdateTelemetry
     """Start actor telemetry after TRL prepares the retained rollout batch."""
 
     class ActorUpdateTrainer(parent):
+        _microstep_started_at: float | None = None
+
         def _prepare_inputs(self, generation_batch: dict[str, Any]) -> dict[str, Any]:
             prepared = super()._prepare_inputs(generation_batch)
             if self.model.training:
                 telemetry.ensure_started(int(self.state.global_step) + 1)
+                # The first micro-step's inputs include the rollout; time forward/backward from here.
+                _synchronize_cuda()
+                self._microstep_started_at = time.perf_counter()
             return cast(dict[str, Any], prepared)
 
+        def training_step(self, *args: Any, **kwargs: Any) -> Any:
+            loss = super().training_step(*args, **kwargs)
+            if self._microstep_started_at is not None:
+                _synchronize_cuda()
+                telemetry.add_part("actor_forward_backward", time.perf_counter() - self._microstep_started_at)
+                self._microstep_started_at = None
+            return loss
+
     return ActorUpdateTrainer
+
+
+def _synchronize_cuda() -> None:
+    """Wait for queued GPU work so wall-clock timings measure it, not its launch."""
+    import torch
+
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
 
 
 def normalize_live_metrics(
