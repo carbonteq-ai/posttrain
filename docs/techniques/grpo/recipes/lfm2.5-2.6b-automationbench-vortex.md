@@ -33,7 +33,7 @@ full-model rate 1e-5.
 | 1e-5 (full-model rate) | `lfm26-olmo3-random20-20260912-r3` (1-20), `lfm26-olmo3-adaptive20-20260912-r4` (1-20), `lfm26-adaptive-grpo-50-c32-20260920f` (1-50), `lfm26-vortex-v2-agentic-20260923-r1` (1-20) and other 1e-5 arms | flat, 0.15-0.25 | flat or noisy | flat: 0.39→0.43, 0.43→0.34, 0.28→0.37 | Stable but barely learns: the policy hardly moves in 20-50 updates |
 | 2e-4 | `lfm26-vortex-v3-lr2e4-20260923-r1` (1-20), `lfm26-vortex-yield-first-v4-8k-20260923-r1` (1-20) | 0.18→0.30 in 20 updates | 0.20→0.55, 0.13→0.48 | 0.39→0.25, 0.29→0.33 | Too high: entropy and truncation climb within 20 updates |
 | 1e-4 | `lfm26-vortex-v5-yield-first-64-20260925-r4` (1-20), `lfm26-vortex-v5-100-from-r4-step20-20260925-r2` (21-41), `lfm26-vortex-v5-150-dspark-opt-20260926-r1` (41-65) | 0.17→0.23 (20), →0.64 (41), →0.88 (54), →5.6 (65) | 0.1-0.25 until 56, then →0.84 | 0.35-0.45 until 56, then <0 | Learns, but entropy drifts upward from the first update and runs away after update 54 |
-| 5e-5 + KL 0.005 | queued: `lfm26-vortex-v5-150-lr5e5-kl5e3-20260926-r1`, 150 updates from the base model | – | – | – | Pending |
+| 5e-5 + KL 0.005 | queued: `lfm26-vortex-v5-150-lr5e5-kl5e3-20260926-r2`, 150 updates from the base model. Run `-r1` was cancelled after 2 updates: the trainer silently ran without KL (see rule 4) | – | – | – | Pending |
 
 ### What the 1e-4 collapse looked like
 
@@ -66,8 +66,10 @@ Traces from `lfm26-vortex-v5-150-dspark-opt-20260926-r1`:
 3. **Watch entropy from the first update.** Its slope predicts collapse long
    before reward does. At 1e-4 it tripled in 41 updates while reward still looked
    healthy. Stop or lower the rate when entropy passes about twice its early level.
-4. **Anchor long runs with a KL penalty.** OLMo 3 originally fixed `beta` at 0;
-   it is now selectable. Resuming from a LoRA adapter, TRL keeps a frozen copy of
+4. **Anchor long runs with a KL penalty, and check it is applied.** OLMo 3
+   originally fixed `beta` at 0. TRL's `Olmo3GRPOConfig` still rejects `beta`, so
+   Posttrain sets it on the built config. Confirm a run logs `train/rl/kl` from
+   update 1; without it the KL penalty is not in the loss. Resuming from a LoRA adapter, TRL keeps a frozen copy of
    that adapter as the reference; a fresh adapter uses the base model.
 5. **Start again from a checkpoint instead of an exact resume when changing the
    rate.** An exact resume restores the scheduler state, which can keep the old

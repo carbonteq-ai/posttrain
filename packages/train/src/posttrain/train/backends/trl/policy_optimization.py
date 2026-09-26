@@ -200,7 +200,7 @@ def _run_online_rl(
                 model=model,
                 reward_funcs=_reward_functions(request),
                 rollout_func=cast(Any, _rollout_function(context, request, tokenizer)),
-                args=config_type(**arguments),
+                args=_trainer_arguments(config_type, arguments, request),
                 train_dataset=dataset,
                 processing_class=tokenizer,
                 callbacks=callbacks,
@@ -269,6 +269,21 @@ def _run_online_rl(
                 if failure is None:
                     raise
                 failure.add_note(f"failed to close adaptive curriculum state: {close_error!r}")
+
+
+def _trainer_arguments(
+    config_type: Any,
+    arguments: dict[str, Any],
+    request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
+) -> Any:
+    """Build the TRL config; the OLMo 3 recipe takes its selectable KL penalty after construction."""
+
+    config = config_type(**arguments)
+    if isinstance(request, GRPORequest) and request.settings.algorithm == "olmo3":
+        # Olmo3GRPOConfig declares beta as a fixed init=False field (always 0.0), so
+        # the settings' KL penalty is applied here, before the trainer reads it.
+        config.beta = request.settings.beta
+    return config
 
 
 def _digest_curriculum_state(path: Path) -> str:
