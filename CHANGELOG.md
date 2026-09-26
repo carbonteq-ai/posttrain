@@ -6,7 +6,41 @@ version across first-party distributions.
 
 ## Unreleased
 
-## 0.4.7 - unreleased
+## 0.4.8 - unreleased
+
+A VORTEX v5 LFM2.5-2.6B update now takes about 276 seconds instead of 823.
+
+### Changed
+
+- TRL `1.12.0.post10` (`4950b99d`): GRPO scores each micro-batch at its own
+  real length instead of the generation batch's padding (~25K tokens for ~9.7K
+  real ones). Training bindings can compile each decoder layer
+  (`compile_decoder_layers`), limit gradient checkpointing to long micro-batches
+  (`gradient_checkpointing_min_tokens`), and take the vLLM importance-sampling
+  ratio from the training forward instead of a separate no-grad pass
+  (`importance_sampling_from_training_logps`).
+- Training binding `training/lfm2.5-2.6b-trl-lora-automationbench-local-g64-w8@2`
+  selects compile and the training-forward ratio; the actor update fell from
+  373 to 114 seconds per 64-episode update.
+- `inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c64-4k@2` rolls out
+  with DSpark at c64 and a 13.75 GiB KV cache; rollout fell from 334 to about
+  158 seconds per update, at 26% draft acceptance.
+- Speculative-decoding evidence is expected for every drafting method, not
+  only MTP.
+
+### Added
+
+- Actor-update timing splits into `train/rl/time/actor_forward_backward_seconds`
+  and `train/rl/time/optimizer_step_seconds`.
+- VORTEX v5 continuations from run r2's step-40 checkpoint: the optimizer A/B
+  arms and a 150-update DSpark continuation.
+
+### Fixed
+
+- Resume selects the committed checkpoint when an interrupted run re-published
+  the same step.
+
+## 0.4.7 - 2026-09-26
 
 ### Added
 
