@@ -3,9 +3,29 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from posttrain.eval.backends.verifiers.runtime import prepare_preinstalled_uv_script
-from verifiers.v1.runtimes.base import LoopLocks
+
+
+class _FallbackLocks:
+    """Verifiers' ``LoopLocks`` API, for the quality job that lacks the verifiers extra."""
+
+    def __init__(self) -> None:
+        self._locks: dict[str, asyncio.Lock] = {}
+
+    def get(self, name: str = "") -> asyncio.Lock:
+        return self._locks.setdefault(name, asyncio.Lock())
+
+
+def _script_locks() -> Any:
+    """The pinned Verifiers lock type where installed, so its API changes fail CI."""
+
+    try:
+        from verifiers.v1.runtimes.base import LoopLocks
+    except ImportError:
+        return _FallbackLocks()
+    return LoopLocks()
 
 
 def test_standalone_eval_runtime_image_uses_private_prebuilt_parent() -> None:
@@ -26,8 +46,7 @@ class _Result:
 @dataclass
 class _Runtime:
     _uv_interpreters: dict[str, str] = field(default_factory=dict)
-    # The pinned Verifiers type, so a change to its lock API fails here first.
-    _uv_script_locks: LoopLocks = field(default_factory=LoopLocks)
+    _uv_script_locks: Any = field(default_factory=_script_locks)
     writes: list[tuple[str, bytes]] = field(default_factory=list)
     commands: list[tuple[list[str], dict[str, str]]] = field(default_factory=list)
 

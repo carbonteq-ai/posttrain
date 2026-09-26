@@ -232,4 +232,5 @@ jobs:
             --with pytest-asyncio \
             pytest -q \
               packages/train/tests/test_verifiers_grpo_bridge.py \
-              packages/train/tests/test_trl_async_collection_runtime.py
+              packages/train/tests/test_trl_async_collection_runtime.py \
+              packages/eval/tests/test_runtime_bootstrap.py
