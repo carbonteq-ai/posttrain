@@ -22,7 +22,7 @@ bindings:
   model: {type: ref, family: model, id: models/lfm2.5-1.2b-thinking@bf16}
   environment: {type: ref, family: environment, id: automationbench-lfm12-sampo-8gb-v1}
   settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-sampo-local-8gb-v1}
-  training: {type: ref, family: training, id: training/lfm2.5-1.2b-trl-lora-changed-weight-local@1}
+  training: {type: ref, family: training, id: training/lfm2.5-1.2b-trl-lora-sampo-local-8gb@1}
   rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-sampo-local-8gb@1}
 enabled_optional_jobs: []
 metadata:

@@ -430,6 +430,7 @@ def sampo_definition(
         run,
         "Train a multi-turn tool policy with sequence clipping and hierarchical episode/turn advantages.",
         required_artifact_roles=("model", "summary"),
+        static_validator=_validate_online_rl_batch_seats,
     )
 
 
@@ -982,7 +983,9 @@ def _validate_preference_prepare_seats(seats: ResolvedSeats) -> None:
 
 
 def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
-    settings = _seat(seats, "settings", GRPOSettings)
+    settings = seats["settings"]
+    if not isinstance(settings, GRPOSettings | SAMPOSettings):
+        raise TypeError("resolved seat 'settings' has the wrong type")
     training = _seat(seats, "training", TrainingBinding)
     expected_batch = settings.num_prompts_per_step * settings.num_generations
     global_batch = training.runtime.global_batch_size

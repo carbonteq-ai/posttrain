@@ -52,9 +52,11 @@ from posttrain.jobs.definitions import (
     _judge_service_bindings,
     _materialize_grpo_policy,
     _materialize_selected_model_variant,
+    sampo_definition,
 )
 from posttrain.train import (
     GRPOSettings,
+    SAMPOSettings,
     SFTRequest,
     SFTSettings,
     TrainingBinding,
@@ -483,6 +485,23 @@ def test_static_grpo_preparation_rejects_training_batch_mismatch() -> None:
                 "training": training,
             }
         )
+
+
+def test_static_sampo_preparation_rejects_training_batch_mismatch() -> None:
+    catalog = open_catalog(scope="jobs-test")
+    settings = SAMPOSettings(
+        id="sampo-static-mismatch",
+        loop=TrainingLoop(max_steps=1, max_length=384, per_device_batch_size=1, gradient_accumulation_steps=8),
+        num_prompts_per_step=2,
+        num_generations=4,
+    )
+    training = _selection(catalog, "training", "training/qwen3.5-0.8b-trl-distill-lora@1")
+    assert isinstance(training, TrainingBinding)
+    definition = sampo_definition()
+    assert definition.static_validator is not None
+
+    with pytest.raises(ContractError, match="global batch must equal prompt groups times generations"):
+        definition.static_validator({"settings": settings, "training": training})
 
 
 def test_static_grpo_preparation_rejects_sampling_policy_mismatch() -> None:

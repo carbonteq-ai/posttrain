@@ -2266,6 +2266,30 @@ training:
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
       dependency_lock_sha256: 20d9ede367a06de25424e16e63ea7fcada7b4e7f36c1037dc49707bdb295ca68
 
+  # 8 GB SAMPO development (docs/plan/sampo-vortex-lfm-automationbench.md):
+  # the changed-weight binding with a global batch of 2 prompt groups x 4.
+  training/lfm2.5-1.2b-trl-lora-sampo-local-8gb@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post10
+    renderer:
+      id: lfm2.5-tools@1
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/local-cuda-8gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 8, devices_per_node: 1, timeout_seconds: 1800}
+    backend_options:
+      rollout_execution: {env_workers: 1, episodes_per_worker: 2, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      vllm_policy_parity_max_sequence_tokens: 1024
+      dependency_lock: trl-fork@current
+      source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
+      dependency_lock_sha256: 20d9ede367a06de25424e16e63ea7fcada7b4e7f36c1037dc49707bdb295ca68
+
   reward/automationbench-episode-gdpo@1:
     selection_type: reward-projection
     revision: "1"
