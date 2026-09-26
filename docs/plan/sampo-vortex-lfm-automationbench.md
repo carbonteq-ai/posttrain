@@ -90,10 +90,25 @@ update.
   were truncated, by a first reply reaching 3,072 tokens (4) or the 8K context
   (2). Training still used renderers 0.1.12.post1.dev1, without the tool-call
   repairs.
+- [x] (2026-09-26 23:40Z) Released Posttrain 0.4.9 (PR #124, merge `2c21eabf`,
+  tag `v0.4.9`): candidate run 36262557103 (8 GB GPU canary), renderers dev2
+  promoted to stable (run 36263033868), final run 36263079405. Run
+  `lfm12-sampo-8gb-20260926-r15` on the 0.4.9 images (renderers dev2 installed)
+  completed three updates and parsed 3 tool calls that needed a repair.
+  Run r14 had still used dev1, because job images take third-party packages from
+  the job-kind image built from the committed runtime lock.
 - [ ] ~~Milestone 4: speed on 8 GB~~ Out of scope (user decision, 2026-09-26): the
   8 GB work is for correctness; TurboQuant was only considered to fit training.
-- [ ] Milestone 5: environment turn rewards in the AutomationBench adapter
-  (separate repository).
+- [x] (2026-09-27 00:50Z) Milestone 5: automationbench-v1 0.4.2
+  (`carbonteq-ai/verifiers-environments` #1, commit `3a486b0a`) scores the live
+  world before every model call and writes `assistant-turns@1` evidence: per
+  assistant turn, the change in partial credit minus 0.05 per failed tool call.
+  Posttrain selects it through `reward/automationbench-turn-progress@1` and
+  `train/sampo-turns@1`. Run `lfm12-sampo-turns-8gb-20260926-r1` completed three
+  updates: all 24 traces carried evidence matching their sampled turns,
+  `train/rl/sparse_reward_projection_fraction` was 0 (1.0 before), and a
+  zero-credit episode of five failing calls now scores -0.05 per turn instead of
+  looking like every other failure.
 - [ ] ~~Milestone 6: qualification on the RTX PRO 6000 with LFM2.5-2.6B~~ Out of
   scope for this round (user decision, 2026-09-26): the RTX PRO runs the KL job.
 
@@ -164,6 +179,24 @@ update.
   They need new binding revisions or retirement; they do not block this plan.
 
 ## Decision Log
+
+- Decision: measure per-turn progress live, in a task stop hook that runs
+  before every model call, instead of replaying the finished episode.
+  Rationale: AutomationBench generates record IDs with `uuid4`, so a replayed
+  turn that names an ID created earlier would fail. The adapter's stop hook sees
+  the world after the previous turn's tool calls; `finalize` records the last
+  turn. Only the new lab environment selects adapter 0.4.2; the framework-wide
+  AutomationBench selection (`5264ec15`, the release ledger) is unchanged.
+  Date/Author: 2026-09-27, Claude.
+
+- Decision: do not return a parse error to the model for an unrecoverable tool
+  call; the episode keeps ending there.
+  Rationale: serving turns such a call into plain text and ends the episode, so
+  a retry in training would make training and evaluation differ again; ending
+  with the episode's reward also keeps a direct penalty on the malformed call,
+  where a retry would place it inside a positively rewarded trajectory. The
+  common near-valid calls are now repaired identically on both paths.
+  Date/Author: 2026-09-26, Claude (recommended to the user).
 
 - Decision: retire the six older SAMPO qualification gates instead of giving
   them new bindings.

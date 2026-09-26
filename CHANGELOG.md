@@ -6,7 +6,27 @@ version across first-party distributions.
 
 ## Unreleased
 
-## 0.4.9 - unreleased
+## 0.4.10 - unreleased
+
+SAMPO can train on per-turn rewards from the AutomationBench environment itself.
+
+### Added
+
+- `train/sampo-turns@1`: SAMPO with direct per-turn rewards selected by a reward
+  projection, without a judge.
+- `automationbench-lfm12-sampo-8gb-turns-v1` uses `automationbench-v1` 0.4.2
+  (`3a486b0a`), which scores the live world before every model call: each
+  assistant turn earns its change in partial credit minus 0.05 per failed tool
+  call. `reward/automationbench-turn-progress@1` selects that `turn_reward`, and
+  `train/lfm2.5-1.2b/automationbench-sampo-turns-local-8gb` runs it on an 8 GB
+  GPU. Other environments keep AutomationBench `5264ec15`.
+
+### Changed
+
+- The renderers consumer page records `0.1.12.post1.dev2`'s qualification
+  evidence and its promotion to stable.
+
+## 0.4.9 - 2026-09-26
 
 SAMPO collects like VORTEX, training parses tool calls the way serving does, and
 evaluations report running out of context as truncation.

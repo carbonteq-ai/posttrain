@@ -1125,6 +1125,19 @@ owner = "posttrain-platform"
 replacement_condition = "Retire once the 8 GB SAMPO environment is rebuilt from its results."
 
 [[gates]]
+id = "lfm12-sampo-turns-local-8gb"
+work_package = ".posttrain/work_packages/lfm12_automationbench_sampo_turns_local_8gb.yaml"
+job_id = "sampo"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.sampo"
+acceptance = "verifiers-trajectories"
+experiment_family = "lfm25-sampo-local-8gb-v1"
+hypothesis = "AutomationBench per-turn rewards measured on the live world reach SAMPO as complete step rewards for every sampled turn, so step advantages carry environment signal instead of only the episode's final credit."
+owner = "posttrain-platform"
+replacement_condition = "Promote into the SAMPO qualification on the RTX PRO once a 2.6B run shows turn rewards improve on episode-only SAMPO; retire otherwise."
+
+[[gates]]
 id = "lfm12-sampo-local-8gb"
 work_package = ".posttrain/work_packages/lfm12_automationbench_sampo_local_8gb.yaml"
 job_id = "sampo"
