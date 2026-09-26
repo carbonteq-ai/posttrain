@@ -217,6 +217,15 @@ missing signals retain their execution/evidence state instead of becoming
 semantic failures. Training rollout views do not acquire this evaluation-only
 pass/fail contract merely because they retain the same native trace shape.
 
+A rollout whose final model request is refused for exceeding the model's
+context ran out of its context budget: it is truncated, not an execution
+error, and keeps the reward the environment scored for the state it reached.
+Any other model-call error is an execution failure. An evaluation run reports
+`failed` when every attempted rollout failed execution (and the run fails,
+after its evidence is recorded), `partial` when some failed, coverage is
+missing or traces did not synchronize, `truncated` when all ran but some hit a
+turn, output or context budget, and `complete` otherwise.
+
 Evaluation environments declare native task facets as independent dimensions.
 Evaluation plans may select versioned compound breakdowns across those
 dimensions, such as problem type by difficulty. Observatory groups the

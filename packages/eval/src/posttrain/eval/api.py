@@ -12,7 +12,7 @@ from posttrain.common import LocalArtifactRef, ProducedArtifact, RunContext
 
 from .backends.verifiers import VerifiersRunResult, inventory_verifiers_tasks, run_verifiers
 from .requests import EvaluateRequest, RemoteEvaluationBinding, RemotePolicy
-from .results import EvaluationResult, TraceSynchronization
+from .results import EvaluationResult, TraceSynchronization, evaluation_status
 from .selection import resolve_evaluation_selection
 
 type EvaluationContext = RunContext
@@ -133,14 +133,7 @@ def evaluate(
         },
         attributes=attributes,
     )
-    evaluation_status = (
-        "complete"
-        if sync.complete
-        and backend.population.coverage_missing == 0
-        and backend.population.failed == 0
-        and backend.population.truncated == 0
-        else "partial"
-    )
+    status = evaluation_status(backend.population, synchronized=sync.complete)
     if not sync.complete:
         context.event(
             "evaluation_trace_sync_failed",
@@ -166,9 +159,15 @@ def evaluate(
             "model_call_http_400_rollouts": backend.population.model_call_http_400_rollouts,
             "context_overflow_rollouts": backend.population.context_overflow_rollouts,
             "trace_sync_complete": sync.complete,
-            "evaluation_status": evaluation_status,
+            "evaluation_status": status,
         },
     )
+    if status == "failed":
+        # Evidence above is retained; the run fails because nothing was measured.
+        raise RuntimeError(
+            f"all {backend.population.attempted} evaluation rollouts failed execution; "
+            "see the errors recorded on their traces"
+        )
     return EvaluationResult(
         plan_id=_plan_id(request),
         environment_id=environment.id,

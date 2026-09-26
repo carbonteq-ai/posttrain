@@ -751,43 +751,106 @@ def test_evaluate_emits_direct_sync_metrics_and_native_artifact(tmp_path: Path) 
     assert observer.events[-1].name == "evaluation_completed"
 
 
-def test_provider_call_error_invalidates_modern_episode_and_emits_run_counters(tmp_path: Path) -> None:
+def test_final_context_overflow_is_truncation_and_other_call_errors_fail(tmp_path: Path) -> None:
     from posttrain.eval.backends.verifiers.adapter import _evaluation_population
 
-    error = SimpleNamespace(
+    overflow = SimpleNamespace(
         type="ProviderError",
         status_code=400,
         message="This model's maximum context length is 16384 tokens",
     )
-    broken = SimpleNamespace(
+    other_400 = SimpleNamespace(type="ProviderError", status_code=400, message="invalid tool schema")
+    ok_call = SimpleNamespace(error=None)
+    # The episode ran out of context on its last request: truncated, still scored.
+    out_of_context = SimpleNamespace(
         ok=True,
-        traces=[SimpleNamespace(calls=[SimpleNamespace(error=error)], is_truncated=False)],
+        traces=[SimpleNamespace(calls=[ok_call, SimpleNamespace(error=overflow)], is_truncated=False)],
     )
-    healthy = SimpleNamespace(
+    # An overflow that did not end the episode, or any other error, is a failure.
+    recovered_overflow = SimpleNamespace(
         ok=True,
-        traces=[SimpleNamespace(calls=[SimpleNamespace(error=None)], is_truncated=False)],
+        traces=[SimpleNamespace(calls=[SimpleNamespace(error=overflow), ok_call], is_truncated=False)],
     )
-    population = _evaluation_population([broken, healthy], modern=True, expected=2)
-    assert population.attempted == 2
-    assert population.complete == 1
-    assert population.failed == 1
-    assert population.model_call_error_rollouts == 1
-    assert population.model_call_http_400_rollouts == 1
-    assert population.context_overflow_rollouts == 1
+    bad_request = SimpleNamespace(
+        ok=True,
+        traces=[SimpleNamespace(calls=[SimpleNamespace(error=other_400)], is_truncated=False)],
+    )
+    healthy = SimpleNamespace(ok=True, traces=[SimpleNamespace(calls=[ok_call], is_truncated=False)])
+    population = _evaluation_population(
+        [out_of_context, recovered_overflow, bad_request, healthy], modern=True, expected=4
+    )
+    assert population.attempted == 4
+    assert population.complete == 2
+    assert population.failed == 2
+    assert population.truncated == 1
+    assert population.model_call_error_rollouts == 3
+    assert population.model_call_http_400_rollouts == 3
+    assert population.context_overflow_rollouts == 2
 
     observer = RecordingObserver()
 
     def fake_runner(execution: RunContext, evaluation: EvaluateRequest, output: Path) -> VerifiersRunResult:
         del execution, evaluation
         (output / "traces.jsonl").write_text('{"id":"trace-1"}\n', encoding="utf-8")
-        return VerifiersRunResult(("trace-1",), TraceSyncStats(observed_records=2, emitted_records=2), population)
+        return VerifiersRunResult(("trace-1",), TraceSyncStats(observed_records=4, emitted_records=4), population)
 
-    evaluate(context(tmp_path, observer), request(), runner=fake_runner)
+    result = evaluate(context(tmp_path, observer), request(), runner=fake_runner)
     values = observer.metrics_log[0].values
-    assert values["eval/run/rollouts_failed"] == 1
-    assert values["eval/run/model_call_error_rollouts"] == 1
-    assert values["eval/run/model_call_http_400_rollouts"] == 1
-    assert values["eval/run/context_overflow_rollouts"] == 1
+    assert values["eval/run/rollouts_failed"] == 2
+    assert values["eval/run/rollouts_truncated"] == 1
+    assert values["eval/run/model_call_error_rollouts"] == 3
+    assert values["eval/run/context_overflow_rollouts"] == 2
+    assert result.status == "partial"
+
+
+def test_evaluation_status_marks_truncation_and_fails_without_results(tmp_path: Path) -> None:
+    def run(population: EvaluationPopulation) -> tuple[RecordingObserver, VerifiersRunResult]:
+        return RecordingObserver(), VerifiersRunResult(
+            ("trace-1",), TraceSyncStats(observed_records=1, emitted_records=1), population
+        )
+
+    observer, truncated = run(EvaluationPopulation(attempted=2, complete=2, failed=0, truncated=1, coverage_missing=0))
+    result = evaluate(context(tmp_path, observer), request(), runner=lambda *_: truncated)
+    assert result.status == "truncated"
+    assert observer.events[-1].attributes["evaluation_status"] == "truncated"
+
+    observer, failed = run(EvaluationPopulation(attempted=2, complete=0, failed=2, truncated=0, coverage_missing=0))
+    with pytest.raises(RuntimeError, match="all 2 evaluation rollouts failed"):
+        evaluate(context(tmp_path / "failed", observer), request(), runner=lambda *_: failed)
+    # The evidence is still recorded before the run fails.
+    assert observer.metrics_log[0].values["eval/run/rollouts_failed"] == 2
+    assert observer.events[-1].attributes["evaluation_status"] == "failed"
+
+
+def test_trace_evidence_keeps_the_reward_of_an_episode_that_ran_out_of_context() -> None:
+    from posttrain.environment import (
+        project_verifiers_trace_facts,
+        verifiers_trace_has_error,
+        verifiers_trace_is_truncated,
+    )
+
+    overflow = {"type": "ProviderError", "message": "upstream 400: This model's maximum context length is 8192 tokens."}
+    record = {
+        "id": "out-of-context",
+        "version": 2,
+        "ok": True,
+        "errors": [],
+        "stop_condition": "agent_completed",
+        "rewards": {"partial_credit": {"score": 0.5, "weight": 1.0}},
+        "calls": [
+            {"finish_reason": "tool_calls", "usage": {"prompt_tokens": 3900, "completion_tokens": 1200}},
+            {"error": overflow},
+        ],
+    }
+    assert not verifiers_trace_has_error(record)
+    assert verifiers_trace_is_truncated(record)
+    facts = project_verifiers_trace_facts(record)
+    assert facts.dimensions["is_truncated"] is True
+    assert facts.measures["task_reward"] == 0.5
+
+    earlier = {**record, "calls": [{"error": overflow}, record["calls"][0]]}
+    assert verifiers_trace_has_error(earlier)
+    assert not verifiers_trace_is_truncated(earlier)
 
 
 def test_verifiers_eval_emits_shared_trace_facts() -> None:
@@ -925,8 +988,8 @@ def test_general_uses_canonical_seats_and_marks_partial_trace_sync(tmp_path: Pat
                 errors=["ValueError: unsupported trace fact dimension 'task_id'"],
             ),
             EvaluationPopulation(
-                attempted=1,
-                complete=0,
+                attempted=2,
+                complete=1,
                 failed=1,
                 truncated=1,
                 coverage_missing=1,
@@ -940,8 +1003,8 @@ def test_general_uses_canonical_seats_and_marks_partial_trace_sync(tmp_path: Pat
     assert result.status == "partial"
     assert result.native_artifact.kind == "verifiers-evaluation"
     values = observer.metrics_log[0].values
-    assert values["eval/run/rollouts_attempted"] == 1
-    assert values["eval/run/rollouts_complete"] == 0
+    assert values["eval/run/rollouts_attempted"] == 2
+    assert values["eval/run/rollouts_complete"] == 1
     assert values["eval/run/rollouts_failed"] == 1
     assert values["eval/run/rollouts_truncated"] == 1
     assert values["eval/run/coverage_missing"] == 1

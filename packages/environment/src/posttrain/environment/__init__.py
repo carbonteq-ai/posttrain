@@ -35,6 +35,8 @@ from .requests import (
 from .task_inventory import TaskDescriptor, TaskFacetValue, task_inventory_digest
 from .verifiers_evidence import (
     VERIFIERS_FACT_CALCULATOR_VERSION,
+    final_call_overflowed_context,
+    is_context_overflow_error,
     project_verifiers_trace_facts,
     verifiers_trace_attributes,
     verifiers_trace_has_error,
@@ -73,6 +75,8 @@ __all__ = [
     "VerifiersV1ConfigActivationSchema",
     "environment_catalog_decoders",
     "environment_source_payload",
+    "final_call_overflowed_context",
+    "is_context_overflow_error",
     "project_verifiers_trace_facts",
     "task_inventory_digest",
     "verifiers_trace_attributes",

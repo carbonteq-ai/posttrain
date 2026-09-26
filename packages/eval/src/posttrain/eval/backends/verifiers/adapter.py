@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any, Protocol, cast
 
 from posttrain.common import JsonValue, RunContext, TraceObservation
-from posttrain.environment import project_verifiers_trace_facts, verifiers_trace_attributes
+from posttrain.environment import (
+    final_call_overflowed_context,
+    project_verifiers_trace_facts,
+    verifiers_trace_attributes,
+)
 from posttrain.environment.verifiers_runtime import (
     materialize_verifiers_environment,
     verifiers_environment_types,
@@ -263,8 +267,8 @@ def _field(value: object, name: str) -> object:
 def _model_call_error_flags(episode: object, *, modern: bool) -> tuple[bool, bool, bool]:
     """Inspect provider failures without trusting episode-level `ok` alone.
 
-    The last flag identifies the known context-overflow signature for diagnostics
-    only. Any model-call error invalidates the attempt, even if unrecognized.
+    The flags are diagnostics. A final context-overflow refusal makes the attempt
+    truncated; any other model-call error invalidates it, even if unrecognized.
     """
 
     traces = _field(episode, "traces") if modern else (episode,)
@@ -289,10 +293,39 @@ def _model_call_error_flags(episode: object, *, modern: bool) -> tuple[bool, boo
     return found, http_400, context_overflow
 
 
+def _ended_by_context_overflow(episode: object, *, modern: bool) -> bool:
+    """Whether the episode's last model request was refused for exceeding the context."""
+
+    traces = _field(episode, "traces") if modern else (episode,)
+    if not isinstance(traces, (list, tuple)) or not traces:
+        return False
+    return final_call_overflowed_context(_field(traces[-1], "calls"))
+
+
+def _has_other_call_error(episode: object, *, modern: bool, overflowed: bool) -> bool:
+    """Whether a model call failed other than a final context-overflow refusal."""
+
+    traces = _field(episode, "traces") if modern else (episode,)
+    if not isinstance(traces, (list, tuple)):
+        return False
+    errors = [
+        call
+        for trace in traces
+        if isinstance(calls := _field(trace, "calls"), (list, tuple))
+        for call in calls
+        if _field(call, "error") not in (None, False, "")
+    ]
+    return len(errors) > (1 if overflowed else 0)
+
+
 def _evaluation_population(traces: list[Any], *, modern: bool, expected: int) -> EvaluationPopulation:
     call_errors = [_model_call_error_flags(episode, modern=modern) for episode in traces]
+    # An episode that ran out of context is truncated and keeps the reward the
+    # environment scored; only other errors make the attempt fail.
+    overflowed = [_ended_by_context_overflow(episode, modern=modern) for episode in traces]
     execution_failed = [
-        (not episode.ok if modern else bool(episode.has_error)) or call_errors[index][0]
+        (not episode.ok if modern else bool(episode.has_error))
+        or _has_other_call_error(episode, modern=modern, overflowed=overflowed[index])
         for index, episode in enumerate(traces)
     ]
     return EvaluationPopulation(
@@ -304,7 +337,10 @@ def _evaluation_population(traces: list[Any], *, modern: bool, expected: int) ->
         failed=sum(execution_failed),
         truncated=sum(
             not execution_failed[index]
-            and (any(child.is_truncated for child in episode.traces) if modern else bool(episode.is_truncated))
+            and (
+                overflowed[index]
+                or (any(child.is_truncated for child in episode.traces) if modern else bool(episode.is_truncated))
+            )
             for index, episode in enumerate(traces)
         ),
         coverage_missing=max(expected - len(traces), 0),

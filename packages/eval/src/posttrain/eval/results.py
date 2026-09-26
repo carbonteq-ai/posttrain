@@ -85,14 +85,25 @@ class EvaluationResult:
 
     @property
     def status(self) -> str:
-        if (
-            self.synchronization.complete
-            and self.population.coverage_missing == 0
-            and self.population.failed == 0
-            and self.population.truncated == 0
-        ):
-            return "complete"
+        return evaluation_status(self.population, synchronized=self.synchronization.complete)
+
+
+def evaluation_status(population: EvaluationPopulation, *, synchronized: bool) -> str:
+    """Summarize an evaluation run: failed, partial, truncated or complete.
+
+    ``failed``: every attempted rollout failed execution, so there is no result.
+    ``partial``: some rollouts failed, coverage is missing, or traces did not
+    synchronize. ``truncated``: every rollout ran, but some hit a turn, output or
+    context budget; they keep the reward the environment scored.
+    """
+
+    if population.attempted > 0 and population.failed == population.attempted:
+        return "failed"
+    if not synchronized or population.coverage_missing > 0 or population.failed > 0:
         return "partial"
+    if population.truncated > 0:
+        return "truncated"
+    return "complete"
 
 
-__all__ = ["EvaluationPopulation", "EvaluationResult", "TraceSynchronization"]
+__all__ = ["EvaluationPopulation", "EvaluationResult", "TraceSynchronization", "evaluation_status"]

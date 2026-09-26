@@ -10,8 +10,10 @@ from posttrain.common import JsonValue, SignalSource, TraceFactSet, TraceRewardC
 # v5: facts record the task id and prompt-group id, so group rewards aggregate
 # from indexed facts. v6: thinking tokens come only from per-call usage, which
 # the renderer fills on the train path (carbonteq-renderers); model-specific
-# recovery rules are gone.
-VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v6"
+# recovery rules are gone. v7: an episode whose final model request was
+# rejected for exceeding the context is truncated, not an error, and keeps the
+# reward the environment scored.
+VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v7"
 
 _TRUNCATED_STOP_CONDITIONS = frozenset(
     {
@@ -36,6 +38,32 @@ def verifiers_trace_attributes(record: Mapping[str, object]) -> dict[str, JsonVa
     }
 
 
+def is_context_overflow_error(error: object) -> bool:
+    """Whether a model-call error is the server refusing a request over its context.
+
+    vLLM rejects a request whose prompt plus requested output exceeds the model's
+    context with HTTP 400 "This model's maximum context length is N tokens".
+    Works on serialized errors and live Verifiers error objects.
+    """
+
+    message = error.get("message") if isinstance(error, Mapping) else getattr(error, "message", None)
+    return isinstance(message, str) and "maximum context length" in message.lower()
+
+
+def final_call_overflowed_context(calls: object) -> bool:
+    """Whether the episode ended because its last model request exceeded the context.
+
+    Such an episode ran out of its context budget: it is truncated, and the
+    environment still scores the state it reached.
+    """
+
+    if not isinstance(calls, (list, tuple)) or not calls:
+        return False
+    last = calls[-1]
+    error = last.get("error") if isinstance(last, Mapping) else getattr(last, "error", None)
+    return error not in (None, False, "") and is_context_overflow_error(error)
+
+
 def verifiers_trace_has_error(record: Mapping[str, object]) -> bool:
     # Modern traces expose execution standing even when no exception was saved.
     # Missing `ok` is the legacy schema, not an implicit unsuccessful episode.
@@ -43,9 +71,11 @@ def verifiers_trace_has_error(record: Mapping[str, object]) -> bool:
     if record.get("ok") is False or (isinstance(errors, list) and bool(errors)):
         return True
     calls = record.get("calls")
-    return isinstance(calls, list) and any(
-        isinstance(call, Mapping) and call.get("error") not in (None, False, "") for call in calls
-    )
+    if not isinstance(calls, list):
+        return False
+    # A final request refused for exceeding the context is truncation, not error.
+    checked = calls[:-1] if final_call_overflowed_context(calls) else calls
+    return any(isinstance(call, Mapping) and call.get("error") not in (None, False, "") for call in checked)
 
 
 def verifiers_trace_is_truncated(record: Mapping[str, object]) -> bool:
@@ -54,6 +84,8 @@ def verifiers_trace_is_truncated(record: Mapping[str, object]) -> bool:
     if verifiers_trace_has_error(record):
         return False
     if record.get("stop_condition") in _TRUNCATED_STOP_CONDITIONS:
+        return True
+    if final_call_overflowed_context(record.get("calls")):
         return True
     last = _last_successful_call(record)
     return bool(last and last.get("finish_reason") == "length")
@@ -392,6 +424,8 @@ def _string(value: object) -> str | None:
 
 __all__ = [
     "VERIFIERS_FACT_CALCULATOR_VERSION",
+    "final_call_overflowed_context",
+    "is_context_overflow_error",
     "project_verifiers_trace_facts",
     "verifiers_trace_attributes",
     "verifiers_trace_has_error",
