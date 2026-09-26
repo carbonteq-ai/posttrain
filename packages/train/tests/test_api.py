@@ -1644,6 +1644,9 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
             "logits_chunk_size": 128,
             "vllm_policy_parity_max_mean_logp_delta": 0.075,
             "vllm_policy_parity_max_sequence_tokens": 4096,
+            "gradient_checkpointing_min_tokens": 14336,
+            "compile_decoder_layers": True,
+            "importance_sampling_from_training_logps": True,
         },
     )
     optimized_request = replace(request, training=optimized_training)
@@ -1656,6 +1659,10 @@ def test_grpo_backend_configures_one_generation_schedule_control(tmp_path: Path)
     assert optimized_arguments["logits_chunk_size"] == 128
     assert optimized_arguments["vllm_policy_parity_max_mean_logp_delta"] == 0.075
     assert optimized_arguments["vllm_policy_parity_max_sequence_tokens"] == 4096
+    assert optimized_arguments["gradient_checkpointing_min_tokens"] == 14336
+    assert optimized_arguments["compile_decoder_layers"] is True
+    assert optimized_arguments["vllm_importance_sampling_from_training_logps"] is True
+    assert _grpo_runtime_attributes(optimized_request)["gradient_checkpointing_min_tokens"] == 14336
     trainer = SimpleNamespace(liger_loss=SimpleNamespace(compiled=True))
     _configure_liger_loss(trainer, optimized_request)
     assert trainer.liger_loss.compiled is False

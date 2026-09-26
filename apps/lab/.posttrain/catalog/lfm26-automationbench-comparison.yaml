@@ -1884,6 +1884,48 @@ training:
       source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
       dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
 
+
+  # Revision 1 plus the measured optimizer-phase settings; requires the TRL
+  # fork with per-micro-batch padding trim (episodes were padded to the
+  # generation batch's ~25K width).
+  training/lfm2.5-2.6b-trl-lora-automationbench-local-g64-w8@2:
+    selection_type: training-binding
+    revision: "2"
+    backend: trl@1.12.0.post9
+    renderer:
+      id: lfm2.5-tools-thinking@2
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update:
+      kind: lora
+      rank: 4
+      alpha: 8
+      target_modules: all-linear
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 64
+      devices_per_node: 1
+      timeout_seconds: 43200
+    backend_options:
+      rollout_execution: {env_workers: 8, episodes_per_worker: 8, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      # Measured on the RTX PRO 6000 at 9.7K-token episodes: per-layer compile
+      # 0.961 -> 0.672 s, compile without checkpointing 0.476 s (36 GB peak);
+      # 24.6K episodes need 82 GB without checkpointing, so only episodes of
+      # at least 14,336 tokens recompute activations. On-policy, the
+      # importance-sampling ratio comes from the training forward instead of
+      # a separate no-grad pass over the batch (0.301 s per episode).
+      gradient_checkpointing_min_tokens: 14336
+      compile_decoder_layers: true
+      importance_sampling_from_training_logps: true
+      vllm_policy_parity_max_sequence_tokens: 4096
+      dependency_lock: trl-fork@current
+      source_revision: 3b7a582e011a32de74d1f2b6e572b794360fbfd7
+      dependency_lock_sha256: a17d1be59791c516973a625050bed0f2056494a07c98f3891a9d2d046e8b90ce
+
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g40@1:
     selection_type: training-binding
     revision: "1"

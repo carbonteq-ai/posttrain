@@ -91,11 +91,11 @@ def test_package_registry_classifies_every_current_work_package() -> None:
 
     inventory = validate_qualification_project(layout, load_qualification_gates())
 
-    assert len(inventory.entries) == 89
+    assert len(inventory.entries) == 91
     assert len(inventory.active_gates) == 20
-    assert len(inventory.candidate_experiments) == 69
+    assert len(inventory.candidate_experiments) == 71
     assert inventory.retired_gates == ()
-    assert len(inventory.classified) == 89
+    assert len(inventory.classified) == 91
     assert inventory.unclassified == ()
     assert {gate.id for gate in inventory.active_gates if gate.tier == "release"} == {
         "qwen2b-gsm8k-evaluation",
@@ -216,7 +216,7 @@ def test_qualification_list_emits_a_stable_json_inventory(capsys: pytest.Capture
 
     assert payload["schema_version"] == 2
     assert len(payload["active_gates"]) == 20
-    assert len(payload["candidate_experiments"]) == 69
+    assert len(payload["candidate_experiments"]) == 71
     assert payload["retired_gates"] == []
     assert payload["unclassified_work_packages"] == []
 
@@ -228,4 +228,4 @@ def test_qualification_list_labels_candidates_as_non_active_experiments(capsys: 
 
     assert "automationbench-grpo\tcandidate\texperimental" in output
     assert "lfm26-automationbench-vortex-20-local\tcandidate\texperimental" in output
-    assert "summary\tactive=20\tcandidates=69\tretired_gates=0" in output
+    assert "summary\tactive=20\tcandidates=71\tretired_gates=0" in output

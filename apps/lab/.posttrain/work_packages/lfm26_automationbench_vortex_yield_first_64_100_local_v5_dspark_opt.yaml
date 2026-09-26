@@ -1,0 +1,32 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-vortex-yield-first-64-100-local-v5-dspark-opt
+stage: train
+description: VORTEX v5 continued from run r2 at step 40 with the measured optimizer-phase settings and DSpark speculative rollout - v4's yield-first curriculum with LoRA learning rate 1e-4, 16 prompt groups x 4 rollouts per update, a 0.2 truncation penalty, solvable HR sheet tasks and the real 12-turn budget in the prompt. Per-reply, turn and context budgets are unchanged.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-vortex-yield-first-64-100-local-v5-dspark-opt@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: train
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, adaptive curriculum state, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-v7}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-vortex-yield-first-64-100-local-v5}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-local-g64-w8@2}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c64-4k@2}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-automationbench-vortex-20-local-v1
+  arm: vortex-v5-100-lora1e4-g64-truncation-penalty-dspark-opt
+  task_mix: lfm26-automationbench-mix-v2
+  labels: [experiment, automationbench, lfm2.5, vortex, yield-first, adaptive-curriculum, active-sampling, truncation-penalty, local-rtx-pro-6000]

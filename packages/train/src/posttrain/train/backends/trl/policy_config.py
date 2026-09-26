@@ -96,6 +96,19 @@ def _online_rl_arguments(
         isinstance(logits_chunk_size, bool) or not isinstance(logits_chunk_size, int) or logits_chunk_size < 1
     ):
         raise ValueError("TRL GRPO logits_chunk_size must be a positive integer")
+    checkpoint_min_tokens = request.training.backend_options.get("gradient_checkpointing_min_tokens")
+    if checkpoint_min_tokens is not None and (
+        isinstance(checkpoint_min_tokens, bool)
+        or not isinstance(checkpoint_min_tokens, int)
+        or checkpoint_min_tokens < 1
+    ):
+        raise ValueError("TRL GRPO gradient_checkpointing_min_tokens must be a positive integer")
+    compile_decoder_layers = request.training.backend_options.get("compile_decoder_layers", False)
+    if not isinstance(compile_decoder_layers, bool):
+        raise ValueError("TRL GRPO compile_decoder_layers must be a boolean")
+    training_logps_is = request.training.backend_options.get("importance_sampling_from_training_logps", False)
+    if not isinstance(training_logps_is, bool):
+        raise ValueError("TRL GRPO importance_sampling_from_training_logps must be a boolean")
     parity_limit = request.training.backend_options.get("vllm_policy_parity_max_mean_logp_delta")
     if parity_limit is not None and (
         isinstance(parity_limit, bool)
@@ -146,6 +159,9 @@ def _online_rl_arguments(
             "use_precomputed_advantages": is_sampo or isinstance(settings, GDPOSettings | CAPOSettings),
             "use_liger_kernel": use_liger_kernel,
             "logits_chunk_size": logits_chunk_size,
+            "gradient_checkpointing_min_tokens": checkpoint_min_tokens,
+            "compile_decoder_layers": compile_decoder_layers,
+            "vllm_importance_sampling_from_training_logps": training_logps_is,
             "use_vllm": request.inference.backend.split("@", 1)[0] == "vllm",
             "temperature": sampling.temperature,
             "top_p": sampling.top_p,
@@ -336,6 +352,11 @@ def _online_rl_runtime_attributes(
         "use_liger_kernel": request.training.backend_options.get("use_liger_kernel", False),
         "liger_loss_compiled": request.training.backend_options.get("liger_loss_compiled", True),
         "logits_chunk_size": request.training.backend_options.get("logits_chunk_size"),
+        "gradient_checkpointing_min_tokens": request.training.backend_options.get("gradient_checkpointing_min_tokens"),
+        "compile_decoder_layers": request.training.backend_options.get("compile_decoder_layers", False),
+        "importance_sampling_from_training_logps": request.training.backend_options.get(
+            "importance_sampling_from_training_logps", False
+        ),
         "vllm_policy_parity_max_mean_logp_delta": request.training.backend_options.get(
             "vllm_policy_parity_max_mean_logp_delta"
         ),
