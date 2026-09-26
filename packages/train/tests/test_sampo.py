@@ -272,6 +272,7 @@ def test_sampo_admission_returns_no_groups_so_the_refill_draws_again() -> None:
         batch, _settings(), collect, lambda failures: failures, max_attempts=1, retain_complete_on_exhaustion=True
     )
     assert result.rollouts == () and result.retained_positions == ()
+    assert result.rejection_reasons == ("RuntimeError",)
 
 
 def test_sampo_advantages_use_the_admitted_example_ids() -> None:

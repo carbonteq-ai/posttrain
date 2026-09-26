@@ -124,6 +124,11 @@ def rollout_function(
                     )
                     trainer._posttrain_async_collection_runtime = runtime  # noqa: SLF001 - backend lifecycle state
                 collection_ordinal += 1
+                # Waking colocated vLLM needs the memory the trainer's allocator still
+                # caches; TRL's batch generation path releases it the same way.
+                from trl.generation.vllm_generation import empty_cache
+
+                empty_cache()
                 outcomes = runtime.collect(
                     selected,
                     collection_id=f"step-{optimizer_step:08d}/collection-{collection_ordinal:06d}",
@@ -169,6 +174,8 @@ def rollout_function(
                     retain_complete_on_exhaustion=True,
                 )
                 rollouts = admission.rollouts
+                if admission.rejection_reasons:
+                    trainer._posttrain_admission_rejections = admission.rejection_reasons  # noqa: SLF001
             else:
                 rollouts = collect(batch)
         elapsed = time.perf_counter() - started_at

@@ -26,6 +26,8 @@ class AdmissionResult:
     rounds: int
     rejected_groups: int
     failed_rollouts: int
+    rejection_reasons: tuple[str, ...] = ()
+    """Distinct reasons for rejected groups, so an empty batch can say why."""
 
 
 def validate_reward_rollout(rollout: EnvironmentRollout, settings: GDPOSettings | CAPOSettings) -> None:
@@ -69,6 +71,7 @@ def admit_rollout_groups(
     if not batch.prompt_group_ids:
         raise InvalidRewardEvidence("group admission requires explicit occurrence and response identities")
     pending = set(batch.prompt_group_ids)
+    reasons: set[str] = set()
     accepted: dict[int, EnvironmentRollout] = {}
     attempted = 0
     rejected = 0
@@ -180,6 +183,7 @@ def admit_rollout_groups(
                 failed_rollouts,
             )
         rejected += len(pending)
+        reasons.update(reason[:300] for _, reason in global_failures)
         accepted = {
             position: row for position, row in accepted.items() if batch.prompt_group_ids[position] not in pending
         }
@@ -197,6 +201,7 @@ def admit_rollout_groups(
                     attempt + 1,
                     rejected,
                     failed_rollouts,
+                    tuple(sorted(reasons)),
                 )
             error_type = RuntimeError if isinstance(settings, GRPOSettings | SAMPOSettings) else InvalidRewardEvidence
             raise error_type(
