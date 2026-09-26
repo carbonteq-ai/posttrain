@@ -124,6 +124,8 @@ def test_native_worker_uses_exact_lfm_template_and_tokens(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_native_train_client_round_trips_exact_lfm_tokens_over_loopback(monkeypatch):
+    # The endpoint validates requests with vLLM's token-in/token-out protocol.
+    pytest.importorskip("vllm.entrypoints.scale_out.token_in_token_out.protocol")
     from verifiers.v1.clients.train import TrainClient
     from verifiers.v1.dialects import ChatDialect
     from verifiers.v1.types import SamplingConfig
