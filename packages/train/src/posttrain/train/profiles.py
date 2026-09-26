@@ -314,9 +314,11 @@ class SAMPOSettings:
     advantage_normalization: Literal["mean", "mean_std"] = "mean"
     clip_epsilon_low: float = 0.003
     clip_epsilon_high: float = 0.004
-    dynamic_sampling: DynamicGroupSampling = field(default_factory=lambda: DynamicGroupSampling(3))
+    active_sampling: ActiveGroupSampling = field(default_factory=lambda: ActiveGroupSampling(3))
+    adaptive_curriculum: AdaptiveCurriculum | None = None
     shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
+    max_admission_attempts: int = 1
     revision: str = "1"
 
     def __post_init__(self) -> None:
@@ -345,12 +347,14 @@ class SAMPOSettings:
             raise ValueError("SAMPO step-advantage weight cannot be negative")
         if self.clip_epsilon_low <= 0 or self.clip_epsilon_high <= 0:
             raise ValueError("SAMPO clip epsilons must be positive")
+        if self.max_admission_attempts < 1:
+            raise ValueError("SAMPO group admission attempts must be positive")
 
     @property
     def max_collection_attempts(self) -> int:
         """Maximum bounded trajectory collections for one requested population."""
 
-        return self.dynamic_sampling.max_candidate_batches
+        return self.active_sampling.max_candidate_batches
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

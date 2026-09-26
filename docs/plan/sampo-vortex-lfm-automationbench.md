@@ -37,10 +37,15 @@ update.
   after removing per-sample IDs and UUIDs.
 - [x] (2026-09-26 13:40Z) Mapped the current SAMPO path and its gaps (see Context
   and Orientation).
-- [ ] Milestone 1: baseline SAMPO on 8 GB as it exists today, and record where it
-  breaks.
-- [ ] Milestone 2: robust collection for SAMPO (group admission, refill of missing
-  groups, VORTEX curriculum).
+- [x] (2026-09-26 15:30Z) Milestone 1: baseline SAMPO on 8 GB. After three setup
+  fixes (task domains, vLLM memory share, shutdown error masking) run
+  `lfm12-sampo-8gb-20260926-r6` failed with "dynamic sampling exhausted 3 candidate
+  batches ... retained rows 0": all 12 LFM2.5-1.2B attempts scored 0.
+- [x] (2026-09-26 16:40Z) Milestone 2 code: SAMPO refills only with VORTEX active
+  sampling (dynamic sampling removed), goes through group admission, selects the
+  adaptive curriculum, and computes advantages on admitted groups. 1969 tests pass.
+- [ ] Milestone 2 run: the 8 GB package with oversampling (10 candidate batches, 2
+  groups of 4) and the yield-first curriculum completes three updates.
 - [ ] Milestone 3: objective fit (vLLM correction mode, truncation penalty, KL,
   ID-stripped anchor keys, evidence).
 - [ ] Milestone 4: speed on 8 GB (time split, trainer options, rollout options).
@@ -49,6 +54,17 @@ update.
 - [ ] Milestone 6: qualification on the RTX PRO 6000 with LFM2.5-2.6B.
 
 ## Surprises & Discoveries
+
+- Observation: on the 8 GB GPU a failed training step surfaced as a vLLM out-of-
+  memory error. The rollout runtime's shutdown wakes the colocated engine, which
+  ran out of memory and replaced the training error. Fixed in `trainer_lifecycle`
+  (commit 5d705d64): the training error is kept, the shutdown failure attached as
+  a note, and cached CUDA memory is released before shutdown.
+- Observation: LFM2.5-2.6B lost the final tool call of 11.7% of healthy VORTEX v5
+  episodes (61 of 520): 28 calls sampled before `</think>` were swallowed as
+  reasoning, 20 were malformed Python, 13 were cut off by the 4096-token reply cap.
+  The first cause is fixed in the renderers fork (commit f1952b2, not yet
+  released); the others end the episode silently instead of returning an error.
 
 - Observation: anchor states match more often than expected on AutomationBench,
   although attempts diverge after the first turn.
@@ -67,6 +83,16 @@ update.
   episode-level reward never isolates, not an evaluator bug.
 
 ## Decision Log
+
+- Decision: remove dynamic sampling from SAMPO; it refills only with VORTEX active
+  sampling (keep groups with differing episode rewards, generate only the missing
+  groups from a reserved candidate pool), optionally with the adaptive curriculum.
+  Rationale: dynamic sampling regenerates whole candidate batches and stopped the
+  8 GB baseline after three rounds with no retained group; VORTEX's refill is the
+  collection behaviour that works on AutomationBench. The veRL backend has no
+  active sampling, so it now rejects SAMPO instead of running a different
+  collection policy; its SAMPO capsules are not runnable until it gains one.
+  Date/Author: 2026-09-26, user decision.
 
 - Decision: develop on the 8 GB RTX 3070 Ti with LFM2.5-1.2B-thinking, then
   qualify on the RTX PRO 6000 with LFM2.5-2.6B.

@@ -54,7 +54,7 @@ def test_slice_one_and_two_selections_load_from_the_base_filesystem_catalog() ->
     assert dapo.value.dynamic_sampling == DynamicGroupSampling(max_candidate_batches=10)
     assert isinstance(sampo.value, SAMPOSettings)
     assert sampo.value.discount_gamma == 0.95
-    assert sampo.value.dynamic_sampling == DynamicGroupSampling(max_candidate_batches=3)
+    assert sampo.value.active_sampling == ActiveGroupSampling(max_candidate_batches=3)
 
 
 def test_gemma4_unified_qualification_selections_resolve_as_one_support_plane() -> None:

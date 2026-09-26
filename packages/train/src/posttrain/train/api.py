@@ -788,7 +788,14 @@ def _seat_attributes(
                 "advantage_normalization": request.settings.advantage_normalization,
                 "mask_truncated_completions": request.settings.mask_truncated_completions,
                 "shuffle_prompts": request.settings.shuffle_prompts,
-                "dynamic_sampling_max_candidate_batches": (request.settings.dynamic_sampling.max_candidate_batches),
+                "active_sampling": True,
+                "active_sampling_max_candidate_batches": request.settings.active_sampling.max_candidate_batches,
+                "adaptive_curriculum_policy": (
+                    request.settings.adaptive_curriculum.policy
+                    if request.settings.adaptive_curriculum is not None
+                    else None
+                ),
+                "max_admission_attempts": request.settings.max_admission_attempts,
                 "environment_id": request.environment.id,
                 "environment_revision": request.environment.revision,
                 "inference_id": request.inference.id,

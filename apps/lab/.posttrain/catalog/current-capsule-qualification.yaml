@@ -56,7 +56,7 @@ training:
     advantage_normalization: mean
     clip_epsilon_low: 0.003
     clip_epsilon_high: 0.004
-    dynamic_sampling:
+    active_sampling:
       max_candidate_batches: 3
     mask_truncated_completions: false
   qwen3.5-0.8b/on-policy-distill-10-step-qualification-v1:

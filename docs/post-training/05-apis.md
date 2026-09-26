@@ -549,7 +549,12 @@ post-generation group selection.
 
 `SAMPOSettings` belongs to the separate `train.sampo` operation. It owns the
 discount factor, turn-advantage weight, sequence clipping bounds, reward
-normalization, and bounded dynamic filtering. The rollout contract supplies
+normalization, and bounded active group sampling: like VORTEX, it keeps prompt
+groups whose episode rewards differ and generates only the missing groups. It
+has no whole-batch dynamic filtering. It may also select the adaptive curriculum
+and a group admission attempt limit with the same meaning as for GRPO; a failed
+occurrence excludes its complete prompt group. Backends without active sampling
+reject SAMPO. The rollout contract supplies
 sampled assistant-turn token spans and preceding observation keys. A backend
 must support both the sequence objective and hierarchical episode/turn
 advantages or reject the request before launch.

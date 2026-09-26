@@ -1119,14 +1119,14 @@ training:
       max_steps: 3
       max_length: 12288
       per_device_batch_size: 1
-      gradient_accumulation_steps: 4
+      gradient_accumulation_steps: 8
       learning_rate: 0.00005
       lr_scheduler_type: constant
       logging_steps: 1
       checkpoint_steps: 3
       checkpoint_limit: 1
       gradient_checkpointing: true
-    num_prompts_per_step: 1
+    num_prompts_per_step: 2
     num_generations: 4
     max_prompt_length: 9216
     max_completion_length: 3072
@@ -1134,8 +1134,19 @@ training:
     discount_gamma: 0.95
     step_advantage_weight: 1.0
     advantage_normalization: mean
-    dynamic_sampling:
-      max_candidate_batches: 3
+    # VORTEX-style oversampling: keep groups whose rewards differ and generate
+    # only the missing ones from a pool of up to 10 candidate batches.
+    active_sampling:
+      max_candidate_batches: 10
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
     mask_truncated_completions: false
 
   lfm2.5-2.6b/automationbench-changed-weight-canary-v1:

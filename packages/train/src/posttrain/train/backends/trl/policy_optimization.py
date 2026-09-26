@@ -157,7 +157,9 @@ def _run_online_rl(
     actor_update = _ActorUpdateTelemetry(context)
     trainer_type = _actor_update_trainer_type(GRPOTrainer, actor_update)
     curriculum = None
-    if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None:
+    if isinstance(request, GRPORequest | SAMPORequest) and request.settings.adaptive_curriculum is not None:
+        # SAMPO requests carry no curriculum warm start; the controller starts cold.
+        curriculum_from = request.curriculum_from if isinstance(request, GRPORequest) else None
         curriculum = _AdaptiveCurriculumRuntime(
             context,
             rows,
@@ -165,7 +167,7 @@ def _run_online_rl(
             num_generations=request.settings.num_generations,
             state_dir=output_dir.parent / "adaptive-curriculum",
             resume_checkpoint=request.resume_from.path if request.resume_from is not None else None,
-            warm_start_state_dir=request.curriculum_from.path if request.curriculum_from is not None else None,
+            warm_start_state_dir=curriculum_from.path if curriculum_from is not None else None,
         )
         trainer_type = _adaptive_curriculum_trainer_type(trainer_type, curriculum)
     checkpoint_callback = checkpoint_callback_type(

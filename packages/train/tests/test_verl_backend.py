@@ -641,68 +641,9 @@ def test_structured_algorithms_select_explicit_native_loss_and_evidence_contract
     assert config[0]["structured_algorithm"] == algorithm
 
 
-def test_verl_sampo_maps_hierarchical_advantages_gspo_and_dynamic_sampling(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    base = _sampo_request()
-    request = replace(base, settings=replace(base.settings, shuffle_prompts=True))
-    from posttrain.train.backends.trl.policy_config import _online_rl_arguments
-
-    assert _online_rl_arguments(request, tmp_path / "trl", {})["shuffle_dataset"] is True
-    plan = build_sampo_launch_plan(request, tmp_path)
-    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
-
-    overrides = build_hydra_overrides(
-        plan,
-        tmp_path / "rollouts.parquet",
-        tmp_path / "agent-loop.json",
-        tmp_path / "checkpoints",
-    )
-    agent_config_path = tmp_path / "sampo-agent-loop.json"
-    _write_agent_config(plan.payload, agent_config_path)
-    agent_config = json.loads(agent_config_path.read_text(encoding="utf-8"))
-
-    assert plan.operation == "sampo"
-    assert plan.payload.algorithm.advantage_estimator == "sampo"
-    assert plan.payload.algorithm.shuffle_prompts is True
-    assert "algorithm.adv_estimator=sampo" in overrides
-    assert "data.shuffle=true" in overrides
-    assert "algorithm.sampo.discount_gamma=0.95" in overrides
-    assert "algorithm.sampo.step_advantage_weight=1.0" in overrides
-    assert "algorithm.sampo.advantage_normalization=mean" in overrides
-    assert "actor_rollout_ref.actor.policy_loss.loss_mode=gspo" in overrides
-    assert "actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean" in overrides
-    assert "actor_rollout_ref.actor.clip_ratio_low=0.003" in overrides
-    assert "actor_rollout_ref.actor.clip_ratio_high=0.004" in overrides
-    assert "algorithm.filter_groups.enable=true" in overrides
-    assert "algorithm.filter_groups.max_num_gen_batches=3" in overrides
-    assert agent_config[0]["emit_sampo_metadata"] is True
-
-
-def test_sampo_explicit_turn_selection_is_in_recovery_contract(monkeypatch, tmp_path):
-    from posttrain.train.reward_projection import RewardComponentProjection, RewardProjection
-    from posttrain.train.reward_recovery import reward_contract_digest
-
-    projection = RewardProjection(
-        "turns",
-        "1",
-        (RewardComponentProjection("outcome", "scalar"),),
-        scorer_digest="a" * 64,
-        turns_info_key="ratings",
-        turn_reward_key="quality",
-        turn_reward_includes_terminal_outcome=False,
-    )
-    monkeypatch.setattr(FakeBridge, "reward_projection", projection, raising=False)
-    request = _sampo_request()
-    first = reward_contract_digest(request)
-    plan = build_sampo_launch_plan(request, tmp_path)
-    assert plan.payload.algorithm.reward_contract_digest == first
-    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
-    overrides = build_hydra_overrides(plan, tmp_path / "data", tmp_path / "agent", tmp_path / "checkpoints")
-    assert f"+algorithm.structured_rewards.reward_contract_digest={first}" in overrides
-    monkeypatch.setattr(FakeBridge, "reward_projection", replace(projection, turn_reward_key="other"))
-    assert reward_contract_digest(request) != first
+def test_verl_rejects_sampo_without_active_sampling(tmp_path):
+    with pytest.raises(ValueError, match="VORTEX active sampling"):
+        build_sampo_launch_plan(_sampo_request(), tmp_path)
 
 
 def test_verl_dapo_uses_core_trainer_and_maps_all_dynamic_sampling_controls(

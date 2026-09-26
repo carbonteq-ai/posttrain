@@ -12,7 +12,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from .online_rl import EnvironmentRollout, PartialRolloutBatchError, RolloutBatch
-from .profiles import CAPOSettings, GDPOSettings, GRPOSettings
+from .profiles import CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings
 from .reward_evidence import InvalidRewardEvidence
 
 _LOG = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ def admit_reward_groups(
 
 def admit_rollout_groups(
     batch: RolloutBatch,
-    settings: GRPOSettings | GDPOSettings | CAPOSettings,
+    settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
     collect: Callable[[RolloutBatch], Sequence[EnvironmentRollout]],
     gather_failures: Callable[[list[tuple[str, str]]], list[tuple[str, str]]],
     *,
@@ -104,7 +104,7 @@ def admit_rollout_groups(
                     position = batch_positions[ordinal]
                     evidence = row.reward_evidence
                     identity_mismatch = row.example_id != current_batch.example_ids[ordinal]
-                    if not isinstance(settings, GRPOSettings):
+                    if not isinstance(settings, GRPOSettings | SAMPOSettings):
                         identity_mismatch = identity_mismatch or (
                             evidence is None
                             or evidence.prompt_group_id != current_batch.prompt_group_ids[ordinal]
@@ -113,7 +113,7 @@ def admit_rollout_groups(
                     if identity_mismatch:
                         round_failures.append((current_batch.prompt_group_ids[ordinal], "rollout_identity_mismatch"))
                         continue
-                    if isinstance(settings, GRPOSettings):
+                    if isinstance(settings, GRPOSettings | SAMPOSettings):
                         admitted[position] = row
                     else:
                         try:
@@ -185,7 +185,9 @@ def admit_rollout_groups(
         }
         if attempt + 1 == attempt_limit:
             if retain_complete_on_exhaustion and (
-                accepted or (isinstance(settings, GRPOSettings) and settings.algorithm == "olmo3")
+                accepted
+                or isinstance(settings, SAMPOSettings)
+                or (isinstance(settings, GRPOSettings) and settings.algorithm == "olmo3")
             ):
                 retained_positions = tuple(sorted(accepted))
                 return AdmissionResult(
@@ -196,7 +198,7 @@ def admit_rollout_groups(
                     rejected,
                     failed_rollouts,
                 )
-            error_type = RuntimeError if isinstance(settings, GRPOSettings) else InvalidRewardEvidence
+            error_type = RuntimeError if isinstance(settings, GRPOSettings | SAMPOSettings) else InvalidRewardEvidence
             raise error_type(
                 f"rollout group admission exhausted {attempt_limit} attempts; "
                 f"{len(pending)} groups remain invalid: {sorted(set(reason for _, reason in global_failures))}"

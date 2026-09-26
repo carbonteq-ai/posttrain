@@ -142,7 +142,7 @@ def rollout_function(
                 return outcomes
 
             if isinstance(request, GDPORequest | CAPORequest) or (
-                isinstance(request, GRPORequest) and batch.prompt_group_ids
+                isinstance(request, GRPORequest | SAMPORequest) and batch.prompt_group_ids
             ):
                 from accelerate.utils import gather_object
 
@@ -155,10 +155,9 @@ def rollout_function(
                 # population. Retrying is controlled independently by the
                 # settings profile and is never required merely to avoid a
                 # batch-wide failure.
-                active_sampling = (
-                    isinstance(request, GRPORequest)
-                    and request.settings.algorithm == "olmo3"
-                    and bool(getattr(trainer, "active_sampling", False))
+                active_sampling = bool(getattr(trainer, "active_sampling", False)) and (
+                    isinstance(request, SAMPORequest)
+                    or (isinstance(request, GRPORequest) and request.settings.algorithm == "olmo3")
                 )
                 admission = admit_rollout_groups(
                     batch,
@@ -319,8 +318,16 @@ def rollout_function(
                     )
                 )
             result["precomputed_advantages"] = local_advantages
-        if isinstance(request, SAMPORequest):
-            advantages = compute_sampo_advantages(request.settings, example_ids, rollouts)
+        if isinstance(request, SAMPORequest) and not rollouts:
+            # Admission kept no complete group; TRL's refill treats the empty batch
+            # as NoAdmittedRollouts and draws the next candidate round.
+            result["precomputed_advantages"] = []
+        elif isinstance(request, SAMPORequest):
+            advantages = compute_sampo_advantages(
+                request.settings,
+                _admitted_example_ids(example_ids, None if admission is None else admission.retained_positions),
+                rollouts,
+            )
             result["precomputed_advantages"] = [list(values) for values in advantages.token_advantages]
             flat_turn_advantages = [value for values in advantages.turn_advantages for value in values]
             flat_group_sizes = [value for values in advantages.anchor_group_sizes for value in values]
@@ -342,6 +349,14 @@ def rollout_function(
     return run_rollouts
 
 
+def _admitted_example_ids(example_ids: tuple[str, ...], retained_positions: Sequence[int] | None) -> tuple[str, ...]:
+    """Example identities of the rollouts group admission kept, in rollout order."""
+
+    if retained_positions is None:
+        return example_ids
+    return tuple(example_ids[position] for position in retained_positions)
+
+
 def _bridge_reward(rollout_reward: list[float], **_: Any) -> list[float]:
     """Return rewards already computed by the native online-RL environment."""
 
@@ -349,9 +364,9 @@ def _bridge_reward(rollout_reward: list[float], **_: Any) -> list[float]:
 
 
 def _rollout_batch(request: Any, trainer: Any, example_ids: tuple[str, ...], step: int, ordinal: int) -> RolloutBatch:
-    if not isinstance(request, GRPORequest | GDPORequest | CAPORequest):
+    if not isinstance(request, GRPORequest | SAMPORequest | GDPORequest | CAPORequest):
         return RolloutBatch(example_ids=example_ids, step=step, model_id=request.policy.id)
-    if isinstance(request, GRPORequest) and not hasattr(trainer, "accelerator"):
+    if isinstance(request, GRPORequest | SAMPORequest) and not hasattr(trainer, "accelerator"):
         # Lightweight bridge consumers predating explicit group identities keep
         # their compatibility path. Real TRL trainers always expose Accelerator
         # and therefore use complete-group admission below.
