@@ -128,7 +128,7 @@ carbonteq-renderers @ https://pypi.lan/carbonteq/dev/+f/fdc/65e9ed1a8a2f8/carbon
     #   posttrain-train
     #   verifiers
 
-carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/228/651b05e88409c/carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl#sha256=228651b05e88409cb374296ad8a675057cf75377adcbe104a6fd0903b922c57c
+carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/e16/e312ccd4bf168/carbonteq_trackio-0.31.5.post14.dev28-py3-none-any.whl#sha256=e16e312ccd4bf1689a23c9a261098f685dcc0caa296248155d17af55175c008b
     # via posttrain-tracking-trackio
 
 certifi==2026.6.17 \
