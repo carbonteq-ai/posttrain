@@ -152,6 +152,8 @@ posttrain run reconcile RUN_ID
 posttrain run cleanup RUN_ID
 posttrain run purge RUN_ID --reason REASON [--note SAFE_NOTE] [--cascade | --orphan [--stale-after-hours H]]
 posttrain run show RUN_ID
+posttrain query [--measures M[:AGG] ...] [--by DIM ...] [--where DIM=VALUE ...] [--runs RUN_ID ...] [--sql SQL] [--file QUERY] [--format table|csv|json]
+posttrain query describe [--runs RUN_ID ...] [--job-kind KIND ...]
 posttrain project purge --reason REASON [--note SAFE_NOTE]
 posttrain purge show PURGE_ID
 posttrain purge apply PURGE_ID --expect-digest SHA256 --yes
@@ -1095,7 +1097,21 @@ posttrain_observatory  # dedicated read product and query/intelligence service
   serving_capacity_run_view(run_id) -> ServingCapacityRunView
   serving_pareto_view(project_id, screen_work_package_id) -> ParetoView
   export_report(view, format) -> MaterializedReport
+  describe_semantics(runs | job_kinds) -> SemanticDescription
+  query_semantics(SemanticQuery | SqlQuery) -> SemanticResult
 ```
+
+The semantic layer is the Observatory's vocabulary for computed views. It
+declares, once per job kind, entities (run, update, rollout, evaluation task,
+serving load level), dimensions, measures and metrics, each measure with its
+single source (a run field, a recorded setting, a metric series, a trace fact
+or an evaluation or serving view field). `query_semantics` accepts either a
+semantic query (measures, `by` dimensions, `where` filters, a run scope) or one
+read-only SQL `SELECT` over the same semantic tables of the runs in scope; both
+execute over a per-query in-memory copy of only the scoped data and never
+write. `describe_semantics` returns what the selected runs provide. HTTP
+(`/api/v1/semantic/*`), MCP (`describe_semantics`, `query_semantics`) and
+`posttrain query` expose the same two calls.
 
 Views must expose `missing` | `failed` | `unsupported` | `not_run` |
 `reused_from_framework` | `incomparable`. No report API picks a production winner.

@@ -210,7 +210,11 @@ Throughput and latency percentiles are **computed** from measured traces +
 | `eval/run/rollouts_truncated` | |
 | `eval/run/coverage_missing` | Tasks/slices with no evidence |
 
-Mean reward, success rate, truncation rate by slice are **computed views**.
+Mean reward, success rate, truncation rate by slice are **computed views**. Their
+vocabulary is the Observatory's semantic layer: entities, dimensions, measures
+and metrics declared once per job kind, each measure naming its single source,
+queried through one read-only query form or read-only SQL over the same
+entities (`05-apis.md`).
 Every evaluation run declares success, but only traces containing a valid
 configured signal enter the pass-rate denominator. Errors, truncations, and
 missing signals retain their execution/evidence state instead of becoming
