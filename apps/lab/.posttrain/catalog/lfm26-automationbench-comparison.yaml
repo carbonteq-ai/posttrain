@@ -42,6 +42,71 @@ environment:
     reward_components: [partial_credit]
     required_inference_capabilities: [tool-calling]
 
+  # 8 GB SAMPO development set: the 15 train-mix tasks whose longest VORTEX v5
+  # episode (LFM2.5-2.6B, updates 41-56) stayed within 12,288 tokens of context,
+  # excluding three that scored 0 in every attempt. Turn and output budgets match
+  # the training mix; only the task set is narrowed to fit the 8 GB context.
+  automationbench-lfm12-sampo-8gb-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          task_names:
+            - simple.hs_update_contact_tag
+            - simple.sheets_log_sales_call
+            - simple.gmail_onboarding_welcome
+            - simple.trello_q1_marketing_budget
+            - sales.chatgpt_lead_summary_generator
+            - operations.mailroom_package_routing
+            - finance.slack_receipt_capture
+            - finance.wave_product_catalog
+            - sales.email_zoom_fuzzy
+            - marketing.influencer_contract_reminders
+            - sales.event_followup_outreach
+            - finance.vendor_payment_approval
+            - marketing.content_syndication
+            - support.hiver_slack_digest
+            - finance.wire_transfer_approval
+          task: {toolset: limited_zapier, search_top_k: 20, turn_budget: 12}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 12288
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 0.95}
+    num_tasks: 15
+    num_rollouts: 4
+    max_concurrent: 4
+    parameters:
+      task_names:
+        - simple.hs_update_contact_tag
+        - simple.sheets_log_sales_call
+        - simple.gmail_onboarding_welcome
+        - simple.trello_q1_marketing_budget
+        - sales.chatgpt_lead_summary_generator
+        - operations.mailroom_package_routing
+        - finance.slack_receipt_capture
+        - finance.wave_product_catalog
+        - sales.email_zoom_fuzzy
+        - marketing.influencer_contract_reminders
+        - sales.event_followup_outreach
+        - finance.vendor_payment_approval
+        - marketing.content_syndication
+        - support.hiver_slack_digest
+        - finance.wire_transfer_approval
+      toolset: limited_zapier
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+
   automationbench-lfm26-changed-weight-canary-v1:
     category: agentic-tool-use
     source:
@@ -1041,6 +1106,36 @@ training:
     shuffle_prompts: false
     mask_truncated_completions: false
     max_admission_attempts: 1
+
+  # SAMPO baseline on the 8 GB card (docs/plan/sampo-vortex-lfm-automationbench.md,
+  # milestone 1): SAMPO exactly as implemented, on the 15-task 8 GB AutomationBench
+  # set with 12 turns, 3072 tokens per reply and 12,288 tokens of context, to
+  # record correctness and time before changing it.
+  lfm2.5-1.2b/automationbench-sampo-local-8gb-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 3
+      max_length: 12288
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 4
+      learning_rate: 0.00005
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 3
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+    num_prompts_per_step: 1
+    num_generations: 4
+    max_prompt_length: 9216
+    max_completion_length: 3072
+    beta: 0.005
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    dynamic_sampling:
+      max_candidate_batches: 3
+    mask_truncated_completions: false
 
   lfm2.5-2.6b/automationbench-changed-weight-canary-v1:
     selection_type: grpo-settings
@@ -2230,6 +2325,34 @@ inference:
         keep them reproducible; new work takes `posttrain settings suggest` values in a
         new revision.
 
+  # 8 GB SAMPO development rollout (docs/plan/sampo-vortex-lfm-automationbench.md):
+  # revision 1 of the changed-weight binding on the shipped vLLM with prefix
+  # caching and CUDA graphs.
+  inference/lfm2.5-1.2b-vllm-sampo-local-8gb@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.55
+      tensor_parallel_size: 1
+      max_model_len: 12288
+      max_num_seqs: 4
+      max_num_batched_tokens: 2048
+      kv_cache_memory_bytes: 536870912
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 0.95}
+    target: targets/local-cuda-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
   inference/lfm2.5-2.6b-vllm-changed-weight-canary@1:
     revision: "1"
     model: models/lfm2.5-2.6b@bf16
