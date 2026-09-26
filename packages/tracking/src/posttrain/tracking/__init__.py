@@ -47,6 +47,14 @@ from .models import (
     TraceRecord,
     TrackingCapabilities,
 )
+from .notes import (
+    InMemoryRunNoteStore,
+    NoteConflict,
+    NoteSource,
+    NotesUnavailable,
+    RunNote,
+    RunNoteStore,
+)
 from .phases import (
     RuntimePhaseInterval,
     RuntimePhaseIntervalSet,
@@ -56,6 +64,12 @@ from .phases import (
 )
 
 __all__ = [
+    "RunNoteStore",
+    "RunNote",
+    "NotesUnavailable",
+    "NoteSource",
+    "NoteConflict",
+    "InMemoryRunNoteStore",
     "ArtifactInput",
     "ArtifactIntegrityResult",
     "ArtifactIntegrityState",

@@ -1175,6 +1175,8 @@ class TrackioDataSource:
             artifacts=capabilities["artifact_lineage"],
             artifact_lineage=capabilities["artifact_lineage"],
             trace_facts=("available" if hasattr(trackio, "TraceFactsQuery") else "unavailable"),
+            # The client's support; a server older than the client reports it on first use.
+            run_notes=bool(capabilities.get("run_notes", False)),
         )
 
     def _summary(self, run: Any, raw: Mapping[str, Any] | None = None) -> RunSummary:
