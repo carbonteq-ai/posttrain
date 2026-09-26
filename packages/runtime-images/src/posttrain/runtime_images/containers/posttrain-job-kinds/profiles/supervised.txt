@@ -8,4 +8,4 @@ peft==0.19.1
 protobuf==7.35.1
 sentencepiece==0.2.2
 transformers==5.14.1
-trl==1.12.0.post9
+trl==1.12.0.post10

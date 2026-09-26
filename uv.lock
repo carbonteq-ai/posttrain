@@ -3304,7 +3304,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'trl'", url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" },
     { name = "torchvision", marker = "extra == 'trl'", specifier = ">=0.28,<0.29", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'trl'", specifier = ">=5.14,<5.15" },
-    { name = "trl", marker = "extra == 'trl'", specifier = "==1.12.0.post9", index = "https://pypi.lan/carbonteq/dev/+simple/" },
+    { name = "trl", marker = "extra == 'trl'", specifier = "==1.12.0.post10", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=cdd2ec7614131545df66484f9de11250daf16065" },
     { name = "vllm", marker = "extra == 'trl-vllm'", git = "https://github.com/carbonteq-ai/vllm.git?rev=f09e4479123d348cee87d217c695a22f9b2daacc" },
 ]
@@ -4736,7 +4736,7 @@ wheels = [
 
 [[package]]
 name = "trl"
-version = "1.12.0.post9"
+version = "1.12.0.post10"
 source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
 dependencies = [
     { name = "accelerate" },
@@ -4745,9 +4745,9 @@ dependencies = [
     { name = "packaging" },
     { name = "transformers" },
 ]
-sdist = { url = "https://pypi.lan/carbonteq/dev/+f/146/e46b37f6795a2/trl-1.12.0.post9.tar.gz", hash = "sha256:146e46b37f6795a206d684e286e137edb1eec673b658d0168d45c603870156fa" }
+sdist = { url = "https://pypi.lan/carbonteq/dev/+f/d46/df4912ef0b647/trl-1.12.0.post10.tar.gz", hash = "sha256:d46df4912ef0b647ebf54b11ddf4359406bba97033c33334d018e17ae7191837" }
 wheels = [
-    { url = "https://pypi.lan/carbonteq/dev/+f/c5d/204da587a9a45/trl-1.12.0.post9-py3-none-any.whl", hash = "sha256:c5d204da587a9a45dd279f1407d0e20816344075d001da9fe03f6dd4879fa710" },
+    { url = "https://pypi.lan/carbonteq/dev/+f/967/10f9cb530a9ad/trl-1.12.0.post10-py3-none-any.whl", hash = "sha256:96710f9cb530a9adae0de2cc0f37f7d77e0f8d0c9f9dc022489f62ba10d08bfd" },
 ]
 
 [[package]]

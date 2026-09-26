@@ -28,7 +28,26 @@ resume checkpoint 1 to matching uninterrupted weights, and generate from the
 export. This is deterministic full-parameter fixture evidence, not live Verifiers,
 judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
 
-Latest candidate: `1.12.0.post9`, release commit
+Latest candidate: `1.12.0.post10`, release commit
+`4950b99d457faacbec856cbd5305732e7b3cf7b0`, tag `carbonteq-v1.12.0.post10`.
+It makes the single-process GRPO actor update cheaper for long agentic
+episodes: micro-batches are scored at their own real extent instead of the
+generation batch's padding, decoder layers can be compiled individually
+(`compile_decoder_layers`), checkpointing can be limited to long micro-batches
+(`gradient_checkpointing_min_tokens`), and the vLLM importance-sampling ratio
+can come from the training forward (`importance_sampling_from_training_logps`).
+Training binding `training/lfm2.5-2.6b-trl-lora-automationbench-local-g64-w8@2`
+selects compile and the training-forward ratio and keeps every episode
+checkpointed. With DSpark rollout, VORTEX v5 LFM2.5-2.6B updates fell from an
+823-second average (actor update 373 seconds) to 276 seconds (actor update 114
+seconds, all of it forward and backward; the optimizer step is negligible), in
+runs `lfm26-v5-opt-ab-dspark-20260926-r1` and
+`lfm26-v5-opt-breakdown-20260926-r1`. Its `vllm` extra pins CarbonTeq vLLM
+`carbonteq-v0.29.1.dev4`. Wheel SHA-256:
+`96710f9cb530a9adae0de2cc0f37f7d77e0f8d0c9f9dc022489f62ba10d08bfd`; sdist:
+`d46df4912ef0b647ebf54b11ddf4359406bba97033c33334d018e17ae7191837`.
+
+Previous candidate: `1.12.0.post9`, release commit
 `3b7a582e011a32de74d1f2b6e572b794360fbfd7`, tag
 `carbonteq-v1.12.0.post9`. It publishes native Uno policy-LoRA refresh,
 MoE-safe chunked scoring, cache/speculation observability, and the

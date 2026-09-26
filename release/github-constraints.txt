@@ -1,5 +1,5 @@
 # Immutable maintained-fork sources used by GitHub-first framework releases.
-trl @ git+https://github.com/carbonteq-ai/trl.git@3b7a582e011a32de74d1f2b6e572b794360fbfd7
+trl @ git+https://github.com/carbonteq-ai/trl.git@4950b99d457faacbec856cbd5305732e7b3cf7b0
 vllm @ git+https://github.com/carbonteq-ai/vllm.git@f09e4479123d348cee87d217c695a22f9b2daacc
 verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@cdd2ec7614131545df66484f9de11250daf16065
 alphabet-sort @ git+https://github.com/carbonteq-ai/verifiers.git@cdd2ec7614131545df66484f9de11250daf16065#subdirectory=environments/alphabet_sort
