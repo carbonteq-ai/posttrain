@@ -58,6 +58,7 @@ environment:
       config:
         taskset:
           id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance]
           task_names:
             - simple.hs_update_contact_tag
             - simple.sheets_log_sales_call
