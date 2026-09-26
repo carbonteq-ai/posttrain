@@ -54,6 +54,17 @@ be dispatched once it exists on the repository's default branch.
 
 ## Qualification evidence and remaining gates
 
-None recorded yet. Selection requires the fork's conformance suite for every
-catalog model, Verifiers' tests on the fork, and a live LFM2.5 rollout whose
-Observatory rows show Thinking + Output equal to completion tokens.
+`0.1.12.post1.dev2` ships in Posttrain 0.4.9 and was promoted byte-for-byte to
+`carbonteq/stable` (Posttrain run 36263033868).
+
+- Fork suite: 11,812 passed, 107 skipped at `6f71261`; the six LFM2.5 tool-call
+  repair tests fail without the change.
+- Parser parity: on the calls LFM2.5-1.2B sampled in AutomationBench training,
+  the fork and the vLLM fork's `lfm2` parser give identical results, including
+  the ambiguous cases both reject.
+- Live rollout: `lfm12-sampo-8gb-20260926-r15` (0.4.9 job-kind images, which
+  install dev2) parsed 3 calls that are not valid Python and would have been
+  dropped by dev1; the 3 it rejected repeat a keyword argument or were cut off.
+
+Remaining gate: an Observatory check that Thinking + Output equals completion
+tokens on a live LFM2.5 rollout has not been recorded for dev2.

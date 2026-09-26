@@ -90,6 +90,13 @@ update.
   were truncated, by a first reply reaching 3,072 tokens (4) or the 8K context
   (2). Training still used renderers 0.1.12.post1.dev1, without the tool-call
   repairs.
+- [x] (2026-09-26 23:40Z) Released Posttrain 0.4.9 (PR #124, merge `2c21eabf`,
+  tag `v0.4.9`): candidate run 36262557103 (8 GB GPU canary), renderers dev2
+  promoted to stable (run 36263033868), final run 36263079405. Run
+  `lfm12-sampo-8gb-20260926-r15` on the 0.4.9 images (renderers dev2 installed)
+  completed three updates and parsed 3 tool calls that needed a repair.
+  Run r14 had still used dev1, because job images take third-party packages from
+  the job-kind image built from the committed runtime lock.
 - [ ] ~~Milestone 4: speed on 8 GB~~ Out of scope (user decision, 2026-09-26): the
   8 GB work is for correctness; TurboQuant was only considered to fit training.
 - [ ] Milestone 5: environment turn rewards in the AutomationBench adapter
@@ -164,6 +171,15 @@ update.
   They need new binding revisions or retirement; they do not block this plan.
 
 ## Decision Log
+
+- Decision: do not return a parse error to the model for an unrecoverable tool
+  call; the episode keeps ending there.
+  Rationale: serving turns such a call into plain text and ends the episode, so
+  a retry in training would make training and evaluation differ again; ending
+  with the episode's reward also keeps a direct penalty on the malformed call,
+  where a retry would place it inside a positively rewarded trajectory. The
+  common near-valid calls are now repaired identically on both paths.
+  Date/Author: 2026-09-26, Claude (recommended to the user).
 
 - Decision: retire the six older SAMPO qualification gates instead of giving
   them new bindings.
