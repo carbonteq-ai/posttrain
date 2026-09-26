@@ -291,6 +291,21 @@ def trainable_model_factory(model: ModelVariant, imports: dict[str, Any]) -> Any
     return imports["AutoModelForCausalLM"]
 
 
+def compute_lora_in_autocast_dtype(model: Any) -> None:
+    """Stop PEFT copying each adapter input to fp32 before the adapter matmul.
+
+    PEFT keeps LoRA weights in fp32 and casts every adapter input to match.
+    Under the trainer's bf16 autocast the matmul casts that copy straight back
+    to bf16, so the result is identical; the copy only costs memory (0.47 GiB
+    at 12,288 tokens for LFM2.5-1.2B at rank 4). A forward outside autocast
+    now fails with a dtype error instead of silently running in fp32.
+    """
+
+    for module in model.modules():
+        if hasattr(module, "cast_input_dtype_enabled"):
+            module.cast_input_dtype_enabled = False
+
+
 def load_trainable_model(
     model: ModelVariant,
     update: ParameterUpdatePlan,

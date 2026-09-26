@@ -51,6 +51,11 @@ update.
   the episode reward before advantages; anchor keys drop the tool-call id and
   UUIDs (scheme `content-without-sample-ids@2`, recorded on the run). KL was
   already selectable. The 8 GB package uses a 0.2 truncation penalty.
+- [x] (2026-09-26 18:10Z) Milestone 2 collection: run `lfm12-sampo-8gb-20260926-r11`
+  filled its 8-row batch in three VORTEX rounds (8 rows generated, 0 kept; 8
+  generated, 4 kept; only the missing group's 4 regenerated, 4 kept), with no
+  failed or unscorable rollouts. The first actor update then ran out of memory in
+  backward on a 12,288-token episode (see Surprises).
 - [ ] Milestone 3 run: confirm on 8 GB that the anchor match rate rises and the
   correction rarely clamps.
 - [ ] Milestone 4: speed on 8 GB (time split, trainer options, rollout options).
@@ -65,6 +70,15 @@ update.
   ran out of memory and replaced the training error. Fixed in `trainer_lifecycle`
   (commit 5d705d64): the training error is kept, the shutdown failure attached as
   a note, and cached CUDA memory is released before shutdown.
+- Observation: PEFT keeps LoRA weights in fp32 and copies every adapter input to
+  fp32 first. The failed allocation in r11 (384 MiB) is exactly one 12,288 × 8,192
+  fp32 copy of the MLP down-projection input. Under the trainer's bf16 autocast the
+  matmul casts the copy straight back, so it only costs memory. Measured for
+  LFM2.5-1.2B, rank 4, one episode with gradient checkpointing: peak 5.21 → 4.74
+  GiB at 12,288 tokens, 4.21 → 3.90 GiB at 8,192. The loss is bit-identical and
+  the gradient differs by 1.7e-2 relative, the same as rerunning either setting
+  (GPU nondeterminism). Online RL now disables the copy
+  (`compute_lora_in_autocast_dtype`).
 - Observation: LFM2.5-2.6B lost the final tool call of 11.7% of healthy VORTEX v5
   episodes (61 of 520): 28 calls sampled before `</think>` were swallowed as
   reasoning, 20 were malformed Python, 13 were cut off by the 4096-token reply cap.

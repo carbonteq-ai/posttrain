@@ -15,6 +15,7 @@ from .common import (
     BackendTrainingResult,
     callback_type,
     checkpoint_callback_type,
+    compute_lora_in_autocast_dtype,
     emit_parameter_counts,
     emit_runtime_versions,
     finish_training,
@@ -118,6 +119,7 @@ def _run_online_rl(
     with context.phase("model_loading", {"backend": "trl"}):
         tokenizer = load_tokenizer(request.policy, imports)
         model = load_trainable_model(request.policy, request.training.update, request.settings.loop, imports)
+        compute_lora_in_autocast_dtype(model)
     rows = []
     template_kwargs = request.policy.conversation.reasoning_mode(request.training.renderer.reasoning_mode).kwargs()
     for example in request.bridge.dataset.examples:
