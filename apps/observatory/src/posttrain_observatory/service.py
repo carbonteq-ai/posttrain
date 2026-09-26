@@ -20,8 +20,10 @@ from posttrain.tracking import (
     EventRecord,
     MetricPoint,
     MetricSeries,
+    NoteSource,
     RunDataSource,
     RunDetail,
+    RunNote,
     RunQuery,
     TraceAggregateBucket,
     TraceFactAggregate,
@@ -91,8 +93,18 @@ from .models import (
     ViewMode,
     WorkPackageView,
 )
+from .note_render import RenderedNote
 from .redaction import RedactionPolicy
 from .rollout_time import PayloadAggregate, refresh_rollout_time_buckets, rollout_time_view
+from .run_cards import TemplateSet
+from .run_notes import (
+    NoteAddRequest,
+    NoteDeleteRequest,
+    NoteReviseRequest,
+    NoteStoreFactory,
+    RenderedRunNote,
+    RunNotes,
+)
 from .runtime_phases import project_runtime_phases
 from .semantic import SemanticAnalysisService, SemanticSummaryProvider
 from .semantic_layer.describe import SemanticDescription
@@ -1209,6 +1221,9 @@ class ObservatoryService:
         redaction: RedactionPolicy | None = None,
         source_discovery: TrackioSourceDiscovery | None = None,
         architecture_loader: ArchitectureLoader | None = None,
+        note_store_factory: NoteStoreFactory | None = None,
+        note_templates: TemplateSet | None = None,
+        note_writes: bool = False,
     ) -> None:
         if isinstance(source, RunSourceRegistry):
             self.registry = source
@@ -1232,6 +1247,9 @@ class ObservatoryService:
             tuple[str, str], tuple[float, RolloutTimeView, dict[int | None, TraceAggregateBucket] | None]
         ] = {}
         self._rollout_time_locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self.notes = RunNotes(
+            self, store_factory=note_store_factory, templates=note_templates or TemplateSet(), writes=note_writes
+        )
 
     def _locator(self, value: str | RunLocator) -> RunLocator:
         if isinstance(value, RunLocator):
@@ -2457,6 +2475,33 @@ class ObservatoryService:
         if isinstance(query, SqlQuery):
             return await run_sql_query(FRAMEWORK_MODEL, reader, query, max_runs=DEFAULT_MAX_RUNS)
         return await run_semantic_query(FRAMEWORK_MODEL, reader, query)
+
+    async def run_card(self, run: str | RunLocator) -> RenderedNote:
+        """The job kind's note template rendered for this run."""
+        return await self.notes.card(self._locator(run))
+
+    async def render_note(self, run: str | RunLocator, body_md: str) -> RenderedNote:
+        """Render note Markdown for a run without saving it."""
+        return await self.notes.render(self._locator(run), body_md)
+
+    async def run_notes(self, run: str | RunLocator, *, kind: str | None = None) -> tuple[RenderedRunNote, ...]:
+        return await self.notes.notes(self._locator(run), kind=kind)
+
+    async def run_note_history(self, run: str | RunLocator, note_id: str) -> tuple[RunNote, ...]:
+        return await self.notes.history(self._locator(run), note_id)
+
+    async def add_run_note(self, run: str | RunLocator, request: NoteAddRequest, *, source: NoteSource) -> RunNote:
+        return await self.notes.add(self._locator(run), request, source)
+
+    async def revise_run_note(
+        self, run: str | RunLocator, note_id: str, request: NoteReviseRequest, *, source: NoteSource
+    ) -> RunNote:
+        return await self.notes.revise(self._locator(run), note_id, request, source)
+
+    async def delete_run_note(
+        self, run: str | RunLocator, note_id: str, request: NoteDeleteRequest, *, source: NoteSource
+    ) -> RunNote:
+        return await self.notes.delete(self._locator(run), note_id, request, source)
 
     async def summarize_run(self, run: str | RunLocator, request: SemanticSummaryRequest) -> SemanticSummaryResult:
         response = await self.get_run_view_response(

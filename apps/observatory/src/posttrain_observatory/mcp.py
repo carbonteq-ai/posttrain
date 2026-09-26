@@ -8,6 +8,7 @@ from mcp.server.mcpserver import MCPServer
 from posttrain.tracking import RunQuery
 
 from .models import MetricSeriesQuery, RunLocator, SemanticSummaryRequest, ViewMode
+from .run_notes import NoteAddRequest, NoteDeleteRequest, NoteReviseRequest
 from .semantic_layer.query import SemanticQuery, SqlQuery
 from .service import ObservatoryService
 
@@ -126,6 +127,76 @@ def create_mcp(service: ObservatoryService) -> MCPServer:
     async def get_job_view_schema(job_kind: str) -> dict[str, object]:
         """Return the versioned deterministic telemetry definition for a job kind."""
         return service.get_job_telemetry_schema(job_kind).model_dump(mode="json")
+
+    @server.tool()
+    async def get_run_card(source_id: str, run_id: str) -> dict[str, object]:
+        """The run's card: its job kind's note template rendered from recorded settings and results."""
+        return (await service.run_card(RunLocator(source_id=source_id, run_id=run_id))).model_dump(mode="json")
+
+    @server.tool()
+    async def list_run_notes(source_id: str, run_id: str, kind: str | None = None) -> list[dict[str, object]]:
+        """Notes on a run (latest revision of each, newest first), each with its rendered text."""
+        notes = await service.run_notes(RunLocator(source_id=source_id, run_id=run_id), kind=kind)
+        return [note.model_dump(mode="json") for note in notes]
+
+    @server.tool()
+    async def get_run_note_history(source_id: str, run_id: str, note_id: str) -> list[dict[str, object]]:
+        """Every revision of one note, oldest first."""
+        history = await service.run_note_history(RunLocator(source_id=source_id, run_id=run_id), note_id)
+        return [note.model_dump(mode="json") for note in history]
+
+    @server.tool()
+    async def render_note_preview(source_id: str, run_id: str, body_md: str) -> dict[str, object]:
+        """Render note Markdown for a run without saving it; check `unresolved` before adding the note.
+
+        Cite numbers through data blocks instead of typing them: a fenced block ```data <name>``` holding
+        `measures: [...]`, `by: [...]`, `where: {...}`, `runs: [self, <run id>]` (names from describe_semantics),
+        then `{{<name>.<column>}}` inline, or a ```value```, ```table``` or ```chart``` block with `data: <name>`.
+        `{{run.<dimension>}}` shows a setting of this run and `[[run:<id>]]` links another run."""
+        rendered = await service.render_note(RunLocator(source_id=source_id, run_id=run_id), body_md)
+        return rendered.model_dump(mode="json")
+
+    if service.notes.writes:
+
+        @server.tool()
+        async def add_run_note(
+            source_id: str,
+            run_id: str,
+            kind: str,
+            body_md: str,
+            title: str | None = None,
+            note_id: str | None = None,
+        ) -> dict[str, object]:
+            """Attach a Markdown note to a run (kind: summary, finding, correction, decision, ...).
+
+            Preview it with render_note_preview first. Passing a note_id makes a retried add a no-op."""
+            request = NoteAddRequest(kind=kind, body_md=body_md, title=title, note_id=note_id)
+            note = await service.add_run_note(RunLocator(source_id=source_id, run_id=run_id), request, source="mcp")
+            return note.model_dump(mode="json")
+
+        @server.tool()
+        async def revise_run_note(
+            source_id: str,
+            run_id: str,
+            note_id: str,
+            expected_revision: int,
+            body_md: str,
+            kind: str | None = None,
+            title: str | None = None,
+        ) -> dict[str, object]:
+            """Save a new revision of a note; expected_revision is the revision you read (history is kept)."""
+            request = NoteReviseRequest(expected_revision=expected_revision, body_md=body_md, kind=kind, title=title)
+            locator = RunLocator(source_id=source_id, run_id=run_id)
+            return (await service.revise_run_note(locator, note_id, request, source="mcp")).model_dump(mode="json")
+
+        @server.tool()
+        async def delete_run_note(
+            source_id: str, run_id: str, note_id: str, expected_revision: int
+        ) -> dict[str, object]:
+            """Hide a note behind a tombstone revision; its history is kept."""
+            request = NoteDeleteRequest(expected_revision=expected_revision)
+            locator = RunLocator(source_id=source_id, run_id=run_id)
+            return (await service.delete_run_note(locator, note_id, request, source="mcp")).model_dump(mode="json")
 
     @server.tool()
     async def describe_semantics(

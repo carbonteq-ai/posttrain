@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from posttrain.tracking import RunQuery
+from posttrain.tracking import NoteConflict, NotesUnavailable, RunNote, RunQuery
 from pydantic import BeforeValidator, Field
 
 from .mcp import create_mcp
@@ -34,6 +34,16 @@ from .models import (
     TraceOutcome,
     TraceSummaryPage,
     ViewMode,
+)
+from .note_render import RenderedNote
+from .run_notes import (
+    NoteAddRequest,
+    NoteDeleteRequest,
+    NotePreviewRequest,
+    NoteReviseRequest,
+    NotesDisabled,
+    RenderedRunNote,
+    conflict_body,
 )
 from .semantic_layer import FRAMEWORK_MODEL
 from .semantic_layer.describe import SemanticDescribeRequest, SemanticDescription
@@ -79,7 +89,7 @@ def create_http_app(
             CORSMiddleware,
             allow_origins=list(settings.cors_origins),
             allow_credentials=False,
-            allow_methods=["GET", "POST"],
+            allow_methods=["GET", "POST", "PUT", "DELETE"],
             allow_headers=["*"],
         )
 
@@ -88,6 +98,24 @@ def create_http_app(
         request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
         body = ErrorResponse(code="not_found", message=str(error), request_id=request_id)
         return JSONResponse(status_code=404, content=body.model_dump(mode="json"))
+
+    @app.exception_handler(NoteConflict)
+    async def note_conflict(request: Request, error: NoteConflict) -> JSONResponse:
+        request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
+        body = ErrorResponse(code="note_conflict", message=str(error), request_id=request_id)
+        return JSONResponse(status_code=409, content={**body.model_dump(mode="json"), **conflict_body(error)})
+
+    @app.exception_handler(NotesDisabled)
+    async def notes_disabled(request: Request, error: NotesDisabled) -> JSONResponse:
+        request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
+        body = ErrorResponse(code="notes_read_only", message=str(error), request_id=request_id)
+        return JSONResponse(status_code=403, content=body.model_dump(mode="json"))
+
+    @app.exception_handler(NotesUnavailable)
+    async def notes_unavailable(request: Request, error: NotesUnavailable) -> JSONResponse:
+        request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
+        body = ErrorResponse(code="notes_unavailable", message=str(error), request_id=request_id)
+        return JSONResponse(status_code=501, content=body.model_dump(mode="json"))
 
     @app.exception_handler(ValueError)
     async def value_error(request: Request, error: ValueError) -> JSONResponse:
@@ -238,6 +266,40 @@ def create_http_app(
     @app.post("/api/v1/runs/{run_key}/semantic-summary")
     async def semantic_summary(run_key: str, request: SemanticSummaryRequest) -> dict[str, object]:
         return (await service.summarize_run(_locator(run_key), request)).model_dump(mode="json")
+
+    @app.get("/api/v1/runs/{run_key}/card")
+    async def run_card(run_key: str) -> RenderedNote:
+        return await service.run_card(_locator(run_key))
+
+    @app.get("/api/v1/runs/{run_key}/notes")
+    async def run_notes(run_key: str, kind: str | None = None) -> list[RenderedRunNote]:
+        return list(await service.run_notes(_locator(run_key), kind=kind))
+
+    @app.get("/api/v1/runs/{run_key}/notes/{note_id}/history")
+    async def run_note_history(run_key: str, note_id: str) -> list[RunNote]:
+        return list(await service.run_note_history(_locator(run_key), note_id))
+
+    @app.post("/api/v1/runs/{run_key}/notes")
+    async def add_run_note(run_key: str, request: NoteAddRequest) -> RunNote:
+        return await service.add_run_note(_locator(run_key), request, source="observatory")
+
+    @app.put("/api/v1/runs/{run_key}/notes/{note_id}")
+    async def revise_run_note(run_key: str, note_id: str, request: NoteReviseRequest) -> RunNote:
+        return await service.revise_run_note(_locator(run_key), note_id, request, source="observatory")
+
+    @app.delete("/api/v1/runs/{run_key}/notes/{note_id}")
+    async def delete_run_note(run_key: str, note_id: str, expected_revision: int = Query(ge=1)) -> RunNote:
+        return await service.delete_run_note(
+            _locator(run_key), note_id, NoteDeleteRequest(expected_revision=expected_revision), source="observatory"
+        )
+
+    @app.post("/api/v1/notes/preview")
+    async def preview_note(request: NotePreviewRequest) -> RenderedNote:
+        return await service.render_note(_locator(request.run_key), request.body_md)
+
+    @app.get("/api/v1/notes/settings")
+    async def note_settings() -> dict[str, bool]:
+        return {"writes": service.notes.writes}
 
     @app.get("/api/v1/semantic/model")
     async def semantic_model() -> SemanticModel:

@@ -1160,10 +1160,18 @@ class TrackioDataSource:
 
     def __init__(self, project: str, *, server_url: str | None = None) -> None:
         self.project = project
+        self._server_url = server_url
         self._api = trackio.Api(server_url=server_url)
         self._provider_runs_by_id: dict[str, Any] = {}
         self._detail_cache: dict[str, tuple[float, RunDetail]] = {}
         self._detail_cache_lock = Lock()
+
+    def note_store(self, *, write_token: str | None = None) -> Any:
+        """The run-note store of this project (`TrackioRunNotes`), on the same server."""
+
+        from .notes import TrackioRunNotes
+
+        return TrackioRunNotes(self.project, server_url=self._server_url, write_token=write_token)
 
     @property
     def capabilities(self) -> TrackingCapabilities:

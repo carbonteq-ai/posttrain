@@ -453,6 +453,160 @@
       }
     },
     {
+      "description": "The run's card: its job kind's note template rendered from recorded settings and results.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id"
+        ],
+        "title": "get_run_cardArguments",
+        "type": "object"
+      },
+      "name": "get_run_card",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_run_cardDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Notes on a run (latest revision of each, newest first), each with its rendered text.",
+      "inputSchema": {
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Kind"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id"
+        ],
+        "title": "list_run_notesArguments",
+        "type": "object"
+      },
+      "name": "list_run_notes",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "list_run_notesOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Every revision of one note, oldest first.",
+      "inputSchema": {
+        "properties": {
+          "note_id": {
+            "title": "Note Id",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id",
+          "note_id"
+        ],
+        "title": "get_run_note_historyArguments",
+        "type": "object"
+      },
+      "name": "get_run_note_history",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_run_note_historyOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Render note Markdown for a run without saving it; check `unresolved` before adding the note.\n\nCite numbers through data blocks instead of typing them: a fenced block ```data <name>``` holding\n`measures: [...]`, `by: [...]`, `where: {...}`, `runs: [self, <run id>]` (names from describe_semantics),\nthen `{{<name>.<column>}}` inline, or a ```value```, ```table``` or ```chart``` block with `data: <name>`.\n`{{run.<dimension>}}` shows a setting of this run and `[[run:<id>]]` links another run.",
+      "inputSchema": {
+        "properties": {
+          "body_md": {
+            "title": "Body Md",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id",
+          "body_md"
+        ],
+        "title": "render_note_previewArguments",
+        "type": "object"
+      },
+      "name": "render_note_preview",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "render_note_previewDictOutput",
+        "type": "object"
+      }
+    },
+    {
       "description": "Call this before query_semantics. Lists the dimensions, measures, metrics and SQL tables available for\nruns (a list of run ids, or run-dimension filters such as {\"run.work_package\": \"...\"}) or job kinds.",
       "inputSchema": {
         "properties": {

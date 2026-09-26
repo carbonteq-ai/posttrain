@@ -3004,6 +3004,139 @@
         "title": "MetricSeriesSet",
         "type": "object"
       },
+      "NoteAddRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "body_md": {
+            "maxLength": 262144,
+            "minLength": 1,
+            "title": "Body Md",
+            "type": "string"
+          },
+          "kind": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9_-]*$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "note_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "kind",
+          "body_md"
+        ],
+        "title": "NoteAddRequest",
+        "type": "object"
+      },
+      "NotePreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "body_md": {
+            "maxLength": 262144,
+            "title": "Body Md",
+            "type": "string"
+          },
+          "run_key": {
+            "minLength": 1,
+            "title": "Run Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_key",
+          "body_md"
+        ],
+        "title": "NotePreviewRequest",
+        "type": "object"
+      },
+      "NoteReviseRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "body_md": {
+            "maxLength": 262144,
+            "minLength": 1,
+            "title": "Body Md",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^[a-z][a-z0-9_-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "body_md"
+        ],
+        "title": "NoteReviseRequest",
+        "type": "object"
+      },
+      "NoteScope": {
+        "enum": [
+          "run",
+          "project"
+        ],
+        "type": "string"
+      },
+      "NoteSource": {
+        "enum": [
+          "cli",
+          "mcp",
+          "observatory"
+        ],
+        "type": "string"
+      },
       "PromptGroupReward": {
         "additionalProperties": false,
         "properties": {
@@ -3206,6 +3339,186 @@
           "key"
         ],
         "title": "RecommendedSetting",
+        "type": "object"
+      },
+      "RenderedNote": {
+        "additionalProperties": false,
+        "description": "A note ready to show.\n\n``markdown`` keeps views as fenced ``note-view <index>`` blocks for the page\nto draw from ``views``; ``text`` is the same note with views written out as\nMarkdown text, for the command line and agents.",
+        "properties": {
+          "data": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SemanticResult"
+            },
+            "title": "Data",
+            "type": "object"
+          },
+          "markdown": {
+            "title": "Markdown",
+            "type": "string"
+          },
+          "template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "unresolved": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Unresolved",
+            "type": "array"
+          },
+          "views": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RenderedView"
+            },
+            "title": "Views",
+            "type": "array"
+          }
+        },
+        "required": [
+          "markdown",
+          "text"
+        ],
+        "title": "RenderedNote",
+        "type": "object"
+      },
+      "RenderedRunNote": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "$ref": "#/components/schemas/RunNote"
+          },
+          "rendered": {
+            "$ref": "#/components/schemas/RenderedNote"
+          }
+        },
+        "required": [
+          "note",
+          "rendered"
+        ],
+        "title": "RenderedRunNote",
+        "type": "object"
+      },
+      "RenderedView": {
+        "additionalProperties": false,
+        "description": "One view with the data it displays, for the page to draw.",
+        "properties": {
+          "compare_formatted": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare Formatted"
+          },
+          "compare_value": {
+            "$ref": "#/components/schemas/JsonPayload"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "formatted": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formatted"
+          },
+          "index": {
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ViewKind"
+          },
+          "options": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Options",
+            "type": "object"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SemanticResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "$ref": "#/components/schemas/JsonPayload"
+          }
+        },
+        "required": [
+          "index",
+          "kind"
+        ],
+        "title": "RenderedView",
         "type": "object"
       },
       "ResultColumn": {
@@ -3590,6 +3903,87 @@
           "run_id"
         ],
         "title": "RunLocator",
+        "type": "object"
+      },
+      "RunNote": {
+        "additionalProperties": false,
+        "description": "One revision of one note.",
+        "properties": {
+          "body_md": {
+            "title": "Body Md",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deleted": {
+            "default": false,
+            "title": "Deleted",
+            "type": "boolean"
+          },
+          "kind": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "note_id": {
+            "minLength": 1,
+            "title": "Note Id",
+            "type": "string"
+          },
+          "revised_at": {
+            "format": "date-time",
+            "title": "Revised At",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/NoteScope",
+            "default": "run"
+          },
+          "source": {
+            "$ref": "#/components/schemas/NoteSource"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "note_id",
+          "revision",
+          "kind",
+          "body_md",
+          "source",
+          "created_at",
+          "revised_at"
+        ],
+        "title": "RunNote",
         "type": "object"
       },
       "RunStatus": {
@@ -6330,6 +6724,11 @@
             "title": "Provider",
             "type": "string"
           },
+          "run_notes": {
+            "default": false,
+            "title": "Run Notes",
+            "type": "boolean"
+          },
           "trace_facts": {
             "default": "unavailable",
             "enum": [
@@ -6386,6 +6785,14 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "ViewKind": {
+        "enum": [
+          "chart",
+          "value",
+          "table"
+        ],
+        "type": "string"
       },
       "ViewMode": {
         "enum": [
@@ -6502,6 +6909,66 @@
           }
         },
         "summary": "Job Kind"
+      }
+    },
+    "/api/v1/notes/preview": {
+      "post": {
+        "operationId": "preview_note_api_v1_notes_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderedNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Note"
+      }
+    },
+    "/api/v1/notes/settings": {
+      "get": {
+        "operationId": "note_settings_api_v1_notes_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Note Settings Api V1 Notes Settings Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Note Settings"
       }
     },
     "/api/v1/runs": {
@@ -6795,6 +7262,45 @@
         "summary": "Alerts"
       }
     },
+    "/api/v1/runs/{run_key}/card": {
+      "get": {
+        "operationId": "run_card_api_v1_runs__run_key__card_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderedNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Card"
+      }
+    },
     "/api/v1/runs/{run_key}/comparison-key": {
       "get": {
         "operationId": "comparison_key_api_v1_runs__run_key__comparison_key_get",
@@ -6992,6 +7498,278 @@
           }
         },
         "summary": "Metrics"
+      }
+    },
+    "/api/v1/runs/{run_key}/notes": {
+      "get": {
+        "operationId": "run_notes_api_v1_runs__run_key__notes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RenderedRunNote"
+                  },
+                  "title": "Response Run Notes Api V1 Runs  Run Key  Notes Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Notes"
+      },
+      "post": {
+        "operationId": "add_run_note_api_v1_runs__run_key__notes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteAddRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Run Note"
+      }
+    },
+    "/api/v1/runs/{run_key}/notes/{note_id}": {
+      "delete": {
+        "operationId": "delete_run_note_api_v1_runs__run_key__notes__note_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "title": "Note Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_revision",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Expected Revision",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Run Note"
+      },
+      "put": {
+        "operationId": "revise_run_note_api_v1_runs__run_key__notes__note_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "title": "Note Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteReviseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revise Run Note"
+      }
+    },
+    "/api/v1/runs/{run_key}/notes/{note_id}/history": {
+      "get": {
+        "operationId": "run_note_history_api_v1_runs__run_key__notes__note_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "title": "Note Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RunNote"
+                  },
+                  "title": "Response Run Note History Api V1 Runs  Run Key  Notes  Note Id  History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Note History"
       }
     },
     "/api/v1/runs/{run_key}/rollout-behavior": {

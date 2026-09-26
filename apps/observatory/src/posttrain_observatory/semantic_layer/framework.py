@@ -168,7 +168,7 @@ DIMENSIONS = (
         entity="run",
         type="string",
         description="Model selection id.",
-        source=_setting("model.selection_id"),
+        source=_setting("model.selection_id|model.id"),
     ),
     Dimension(
         name="run.parent_run",
@@ -266,7 +266,20 @@ DIMENSIONS = (
         entity="run",
         type="integer",
         description="Configured maximum tokens per model reply.",
-        source=_setting("settings.resolved.max_completion_length"),
+        source=_setting(
+            "settings.resolved.max_completion_length|evaluation_inference.resolved.sampling.max_tokens"
+            "|environment.resolved.sampling.max_tokens"
+        ),
+    ),
+    Dimension(
+        name="run.context_tokens",
+        entity="run",
+        type="integer",
+        description="Context length the inference engine served (max_model_len).",
+        source=_setting(
+            "rollout_inference.resolved.engine.max_model_len|evaluation_inference.resolved.engine.max_model_len"
+            "|inference.resolved.engine.max_model_len"
+        ),
     ),
     Dimension(
         name="run.update_kind",

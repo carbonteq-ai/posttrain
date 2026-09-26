@@ -55,6 +55,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notes/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Note */
+        post: operations["preview_note_api_v1_notes_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notes/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Note Settings */
+        get: operations["note_settings_api_v1_notes_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -140,6 +174,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{run_key}/card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run Card */
+        get: operations["run_card_api_v1_runs__run_key__card_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{run_key}/comparison-key": {
         parameters: {
             query?: never;
@@ -200,6 +251,59 @@ export interface paths {
         };
         /** Metrics */
         get: operations["metrics_api_v1_runs__run_key__metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_key}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run Notes */
+        get: operations["run_notes_api_v1_runs__run_key__notes_get"];
+        put?: never;
+        /** Add Run Note */
+        post: operations["add_run_note_api_v1_runs__run_key__notes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_key}/notes/{note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Revise Run Note */
+        put: operations["revise_run_note_api_v1_runs__run_key__notes__note_id__put"];
+        post?: never;
+        /** Delete Run Note */
+        delete: operations["delete_run_note_api_v1_runs__run_key__notes__note_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_key}/notes/{note_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run Note History */
+        get: operations["run_note_history_api_v1_runs__run_key__notes__note_id__history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1593,6 +1697,39 @@ export interface components {
             /** Series */
             series: components["schemas"]["MetricSeries"][];
         };
+        /** NoteAddRequest */
+        NoteAddRequest: {
+            /** Body Md */
+            body_md: string;
+            /** Kind */
+            kind: string;
+            /** Note Id */
+            note_id?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** NotePreviewRequest */
+        NotePreviewRequest: {
+            /** Body Md */
+            body_md: string;
+            /** Run Key */
+            run_key: string;
+        };
+        /** NoteReviseRequest */
+        NoteReviseRequest: {
+            /** Body Md */
+            body_md: string;
+            /** Expected Revision */
+            expected_revision: number;
+            /** Kind */
+            kind?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** @enum {string} */
+        NoteScope: "run" | "project";
+        /** @enum {string} */
+        NoteSource: "cli" | "mcp" | "observatory";
         /** PromptGroupReward */
         PromptGroupReward: {
             current?: components["schemas"]["PromptGroupRewardStats"] | null;
@@ -1660,6 +1797,69 @@ export interface components {
              */
             reason: string;
             suggested?: components["schemas"]["JsonPayload"];
+        };
+        /**
+         * RenderedNote
+         * @description A note ready to show.
+         *
+         *     ``markdown`` keeps views as fenced ``note-view <index>`` blocks for the page
+         *     to draw from ``views``; ``text`` is the same note with views written out as
+         *     Markdown text, for the command line and agents.
+         */
+        RenderedNote: {
+            /** Data */
+            data?: {
+                [key: string]: components["schemas"]["SemanticResult"];
+            };
+            /** Markdown */
+            markdown: string;
+            /** Template */
+            template?: string | null;
+            /** Text */
+            text: string;
+            /**
+             * Unresolved
+             * @default []
+             */
+            unresolved: string[];
+            /**
+             * Views
+             * @default []
+             */
+            views: components["schemas"]["RenderedView"][];
+        };
+        /** RenderedRunNote */
+        RenderedRunNote: {
+            note: components["schemas"]["RunNote"];
+            rendered: components["schemas"]["RenderedNote"];
+        };
+        /**
+         * RenderedView
+         * @description One view with the data it displays, for the page to draw.
+         */
+        RenderedView: {
+            /** Compare Formatted */
+            compare_formatted?: string | null;
+            compare_value?: components["schemas"]["JsonPayload"];
+            /** Data */
+            data?: string | null;
+            /** Difference */
+            difference?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Formatted */
+            formatted?: string | null;
+            /** Index */
+            index: number;
+            kind: components["schemas"]["ViewKind"];
+            /** Options */
+            options?: {
+                [key: string]: components["schemas"]["JsonPayload"];
+            };
+            /** Query */
+            query?: string | null;
+            result?: components["schemas"]["SemanticResult"] | null;
+            value?: components["schemas"]["JsonPayload"];
         };
         /** ResultColumn */
         ResultColumn: {
@@ -1792,6 +1992,42 @@ export interface components {
             run_id: string;
             /** Source Id */
             source_id: string;
+        };
+        /**
+         * RunNote
+         * @description One revision of one note.
+         */
+        RunNote: {
+            /** Body Md */
+            body_md: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Deleted
+             * @default false
+             */
+            deleted: boolean;
+            /** Kind */
+            kind: string;
+            /** Note Id */
+            note_id: string;
+            /**
+             * Revised At
+             * Format: date-time
+             */
+            revised_at: string;
+            /** Revision */
+            revision: number;
+            /** Run Id */
+            run_id?: string | null;
+            /** @default run */
+            scope: components["schemas"]["NoteScope"];
+            source: components["schemas"]["NoteSource"];
+            /** Title */
+            title?: string | null;
         };
         /** @enum {string} */
         RunStatus: "running" | "succeeded" | "partial" | "failed" | "cancelled" | "unsupported";
@@ -2719,6 +2955,11 @@ export interface components {
             /** Provider */
             provider: string;
             /**
+             * Run Notes
+             * @default false
+             */
+            run_notes: boolean;
+            /**
              * Trace Facts
              * @default unavailable
              * @enum {string}
@@ -2738,6 +2979,8 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** @enum {string} */
+        ViewKind: "chart" | "value" | "table";
         /** @enum {string} */
         ViewMode: "auto" | "job" | "generic";
     };
@@ -2833,6 +3076,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_note_api_v1_notes_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderedNote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    note_settings_api_v1_notes_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: boolean;
+                    };
                 };
             };
         };
@@ -3009,6 +3307,37 @@ export interface operations {
             };
         };
     };
+    run_card_api_v1_runs__run_key__card_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderedNote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     comparison_key_api_v1_runs__run_key__comparison_key_get: {
         parameters: {
             query?: never;
@@ -3134,6 +3463,176 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_notes_api_v1_runs__run_key__notes_get: {
+        parameters: {
+            query?: {
+                kind?: string | null;
+            };
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderedRunNote"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_run_note_api_v1_runs__run_key__notes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteAddRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunNote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revise_run_note_api_v1_runs__run_key__notes__note_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteReviseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunNote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_run_note_api_v1_runs__run_key__notes__note_id__delete: {
+        parameters: {
+            query: {
+                expected_revision: number;
+            };
+            header?: never;
+            path: {
+                run_key: string;
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunNote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_note_history_api_v1_runs__run_key__notes__note_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunNote"][];
                 };
             };
             /** @description Validation Error */
