@@ -72,8 +72,17 @@ update.
   `finance.vendor_spend_analysis` differed. The 8 GB package now uses
   `automationbench-lfm12-sampo-8gb-v2`, those 57 tasks, with up to 10 candidate
   batches.
-- [ ] Release the renderers fork with vLLM's pythonic tool-call repairs and pin
-  it, so training accepts the calls evaluation accepts (see Surprises).
+- [x] (2026-09-26 22:10Z) Released renderers `carbonteq-v0.1.12.post1.dev2`
+  (fork commit 6f712616, GitHub pre-release, published to `carbonteq/dev` by
+  Posttrain run 36259417685) and pinned it, so training accepts the tool calls
+  evaluation accepts.
+- [x] (2026-09-26 22:40Z) Evaluation: a rollout whose final request exceeds the
+  context is truncation and keeps its reward (fact calculator v7); status
+  separates `truncated` from `partial`; an evaluation with no successful rollout
+  fails the run. Canonical doc 06 amended.
+- [x] (2026-09-26 22:50Z) Retired the six SAMPO gates the new contract cannot run
+  (`sampo-extended`, `automationbench-sampo`, four `verl-sampo*`); their work
+  packages stay as history.
 - [x] (2026-09-26 21:10Z) Milestone 3 run (r13): the vLLM importance ratio averaged
   0.98 (range 0.59-1.46) and was never clamped at 2.0; turns shared an anchor
   state with 3.0-4.6 attempts on average (groups of 4); KL 0.0004 from update 2;
@@ -81,10 +90,12 @@ update.
   were truncated, by a first reply reaching 3,072 tokens (4) or the 8K context
   (2). Training still used renderers 0.1.12.post1.dev1, without the tool-call
   repairs.
-- [ ] Milestone 4: speed on 8 GB (time split, trainer options, rollout options).
+- [ ] ~~Milestone 4: speed on 8 GB~~ Out of scope (user decision, 2026-09-26): the
+  8 GB work is for correctness; TurboQuant was only considered to fit training.
 - [ ] Milestone 5: environment turn rewards in the AutomationBench adapter
   (separate repository).
-- [ ] Milestone 6: qualification on the RTX PRO 6000 with LFM2.5-2.6B.
+- [ ] ~~Milestone 6: qualification on the RTX PRO 6000 with LFM2.5-2.6B~~ Out of
+  scope for this round (user decision, 2026-09-26): the RTX PRO runs the KL job.
 
 ## Surprises & Discoveries
 
@@ -153,6 +164,16 @@ update.
   They need new binding revisions or retirement; they do not block this plan.
 
 ## Decision Log
+
+- Decision: retire the six older SAMPO qualification gates instead of giving
+  them new bindings.
+  Rationale: the four veRL ones cannot run SAMPO (no active sampling); the Qwen
+  alphabet-sort one samples greedily (environment temperature defaults to 0);
+  the Qwen AutomationBench one has a batch mismatch and is covered by the LFM2.5
+  8 GB package. All were experimental candidates, so release gating is
+  unchanged.
+  Date/Author: 2026-09-26, Claude, under the user's instruction to finish the
+  SAMPO work.
 
 - Decision: SAMPO's vLLM sampler-mismatch correction defaults to VORTEX's
   per-token truncation capped at 2.0 instead of the former hard-coded

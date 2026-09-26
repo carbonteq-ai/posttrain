@@ -93,8 +93,16 @@ def test_package_registry_classifies_every_current_work_package() -> None:
 
     assert len(inventory.entries) == 95
     assert len(inventory.active_gates) == 20
-    assert len(inventory.candidate_experiments) == 75
-    assert inventory.retired_gates == ()
+    assert len(inventory.candidate_experiments) == 69
+    # SAMPO packages that the VORTEX-refill contract can no longer run.
+    assert {gate.id for gate in inventory.retired_gates} == {
+        "automationbench-sampo",
+        "sampo-extended",
+        "verl-sampo",
+        "verl-sampo-mtp",
+        "verl-sampo-mtp-turboquant",
+        "verl-sampo-turboquant",
+    }
     assert len(inventory.classified) == 95
     assert inventory.unclassified == ()
     assert {gate.id for gate in inventory.active_gates if gate.tier == "release"} == {
@@ -216,8 +224,15 @@ def test_qualification_list_emits_a_stable_json_inventory(capsys: pytest.Capture
 
     assert payload["schema_version"] == 2
     assert len(payload["active_gates"]) == 20
-    assert len(payload["candidate_experiments"]) == 75
-    assert payload["retired_gates"] == []
+    assert len(payload["candidate_experiments"]) == 69
+    assert {gate["id"] for gate in payload["retired_gates"]} == {
+        "automationbench-sampo",
+        "sampo-extended",
+        "verl-sampo",
+        "verl-sampo-mtp",
+        "verl-sampo-mtp-turboquant",
+        "verl-sampo-turboquant",
+    }
     assert payload["unclassified_work_packages"] == []
 
 
@@ -228,4 +243,4 @@ def test_qualification_list_labels_candidates_as_non_active_experiments(capsys: 
 
     assert "automationbench-grpo\tcandidate\texperimental" in output
     assert "lfm26-automationbench-vortex-20-local\tcandidate\texperimental" in output
-    assert "summary\tactive=20\tcandidates=75\tretired_gates=0" in output
+    assert "summary\tactive=20\tcandidates=69\tretired_gates=6" in output
