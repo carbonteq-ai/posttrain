@@ -10,7 +10,6 @@ environment. Runtime preparation only materializes the script bytes.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import os
 import shlex
@@ -45,7 +44,7 @@ async def prepare_preinstalled_uv_script(
     interpreters = runtime._uv_interpreters
     locks = runtime._uv_script_locks
     if digest not in interpreters:
-        async with locks.setdefault(digest, asyncio.Lock()):
+        async with locks.get(digest):
             if digest not in interpreters:
                 tmp = f"{path}.{uuid.uuid4().hex}.tmp"
                 await runtime.write(tmp, data)

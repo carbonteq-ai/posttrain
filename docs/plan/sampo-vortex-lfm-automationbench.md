@@ -84,6 +84,14 @@ update.
   really runs in fp32 and skipping the copy fails with a dtype error (run r12).
   The change (ea8f156e) was reverted; the 8 GB package uses an 8K context instead.
   A bf16 chunked path would need a TRL change and alters numerics slightly.
+- Observation: the first screen, `lfm12-screen-8k-20260926-r1`, reported success
+  although all 642 rollouts failed in harness setup before reaching the model:
+  Verifiers cdd2ec76 (pinned since 0.4.7) replaced the runtime's per-script lock
+  dict with `LoopLocks`, and Posttrain's preinstalled-runtime override still called
+  `.setdefault`. Every managed evaluation on 0.4.7 and 0.4.8 is affected; training
+  does not use the override. Fixed by calling `LoopLocks.get`, with the test fake
+  now using the real Verifiers type. The job status does not consider
+  `eval/run/rollouts_failed`; whether it should is an open product question.
 - Observation: of 56 LFM2.5-1.2B episodes on the 8 GB runs, 14 (25%) ended with a
   malformed tool call (usually bad quoting of a JSON string argument) that was
   dropped without an error, so the model never retried; 40 ended with a plain-text
