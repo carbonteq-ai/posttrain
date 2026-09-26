@@ -44,8 +44,13 @@ update.
 - [x] (2026-09-26 16:40Z) Milestone 2 code: SAMPO refills only with VORTEX active
   sampling (dynamic sampling removed), goes through group admission, selects the
   adaptive curriculum, and computes advantages on admitted groups. 1969 tests pass.
-- [ ] Milestone 2 run: the 8 GB package with oversampling (10 candidate batches, 2
-  groups of 4) and the yield-first curriculum completes three updates.
+- [x] (2026-09-26 21:10Z) Milestone 2 run: `lfm12-sampo-8gb-20260926-r13` completed
+  three updates (800 s) on the 57 screened tasks, 8K context. Every group had
+  differing rewards in the first round, so no refill ran (8 rows generated per
+  update, 0 rejected); trainer peak memory 4.44 GiB. Update time 396 s (first,
+  with warm-up), 155 s, 247 s, of which rollout 367, 132 and 217 s and the actor
+  update 13-17 s. vLLM's KV cache held 21,670 tokens and peaked at 45-60%, so at 4
+  concurrent sequences it is not the limit.
 - [x] (2026-09-26 17:30Z) Milestone 3 code: the vLLM correction is selectable and
   defaults to VORTEX's per-token cap of 2.0; an optional truncation penalty shapes
   the episode reward before advantages; anchor keys drop the tool-call id and
@@ -69,8 +74,13 @@ update.
   batches.
 - [ ] Release the renderers fork with vLLM's pythonic tool-call repairs and pin
   it, so training accepts the calls evaluation accepts (see Surprises).
-- [ ] Milestone 3 run: confirm on 8 GB that the anchor match rate rises and the
-  correction rarely clamps.
+- [x] (2026-09-26 21:10Z) Milestone 3 run (r13): the vLLM importance ratio averaged
+  0.98 (range 0.59-1.46) and was never clamped at 2.0; turns shared an anchor
+  state with 3.0-4.6 attempts on average (groups of 4); KL 0.0004 from update 2;
+  entropy 0.43-0.53; gradient norm 0.03-0.06, never clipped. 6 of 24 rollouts
+  were truncated, by a first reply reaching 3,072 tokens (4) or the 8K context
+  (2). Training still used renderers 0.1.12.post1.dev1, without the tool-call
+  repairs.
 - [ ] Milestone 4: speed on 8 GB (time split, trainer options, rollout options).
 - [ ] Milestone 5: environment turn rewards in the AutomationBench adapter
   (separate repository).
