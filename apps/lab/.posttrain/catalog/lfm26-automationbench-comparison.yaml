@@ -2329,7 +2329,9 @@ inference:
   # 8 GB SAMPO development rollout (docs/plan/sampo-vortex-lfm-automationbench.md):
   # revision 1 of the changed-weight binding on the shipped vLLM with prefix
   # caching and CUDA graphs. vLLM starts after the trainer has loaded, with
-  # about 3.8 of 7.6 GiB free on a desktop GPU, so it may claim at most 0.45.
+  # about 3.8 of 7.6 GiB free on a desktop GPU. At 0.45 it started but could not
+  # wake for the first collection once the trainer had set up training; 0.40
+  # with a 256 MiB KV cache (~21K tokens at ~12 KB per token) leaves the room.
   inference/lfm2.5-1.2b-vllm-sampo-local-8gb@1:
     revision: "1"
     model: models/lfm2.5-1.2b-thinking@bf16
@@ -2339,12 +2341,12 @@ inference:
       mode: colocate
       request_mode: async
       sleep_during_optimization: true
-      gpu_memory_utilization: 0.45
+      gpu_memory_utilization: 0.40
       tensor_parallel_size: 1
       max_model_len: 12288
       max_num_seqs: 4
       max_num_batched_tokens: 2048
-      kv_cache_memory_bytes: 536870912
+      kv_cache_memory_bytes: 268435456
       weight_sync_mode: lora
       enforce_eager: false
       enable_prefix_caching: true
