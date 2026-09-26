@@ -99,8 +99,16 @@ update.
   the job-kind image built from the committed runtime lock.
 - [ ] ~~Milestone 4: speed on 8 GB~~ Out of scope (user decision, 2026-09-26): the
   8 GB work is for correctness; TurboQuant was only considered to fit training.
-- [ ] Milestone 5: environment turn rewards in the AutomationBench adapter
-  (separate repository).
+- [x] (2026-09-27 00:50Z) Milestone 5: automationbench-v1 0.4.2
+  (`carbonteq-ai/verifiers-environments` #1, commit `3a486b0a`) scores the live
+  world before every model call and writes `assistant-turns@1` evidence: per
+  assistant turn, the change in partial credit minus 0.05 per failed tool call.
+  Posttrain selects it through `reward/automationbench-turn-progress@1` and
+  `train/sampo-turns@1`. Run `lfm12-sampo-turns-8gb-20260926-r1` completed three
+  updates: all 24 traces carried evidence matching their sampled turns,
+  `train/rl/sparse_reward_projection_fraction` was 0 (1.0 before), and a
+  zero-credit episode of five failing calls now scores -0.05 per turn instead of
+  looking like every other failure.
 - [ ] ~~Milestone 6: qualification on the RTX PRO 6000 with LFM2.5-2.6B~~ Out of
   scope for this round (user decision, 2026-09-26): the RTX PRO runs the KL job.
 
@@ -171,6 +179,15 @@ update.
   They need new binding revisions or retirement; they do not block this plan.
 
 ## Decision Log
+
+- Decision: measure per-turn progress live, in a task stop hook that runs
+  before every model call, instead of replaying the finished episode.
+  Rationale: AutomationBench generates record IDs with `uuid4`, so a replayed
+  turn that names an ID created earlier would fail. The adapter's stop hook sees
+  the world after the previous turn's tool calls; `finalize` records the last
+  turn. Only the new lab environment selects adapter 0.4.2; the framework-wide
+  AutomationBench selection (`5264ec15`, the release ledger) is unchanged.
+  Date/Author: 2026-09-27, Claude.
 
 - Decision: do not return a parse error to the model for an unrecoverable tool
   call; the episode keeps ending there.

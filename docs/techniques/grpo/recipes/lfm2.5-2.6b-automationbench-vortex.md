@@ -118,5 +118,7 @@ recompiles are the candidates.
 - Learning rate 5e-5 with KL 0.005 for 150 updates from the base model. Record
   its results in the learning-rate table above.
 - SAMPO with environment-derived turn rewards (assertion progress and failed tool
-  calls). Its anchor-state step advantages already match 41% of turns in these
-  traces, 50% with IDs stripped.
+  calls) is implemented and runs on the 8 GB GPU with LFM2.5-1.2B
+  (`lfm12-sampo-turns-8gb-20260926-r1`); a 2.6B comparison against this VORTEX
+  control is the next experiment. Anchor-state step advantages match 41% of
+  turns in these traces, 50% with IDs stripped.
