@@ -1,0 +1,319 @@
+# Run SAMPO with the VORTEX curriculum on LFM2.5 AutomationBench, developed on an 8 GB GPU
+
+This ExecPlan is a living document. The sections `Progress`, `Surprises &
+Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to
+date as work proceeds. This document follows `docs/templates/PLAN.md`. It builds
+on the checked-in plan `docs/plan/sampo-agentic-training.md`, which added SAMPO to
+the framework; everything needed from that plan is repeated here.
+
+## Purpose / Big Picture
+
+Today a Posttrain user can train an LFM2.5 agent on AutomationBench with VORTEX, a
+curriculum that picks which tasks to sample and refills groups of attempts whose
+rewards are all equal. Every token of an attempt then receives the same credit,
+derived from one number at the end of the episode. SAMPO (Stable Agentic
+Multi-turn Policy Optimization, from the ICML 2026 ARLArena paper) adds a
+per-turn signal: when two attempts at the same task reach the same observation,
+the turn that led to a better outcome gets a positive advantage and the other a
+negative one. No judge model is involved.
+
+After this plan, a user can select SAMPO for the same LFM2.5 AutomationBench
+workload and keep what makes VORTEX work: the yield-first curriculum, refilling
+only the missing groups, tolerating a failed episode, the truncation penalty and
+the per-token vLLM correction. They can develop and profile it on an 8 GB GPU with
+LFM2.5-1.2B, then run it on the 96 GB RTX PRO 6000 with LFM2.5-2.6B. The run's
+evidence shows how many turns received a step-level signal and how the update
+time splits between rollout and training.
+
+To see it working, run the 8 GB work package in this plan for three updates. The
+run finishes, Trackio records `train/rl/anchor_group_size_mean` above 1 and a
+nonzero step-advantage share, and a deliberately failed episode does not abort the
+update.
+
+## Progress
+
+- [x] (2026-09-26 13:30Z) Measured anchor-state matching on 520 healthy VORTEX v5
+  attempts: 41% of turns share a state with another attempt in their group, 50%
+  after removing per-sample IDs and UUIDs.
+- [x] (2026-09-26 13:40Z) Mapped the current SAMPO path and its gaps (see Context
+  and Orientation).
+- [ ] Milestone 1: baseline SAMPO on 8 GB as it exists today, and record where it
+  breaks.
+- [ ] Milestone 2: robust collection for SAMPO (group admission, refill of missing
+  groups, VORTEX curriculum).
+- [ ] Milestone 3: objective fit (vLLM correction mode, truncation penalty, KL,
+  ID-stripped anchor keys, evidence).
+- [ ] Milestone 4: speed on 8 GB (time split, trainer options, rollout options).
+- [ ] Milestone 5: environment turn rewards in the AutomationBench adapter
+  (separate repository).
+- [ ] Milestone 6: qualification on the RTX PRO 6000 with LFM2.5-2.6B.
+
+## Surprises & Discoveries
+
+- Observation: anchor states match more often than expected on AutomationBench,
+  although attempts diverge after the first turn.
+  Evidence: exact keys 41% of turns (turn 1 100%, turn 2 43%, turn 3 44%, turn 4
+  32%, turn 5 25%, turn 6+ 13-14%); keys without `tool_call_id` and UUIDs 50%.
+  Measured on traces of run `lfm26-vortex-v5-150-dspark-opt-20260926-r1`,
+  updates 41-56, 130 groups of 4.
+- Observation: AutomationBench already exposes per-turn signals. 12.6% of tool
+  calls return `success: false`; the failed share is 16.8% in zero-reward
+  episodes, 10.2% in partial ones and 2.6% in solved ones. Almost every assertion
+  checks one write action (email sent, sheet row, Slack message, SMS), so the turn
+  that satisfied it can be credited.
+  Evidence: same traces; assertion types from `info.automationbench.assertions`.
+- Observation: `gmail_message_not_sent_to` assertions passed 0 of 121 times
+  because the agent really emailed the forbidden address; it is a skill the
+  episode-level reward never isolates, not an evaluator bug.
+
+## Decision Log
+
+- Decision: develop on the 8 GB RTX 3070 Ti with LFM2.5-1.2B-thinking, then
+  qualify on the RTX PRO 6000 with LFM2.5-2.6B.
+  Rationale: LFM2.5-2.6B training plus colocated vLLM does not fit 8 GB.
+  LFM2.5-1.2B shares the model family and renderer, and bindings
+  `training/lfm2.5-1.2b-trl-lora-changed-weight-local@1` and
+  `inference/lfm2.5-1.2b-vllm-changed-weight-local@1` already run AutomationBench
+  on this card.
+  Date/Author: 2026-09-26, Claude with the user.
+- Decision: no external judge in this plan.
+  Rationale: SAMPO's episode advantage comes from AutomationBench partial credit
+  and its step advantage from anchor-state matching; both come from the
+  environment. Judge-based turn grades (the Jev rubric work) belong in the
+  AutomationBench rubric system later and can enter through the same per-turn
+  reward slot.
+  Date/Author: 2026-09-26, user decision.
+- Decision: SAMPO keeps the VORTEX curriculum's statistics on the episode reward.
+  Rationale: the curriculum ranks tasks by how often they produce groups with
+  differing rewards. If step signals counted, almost every group would look
+  useful and the curriculum would lose its signal.
+  Date/Author: 2026-09-26, Claude.
+- Decision: learning rate 5e-5 and KL 0.005 as the starting point for LFM2.5-2.6B.
+  Rationale: see `docs/techniques/grpo/recipes/lfm2.5-2.6b-automationbench-vortex.md`;
+  1e-5 barely learned, 2e-4 and 1e-4 drifted into entropy collapse.
+  Date/Author: 2026-09-26, user decision.
+
+## Outcomes & Retrospective
+
+None yet.
+
+## Context and Orientation
+
+Posttrain is a Python 3.12 `uv` workspace. Training code lives in
+`packages/train/src/posttrain/train`. Catalog selections for this lab live in
+`apps/lab/.posttrain/catalog/*.yaml`, and runnable work packages in
+`apps/lab/.posttrain/work_packages/*.yaml`. Runs are recorded in Trackio and read
+with `tracking_source_for_project` from `posttrain_cli.execution_provider`.
+
+Terms used in this plan:
+
+- An **attempt** or **rollout** is one episode of the agent on one task. A
+  **group** is several attempts at the same task in the same update (4 today).
+- An **advantage** is the weight a token receives in the policy update: positive
+  pushes its probability up, negative down.
+- An **anchor state** is the observation (the last user or tool message) that a
+  turn responded to. `_anchor_state_key` in
+  `packages/train/src/posttrain/train/integrations/verifiers.py` hashes the whole
+  message, including `tool_call_id`.
+- **SAMPO advantages** are computed by `compute_sampo_advantages` in
+  `packages/train/src/posttrain/train/sampo_advantages.py`: an episode advantage
+  (reward centred within the group) plus `step_advantage_weight` times a turn
+  advantage (the discounted return centred among turns of the group that share an
+  anchor key). A turn whose key matches no other attempt gets turn advantage 0.
+  If every turn carries an explicit `step_reward`, those rewards replace the
+  sparse final reward in the discounted return.
+- **VORTEX** is the OLMo 3 GRPO algorithm with active sampling (refill of groups
+  whose rewards are all equal) and the adaptive curriculum
+  (`adaptive_curriculum` on `GRPOSettings` in
+  `packages/train/src/posttrain/train/profiles.py`, run by
+  `packages/train/src/posttrain/train/backends/trl/policy_curriculum.py`).
+- **The vLLM correction** re-weights tokens by the ratio between the trainer's
+  and vLLM's probability of the sampled token, because vLLM samples with slightly
+  different numerics.
+
+How SAMPO runs today (TRL backend): `sampo()` in
+`packages/train/src/posttrain/train/api.py` calls `run_sampo` in
+`backends/trl/policy_optimization.py`, the same function GRPO uses, with plain
+TRL `GRPOTrainer`. `backends/trl/policy_config.py` sets
+`use_precomputed_advantages`, forces TRL's DAPO-style `dynamic_sampling`, sets
+`importance_sampling_level="sequence"` and hard-codes the vLLM correction to
+`sequence_truncate` clamped to [0.1, 3.0]. Rollouts are collected by the same
+runner as VORTEX (`backends/trl/policy_rollouts.py`, `collection_runner.py`) and
+SAMPO advantages are computed after collection in `policy_rollouts.py`.
+
+The gaps this plan closes, all observed in code:
+
+1. The curriculum wrapper applies only to `GRPORequest`
+   (`policy_optimization.py`), and `SAMPOSettings` has no `adaptive_curriculum`,
+   `active_sampling`, `truncation_penalty` or `importance_sampling_mode` field.
+   Its schema forbids unknown fields.
+2. TRL's dynamic sampling regenerates whole candidate batches, keeps groups with
+   reward spread, and raises `RuntimeError` after `max_candidate_batches` (default
+   3). At AutomationBench solve rates that is likely to stop a run.
+3. SAMPO never goes through `admit_rollout_groups` (`policy_rollouts.py`), so one
+   failed or timed-out episode raises `VerifiersRolloutFailure` and aborts the
+   update. `_rollout_batch` also gives SAMPO no prompt-group IDs, so traces cannot
+   be grouped.
+4. `sequence_truncate` multiplies token ratios over the whole episode. Over
+   4,000-20,000 sampled tokens small per-token differences compound, so the clamp
+   will engage often. VORTEX uses `token_truncate` with maximum 2.0.
+5. With one optimizer step per generation batch the policy ratio is exactly 1, so
+   SAMPO's 0.003/0.004 sequence clip never engages. Stability must come from the
+   learning rate and KL.
+6. SAMPO has never run on LFM2.5 or with the speed options (async rollout
+   execution, DSpark, `compile_decoder_layers`,
+   `importance_sampling_from_training_logps`). Liger must stay off; TRL rejects it
+   with precomputed advantages.
+
+This plan changes the frozen product baseline: `SAMPOSettings` gains curriculum,
+refill, truncation-penalty and vLLM-correction fields. Milestone 2 starts by
+amending `docs/post-training/05-apis.md` in the SAMPO settings description, in
+the same commit as the code.
+
+## Plan of Work
+
+Milestone 1 establishes the baseline on the 8 GB card without code changes. Add
+catalog entries in `apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml`:
+a `sampo-settings` entry `lfm2.5-1.2b/automationbench-sampo-local-8gb-v1` with 3
+updates, 2 prompt groups of 4 attempts, `max_completion_length` 1024, learning rate
+5e-5, `beta` 0.005, and the existing 1.2B training and inference bindings. Add a work
+package `apps/lab/.posttrain/work_packages/lfm12_automationbench_sampo_local_8gb.yaml`
+on the SAMPO job definition `train/trl-sampo@1`. Run it on the local provider and
+record what happens: whether it completes, whether dynamic sampling exhausts its
+candidates, how often the vLLM correction clamps, `train/rl/anchor_group_size_mean`,
+peak GPU memory and the time split. Write the findings into Surprises & Discoveries.
+This is a prototyping milestone: its output is evidence, not a supported
+configuration.
+
+Milestone 2 makes collection robust. In `profiles.py`, add optional
+`adaptive_curriculum` and `active_sampling` fields to `SAMPOSettings`, with the same
+types and validation as on `GRPOSettings`, and make `dynamic_sampling` optional
+and mutually exclusive with `active_sampling`. In `policy_optimization.py`, apply
+the adaptive-curriculum trainer to SAMPO requests when the settings carry a
+curriculum. In `policy_config.py`, select TRL's active-sampling path (refill only
+missing groups) instead of dynamic sampling when `active_sampling` is set. In
+`policy_rollouts.py`, route SAMPO through `admit_rollout_groups` so a failed episode
+drops its group rather than the update, and return prompt-group and rollout IDs for
+SAMPO like GRPO. Extend `reward_admission.py` to accept `SAMPOSettings`. A group is
+useful when its episode rewards differ, matching VORTEX; record separately how many
+dropped groups had nonzero turn advantages, so a later decision can use it.
+
+Milestone 3 fits the objective. Add `importance_sampling_mode` and its clip bounds
+to `SAMPOSettings`, defaulting to the current `sequence_truncate` [0.1, 3.0] for
+compatibility, and pass them through `policy_config.py`. Add `truncation_penalty`
+with the GRPO semantics. `beta` already exists. In `verifiers.py`, change
+`_anchor_state_key` to drop `tool_call_id` and replace UUID-shaped strings before
+hashing, behind a versioned key scheme recorded in run attributes, so earlier runs
+remain explainable. Log `train/rl/step_advantage_token_share` (the share of sampled
+tokens whose turn advantage is nonzero) and the vLLM clamp fraction.
+
+Milestone 4 profiles and speeds up the 8 GB loop. Use the actor-update split added
+in Posttrain 0.4.8 (`train/rl/time/actor_forward_backward_seconds` and
+`train/rl/time/optimizer_step_seconds`) plus rollout time. Try, one at a time and
+recording each result, the TRL 1.12.0.post10 options `compile_decoder_layers` and
+`importance_sampling_from_training_logps`, async `rollout_execution`, and CUDA graphs
+instead of eager decoding in a new inference binding revision (the recorded
+revision uses `enforce_eager`). Keep only changes that lower update time without
+raising peak memory past the card.
+
+Milestone 5 adds per-turn environment rewards in the separate
+`carbonteq-ai/verifiers-environments` repository (environment
+`environments/automationbench_v1`), not in this repository. After each turn the
+adapter re-evaluates the task assertions and emits the change in assertions passed
+minus a small penalty for each failed tool call, as a per-turn value under a stable
+key. The per-turn values sum to the episode's partial credit plus the penalties.
+Posttrain consumes it through a turn reward projection (`turn_reward_key` on the
+SAMPO job), which already exists. That repository is committed and pinned first,
+then the pin is updated here; the exact order is in Concrete Steps.
+
+Milestone 6 qualifies on the RTX PRO 6000: LFM2.5-2.6B, bindings
+`training/lfm2.5-2.6b-trl-lora-automationbench-local-g64-w8@2` and
+`inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c64-4k@2`, 16 prompt groups
+of 4, learning rate 5e-5, KL 0.005, yield-first curriculum, truncation penalty 0.2,
+10 updates, then a full run compared with the VORTEX control
+`lfm26-vortex-v5-150-lr5e5-kl5e3-20260926-r1`.
+
+## Concrete Steps
+
+All commands run from the repository root `/home/hammad/projects/rl-perf-guard`
+unless stated. Launch runs from a clean worktree of committed code, because
+Posttrain packs the working tree.
+
+Validate a work package:
+
+    cd apps/lab
+    uv run --no-sync --package posttrain posttrain work-package validate \
+      .posttrain/work_packages/lfm12_automationbench_sampo_local_8gb.yaml
+
+Run it on the local 8 GB card (one GPU job at a time on this machine):
+
+    cd apps/lab
+    uv run --no-sync --package posttrain posttrain job run \
+      .posttrain/work_packages/lfm12_automationbench_sampo_local_8gb.yaml \
+      --provider local --run-id lfm12-sampo-8gb-<date>-r1
+
+Run the focused tests after each milestone:
+
+    uv run --no-sync pytest -q packages/train/tests/test_sampo.py \
+      packages/train/tests/test_api.py apps/lab/tests
+
+Milestone 5 order: commit and push the adapter change in
+`carbonteq-ai/verifiers-environments`, pin its full commit in the framework
+catalogs, dependency constraints and `uv.lock` here, then update the SAMPO work
+packages to name the turn reward key.
+
+## Validation and Acceptance
+
+Milestone 1 is accepted when its findings are written down, whether or not the run
+completes. Milestones 2-4 are accepted when the 8 GB work package completes three
+updates with SAMPO, the curriculum and active sampling selected; when a test in
+`packages/train/tests/test_sampo.py` shows one failed episode dropping its group
+without aborting (failing before Milestone 2 and passing after); when Trackio shows
+`train/rl/anchor_group_size_mean` above 1 and `train/rl/step_advantage_token_share`
+above 0; and when the time split per update is recorded before and after Milestone
+4. Milestone 6 is accepted when 10 LFM2.5-2.6B updates finish with entropy within
+twice its early level. The full ladder must pass at each commit:
+
+    uv sync --all-packages --locked --python 3.13
+    uv run ruff check .
+    uv run pyright
+    uv run lint-imports
+    uv run pytest
+    git diff --check
+
+## Idempotence and Recovery
+
+Catalog entries and work packages are additive; new behaviour is opt-in through
+new settings fields whose defaults keep existing SAMPO runs unchanged. A failed
+local run leaves only its run record and workspace; rerun with a new `--run-id`. If
+the 8 GB run exhausts GPU memory, lower `max_completion_length` or concurrency in a
+new binding revision rather than editing a recorded one.
+
+## Artifacts and Notes
+
+The anchor-matching measurement used traces already downloaded from run
+`lfm26-vortex-v5-150-dspark-opt-20260926-r1`; the script hashed the last user or
+tool message before each sampled assistant turn exactly as `_anchor_state_key`
+does, then again without `tool_call_id` and with UUIDs replaced.
+
+## Interfaces and Dependencies
+
+At the end of Milestone 3, `SAMPOSettings` in
+`packages/train/src/posttrain/train/profiles.py` has, in addition to its current
+fields:
+
+    adaptive_curriculum: AdaptiveCurriculum | None = None
+    active_sampling: ActiveGroupSampling | None = None
+    dynamic_sampling: DynamicGroupSampling | None = DynamicGroupSampling(3)
+    truncation_penalty: float | None = None
+    importance_sampling_mode: str = "sequence_truncate"
+    importance_sampling_clip_min: float | None = 0.1
+    importance_sampling_clip_max: float | None = 3.0
+
+with exactly one of `active_sampling` and `dynamic_sampling` set. The catalog
+schema in `packages/train/src/posttrain/train/catalog_schema.py` accepts the same
+fields for `sampo-settings`. No new external dependency is introduced. The TRL
+fork `1.12.0.post10` configuration accepts active sampling together with
+precomputed advantages (`trl/trainer/grpo_config.py`, the `active_sampling`
+validation block); Milestone 2 must verify with a test that refill rounds carry
+the precomputed advantages of retained and refilled groups through unchanged.
