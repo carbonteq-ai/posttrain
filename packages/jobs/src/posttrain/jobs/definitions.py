@@ -986,15 +986,6 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
     settings = seats["settings"]
     if not isinstance(settings, GRPOSettings | SAMPOSettings):
         raise TypeError("resolved seat 'settings' has the wrong type")
-    curriculum = settings.adaptive_curriculum
-    if curriculum is not None and "environment" in seats:
-        observation = getattr(seats["environment"], "observation", None)
-        facets = {str(facet.field) for facet in getattr(observation, "facets", ())}
-        if curriculum.class_field not in facets:
-            raise ContractError(
-                f"adaptive curriculum class field {curriculum.class_field!r} must be an observation facet "
-                "of the environment, so every task row carries it"
-            )
     training = _seat(seats, "training", TrainingBinding)
     expected_batch = settings.num_prompts_per_step * settings.num_generations
     global_batch = training.runtime.global_batch_size
@@ -1021,6 +1012,38 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
             "online-RL prompt and completion budgets exceed rollout inference max_model_len: "
             f"{settings.max_prompt_length} + {settings.max_completion_length} > {context_window}"
         )
+
+    _validate_task_supply(settings, seats.get("environment"), seats.get("training"))
+
+
+def _validate_task_supply(
+    settings: GRPOSettings | SAMPOSettings,
+    environment: object | None,
+    training: object | None,
+) -> None:
+    """Check the environment can fill the candidate reservation and carries the curriculum field."""
+
+    refill = settings.active_sampling or getattr(settings, "dynamic_sampling", None)
+    num_tasks = getattr(environment, "num_tasks", None)
+    reserved = settings.num_prompts_per_step * (refill.max_candidate_batches if refill is not None else 1)
+    backend = str(getattr(training, "backend", ""))
+    if backend.startswith("trl@") and isinstance(num_tasks, int) and num_tasks < reserved:
+        # TRL reserves every candidate prompt of an update up front and drops an incomplete
+        # reservation, so a smaller environment yields no batch and the trainer does no step.
+        raise ContractError(
+            f"environment has {num_tasks} tasks but each update reserves {reserved} candidate prompts "
+            f"({settings.num_prompts_per_step} per step x {reserved // settings.num_prompts_per_step} candidate "
+            "batches); lower max_candidate_batches or prompts per step"
+        )
+    curriculum = settings.adaptive_curriculum
+    if curriculum is not None and environment is not None:
+        observation = getattr(environment, "observation", None)
+        facets = {str(facet.field) for facet in getattr(observation, "facets", ())}
+        if curriculum.class_field not in facets:
+            raise ContractError(
+                f"adaptive curriculum class field {curriculum.class_field!r} must be an observation facet "
+                "of the environment, so every task row carries it"
+            )
 
 
 def _recovery_checkpoint(context: RunContext) -> LocalArtifactRef | None:

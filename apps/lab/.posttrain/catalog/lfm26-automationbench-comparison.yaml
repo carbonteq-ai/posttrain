@@ -1140,9 +1140,10 @@ training:
     step_advantage_weight: 1.0
     advantage_normalization: mean
     # VORTEX-style oversampling: keep groups whose rewards differ and generate
-    # only the missing ones from a pool of up to 10 candidate batches.
+    # only the missing ones from a pool of up to 7 candidate batches (2 x 7 = 14
+    # reserved prompts must fit the environment's 15 tasks).
     active_sampling:
-      max_candidate_batches: 10
+      max_candidate_batches: 7
     adaptive_curriculum:
       class_field: domain
       policy: yield_first
