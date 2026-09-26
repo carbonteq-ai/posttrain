@@ -1117,19 +1117,6 @@ owner = "posttrain-platform"
 replacement_condition = "Promote to a release gate once the continuation reaches 150 updates without preemption or memory failure; otherwise record the failure and resume from the last committed checkpoint."
 
 [[gates]]
-id = "lfm26-vortex-v5-lr5e5-kl5e3-from50-dspark-opt"
-work_package = ".posttrain/work_packages/lfm26_automationbench_vortex_yield_first_64_100_lr5e5_kl5e3_local_v5_dspark_opt.yaml"
-job_id = "train"
-tier = "experimental"
-state = "candidate"
-job_kind = "train.grpo"
-acceptance = "vortex-v5-lr5e5-kl5e3-from50-dspark-opt"
-experiment_family = "lfm26-automationbench-vortex-20-local-v1"
-hypothesis = "Restarting VORTEX v5 from the healthy step-50 checkpoint at half the learning rate, with a 0.005 KL penalty to the step-50 adapter, keeps entropy near its 0.6-0.8 range and truncation low, so reward keeps improving where 1e-4 diverged after update 54."
-owner = "posttrain-platform"
-replacement_condition = "Promote to a release gate once the run completes 100 updates with entropy and truncation stable; otherwise record the failure and lower the rate again."
-
-[[gates]]
 id = "lfm26-vortex-v5-150-lr5e5-kl5e3-dspark-opt"
 work_package = ".posttrain/work_packages/lfm26_automationbench_vortex_yield_first_64_150_lr5e5_kl5e3_local_v5_dspark_opt.yaml"
 job_id = "train"

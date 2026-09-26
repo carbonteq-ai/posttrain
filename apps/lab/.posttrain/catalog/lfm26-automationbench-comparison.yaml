@@ -1493,39 +1493,6 @@ training:
       seed: 172846
     truncation_penalty: 0.2
 
-  # v5 restarted from run lfm26-vortex-v5-150-dspark-opt-20260926-r1's step-50
-  # weights and curriculum state at half the learning rate. At 1e-4 that run's
-  # entropy rose from 0.7 to 5.6 after update 54, truncation from under 1% to
-  # 84%, and zero-variance groups exhausted active sampling at update 66.
-  # A fresh optimizer applies the new rate; 100 updates bring it to 150 total.
-  # A KL penalty of 0.005 anchors the policy to a frozen copy of the step-50
-  # adapter (TRL keeps it as the "ref" adapter).
-  lfm2.5-2.6b/automationbench-vortex-yield-first-64-100-lr5e-5-kl5e-3-local-v5:
-    <<: *vortex_20_local_v3
-    revision: "1"
-    loop:
-      max_steps: 100
-      max_length: 24576
-      per_device_batch_size: 1
-      gradient_accumulation_steps: 64
-      learning_rate: 0.00005
-      lr_scheduler_type: constant
-      logging_steps: 1
-      checkpoint_steps: 10
-      checkpoint_limit: 3
-    num_prompts_per_step: 16
-    beta: 0.005
-    adaptive_curriculum:
-      class_field: domain
-      policy: yield_first
-      exploration_share: 0.2
-      uncertainty_weight: 4.0
-      evidence_half_life_steps: 20.0
-      yield_prior_strength: 4.0
-      history_groups: 4
-      seed: 172846
-    truncation_penalty: 0.2
-
   # v5 from the base model at half the learning rate with a 0.005 KL penalty to
   # the base model (a fresh LoRA adapter disabled). At 1e-4 without KL, entropy
   # rose from 0.18 at update 1 to 0.64 at update 41 and ran away after update 54.
