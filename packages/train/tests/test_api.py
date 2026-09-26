@@ -516,6 +516,39 @@ def test_trainer_lifecycle_closes_async_collection_before_distributed_runtime() 
     assert closed == ["rollouts", "accelerator"]
 
 
+def test_trainer_lifecycle_keeps_training_error_when_shutdown_fails() -> None:
+    closed: list[str] = []
+
+    def failing_close() -> None:
+        raise RuntimeError("wake_up out of memory")
+
+    trainer = SimpleNamespace(
+        accelerator=SimpleNamespace(end_training=lambda: closed.append("accelerator")),
+        _posttrain_async_collection_runtime=SimpleNamespace(close=failing_close),
+    )
+
+    with pytest.raises(ValueError, match="training failed") as raised:
+        with trainer_lifecycle(trainer):
+            raise ValueError("training failed")
+
+    assert any("wake_up out of memory" in note for note in raised.value.__notes__)
+    assert closed == ["accelerator"]
+
+
+def test_trainer_lifecycle_reports_shutdown_failure_after_success() -> None:
+    def failing_close() -> None:
+        raise RuntimeError("wake_up out of memory")
+
+    trainer = SimpleNamespace(
+        accelerator=SimpleNamespace(end_training=lambda: None),
+        _posttrain_async_collection_runtime=SimpleNamespace(close=failing_close),
+    )
+
+    with pytest.raises(RuntimeError, match="wake_up out of memory"):
+        with trainer_lifecycle(trainer):
+            pass
+
+
 def test_sft_operation_separates_adapter_recovery_and_summary_artifacts() -> None:
     observer = Observer()
     with tempfile.TemporaryDirectory() as raw:

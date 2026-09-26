@@ -701,16 +701,35 @@ def publish_checkpoint_views(
 
 @contextmanager
 def trainer_lifecycle(trainer: Any) -> Iterator[None]:
-    """Close Accelerate's distributed runtime after success or failure."""
+    """Close the rollout runtime and Accelerate after success or failure.
+
+    A shutdown failure never replaces the training error that caused the shutdown;
+    it is attached to that error as a note.
+    """
     try:
         yield
-    finally:
-        runtime = getattr(trainer, "_posttrain_async_collection_runtime", None)
+    except BaseException as error:
         try:
-            if runtime is not None:
-                runtime.close()
-        finally:
-            trainer.accelerator.end_training()
+            _close_trainer_runtimes(trainer)
+        except BaseException as cleanup:
+            error.add_note(f"rollout runtime shutdown also failed: {type(cleanup).__name__}: {cleanup}")
+        raise
+    else:
+        _close_trainer_runtimes(trainer)
+
+
+def _close_trainer_runtimes(trainer: Any) -> None:
+    runtime = getattr(trainer, "_posttrain_async_collection_runtime", None)
+    try:
+        if runtime is not None:
+            # Closing a colocated engine wakes it first; release the trainer's cached
+            # allocations so a small GPU has room for that wake.
+            torch = sys.modules.get("torch")
+            if torch is not None and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            runtime.close()
+    finally:
+        trainer.accelerator.end_training()
 
 
 def publish_interrupted_recovery_checkpoint(
