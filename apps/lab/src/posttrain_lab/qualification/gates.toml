@@ -1125,6 +1125,32 @@ owner = "posttrain-platform"
 replacement_condition = "Retire once the 8 GB SAMPO environment is rebuilt from its results."
 
 [[gates]]
+id = "lfm26-sampo-150-kl"
+work_package = ".posttrain/work_packages/lfm26_automationbench_sampo_64_150_lr5e5_kl5e3_local_v1.yaml"
+job_id = "sampo"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.sampo"
+acceptance = "verifiers-trajectories"
+experiment_family = "lfm26-automationbench-vortex-20-local-v1"
+hypothesis = "SAMPO's anchor-state step advantages, with everything else matched to the VORTEX v5 KL control, improve LFM2.5-2.6B AutomationBench reward over 150 updates without faster entropy growth."
+owner = "posttrain-platform"
+replacement_condition = "Promote as the SAMPO qualification if it matches or beats the VORTEX control's reward at stable entropy; retire otherwise."
+
+[[gates]]
+id = "lfm26-sampo-turns-150-kl"
+work_package = ".posttrain/work_packages/lfm26_automationbench_sampo_turns_64_150_lr5e5_kl5e3_local_v1.yaml"
+job_id = "sampo"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.sampo"
+acceptance = "verifiers-trajectories"
+experiment_family = "lfm26-automationbench-vortex-20-local-v1"
+hypothesis = "Environment per-turn rewards (credit change minus failed-call penalty) give SAMPO a denser signal than the episode reward alone and improve LFM2.5-2.6B AutomationBench reward over the episode-only SAMPO arm and the VORTEX control."
+owner = "posttrain-platform"
+replacement_condition = "Promote as the SAMPO recipe if it beats the episode-only arm; retire otherwise."
+
+[[gates]]
 id = "lfm12-sampo-turns-local-8gb"
 work_package = ".posttrain/work_packages/lfm12_automationbench_sampo_turns_local_8gb.yaml"
 job_id = "sampo"
