@@ -986,6 +986,15 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
     settings = seats["settings"]
     if not isinstance(settings, GRPOSettings | SAMPOSettings):
         raise TypeError("resolved seat 'settings' has the wrong type")
+    curriculum = settings.adaptive_curriculum
+    if curriculum is not None and "environment" in seats:
+        observation = getattr(seats["environment"], "observation", None)
+        facets = {str(facet.field) for facet in getattr(observation, "facets", ())}
+        if curriculum.class_field not in facets:
+            raise ContractError(
+                f"adaptive curriculum class field {curriculum.class_field!r} must be an observation facet "
+                "of the environment, so every task row carries it"
+            )
     training = _seat(seats, "training", TrainingBinding)
     expected_batch = settings.num_prompts_per_step * settings.num_generations
     global_batch = training.runtime.global_batch_size

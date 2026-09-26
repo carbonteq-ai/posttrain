@@ -504,6 +504,27 @@ def test_static_sampo_preparation_rejects_training_batch_mismatch() -> None:
         definition.static_validator({"settings": settings, "training": training})
 
 
+def test_static_preparation_rejects_curriculum_field_the_environment_does_not_declare() -> None:
+    from types import SimpleNamespace
+
+    from posttrain.train.profiles import ActiveGroupSampling, AdaptiveCurriculum
+
+    settings = SAMPOSettings(
+        id="sampo-curriculum-facet",
+        loop=TrainingLoop(max_steps=1, max_length=384, per_device_batch_size=1, gradient_accumulation_steps=8),
+        num_prompts_per_step=2,
+        num_generations=4,
+        active_sampling=ActiveGroupSampling(3),
+        adaptive_curriculum=AdaptiveCurriculum(class_field="domain", policy="yield_first", seed=1),
+    )
+    definition = sampo_definition()
+    assert definition.static_validator is not None
+    undeclared = SimpleNamespace(observation=SimpleNamespace(facets=()))
+
+    with pytest.raises(ContractError, match="class field 'domain' must be an observation facet"):
+        definition.static_validator({"settings": settings, "environment": undeclared})
+
+
 def test_static_grpo_preparation_rejects_sampling_policy_mismatch() -> None:
     catalog = open_catalog(scope="jobs-test")
     model = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))

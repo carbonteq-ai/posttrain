@@ -82,6 +82,14 @@ update.
   because the agent really emailed the forbidden address; it is a skill the
   episode-level reward never isolates, not an evaluator bug.
 
+- Observation: six older SAMPO qualification packages fail `work-package validate`
+  since SAMPO jobs gained the online-RL static checks (commit 9e2d83ea). The SAMPO
+  runtime applies the same sampling rule, so they would already fail at launch:
+  `qwen08b_sampo_10_qualification` and `automationbench_sampo_qualification`
+  declare inconsistent sampling (the latter also a batch mismatch), and the four
+  `qwen08b_verl_sampo_2*` packages also target veRL, which no longer runs SAMPO.
+  They need new binding revisions or retirement; they do not block this plan.
+
 ## Decision Log
 
 - Decision: remove dynamic sampling from SAMPO; it refills only with VORTEX active

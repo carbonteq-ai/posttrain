@@ -107,6 +107,11 @@ environment:
       toolset: limited_zapier
     reward_components: [partial_credit]
     required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
 
   automationbench-lfm26-changed-weight-canary-v1:
     category: agentic-tool-use
