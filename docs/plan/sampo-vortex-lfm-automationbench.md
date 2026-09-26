@@ -111,6 +111,15 @@ update.
   looking like every other failure.
 - [ ] ~~Milestone 6: qualification on the RTX PRO 6000 with LFM2.5-2.6B~~ Out of
   scope for this round (user decision, 2026-09-26): the RTX PRO runs the KL job.
+- [x] (2026-09-27 01:30Z) Prepared the LFM2.5-2.6B SAMPO arms for when the KL run
+  frees the RTX PRO, both matched to the VORTEX v5 KL control (150 updates,
+  16 x 4, learning rate 5e-5, KL 0.005, yield-first curriculum, 10 candidate
+  batches, truncation penalty 0.2, `g64-w8@2` and DSpark `c64-4k@2`):
+  `lfm26_automationbench_sampo_64_150_lr5e5_kl5e3_local_v1` (episode rewards)
+  and `lfm26_automationbench_sampo_turns_64_150_lr5e5_kl5e3_local_v1` (per-turn
+  rewards, environment `automationbench-lfm26-train-mix-v7-turns-v1`). Both pass
+  static validation; neither has run, and SAMPO has not yet run with DSpark or
+  24K-token episodes.
 
 ## Surprises & Discoveries
 

@@ -1,0 +1,34 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-sampo-turns-64-150-lr5e-5-kl5e-3-local-v1
+stage: train
+description: SAMPO with AutomationBench per-turn rewards on LFM2.5-2.6B from the base model for 150 updates, matched to the VORTEX v5 KL control; each assistant turn earns its change in partial credit minus 0.05 per failed tool call, measured on the live world by automationbench-v1 0.4.2.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-sampo-turns-64-150-lr5e-5-kl5e-3-local-v1@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    reward_projection: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: sampo
+      kind: train.sampo
+      definition: train/sampo-turns@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, per-turn environment reward evidence, adaptive curriculum state, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-train-mix-v7-turns-v1}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-sampo-64-150-lr5e-5-kl5e-3-local-v1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-turn-progress@1}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-local-g64-w8@2}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c64-4k@2}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-automationbench-vortex-20-local-v1
+  arm: sampo-turns-150-lora5e5-kl5e3-g64-turn-rewards
+  control: train/lfm2.5-2.6b/automationbench-vortex-yield-first-64-150-lr5e-5-kl5e-3-local-v5-dspark-opt
+  labels: [experiment, automationbench, lfm2.5, sampo, turn-rewards, yield-first, adaptive-curriculum, active-sampling, truncation-penalty, local-rtx-pro-6000]
