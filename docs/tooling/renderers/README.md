@@ -23,16 +23,20 @@ None of this delta is submitted to upstream (user decision, 2026-09-25).
 
 ## Selection
 
-Posttrain 0.4.5 selects `carbonteq-renderers==0.1.12.post1.dev1` from
-`carbonteq-dev` (`packages/train/pyproject.toml`, with its identity under
+Posttrain selects `carbonteq-renderers==0.1.12.post1.dev2` from `carbonteq-dev`
+(`packages/train/pyproject.toml`, with its identity under
 `[tool.posttrain.renderers]`). It is built from fork commit
-`6aba28a8c9a597475addc2c123dd18b28a462766` (tag
-`carbonteq-v0.1.12.post1.dev1`, based on upstream `20f2b38c`); wheel
-`2e3231784729b9177bfc25eb06e3a6a958f9ba420ff8e241c010266cc9422d0b`, sdist
-`bf529fc910f66494770a96e0ee5ec986344ed5f8b48258b50a55b82baa876fa3`. Verifiers
-`cdd2ec76` depends on it without an index pin, so public consumers (including
-the Quality `external-consumer` job) install the GitHub Release wheel instead of
-reaching `pypi.lan`. `release/forks.toml` and the stable-index fork check cover
+`6f712616fa88073919827a695af4f318b8c2d24e` (tag
+`carbonteq-v0.1.12.post1.dev2`, based on upstream `20f2b38c`); wheel
+`fdc65e9ed1a8a2f877c127a3456834d5ded996f32a4c70fe22bebe615073a87e`, sdist
+`2c83d94bd1fd81f5fdfe95cd8390ac1d5057355bc278bf14e642ab3f8b2c26bd`. Over dev1
+(Posttrain 0.4.5-0.4.8) it adds two parsing fixes that stop training from
+dropping tool calls serving accepts: a tool-call opener ends an unclosed thought,
+and LFM2.5 pythonic calls get the vLLM fork's `lfm2` parser repairs (nested
+quotes, raw control characters, zero-padded integers, keyword-named parameters).
+Verifiers `cdd2ec76` depends on `carbonteq-renderers>=0.1.12.post1.dev1` without
+an index pin, so public consumers (including the Quality `external-consumer`
+job) install the GitHub Release wheel instead of reaching `pypi.lan`. `release/forks.toml` and the stable-index fork check cover
 it.
 
 ## Publication

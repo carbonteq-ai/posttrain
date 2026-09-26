@@ -341,7 +341,7 @@ wheels = [
 
 [[package]]
 name = "carbonteq-renderers"
-version = "0.1.12.post1.dev1"
+version = "0.1.12.post1.dev2"
 source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
 dependencies = [
     { name = "httpx" },
@@ -352,9 +352,9 @@ dependencies = [
     { name = "prime-pydantic-config" },
     { name = "tiktoken" },
 ]
-sdist = { url = "https://pypi.lan/carbonteq/dev/+f/bf5/29fc910f66494/carbonteq_renderers-0.1.12.post1.dev1.tar.gz", hash = "sha256:bf529fc910f66494770a96e0ee5ec986344ed5f8b48258b50a55b82baa876fa3" }
+sdist = { url = "https://pypi.lan/carbonteq/dev/+f/2c8/3d94bd1fd81f5/carbonteq_renderers-0.1.12.post1.dev2.tar.gz", hash = "sha256:2c83d94bd1fd81f5fdfe95cd8390ac1d5057355bc278bf14e642ab3f8b2c26bd" }
 wheels = [
-    { url = "https://pypi.lan/carbonteq/dev/+f/2e3/231784729b917/carbonteq_renderers-0.1.12.post1.dev1-py3-none-any.whl", hash = "sha256:2e3231784729b9177bfc25eb06e3a6a958f9ba420ff8e241c010266cc9422d0b" },
+    { url = "https://pypi.lan/carbonteq/dev/+f/fdc/65e9ed1a8a2f8/carbonteq_renderers-0.1.12.post1.dev2-py3-none-any.whl", hash = "sha256:fdc65e9ed1a8a2f877c127a3456834d5ded996f32a4c70fe22bebe615073a87e" },
 ]
 
 [package.optional-dependencies]
@@ -3284,7 +3284,7 @@ requires-dist = [
     { name = "accelerate", marker = "extra == 'trl'", specifier = ">=1.14,<1.15" },
     { name = "aiohttp", marker = "extra == 'trl-vllm'", specifier = ">=3.13,<4" },
     { name = "bitsandbytes", marker = "extra == 'trl'", specifier = ">=0.49,<0.50" },
-    { name = "carbonteq-renderers", marker = "extra == 'trl'", specifier = "==0.1.12.post1.dev1", index = "https://pypi.lan/carbonteq/dev/+simple/" },
+    { name = "carbonteq-renderers", marker = "extra == 'trl'", specifier = "==0.1.12.post1.dev2", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "datasets", marker = "extra == 'trl'", specifier = ">=4.6.1,<4.7" },
     { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "huggingface-hub", marker = "extra == 'trl'", specifier = ">=1.31,<1.32" },
