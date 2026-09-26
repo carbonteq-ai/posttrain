@@ -60,8 +60,15 @@ update.
   turns and 3,072 tokens per reply kept; prompt budget 5,120) and added a task
   screen, `screen/lfm2.5-1.2b/automationbench-screen-8k`: every simple-domain task
   and 14 short multi-step tasks, three attempts each, at the training budgets.
-- [ ] Rebuild `automationbench-lfm12-sampo-8gb-v1` from the screen: tasks whose
-  attempts fit 8K and disagree on reward.
+- [x] (2026-09-26 20:30Z) Screen `lfm12-screen-8k-20260926-r2`: 642 episodes,
+  mean reward 0.54, median 3,313 tokens, none over 7K. Of 200 simple tasks, 56
+  gave attempts with different rewards, 82 were always solved, 54 always failed
+  and 8 gave the same partial credit; of the 14 multi-step tasks only
+  `finance.vendor_spend_analysis` differed. The 8 GB package now uses
+  `automationbench-lfm12-sampo-8gb-v2`, those 57 tasks, with up to 10 candidate
+  batches.
+- [ ] Release the renderers fork with vLLM's pythonic tool-call repairs and pin
+  it, so training accepts the calls evaluation accepts (see Surprises).
 - [ ] Milestone 3 run: confirm on 8 GB that the anchor match rate rises and the
   correction rarely clamps.
 - [ ] Milestone 4: speed on 8 GB (time split, trainer options, rollout options).
@@ -92,6 +99,14 @@ update.
   does not use the override. Fixed by calling `LoopLocks.get`, with the test fake
   now using the real Verifiers type. The job status does not consider
   `eval/run/rollouts_failed`; whether it should is an open product question.
+- Observation: training and evaluation parse the same LFM2.5 tool-call text
+  differently. Evaluation uses the vLLM fork's `lfm2` parser, which repairs
+  near-valid Python (an unescaped apostrophe in `subject='Let's Get Started'`,
+  JSON with nested quotes, `month=07`, `from=`); training parses sampled tokens
+  with the renderers fork's `LFM2ToolParser`, which had no repairs and dropped
+  such calls silently. `simple.gmail_onboarding_welcome` scored 0 on all 4
+  training attempts (every call dropped) and 1.0 on all 3 evaluation attempts.
+  Fixed in the renderers fork by copying vLLM's repair helpers unchanged.
 - Observation: of 56 LFM2.5-1.2B episodes on the 8 GB runs, 14 (25%) ended with a
   malformed tool call (usually bad quoting of a JSON string argument) that was
   dropped without an error, so the model never retried; 40 ended with a plain-text

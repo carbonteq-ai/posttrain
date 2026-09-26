@@ -514,6 +514,160 @@ environment:
       facets:
         - {field: domain, dimension: domain, label: Domain}
 
+  # Tasks from screen `lfm12-screen-8k-20260926-r2` whose three LFM2.5-1.2B
+  # attempts earned different rewards at these budgets (every attempt under 7K
+  # tokens). Tasks all attempts solved or all failed give SAMPO no signal.
+  automationbench-lfm12-sampo-8gb-v2:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, finance]
+          task_names:
+            - simple.email_sf_contact_phone_update
+            - simple.sf_opp_closed_won
+            - simple.sf_opp_stage_value_prop
+            - simple.sf_create_case
+            - simple.email_sf_lead_rating_hot
+            - simple.hs_create_contact
+            - simple.email_hs_create_contact
+            - simple.buffer_twitter_product_launch
+            - simple.buffer_linkedin_partnership
+            - simple.buffer_facebook_blog_post
+            - simple.buffer_twitter_quarterly_results
+            - simple.buffer_job_opening
+            - simple.buffer_company_award
+            - simple.buffer_product_tip
+            - simple.gmail_weekly_status
+            - simple.gmail_reply_customer_inquiry
+            - simple.gmail_reply_pricing_inquiry
+            - simple.gmail_invoice_email
+            - simple.gmail_reply_complaint
+            - simple.slack_marketing_campaign
+            - simple.slack_dm_project_status
+            - simple.mailchimp_email_request
+            - simple.sheets_add_lead
+            - simple.sheets_update_status
+            - simple.sheets_closed_deal
+            - simple.sheets_read_then_email
+            - simple.sheets_read_then_slack_dm
+            - simple.sheets_update_from_email
+            - simple.sheets_add_vendor
+            - simple.asana_dark_mode_from_email
+            - simple.asana_board_presentation
+            - simple.asana_sprint_section_task
+            - simple.asana_performance_reviews
+            - simple.asana_rfp_response
+            - simple.jira_legacy_data_migration
+            - simple.trello_q1_marketing_budget
+            - simple.gcal_weekly_standup
+            - simple.gcal_client_discovery_call
+            - simple.gcal_company_holiday
+            - simple.gcal_quarterly_business_review
+            - simple.gcal_new_hire_orientation
+            - simple.zendesk_feature_request
+            - simple.zendesk_urgent_reply
+            - simple.email_sf_update_slack_notify
+            - simple.email_zendesk_ack_reply
+            - simple.email_calendar_meeting_reply
+            - simple.email_hubspot_deal_slack
+            - simple.close_deal_sf_slack
+            - simple.new_hire_asana_email
+            - simple.new_lead_sf_jira
+            - simple.event_asana_calendar
+            - simple.launch_announcement_email
+            - simple.zoom_calendar_sync
+            - simple.weekly_digest_sheets_email
+            - simple.partner_hubspot_asana
+            - simple.campaign_launch_asana
+            - finance.vendor_spend_analysis
+          task: {toolset: limited_zapier, search_top_k: 20, turn_budget: 12}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 8192
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 0.95}
+    num_tasks: 57
+    num_rollouts: 4
+    max_concurrent: 4
+    parameters:
+      task_names:
+        - simple.email_sf_contact_phone_update
+        - simple.sf_opp_closed_won
+        - simple.sf_opp_stage_value_prop
+        - simple.sf_create_case
+        - simple.email_sf_lead_rating_hot
+        - simple.hs_create_contact
+        - simple.email_hs_create_contact
+        - simple.buffer_twitter_product_launch
+        - simple.buffer_linkedin_partnership
+        - simple.buffer_facebook_blog_post
+        - simple.buffer_twitter_quarterly_results
+        - simple.buffer_job_opening
+        - simple.buffer_company_award
+        - simple.buffer_product_tip
+        - simple.gmail_weekly_status
+        - simple.gmail_reply_customer_inquiry
+        - simple.gmail_reply_pricing_inquiry
+        - simple.gmail_invoice_email
+        - simple.gmail_reply_complaint
+        - simple.slack_marketing_campaign
+        - simple.slack_dm_project_status
+        - simple.mailchimp_email_request
+        - simple.sheets_add_lead
+        - simple.sheets_update_status
+        - simple.sheets_closed_deal
+        - simple.sheets_read_then_email
+        - simple.sheets_read_then_slack_dm
+        - simple.sheets_update_from_email
+        - simple.sheets_add_vendor
+        - simple.asana_dark_mode_from_email
+        - simple.asana_board_presentation
+        - simple.asana_sprint_section_task
+        - simple.asana_performance_reviews
+        - simple.asana_rfp_response
+        - simple.jira_legacy_data_migration
+        - simple.trello_q1_marketing_budget
+        - simple.gcal_weekly_standup
+        - simple.gcal_client_discovery_call
+        - simple.gcal_company_holiday
+        - simple.gcal_quarterly_business_review
+        - simple.gcal_new_hire_orientation
+        - simple.zendesk_feature_request
+        - simple.zendesk_urgent_reply
+        - simple.email_sf_update_slack_notify
+        - simple.email_zendesk_ack_reply
+        - simple.email_calendar_meeting_reply
+        - simple.email_hubspot_deal_slack
+        - simple.close_deal_sf_slack
+        - simple.new_hire_asana_email
+        - simple.new_lead_sf_jira
+        - simple.event_asana_calendar
+        - simple.launch_announcement_email
+        - simple.zoom_calendar_sync
+        - simple.weekly_digest_sheets_email
+        - simple.partner_hubspot_asana
+        - simple.campaign_launch_asana
+        - finance.vendor_spend_analysis
+      toolset: limited_zapier
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
   automationbench-lfm12-sampo-8gb-v1:
     category: agentic-tool-use
     source:
@@ -1608,10 +1762,10 @@ training:
     step_advantage_weight: 1.0
     advantage_normalization: mean
     # VORTEX-style oversampling: keep groups whose rewards differ and generate
-    # only the missing ones from a pool of up to 7 candidate batches (2 x 7 = 14
-    # reserved prompts must fit the environment's 15 tasks).
+    # only the missing ones from a pool of up to 10 candidate batches (2 x 10 =
+    # 20 reserved prompts, within the environment's tasks).
     active_sampling:
-      max_candidate_batches: 7
+      max_candidate_batches: 10
     adaptive_curriculum:
       class_field: domain
       policy: yield_first
