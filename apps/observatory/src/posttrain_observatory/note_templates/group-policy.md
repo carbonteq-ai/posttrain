@@ -1,16 +1,26 @@
-template: group-policy@2
+template: group-policy@3
 ---
 ```sql result
-select count(update_seconds) as updates,
-       min_by(reward, CASE WHEN reward IS NOT NULL THEN step END) AS reward_first, max_by(reward, CASE WHEN reward IS NOT NULL THEN step END) AS reward_last,
-       min_by(entropy, CASE WHEN entropy IS NOT NULL THEN step END) AS entropy_first, max_by(entropy, CASE WHEN entropy IS NOT NULL THEN step END) AS entropy_last,
-       max_by(kl, CASE WHEN kl IS NOT NULL THEN step END) AS kl_last,
-       avg(update_seconds) as update_seconds_mean,
-       sum(rollout_seconds) / sum(update_seconds) as rollout_share,
-       sum(rollouts_attempted) as rollouts_attempted,
-       sum(rollouts_truncated) as rollouts_truncated,
-       avg(zero_spread_share) as zero_spread_share
-from updates
+select count(u.update_seconds) as updates, max(u.step) as last_update,
+       avg(case when u.step <= s.first_step + 9 then u.reward end) as reward_first10,
+       avg(case when u.step >= s.last_step - 9 then u.reward end) as reward_last10,
+       avg(case when u.step <= s.first_step + 9 then u.entropy end) as entropy_first10,
+       avg(case when u.step >= s.last_step - 9 then u.entropy end) as entropy_last10,
+       avg(case when u.step >= s.last_step - 9 then u.kl end) as kl_last10,
+       avg(case when u.step >= s.last_step - 9 then u.truncation_rate end) as truncation_last10,
+       avg(u.update_seconds) as update_seconds_mean,
+       sum(u.rollout_seconds) / sum(u.update_seconds) as rollout_share,
+       sum(u.rollouts_attempted) as rollouts_attempted,
+       sum(u.rollouts_truncated) as rollouts_truncated,
+       avg(u.zero_spread_share) as zero_spread_share
+from updates u
+join (select run_id, min(step) as first_step, max(step) as last_step from updates group by run_id) s on s.run_id = u.run_id
+```
+
+```sql peak
+select max(reward10) as reward_peak10, max_by(from_update, reward10) as peak_from, max_by(to_update, reward10) as peak_to
+from (select floor((step - 1) / 10) as bucket, avg(reward) as reward10, min(step) as from_update, max(step) as to_update
+      from updates group by floor((step - 1) / 10)) b
 ```
 
 ```sql span
@@ -38,15 +48,18 @@ select step, reward, entropy, kl from updates order by step
 
 | Result | |
 | --- | --- |
-| Updates | {{result.updates | default "0"}} of {{run.max_updates | default "?"}} |
-| Reward | {{result.reward_first | round 3 | default "—"}} → {{result.reward_last | round 3 | default "—"}} |
-| Entropy | {{result.entropy_first | round 3 | default "—"}} → {{result.entropy_last | round 3 | default "—"}} |
-| KL to reference (last) | {{result.kl_last | sci 2 | default "not measured"}} |
+| Updates | {{result.updates | default "0"}} of {{run.max_updates | default "?"}} (last update {{result.last_update | default "—"}}) |
+| Reward, first → last 10 updates | {{result.reward_first10 | round 3 | default "—"}} → {{result.reward_last10 | round 3 | default "—"}} |
+| Best 10 updates | {{peak.reward_peak10 | round 3 | default "—"}} (updates {{peak.peak_from | default "—"}}–{{peak.peak_to | default "—"}}) |
+| Entropy, first → last 10 updates | {{result.entropy_first10 | round 3 | default "—"}} → {{result.entropy_last10 | round 3 | default "—"}} |
+| KL to reference, last 10 updates | {{result.kl_last10 | sci 2 | default "not measured"}} |
 | Mean update time | {{result.update_seconds_mean | duration | default "—"}} |
 | Update time spent in rollouts | {{result.rollout_share | percent | default "—"}} |
 | Rollouts | {{result.rollouts_attempted | default "—"}} generated, {{result.rollouts_truncated | default "—"}} truncated |
+| Truncated, last 10 updates | {{result.truncation_last10 | percent | default "—"}} |
 | Groups with no reward spread | {{result.zero_spread_share | percent | default "—"}} |
 | Error | {{run.error | default "none"}} |
+| Error message | {{run.error_message | default "—"}} |
 | Failed in | {{run.failed_phase | default "—"}} (update {{run.failed_step | default "—"}}) |
 
 ```chart

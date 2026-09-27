@@ -41,11 +41,12 @@ def test_framework_templates_read_only_what_their_job_kinds_provide(family: str)
 def test_cards_render_from_recorded_runs_without_unresolved_references(trackio_project: TrackioDataSource) -> None:
     service = ObservatoryService({"local": trackio_project})
     grpo = asyncio.run(service.run_card("grpo-a"))
-    assert grpo.template == "group-policy@2" and grpo.unresolved == ()
-    assert "| Updates | 3 of ? |" in grpo.text
+    assert grpo.template == "group-policy@3" and grpo.unresolved == ()
+    assert "| Updates | 3 of ? (last update 3) |" in grpo.text
+    assert "| Reward, first → last 10 updates |" in grpo.text
     assert "| Update time spent in rollouts | 85.5% |" in grpo.text  # 530 / 620
     sampo = asyncio.run(service.run_card("sampo-b"))
-    assert sampo.template == "sampo@2" and sampo.unresolved == ()
+    assert sampo.template == "sampo@3" and sampo.unresolved == ()
     assert "| Error | OutOfMemoryError |" in sampo.text
     assert "| Failed in | actor_update (update 2) |" in sampo.text
 
@@ -54,5 +55,5 @@ def test_project_templates_override_framework_ones(tmp_path: Path) -> None:
     (tmp_path / "train.grpo.md").write_text("template: lab-grpo@3\n---\nLearning rate {{run.learning_rate}}.\n")
     templates = TemplateSet(tmp_path)
     assert templates.for_job_kind("train.grpo").template_id == "lab-grpo@3"
-    assert templates.for_job_kind("train.gdpo").template_id == "group-policy@2"
+    assert templates.for_job_kind("train.gdpo").template_id == "group-policy@3"
     assert templates.for_job_kind("unknown.kind").template_id == "generic@2"
