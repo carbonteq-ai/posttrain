@@ -1955,7 +1955,7 @@ function GenericOverview({
               {unrecordedSeries.length > 0 && (
                 <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
                   Not recorded by this run: {unrecordedSeries.map((series) => chartLabels[series.name] ?? helpByMetric.get(series.name)?.label ?? metricLabel(series.name)).join(', ')}.
-                  {isSampo && chart?.key === 'hierarchical_credit' ? ' SAMPO runs from Posttrain 0.4.11 record episode and turn credit.' : ''}
+                  {isSampo && chart?.key === 'hierarchical_credit' ? ' This run\'s trainer predates the credit metrics; SAMPO runs from newer trainers record them each update.' : ''}
                 </p>
               )}
               {isGroupPolicy && chart?.key === 'optimization' && rolloutBehaviorLoading && <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">Reading retained rollout evidence…</p>}

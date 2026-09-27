@@ -180,7 +180,7 @@ export function scaleGroup(name: string, metricUnits: Record<string, string | nu
   if (name === 'trace/rollout/avg_thinking_tokens' || name === 'trace/rollout/avg_output_tokens') return 'rollout-tokens';
   if (name === 'trace/rollout/avg_tool_calls') return 'rollout-tool-calls';
   if (name === 'train/rl/episode_advantage_abs_mean' || name === 'train/rl/turn_advantage_abs_mean') return 'credit-magnitude';
-  if (/train\/rl\/(turn_credit_share|turn_advantage_informative_fraction|singleton_anchor_fraction)$/.test(name)) return 'credit-share';
+  if (/train\/rl\/(turn_credit_share|turn_advantage_informative_fraction|singleton_anchor_fraction|sparse_reward_projection_fraction)$/.test(name)) return 'credit-share';
   if (name === 'train/learning_rate') return 'learning-rate';
   if (name === 'train/non_padding_tokens_per_second') return 'tokens-per-second';
   if (name === 'train/step_time_seconds') return 'seconds';

@@ -57,6 +57,10 @@ def test_legacy_rollout_batches_combine_into_one_value_per_update() -> None:
         _series("train/rl/anchor_group_size_mean", MetricPoint(value=2.0, step=3), MetricPoint(value=3.0, step=3))
     )
     assert [point.value for point in advantage.points] == [2.5]
+    credit = logical_series(
+        _series("train/rl/turn_credit_share", MetricPoint(value=0.2, step=4), MetricPoint(value=0.4, step=4))
+    )
+    assert [round(point.value, 6) for point in credit.points] == [0.3]
     # New runs write one value per update; it passes through unchanged.
     current = MetricPoint(value=369.5, step=1, attributes={"rollout_batches": 3})
     assert logical_series(_series("train/rl/time/rollout_seconds", current)).points == (current,)

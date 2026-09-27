@@ -345,33 +345,40 @@ def rollout_function(
                 [replace(rollout, reward=reward) for rollout, reward in zip(rollouts, shaped_rewards, strict=True)],
             )
             result["precomputed_advantages"] = [list(values) for values in advantages.token_advantages]
-            flat_turn_advantages = [value for values in advantages.turn_advantages for value in values]
-            flat_group_sizes = [value for values in advantages.anchor_group_sizes for value in values]
-            update_totals.add_means(
-                optimizer_step,
-                {
-                    "train/rl/episode_advantage_mean": (
-                        sum(advantages.episode_advantages) / len(advantages.episode_advantages),
-                        len(advantages.episode_advantages),
-                    ),
-                    "train/rl/turn_advantage_mean": (
-                        sum(flat_turn_advantages) / len(flat_turn_advantages),
-                        len(flat_turn_advantages),
-                    ),
-                    "train/rl/anchor_group_size_mean": (
-                        sum(flat_group_sizes) / len(flat_group_sizes),
-                        len(flat_group_sizes),
-                    ),
-                    "train/rl/sparse_reward_projection_fraction": (
-                        sum(advantages.used_sparse_rewards) / len(advantages.used_sparse_rewards),
-                        len(advantages.used_sparse_rewards),
-                    ),
-                    **advantages.hierarchy_evidence(request.settings.step_advantage_weight),
-                },
-            )
+            update_totals.add_means(optimizer_step, _sampo_update_means(advantages, request.settings))
         return result
 
     return run_rollouts
+
+
+def _sampo_update_means(advantages: Any, settings: Any) -> dict[str, tuple[float, int]]:
+    """(mean, count) per SAMPO credit metric for one admitted population.
+
+    The centred advantage means stay for continuity; the hierarchy evidence is
+    what a reader can use (magnitudes, the turn share of credit and coverage).
+    """
+
+    flat_turn_advantages = [value for values in advantages.turn_advantages for value in values]
+    flat_group_sizes = [value for values in advantages.anchor_group_sizes for value in values]
+    return {
+        "train/rl/episode_advantage_mean": (
+            sum(advantages.episode_advantages) / len(advantages.episode_advantages),
+            len(advantages.episode_advantages),
+        ),
+        "train/rl/turn_advantage_mean": (
+            sum(flat_turn_advantages) / len(flat_turn_advantages),
+            len(flat_turn_advantages),
+        ),
+        "train/rl/anchor_group_size_mean": (
+            sum(flat_group_sizes) / len(flat_group_sizes),
+            len(flat_group_sizes),
+        ),
+        "train/rl/sparse_reward_projection_fraction": (
+            sum(advantages.used_sparse_rewards) / len(advantages.used_sparse_rewards),
+            len(advantages.used_sparse_rewards),
+        ),
+        **advantages.hierarchy_evidence(settings.step_advantage_weight),
+    }
 
 
 def _admitted_example_ids(example_ids: tuple[str, ...], retained_positions: Sequence[int] | None) -> tuple[str, ...]:

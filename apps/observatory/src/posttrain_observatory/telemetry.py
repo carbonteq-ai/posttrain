@@ -1140,6 +1140,7 @@ _SAMPO_CREDIT_CHART = ChartDefinition(
         "train/rl/turn_credit_share",
         "train/rl/turn_advantage_informative_fraction",
         "train/rl/singleton_anchor_fraction",
+        "train/rl/sparse_reward_projection_fraction",
         "train/rl/episode_advantage_abs_mean",
         "train/rl/turn_advantage_abs_mean",
         "train/rl/anchor_group_size_mean",

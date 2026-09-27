@@ -95,6 +95,34 @@ def test_sampo_hierarchy_evidence_counts_turns_without_a_comparable_anchor() -> 
     assert evidence["train/rl/turn_credit_share"] == (0.0, 4)
 
 
+def test_trl_sampo_update_records_hierarchical_credit_evidence() -> None:
+    from posttrain.train.backends.trl.policy_rollouts import _sampo_update_means
+
+    result = compute_sampo_advantages(
+        _settings(),
+        ("task-1", "task-1"),
+        (_rollout(1.0, "good"), _rollout(0.0, "bad")),
+    )
+
+    means = _sampo_update_means(result, _settings())
+
+    # Every update records the credit evidence Observatory's Hierarchical credit
+    # tab reads, beside the centred means kept for older readers.
+    assert set(means) == {
+        "train/rl/episode_advantage_mean",
+        "train/rl/turn_advantage_mean",
+        "train/rl/anchor_group_size_mean",
+        "train/rl/sparse_reward_projection_fraction",
+        "train/rl/episode_advantage_abs_mean",
+        "train/rl/turn_advantage_abs_mean",
+        "train/rl/turn_credit_share",
+        "train/rl/turn_advantage_informative_fraction",
+        "train/rl/singleton_anchor_fraction",
+    }
+    assert means["train/rl/turn_credit_share"] == pytest.approx((1.95 / 3.95, 4))
+    assert means["train/rl/anchor_group_size_mean"] == (2.0, 4)
+
+
 def test_sampo_rejects_partial_step_reward_evidence() -> None:
     with pytest.raises(ValueError, match="complete or entirely absent"):
         compute_sampo_advantages(

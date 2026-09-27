@@ -102,6 +102,7 @@ describe('EvidenceChart scale policy', () => {
     expect(scaleGroup('train/rl/turn_advantage_abs_mean', {})).toBe('credit-magnitude');
     expect(scaleGroup('train/rl/turn_credit_share', { 'train/rl/turn_credit_share': 'ratio' })).toBe('credit-share');
     expect(scaleGroup('train/rl/singleton_anchor_fraction', {})).toBe('credit-share');
+    expect(scaleGroup('train/rl/sparse_reward_projection_fraction', {})).toBe('credit-share');
   });
 
   beforeEach(() => {
