@@ -1,17 +1,27 @@
-template: evaluation@1
+template: evaluation@2
 ---
-```data result
-measures: [eval_rollouts_attempted, eval_rollouts_complete, eval_rollouts_failed, eval_rollouts_truncated, eval_context_overflow_rollouts, duration_seconds]
+```sql result
+select eval_rollouts_attempted, eval_rollouts_complete, eval_rollouts_failed, eval_rollouts_truncated,
+       eval_context_overflow_rollouts, duration_seconds
+from runs
 ```
 
-```data tasks
-measures: [task_reward, success_rate, valid_repetitions, execution_failures, eval_truncations]
-by: [eval_task.task]
-order_by: [-task_reward]
+```sql tasks
+select task,
+       avg(case when not truncated and not failed then rollout_reward end) as reward,
+       sum(case when not truncated and not failed then 1 else 0 end) as valid,
+       sum(case when truncated then 1 else 0 end) as truncated,
+       sum(case when failed then 1 else 0 end) as failed
+from rollouts
+group by task
+order by reward desc
 ```
 
-```data overall
-measures: [task_reward:mean, success_rate:mean, valid_repetitions:sum]
+```sql overall
+select avg(case when not truncated and not failed then rollout_reward end) as reward_valid,
+       avg(case when failed then null else coalesce(rollout_reward, 0) end) as reward_all,
+       count(distinct task) as tasks
+from rollouts
 ```
 
 **{{run.job_kind}}** · {{run.status}} · {{result.duration_seconds | duration}} · work package {{run.work_package}}
@@ -29,8 +39,9 @@ measures: [task_reward:mean, success_rate:mean, valid_repetitions:sum]
 | Rollouts | {{result.eval_rollouts_attempted | default "—"}} attempted, {{result.eval_rollouts_complete | default "—"}} complete |
 | Failed | {{result.eval_rollouts_failed | default "—"}} |
 | Truncated | {{result.eval_rollouts_truncated | default "—"}} (context overflow {{result.eval_context_overflow_rollouts | default "—"}}) |
-| Mean task reward | {{overall.task_reward_mean | round 3 | default "—"}} |
-| Mean success rate | {{overall.success_rate_mean | percent | default "—"}} |
+| Tasks | {{overall.tasks | default "—"}} |
+| Mean reward, valid rollouts | {{overall.reward_valid | round 3 | default "—"}} |
+| Mean reward, truncated counted | {{overall.reward_all | round 3 | default "—"}} |
 | Error | {{run.error | default "none"}} |
 | Failed in | {{run.failed_phase | default "—"}} (update {{run.failed_step | default "—"}}) |
 

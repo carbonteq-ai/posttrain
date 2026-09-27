@@ -62,8 +62,13 @@ from .phases import (
     phase_at,
     runtime_phase_intervals,
 )
+from .sql import ProjectSql, ProjectSqlError, ProjectSqlResult, ProjectSqlUnavailable
 
 __all__ = [
+    "ProjectSqlUnavailable",
+    "ProjectSqlResult",
+    "ProjectSqlError",
+    "ProjectSql",
     "RunNoteStore",
     "RunNote",
     "NotesUnavailable",

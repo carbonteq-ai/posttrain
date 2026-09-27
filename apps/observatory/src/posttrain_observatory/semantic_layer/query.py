@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import difflib
 import fnmatch
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -15,7 +17,6 @@ from .model import AGGREGATIONS
 type JsonScalar = str | int | float | bool | None
 type RunScope = tuple[str, ...] | dict[str, Any]
 
-DEFAULT_MAX_RUNS = 50
 _COMPARISON = re.compile(r"^\s*(>=|<=|!=|>|<|=)\s*(.+?)\s*$")
 
 
@@ -45,11 +46,10 @@ class SemanticQuery(ObservatoryModel):
 
 
 class SqlQuery(ObservatoryModel):
-    """One read-only SELECT over the semantic tables of the runs in scope."""
+    """One read-only SELECT (Doris SQL) over the semantic tables; `runs` narrows the runs it sees."""
 
     sql: str = Field(min_length=1)
-    runs: StringTuple | dict[str, Any]
-    load: dict[str, StringTuple] | None = None
+    runs: StringTuple | dict[str, Any] | None = None
     max_rows: int = Field(default=10_000, ge=1, le=100_000)
 
 
@@ -65,10 +65,8 @@ class SemanticResult(ObservatoryModel):
     columns: tuple[ResultColumn, ...]
     rows: tuple[tuple[Any, ...], ...]
     grain: str
-    runs: tuple[str, ...] = ()
-    sources: dict[str, tuple[str, ...]] = Field(default_factory=dict)
-    downsampled: bool = False
-    unavailable: tuple[str, ...] = ()
+    sql: str | None = None
+    engine: str | None = None
     truncated: bool = False
 
 
@@ -159,6 +157,14 @@ def _coerce_like(value: Any, actual: Any) -> Any:
     return value
 
 
+def suggest(name: str, known: Sequence[str]) -> str:
+    """A hint naming the closest known names, so a mistyped query can be fixed without describe."""
+
+    close = difflib.get_close_matches(name, known, n=3, cutoff=0.5)
+    close += [item for item in known if name.split(".")[-1] in item and item not in close][: 3 - len(close)]
+    return f"; did you mean {', '.join(repr(item) for item in close)}?" if close else "; call describe for the names"
+
+
 def split_measure(value: str) -> tuple[str, str | None]:
     name, _, aggregation = value.partition(":")
     return name, aggregation or None
@@ -166,7 +172,6 @@ def split_measure(value: str) -> tuple[str, str | None]:
 
 __all__ = [
     "Condition",
-    "DEFAULT_MAX_RUNS",
     "QueryError",
     "ResultColumn",
     "RunScope",
@@ -175,4 +180,5 @@ __all__ = [
     "SqlQuery",
     "parse_condition",
     "split_measure",
+    "suggest",
 ]

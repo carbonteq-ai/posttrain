@@ -1,16 +1,19 @@
-template: preference@1
+template: preference@2
 ---
-```data result
-measures: [update_seconds:count, loss:first, loss:last, preference_accuracy:last, reward_margin:last]
+```sql result
+select count(update_seconds) as updates,
+       min_by(loss, CASE WHEN loss IS NOT NULL THEN step END) AS loss_first, max_by(loss, CASE WHEN loss IS NOT NULL THEN step END) AS loss_last,
+       max_by(preference_accuracy, CASE WHEN preference_accuracy IS NOT NULL THEN step END) AS preference_accuracy_last,
+       max_by(reward_margin, CASE WHEN reward_margin IS NOT NULL THEN step END) AS reward_margin_last
+from updates
 ```
 
-```data span
-measures: [duration_seconds]
+```sql span
+select duration_seconds from runs
 ```
 
-```data curve
-measures: [loss, preference_accuracy]
-by: update.step
+```sql curve
+select step, loss, preference_accuracy from updates order by step
 ```
 
 **{{run.job_kind}}** · {{run.status}} · {{span.duration_seconds | duration}} · work package {{run.work_package}}
@@ -26,7 +29,7 @@ by: update.step
 
 | Result | |
 | --- | --- |
-| Updates | {{result.update_seconds_count | default "0"}} of {{run.max_updates | default "?"}} |
+| Updates | {{result.updates | default "0"}} of {{run.max_updates | default "?"}} |
 | Loss | {{result.loss_first | round 4 | default "—"}} → {{result.loss_last | round 4 | default "—"}} |
 | Preference accuracy (last) | {{result.preference_accuracy_last | percent | default "—"}} |
 | Reward margin (last) | {{result.reward_margin_last | round 3 | default "—"}} |
@@ -35,7 +38,7 @@ by: update.step
 
 ```chart
 data: curve
-x: update.step
+x: step
 y: [loss, preference_accuracy]
 title: Loss and preference accuracy by update
 ```

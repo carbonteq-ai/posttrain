@@ -14,6 +14,7 @@ from posttrain_observatory.mcp import create_mcp
 from posttrain_observatory.models import RunLocator
 from posttrain_observatory.settings import ObservatorySettings
 from posttrain_observatory.sources import RunSourceRegistry
+from posttrain_tracking_trackio import TrackioDataSource
 
 
 def _service() -> ObservatoryService:
@@ -207,35 +208,42 @@ async def test_serving_capacity_http_export_and_mcp_use_the_same_projection() ->
     assert cast(Any, mcp_result).structured_content == http_view
 
 
-def test_semantic_routes_accept_json_arrays_and_report_bad_names() -> None:
-    with _client() as client:
+def _sql_client(project: TrackioDataSource, **kwargs: Any) -> TestClient:
+    service = ObservatoryService({"local": project}, **kwargs)
+    return TestClient(create_http_app(service, ObservatorySettings()))
+
+
+def test_semantic_routes_run_sql_in_storage_and_explain_mistakes(trackio_project: TrackioDataSource) -> None:
+    with _sql_client(trackio_project) as client:
         model = client.get("/api/v1/semantic/model").json()
         assert any(measure["name"] == "rollout_seconds" for measure in model["measures"])
         described = client.post("/api/v1/semantic/describe", json={"job_kinds": ["train.grpo"]}).json()
-        assert "train.grpo" in described["job_kinds"]
+        assert described["job_kinds"] == ["train.grpo"]
         grpo = {"run.job_kind": "train.grpo"}
         result = client.post("/api/v1/semantic/query", json={"measures": ["entropy"], "by": ["run.id"], "runs": grpo})
         assert result.status_code == 200, result.text
-        assert [column["name"] for column in result.json()["columns"]] == ["run.id", "entropy"]
-        sql = client.post("/api/v1/semantic/query", json={"sql": "select count(*) as n from runs", "runs": grpo})
+        assert result.json()["rows"] == [["grpo-a", pytest.approx(0.21)]]
+        assert result.json()["sql"].startswith("SELECT r.`id` AS `run.id`")
+        sql = client.post("/api/v1/semantic/query", json={"sql": "select count(*) as n from runs"})
         assert sql.status_code == 200, sql.text
-        assert sql.json()["rows"][0][0] >= 1
+        assert sql.json()["rows"] == [[2]] and sql.json()["engine"] == "sqlite"
         unknown = client.post("/api/v1/semantic/query", json={"measures": ["no_such_measure"], "runs": grpo})
         assert unknown.status_code == 422
         assert "no_such_measure" in unknown.json()["message"]
+    with _client() as fixture:
+        refused = fixture.post("/api/v1/semantic/query", json={"sql": "select 1"})
+        assert refused.status_code == 501 and refused.json()["code"] == "sql_unavailable"
 
 
 @pytest.mark.asyncio
-async def test_mcp_semantic_tools_answer_like_http() -> None:
-    grpo = {"run.job_kind": "train.grpo"}
-    with _client() as client:
-        http_result = client.post(
-            "/api/v1/semantic/query", json={"measures": ["entropy"], "by": ["run.id"], "runs": grpo}
-        ).json()
-    server = create_mcp(_service())
+async def test_mcp_semantic_tools_answer_like_http(trackio_project: TrackioDataSource) -> None:
+    query = {"measures": ["entropy"], "by": ["run.id"], "runs": {"run.job_kind": "train.grpo"}}
+    with _sql_client(trackio_project) as client:
+        http_result = client.post("/api/v1/semantic/query", json=query).json()
+    server = create_mcp(ObservatoryService({"local": trackio_project}))
     described = await server.call_tool("describe_semantics", {"job_kinds": ["train.grpo"]})
     assert "train.grpo" in cast(Any, described).structured_content["job_kinds"]
-    queried = await server.call_tool("query_semantics", {"measures": ["entropy"], "by": ["run.id"], "runs": grpo})
+    queried = await server.call_tool("query_semantics", query)
     assert cast(Any, queried).structured_content == http_result
 
 
@@ -249,20 +257,24 @@ def _notes_client(*, writes: bool = True) -> tuple[TestClient, InMemoryRunNoteSt
     return TestClient(create_http_app(service, ObservatorySettings())), store, service
 
 
-def test_run_notes_are_added_rendered_revised_and_deleted_over_http() -> None:
-    client, _, _ = _notes_client()
-    key = RunLocator(source_id="fixture", run_id="runs/grpo-silver-pine").key
+def test_run_notes_are_added_rendered_revised_and_deleted_over_http(trackio_project: TrackioDataSource) -> None:
+    store = InMemoryRunNoteStore()
+    client = _sql_client(trackio_project, note_store_factory=lambda source_id, source: store, note_writes=True)
+    key = RunLocator(source_id="local", run_id="grpo-a").key
     with client:
         card = client.get(f"/api/v1/runs/{key}/card").json()
-        assert card["template"] == "group-policy@1" and card["unresolved"] == []
-        body = "```data r\nmeasures: [reward:last]\n```\nFinal reward {{r.reward_last | round 2}}. <script>x</script>"
+        assert card["template"] == "group-policy@2" and card["unresolved"] == []
+        body = (
+            "```sql r\nselect max_by(entropy, step) as last from updates\n```\n"
+            "Final entropy {{r.last | round 2}}. <script>x</script>"
+        )
         added = client.post(f"/api/v1/runs/{key}/notes", json={"kind": "finding", "body_md": body})
         assert added.status_code == 200, added.text
         note = added.json()
         assert (note["revision"], note["source"]) == (1, "observatory")
         listed = client.get(f"/api/v1/runs/{key}/notes").json()
         assert listed[0]["note"]["note_id"] == note["note_id"]
-        assert listed[0]["rendered"]["unresolved"] == [] and "Final reward " in listed[0]["rendered"]["text"]
+        assert listed[0]["rendered"]["unresolved"] == [] and "Final entropy 0.25." in listed[0]["rendered"]["text"]
         revised = client.put(
             f"/api/v1/runs/{key}/notes/{note['note_id']}",
             json={"expected_revision": 1, "body_md": "Corrected."},
@@ -274,7 +286,7 @@ def test_run_notes_are_added_rendered_revised_and_deleted_over_http() -> None:
         assert stale.status_code == 409 and stale.json()["current_revision"] == 2
         history = client.get(f"/api/v1/runs/{key}/notes/{note['note_id']}/history").json()
         assert [item["revision"] for item in history] == [1, 2]
-        other = RunLocator(source_id="fixture", run_id="runs/sft-calm-harbor").key
+        other = RunLocator(source_id="local", run_id="sampo-b").key
         assert client.get(f"/api/v1/runs/{other}/notes/{note['note_id']}/history").status_code == 404
         deleted = client.delete(f"/api/v1/runs/{key}/notes/{note['note_id']}", params={"expected_revision": 2})
         assert deleted.json()["deleted"] is True

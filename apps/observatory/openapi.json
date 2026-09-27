@@ -10,7 +10,11 @@
           "mean",
           "sum",
           "count",
-          "stddev"
+          "stddev",
+          "p50",
+          "p90",
+          "p95",
+          "p99"
         ],
         "type": "string"
       },
@@ -419,27 +423,6 @@
         "title": "ConfigurationReview",
         "type": "object"
       },
-      "DescribedMeasure": {
-        "additionalProperties": false,
-        "properties": {
-          "measure": {
-            "$ref": "#/components/schemas/Measure"
-          },
-          "runs": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Runs",
-            "type": "array"
-          }
-        },
-        "required": [
-          "measure"
-        ],
-        "title": "DescribedMeasure",
-        "type": "object"
-      },
       "DescribedTable": {
         "additionalProperties": false,
         "properties": {
@@ -450,6 +433,10 @@
             "title": "Columns",
             "type": "array"
           },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -457,7 +444,8 @@
         },
         "required": [
           "name",
-          "columns"
+          "columns",
+          "description"
         ],
         "title": "DescribedTable",
         "type": "object"
@@ -539,9 +527,7 @@
         "enum": [
           "run",
           "update",
-          "rollout",
-          "eval_task",
-          "load_level"
+          "rollout"
         ],
         "type": "string"
       },
@@ -2644,7 +2630,11 @@
               "mean",
               "sum",
               "count",
-              "stddev"
+              "stddev",
+              "p50",
+              "p90",
+              "p95",
+              "p99"
             ],
             "items": {
               "$ref": "#/components/schemas/Aggregation"
@@ -2706,7 +2696,7 @@
       },
       "Metric": {
         "additionalProperties": false,
-        "description": "A formula over aggregated measures, for example `sum(rollout_seconds) / sum(update_seconds)`.",
+        "description": "A SQL expression over aggregated measures of one entity, for example\n`sum(rollout_seconds) / sum(update_seconds)`; the tests plan every formula against its table.",
         "properties": {
           "description": {
             "minLength": 1,
@@ -4397,7 +4387,7 @@
       },
       "SemanticDescribeRequest": {
         "additionalProperties": false,
-        "description": "Runs (ids or run-dimension filters) or job kinds to describe; neither describes everything.",
+        "description": "Job kinds to describe; none describes everything.",
         "properties": {
           "job_kinds": {
             "$ref": "#/components/schemas/StringTuple",
@@ -4448,7 +4438,7 @@
           },
           "measures": {
             "items": {
-              "$ref": "#/components/schemas/DescribedMeasure"
+              "$ref": "#/components/schemas/Measure"
             },
             "title": "Measures",
             "type": "array"
@@ -4462,22 +4452,15 @@
           },
           "notes": {
             "default": [
-              "Query form: measures (name or name:aggregation), by (dimensions), where (dimension: value, [any of], '>= n', or a '*' wildcard), runs (ids or run-dimension filters), order_by (prefix - for descending), limit.",
-              "A query may use one entity besides run; run dimensions apply to every entity.",
-              "SQL mode: one SELECT over the sql_tables; raw_metrics(run_id, metric, step, value) loads any recorded series by name when listed in load."
+              "SQL is Doris SQL: one read-only SELECT (optionally WITH) over the sql_tables. Only the tables and columns a statement reads are computed, for every run of the project unless runs narrows them.",
+              "Useful functions: max_by(value, step) and min_by(value, step) for last and first, percentile(x, 0.9), stddev_samp(x). On local SQLite storage only these and standard SQL are available.",
+              "Short form: measures (name or name:aggregation, including p50/p90/p95/p99), by (dimensions), where (dimension: value, [any of], '>= n', or a '*' wildcard), runs (ids or run-dimension filters), order_by (prefix - for descending), limit. It compiles to SQL, returned with the result.",
+              "Evaluation tasks are rollouts grouped by task: filter out truncated and failed rollouts to read valid rewards."
             ],
             "items": {
               "type": "string"
             },
             "title": "Notes",
-            "type": "array"
-          },
-          "runs": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Runs",
             "type": "array"
           },
           "sql_tables": {
@@ -4600,10 +4583,16 @@
             "title": "Columns",
             "type": "array"
           },
-          "downsampled": {
-            "default": false,
-            "title": "Downsampled",
-            "type": "boolean"
+          "engine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine"
           },
           "grain": {
             "title": "Grain",
@@ -4617,36 +4606,21 @@
             "title": "Rows",
             "type": "array"
           },
-          "runs": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Runs",
-            "type": "array"
-          },
-          "sources": {
-            "additionalProperties": {
-              "items": {
+          "sql": {
+            "anyOf": [
+              {
                 "type": "string"
               },
-              "type": "array"
-            },
-            "title": "Sources",
-            "type": "object"
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sql"
           },
           "truncated": {
             "default": false,
             "title": "Truncated",
             "type": "boolean"
-          },
-          "unavailable": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Unavailable",
-            "type": "array"
           }
         },
         "required": [
@@ -5472,8 +5446,6 @@
           "event",
           "metric_series",
           "trace_fact",
-          "eval_task",
-          "load_level",
           "derived"
         ],
         "type": "string"
@@ -5545,22 +5517,8 @@
       },
       "SqlQuery": {
         "additionalProperties": false,
-        "description": "One read-only SELECT over the semantic tables of the runs in scope.",
+        "description": "One read-only SELECT (Doris SQL) over the semantic tables; `runs` narrows the runs it sees.",
         "properties": {
-          "load": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "$ref": "#/components/schemas/StringTuple"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load"
-          },
           "max_rows": {
             "default": 10000,
             "maximum": 100000.0,
@@ -5576,6 +5534,9 @@
               {
                 "additionalProperties": true,
                 "type": "object"
+              },
+              {
+                "type": "null"
               }
             ],
             "title": "Runs"
@@ -5587,8 +5548,7 @@
           }
         },
         "required": [
-          "sql",
-          "runs"
+          "sql"
         ],
         "title": "SqlQuery",
         "type": "object"

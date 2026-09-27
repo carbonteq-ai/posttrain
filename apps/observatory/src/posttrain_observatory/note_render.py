@@ -3,10 +3,11 @@
 A note is plain Markdown plus four small elements, so it still reads sensibly
 wherever they are not drawn:
 
-- a data block, a fenced block whose info string is ``data <name>``, holding a
-  semantic query (``measures``, ``by``, ``where``, ``runs``, ``order_by``,
-  ``limit``) or read-only SQL (``sql``, ``runs``, ``load``) as ``key: value``
-  lines; ``runs`` defaults to ``self``, the note's run;
+- a data block, a fenced block whose info string is ``sql <name>``, holding
+  one read-only Doris SQL SELECT over the semantic tables (``runs``,
+  ``updates``, ``rollouts``); an optional first line ``-- runs: self, <id>`` or
+  ``-- runs: run.job_kind=train.sampo`` scopes it, and the default is the
+  note's run (``self``). A plain ````sql`` block stays a code block;
 - a view, a fenced ``chart``, ``value`` or ``table`` block naming a data block
   and how to show it;
 - an inline reference, ``{{name.column}}`` (first row, or the row chosen by
@@ -43,7 +44,7 @@ _REFERENCE = re.compile(r"\{\{(.*?)\}\}")
 _LINK = re.compile(r"\[\[run:([A-Za-z0-9][A-Za-z0-9._:/-]*)(?:\|([^\]]*))?\]\]")
 _INLINE_CODE = re.compile(r"(`+)(.+?)\1")
 _NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
-_DATA_KEYS = frozenset({"measures", "by", "where", "runs", "order_by", "limit", "sql", "load"})
+DATA_FENCE = "sql"
 _VIEW_KEYS: Mapping[str, frozenset[str]] = {
     "chart": frozenset({"data", "x", "y", "series", "type", "title"}),
     "value": frozenset({"data", "column", "where", "compare", "format", "label"}),
@@ -157,7 +158,7 @@ def data_blocks(body_md: str) -> list[tuple[str, str]]:
     return [
         (part.info.split()[1], part.body)
         for part in split_blocks(body_md)
-        if isinstance(part, _Fenced) and len(part.info.split()) == 2 and part.info.split()[0] == "data"
+        if isinstance(part, _Fenced) and len(part.info.split()) == 2 and part.info.split()[0] == DATA_FENCE
     ]
 
 
@@ -280,37 +281,44 @@ def _skip(text: str, position: int) -> int:
     return position
 
 
-def build_query(block: Mapping[str, Any], run_id: str) -> SemanticQuery | SqlQuery:
-    unknown = sorted(set(block) - _DATA_KEYS)
-    if unknown:
-        raise BlockSyntaxError(f"unknown keys {', '.join(unknown)}")
-    runs = _runs(block.get("runs", "self"), run_id)
+_SCOPE = re.compile(r"^\s*--\s*runs\s*:\s*(.*?)\s*$", re.IGNORECASE)
+_FILTER = re.compile(r"^\s*([a-z][a-z0-9_.]*)\s*(>=|<=|!=|>|<|=)\s*(.*?)\s*$")
+
+
+def build_query(body: str, run_id: str) -> SqlQuery:
+    """A data block's SQL, scoped by an optional first line `-- runs: self, <id>, run.job_kind=...`."""
+
+    lines = body.strip().splitlines()
+    scope: tuple[str, ...] | dict[str, Any] = (run_id,)
+    if lines and (match := _SCOPE.match(lines[0])):
+        scope = parse_scope(match.group(1), run_id)
+        lines = lines[1:]
+    sql = "\n".join(lines).strip()
+    if not sql:
+        raise BlockSyntaxError("the block has no SQL")
     try:
-        if "sql" in block:
-            if not isinstance(block["sql"], str):
-                raise BlockSyntaxError("sql must be text")
-            load = block.get("load")
-            return SqlQuery(
-                sql=block["sql"],
-                runs=runs,
-                load={str(key): tuple(_list(value)) for key, value in load.items()} if isinstance(load, dict) else None,
-            )
-        return SemanticQuery(
-            measures=tuple(_list(block.get("measures"))),
-            by=tuple(_list(block.get("by"))),
-            where=dict(block.get("where") or {}),
-            runs=runs,
-            order_by=tuple(_list(block.get("order_by"))),
-            limit=int(block.get("limit") or 1000),
-        )
+        return SqlQuery(sql=sql, runs=scope)
     except ValidationError as error:
         raise BlockSyntaxError("; ".join(item["msg"] for item in error.errors())) from None
 
 
-def _runs(value: Any, run_id: str) -> tuple[str, ...] | dict[str, Any]:
-    if isinstance(value, dict):
-        return {key: (run_id if item == "self" else item) for key, item in value.items()}
-    return tuple(run_id if item == "self" else str(item) for item in _list(value))
+def parse_scope(text: str, run_id: str) -> tuple[str, ...] | dict[str, Any]:
+    """`self, run-b` (run ids) or `run.job_kind=train.sampo, run.status=failed` (filters)."""
+
+    items = [item.strip() for item in text.split(",") if item.strip()]
+    if not items:
+        raise BlockSyntaxError("-- runs: needs run ids or run-dimension filters")
+    filters = [_FILTER.match(item) for item in items]
+    if all(filters):
+        scope: dict[str, Any] = {}
+        for match in filters:
+            assert match is not None
+            name, operator, value = match.groups()
+            scope[name] = value if operator == "=" else f"{operator} {value}"
+        return scope
+    if any(filters):
+        raise BlockSyntaxError("-- runs: takes either run ids or filters, not both")
+    return tuple(run_id if item == "self" else item for item in items)
 
 
 def _list(value: Any) -> list[Any]:
@@ -453,14 +461,14 @@ async def render_note(
     errors: dict[str, str] = {}
     queries: dict[str, str] = {}
     for part in parts:
-        if not isinstance(part, _Fenced) or not part.info.startswith("data"):
+        if not isinstance(part, _Fenced):
             continue
         words = part.info.split()
-        if words[0] != "data":
+        if len(words) != 2 or words[0] != DATA_FENCE:
             continue
-        name = words[1] if len(words) == 2 else ""
+        name = words[1]
         if not _NAME.match(name):
-            errors[name or "?"] = "a data block needs one name, like 'data reward'"
+            errors[name] = "a data block's name is letters, digits, _ or -"
             continue
         if name in queries:
             errors[name] = "the name is used by another data block"
@@ -470,7 +478,7 @@ async def render_note(
             errors[name] = f"a note can hold at most {MAX_DATA_BLOCKS} data blocks"
             continue
         try:
-            data[name] = await query(build_query(parse_block(part.body), run_id))
+            data[name] = await query(build_query(part.body, run_id))
         except Exception as error:  # every failure is shown on the note, not raised
             errors[name] = str(error) or type(error).__name__
 
@@ -487,8 +495,8 @@ async def render_note(
             continue
         words = part.info.split()
         kind = words[0] if words else ""
-        if kind == "data":
-            name = words[1] if len(words) == 2 else "?"
+        if kind == DATA_FENCE and len(words) == 2:
+            name = words[1]
             if name in errors:
                 marker = unresolved(f"data {name}", errors[name])
                 missing.append(marker)

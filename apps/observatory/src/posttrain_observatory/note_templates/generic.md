@@ -1,7 +1,7 @@
-template: generic@1
+template: generic@2
 ---
-```data span
-measures: [duration_seconds]
+```sql span
+select duration_seconds from runs
 ```
 
 **{{run.job_kind}}** · {{run.status}} · {{span.duration_seconds | duration}} · work package {{run.work_package}}

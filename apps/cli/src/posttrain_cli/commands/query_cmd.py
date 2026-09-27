@@ -65,7 +65,6 @@ def build_query(
     order_by: list[str] | None,
     limit: int | None,
     sql: str | None,
-    load: list[str] | None,
     file: Path | None,
 ) -> dict[str, Any]:
     """The JSON form of a semantic or SQL query from command-line options or a query file."""
@@ -84,15 +83,7 @@ def build_query(
     if sql is not None:
         if measures or by or where:
             raise ContractError("--sql cannot be combined with --measures, --by or --where")
-        if scope is None:
-            raise ContractError("--sql needs --runs: run ids or run-dimension filters")
-        query = {"sql": sql, "runs": scope}
-        if load:
-            query["load"] = {
-                entity: [item for item in columns.split("+") if item]
-                for entity, _, columns in (entry.partition("=") for entry in load)
-            }
-        return query
+        return {"sql": sql, "runs": scope} if scope is not None else {"sql": sql}
     names = _split(measures)
     if not names:
         raise ContractError("give --measures, --sql or --file")
@@ -147,40 +138,36 @@ def render_csv(result: dict[str, Any]) -> str:
 
 
 def _result_notes(result: dict[str, Any]) -> list[str]:
-    notes = [f"\n{len(result['rows'])} row(s) at {result['grain']} grain from {len(result.get('runs') or ())} run(s)"]
+    engine = f" on {result['engine']}" if result.get("engine") else ""
+    notes = [f"\n{len(result['rows'])} row(s) at {result['grain']} grain{engine}"]
     if result.get("truncated"):
         notes.append("truncated: more rows exist; raise --limit or narrow the query")
-    if result.get("downsampled"):
-        notes.append("downsampled: at least one series was longer than the read limit")
-    notes += [f"unavailable: {item}" for item in result.get("unavailable") or ()]
+    if result.get("grain") != "sql" and result.get("sql"):
+        notes += ["", "SQL:", *(f"  {line}" for line in result["sql"].splitlines())]
     return notes
 
 
 def render_description(description: dict[str, Any]) -> str:
-    lines = [f"job kinds: {', '.join(description['job_kinds']) or 'all'}"]
-    if description.get("runs"):
-        lines.append(f"runs: {', '.join(description['runs'])}")
+    lines = [f"job kinds: {', '.join(description['job_kinds']) or 'all'}", "", "SQL tables:"]
+    for table in description["sql_tables"]:
+        lines += [f"  {table['name']}: {table['description']}", f"    {', '.join(table['columns'])}"]
     for entity in description["entities"]:
         name = entity["name"]
-        lines += ["", f"{name}: {entity['description']}", "  dimensions:"]
+        lines += ["", f"{name} dimensions:"]
         lines += [
-            f"    {item['name']} ({item['type']}): {item['description']}"
+            f"  {item['name']} ({item['type']}): {item['description']}"
             for item in description["dimensions"]
             if item["entity"] == name
         ]
-        measures = [item for item in description["measures"] if item["measure"]["entity"] == name]
+        measures = [item for item in description["measures"] if item["entity"] == name]
         if measures:
-            lines.append("  measures:")
-        for item in measures:
-            measure = item["measure"]
+            lines.append(f"{name} measures:")
+        for measure in measures:
             unit = f" [{measure['unit']}]" if measure.get("unit") else ""
-            lines.append(f"    {measure['name']}{unit} ({measure['aggregation']}): {measure['description']}")
+            lines.append(f"  {measure['name']}{unit} ({measure['aggregation']}): {measure['description']}")
         metrics = [metric for metric in description["metrics"] if metric["entity"] == name]
-        if metrics:
-            lines.append("  metrics:")
-        lines += [f"    {metric['name']} = {metric['formula']}" for metric in metrics]
-    lines += ["", "SQL tables:"]
-    lines += [f"  {table['name']}({', '.join(table['columns'])})" for table in description["sql_tables"]]
+        lines += [f"  {metric['name']} = {metric['formula']}" for metric in metrics]
+    lines += ["", *description["notes"]]
     return "\n".join(lines)
 
 
@@ -232,10 +219,6 @@ def register(app: typer.Typer) -> None:
         ] = None,
         limit: Annotated[int | None, typer.Option("--limit", min=1)] = None,
         sql: Annotated[str | None, typer.Option("--sql", help="one read-only SELECT over the semantic tables")] = None,
-        load: Annotated[
-            list[str] | None,
-            typer.Option("--load", help="SQL mode: entity=measure+measure to load; repeatable"),
-        ] = None,
         file: Annotated[
             Path | None, typer.Option("--file", "-f", help="a YAML or JSON query", exists=True, dir_okay=False)
         ] = None,
@@ -252,7 +235,6 @@ def register(app: typer.Typer) -> None:
             order_by=order_by,
             limit=limit,
             sql=sql,
-            load=load,
             file=file,
         )
         service, semantic = _service(state)
@@ -265,20 +247,14 @@ def register(app: typer.Typer) -> None:
         else:
             print(render_table(result), flush=True)
 
-    @query_app.command("describe", help="list the dimensions, measures and SQL tables available for runs or job kinds")
+    @query_app.command("describe", help="list the SQL tables, dimensions, measures and metrics")
     def describe_cmd(
         ctx: typer.Context,
-        runs: Annotated[
-            list[str] | None,
-            typer.Option("--runs", "-r", help=f"run ids, or run-dimension filters; {_LIST_HELP}"),
-        ] = None,
         job_kinds: Annotated[list[str] | None, typer.Option("--job-kind", help=_LIST_HELP)] = None,
     ) -> None:
         state: CliState = ctx.obj
         service, _ = _service(state)
-        description = asyncio.run(
-            service.describe_semantics(runs=parse_runs(runs), job_kinds=_split(job_kinds))
-        ).model_dump(mode="json")
+        description = asyncio.run(service.describe_semantics(job_kinds=_split(job_kinds))).model_dump(mode="json")
         emit(state, description, render_description(description))
 
 

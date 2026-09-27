@@ -1,7 +1,7 @@
-template: serving-smoke@1
+template: serving-smoke@2
 ---
-```data result
-measures: [probe_healthy, probe_model_available, probe_latency_seconds, duration_seconds]
+```sql result
+select probe_healthy, probe_model_available, probe_latency_seconds, duration_seconds from runs
 ```
 
 **{{run.job_kind}}** · {{run.status}} · {{result.duration_seconds | duration}} · work package {{run.work_package}}

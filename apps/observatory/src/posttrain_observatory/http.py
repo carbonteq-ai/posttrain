@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from posttrain.tracking import NoteConflict, NotesUnavailable, RunNote, RunQuery
+from posttrain.tracking import NoteConflict, NotesUnavailable, ProjectSqlUnavailable, RunNote, RunQuery
 from pydantic import BeforeValidator, Field
 
 from .mcp import create_mcp
@@ -110,6 +110,12 @@ def create_http_app(
         request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
         body = ErrorResponse(code="notes_read_only", message=str(error), request_id=request_id)
         return JSONResponse(status_code=403, content=body.model_dump(mode="json"))
+
+    @app.exception_handler(ProjectSqlUnavailable)
+    async def sql_unavailable(request: Request, error: ProjectSqlUnavailable) -> JSONResponse:
+        request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
+        body = ErrorResponse(code="sql_unavailable", message=str(error), request_id=request_id)
+        return JSONResponse(status_code=501, content=body.model_dump(mode="json"))
 
     @app.exception_handler(NotesUnavailable)
     async def notes_unavailable(request: Request, error: NotesUnavailable) -> JSONResponse:
@@ -307,7 +313,7 @@ def create_http_app(
 
     @app.post("/api/v1/semantic/describe")
     async def semantic_describe(request: SemanticDescribeRequest) -> SemanticDescription:
-        return await service.describe_semantics(runs=request.runs, job_kinds=request.job_kinds)
+        return await service.describe_semantics(job_kinds=request.job_kinds)
 
     @app.post("/api/v1/semantic/query")
     async def semantic_query(query: SemanticQuery | SqlQuery) -> SemanticResult:

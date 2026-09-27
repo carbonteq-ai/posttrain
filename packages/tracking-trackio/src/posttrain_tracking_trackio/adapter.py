@@ -39,6 +39,9 @@ from posttrain.tracking import (
     EventRecord,
     MetricPoint,
     MetricSeries,
+    ProjectSqlError,
+    ProjectSqlResult,
+    ProjectSqlUnavailable,
     RunDetail,
     RunOutcome,
     RunQuery,
@@ -1166,6 +1169,38 @@ class TrackioDataSource:
         self._provider_runs_by_id: dict[str, Any] = {}
         self._detail_cache: dict[str, tuple[float, RunDetail]] = {}
         self._detail_cache_lock = Lock()
+
+    async def project_sql(self, sql: str, *, max_rows: int = 10_000, timeout_seconds: float = 10.0) -> ProjectSqlResult:
+        """Run read-only Doris SQL over this project's logical tables inside Trackio's storage."""
+
+        call = getattr(self._api, "project_sql", None)
+        if not callable(call):
+            raise ProjectSqlUnavailable(
+                "the installed Trackio client cannot run project SQL; install carbonteq-trackio 0.31.5.post14.dev29 "
+                "or later"
+            )
+        try:
+            raw = await asyncio.to_thread(call, self.project, sql, max_rows=max_rows, timeout_seconds=timeout_seconds)
+        except FileNotFoundError as error:
+            raise LookupError(f"Trackio project {self.project!r} does not exist") from error
+        except Exception as error:
+            message = str(error)
+            if "does not support '/project_sql'" in message:
+                raise ProjectSqlUnavailable(
+                    f"the Trackio server for project {self.project!r} cannot run project SQL; upgrade it to "
+                    "carbonteq-trackio 0.31.5.post14.dev29 or later"
+                ) from error
+            if isinstance(error, ValueError | RuntimeError):
+                raise ProjectSqlError(message) from error
+            raise
+        if not isinstance(raw, Mapping):
+            raise ContractError("Trackio returned an invalid project SQL result")
+        return ProjectSqlResult(
+            engine=str(raw.get("engine") or "unknown"),
+            columns=tuple(str(column) for column in raw.get("columns") or ()),
+            rows=tuple(tuple(row) for row in raw.get("rows") or ()),
+            truncated=bool(raw.get("truncated")),
+        )
 
     def note_store(self, *, write_token: str | None = None) -> Any:
         """The run-note store of this project (`TrackioRunNotes`), on the same server."""

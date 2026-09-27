@@ -107,7 +107,7 @@ from .run_notes import (
 from .runtime_phases import project_runtime_phases
 from .semantic import SemanticAnalysisService, SemanticSummaryProvider
 from .semantic_layer.describe import SemanticDescription
-from .semantic_layer.query import DEFAULT_MAX_RUNS, SemanticQuery, SemanticResult, SqlQuery
+from .semantic_layer.query import SemanticQuery, SemanticResult, SqlQuery
 from .serving_capacity import project_serving_benchmark
 from .sources import RunSourceRegistry
 from .telemetry import (
@@ -2395,27 +2395,24 @@ class ObservatoryService:
             rows=tuple(rows),
         )
 
-    async def describe_semantics(
-        self,
-        *,
-        runs: tuple[str, ...] | dict[str, Any] | None = None,
-        job_kinds: tuple[str, ...] = (),
-    ) -> SemanticDescription:
-        """What the semantic layer can answer for these runs or job kinds."""
+    async def describe_semantics(self, *, job_kinds: tuple[str, ...] = ()) -> SemanticDescription:
+        """The semantic tables, dimensions, measures and metrics, optionally for some job kinds."""
         from .semantic_layer import FRAMEWORK_MODEL, describe_semantics
-        from .semantic_layer.reader import ServiceReader
 
-        return await describe_semantics(FRAMEWORK_MODEL, ServiceReader(self), runs=runs, job_kinds=job_kinds)
+        return describe_semantics(FRAMEWORK_MODEL, job_kinds=job_kinds)
 
-    async def query_semantics(self, query: SemanticQuery | SqlQuery) -> SemanticResult:
-        """Answer a semantic query or read-only SQL over the semantic tables."""
+    async def query_semantics(self, query: SemanticQuery | SqlQuery, *, source_id: str | None = None) -> SemanticResult:
+        """Answer the short form or read-only SQL inside the source's storage (Trackio project SQL)."""
         from .semantic_layer import FRAMEWORK_MODEL, run_semantic_query, run_sql_query
-        from .semantic_layer.reader import ServiceReader
 
-        reader = ServiceReader(self)
+        if not self.registry.source_ids:
+            raise LookupError("Observatory has no configured sources")
+        source = self.registry.resolve(
+            RunLocator(source_id=source_id or self.registry.source_ids[0], run_id="semantic-query")
+        )
         if isinstance(query, SqlQuery):
-            return await run_sql_query(FRAMEWORK_MODEL, reader, query, max_runs=DEFAULT_MAX_RUNS)
-        return await run_semantic_query(FRAMEWORK_MODEL, reader, query)
+            return await run_sql_query(FRAMEWORK_MODEL, source, query)
+        return await run_semantic_query(FRAMEWORK_MODEL, source, query)
 
     async def run_card(self, run: str | RunLocator) -> RenderedNote:
         """The job kind's note template rendered for this run."""

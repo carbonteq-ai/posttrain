@@ -575,7 +575,7 @@
       }
     },
     {
-      "description": "Render note Markdown for a run without saving it; check `unresolved` before adding the note.\n\nCite numbers through data blocks instead of typing them: a fenced block ```data <name>``` holding\n`measures: [...]`, `by: [...]`, `where: {...}`, `runs: [self, <run id>]` (names from describe_semantics),\nthen `{{<name>.<column>}}` inline, or a ```value```, ```table``` or ```chart``` block with `data: <name>`.\n`{{run.<dimension>}}` shows a setting of this run and `[[run:<id>]]` links another run.",
+      "description": "Render note Markdown for a run without saving it; check `unresolved` before adding the note.\n\nCite numbers through data blocks instead of typing them: a fenced block ```sql <name>``` holding one\nDoris SQL SELECT over the tables from describe_semantics (an optional first line `-- runs: self, <run id>`\nscopes it; the default is this run), then `{{<name>.<column>}}` inline, or a ```value```, ```table``` or\n```chart``` block with `data: <name>`.\n`{{run.<dimension>}}` shows a setting of this run and `[[run:<id>]]` links another run.",
       "inputSchema": {
         "properties": {
           "body_md": {
@@ -607,7 +607,7 @@
       }
     },
     {
-      "description": "Call this before query_semantics. Lists the dimensions, measures, metrics and SQL tables available for\nruns (a list of run ids, or run-dimension filters such as {\"run.work_package\": \"...\"}) or job kinds.",
+      "description": "Call this before query_semantics. Lists the SQL tables (runs, updates, rollouts, and Trackio's raw\ntables), their dimensions and measures, and metrics; job_kinds narrows measures to what those provide.",
       "inputSchema": {
         "properties": {
           "job_kinds": {
@@ -624,25 +624,6 @@
             ],
             "default": null,
             "title": "Job Kinds"
-          },
-          "runs": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Runs"
           }
         },
         "title": "describe_semanticsArguments",
@@ -656,7 +637,7 @@
       }
     },
     {
-      "description": "Answer a question about runs with names from describe_semantics. Either measures (name or\nname:aggregation), grouped by dimensions and filtered by where ({dimension: value, [any of], \">= n\" or a\n\"*\" wildcard}); or sql, one read-only SELECT over the described tables for the runs in scope.",
+      "description": "Answer a question about runs, inside the tracking storage. Prefer sql: one read-only Doris SQL SELECT\nover the tables from describe_semantics (every run of the project; runs, as ids or run-dimension filters\nsuch as {\"run.job_kind\": \"train.sampo\"}, narrows them). Or the short form: measures (name or\nname:aggregation), by dimensions, where ({dimension: value, [any of], \">= n\" or a \"*\" wildcard}); it\ncompiles to SQL, returned in the result.",
       "inputSchema": {
         "properties": {
           "by": {
@@ -678,24 +659,6 @@
             "default": 1000,
             "title": "Limit",
             "type": "integer"
-          },
-          "load": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Load"
           },
           "measures": {
             "anyOf": [
@@ -745,6 +708,18 @@
             ],
             "default": null,
             "title": "Runs"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Id"
           },
           "sql": {
             "anyOf": [

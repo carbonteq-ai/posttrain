@@ -1,7 +1,7 @@
-template: data@1
+template: data@2
 ---
-```data result
-measures: [data_examples, data_bytes, duration_seconds]
+```sql result
+select data_examples, data_bytes, duration_seconds from runs
 ```
 
 **{{run.job_kind}}** · {{run.status}} · {{result.duration_seconds | duration}} · work package {{run.work_package}}

@@ -1,16 +1,25 @@
-template: sampo@1
+template: sampo@2
 ---
-```data result
-measures: [update_seconds:count, reward:first, reward:last, entropy:first, entropy:last, kl:last, update_seconds:mean, rollout_share, rollouts_attempted:sum, rollouts_truncated:sum, step_reward_share:mean, anchor_group_size:mean]
+```sql result
+select count(update_seconds) as updates,
+       min_by(reward, CASE WHEN reward IS NOT NULL THEN step END) AS reward_first, max_by(reward, CASE WHEN reward IS NOT NULL THEN step END) AS reward_last,
+       min_by(entropy, CASE WHEN entropy IS NOT NULL THEN step END) AS entropy_first, max_by(entropy, CASE WHEN entropy IS NOT NULL THEN step END) AS entropy_last,
+       max_by(kl, CASE WHEN kl IS NOT NULL THEN step END) AS kl_last,
+       avg(update_seconds) as update_seconds_mean,
+       sum(rollout_seconds) / sum(update_seconds) as rollout_share,
+       sum(rollouts_attempted) as rollouts_attempted,
+       sum(rollouts_truncated) as rollouts_truncated,
+       avg(step_reward_share) as step_reward_share,
+       avg(anchor_group_size) as anchor_group_size
+from updates
 ```
 
-```data span
-measures: [duration_seconds]
+```sql span
+select duration_seconds from runs
 ```
 
-```data curve
-measures: [reward, entropy, step_reward_share]
-by: update.step
+```sql curve
+select step, reward, entropy, step_reward_share from updates order by step
 ```
 
 **{{run.job_kind}}** · {{run.status}} · {{span.duration_seconds | duration}} · work package {{run.work_package}}
@@ -29,21 +38,21 @@ by: update.step
 
 | Result | |
 | --- | --- |
-| Updates | {{result.update_seconds_count | default "0"}} of {{run.max_updates | default "?"}} |
+| Updates | {{result.updates | default "0"}} of {{run.max_updates | default "?"}} |
 | Reward | {{result.reward_first | round 3 | default "—"}} → {{result.reward_last | round 3 | default "—"}} |
 | Entropy | {{result.entropy_first | round 3 | default "—"}} → {{result.entropy_last | round 3 | default "—"}} |
 | KL to reference (last) | {{result.kl_last | sci 2 | default "not measured"}} |
-| Turns scored with step rewards | {{result.step_reward_share_mean | percent | default "—"}} |
-| Mean anchor group size | {{result.anchor_group_size_mean | round 2 | default "—"}} |
+| Turns scored with step rewards | {{result.step_reward_share | percent | default "—"}} |
+| Mean anchor group size | {{result.anchor_group_size | round 2 | default "—"}} |
 | Mean update time | {{result.update_seconds_mean | duration | default "—"}} |
 | Update time spent in rollouts | {{result.rollout_share | percent | default "—"}} |
-| Rollouts | {{result.rollouts_attempted_sum | default "—"}} generated, {{result.rollouts_truncated_sum | default "—"}} truncated |
+| Rollouts | {{result.rollouts_attempted | default "—"}} generated, {{result.rollouts_truncated | default "—"}} truncated |
 | Error | {{run.error | default "none"}} |
 | Failed in | {{run.failed_phase | default "—"}} (update {{run.failed_step | default "—"}}) |
 
 ```chart
 data: curve
-x: update.step
+x: step
 y: [reward, entropy]
 title: Reward and entropy by update
 ```

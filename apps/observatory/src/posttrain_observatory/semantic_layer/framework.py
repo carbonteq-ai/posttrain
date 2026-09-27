@@ -9,7 +9,7 @@ resolved inputs; several paths separated by `|` are tried in order.
 from __future__ import annotations
 
 from ..metric_catalog import METRIC_CATALOG, MetricEntry
-from .model import AGGREGATIONS, ROLLOUT_AGGREGATIONS, Dimension, Entity, Measure, Metric, SemanticModel, Source
+from .model import AGGREGATIONS, Dimension, Entity, Measure, Metric, SemanticModel, Source
 
 GROUP_POLICY_KINDS = ("train.grpo", "train.gdpo", "train.capo")
 RL_KINDS = (*GROUP_POLICY_KINDS, "train.sampo")
@@ -43,7 +43,6 @@ def _rollout(
         unit=unit,
         source=Source(kind="trace_fact", name=fact),
         aggregation=aggregation,  # type: ignore[arg-type]
-        allowed=ROLLOUT_AGGREGATIONS,
         job_kinds=ROLLOUT_KINDS,
     )
 
@@ -58,15 +57,9 @@ ENTITIES = (
     Entity(
         name="rollout",
         description=(
-            "One rollout episode recorded as a trace. Rollouts are aggregated by the tracking backend and "
-            "never downloaded, so only count, sum, mean and stddev are available."
+            "One rollout episode recorded as a trace, with its facts (task, reward, tokens, truncation). "
+            "Evaluation tasks are rollouts grouped by task."
         ),
-    ),
-    Entity(name="eval_task", description="One task of an evaluation run, over its repetitions."),
-    Entity(
-        name="load_level",
-        description="One concurrency level of a serving benchmark run.",
-        order_dimension="load_level.concurrency",
     ),
 )
 
@@ -325,34 +318,6 @@ DIMENSIONS = (
         description="Served model name.",
         source=Source(kind="trace_fact", name="model"),
     ),
-    Dimension(
-        name="eval_task.task",
-        entity="eval_task",
-        type="string",
-        description="Evaluation task id (stable across runs of the same task set).",
-        source=Source(kind="eval_task", name="key"),
-    ),
-    Dimension(
-        name="eval_task.label",
-        entity="eval_task",
-        type="string",
-        description="Evaluation task display label.",
-        source=Source(kind="eval_task", name="label"),
-    ),
-    Dimension(
-        name="load_level.concurrency",
-        entity="load_level",
-        type="integer",
-        description="Concurrent requests.",
-        source=Source(kind="load_level", name="concurrency"),
-    ),
-    Dimension(
-        name="load_level.context_tokens",
-        entity="load_level",
-        type="integer",
-        description="Context length of the workload.",
-        source=Source(kind="load_level", name="context_tokens"),
-    ),
 )
 
 MEASURES = (
@@ -404,74 +369,6 @@ MEASURES = (
     _rollout("model_calls", "Model calls", "Model calls (turns) in a rollout.", "model_calls"),
     _rollout(
         "rollout_latency_ms", "Rollout latency", "Summed model latency of a rollout.", "trace_latency_ms", unit="ms"
-    ),
-    *(
-        Measure(
-            name=name,
-            entity="eval_task",
-            label=label,
-            description=description,
-            source=Source(kind="eval_task", name=field),
-            aggregation=aggregation,  # type: ignore[arg-type]
-            job_kinds=EVAL_KINDS,
-        )
-        for name, label, description, field, aggregation in (
-            ("task_reward", "Task reward", "Mean reward over the task's valid repetitions.", "mean_reward", "mean"),
-            (
-                "success_rate",
-                "Success rate",
-                "Share of the task's valid repetitions that succeeded.",
-                "success_frequency",
-                "mean",
-            ),
-            ("valid_repetitions", "Valid repetitions", "Repetitions with a valid result.", "valid_repetitions", "sum"),
-            (
-                "execution_failures",
-                "Execution failures",
-                "Repetitions that failed execution.",
-                "execution_failures",
-                "sum",
-            ),
-            ("eval_truncations", "Truncations", "Repetitions that hit a budget.", "truncations", "sum"),
-        )
-    ),
-    *(
-        Measure(
-            name=name,
-            entity="load_level",
-            label=label,
-            description=description,
-            unit=unit,
-            source=Source(kind="load_level", name=field),
-            aggregation=aggregation,  # type: ignore[arg-type]
-            job_kinds=SERVE_KINDS,
-        )
-        for name, label, description, field, unit, aggregation in (
-            (
-                "throughput",
-                "Output throughput",
-                "Aggregate output tokens per second.",
-                "aggregate_output_tps",
-                "tokens/s",
-                "mean",
-            ),
-            ("failure_rate", "Failure rate", "Share of requests that failed.", "failure_rate", None, "mean"),
-            ("completed_requests", "Completed requests", "Requests completed.", "completed_requests", None, "sum"),
-            ("failed_requests", "Failed requests", "Requests failed.", "failed_requests", None, "sum"),
-            ("ttft_p50_ms", "TTFT p50", "Median time to first token.", "p50_ttft_ms", "ms", "mean"),
-            ("ttft_p95_ms", "TTFT p95", "95th-percentile time to first token.", "p95_ttft_ms", "ms", "mean"),
-            ("tpot_p50_ms", "TPOT p50", "Median time per output token.", "p50_tpot_ms", "ms", "mean"),
-            ("tpot_p95_ms", "TPOT p95", "95th-percentile time per output token.", "p95_tpot_ms", "ms", "mean"),
-            (
-                "output_tokens_mean",
-                "Output tokens (mean)",
-                "Mean output tokens per request.",
-                "output_tokens_mean",
-                "tokens",
-                "mean",
-            ),
-            ("peak_vram_bytes", "Peak VRAM", "Peak GPU memory.", "peak_vram_bytes", "bytes", "max"),
-        )
     ),
 )
 

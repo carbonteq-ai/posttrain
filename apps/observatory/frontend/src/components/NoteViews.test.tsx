@@ -28,10 +28,7 @@ const curve: NoteData = {
   ],
   rows: [[1, 0.1, 2.5], [2, 0.3, 2.1], [3, 0.42, 1.9]],
   grain: 'update',
-  downsampled: false,
   truncated: false,
-  runs: ['run-a'],
-  unavailable: [],
 };
 
 const byRun: NoteData = {
@@ -42,10 +39,7 @@ const byRun: NoteData = {
   ],
   rows: [['run-a', 0.42, 'succeeded'], ['run-b', 0.3, 'failed']],
   grain: 'run',
-  downsampled: false,
   truncated: false,
-  runs: ['run-a', 'run-b'],
-  unavailable: [],
 };
 
 function note(markdown: string, views: RenderedView[]): RenderedNote {

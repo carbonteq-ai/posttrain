@@ -149,9 +149,10 @@ def create_mcp(service: ObservatoryService) -> MCPServer:
     async def render_note_preview(source_id: str, run_id: str, body_md: str) -> dict[str, object]:
         """Render note Markdown for a run without saving it; check `unresolved` before adding the note.
 
-        Cite numbers through data blocks instead of typing them: a fenced block ```data <name>``` holding
-        `measures: [...]`, `by: [...]`, `where: {...}`, `runs: [self, <run id>]` (names from describe_semantics),
-        then `{{<name>.<column>}}` inline, or a ```value```, ```table``` or ```chart``` block with `data: <name>`.
+        Cite numbers through data blocks instead of typing them: a fenced block ```sql <name>``` holding one
+        Doris SQL SELECT over the tables from describe_semantics (an optional first line `-- runs: self, <run id>`
+        scopes it; the default is this run), then `{{<name>.<column>}}` inline, or a ```value```, ```table``` or
+        ```chart``` block with `data: <name>`.
         `{{run.<dimension>}}` shows a setting of this run and `[[run:<id>]]` links another run."""
         rendered = await service.render_note(RunLocator(source_id=source_id, run_id=run_id), body_md)
         return rendered.model_dump(mode="json")
@@ -199,35 +200,30 @@ def create_mcp(service: ObservatoryService) -> MCPServer:
             return (await service.delete_run_note(locator, note_id, request, source="mcp")).model_dump(mode="json")
 
     @server.tool()
-    async def describe_semantics(
-        runs: list[str] | dict[str, Any] | None = None, job_kinds: list[str] | None = None
-    ) -> dict[str, object]:
-        """Call this before query_semantics. Lists the dimensions, measures, metrics and SQL tables available for
-        runs (a list of run ids, or run-dimension filters such as {"run.work_package": "..."}) or job kinds."""
-        scope = tuple(runs) if isinstance(runs, list) else runs
-        return (await service.describe_semantics(runs=scope, job_kinds=tuple(job_kinds or ()))).model_dump(mode="json")
+    async def describe_semantics(job_kinds: list[str] | None = None) -> dict[str, object]:
+        """Call this before query_semantics. Lists the SQL tables (runs, updates, rollouts, and Trackio's raw
+        tables), their dimensions and measures, and metrics; job_kinds narrows measures to what those provide."""
+        return (await service.describe_semantics(job_kinds=tuple(job_kinds or ()))).model_dump(mode="json")
 
     @server.tool()
     async def query_semantics(
+        sql: str | None = None,
         measures: list[str] | None = None,
         by: list[str] | None = None,
         where: dict[str, Any] | None = None,
         runs: list[str] | dict[str, Any] | None = None,
         order_by: list[str] | None = None,
         limit: int = 1000,
-        sql: str | None = None,
-        load: dict[str, list[str]] | None = None,
+        source_id: str | None = None,
     ) -> dict[str, object]:
-        """Answer a question about runs with names from describe_semantics. Either measures (name or
-        name:aggregation), grouped by dimensions and filtered by where ({dimension: value, [any of], ">= n" or a
-        "*" wildcard}); or sql, one read-only SELECT over the described tables for the runs in scope."""
+        """Answer a question about runs, inside the tracking storage. Prefer sql: one read-only Doris SQL SELECT
+        over the tables from describe_semantics (every run of the project; runs, as ids or run-dimension filters
+        such as {"run.job_kind": "train.sampo"}, narrows them). Or the short form: measures (name or
+        name:aggregation), by dimensions, where ({dimension: value, [any of], ">= n" or a "*" wildcard}); it
+        compiles to SQL, returned in the result."""
         scope = tuple(runs) if isinstance(runs, list) else runs
         if sql is not None:
-            if scope is None:
-                raise ValueError("SQL mode needs runs: run ids or run-dimension filters")
-            query: SemanticQuery | SqlQuery = SqlQuery(
-                sql=sql, runs=scope, load={key: tuple(value) for key, value in load.items()} if load else None
-            )
+            query: SemanticQuery | SqlQuery = SqlQuery(sql=sql, runs=scope)
         else:
             query = SemanticQuery(
                 measures=tuple(measures or ()),
@@ -237,7 +233,7 @@ def create_mcp(service: ObservatoryService) -> MCPServer:
                 order_by=tuple(order_by or ()),
                 limit=limit,
             )
-        return (await service.query_semantics(query)).model_dump(mode="json")
+        return (await service.query_semantics(query, source_id=source_id)).model_dump(mode="json")
 
     return server
 

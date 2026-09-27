@@ -96,10 +96,13 @@ class RunNotes:
         def link_for(run_id: str) -> str:
             return f"/runs/{RunLocator(source_id=locator.source_id, run_id=run_id).key}"
 
+        async def query(item: Any) -> Any:
+            return await self._service.query_semantics(item, source_id=locator.source_id)
+
         return await render_note(
             body_md,
             run_id=locator.run_id,
-            query=self._service.query_semantics,
+            query=query,
             link_for=link_for,
             template=template,
         )

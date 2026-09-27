@@ -16,10 +16,9 @@ _RESULT = {
     ],
     "rows": [["run-a", 0.8964941, 5e-05], ["run-b", None, 0.0001]],
     "grain": "update",
-    "runs": ["run-a", "run-b"],
-    "unavailable": ["run-b: rollout_share is not recorded"],
-    "truncated": False,
-    "downsampled": True,
+    "sql": "SELECT r.`id` AS `run.id`\nFROM runs AS r",
+    "engine": "doris",
+    "truncated": True,
 }
 
 
@@ -32,7 +31,6 @@ def _query(**overrides: object) -> dict[str, object]:
         "order_by": None,
         "limit": None,
         "sql": None,
-        "load": None,
         "file": None,
     }
     options.update(overrides)
@@ -67,13 +65,8 @@ def test_semantic_and_sql_queries_from_options(tmp_path: Path) -> None:
         "runs": ["r1"],
         "limit": 5,
     }
-    assert _query(sql="select 1", runs=["r1"], load=["updates=entropy+kl"]) == {
-        "sql": "select 1",
-        "runs": ("r1",),
-        "load": {"updates": ["entropy", "kl"]},
-    }
-    with pytest.raises(ContractError, match="--sql needs --runs"):
-        _query(sql="select 1")
+    assert _query(sql="select 1", runs=["r1"]) == {"sql": "select 1", "runs": ("r1",)}
+    assert _query(sql="select 1") == {"sql": "select 1"}
     with pytest.raises(ContractError, match="give --measures"):
         _query()
     path = tmp_path / "query.yaml"
@@ -84,8 +77,8 @@ def test_semantic_and_sql_queries_from_options(tmp_path: Path) -> None:
 def test_table_keeps_small_values_and_reports_gaps() -> None:
     table = render_table(_RESULT)
     assert "5e-05" in table and "0.896494" in table
-    assert "unavailable: run-b: rollout_share is not recorded" in table
-    assert "downsampled" in table
+    assert "truncated: more rows exist" in table
+    assert "SQL:\n  SELECT r.`id` AS `run.id`\n  FROM runs AS r" in table
     assert render_csv(_RESULT).splitlines() == ["run.id,rollout_share,lr", "run-a,0.8964941,5e-05", "run-b,,0.0001"]
 
 

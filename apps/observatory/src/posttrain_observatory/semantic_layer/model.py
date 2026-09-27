@@ -1,7 +1,6 @@
 """The semantic model: what can be asked about runs, and where each answer comes from.
 
-An entity is a kind of row (a run, one training update, one rollout, one
-evaluation task, one serving load level). A dimension is a field of an entity to
+An entity is a kind of row: a run, one training update, or one rollout. A dimension is a field of an entity to
 group or filter by; run dimensions apply to every entity because every row
 belongs to a run. A measure is a number of an entity with a default aggregation
 and a source. A metric is a named formula over aggregated measures of one
@@ -17,17 +16,25 @@ from pydantic import Field, model_validator
 
 from ..models import ObservatoryModel
 
-type Aggregation = Literal["last", "first", "min", "max", "mean", "sum", "count", "stddev"]
-type EntityName = Literal["run", "update", "rollout", "eval_task", "load_level"]
-type SourceKind = Literal[
-    "run_field", "setting", "event", "metric_series", "trace_fact", "eval_task", "load_level", "derived"
-]
+type Aggregation = Literal["last", "first", "min", "max", "mean", "sum", "count", "stddev", "p50", "p90", "p95", "p99"]
+type EntityName = Literal["run", "update", "rollout"]
+type SourceKind = Literal["run_field", "setting", "event", "metric_series", "trace_fact", "derived"]
 type DimensionType = Literal["string", "integer", "number", "time", "boolean"]
 
-AGGREGATIONS: tuple[Aggregation, ...] = ("last", "first", "min", "max", "mean", "sum", "count", "stddev")
-# Rollouts are aggregated by the tracking backend, which returns count, sum and
-# sum of squares; order-dependent or extreme aggregations are not available.
-ROLLOUT_AGGREGATIONS: tuple[Aggregation, ...] = ("mean", "sum", "count", "stddev")
+AGGREGATIONS: tuple[Aggregation, ...] = (
+    "last",
+    "first",
+    "min",
+    "max",
+    "mean",
+    "sum",
+    "count",
+    "stddev",
+    "p50",
+    "p90",
+    "p95",
+    "p99",
+)
 _NAME = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$")
 
 
@@ -68,7 +75,8 @@ class Measure(ObservatoryModel):
 
 
 class Metric(ObservatoryModel):
-    """A formula over aggregated measures, for example `sum(rollout_seconds) / sum(update_seconds)`."""
+    """A SQL expression over aggregated measures of one entity, for example
+    `sum(rollout_seconds) / sum(update_seconds)`; the tests plan every formula against its table."""
 
     name: str = Field(min_length=1)
     entity: EntityName
@@ -104,22 +112,6 @@ class SemanticModel(ObservatoryModel):
         for measure in self.measures:
             if measure.aggregation not in measure.allowed:
                 raise ValueError(f"measure {measure.name!r} default aggregation is not allowed")
-            if measure.entity == "rollout" and not set(measure.allowed) <= set(ROLLOUT_AGGREGATIONS):
-                raise ValueError(f"rollout measure {measure.name!r} allows aggregations trace facts cannot compute")
-        measures = {measure.name: measure for measure in self.measures}
-        from .formula import parse_formula  # local import: formula depends on this module's types
-
-        for metric in self.metrics:
-            for aggregation, measure_name in parse_formula(metric.formula).references():
-                measure = measures.get(measure_name)
-                if measure is None:
-                    raise ValueError(f"metric {metric.name!r} references unknown measure {measure_name!r}")
-                if measure.entity != metric.entity:
-                    raise ValueError(f"metric {metric.name!r} mixes entities {metric.entity!r} and {measure.entity!r}")
-                if aggregation not in measure.allowed:
-                    raise ValueError(
-                        f"metric {metric.name!r} uses {aggregation}() which {measure_name!r} does not allow"
-                    )
         return self
 
     def dimension(self, name: str) -> Dimension:
@@ -156,7 +148,6 @@ __all__ = [
     "EntityName",
     "Measure",
     "Metric",
-    "ROLLOUT_AGGREGATIONS",
     "SemanticModel",
     "Source",
     "SourceKind",

@@ -657,7 +657,7 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /** @enum {string} */
-        Aggregation: "last" | "first" | "min" | "max" | "mean" | "sum" | "count" | "stddev";
+        Aggregation: "last" | "first" | "min" | "max" | "mean" | "sum" | "count" | "stddev" | "p50" | "p90" | "p95" | "p99";
         /** @enum {string} */
         AlertSeverity: "info" | "warning" | "error";
         /** ArtifactLink */
@@ -789,19 +789,12 @@ export interface components {
              */
             recommendations: components["schemas"]["SettingsRecommendation"][];
         };
-        /** DescribedMeasure */
-        DescribedMeasure: {
-            measure: components["schemas"]["Measure"];
-            /**
-             * Runs
-             * @default []
-             */
-            runs: string[];
-        };
         /** DescribedTable */
         DescribedTable: {
             /** Columns */
             columns: string[];
+            /** Description */
+            description: string;
             /** Name */
             name: string;
         };
@@ -826,7 +819,7 @@ export interface components {
             order_dimension?: string | null;
         };
         /** @enum {string} */
-        EntityName: "run" | "update" | "rollout" | "eval_task" | "load_level";
+        EntityName: "run" | "update" | "rollout";
         /**
          * EvaluationBreakdown
          * @description One declared compound report with structured groups.
@@ -1575,7 +1568,11 @@ export interface components {
              *       "mean",
              *       "sum",
              *       "count",
-             *       "stddev"
+             *       "stddev",
+             *       "p50",
+             *       "p90",
+             *       "p95",
+             *       "p99"
              *     ]
              */
             allowed: components["schemas"]["Aggregation"][];
@@ -1594,7 +1591,8 @@ export interface components {
         };
         /**
          * Metric
-         * @description A formula over aggregated measures, for example `sum(rollout_seconds) / sum(update_seconds)`.
+         * @description A SQL expression over aggregated measures of one entity, for example
+         *     `sum(rollout_seconds) / sum(update_seconds)`; the tests plan every formula against its table.
          */
         Metric: {
             /** Description */
@@ -2157,7 +2155,7 @@ export interface components {
         };
         /**
          * SemanticDescribeRequest
-         * @description Runs (ids or run-dimension filters) or job kinds to describe; neither describes everything.
+         * @description Job kinds to describe; none describes everything.
          */
         SemanticDescribeRequest: {
             /** @default [] */
@@ -2176,23 +2174,19 @@ export interface components {
             /** Job Kinds */
             job_kinds: string[];
             /** Measures */
-            measures: components["schemas"]["DescribedMeasure"][];
+            measures: components["schemas"]["Measure"][];
             /** Metrics */
             metrics: components["schemas"]["Metric"][];
             /**
              * Notes
              * @default [
-             *       "Query form: measures (name or name:aggregation), by (dimensions), where (dimension: value, [any of], '>= n', or a '*' wildcard), runs (ids or run-dimension filters), order_by (prefix - for descending), limit.",
-             *       "A query may use one entity besides run; run dimensions apply to every entity.",
-             *       "SQL mode: one SELECT over the sql_tables; raw_metrics(run_id, metric, step, value) loads any recorded series by name when listed in load."
+             *       "SQL is Doris SQL: one read-only SELECT (optionally WITH) over the sql_tables. Only the tables and columns a statement reads are computed, for every run of the project unless runs narrows them.",
+             *       "Useful functions: max_by(value, step) and min_by(value, step) for last and first, percentile(x, 0.9), stddev_samp(x). On local SQLite storage only these and standard SQL are available.",
+             *       "Short form: measures (name or name:aggregation, including p50/p90/p95/p99), by (dimensions), where (dimension: value, [any of], '>= n', or a '*' wildcard), runs (ids or run-dimension filters), order_by (prefix - for descending), limit. It compiles to SQL, returned with the result.",
+             *       "Evaluation tasks are rollouts grouped by task: filter out truncated and failed rollouts to read valid rewards."
              *     ]
              */
             notes: string[];
-            /**
-             * Runs
-             * @default []
-             */
-            runs: string[];
             /** Sql Tables */
             sql_tables: components["schemas"]["DescribedTable"][];
         };
@@ -2242,34 +2236,19 @@ export interface components {
         SemanticResult: {
             /** Columns */
             columns: components["schemas"]["ResultColumn"][];
-            /**
-             * Downsampled
-             * @default false
-             */
-            downsampled: boolean;
+            /** Engine */
+            engine?: string | null;
             /** Grain */
             grain: string;
             /** Rows */
             rows: unknown[][];
-            /**
-             * Runs
-             * @default []
-             */
-            runs: string[];
-            /** Sources */
-            sources?: {
-                [key: string]: string[];
-            };
+            /** Sql */
+            sql?: string | null;
             /**
              * Truncated
              * @default false
              */
             truncated: boolean;
-            /**
-             * Unavailable
-             * @default []
-             */
-            unavailable: string[];
         };
         /** SemanticSummaryRequest */
         SemanticSummaryRequest: {
@@ -2509,7 +2488,7 @@ export interface components {
             transform: "identity" | "one_minus";
         };
         /** @enum {string} */
-        SourceKind: "run_field" | "setting" | "event" | "metric_series" | "trace_fact" | "eval_task" | "load_level" | "derived";
+        SourceKind: "run_field" | "setting" | "event" | "metric_series" | "trace_fact" | "derived";
         /** SourceRefreshStatus */
         SourceRefreshStatus: {
             /** @default [] */
@@ -2530,22 +2509,18 @@ export interface components {
         };
         /**
          * SqlQuery
-         * @description One read-only SELECT over the semantic tables of the runs in scope.
+         * @description One read-only SELECT (Doris SQL) over the semantic tables; `runs` narrows the runs it sees.
          */
         SqlQuery: {
-            /** Load */
-            load?: {
-                [key: string]: components["schemas"]["StringTuple"];
-            } | null;
             /**
              * Max Rows
              * @default 10000
              */
             max_rows: number;
             /** Runs */
-            runs: components["schemas"]["StringTuple"] | {
+            runs?: components["schemas"]["StringTuple"] | {
                 [key: string]: unknown;
-            };
+            } | null;
             /** Sql */
             sql: string;
         };

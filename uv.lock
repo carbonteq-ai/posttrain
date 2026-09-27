@@ -3040,6 +3040,7 @@ dependencies = [
     { name = "posttrain-tracking-trackio" },
     { name = "posttrain-tracking-wandb" },
     { name = "pydantic" },
+    { name = "sqlglot" },
     { name = "uvicorn" },
 ]
 
@@ -3054,6 +3055,7 @@ requires-dist = [
     { name = "posttrain-tracking-trackio", editable = "packages/tracking-trackio" },
     { name = "posttrain-tracking-wandb", editable = "packages/tracking-wandb" },
     { name = "pydantic", specifier = ">=2.12,<3" },
+    { name = "sqlglot", specifier = ">=30.19,<31" },
     { name = "uvicorn", specifier = ">=0.52,<0.53" },
 ]
 
@@ -4320,6 +4322,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a2/87/a6771e1546d97e7e041b6ae58d80074f81b7d5121207425c964ddf5cfdbd/sniffio-1.3.1.tar.gz", hash = "sha256:f4324edc670a0f49750a81b895f35c3adb843cca46f0530f79fc1babb23789dc", size = 20372, upload-time = "2024-02-25T23:20:04.057Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e9/44/75a9c9421471a6c4805dbf2356f7c181a29c1879239abab1ea2cc8f38b40/sniffio-1.3.1-py3-none-any.whl", hash = "sha256:2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2", size = 10235, upload-time = "2024-02-25T23:20:01.196Z" },
+]
+
+[[package]]
+name = "sqlglot"
+version = "30.19.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fe/48/996687ba146c07deee6cc3528738e645d2e72805e023ed9672b483648378/sqlglot-30.19.0.tar.gz", hash = "sha256:6fcfbe93c5ee76e07faadf0930dd119eebb545c4f317f8e4f205f177305d8b08", size = 6042945, upload-time = "2026-09-22T15:19:58.64Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/94/094d83ec808b50374f33a3024c9e60ca3074595e1f9581c1692591fda81e/sqlglot-30.19.0-py3-none-any.whl", hash = "sha256:b4500fcced395359feea582f09d2d4433bf1f36362a3a9d0d6d5ebbc1f84242e", size = 756203, upload-time = "2026-09-22T15:19:56.761Z" },
 ]
 
 [[package]]
