@@ -22,9 +22,9 @@ To see it working: `posttrain query -m update_seconds:sum,rollout_share --by run
 - [x] (2026-09-27) Milestone 1: the TRL trainer writes rollout metrics once per update (`backends/trl/update_totals.py`, flushed by a step-end callback and on failure; per-batch time goes to `train/rl/rollout_batch_seconds`); `posttrain.tracking.logical.logical_series` applies replay authority and the legacy batch rule, and both adapters return it; the Observatory projection, the semantic layer's `within_step` rules and its reader projection are deleted. Real data unchanged: rollout share 0.896/0.895/0.892/0.879 for r13/r14/r15/turns-r1; `lfm26-vortex-v5-150-lr5e5-kl5e3-20260926-r2` update 1 has 369.5 s over 96 rollouts.
 - [ ] Milestone 2: one metric catalog shared by job views and the semantic layer.
 - [x] (2026-09-27) Milestone 3, first attempt (in-memory SQLite engine with column-level loading) parked on branch `codex/sqlite-engine-wip` after the direction changed; see the Decision Log.
-- [ ] Milestone 3a: Trackio fork: read-only, project-scoped SQL for Doris and SQLite storage (`query_project`), written in Doris SQL and translated for SQLite.
-- [ ] Milestone 3b: Posttrain: semantic tables as SQL views over the fork's tables, compiled into each query; the short form compiles to SQL; delete the per-query loading path, the Python aggregation path and the formula parser.
-- [ ] Milestone 4: notes and run cards use SQL blocks; delete the note query format.
+- [x] (2026-09-27) Milestone 3a: fork `project_sql` (9b02b7fc, 416950d4, 1c62b0b5 on `codex/run-notes`): 17 unit tests on both SQLite drivers and the Doris path with a recording connection; the real-Doris test is written and skips without `TRACKIO_DORIS_*`. Release as dev29 in progress.
+- [x] (2026-09-27) Milestone 3b (c6e8dbe9): `ProjectSql` in `posttrain.tracking`; `semantic_layer/views.py`, `compile.py`, `engine.py`; loaders, in-memory engine, Python aggregation, `formula.py`, and the `eval_task`/`load_level` entities deleted. Tests run on a local Trackio project written by Posttrain's own writer, including updates-view equivalence with `logical_series`.
+- [x] (2026-09-27) Milestone 4 (c6e8dbe9, 543e82ca): notes use ```sql <name>``` blocks with `-- runs:` scopes (ids, or filters with any-of lists); templates rewritten (`@2`); cards render with no unresolved references on the local project. The four reports are rewritten in SQL and compile against the model; they run on real data once the shared server has dev29.
 - [ ] Milestone 5: re-render the four reports, update both older plans, release 0.4.11, and upgrade the shared Trackio server only after the user confirms.
 
 ## Surprises & Discoveries
@@ -40,6 +40,13 @@ To see it working: `posttrain query -m update_seconds:sum,rollout_share --by run
 
 - Observation: in Doris, metrics are stored one row per logged batch with all values in a JSON string (`metrics.metrics`), configs as a JSON string (`configs.config`), and trace facts as real columns of `traces` (`fact_task_id`, `fact_task_reward`, `fact_is_truncated`, ...). The fork's `query_project` works only on SQLite and refuses Doris.
   Evidence: `trackio/doris_schema.py` (fork `codex/run-notes`); `DorisStorage.query_project` raises "query_project is SQLite-specific".
+
+- Observation: evaluation task results in the Observatory come from the task manifest and repetition slots (first usable attempt per slot), which trace facts do not carry, so an `eval_tasks` SQL view would have been a second, different definition of the same numbers. Evaluation questions in SQL are rollouts grouped by task; the Observatory's evaluation and serving views keep their own computations.
+  Evidence: `apps/observatory/src/posttrain_observatory/evaluation_measurement.py` (slots, retries, `usable` attempt).
+- Observation: on SQLite a CTE named like its base table (`traces`, `run_notes`) is a circular reference; the fork qualifies SQLite base tables as `main.<table>`. The default Turso engine stores JSON text columns as bytes, so the SQLite stand-ins decode bytes.
+  Evidence: fork commit 1c62b0b5; `test_json_paths_follow_doris_quoting`.
+- Observation: `max_by(x, step)` returns x at the latest step even where x is null, and update rows exist at every step with an update time, so "first" and "last" use `max_by(x, CASE WHEN x IS NOT NULL THEN step END)`.
+- Observation: Doris behaviour this design relies on is untested against a real Doris: quoted JSON path keys (`$."train/rl/entropy"`), `json_extract_*` on nested objects, `unix_timestamp` on ISO 8601 strings with offsets, `max_by`/`min_by` with null order keys, `NULLS LAST`, and the query-timeout session variable. The real-Doris integration test is the release gate for deploying dev29.
 
 ## Decision Log
 
@@ -80,7 +87,7 @@ To see it working: `posttrain query -m update_seconds:sum,rollout_share --by run
 
 ## Outcomes & Retrospective
 
-Not started.
+(2026-09-27) Milestones 0 to 4 are done on `codex/run-notes`. Metrics are correct where they are written, one catalog describes every metric, and queries, notes and cards run as Doris SQL inside Trackio's storage (translated on local SQLite). The Posttrain side of the semantic layer and notes went from 4,310 to 3,346 lines, with one engine instead of two, no per-query copying, no run cap, percentiles over rollouts, and every result showing its SQL; the fork gained about 550 lines for project SQL. Remaining: release fork dev29 and pin it; run the real-Doris gate; upgrade the shared Trackio server (Doris schema v4 migration, needs the user's confirmation); render the four reports on real data; release Posttrain 0.4.11.
 
 ## Context and Orientation
 
