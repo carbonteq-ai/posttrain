@@ -405,7 +405,7 @@ class WandbBackend:
             entity=self.settings.entity,
             project=self.settings.project,
             id=spec.run_id,
-            name=f"{spec.job_kind}-{spec.run_id[:8]}",
+            name=f"{spec.job_kind}-{spec.run_id}",
             group=spec.work_package_id,
             job_type=spec.job_kind,
             config=_run_config(spec, started_at),

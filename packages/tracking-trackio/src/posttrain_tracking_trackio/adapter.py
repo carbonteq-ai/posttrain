@@ -194,6 +194,16 @@ def _json_mapping(value: object) -> dict[str, JsonValue]:
     return dict(value) if isinstance(value, dict) else {}
 
 
+def _run_name(spec: RunSpec) -> str:
+    """The Trackio run name: job kind and the full canonical run id."""
+    return f"{spec.job_kind}-{spec.run_id}"
+
+
+def _legacy_run_name(spec: RunSpec) -> str:
+    """The name runs carried before full names: the run id cut to eight characters."""
+    return f"{spec.job_kind}-{spec.run_id[:8]}"
+
+
 def _run_config(spec: RunSpec, started_at: datetime) -> dict[str, JsonValue]:
     return {
         "schema_version": 4,
@@ -575,7 +585,15 @@ class TrackioBackend:
         """Resume the provider run selected by the canonical Trackio run name."""
 
         # Reopening a run to record what happened; this process is not the job.
-        return self._open_run(spec, resume="must", started_at=started_at, monitor=False)
+        try:
+            return self._open_run(spec, resume="must", started_at=started_at, monitor=False)
+        except ValueError as error:
+            legacy = _legacy_run_name(spec)
+            if legacy == _run_name(spec) or "does not exist" not in str(error):
+                raise
+            # Runs started before full names were recorded carry the old
+            # eight-character name.
+            return self._open_run(spec, resume="must", started_at=started_at, monitor=False, name=legacy)
 
     def start_or_resume_run(self, spec: RunSpec, *, started_at: datetime) -> TrackioTrackedRun:
         """Idempotently open the full canonical run identity after interruption."""
@@ -583,13 +601,7 @@ class TrackioBackend:
         # A recoverable job opens its run this way on first start and after an
         # interruption; either way this process is executing the job, so its GPU
         # and CPU are the run's system metrics.
-        return self._open_run(
-            spec,
-            resume="allow",
-            started_at=started_at,
-            full_run_name=True,
-            monitor=True,
-        )
+        return self._open_run(spec, resume="allow", started_at=started_at, monitor=True)
 
     def _open_run(
         self,
@@ -598,7 +610,7 @@ class TrackioBackend:
         resume: str,
         monitor: bool,
         started_at: datetime | None = None,
-        full_run_name: bool = False,
+        name: str | None = None,
     ) -> TrackioTrackedRun:
         if spec.job_kind.startswith("eval."):
             # Check the installed client schema before opening a provider run
@@ -625,7 +637,7 @@ class TrackioBackend:
             init_arguments["artifact_finish_timeout"] = self.settings.artifact_publication_timeout_seconds
         run = trackio.init(
             project=project,
-            name=f"{spec.job_kind}-{spec.run_id if full_run_name else spec.run_id[:8]}",
+            name=name or _run_name(spec),
             group=spec.work_package_id,
             server_url=self.settings.server_url,
             config=_run_config(spec, started_at),
@@ -1398,10 +1410,15 @@ class TrackioDataSource:
                     type=str(lifecycle.get("run/error_type") or "RunFailed"),
                     message=str(lifecycle.get("run/error_message") or "run failed"),
                 )
+        canonical_run_id = str(config["run_id"])
+        job_kind = str(config["job_kind"])
+        if display_name == f"{job_kind}-{canonical_run_id[:8]}" and len(canonical_run_id) > 8:
+            # Runs started before full names were recorded show their whole id.
+            display_name = f"{job_kind}-{canonical_run_id}"
         return RunSummary(
             provider="trackio",
             provider_run_id=run_id,
-            run_id=str(config["run_id"]),
+            run_id=canonical_run_id,
             display_name=display_name,
             project_id=str(config["project_id"]),
             work_package_id=str(config["work_package_id"]),
