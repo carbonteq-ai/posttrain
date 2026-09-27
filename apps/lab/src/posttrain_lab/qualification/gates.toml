@@ -1112,6 +1112,19 @@ owner = "posttrain-platform"
 replacement_condition = "Promote to a release gate once the run completes 150 updates with entropy and truncation stable; otherwise record the failure and lower the rate or raise the penalty."
 
 [[gates]]
+id = "lfm26-sampo-turns-150-lr5e5-kl5e3"
+work_package = ".posttrain/work_packages/lfm26_automationbench_sampo_turns_150_lr5e5_kl5e3_local_v1.yaml"
+job_id = "sampo"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.sampo"
+acceptance = "verifiers-trajectories"
+experiment_family = "lfm26-automationbench-vortex-20-local-v1"
+hypothesis = "SAMPO from the base model with the KL run's data, budgets and optimizer, plus per-turn credit from live environment progress, reaches a higher held-out reward than VORTEX at the same update counts."
+owner = "posttrain-platform"
+replacement_condition = "Compare its step-100/130/150 held-out evaluations with the KL run's; promote SAMPO turn rewards to the RTX PRO SAMPO qualification if it matches or beats VORTEX, retire the arm otherwise."
+
+[[gates]]
 id = "lfm12-automationbench-screen-8k"
 work_package = ".posttrain/work_packages/lfm12_automationbench_screen_8k.yaml"
 job_id = "evaluate"
