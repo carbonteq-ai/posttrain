@@ -82,9 +82,9 @@ Posttrain project state 0.3 GB.
 except merged remote branches. It previews by default:
 
 ```bash
-uv run --no-sync python scripts/operations/cleanup_workstation.py            # preview
-uv run --no-sync python scripts/operations/cleanup_workstation.py --apply    # remove
-uv run --no-sync python scripts/operations/cleanup_workstation.py --only worktrees --only posttrain-images
+.venv/bin/python scripts/operations/cleanup_workstation.py            # preview
+.venv/bin/python scripts/operations/cleanup_workstation.py --apply    # remove
+.venv/bin/python scripts/operations/cleanup_workstation.py --only worktrees --only posttrain-images
 ```
 
 A daily user timer runs it with `--apply` at 04:30. Install it once from the

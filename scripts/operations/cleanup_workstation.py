@@ -43,15 +43,24 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 DAY = 24 * 60 * 60
-CLASSES = ("worktrees", "posttrain-images", "buildkit", "uv", "huggingface", "posttrain-cache", "scratch")
+CLASSES = ("worktrees", "posttrain-images", "buildkit", "huggingface", "posttrain-cache", "scratch", "uv")
 POSTTRAIN_IMAGE_PREFIXES = ("posttrain-local", "posttrain-observatory", "registry.lan/carbonteq/posttrain-")
 BUILDER = "posttrain-builder"
 
 Runner = Callable[[Sequence[str]], subprocess.CompletedProcess[str]]
 
 
-def run(argv: Sequence[str], *, cwd: Path | None = None, check: bool = False) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(list(argv), cwd=cwd, check=check, capture_output=True, text=True)
+def run(
+    argv: Sequence[str], *, cwd: Path | None = None, check: bool = False, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(list(argv), cwd=cwd, check=check, capture_output=True, text=True, env=env)
+
+
+def posttrain(repo: Path) -> list[str]:
+    """The main checkout's ``posttrain`` command, run without ``uv run`` so the uv cache stays unlocked."""
+
+    executable = repo / ".venv" / "bin" / "posttrain"
+    return [str(executable)] if executable.is_file() else ["uv", "run", "--no-sync", "posttrain"]
 
 
 @dataclass
@@ -192,10 +201,7 @@ def apply_worktree(ctx: Context, item: Item) -> None:
         main_lab = ctx.repo / "apps" / "lab"
         migrate = ctx.runner(
             [
-                "uv",
-                "run",
-                "--no-sync",
-                "posttrain",
+                *posttrain(ctx.repo),
                 "--project-root",
                 str(main_lab),
                 "state",
@@ -339,8 +345,15 @@ def plan_uv(ctx: Context) -> list[Item]:
     return [Item("uv", "uv cache", "run", f"uv cache prune (removes entries no environment references; cache {size})")]
 
 
+class Busy(Exception):
+    """The resource is in use; the next run tries again."""
+
+
 def apply_uv(ctx: Context, item: Item) -> None:
-    result = ctx.runner(["uv", "cache", "prune"])
+    # Pruning needs the cache to itself; while another uv process holds it, try again on the next run.
+    result = ctx.runner(["uv", "cache", "prune"], env={**os.environ, "UV_LOCK_TIMEOUT": "60"})
+    if result.returncode != 0 and ("in-use" in result.stderr or "waiting for lock" in result.stderr):
+        raise Busy("another uv process is using the cache; pruned on a later run")
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip()[-300:])
 
@@ -390,9 +403,7 @@ def plan_posttrain_cache(ctx: Context) -> list[Item]:
     lab = ctx.repo / "apps" / "lab"
     if not (lab / ".posttrain").is_dir():
         return []
-    report = ctx.runner(
-        ["uv", "run", "--no-sync", "posttrain", "--project-root", str(lab), "--json", "cache", "prune"], cwd=ctx.repo
-    )
+    report = ctx.runner([*posttrain(ctx.repo), "--project-root", str(lab), "--json", "cache", "prune"], cwd=ctx.repo)
     reclaimable = 0
     try:
         payload = json.loads(report.stdout)
@@ -412,9 +423,7 @@ def plan_posttrain_cache(ctx: Context) -> list[Item]:
 
 def apply_posttrain_cache(ctx: Context, item: Item) -> None:
     lab = ctx.repo / "apps" / "lab"
-    result = ctx.runner(
-        ["uv", "run", "--no-sync", "posttrain", "--project-root", str(lab), "cache", "prune", "--apply"], cwd=ctx.repo
-    )
+    result = ctx.runner([*posttrain(ctx.repo), "--project-root", str(lab), "cache", "prune", "--apply"], cwd=ctx.repo)
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout).strip()[-300:])
 
@@ -472,6 +481,8 @@ def execute(ctx: Context, classes: Iterable[str]) -> list[Item]:
                 try:
                     applier(ctx, item)
                     item.done = True
+                except Busy as busy:
+                    item.action, item.reason = "keep", str(busy)
                 except Exception as error:
                     item.error = f"{type(error).__name__}: {error}"
             items.append(item)

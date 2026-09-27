@@ -5,6 +5,8 @@ Documentation=file://%h/projects/rl/docs/operations/cleanup-playbook.md
 [Service]
 Type=oneshot
 WorkingDirectory=%h/projects/rl
-ExecStart=%h/.local/bin/uv run --no-sync python scripts/operations/cleanup_workstation.py --apply
+# The environment's Python directly: `uv run` would hold the uv cache lock the prune needs.
+ExecStart=%h/projects/rl/.venv/bin/python scripts/operations/cleanup_workstation.py --apply
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 Nice=19
 IOSchedulingClass=idle

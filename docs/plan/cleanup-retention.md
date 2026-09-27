@@ -15,7 +15,8 @@ This does not change the frozen product baseline: purge, retention classes and t
 - [x] (2026-09-27) Surveyed existing tooling in this repository, `ai-infra` and the Trackio fork; measured the workstation (927 GB disk, 77% used: uv cache 116 GB, BuildKit 85 GB, Docker images 42 GB, Hugging Face 50 GB, ten extra checkouts 27 GB).
 - [x] (2026-09-27) Wrote `docs/operations/cleanup-playbook.md`.
 - [x] (2026-09-27) Milestone 1 code: `scripts/operations/cleanup_workstation.py` with tests (`scripts/operations/tests`) and user systemd units (`scripts/operations/systemd/`). First preview: about 32 GB removable right away (eight checkouts, two job images) plus `uv cache prune`.
-- [ ] Milestone 1 rollout: first `--apply` after the owner reviews the preview; install the timer from the main checkout after merge.
+- [x] (2026-09-27) First `--apply` on the workstation: 7 checkouts and 2 job images removed, BuildKit and Posttrain caches pruned; free disk 219 GB → 238 GB. `rl-rc-verify` stayed because it holds the live VORTEX KL run's record (`state migrate` refused). `uv cache prune` could not get the uv cache lock (see Surprises); fixed.
+- [ ] Milestone 1 rollout: install the timer from the main checkout after merge.
 - [ ] Milestone 2 (`ai-infra`): BuildKit layers kept 7 days; Doris backup expiry tool; execution-log rotation.
 - [ ] Milestone 3: weekly run-candidate report (after the Trackio dev30 server and the 0.4.11 semantic layer are deployed).
 - [ ] Milestone 4 (`ai-infra`): registry image-root retention tool.
@@ -28,6 +29,8 @@ This does not change the frozen product baseline: purge, retention classes and t
   Evidence: `ls <checkout>/apps/lab/.posttrain/state` on 2026-09-27; `posttrain state migrate --from-project-root` copies them and refuses while any run is unresolved.
 - Observation: the workstation's Docker daemon also serves other projects (analytics Postgres, spec-lab graph database, Supabase, curbside); every stopped container on it belongs to another project.
   Evidence: `docker ps -a --filter status=exited`, `docker system df -v`.
+- Observation: `uv cache prune` needs the uv cache to itself, and every `uv run` process (including the cleanup tool started with `uv run`, and long-running workers) holds it; the first apply waited five minutes and failed.
+  Evidence: "Timeout (300s) when waiting for lock on ~/.cache/uv/.lock" on 2026-09-27. The timer now starts the environment's Python directly, the tool calls the environment's `posttrain` executable, the uv step runs last with a 60-second lock timeout and reports "uv busy" to retry on the next run.
 - Observation: `ai-infra/scripts/qualify_trackio_doris_backup.py` drops its Doris repository at start and deletes its bucket unless `--retain-backup` is given, so reusing a retained backup's name destroys it.
 
 ## Decision Log
@@ -70,7 +73,7 @@ Milestones 4-6 as listed in Progress.
 
 From the main checkout:
 
-    uv run --no-sync python scripts/operations/cleanup_workstation.py
+    .venv/bin/python scripts/operations/cleanup_workstation.py
     uv run --no-sync pytest -q scripts/operations/tests
 
 Expected preview lines look like:
