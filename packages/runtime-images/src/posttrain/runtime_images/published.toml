@@ -28,28 +28,28 @@ trust_bundle_digest = "1c8eebb22902615537f1b21bedac272482a1c5df087cda8f598a1b9b8
 
 [kinds.eval]
 repository = "posttrain-kind-eval"
-digest = "sha256:babdd217864292af3e7f80e95d6cdd90c6cd796faf8f6abfb138463df78eed19"
-lock_digest = "7a5c96f0b9039e5300a907443ac0719b91243beac9c66363496826efd4b6ee04"
+digest = "sha256:cdf2dfe52b6a60b306e89d0c371fb05806fe59cde2b35d401a670c53b00115c6"
+lock_digest = "8231888dc85c4b74132694e32bdc4e64f5afee8c142305789d0fd4152e7d6bcc"
 constraint_lock = "containers/posttrain-job-kinds/locks/eval.lock.txt"
-runtime_source_digest = "9842fb5eda20bc208281a634d2e77bd41fe286ddee625a21ebbe550c6fbecbce"
+runtime_source_digest = "dba4425a3c3e35bc58e9d0679b4d4e7c25f6400a9efb80ae198a2ec9592d4294"
 base_digest = "sha256:1083e11ce1c540d8d7816f1c8ccd15011012ebe8771f0ecd6d5a685c4921d76b"
 provided_packages = ["verifiers", "carbonteq-renderers"]
 
 [kinds.online-rl-trl-py312]
 repository = "posttrain-kind-online-rl-trl-py312"
-digest = "sha256:67743503e44913685404f7871bd4e40492816dfe9fbd84b5ad73f36d7acebfb4"
-lock_digest = "76c999f6a33b72d6e01a9e39f06d61697f096547e5ba1e48afcf1d238317db69"
+digest = "sha256:d2d62972f6f2bed161073605226fffddb22e79c90a5fbd085695c8be63b8591b"
+lock_digest = "02199035edd7ca8a595db42c6ca5e99ba7f7cdf4484c3ed6b97b29fbee33c11f"
 constraint_lock = "containers/posttrain-job-kinds/locks/online-rl-trl-py312.lock.txt"
-runtime_source_digest = "05b9156ab2d93ef489209b675fdfcf80488a6f534c603fa9606b07a50b7de39d"
+runtime_source_digest = "f4af20d5a1d0c721c13d254afcbecfaf73c792c197cf7f74800f77d78fa9170c"
 base_digest = "sha256:1083e11ce1c540d8d7816f1c8ccd15011012ebe8771f0ecd6d5a685c4921d76b"
 provided_packages = ["verifiers", "carbonteq-renderers"]
 
 [kinds.online-rl-verl-py313]
 repository = "posttrain-kind-online-rl-verl-py313"
-digest = "sha256:2172c9e07327892ecbfafc535155cc0f30dffe7e42692c13219f7b56439e905a"
-lock_digest = "f342ab65843be53468adc695aad4849b28e1c6ba32b6a8c4c8f9e358fbd93a80"
+digest = "sha256:570ef7a07cd2cf4b6913de8932367d918bdcb5f388d8124fea6e11dd8c8a447f"
+lock_digest = "55c4e7cc0552443fef1303d8053a4d7832e9856a41451c245f53640ae31ad0dd"
 constraint_lock = "containers/posttrain-job-kinds/locks/online-rl-verl-py313.lock.txt"
-runtime_source_digest = "2e58aad6bad9b8b3b00f8329e7644feacbcedb1d5a3521a30921b413041d38c2"
+runtime_source_digest = "40370ecce576f2108777a0025ed0c50923497268f8c1e700cc1aa08d711f2fe3"
 base_digest = "sha256:1083e11ce1c540d8d7816f1c8ccd15011012ebe8771f0ecd6d5a685c4921d76b"
 backend_constraint_lock = "containers/posttrain-job-kinds/verl-py313/release/backend-constraints.txt"
 backend_lock_digest = "7653a384755db75181298792fa3030c2cf7afb00f84ca49144a0b90401be5692"
@@ -59,24 +59,24 @@ backend_dependency_lock_digest = "1331772f574b5309b7820c75c21b53f2b3f8dc8d80910d
 
 [kinds.serve]
 repository = "posttrain-kind-serve"
-digest = "sha256:7c3a3404ae752422251c278740de17e5a3e8684a094cba29380d97b4fb79d14c"
-lock_digest = "c32c910fdb49fca054e3dbb86d92e0cabf37007ca5e8f261106347657494d841"
+digest = "sha256:e0e636760f66f79345cced08cf8e6b76fac6604fed35fc7dc43003a930273622"
+lock_digest = "b10d96b5d952855d6639bb31862a21fe5bea6ddd5fc0b103b4087e4172c8ba8c"
 constraint_lock = "containers/posttrain-job-kinds/locks/serve.lock.txt"
-runtime_source_digest = "2868cd4dbf83fbef6d0d58d494a38691db6bfda039c48374d45c7db8cd17d51c"
+runtime_source_digest = "2fc0b15a2767dc701ecec2c3127b6e2c4b9242c59505d5ccda8099b4abb1be01"
 base_digest = "sha256:1083e11ce1c540d8d7816f1c8ccd15011012ebe8771f0ecd6d5a685c4921d76b"
 
 [kinds.supervised]
 repository = "posttrain-kind-supervised"
-digest = "sha256:c8a8df1964e39d456b5a5fb2dd257b84b1a8a376eda2eb9aabf736c864ba90d0"
-lock_digest = "06115ace4578438acf9d484284ca9e50c6b960563b1dcfe84e2453b259a04328"
+digest = "sha256:98a14aeba5c43d5873668c5a9c967539c52c0a3554f347315f34cc1968991c9a"
+lock_digest = "c70cc69de09317a7d7c10b4312161f80643d3ead1b046ffb711ee8f3b574107b"
 constraint_lock = "containers/posttrain-job-kinds/locks/supervised.lock.txt"
-runtime_source_digest = "0730c443b62aa26a5e4f49ca19bf84de2f30c7e66266a7353806ad6251b84d79"
+runtime_source_digest = "12bf9d2391a59ae4dca7ee5faae8eecc2d338638fcbc852020c714c557000552"
 base_digest = "sha256:1083e11ce1c540d8d7816f1c8ccd15011012ebe8771f0ecd6d5a685c4921d76b"
 
 [kinds.transform]
 repository = "posttrain-kind-transform"
-digest = "sha256:9a44d8730b6f40129ccf0ffc82603917c7a81abdd96188054c930338934425fe"
-lock_digest = "6562d406e210dbd3c488702c328301482c9663e17d482bdac14ac17771adcf8b"
+digest = "sha256:4a4d16f3c0d2cd917b842a844ed1ed6d75290c0a4e3006ec1b0b44c5c0bb28a7"
+lock_digest = "57bb29da353af74abf5997593684b20f3c2137933ab7133220bf1870eaca0d24"
 constraint_lock = "containers/posttrain-job-kinds/locks/transform.lock.txt"
-runtime_source_digest = "c5a74900537c777223250ec2075953df360ce4f9cde7f226015d622940e3fc67"
+runtime_source_digest = "5b8585b5a71bafbef8cc64486882632a2704e2560623645f606ef94111b82db6"
 base_digest = "sha256:1083e11ce1c540d8d7816f1c8ccd15011012ebe8771f0ecd6d5a685c4921d76b"
