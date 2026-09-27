@@ -34,8 +34,8 @@ where they are recorded.
 - Trace facts v8: `task_id` is the environment's task key (for AutomationBench
   the task name), falling back to the dataset's example id, so training and
   evaluation name tasks the same way across runs.
-- Trackio `0.31.5.post14.dev29` (run notes, read-only project SQL; Doris schema
-  version 4).
+- Trackio `0.31.5.post14.dev30` (run notes, read-only project SQL, set-oriented
+  trace-fact replacement; Doris schema version 4).
 
 ### Fixed
 

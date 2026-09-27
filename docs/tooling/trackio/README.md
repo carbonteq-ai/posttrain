@@ -1,14 +1,17 @@
 # Trackio fork and maintenance
 
-The next Posttrain release pins `0.31.5.post14.dev29` (fork commit
-`6b6c87ecca4ffb6cf617045ca53197aecbcbec18`, tag
-`carbonteq-v0.31.5.post14.dev29`; wheel
-`594084ca863a8f4aa686d59e3b005248a6a3b865d25ff910bf73fbe227c9b01d`, sdist
-`33a4b4d48fbb5b432eb8ce34f5993e24520a69f69c19ea9b9ec3cb8d5584a81f`), published
-to `carbonteq/dev` and not yet promoted or deployed. It carries dev28's
-revisioned run notes (`run_notes` table; Doris schema version 4) and dev29's
-read-only project SQL (`project_sql`: one Doris SQL SELECT over a project's
-`metric_rows`, `run_configs`, `traces` and `run_notes`, translated on SQLite
+The next Posttrain release pins `0.31.5.post14.dev30` (fork commit
+`60e1306ebb406ea33776d40c7cf79ad5010f58a2`, tag
+`carbonteq-v0.31.5.post14.dev30`; wheel
+`606c10633bedcaab210565f5b77f3d595db00e2a1ba44471c16583aa9fe85859`, sdist
+`9beacecc5c5a6773350348a4d2b93ad714d68b54a68c37f1fbae9c9d9ac8b832`), published
+to `carbonteq/dev` by Posttrain workflow `36289612769` and not yet promoted or
+deployed. dev30 replaces trace facts with set-oriented Doris writes (re-scoring
+a run with a new fact calculator: 0.17 s → 0.005 s per trace on real rows of
+the test database). It carries dev28's revisioned run notes (`run_notes` table;
+Doris schema version 4) and dev29's read-only project SQL (`project_sql`: one
+Doris SQL SELECT over a project's `metric_rows`, `run_configs`, `traces` and
+`run_notes`, translated on SQLite
 storage), which the Observatory's semantic layer and run notes use. On
 2026-09-27 the test database `trackio_candidate` (same Doris host as production)
 was backed up with a restore check, migrated to schema version 4, and passed
