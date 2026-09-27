@@ -24,14 +24,19 @@ the VORTEX curriculum, what each did, and the rules we now follow.
 
 LoRA needs a larger learning rate than full fine-tuning: a LoRA update scales with
 learning rate × alpha / rank, and only the small adapter moves. Tinker's LoRA RL
-recipes use 1e-5 to 4e-5 at alpha 32, which is 4e-5 to 1.6e-4 at our alpha 8 (see
-`docs/plan/agentic-workload-inference-optimization.md`). Our first runs used the
-full-model rate 1e-5.
+recipes use 1e-5 to 4e-5 at alpha 32, which is 4e-5 to 1.6e-4 at our alpha 8 (catalog
+comment on `vortex-20-local-v3`, commit 583f21e7). Our first runs (v1, v2) used a
+normal fine-tuning rate, 1e-5. The sweep then deliberately started high, at 2e-4 in
+v3, and stepped down: 1e-4 in v5, then 5e-5 with a KL penalty.
+
+Reward and entropy below are averages of the first and last 10 updates of each run
+(Trackio `updates`; reward includes the 0.2 truncation penalty from v5 on).
+Truncation is the share of truncated replies over the last 10 updates.
 
 | Learning rate | Runs (updates) | Entropy | Truncation rate | Reward mean | Outcome |
 |---|---|---|---|---|---|
-| 1e-5 (full-model rate) | `lfm26-olmo3-random20-20260912-r3` (1-20), `lfm26-olmo3-adaptive20-20260912-r4` (1-20), `lfm26-adaptive-grpo-50-c32-20260920f` (1-50), `lfm26-vortex-v2-agentic-20260923-r1` (1-20) and other 1e-5 arms | flat, 0.15-0.25 | flat or noisy | flat: 0.39→0.43, 0.43→0.34, 0.28→0.37 | Stable but barely learns: the policy hardly moves in 20-50 updates |
-| 2e-4 | `lfm26-vortex-v3-lr2e4-20260923-r1` (1-20), `lfm26-vortex-yield-first-v4-8k-20260923-r1` (1-20) | 0.18→0.30 in 20 updates | 0.20→0.55, 0.13→0.48 | 0.39→0.25, 0.29→0.33 | Too high: entropy and truncation climb within 20 updates |
+| 1e-5 (full-model rate) | v1 `lfm26-olmo3-adaptive-oversample10x4-12k-20260915-r1` (1-20), v2 `lfm26-vortex-v2-agentic-20260923-r1` (1-20); also `lfm26-olmo3-random20-20260912-r3`, `lfm26-olmo3-adaptive20-20260912-r4`, `lfm26-adaptive-grpo-50-c32-20260920f` (1-50) | flat: 0.174→0.171 (v1), 0.173→0.166 (v2) | 30% (v1), 19% (v2) | 0.366→0.316 (v1), 0.299→0.402 (v2) | Stable but barely learns in 20-50 updates. Held-out (64K, update 20): v1 0.555, v2 0.595 against base 0.592 |
+| 2e-4 | v3 `lfm26-vortex-v3-lr2e4-20260923-r1` (1-20), v4 `lfm26-vortex-yield-first-v4-8k-20260923-r1` (1-20) | 0.186→0.255 (v3), 0.178→0.242 (v4) | 42% (v3), 43% (v4) | 0.335→0.299 (v3), 0.339→0.315 (v4) | Too high: entropy and truncation climb within 20 updates. Held-out (64K, update 20): v3 0.616, v4 0.488, which is measurably below base |
 | 1e-4 | `lfm26-vortex-v5-yield-first-64-20260925-r4` (1-20), `lfm26-vortex-v5-100-from-r4-step20-20260925-r2` (21-41), `lfm26-vortex-v5-150-dspark-opt-20260926-r1` (41-65) | 0.17→0.23 (20), →0.64 (41), →0.88 (54), →5.6 (65) | 0.1-0.25 until 56, then →0.84 | 0.35-0.45 until 56, then <0 | Learns, but entropy drifts upward from the first update and runs away after update 54 |
 | 5e-5 + KL 0.005 | `lfm26-vortex-v5-150-lr5e5-kl5e3-20260926-r2` (1-150). Run `-r1` was cancelled after 2 updates: the trainer silently ran without KL (see rule 4) | 0.18→0.29 (60), →0.40 (130), →1.24 (150) | 8-25% of completions | 0.28→0.43 by update 40, then flat around 0.4 | Stable for longer, but KL to the base model kept doubling about every 20 updates (0.029 at 60, 0.24 at 150) while reward stopped improving. Held-out (20 unseen tasks × 3): base 0.589, update 100 0.595, 130 0.599, 150 0.569, so none beat base |
 
@@ -58,6 +63,11 @@ Traces from `lfm26-vortex-v5-150-dspark-opt-20260926-r1`:
   change caused it.
 
 ### Rules
+
+No update-20 checkpoint of v1-v4 beat the base model on held-out tasks: v1-v3
+are within noise (each paired 95% bootstrap interval of the difference includes
+zero) and v4 is worse (−0.200 to −0.020;
+`docs/plan/vortex-v3-v4-matched-heldout-evaluation.md`).
 
 1. **Do not reuse full-model learning rates for LoRA.** At rank 4 / alpha 8, 1e-5
    left the policy nearly unchanged over 20-50 updates; published runs train for
@@ -158,8 +168,8 @@ so each setting can be defended or changed. Values are as stated in each paper;
 |---|---|---|
 | Prompt groups × rollouts per update | 8×4, 10×4, 16×4 | 16×4 (64 rollouts) uses the RTX PRO well. SAMPO's paper uses groups of 8; not yet tried. |
 | Truncation penalty | none, 0.2 | 0.2 ranks a truncated rollout below an equally scored finished one before active sampling measures spread. It also adds negative gradient when the policy degrades. |
-| Curriculum | random, adaptive quota, yield-first | Yield-first (exploration share 0.2) is the current default. |
-| Per-reply output budget | 4096 | Healthy episodes hit it 5-6% of the time; raising it does not prevent collapse. |
+| Curriculum | random, adaptive quota, yield-first | Choosing tasks by their earlier pass rates cut groups whose rollouts all score the same from 52% (random, `lfm26-olmo3-random20-20260912-r3`) to 15% (adaptive, `lfm26-olmo3-adaptive20-20260912-r4`), and sampling rounds per update from 5.6 to 2.1. Yield-first (exploration share 0.2) took v3's 30% to 20% in v4 and runs at 9-10% from v5 on, where the environment fix also made the always-failing HR tasks solvable. It is the current default. |
+| Per-reply output budget | 4096, 8192 (v4) | v4 raised it to 8192 because v3's truncated replies often stopped at exactly 4096 tokens. The traces showed the model spending the extra budget on thinking and then producing garbage, so budget was not the constraint; v5 went back to 4096 and added the truncation penalty. Healthy episodes hit 4096 5-6% of the time. |
 | Turn budget | 12 | Healthy episodes averaged 6.3 turns; 0-3% used all 12. |
 | Context | 24,576 | 3% of healthy episodes exceeded 23K tokens. |
 
@@ -194,8 +204,13 @@ recompiles are the candidates.
 
 - The experiments listed under Research basis: LoRA rate 1e-5 with warmup, KL
   off or 0.01, truncation under 10%, held-out checkpoint selection.
-- SAMPO with environment-derived turn rewards (assertion progress and failed tool
-  calls) is implemented and runs on the 8 GB GPU with LFM2.5-1.2B
-  (`lfm12-sampo-turns-8gb-20260926-r1`); a 2.6B comparison against this VORTEX
-  control is the next experiment. Anchor-state step advantages match 41% of
-  turns in these traces, 50% with IDs stripped.
+- SAMPO with environment-derived turn rewards (assertion progress minus 0.05 per
+  failed tool call) at the KL run's settings is running as
+  `lfm26-sampo-turns-150-lr5e5-kl5e3-20260927-r2`. Over updates 101-121 it drifted
+  less than the KL run (entropy 0.28 against 0.33, KL 0.051 against 0.077), but by
+  update 141 entropy had reached 0.56 and KL 0.235. Its checkpoints at 100, 130 and
+  150 go on the same held-out suite (`heldout-matched-64k-v3`) against base 0.591;
+  compare them in Observatory's Evals views. Anchor-state step advantages match
+  41% of turns in VORTEX traces, 50% with IDs stripped.
+- Run notes in Observatory (KL run: "How this run came about") hold the full run
+  history, including which reasons were not recorded at the time.
