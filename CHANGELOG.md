@@ -25,6 +25,14 @@ where they are recorded.
   `posttrain note`.
 - One metric catalog (`posttrain_observatory.metric_catalog`) describes every
   metric job views show and every queryable measure.
+- Observatory evaluation views, built from the training run and checkpoint
+  step each evaluation records (`GET /api/v1/evaluations`,
+  `GET /api/v1/evaluations/tasks`): the sidebar lists each training run's
+  checkpoint evaluations under it with their suite and score; a training run's
+  Evals tab compares the base model with each checkpoint step per suite,
+  overall and per task; and the Evals page compares two training runs of the
+  same base model on a suite they share.
+- Observatory run pages have a Notes tab for the run card and notes.
 
 ### Changed
 
@@ -46,6 +54,18 @@ where they are recorded.
   Policy optimization swimlane beside tool calls per rollout.
   Chart lanes share one step range, axis labels stay short for values near
   zero, and each tab names the metrics a run did not record.
+- Observatory tables page instead of growing or scrolling inside a box (note
+  tables 15 rows, prompt groups 10, traces 25; the last page's Next loads older
+  rows), sort by column, and note tables have a row filter. Note text reflows
+  to the page width, and data tables keep ids on one line, wrap long prose
+  between words and scroll sideways with the first column pinned.
+- Group-policy and SAMPO run cards (templates `@3`) show first and last
+  ten-update averages of reward and entropy, the best ten-update window, KL and
+  truncation over the last ten updates, and the recorded error message.
+- Trackio and W&B runs are named by the full run id instead of its first eight
+  characters (every held-out evaluation showed as `eval.general-eval-lfm`).
+  Resuming a Trackio run falls back to the old name, and runs that carry it
+  are shown with their full id.
 - The release candidate workflow no longer runs a GPU job: it builds,
   verifies, installs from the development index and publishes. Its packed
   transformation canary wrote a `release-candidate-<run id>` run into the lab
@@ -77,6 +97,9 @@ where they are recorded.
   refused every time, and was dropped when the job exited (7,546 of 11,876
   traces of a 150-update run). Trackio dev31 sends at most 8 MB per request and
   keeps what it could not send.
+- SFT/DPO and veRL runs recorded no GPU metrics: their images lacked
+  `nvidia-ml-py`, which Trackio's GPU monitor needs and other images received
+  through vLLM. The common runtime profile now pins it.
 - SAMPO, GDPO and CAPO on the TRL backend rejected their first update when the
   rollout engine used speculative decoding (DSpark, MTP): their observation
   features ignored the engine, so its speculative counters looked unexpected.
