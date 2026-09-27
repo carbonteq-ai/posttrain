@@ -34,7 +34,7 @@ function ratio(metric: SummaryMetric): string {
 }
 
 function strategyTitle(sampling: GRPOSamplingEvidence): string {
-  if (sampling.strategy === 'olmo3_active') return 'OLMo active sampling';
+  if (sampling.strategy === 'olmo3_active') return 'Active sampling';
   if (sampling.strategy === 'dynamic') return 'Dynamic sampling';
   return 'Optimizer sampling';
 }

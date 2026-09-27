@@ -36,6 +36,15 @@ where they are recorded.
   evaluation name tasks the same way across runs.
 - Trackio `0.31.5.post14.dev31` (run notes, read-only project SQL, set-oriented
   trace-fact replacement, reliable remote delivery; Doris schema version 4).
+- Observatory: SAMPO runs use the GRPO overview (headline metrics, the
+  Policy optimization swimlane with rollout behavior, update stability, rollout
+  population, runtime, freshness, acceleration, active sampling, tool behavior,
+  rollout setup and grouped rollouts) plus a Hierarchical credit tab. SAMPO's
+  episode and turn advantage means are zero by construction; the trainer now
+  records episode and turn credit magnitudes, the turn share of credit, turns
+  with turn credit, and turns without a peer. GRPO gains a Tool behavior tab.
+  Chart lanes share one step range, axis labels stay short for values near
+  zero, and each tab names the metrics a run did not record.
 - The release candidate workflow no longer runs a GPU job: it builds,
   verifies, installs from the development index and publishes. Its packed
   transformation canary wrote a `release-candidate-<run id>` run into the lab

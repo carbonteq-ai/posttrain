@@ -167,7 +167,7 @@ def test_new_job_metric_schemas_are_available_through_existing_routes() -> None:
         smoke = client.get("/api/v1/job-kinds/serve.smoke").json()
         prepare = client.get("/api/v1/job-kinds/data.prepare").json()
 
-    assert any(field["metric"] == "train/rl/turn_advantage_mean" for field in sampo["summary_fields"])
+    assert any(field["metric"] == "train/rl/turn_credit_share" for field in sampo["summary_fields"])
     assert {field["metric"] for field in smoke["summary_fields"]} == {
         "serve/probe_healthy",
         "serve/probe_model_available",

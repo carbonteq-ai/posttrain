@@ -126,6 +126,10 @@ type BrowserRoute =
 
 const workflowStageOrder = ['screen', 'train', 'qualify'];
 
+// Policy-optimization runs share one overview: GRPO-family evidence, rollout
+// behavior, sampling policy and grouped rollouts. SAMPO adds hierarchical credit.
+const policyOptimizationJobKinds = new Set(['train.grpo', 'train.gdpo', 'train.capo', 'train.sampo']);
+
 const sections: Section[] = [
   'Overview',
   'Metrics',
@@ -1732,7 +1736,7 @@ function GenericOverview({
     [view.metric_help],
   );
   const baseChart = charts[Math.min(activeChart, Math.max(charts.length - 1, 0))];
-  const isGroupPolicy = ['train.grpo', 'train.gdpo', 'train.capo'].includes(selected.run.job_kind);
+  const isGroupPolicy = policyOptimizationJobKinds.has(selected.run.job_kind);
   const groupPolicyLabel = isGroupPolicy ? selected.run.job_kind.slice('train.'.length).toUpperCase() : null;
   const rolloutSeries: MetricSeries[] = isGroupPolicy && baseChart?.key === 'optimization'
     ? [
@@ -1757,7 +1761,9 @@ function GenericOverview({
   const leadDelta = previousLeadPoint && latestLeadPoint
     ? latestLeadPoint.value - previousLeadPoint.value
     : null;
-  const latestStep = chart?.series[0]?.points.at(-1)?.step ?? null;
+  const recordedSteps = chart?.series.flatMap((series) => series.points.flatMap((point) => point.step == null ? [] : [point.step])) ?? [];
+  const latestStep = recordedSteps.length ? Math.max(...recordedSteps) : null;
+  const unrecordedSeries = chart?.series.filter((series) => series.points.length === 0) ?? [];
   const [selectedStep, setSelectedStep] = useState<number | null>(latestStep);
   useEffect(() => setSelectedStep(latestStep), [activeChart, latestStep, selected.run.run_id]);
   const selectedSeries = chart?.series.map((series) => ({
@@ -1806,6 +1812,7 @@ function GenericOverview({
   const grpoEntropy = summaryByKey.get('entropy');
   const grpoZeroVariance = summaryByKey.get('zero_variance');
   const grpoGradNorm = summaryByKey.get('grad_norm');
+  const sampoTurnShare = summaryByKey.get('turn_credit_share');
   const grpoClip = summaryByKey.get('clip_fraction');
   const grpoClipLow = summaryByKey.get('clip_fraction_low');
   const grpoClipHigh = summaryByKey.get('clip_fraction_high');
@@ -1876,7 +1883,7 @@ function GenericOverview({
           {lead ? (
             <section className="obs-card overflow-hidden">
               {isGroupPolicy ? (
-                <div role="group" aria-label={`${groupPolicyLabel} headline metrics`} className="grid grid-cols-2 border-b border-divider sm:grid-cols-3 xl:grid-cols-5">
+                <div role="group" aria-label={`${groupPolicyLabel} headline metrics`} className={`grid grid-cols-2 border-b border-divider sm:grid-cols-3 ${isSampo ? 'xl:grid-cols-6' : 'xl:grid-cols-5'}`}>
                   <HeadlineMetric
                     label="Mean reward"
                     value={formatValue(grpoReward?.value, grpoReward?.unit)}
@@ -1919,6 +1926,16 @@ function GenericOverview({
                     state={grpoGradNorm?.state ?? 'missing'}
                     note="update scale"
                   />
+                  {isSampo && (
+                    <HeadlineMetric
+                      label="Turn share of credit"
+                      value={formatValue(sampoTurnShare?.value, sampoTurnShare?.unit)}
+                      metric={sampoTurnShare?.metric ?? null}
+                      help={sampoTurnShare?.metric ? helpByMetric.get(sampoTurnShare.metric) : undefined}
+                      state={sampoTurnShare?.state ?? 'missing'}
+                      note="0% is episode-only credit"
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="grid border-b border-divider lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -1927,7 +1944,7 @@ function GenericOverview({
                 </div>
               )}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-divider px-4 py-2.5">
-                {charts.length > 1 ? <div className="inline-flex rounded-[5px] border border-divider bg-subtle p-0.5" role="tablist" aria-label="Training evidence chart"><>{charts.map((item, index) => <button key={item.key} type="button" role="tab" aria-selected={activeChart === index} onClick={() => onChart(index)} className={`rounded-[3px] px-3 py-1.5 text-xs ${activeChart === index ? 'bg-surface text-violet-800 shadow-sm' : 'text-muted hover:text-ink'}`}>{item.title}</button>)}</></div> : <span className="text-xs font-medium">{chart?.title}</span>}
+                {charts.length > 1 ? <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[5px] border border-divider bg-subtle p-0.5" role="tablist" aria-label="Training evidence chart"><>{charts.map((item, index) => <button key={item.key} type="button" role="tab" aria-selected={activeChart === index} onClick={() => onChart(index)} className={`whitespace-nowrap rounded-[3px] px-2.5 py-1.5 text-xs ${activeChart === index ? 'bg-surface text-violet-800 shadow-sm' : 'text-muted hover:text-ink'}`}>{item.title}</button>)}</></div> : <span className="text-xs font-medium">{chart?.title}</span>}
                 <span className="max-w-xl text-right text-[11px] text-muted">{chart?.question ?? 'Select a point to inspect exact evidence'}</span>
               </div>
               <div className="flex min-h-10 flex-wrap items-center gap-x-5 gap-y-2 border-b border-divider bg-subtle/45 px-4 py-2 text-[11px]">
@@ -1935,6 +1952,12 @@ function GenericOverview({
                 {selectedSeries.map((item) => <span key={item.name} className="inline-flex items-center text-secondary"><MetricLabel label={chartLabels[item.name] ?? helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} className="text-muted" /> <strong className="ml-1 font-medium text-ink">{formatValue(item.value, chartUnits[item.name] ?? metricUnits[item.name] ?? helpByMetric.get(item.name)?.unit)}</strong></span>)}
               </div>
               {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
+              {unrecordedSeries.length > 0 && (
+                <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
+                  Not recorded by this run: {unrecordedSeries.map((series) => chartLabels[series.name] ?? helpByMetric.get(series.name)?.label ?? metricLabel(series.name)).join(', ')}.
+                  {isSampo && chart?.key === 'hierarchical_credit' ? ' SAMPO runs from Posttrain 0.4.11 record episode and turn credit.' : ''}
+                </p>
+              )}
               {isGroupPolicy && chart?.key === 'optimization' && rolloutBehaviorLoading && <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">Reading retained rollout evidence…</p>}
               {isGroupPolicy && chart?.key === 'optimization' && rolloutBehavior?.state === 'partial' && rolloutBehavior.points.length > 0 && (
                 <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
@@ -2231,7 +2254,7 @@ function TraceView({
     let active = true;
     setGroupRewards(null);
     setGroupRewardError('');
-    if (jobKind !== 'train.grpo') return () => { active = false; };
+    if (!policyOptimizationJobKinds.has(jobKind)) return () => { active = false; };
     const refresh = () => {
       void api.promptGroupRewards(runKey).then((result) => {
         if (active) {
@@ -2306,7 +2329,7 @@ function TraceView({
   const distillation = useMemo(() => distillationPairing(response), [response]);
   const visiblePage = activeFilters ? filteredPage : page;
   const pageTraces = visiblePage?.items ?? [];
-  const canGroupRollouts = jobKind === 'train.grpo' && Boolean(page?.items.some((trace) => trace.prompt_group_id));
+  const canGroupRollouts = policyOptimizationJobKinds.has(jobKind) && Boolean(page?.items.some((trace) => trace.prompt_group_id));
   const inspectorRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (canGroupRollouts && detail) inspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });

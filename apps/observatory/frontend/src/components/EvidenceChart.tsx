@@ -178,6 +178,8 @@ export function scaleGroup(name: string, metricUnits: Record<string, string | nu
   if (/train\/rl\/active_sampling_(generation_rounds|generated_rows|candidate_groups_(reserved|generated|retained|unused))$/.test(name)) return 'active-sampling-count';
   if (name === 'trace/rollout/avg_thinking_tokens' || name === 'trace/rollout/avg_output_tokens') return 'rollout-tokens';
   if (name === 'trace/rollout/avg_tool_calls') return 'rollout-tool-calls';
+  if (name === 'train/rl/episode_advantage_abs_mean' || name === 'train/rl/turn_advantage_abs_mean') return 'credit-magnitude';
+  if (/train\/rl\/(turn_credit_share|turn_advantage_informative_fraction|singleton_anchor_fraction)$/.test(name)) return 'credit-share';
   if (name === 'train/learning_rate') return 'learning-rate';
   if (name === 'train/non_padding_tokens_per_second') return 'tokens-per-second';
   if (name === 'train/step_time_seconds') return 'seconds';
@@ -205,14 +207,24 @@ function axisFormatter(group: string) {
   if (group === 'unit:bytes' || group.includes('bytes')) {
     return (value: number) => `${(value / 1024 ** 3).toFixed(1)} GiB`;
   }
-  if (group === 'ratio' || group === 'unit:ratio') {
+  if (group === 'ratio' || group === 'unit:ratio' || group === 'credit-share') {
     return (value: number) => `${(value * 100).toFixed(0)}%`;
   }
   if (group === 'unit:%') return (value: number) => `${value.toFixed(0)}%`;
-  return undefined;
+  return compactAxisNumber;
+}
+
+/** Short tick labels: centred signals near zero must not print 18 decimals. */
+export function compactAxisNumber(value: number): string {
+  if (value === 0) return '0';
+  const magnitude = Math.abs(value);
+  if (magnitude >= 1e5 || magnitude < 1e-3) return value.toExponential(1).replace('e+', 'e').replace('.0e', 'e');
+  if (magnitude >= 1000) return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return String(Number(value.toPrecision(3)));
 }
 
 function axisBounds(group: string) {
+  if (group === 'credit-share') return { min: 0, max: 1 };
   if (group === 'ratio' || group === 'unit:ratio') {
     return {
       min: ({ min }: { min: number }) => min < 0 ? Math.floor(min * 20) / 20 : 0,
@@ -246,6 +258,8 @@ function groupLabel(
     'rollout-count': 'Rollout count',
     'rollout-behavior': 'Rollout behavior',
     'policy-update': 'Policy update and exploration',
+    'credit-magnitude': 'Episode vs turn credit',
+    'credit-share': 'Turn credit share and coverage',
     'active-sampling-count': 'Candidate rows',
     ratio: 'Rates and fractions',
     'unit:ratio': 'Rates and fractions',
@@ -320,12 +334,17 @@ export function EvidenceChart({
   const xOriginMs = configuredXOriginMs != null && Number.isFinite(configuredXOriginMs)
     ? configuredXOriginMs
     : Number.isFinite(observedXOriginMs) ? observedXOriginMs : null;
+  // Every lane shares one step range so a selected step lines up across lanes
+  // even when a series starts or stops earlier than the others.
+  const stepValues = xDomain === 'logical-step' && !xAxis?.categories
+    ? plottedSeries.flatMap((item) => item.points.map((point) => point.step)).filter((step): step is number => typeof step === 'number' && Number.isFinite(step))
+    : [];
   const xMinimum = xDomain === 'elapsed-time' && xRange != null && xRange[1] > xRange[0]
     ? xRange[0]
-    : undefined;
+    : stepValues.length ? Math.min(...stepValues) : undefined;
   const xMaximum = xDomain === 'elapsed-time' && xRange != null && xRange[1] > xRange[0]
     ? xRange[1]
-    : undefined;
+    : stepValues.length ? Math.max(...stepValues) : undefined;
   const scaleGroups = useMemo(
     () => [...new Set(plottedSeries.map((item) => scaleGroup(item.name, metricUnits)))],
     [metricUnits, plottedSeries],

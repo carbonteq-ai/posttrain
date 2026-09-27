@@ -11,6 +11,8 @@ from .online_rl import EnvironmentRollout
 from .profiles import SAMPOSettings
 
 _EPSILON = 1e-6
+# A turn advantage smaller than this carries no usable relative signal.
+_INFORMATIVE = 1e-9
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,6 +24,47 @@ class SAMPOAdvantages:
     turn_advantages: tuple[tuple[float, ...], ...]
     anchor_group_sizes: tuple[tuple[int, ...], ...]
     used_sparse_rewards: tuple[bool, ...]
+
+    def hierarchy_evidence(self, step_advantage_weight: float) -> dict[str, tuple[float, int]]:
+        """Per-update (mean, count) pairs that show where SAMPO's credit comes from.
+
+        Advantages are centred within each prompt group and anchor group, so
+        their plain means are zero by construction. Magnitudes and shares are
+        the readable evidence: how much credit each level carries, how much of
+        a turn's credit is its own, and how many turns had anything to compare.
+        """
+
+        turns = [
+            (episode, turn, size)
+            for episode, turn_values, sizes in zip(
+                self.episode_advantages, self.turn_advantages, self.anchor_group_sizes, strict=True
+            )
+            for turn, size in zip(turn_values, sizes, strict=True)
+        ]
+        evidence = {
+            "train/rl/episode_advantage_abs_mean": (
+                math.fsum(abs(value) for value in self.episode_advantages) / len(self.episode_advantages),
+                len(self.episode_advantages),
+            ),
+        }
+        if not turns:
+            return evidence
+        count = len(turns)
+        episode_credit = math.fsum(abs(episode) for episode, _, _ in turns)
+        turn_credit = math.fsum(abs(step_advantage_weight * turn) for _, turn, _ in turns)
+        evidence.update(
+            {
+                "train/rl/turn_advantage_abs_mean": (math.fsum(abs(turn) for _, turn, _ in turns) / count, count),
+                "train/rl/turn_advantage_informative_fraction": (
+                    sum(abs(turn) > _INFORMATIVE for _, turn, _ in turns) / count,
+                    count,
+                ),
+                "train/rl/singleton_anchor_fraction": (sum(size == 1 for _, _, size in turns) / count, count),
+            }
+        )
+        if episode_credit + turn_credit > 0:
+            evidence["train/rl/turn_credit_share"] = (turn_credit / (episode_credit + turn_credit), count)
+        return evidence
 
 
 def compute_sampo_advantages(

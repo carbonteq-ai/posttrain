@@ -45,6 +45,11 @@ LEGACY_ROLLOUT_BATCH_METRICS: Mapping[str, Combine] = {
     "train/rl/turn_advantage_mean": "mean",
     "train/rl/anchor_group_size_mean": "mean",
     "train/rl/sparse_reward_projection_fraction": "mean",
+    "train/rl/episode_advantage_abs_mean": "mean",
+    "train/rl/turn_advantage_abs_mean": "mean",
+    "train/rl/turn_credit_share": "mean",
+    "train/rl/turn_advantage_informative_fraction": "mean",
+    "train/rl/singleton_anchor_fraction": "mean",
 }
 _BATCH = "rollout_batch_ordinal"
 

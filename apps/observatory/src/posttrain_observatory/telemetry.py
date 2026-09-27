@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from types import MappingProxyType
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -585,7 +585,7 @@ DPO_TELEMETRY = JobTelemetryDefinition(
 )
 
 GRPO_TELEMETRY = JobTelemetryDefinition(
-    schema_version=2,
+    schema_version=3,
     job_kind="train.grpo",
     display_name="Group relative policy optimization",
     summary_fields=(
@@ -747,6 +747,12 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
                 "train/rl/active_sampling_candidate_groups_retained",
                 "train/rl/active_sampling_candidate_groups_unused",
             ),
+        ),
+        ChartDefinition(
+            key="tool_behavior",
+            title="Tool behavior",
+            question="Are multi-turn trajectories invoking tools successfully?",
+            metrics=("train/rl/tool_call_frequency", "train/rl/tool_failure_frequency"),
         ),
     ),
     metric_help=_help_for(
@@ -1134,246 +1140,199 @@ CAPO_TELEMETRY = _group_policy_telemetry_variant(
     acronym="CAPO",
 )
 
-SAMPO_TELEMETRY = JobTelemetryDefinition(
-    job_kind="train.sampo",
-    display_name="Step-aware multi-turn policy optimization",
-    summary_fields=(
-        SummaryFieldDefinition(key="reward_mean", label="Mean reward", metric="train/rl/reward_mean", required=True),
-        SummaryFieldDefinition(key="reward_std", label="Reward standard deviation", metric="train/rl/reward_std"),
-        SummaryFieldDefinition(
-            key="episode_advantage",
-            label="Episode advantage",
-            metric="train/rl/episode_advantage_mean",
-            required=True,
-        ),
-        SummaryFieldDefinition(
-            key="turn_advantage",
-            label="Turn advantage",
-            metric="train/rl/turn_advantage_mean",
-            required=True,
-        ),
-        SummaryFieldDefinition(
-            key="anchor_group_size",
-            label="Anchor group size",
-            metric="train/rl/anchor_group_size_mean",
-        ),
-        SummaryFieldDefinition(
-            key="sparse_reward_projection",
-            label="Sparse-reward projection",
-            metric="train/rl/sparse_reward_projection_fraction",
-            unit="ratio",
-        ),
-        SummaryFieldDefinition(key="policy_loss", label="Policy loss", metric="train/rl/policy_loss", required=True),
-        SummaryFieldDefinition(
-            key="failed_rollouts",
-            label="Failed rollouts",
-            metric="train/rl/rollouts_failed",
-            reducer="sum",
-        ),
+# Advantages are centred within their groups, so SAMPO's plain advantage means
+# are zero by construction. The credit tab shows magnitudes and shares instead.
+_SAMPO_CREDIT_CHART = ChartDefinition(
+    key="hierarchical_credit",
+    title="Hierarchical credit",
+    question="How much of each turn's credit is its own, and did turns have a comparable attempt to be judged against?",
+    metrics=(
+        "train/rl/turn_credit_share",
+        "train/rl/turn_advantage_informative_fraction",
+        "train/rl/singleton_anchor_fraction",
+        "train/rl/episode_advantage_abs_mean",
+        "train/rl/turn_advantage_abs_mean",
+        "train/rl/anchor_group_size_mean",
     ),
-    charts=(
-        ChartDefinition(
-            key="hierarchical_advantages",
-            title="Hierarchical advantages",
-            question="Do episode and turn credit assignments remain informative across the sampled trajectories?",
-            metrics=(
-                "train/rl/episode_advantage_mean",
-                "train/rl/turn_advantage_mean",
-                "train/rl/anchor_group_size_mean",
-                "train/rl/sparse_reward_projection_fraction",
-            ),
-        ),
-        ChartDefinition(
-            key="learning_signal",
-            title="Learning signal",
-            question="Is verifier reward improving while groups retain enough variation for policy learning?",
-            metrics=("train/rl/reward_mean", "train/rl/reward_std", "train/rl/group_zero_variance_fraction"),
-        ),
-        ChartDefinition(
-            key="optimization",
-            title="Policy optimization",
-            question="Are sequence-clipped updates controlled without collapsing exploration?",
-            metrics=(
-                "train/rl/policy_loss",
-                "train/rl/entropy",
-                "train/rl/kl",
-                "train/rl/clip_fraction",
-                "train/grad_norm",
-                "train/learning_rate",
-            ),
-        ),
-        ChartDefinition(
-            key="rollouts",
-            title="Rollout population",
-            question="How much requested multi-turn evidence completed, failed, truncated, or became unscorable?",
-            metrics=(
-                "train/rl/rollouts_attempted",
-                "train/rl/rollouts_completed",
-                "train/rl/rollouts_failed",
-                "train/rl/rollouts_truncated",
-                "train/rl/rollouts_unscorable",
-            ),
-        ),
-        ChartDefinition(
-            key="runtime",
-            title="Runtime efficiency",
-            question="What end-to-end step cost and effective rollout throughput were observed?",
-            metrics=("train/step_time_seconds", "train/rl/rollout_tokens_per_second"),
-        ),
-        ChartDefinition(
-            key="tool_behavior",
-            title="Tool behavior",
-            question="Are multi-turn trajectories invoking tools successfully?",
-            metrics=("train/rl/tool_call_frequency", "train/rl/tool_failure_frequency"),
-        ),
+)
+
+_SAMPO_CREDIT_SUMMARY = (
+    SummaryFieldDefinition(
+        key="turn_credit_share", label="Turn share of credit", metric="train/rl/turn_credit_share", unit="ratio"
     ),
-    metric_help=(
-        *_help_for(
+    SummaryFieldDefinition(
+        key="turn_credit_coverage",
+        label="Turns with turn credit",
+        metric="train/rl/turn_advantage_informative_fraction",
+        unit="ratio",
+    ),
+    SummaryFieldDefinition(key="episode_credit", label="Episode credit", metric="train/rl/episode_advantage_abs_mean"),
+    SummaryFieldDefinition(key="turn_credit", label="Turn credit", metric="train/rl/turn_advantage_abs_mean"),
+    SummaryFieldDefinition(
+        key="anchor_group_size", label="Anchor group size", metric="train/rl/anchor_group_size_mean"
+    ),
+    SummaryFieldDefinition(
+        key="sparse_reward_projection",
+        label="Sparse-reward projection",
+        metric="train/rl/sparse_reward_projection_fraction",
+        unit="ratio",
+    ),
+)
+
+
+def _sampo_telemetry() -> JobTelemetryDefinition:
+    """SAMPO reads like GRPO, plus the hierarchical credit it adds.
+
+    It shares GRPO's population, stability, runtime, freshness, acceleration and
+    active-sampling evidence (the TRL backend emits the same metrics) and adds
+    one tab for episode- versus turn-level credit. Dynamic sampling is a GRPO
+    algorithm option SAMPO does not have.
+    """
+
+    charts: list[ChartDefinition] = []
+    for chart in GRPO_TELEMETRY.charts:
+        if chart.key == "dynamic_sampling":
+            continue
+        charts.append(chart)
+        if chart.key == "optimization":
+            charts.append(_SAMPO_CREDIT_CHART)
+    summary_fields = (*GRPO_TELEMETRY.summary_fields, *_SAMPO_CREDIT_SUMMARY)
+    fields: dict[str, Any] = {
+        "schema_version": 2,
+        "job_kind": "train.sampo",
+        "display_name": "Step-aware multi-turn policy optimization",
+        "summary_fields": summary_fields,
+        "charts": tuple(charts),
+        "health_rules": SAMPO_HEALTH_RULES,
+        "comparison_keys": ("reward_mean", "turn_credit_share", "policy_loss", "failed_rollouts"),
+        "trace_sections": GRPO_TELEMETRY.trace_sections,
+        "artifact_roles": _training_artifacts(),
+        "delta_tip_metrics": (
             "train/rl/reward_mean",
-            "train/rl/reward_std",
-            "train/rl/group_zero_variance_fraction",
+            "train/rl/turn_credit_share",
+            "train/rl/policy_loss",
+            "train/rl/rollout_tokens_per_second",
+        ),
+        "projection_metrics": GRPO_TELEMETRY.projection_metrics,
+        "evidence_requirements": SAMPO_EVIDENCE_REQUIREMENTS,
+    }
+    names = {
+        *(field.metric for field in summary_fields),
+        *(metric for chart in charts for metric in chart.metrics),
+        *(rule.metric for rule in SAMPO_HEALTH_RULES),
+        *(metric for requirement in SAMPO_EVIDENCE_REQUIREMENTS for metric in requirement.metrics),
+        *GRPO_TELEMETRY.projection_metrics,
+    }
+    return JobTelemetryDefinition(**fields, metric_help=_help_for(*sorted(names)))
+
+
+SAMPO_HEALTH_RULES: tuple[HealthRuleDefinition, ...] = (
+    HealthRuleDefinition(
+        id="sampo-reward-non-finite",
+        kind="non_finite",
+        metric="train/rl/reward_mean",
+        message="SAMPO reward contains a non-finite value.",
+        severity="error",
+    ),
+    HealthRuleDefinition(
+        id="sampo-policy-loss-non-finite",
+        kind="non_finite",
+        metric="train/rl/policy_loss",
+        message="SAMPO policy loss contains a non-finite value.",
+        severity="error",
+    ),
+    HealthRuleDefinition(
+        id="sampo-rollout-failures",
+        kind="threshold",
+        metric="train/rl/rollouts_failed",
+        operator="gt",
+        threshold=0,
+        message="One or more SAMPO rollout attempts failed.",
+        severity="error",
+    ),
+    HealthRuleDefinition(
+        id="sampo-unscorable-rollouts",
+        kind="threshold",
+        metric="train/rl/rollouts_unscorable",
+        operator="gt",
+        threshold=0,
+        message="One or more SAMPO rollouts did not produce a finite reward.",
+        severity="error",
+    ),
+)
+
+SAMPO_EVIDENCE_REQUIREMENTS: tuple[EvidenceRequirementDefinition, ...] = (
+    EvidenceRequirementDefinition(
+        key="hierarchical_credit",
+        label="Hierarchical credit assignment",
+        level="required",
+        metrics=(
+            "train/rl/episode_advantage_mean",
+            "train/rl/turn_advantage_mean",
+            "train/rl/anchor_group_size_mean",
+            "train/rl/sparse_reward_projection_fraction",
+        ),
+        reason="SAMPO needs direct evidence that its episode and turn-level credit assignment executed.",
+    ),
+    EvidenceRequirementDefinition(
+        key="learning_signal",
+        label="Relative learning signal",
+        level="required",
+        metrics=("train/rl/reward_mean", "train/rl/reward_std", "train/rl/group_zero_variance_fraction"),
+        reason="Reward level and within-group variation are both required to interpret policy learning.",
+    ),
+    EvidenceRequirementDefinition(
+        key="controlled_update",
+        label="Controlled policy update",
+        level="required",
+        metrics=(
             "train/rl/policy_loss",
             "train/rl/entropy",
-            "train/rl/kl",
             "train/rl/clip_fraction",
             "train/grad_norm",
             "train/learning_rate",
+        ),
+        reason="The sequence-clipped objective must be paired with exploration and gradient-scale evidence.",
+    ),
+    EvidenceRequirementDefinition(
+        key="rollout_population",
+        label="Rollout population",
+        level="required",
+        metrics=(
             "train/rl/rollouts_attempted",
             "train/rl/rollouts_completed",
             "train/rl/rollouts_failed",
             "train/rl/rollouts_truncated",
             "train/rl/rollouts_unscorable",
-            "train/step_time_seconds",
-            "train/rl/rollout_tokens_per_second",
-            "train/rl/tool_call_frequency",
-            "train/rl/tool_failure_frequency",
         ),
-        *_help_for("train/rl/episode_advantage_mean"),
-        *_help_for("train/rl/turn_advantage_mean"),
-        *_help_for("train/rl/anchor_group_size_mean"),
-        *_help_for("train/rl/sparse_reward_projection_fraction"),
+        reason="Every update needs an auditable population denominator and terminal outcomes.",
     ),
-    health_rules=(
-        HealthRuleDefinition(
-            id="sampo-reward-non-finite",
-            kind="non_finite",
-            metric="train/rl/reward_mean",
-            message="SAMPO reward contains a non-finite value.",
-            severity="error",
-        ),
-        HealthRuleDefinition(
-            id="sampo-policy-loss-non-finite",
-            kind="non_finite",
-            metric="train/rl/policy_loss",
-            message="SAMPO policy loss contains a non-finite value.",
-            severity="error",
-        ),
-        HealthRuleDefinition(
-            id="sampo-rollout-failures",
-            kind="threshold",
-            metric="train/rl/rollouts_failed",
-            operator="gt",
-            threshold=0,
-            message="One or more SAMPO rollout attempts failed.",
-            severity="error",
-        ),
-        HealthRuleDefinition(
-            id="sampo-unscorable-rollouts",
-            kind="threshold",
-            metric="train/rl/rollouts_unscorable",
-            operator="gt",
-            threshold=0,
-            message="One or more SAMPO rollouts did not produce a finite reward.",
-            severity="error",
-        ),
+    EvidenceRequirementDefinition(
+        key="runtime_efficiency",
+        label="Runtime efficiency",
+        level="required",
+        metrics=("train/step_time_seconds", "train/rl/rollout_tokens_per_second"),
+        reason="End-to-end step cost and rollout throughput are required for runtime comparison.",
     ),
-    comparison_keys=(
-        "reward_mean",
-        "episode_advantage",
-        "turn_advantage",
-        "policy_loss",
-        "failed_rollouts",
+    EvidenceRequirementDefinition(
+        key="reference_policy",
+        label="Reference-policy drift",
+        level="conditional",
+        condition="reference_kl_enabled",
+        metrics=("train/rl/kl",),
+        reason="KL evidence is owed whenever a non-zero reference penalty is selected.",
     ),
-    trace_sections=(TraceSectionDefinition(trace_type="verifiers", label="Multi-turn rollouts"),),
-    artifact_roles=_training_artifacts(),
-    delta_tip_metrics=(
-        "train/rl/reward_mean",
-        "train/rl/episode_advantage_mean",
-        "train/rl/turn_advantage_mean",
-        "train/rl/policy_loss",
-        "train/rl/rollout_tokens_per_second",
-    ),
-    evidence_requirements=(
-        EvidenceRequirementDefinition(
-            key="hierarchical_credit",
-            label="Hierarchical credit assignment",
-            level="required",
-            metrics=(
-                "train/rl/episode_advantage_mean",
-                "train/rl/turn_advantage_mean",
-                "train/rl/anchor_group_size_mean",
-                "train/rl/sparse_reward_projection_fraction",
-            ),
-            reason="SAMPO needs direct evidence that its episode and turn-level credit assignment executed.",
-        ),
-        EvidenceRequirementDefinition(
-            key="learning_signal",
-            label="Relative learning signal",
-            level="required",
-            metrics=("train/rl/reward_mean", "train/rl/reward_std", "train/rl/group_zero_variance_fraction"),
-            reason="Reward level and within-group variation are both required to interpret policy learning.",
-        ),
-        EvidenceRequirementDefinition(
-            key="controlled_update",
-            label="Controlled policy update",
-            level="required",
-            metrics=(
-                "train/rl/policy_loss",
-                "train/rl/entropy",
-                "train/rl/clip_fraction",
-                "train/grad_norm",
-                "train/learning_rate",
-            ),
-            reason="The sequence-clipped objective must be paired with exploration and gradient-scale evidence.",
-        ),
-        EvidenceRequirementDefinition(
-            key="rollout_population",
-            label="Rollout population",
-            level="required",
-            metrics=(
-                "train/rl/rollouts_attempted",
-                "train/rl/rollouts_completed",
-                "train/rl/rollouts_failed",
-                "train/rl/rollouts_truncated",
-                "train/rl/rollouts_unscorable",
-            ),
-            reason="Every update needs an auditable population denominator and terminal outcomes.",
-        ),
-        EvidenceRequirementDefinition(
-            key="runtime_efficiency",
-            label="Runtime efficiency",
-            level="required",
-            metrics=("train/step_time_seconds", "train/rl/rollout_tokens_per_second"),
-            reason="End-to-end step cost and rollout throughput are required for runtime comparison.",
-        ),
-        EvidenceRequirementDefinition(
-            key="reference_policy",
-            label="Reference-policy drift",
-            level="conditional",
-            condition="reference_kl_enabled",
-            metrics=("train/rl/kl",),
-            reason="KL evidence is owed whenever a non-zero reference penalty is selected.",
-        ),
-        EvidenceRequirementDefinition(
-            key="tool_behavior",
-            label="Tool-use behavior",
-            level="conditional",
-            condition="tool_environment",
-            metrics=("train/rl/tool_call_frequency", "train/rl/tool_failure_frequency"),
-            reason="Tool environments owe invocation and failure coverage in addition to reward.",
-        ),
+    EvidenceRequirementDefinition(
+        key="tool_behavior",
+        label="Tool-use behavior",
+        level="conditional",
+        condition="tool_environment",
+        metrics=("train/rl/tool_call_frequency", "train/rl/tool_failure_frequency"),
+        reason="Tool environments owe invocation and failure coverage in addition to reward.",
     ),
 )
+
+SAMPO_TELEMETRY = _sampo_telemetry()
 
 DISTILL_TELEMETRY = JobTelemetryDefinition(
     job_kind="train.distill",

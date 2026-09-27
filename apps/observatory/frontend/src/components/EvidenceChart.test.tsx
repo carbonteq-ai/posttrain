@@ -21,6 +21,7 @@ import {
   formatElapsedAxis,
   formatElapsedDuration,
   formatTooltip,
+  compactAxisNumber,
   scaleGroup,
 } from './EvidenceChart';
 
@@ -88,6 +89,21 @@ describe('EvidenceChart tooltip', () => {
 });
 
 describe('EvidenceChart scale policy', () => {
+  it('keeps tick labels short for centred signals near zero', () => {
+    expect(compactAxisNumber(2e-18)).toBe('2e-18');
+    expect(compactAxisNumber(-1.5e-19)).toBe('-1.5e-19');
+    expect(compactAxisNumber(0)).toBe('0');
+    expect(compactAxisNumber(0.00345)).toBe('0.00345');
+    expect(compactAxisNumber(4.5)).toBe('4.5');
+  });
+
+  it('groups SAMPO credit into magnitude and share lanes', () => {
+    expect(scaleGroup('train/rl/episode_advantage_abs_mean', {})).toBe('credit-magnitude');
+    expect(scaleGroup('train/rl/turn_advantage_abs_mean', {})).toBe('credit-magnitude');
+    expect(scaleGroup('train/rl/turn_credit_share', { 'train/rl/turn_credit_share': 'ratio' })).toBe('credit-share');
+    expect(scaleGroup('train/rl/singleton_anchor_fraction', {})).toBe('credit-share');
+  });
+
   beforeEach(() => {
     chartMocks.setOption.mockClear();
     chartMocks.on.mockClear();

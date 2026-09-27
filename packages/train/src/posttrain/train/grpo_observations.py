@@ -240,6 +240,11 @@ _CANONICAL_PASSTHROUGH = frozenset(
         "train/rl/turn_advantage_mean",
         "train/rl/anchor_group_size_mean",
         "train/rl/sparse_reward_projection_fraction",
+        "train/rl/episode_advantage_abs_mean",
+        "train/rl/turn_advantage_abs_mean",
+        "train/rl/turn_credit_share",
+        "train/rl/turn_advantage_informative_fraction",
+        "train/rl/singleton_anchor_fraction",
         "serve/backend/speculative_drafts",
         "serve/backend/speculative_draft_tokens",
         "serve/backend/speculative_accepted_tokens",
@@ -270,6 +275,9 @@ _RATIO_METRICS = frozenset(
         "train/rl/tool_call_frequency",
         "train/rl/tool_failure_frequency",
         "train/rl/sparse_reward_projection_fraction",
+        "train/rl/turn_credit_share",
+        "train/rl/turn_advantage_informative_fraction",
+        "train/rl/singleton_anchor_fraction",
         "serve/backend/speculative_acceptance_rate",
         "serve/backend/kv_cache_peak_usage_ratio",
         "serve/backend/prefix_cache_hit_rate",
@@ -318,6 +326,8 @@ _NON_NEGATIVE_METRICS = frozenset(
         "serve/backend/prefix_cache_query_tokens",
         "serve/backend/prefix_cache_hit_tokens",
         "train/rl/anchor_group_size_mean",
+        "train/rl/episode_advantage_abs_mean",
+        "train/rl/turn_advantage_abs_mean",
     }
 )
 

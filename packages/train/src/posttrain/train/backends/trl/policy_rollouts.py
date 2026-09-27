@@ -366,6 +366,7 @@ def rollout_function(
                         sum(advantages.used_sparse_rewards) / len(advantages.used_sparse_rewards),
                         len(advantages.used_sparse_rewards),
                     ),
+                    **advantages.hierarchy_evidence(request.settings.step_advantage_weight),
                 },
             )
         return result

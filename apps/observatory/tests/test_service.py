@@ -505,10 +505,11 @@ def test_grpo_policy_optimization_unifies_learning_signal_and_update_control() -
         "train/rl/clip_fraction_low",
         "train/rl/clip_fraction_high",
     )
-    assert [chart.key for chart in definition.charts][-3:] == [
+    assert [chart.key for chart in definition.charts][-4:] == [
         "dynamic_sampling",
         "active_sampling_yield",
         "active_sampling_population",
+        "tool_behavior",
     ]
 
 
@@ -646,7 +647,7 @@ async def test_trace_navigation_follows_job_telemetry_definition() -> None:
 async def test_grpo_projection_exposes_population_and_selection_aware_completeness() -> None:
     view = await ObservatoryService(FixtureRunDataSource()).get_run_view("runs/grpo-silver-pine")
 
-    assert view.schema_version == 2
+    assert view.schema_version == 3
     assert view.grpo is not None
     assert view.grpo.rollout_population.requested.state == "missing"
     assert view.grpo.rollout_population.attempted.value == 96

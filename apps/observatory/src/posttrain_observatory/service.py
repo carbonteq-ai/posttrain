@@ -596,7 +596,12 @@ def _grpo_projection(
         ),
         None,
     )
-    olmo_active = _condition_active("olmo3_algorithm_enabled", resolved_inputs, series)
+    # OLMo 3 GRPO selects active refill through its algorithm; SAMPO always
+    # refills. Either way the run's own active-sampling series are the evidence.
+    active_series = series.get("train/rl/active_sampling_retained_fraction")
+    olmo_active = _condition_active("olmo3_algorithm_enabled", resolved_inputs, series) or bool(
+        active_series and active_series.points
+    )
     dynamic = any(
         series.get(metric, MetricSeries(name=metric)).points
         for metric in (
@@ -1428,7 +1433,7 @@ class ObservatoryService:
             completeness=completeness,
             grpo=(
                 _grpo_projection(detail.resolved_inputs, by_name, detail.events)
-                if definition.job_kind in GROUP_POLICY_JOB_KINDS
+                if definition.job_kind in GROUP_POLICY_JOB_KINDS | {"train.sampo"}
                 else None
             ),
             alerts=self._alerts(
@@ -2080,8 +2085,8 @@ class ObservatoryService:
                 return cached[1]
             context = await self._trace_read_context(locator)
             detail = context.detail
-            if detail.summary.job_kind != "train.grpo":
-                raise ValueError("prompt-group rewards are only available for train.grpo runs")
+            if detail.summary.job_kind not in GROUP_POLICY_JOB_KINDS | {"train.sampo"}:
+                raise ValueError("prompt-group rewards are only available for group-policy and SAMPO runs")
             result = await self.registry.resolve(locator).aggregate_trace_facts(
                 locator.run_id,
                 TraceFactsQuery(

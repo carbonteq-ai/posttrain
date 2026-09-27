@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -59,6 +60,39 @@ def test_sampo_combines_episode_and_anchor_relative_sparse_turn_advantages() -> 
     assert result.used_sparse_rewards == (True, True)
     assert result.token_advantages[0] == pytest.approx((0.975, 0.975, 0.0, 0.0, 1.0, 1.0))
     assert result.token_advantages[1] == pytest.approx((-0.975, -0.975, 0.0, 0.0, -1.0, -1.0))
+
+
+def test_sampo_hierarchy_evidence_reports_credit_magnitudes_not_centred_means() -> None:
+    result = compute_sampo_advantages(
+        _settings(),
+        ("task-1", "task-1"),
+        (_rollout(1.0, "good"), _rollout(0.0, "bad")),
+    )
+
+    evidence = result.hierarchy_evidence(step_advantage_weight=1.0)
+
+    # Plain means are zero by construction; magnitudes carry the signal.
+    assert evidence["train/rl/episode_advantage_abs_mean"] == pytest.approx((0.5, 2))
+    assert evidence["train/rl/turn_advantage_abs_mean"] == pytest.approx((0.4875, 4))
+    # Each turn's credit is episode + turn: 1.95 of 3.95 comes from the turn level.
+    assert evidence["train/rl/turn_credit_share"] == pytest.approx((1.95 / 3.95, 4))
+    assert evidence["train/rl/turn_advantage_informative_fraction"] == (1.0, 4)
+    assert evidence["train/rl/singleton_anchor_fraction"] == (0.0, 4)
+
+
+def test_sampo_hierarchy_evidence_counts_turns_without_a_comparable_anchor() -> None:
+    lonely = replace(
+        _rollout(0.0, "bad"),
+        turns=(AgenticTurn(0, 2, "observation-x", None), AgenticTurn(4, 6, "observation-y", None)),
+    )
+    result = compute_sampo_advantages(_settings(), ("task-1", "task-1"), (_rollout(1.0, "good"), lonely))
+
+    evidence = result.hierarchy_evidence(step_advantage_weight=1.0)
+
+    # Every anchor holds one turn, so no turn carries relative turn credit.
+    assert evidence["train/rl/singleton_anchor_fraction"] == (1.0, 4)
+    assert evidence["train/rl/turn_advantage_informative_fraction"] == (0.0, 4)
+    assert evidence["train/rl/turn_credit_share"] == (0.0, 4)
 
 
 def test_sampo_rejects_partial_step_reward_evidence() -> None:
