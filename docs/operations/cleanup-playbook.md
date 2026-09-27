@@ -42,6 +42,14 @@ section says so under **Gap**; do not improvise a broad command there.
 6. **Record what was removed** in the relevant plan or `ai-infra` execution log
    (sizes before and after, receipts written by the tools).
 
+## Timing
+
+Anything unused that can be rebuilt or fetched again goes as soon as it is
+unused. Only what is costly to recreate or may be resumed is kept for seven
+days: the BuildKit build cache, Hugging Face models and datasets, and Claude
+session scratch. Retained Doris backups follow their own rule below. Run
+evidence never expires on a timer: runs are purged only after review.
+
 ## When to run it
 
 - Disk alerts: alert at 70% used, stop scheduling at 80%
@@ -70,14 +78,40 @@ Posttrain project state 0.3 GB.
 
 ## Workstation
 
+`scripts/operations/cleanup_workstation.py` does everything in this section
+except merged remote branches. It previews by default:
+
+```bash
+uv run --no-sync python scripts/operations/cleanup_workstation.py            # preview
+uv run --no-sync python scripts/operations/cleanup_workstation.py --apply    # remove
+uv run --no-sync python scripts/operations/cleanup_workstation.py --only worktrees --only posttrain-images
+```
+
+A daily user timer runs it with `--apply` at 04:30. Install it once from the
+main checkout:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp scripts/operations/systemd/posttrain-cleanup-workstation.{service,timer} ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now posttrain-cleanup-workstation.timer
+journalctl --user -u posttrain-cleanup-workstation.service   # what each run removed
+```
+
+The sections below say what each class removes and keeps.
+
 ### Extra checkouts (git worktrees)
 
 **What.** Release, run-launch and feature worktrees (`~/projects/rl-*`,
 `~/.codex/worktrees/*/rl`, `~/projects/worktrees`), each 0.5-6 GB (a `.venv` or
 `node_modules` makes them large).
 
-**Check each one** (removable when it has no uncommitted or untracked work and
-its commit is merged into `origin/main` or pushed to a remote branch):
+**Removed right away** when it has no uncommitted or untracked work, its commit
+is merged into `origin/main` or pushed to a remote branch, and no process is
+working inside it. Run records a checkout holds
+(`apps/lab/.posttrain/state/executions`) are first copied into the main
+checkout with `posttrain state migrate`, which refuses while any run is
+unresolved, so a live run's launch checkout stays. The same check by hand:
 
 ```bash
 git fetch origin
@@ -91,8 +125,8 @@ for wt in $(git worktree list --porcelain | awk '/^worktree /{print $2}'); do
 done
 ```
 
-**Protect.** A detached `rl-*-run` worktree a live run was launched from; the
-current release branch; any worktree with changes. Other people's checkouts
+**Protect.** A checkout with changes, an unpushed branch, a checkout a process
+is working in, and one whose run records cannot move yet. Other people's checkouts
 (`../trackio`, `../verifiers`, `../verifiers-environments`) are never removed.
 
 **Apply** (per worktree, after review): `git worktree remove <path>` (refuses
@@ -149,10 +183,11 @@ docker image prune            # dangling layers only (safe)
 docker image rm <repo:tag>    # named Posttrain images after review
 ```
 
-Candidates: `posttrain-local:*` job images of finished runs (about 9 GB each),
-`posttrain-observatory:*` older than the deployed revision, stopped Posttrain
-containers. Keep the image of any run that is not terminal and the deployed
-Observatory revision.
+Removed right away: `posttrain-local:*` and local `registry.lan/carbonteq/posttrain-*`
+images no container uses (about 9 GB each; they rebuild or pull again), and
+`posttrain-observatory:*` images except the two newest. Containers are never
+removed by the tool: every stopped container on this machine belongs to another
+project.
 
 ### BuildKit cache (`posttrain-builder`)
 
