@@ -2507,15 +2507,9 @@ export interface components {
              * @enum {string}
              */
             transform: "identity" | "one_minus";
-            /**
-             * Within Step
-             * @default last
-             * @enum {string}
-             */
-            within_step: "last" | "sum" | "mean";
         };
         /** @enum {string} */
-        SourceKind: "run_field" | "setting" | "metric_series" | "trace_fact" | "eval_task" | "load_level" | "derived";
+        SourceKind: "run_field" | "setting" | "event" | "metric_series" | "trace_fact" | "eval_task" | "load_level" | "derived";
         /** SourceRefreshStatus */
         SourceRefreshStatus: {
             /** @default [] */

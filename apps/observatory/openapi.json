@@ -5456,16 +5456,6 @@
             ],
             "title": "Transform",
             "type": "string"
-          },
-          "within_step": {
-            "default": "last",
-            "enum": [
-              "last",
-              "sum",
-              "mean"
-            ],
-            "title": "Within Step",
-            "type": "string"
           }
         },
         "required": [
@@ -5479,6 +5469,7 @@
         "enum": [
           "run_field",
           "setting",
+          "event",
           "metric_series",
           "trace_fact",
           "eval_task",

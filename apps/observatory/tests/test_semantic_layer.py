@@ -18,6 +18,7 @@ from posttrain.tracking import (
     TraceFactsQuery,
 )
 from posttrain.tracking.models import TraceAggregateBucket
+from posttrain_observatory.metric_catalog import CATALOG_BY_METRIC, METRIC_CATALOG
 from posttrain_observatory.semantic_layer import (
     FRAMEWORK_MODEL,
     QueryError,
@@ -182,12 +183,14 @@ def _rows(result: Any) -> list[dict[str, Any]]:
 
 
 def test_framework_model_covers_every_telemetry_summary_metric() -> None:
-    covered = {measure.source.name for measure in FRAMEWORK_MODEL.measures if measure.source.kind == "metric_series"}
-    missing = {
-        kind: sorted({field.metric for field in definition.summary_fields} - covered)
-        for kind, definition in DEFAULT_TELEMETRY_DEFINITIONS.items()
+    shown = {metric for definition in DEFAULT_TELEMETRY_DEFINITIONS.values() for metric in definition.metric_names}
+    assert shown - set(CATALOG_BY_METRIC) == set(), "every metric a job view shows is described in the catalog"
+    measured = {measure.source.name for measure in FRAMEWORK_MODEL.measures if measure.source.kind == "metric_series"}
+    assert measured == {entry.metric for entry in METRIC_CATALOG if entry.entity is not None}
+    summaries = {
+        field.metric for definition in DEFAULT_TELEMETRY_DEFINITIONS.values() for field in definition.summary_fields
     }
-    assert {kind: names for kind, names in missing.items() if names} == {}
+    assert summaries - measured == set(), "every summary field can be queried"
 
 
 def test_model_rejects_duplicate_names_and_cross_entity_formulas() -> None:
