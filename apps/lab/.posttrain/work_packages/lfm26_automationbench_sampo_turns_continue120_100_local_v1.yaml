@@ -1,10 +1,10 @@
 project_id: posttrain-lab
-work_package_id: train/lfm2.5-2.6b/automationbench-sampo-turns-100-lr3e-5-kl1e-2-t05-local-v1
+work_package_id: train/lfm2.5-2.6b/automationbench-sampo-turns-100-g24x6-lr3e-5-kl1e-2-t05-local-v1
 stage: train
-description: Continue the 2.6B SAMPO run (lfm26-sampo-turns-150-lr5e5-kl5e3-20260927-r2) from its update-120 checkpoint and curriculum for 100 updates with a signal for task skill - automationbench-v1 0.4.3 penalizes tool mistakes (0.02 each, at most 0.1 per episode, and 0.02 in each turn's reward) but not empty searches, truncation penalty 0.1, sampling at temperature 0.5, learning rate 3e-5 after a 5-update warmup and a 0.01 KL penalty to the starting checkpoint.
+description: Continue the 2.6B SAMPO run (lfm26-sampo-turns-150-lr5e5-kl5e3-20260927-r2) from its update-120 checkpoint and curriculum for 100 updates of 24 prompt groups x 6 attempts (144 rollouts) with a signal for task skill - automationbench-v1 0.4.3 penalizes tool mistakes (0.02 each, at most 0.1 per episode, and 0.02 in each turn's reward) but not empty searches, truncation penalty 0.1, sampling at temperature 0.5, learning rate 3e-5 after a 5-update warmup and a 0.01 KL penalty to the starting checkpoint.
 recipe:
   type: inline
-  id: recipes/lfm2.5-2.6b-automationbench-sampo-turns-100-lr3e-5-kl1e-2-t05-local-v1@1
+  id: recipes/lfm2.5-2.6b-automationbench-sampo-turns-100-g24x6-lr3e-5-kl1e-2-t05-local-v1@1
   revision: "1"
   stage: train
   seats:
@@ -22,14 +22,14 @@ recipe:
 bindings:
   model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
   environment: {type: ref, family: environment, id: automationbench-lfm26-sampo-turns-v2}
-  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-sampo-turns-100-lr3e-5-kl1e-2-t05-local-v1}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-sampo-turns-100-g24x6-lr3e-5-kl1e-2-t05-local-v1}
   reward_projection: {type: ref, family: training, id: reward/automationbench-turn-progress@2}
-  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-local-g64-w8@2}
-  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c64-4k-t05@1}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-local-g144-w12@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c144-4k-t05@1}
 enabled_optional_jobs: []
 metadata:
   comparison_family: lfm26-automationbench-vortex-20-local-v1
-  arm: sampo-turns-continue120-100-lora3e5-kl1e2-t05-mistake-penalty-dspark
+  arm: sampo-turns-continue120-100-g24x6-lora3e5-kl1e2-t05-mistake-penalty-dspark
   task_mix: lfm26-automationbench-mix-v2
   question: Does penalizing tool mistakes, a smaller truncation penalty and a lower sampling temperature raise reward on finished episodes and held-out score beyond SAMPO's update-120 checkpoint?
   labels: [experiment, sampo, turn-rewards, automationbench, lfm2.5, yield-first, adaptive-curriculum, active-sampling, truncation-penalty, mistake-penalty, continuation, local-rtx-pro-6000]

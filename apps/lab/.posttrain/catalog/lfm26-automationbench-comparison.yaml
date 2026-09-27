@@ -1340,7 +1340,7 @@ environment:
       max_tokens: 4096
       temperature: 0.5
       top_p: 0.95
-    max_concurrent: 64
+    max_concurrent: 144
 
   automationbench-lfm26-train-mix-episode-judged-v2: &automationbench_train_mix_episode_judged_v2
     category: agentic-tool-use
@@ -2708,22 +2708,29 @@ training:
   # base model were still low) for 100 updates: learning rate 3e-5 after a
   # 5-update warmup, KL penalty 0.01 to the starting checkpoint, truncation
   # penalty 0.1 (0.2 made finishing within budget the largest reward gap).
-  lfm2.5-2.6b/automationbench-sampo-turns-100-lr3e-5-kl1e-2-t05-local-v1:
+  # 24 prompt groups of 6 attempts (144 rollouts, from 16 x 4): better group
+  # advantages, fewer groups without reward spread at temperature 0.5, and more
+  # matched states for SAMPO's turn credit. Rollout serving and environment
+  # workers run all 144 episodes at once, so an update's first round takes one
+  # episode wave as before. Refill rounds draw from the same 160-task mix, so at
+  # most 6 rounds (24 x 6 = 144 candidate prompts) fit; earlier runs needed at
+  # most 5.
+  lfm2.5-2.6b/automationbench-sampo-turns-100-g24x6-lr3e-5-kl1e-2-t05-local-v1:
     selection_type: sampo-settings
     revision: "1"
     loop:
       max_steps: 100
       max_length: 24576
       per_device_batch_size: 1
-      gradient_accumulation_steps: 64
+      gradient_accumulation_steps: 144
       learning_rate: 0.00003
       lr_scheduler_type: constant_with_warmup
       warmup_ratio: 0.05
       logging_steps: 1
       checkpoint_steps: 10
       checkpoint_limit: 3
-    num_prompts_per_step: 16
-    num_generations: 4
+    num_prompts_per_step: 24
+    num_generations: 6
     max_prompt_length: 20480
     max_completion_length: 4096
     beta: 0.01
@@ -2733,7 +2740,7 @@ training:
     importance_sampling_mode: token_truncate
     importance_sampling_clip_min: null
     importance_sampling_clip_max: 2.0
-    active_sampling: {max_candidate_batches: 10}
+    active_sampling: {max_candidate_batches: 6}
     adaptive_curriculum:
       class_field: domain
       policy: yield_first
@@ -3193,6 +3200,45 @@ training:
       timeout_seconds: 43200
     backend_options:
       rollout_execution: {env_workers: 8, episodes_per_worker: 8, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      # Measured on the RTX PRO 6000 at 9.7K-token episodes: per-layer compile
+      # 0.961 -> 0.672 s per episode at the same 8.6 GB peak. Every episode
+      # stays checkpointed: skipping recomputation below 14K tokens would save
+      # ~0.2 s per episode but raise peak memory from ~9 GB to ~53 GB. On-policy,
+      # the importance-sampling ratio comes from the training forward instead
+      # of a separate no-grad pass over the batch (0.301 s per episode).
+      compile_decoder_layers: true
+      importance_sampling_from_training_logps: true
+      vllm_policy_parity_max_sequence_tokens: 4096
+      dependency_lock: trl-fork@current
+      source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
+      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
+
+  # g64-w8@2 for 144 rollouts per update (24 prompt groups x 6): twelve
+  # environment workers of twelve episodes each, all 144 in flight at once.
+  training/lfm2.5-2.6b-trl-lora-automationbench-local-g144-w12@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post10
+    renderer:
+      id: lfm2.5-tools-thinking@2
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update:
+      kind: lora
+      rank: 4
+      alpha: 8
+      target_modules: all-linear
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 144
+      devices_per_node: 1
+      timeout_seconds: 43200
+    backend_options:
+      rollout_execution: {env_workers: 12, episodes_per_worker: 12, worker_native_threads: 1}
       use_liger_kernel: false
       logits_chunk_size: 128
       # Measured on the RTX PRO 6000 at 9.7K-token episodes: per-layer compile
@@ -4026,8 +4072,12 @@ inference:
     purpose: [rollout]
     capabilities: [tool-calling]
 
-  # The c64-4k@2 rollout serving with policy sampling at temperature 0.5.
-  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c64-4k-t05@1:
+  # c64-4k@2 for 144 concurrent episodes with policy sampling at temperature
+  # 0.5. At 64 episodes its 14.8 GB cache (539K tokens) peaked at 86% on
+  # average and at 100% at times, about 8.4K tokens per episode; 41 GiB holds
+  # about 1.6M tokens, 11K per episode for 144. vLLM sleeps during the
+  # optimizer step, so the cache never coexists with the trainer's ~9 GB peak.
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c144-4k-t05@1:
     revision: "1"
     model: models/lfm2.5-2.6b@bf16
     backend: vllm@0.29.1.dev4
@@ -4036,12 +4086,12 @@ inference:
       mode: colocate
       request_mode: async
       sleep_during_optimization: true
-      gpu_memory_utilization: 0.23
+      gpu_memory_utilization: 0.60
       tensor_parallel_size: 1
       max_model_len: 24576
-      max_num_seqs: 64
+      max_num_seqs: 144
       max_num_batched_tokens: 65536
-      kv_cache_memory_bytes: 14763950080
+      kv_cache_memory_bytes: 44023414784
       weight_sync_mode: lora
       enforce_eager: false
       enable_chunked_prefill: true
