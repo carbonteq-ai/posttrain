@@ -61,6 +61,7 @@ from posttrain.tracking import (
     TrackingPurgePlan,
     TrackingPurgeReceipt,
 )
+from posttrain.tracking.logical import logical_series
 from trackio.remote_client import RemoteClient
 from trackio.run import Run as TrackioSDKRun
 from trackio.utils import parse_trackio_server_url
@@ -1604,7 +1605,7 @@ class TrackioDataSource:
                         attributes=_json_mapping(point.get("attributes")),
                     )
                 )
-            values_by_name[name] = MetricSeries(name=name, points=tuple(points))
+            values_by_name[name] = logical_series(MetricSeries(name=name, points=tuple(points)))
         requested_system_names = tuple(name for name in names if name.startswith("system/"))
         if requested_system_names:
             detail = self._cached_detail(run_id)

@@ -31,12 +31,10 @@ class ServiceReader:
     async def metric_series(
         self, run_id: str, names: tuple[str, ...], *, max_points: int
     ) -> tuple[tuple[MetricSeries, ...], bool]:
-        from ..service import logical_metric_series
-
         series = await self._source(run_id).metric_series(run_id, names)
         downsampled = False
         result = []
-        for item in map(logical_metric_series, series):
+        for item in series:
             points = tuple(point for point in item.points if point.step is not None)
             if len(points) > max_points:
                 stride = -(-len(points) // max_points)

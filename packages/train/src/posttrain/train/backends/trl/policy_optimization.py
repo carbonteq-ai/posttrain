@@ -58,6 +58,7 @@ from .policy_telemetry import (
 from .policy_telemetry import (
     normalize_live_metrics as _normalize_live_grpo_metrics,
 )
+from .update_totals import RolloutUpdateTotals, update_totals_callback_type
 
 
 def run_grpo(
@@ -155,6 +156,7 @@ def _run_online_rl(
     )
     context.event("grpo_runtime_resolved", _online_rl_runtime_attributes(request))
     actor_update = _ActorUpdateTelemetry(context)
+    rollout_totals = RolloutUpdateTotals(context)
     trainer_type = _actor_update_trainer_type(GRPOTrainer, actor_update)
     curriculum = None
     if isinstance(request, GRPORequest | SAMPORequest) and request.settings.adaptive_curriculum is not None:
@@ -192,6 +194,7 @@ def _run_online_rl(
             ),
         )(),
         _actor_update_callback_type(imports, actor_update)(),
+        update_totals_callback_type(imports, rollout_totals)(),
         checkpoint_callback,
     ]
 
@@ -201,7 +204,7 @@ def _run_online_rl(
             trainer = trainer_type(
                 model=model,
                 reward_funcs=_reward_functions(request),
-                rollout_func=cast(Any, _rollout_function(context, request, tokenizer)),
+                rollout_func=cast(Any, _rollout_function(context, request, tokenizer, rollout_totals)),
                 args=_trainer_arguments(config_type, arguments, request),
                 train_dataset=dataset,
                 processing_class=tokenizer,
@@ -247,6 +250,8 @@ def _run_online_rl(
                         imports,
                     )
             except BaseException as error:
+                # Keep the rollout evidence of the update that failed.
+                rollout_totals.flush()
                 actor_update.fail(error)
                 preserve_recovery_checkpoint_after_error(
                     context,

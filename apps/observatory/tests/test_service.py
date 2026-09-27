@@ -21,6 +21,7 @@ from posttrain.tracking import (
     TracePayloadQuery,
     TrackingCapabilities,
 )
+from posttrain.tracking.logical import logical_series
 from posttrain_observatory import (
     DEFAULT_TELEMETRY_DEFINITIONS,
     ChartDefinition,
@@ -80,14 +81,17 @@ class FakeRunDataSource:
     ) -> tuple[MetricSeries, ...]:
         self.metric_reads.append((names, start_step, end_step, page_size))
         values = self.series[run_id]
+        # A conforming reader returns logical steps (posttrain.tracking.logical_series).
         return tuple(
-            MetricSeries(
-                name=name,
-                points=tuple(
-                    point
-                    for point in values.get(name, MetricSeries(name=name)).points
-                    if _metric_point_in_range(point, start_step, end_step)
-                ),
+            logical_series(
+                MetricSeries(
+                    name=name,
+                    points=tuple(
+                        point
+                        for point in values.get(name, MetricSeries(name=name)).points
+                        if _metric_point_in_range(point, start_step, end_step)
+                    ),
+                )
             )
             for name in names
         )

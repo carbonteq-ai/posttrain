@@ -18,14 +18,17 @@ To see it working: `posttrain query -m update_seconds:sum,rollout_share --by run
 
 - [x] (2026-09-27) Checkpointed the current state: semantic layer surfaces (0f60c625), canonical run-notes amendment (179fb196), note store (803aff8d), renderer, cards and surfaces (946375d3), Trackio dev28 pin (5473a0a7), web page and report fixes (8f49991c).
 - [x] (2026-09-27) Wrote this plan after an architecture review with the user.
-- [ ] Milestone 0: amend the canonical baseline (metric envelope: one value per update; readers return logical steps; SQL as the query language; notes cite SQL blocks).
-- [ ] Milestone 1: metrics correct at the source (trainer writes per-update values; readers return logical steps through one shared function; one legacy rule for runs already recorded).
+- [x] (2026-09-27) Milestone 0: canonical amendment (d26d8aca).
+- [x] (2026-09-27) Milestone 1: the TRL trainer writes rollout metrics once per update (`backends/trl/update_totals.py`, flushed by a step-end callback and on failure; per-batch time goes to `train/rl/rollout_batch_seconds`); `posttrain.tracking.logical.logical_series` applies replay authority and the legacy batch rule, and both adapters return it; the Observatory projection, the semantic layer's `within_step` rules and its reader projection are deleted. Real data unchanged: rollout share 0.896/0.895/0.892/0.879 for r13/r14/r15/turns-r1; `lfm26-vortex-v5-150-lr5e5-kl5e3-20260926-r2` update 1 has 369.5 s over 96 rollouts.
 - [ ] Milestone 2: one metric catalog shared by job views and the semantic layer.
 - [ ] Milestone 3: one query engine (SQLite with column-level loading; the short form compiles to SQL; delete the Python aggregation path and the formula parser).
 - [ ] Milestone 4: notes and run cards use SQL blocks; delete the note query format.
 - [ ] Milestone 5: re-render the four reports, update both older plans, release 0.4.11, and upgrade the shared Trackio server only after the user confirms.
 
 ## Surprises & Discoveries
+
+- Observation: "one value per update" must mean one value per update for each set of tags. Curriculum and active-sampling round metrics are tagged per class or per round (`class_id`, `round_index`) and named as round metrics, so they already conform; only the untagged per-batch writes (rollout counts and time, SAMPO advantage means) broke the rule.
+  Evidence: `backends/trl/policy_curriculum.py` writes `train/rl/curriculum/*` with `round_index` and `class_id`; `policy_rollouts.py` wrote `train/rl/episode_advantage_mean` and others once per batch with no tag.
 
 - Observation: both tracking adapters already compute the logical step of a replayed point but return the provider step.
   Evidence: `packages/tracking-trackio/src/posttrain_tracking_trackio/adapter.py` `_metric_series` computes `logical_step` only to filter by `start_step`/`end_step` and then stores `"step": row.get("step")`; `packages/tracking-wandb/src/posttrain_tracking_wandb/adapter.py` does the same with `posttrain/step`. The Observatory then re-derives it in `service.logical_metric_series`.

@@ -26,40 +26,8 @@ def _setting(path: str) -> Source:
     return Source(kind="setting", name=path)
 
 
-def _series(name: str, *, transform: str = "identity", within_step: str = "last") -> Source:
-    return Source(kind="metric_series", name=name, transform=transform, within_step=within_step)  # type: ignore[arg-type]
-
-
-# Rollout evidence recorded once per active-sampling generation round.
-_ROUND_SUMS = frozenset(
-    {
-        "train/rl/time/rollout_seconds",
-        "train/rl/rollouts_requested",
-        "train/rl/rollouts_attempted",
-        "train/rl/rollouts_completed",
-        "train/rl/rollouts_failed",
-        "train/rl/rollouts_truncated",
-        "train/rl/rollouts_unscorable",
-        "train/rl/rollout_selected_tokens",
-    }
-)
-_ROUND_MEANS = frozenset(
-    {
-        "train/rl/reward_std",
-        "train/rl/group_zero_variance_fraction",
-        "train/rl/rollout_tokens_per_second",
-        "train/rl/tool_call_frequency",
-        "train/rl/tool_failure_frequency",
-        "train/rl/episode_advantage_mean",
-        "train/rl/turn_advantage_mean",
-        "train/rl/anchor_group_size_mean",
-        "train/rl/sparse_reward_projection_fraction",
-    }
-)
-
-
-def _within_step(metric: str) -> str:
-    return "sum" if metric in _ROUND_SUMS else "mean" if metric in _ROUND_MEANS else "last"
+def _series(name: str, *, transform: str = "identity") -> Source:
+    return Source(kind="metric_series", name=name, transform=transform)  # type: ignore[arg-type]
 
 
 def _update(
@@ -72,7 +40,6 @@ def _update(
     unit: str | None = None,
     aggregation: str = "mean",
     transform: str = "identity",
-    within_step: str | None = None,
 ) -> Measure:
     return Measure(
         name=name,
@@ -80,7 +47,7 @@ def _update(
         label=label,
         description=description,
         unit=unit,
-        source=_series(metric, transform=transform, within_step=within_step or _within_step(metric)),
+        source=_series(metric, transform=transform),
         aggregation=aggregation,  # type: ignore[arg-type]
         job_kinds=kinds,
     )

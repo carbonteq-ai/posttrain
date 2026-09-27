@@ -223,21 +223,12 @@ async def resolve_runs(
 # ---------------------------------------------------------------- loaders
 
 
-def _within_step(values: Sequence[float], rule: str) -> float:
-    if rule == "sum":
-        return math.fsum(values)
-    if rule == "mean":
-        return math.fsum(values) / len(values)
-    return values[-1]
-
-
 async def load_updates(context: _Context, summary: RunSummary, measures: Sequence[Measure]) -> list[dict[str, Any]]:
     wanted = [measure for measure in measures if applies(measure, summary.job_kind)]
     if not wanted:
         return []
     names = tuple(dict.fromkeys(measure.source.name for measure in wanted))
     by_step: dict[int, dict[str, Any]] = {}
-    repeated: dict[tuple[int, str], list[float]] = {}
     for start in range(0, len(names), SERIES_BATCH):
         batch = names[start : start + SERIES_BATCH]
         series, downsampled = await context.reader.metric_series(summary.run_id, batch, max_points=MAX_SERIES_POINTS)
@@ -256,9 +247,8 @@ async def load_updates(context: _Context, summary: RunSummary, measures: Sequenc
                 row = by_step.setdefault(
                     point.step, {"run.id": summary.run_id, "update.step": point.step, "update.time": None}
                 )
-                step_values = repeated.setdefault((point.step, measure.name), [])
-                step_values.append(point.value)
-                value = _within_step(step_values, measure.source.within_step)
+                # Readers return one point per update (tracking.logical_series); the last wins otherwise.
+                value = point.value
                 row[measure.name] = 1.0 - value if measure.source.transform == "one_minus" else value
                 if point.observed_at is not None and row["update.time"] is None:
                     row["update.time"] = max((point.observed_at - summary.started_at).total_seconds(), 0.0)

@@ -1267,7 +1267,8 @@ async def test_trackio_metric_series_pages_projected_windows_and_recovers_replay
         page_size=1,
     )
 
-    assert [(point.step, point.value) for point in series.points] == [(0, 0.2), (56, 0.7)]
+    # Readers return logical steps: the replayed value replaces the live one for update 0.
+    assert [(point.step, point.value) for point in series.points] == [(0, 0.7)]
     assert all(call["limit"] == 1 for call in calls)
     assert calls[0]["start_step"] == 0
     assert calls[0]["end_step"] == 0

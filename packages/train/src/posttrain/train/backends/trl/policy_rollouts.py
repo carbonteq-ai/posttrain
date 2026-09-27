@@ -16,6 +16,7 @@ from ...profiles import shape_online_reward
 from ...requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
 from ...reward_advantages import compute_capo_advantages, compute_gdpo_advantages
 from ...sampo_advantages import compute_sampo_advantages
+from .update_totals import RolloutUpdateTotals
 
 type PolicyTechnique = Literal["grpo", "dapo", "olmo3", "sampo", "gdpo", "capo"]
 
@@ -32,10 +33,19 @@ def rollout_function(
     context: RunContext,
     request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
     tokenizer: Any,
+    totals: RolloutUpdateTotals | None = None,
 ) -> Any:
-    """Translate TRL generation batches into the public environment-rollout bridge contract."""
+    """Translate TRL generation batches into the public environment-rollout bridge contract.
+
+    Rollout metrics go to `totals`, which writes one value per update when the
+    trainer's step-end callback flushes it. Without a callback, an update's
+    totals are written when the next update's first batch arrives.
+    """
 
     from .policy_config import _rollout_execution_config
+
+    flush_on_next_step = totals is None
+    update_totals = totals if totals is not None else RolloutUpdateTotals(context)
 
     rollout_execution = _rollout_execution_config(request)
     rollout_batch_step: int | None = None
@@ -57,6 +67,8 @@ def rollout_function(
             raise ValueError("every online-RL dataset row requires an example_id") from error
         optimizer_step = int(trainer.state.global_step) + 1
         if rollout_batch_step != optimizer_step:
+            if flush_on_next_step and rollout_batch_step is not None:
+                update_totals.flush(rollout_batch_step)
             rollout_batch_step = optimizer_step
             rollout_batch_ordinal = 0
         rollout_batch_ordinal += 1
@@ -186,8 +198,9 @@ def rollout_function(
         completion_tokens = sum(len(rollout.completion_ids) for rollout in rollouts)
         selected_tokens = sum(sum(rollout.env_mask) for rollout in rollouts)
         truncated_rollouts = sum(rollout.is_truncated for rollout in rollouts)
-        context.metrics(
-            {
+        update_totals.add_batch(
+            optimizer_step,
+            sums={
                 "train/rl/rollouts_requested": len(inputs),
                 "train/rl/rollouts_attempted": len(inputs) if admission is None else admission.attempted_rollouts,
                 "train/rl/admission_rounds": 1 if admission is None else admission.rounds,
@@ -199,17 +212,10 @@ def rollout_function(
                 "train/rl/rollouts_unscorable": sum(not math.isfinite(rollout.reward) for rollout in rollouts),
                 "train/rl/rollouts_missing": len(inputs) - len(rollouts),
                 "train/rl/time/rollout_seconds": elapsed,
-                "train/rl/rollout_tokens_per_second": completion_tokens / elapsed if elapsed > 0 else 0.0,
+                "train/rl/rollout_completion_tokens": completion_tokens,
                 "train/rl/rollout_selected_tokens": selected_tokens,
-                "train/rl/rollout_selected_token_fraction": (
-                    selected_tokens / completion_tokens if completion_tokens else 0.0
-                ),
             },
-            step=optimizer_step,
-            attributes={
-                "rollout_population_scope": "candidate",
-                "rollout_batch_ordinal": rollout_batch_ordinal,
-            },
+            batch_seconds=elapsed,
         )
         if rollouts and request.settings.mask_truncated_completions and truncated_rollouts == len(rollouts):
             raise RuntimeError(
@@ -341,18 +347,26 @@ def rollout_function(
             result["precomputed_advantages"] = [list(values) for values in advantages.token_advantages]
             flat_turn_advantages = [value for values in advantages.turn_advantages for value in values]
             flat_group_sizes = [value for values in advantages.anchor_group_sizes for value in values]
-            context.metrics(
+            update_totals.add_means(
+                optimizer_step,
                 {
                     "train/rl/episode_advantage_mean": (
-                        sum(advantages.episode_advantages) / len(advantages.episode_advantages)
+                        sum(advantages.episode_advantages) / len(advantages.episode_advantages),
+                        len(advantages.episode_advantages),
                     ),
-                    "train/rl/turn_advantage_mean": (sum(flat_turn_advantages) / len(flat_turn_advantages)),
-                    "train/rl/anchor_group_size_mean": sum(flat_group_sizes) / len(flat_group_sizes),
+                    "train/rl/turn_advantage_mean": (
+                        sum(flat_turn_advantages) / len(flat_turn_advantages),
+                        len(flat_turn_advantages),
+                    ),
+                    "train/rl/anchor_group_size_mean": (
+                        sum(flat_group_sizes) / len(flat_group_sizes),
+                        len(flat_group_sizes),
+                    ),
                     "train/rl/sparse_reward_projection_fraction": (
-                        sum(advantages.used_sparse_rewards) / len(advantages.used_sparse_rewards)
+                        sum(advantages.used_sparse_rewards) / len(advantages.used_sparse_rewards),
+                        len(advantages.used_sparse_rewards),
                     ),
                 },
-                step=optimizer_step,
             )
         return result
 

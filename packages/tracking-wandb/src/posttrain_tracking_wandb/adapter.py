@@ -51,6 +51,7 @@ from posttrain.tracking import (
     TraceRecord,
     TrackingCapabilities,
 )
+from posttrain.tracking.logical import logical_series
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 _WANDB_SYSTEM_METRICS = {
@@ -633,7 +634,7 @@ class WandbDataSource:
                             attributes={"provider_metrics": list(native_names)},
                         )
                     )
-        return tuple(MetricSeries(name=name, points=tuple(points[name])) for name in names)
+        return tuple(logical_series(MetricSeries(name=name, points=tuple(points[name]))) for name in names)
 
     def _artifacts(self, run: Any, method: str) -> Iterable[Any]:
         value = getattr(run, method)

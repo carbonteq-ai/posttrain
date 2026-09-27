@@ -18,7 +18,6 @@ from posttrain.advisor import ArchitectureLoader
 from posttrain.common import JsonValue
 from posttrain.tracking import (
     EventRecord,
-    MetricPoint,
     MetricSeries,
     NoteSource,
     RunDataSource,
@@ -490,59 +489,6 @@ def _comparison_context(view: EvaluationRunView | RunView) -> dict[str, JsonValu
         "environment": environment_id,
         "environment_revision": environment_revision,
     }
-
-
-def logical_metric_series(series: MetricSeries) -> MetricSeries:
-    """Project replayed evidence onto its source step without double plotting.
-
-    Isolated environments replay trace-derived metrics during finalization.
-    Their provider step is append-only storage position, while ``source_step``
-    is the optimizer step they describe. Replay is authoritative when present.
-    For ordinary same-step measurements, collapse only numerically equivalent
-    duplicates and preserve meaningfully different observations.
-    """
-
-    replay: list[tuple[MetricPoint, int]] = []
-    for point in series.points:
-        source_step = point.attributes.get("source_step")
-        if (
-            point.attributes.get("observation_source") == "verifiers"
-            and isinstance(source_step, int)
-            and not isinstance(source_step, bool)
-            and source_step >= 0
-        ):
-            replay.append((point, source_step))
-    if replay:
-        replay_steps = {source_step for _, source_step in replay}
-        # Replay is authoritative only for the optimizer steps it covers. Keep
-        # native points for other steps so a partially finalized run cannot
-        # silently lose its optimizer movement. Multiple replay points for one
-        # source step are intentional: they represent rollout waves and must
-        # remain available to population reducers.
-        native = [
-            point
-            for point in series.points
-            if point.attributes.get("observation_source") != "verifiers" and point.step not in replay_steps
-        ]
-        projected = [point.model_copy(update={"step": source_step}) for point, source_step in replay]
-        return MetricSeries(
-            name=series.name,
-            points=tuple(sorted((*native, *projected), key=lambda point: point.step if point.step is not None else -1)),
-        )
-
-    retained: list[MetricPoint] = []
-    for point in series.points:
-        if point.step is not None and any(
-            existing.step == point.step and existing.value == point.value and existing.attributes == point.attributes
-            for existing in retained
-        ):
-            continue
-        retained.append(point)
-    # Provider history is append-only, but readers are not required to return
-    # rows in logical-step order. Sorting here keeps reducers (especially
-    # ``last``) and every presentation surface on the same timeline.
-    retained.sort(key=lambda point: point.step if point.step is not None else -1)
-    return MetricSeries(name=series.name, points=tuple(retained))
 
 
 def _presentation_metric_series(series: MetricSeries) -> MetricSeries:
@@ -1433,7 +1379,6 @@ class ObservatoryService:
         series_values, artifacts = await asyncio.gather(
             _read_metric_series(source, locator.run_id, names), source.artifacts(locator.run_id)
         )
-        series_values = tuple(logical_metric_series(series) for series in series_values)
         by_name = {series.name: series for series in series_values}
         presentation_by_name = {
             name: _presentation_metric_series(_downsample(series, 400)[0]) for name, series in by_name.items()
@@ -1645,7 +1590,6 @@ class ObservatoryService:
             )
         )
         series_values = await _read_metric_series(source, locator.run_id, requested)
-        series_values = tuple(logical_metric_series(series) for series in series_values)
         by_name = {series.name: series for series in series_values}
         presentation_by_name = {
             name: _presentation_metric_series(_downsample(series, 400)[0]) for name, series in by_name.items()
@@ -1825,15 +1769,12 @@ class ObservatoryService:
         unknown = set(query.names) - set(detail.metric_names)
         if unknown:
             raise ValueError(f"unknown metric names: {', '.join(sorted(unknown))}")
-        raw = tuple(
-            logical_metric_series(series)
-            for series in await source.metric_series(
-                locator.run_id,
-                query.names,
-                start_step=query.start_step,
-                end_step=query.end_step,
-                page_size=min(max(query.max_points * 2, 100), 2000),
-            )
+        raw = await source.metric_series(
+            locator.run_id,
+            query.names,
+            start_step=query.start_step,
+            end_step=query.end_step,
+            page_size=min(max(query.max_points * 2, 100), 2000),
         )
         filtered = []
         requested = 0

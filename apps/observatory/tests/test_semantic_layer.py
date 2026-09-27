@@ -81,11 +81,11 @@ class FakeReader:
             ("sampo-b", "train/rl/entropy"): [(1, 0.53), (2, 0.43), (3, 0.48)],
             ("grpo-kl", "train/rl/entropy"): [(1, 0.18), (2, 0.19), (40, 0.25)],
             ("grpo-kl", "train/rl/kl"): [(1, 0.0004), (40, 0.02)],
-            # Active sampling records rollout evidence once per generation round.
+            # Readers return one value per update (posttrain.tracking.logical_series).
             ("grpo-kl", "train/step_time_seconds"): [(1, 400.0), (2, 100.0)],
-            ("grpo-kl", "train/rl/time/rollout_seconds"): [(1, 250.0), (1, 60.0), (1, 50.0), (2, 80.0)],
-            ("grpo-kl", "train/rl/rollouts_attempted"): [(1, 64.0), (1, 24.0), (1, 8.0), (2, 64.0)],
-            ("grpo-kl", "train/rl/tool_call_frequency"): [(1, 1.0), (1, 0.5), (2, 0.75)],
+            ("grpo-kl", "train/rl/time/rollout_seconds"): [(1, 360.0), (2, 80.0)],
+            ("grpo-kl", "train/rl/rollouts_attempted"): [(1, 96.0), (2, 64.0)],
+            ("grpo-kl", "train/rl/tool_call_frequency"): [(1, 0.75), (2, 0.75)],
             ("eval-1", "eval/run/rollouts_failed"): [(0, 44.0)],
         }
         self.calls: list[tuple[str, Any]] = []
@@ -286,7 +286,7 @@ def test_metric_formula_and_transform() -> None:
     assert round(rows[0]["step_reward_share_mean"], 4) == round((1.0 + 0.75 + 1.0) / 3, 4)
 
 
-def test_rollout_rounds_within_one_update_are_combined() -> None:
+def test_update_measures_and_rollout_share_by_update() -> None:
     reader = FakeReader()
     rows = _rows(
         _query(
