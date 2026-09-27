@@ -82,6 +82,11 @@ def test_table_keeps_small_values_and_reports_gaps() -> None:
     assert render_csv(_RESULT).splitlines() == ["run.id,rollout_share,lr", "run-a,0.8964941,5e-05", "run-b,,0.0001"]
 
 
+def test_table_renders_an_empty_result() -> None:
+    table = render_table({**_RESULT, "rows": [], "truncated": False})
+    assert table.splitlines()[0].split() == ["run.id", "rollout_share", "lr"]
+
+
 def test_query_command_sends_the_parsed_query_to_the_observatory(tmp_path: Path, capsys, monkeypatch) -> None:
     import posttrain_observatory
     from posttrain_observatory.semantic_layer import SemanticQuery, SemanticResult

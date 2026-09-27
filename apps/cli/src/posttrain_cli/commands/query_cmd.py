@@ -108,7 +108,7 @@ def format_value(value: Any) -> str:
 def render_table(result: dict[str, Any]) -> str:
     headers = [column["name"] for column in result["columns"]]
     rows = [[format_value(value) for value in row] for row in result["rows"]]
-    widths = [max(len(header), *(len(row[index]) for row in rows)) for index, header in enumerate(headers)]
+    widths = [max([len(header), *(len(row[index]) for row in rows)]) for index, header in enumerate(headers)]
     numeric = [
         all(
             isinstance(row[index], int | float) and not isinstance(row[index], bool)
