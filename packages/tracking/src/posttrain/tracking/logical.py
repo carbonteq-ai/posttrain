@@ -64,14 +64,9 @@ def logical_series(series: MetricSeries) -> MetricSeries:
         ]
         points += [point.model_copy(update={"step": step}) for point, step in replay]
     else:
-        points = []
-        for point in series.points:
-            if point.step is not None and any(
-                kept.step == point.step and kept.value == point.value and kept.attributes == point.attributes
-                for kept in points
-            ):
-                continue
-            points.append(point)
+        # Every stored point is one write (Trackio keys rows by log id), so equal points
+        # are separate observations: rollout batches can repeat a value and an ordinal.
+        points = list(series.points)
     combine = LEGACY_ROLLOUT_BATCH_METRICS.get(series.name)
     if combine is not None:
         points = _combine_batches(points, combine)

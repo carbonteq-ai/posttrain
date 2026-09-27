@@ -1,10 +1,14 @@
-"""Shared fixtures: a local Trackio project written by Posttrain's own writer.
+"""Shared fixtures: a Trackio project written by Posttrain's own writer.
 
 The project SQL these rely on needs carbonteq-trackio 0.31.5.post14.dev29 or later.
+By default the project is local SQLite storage. Set POSTTRAIN_TEST_TRACKIO_SERVER_URL
+(and TRACKIO_WRITE_TOKEN) to write a fresh project to a Doris-backed Trackio server
+instead, which is how the semantic layer is qualified on Doris.
 """
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -24,7 +28,9 @@ from posttrain_tracking_trackio import TrackioBackend, TrackioDataSource, Tracki
 
 HAS_PROJECT_SQL = callable(getattr(trackio.Api, "project_sql", None))
 
-PROJECT = "semantic-sql"
+SERVER_URL = os.environ.get("POSTTRAIN_TEST_TRACKIO_SERVER_URL") or None
+PROJECT = f"semantic-sql-{datetime.now(UTC):%Y%m%d%H%M%S}" if SERVER_URL else "semantic-sql"
+ENGINE = "doris" if SERVER_URL else "sqlite"
 STARTED = datetime(2026, 9, 27, 12, 0, tzinfo=UTC)
 
 
@@ -71,6 +77,13 @@ def _trace(index: int, *, step: int, task: str, reward: float, truncated: bool) 
 
 
 @pytest.fixture(scope="session")
+def trackio_engine() -> str:
+    """The storage engine the trackio_project fixture's SQL runs on."""
+
+    return ENGINE
+
+
+@pytest.fixture(scope="session")
 def trackio_project(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TrackioDataSource]:
     if not HAS_PROJECT_SQL:
         pytest.skip("the installed carbonteq-trackio has no project SQL (needs 0.31.5.post14.dev29)")
@@ -83,16 +96,21 @@ def trackio_project(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Tracki
     context_vars.current_run.set(None)
     context_vars.current_project.set(None)
     context_vars.current_server.set(None)
-    backend = TrackioBackend(TrackioSettings(project=PROJECT))
+    backend = TrackioBackend(TrackioSettings(project=PROJECT, server_url=SERVER_URL))
 
     grpo = backend.start_run(_spec("grpo-a", "train.grpo", 5e-5))
-    batches_by_step = {1: (250.0, 60.0, 50.0), 2: (80.0,), 3: (90.0,)}
+    batches_by_step = {
+        1: ((1, 250.0, 48.0), (2, 60.0, 40.0), (1, 50.0, 48.0)),
+        2: ((1, 80.0, 48.0),),
+        3: ((1, 90.0, 48.0),),
+    }
     for step, (seconds, entropy) in enumerate(((400.0, 0.18), (100.0, 0.2), (120.0, 0.25)), start=1):
-        # Recorded the old way: rollout time once per rollout batch.
-        for ordinal, batch_seconds in enumerate(batches_by_step[step], start=1):
+        # Recorded the old way: rollout time and counts once per rollout batch. Batching
+        # restarted within update 1, so two of its batches share an ordinal and a count.
+        for ordinal, batch_seconds, attempted in batches_by_step[step]:
             grpo.metrics(
                 MetricBatchObservation(
-                    {"train/rl/time/rollout_seconds": batch_seconds},
+                    {"train/rl/time/rollout_seconds": batch_seconds, "train/rl/rollouts_attempted": attempted},
                     step=step,
                     attributes={"rollout_batch_ordinal": ordinal},
                 )
@@ -124,5 +142,5 @@ def trackio_project(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Tracki
             "failed", STARTED, STARTED + timedelta(seconds=300), error=RunError("OutOfMemoryError", "operation failed")
         )
     )
-    yield TrackioDataSource(PROJECT)
+    yield TrackioDataSource(PROJECT, server_url=SERVER_URL)
     patches.undo()

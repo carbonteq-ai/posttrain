@@ -20,12 +20,15 @@ To see it working: `posttrain query -m update_seconds:sum,rollout_share --by run
 - [x] (2026-09-27) Wrote this plan after an architecture review with the user.
 - [x] (2026-09-27) Milestone 0: canonical amendment (d26d8aca).
 - [x] (2026-09-27) Milestone 1: the TRL trainer writes rollout metrics once per update (`backends/trl/update_totals.py`, flushed by a step-end callback and on failure; per-batch time goes to `train/rl/rollout_batch_seconds`); `posttrain.tracking.logical.logical_series` applies replay authority and the legacy batch rule, and both adapters return it; the Observatory projection, the semantic layer's `within_step` rules and its reader projection are deleted. Real data unchanged: rollout share 0.896/0.895/0.892/0.879 for r13/r14/r15/turns-r1; `lfm26-vortex-v5-150-lr5e5-kl5e3-20260926-r2` update 1 has 369.5 s over 96 rollouts.
-- [ ] Milestone 2: one metric catalog shared by job views and the semantic layer.
+- [x] (2026-09-27) Milestone 2 (fd259e10): one metric catalog shared by job views and the semantic layer.
 - [x] (2026-09-27) Milestone 3, first attempt (in-memory SQLite engine with column-level loading) parked on branch `codex/sqlite-engine-wip` after the direction changed; see the Decision Log.
 - [x] (2026-09-27) Milestone 3a: fork `project_sql` (9b02b7fc, 416950d4, 1c62b0b5 on `codex/run-notes`): 17 unit tests on both SQLite drivers and the Doris path with a recording connection; the real-Doris test is written and skips without `TRACKIO_DORIS_*`. Release as dev29 in progress.
 - [x] (2026-09-27) Milestone 3b (c6e8dbe9): `ProjectSql` in `posttrain.tracking`; `semantic_layer/views.py`, `compile.py`, `engine.py`; loaders, in-memory engine, Python aggregation, `formula.py`, and the `eval_task`/`load_level` entities deleted. Tests run on a local Trackio project written by Posttrain's own writer, including updates-view equivalence with `logical_series`.
 - [x] (2026-09-27) Milestone 4 (c6e8dbe9, 543e82ca): notes use ```sql <name>``` blocks with `-- runs:` scopes (ids, or filters with any-of lists); templates rewritten (`@2`); cards render with no unresolved references on the local project. The four reports are rewritten in SQL and compile against the model; they run on real data once the shared server has dev29.
-- [ ] Milestone 5: re-render the four reports, update both older plans, release 0.4.11, and upgrade the shared Trackio server only after the user confirms.
+- [x] (2026-09-27) Fork dev29 released and pinned (7de0e83b).
+- [x] (2026-09-27) Real-Doris gate on the test database `trackio_candidate` (same Doris host as production, own user): restore-verified backup (ai-infra `scripts/qualify_trackio_doris_backup.py`, 12 tables, 28,852 rows, snapshot `trackio_candidate_pre_v4_20260927` retained; receipt `ai-infra/.state/artifacts/trackio-doris-candidate/pre-v4-backup-receipt.json`), `trackio storage migrate-doris --to 4 --apply` (adds `run_notes`), then the fork's 9 real-Doris tests pass, and all Observatory tests pass against a local dev29 server on that database (`POSTTRAIN_TEST_TRACKIO_SERVER_URL`).
+- [x] (2026-09-27) Real-data fixes from rendering cards on the test database and the four reports on production Doris (read-only): separate rollout batches are no longer merged; the `updates` view is one pass (Doris planning 2.7 s → 0.12 s); a note's blocks run concurrently; unfiltered references read the note's own run in SQL results too.
+- [ ] Milestone 5: re-project the 64K held-out evaluation traces with fact calculator v7 (they carry no task id), update both older plans, release 0.4.11, and upgrade the shared Trackio server (production Doris v3 → v4) only after the user confirms.
 
 ## Surprises & Discoveries
 
@@ -46,7 +49,13 @@ To see it working: `posttrain query -m update_seconds:sum,rollout_share --by run
 - Observation: on SQLite a CTE named like its base table (`traces`, `run_notes`) is a circular reference; the fork qualifies SQLite base tables as `main.<table>`. The default Turso engine stores JSON text columns as bytes, so the SQLite stand-ins decode bytes.
   Evidence: fork commit 1c62b0b5; `test_json_paths_follow_doris_quoting`.
 - Observation: `max_by(x, step)` returns x at the latest step even where x is null, and update rows exist at every step with an update time, so "first" and "last" use `max_by(x, CASE WHEN x IS NOT NULL THEN step END)`.
-- Observation: Doris behaviour this design relies on is untested against a real Doris: quoted JSON path keys (`$."train/rl/entropy"`), `json_extract_*` on nested objects, `unix_timestamp` on ISO 8601 strings with offsets, `max_by`/`min_by` with null order keys, `NULLS LAST`, and the query-timeout session variable. The real-Doris integration test is the release gate for deploying dev29.
+- Observation: the Doris behaviour this design relies on holds on the real Doris: quoted JSON path keys (`$."train/rl/entropy"`), `json_extract_*` on nested objects, `unix_timestamp` on ISO 8601 strings with offsets, `max_by`/`min_by` with null order keys, `NULLS LAST`, and the query-timeout session variable.
+  Evidence: the fork's `tests/integration/test_doris_storage.py` (9 passed) and `apps/observatory/tests` (172 passed) against `trackio_candidate`, 2026-09-27.
+- Observation: the SQL view and `logical_series` both merged points with equal step and value ("identical duplicates"), which merged real rollout batches. Rollout batching can restart within an update, so batches repeat a value and even an ordinal, and Trackio stamps every record of one flush with the same time. Storage never holds a repeated write (Doris metrics are keyed by log id; no repeated rows in `occupancy-engine`, `ambient-agent` or among replayed points), so every stored row is one observation.
+  Evidence: `occupancy-engine` run `0a241a28-…` update 1 has five batches attempting 48, 48, 48, 40 and 36 rollouts (ordinals 1, 2, 1, 2, 3); its card showed 124 attempted and 155 truncated, now 220 and 195.
+- Observation: Doris spent 2.7 s planning the `updates` view built as one sub-query per metric (each with a window function) joined together, and 0.2 s running it; every card paid it because each run id makes a new statement. One pass (`UNION ALL` of each metric's points, one window for replay authority, one `GROUP BY` update with a conditional aggregate per metric) plans in 0.12 s. Cards went from about 4.4 s to 0.5–1.6 s; the four reports render on production in under a second each.
+- Observation: the 64K held-out evaluation traces were projected with fact calculator v4, which records no task id (`fact_task_id` is empty for all 60 traces of `eval-lfm26-heldout-64k-base-20260924-r1`; the task is only `task_index` in trace metadata). Rollouts grouped by task therefore need those traces re-projected with v7, which records `task_id`. Rollout-level numbers are unaffected: v4 step 20 averages 0.714 over valid rollouts and 0.488 with its 19 truncated rollouts counted as zero; the base model 0.592.
+- Observation: `{{block.column}}` without `where` picked the note's own run only in short-form results (column `run.id`); SQL results name the column `id` or `run_id`, so the KL report read an older run's row.
 
 ## Decision Log
 
@@ -85,6 +94,13 @@ To see it working: `posttrain query -m update_seconds:sum,rollout_share --by run
   Rationale: `AGENTS.md`: when two backends implement one contract, test equivalent logical results.
   Date/Author: 2026-09-27, Claude.
 
+- Decision: no de-duplication of metric points, in `logical_series` or the SQL view; every stored row is one observation.
+  Rationale: storage keys rows by log id, so a repeated write cannot be stored twice, while equal points are common and real (restarted rollout batches). The collapse dated from an early Observatory projection with no recorded cause.
+  Date/Author: 2026-09-27, Claude.
+- Decision: evaluation traces without a task id are fixed at the source (re-projection with calculator v7), not by a metadata fallback in the `rollouts` view.
+  Rationale: the plan's first principle is correct evidence where it is recorded; a fallback would be a second definition of the task.
+  Date/Author: 2026-09-27, Claude; the production write needs the user's confirmation.
+
 ## Outcomes & Retrospective
 
 (2026-09-27) Milestones 0 to 4 are done on `codex/run-notes`. Metrics are correct where they are written, one catalog describes every metric, and queries, notes and cards run as Doris SQL inside Trackio's storage (translated on local SQLite). The Posttrain side of the semantic layer and notes went from 4,310 to 3,346 lines, with one engine instead of two, no per-query copying, no run cap, percentiles over rollouts, and every result showing its SQL; the fork gained about 550 lines for project SQL. Remaining: release fork dev29 and pin it; run the real-Doris gate; upgrade the shared Trackio server (Doris schema v4 migration, needs the user's confirmation); render the four reports on real data; release Posttrain 0.4.11.
@@ -118,6 +134,14 @@ From `/home/hammad/projects/rl-perf-guard` on branch `codex/run-notes`:
     uv run pytest -q packages/tracking/tests packages/tracking-trackio/tests packages/tracking-wandb/tests packages/train/tests apps/observatory/tests apps/cli/tests
     uv run ruff check . && uv run pyright && uv run lint-imports && git diff --check
     (cd apps/observatory/frontend && npm test && npm run build)
+
+The Doris gate: with the test database's settings (ai-infra `.state/secrets/vars.yml`, key `doris_trackio_password`; never print it) exported as `TRACKIO_DORIS_HOST=ai-doris.lan`, `TRACKIO_DORIS_DATABASE=trackio_candidate`, `TRACKIO_DORIS_USER=trackio_candidate`, `TRACKIO_DORIS_PASSWORD`, run the fork's tests from `/home/hammad/projects/trackio-run-notes`:
+
+    .venv/bin/python -m pytest tests/integration/test_doris_storage.py -q
+
+Then start a local server on that database (`TRACKIO_DATABASE_ENGINE=doris TRACKIO_ASYNC_DORIS_WRITES=false GRADIO_SERVER_PORT=7870 TRACKIO_WRITE_TOKEN=<a local test token> trackio show`) and run the Observatory tests against it; each run writes a fresh project `semantic-sql-<timestamp>`:
+
+    POSTTRAIN_TEST_TRACKIO_SERVER_URL=http://127.0.0.1:7870 TRACKIO_WRITE_TOKEN=<the same token> uv run pytest -q apps/observatory/tests
 
 Real-data checks run from `apps/lab` after `source /home/hammad/projects/rl/scripts/orenv.sh` (never print its values):
 

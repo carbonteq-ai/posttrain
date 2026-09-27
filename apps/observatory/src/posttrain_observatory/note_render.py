@@ -23,6 +23,7 @@ that cannot be resolved renders as a visible marker, never as a blank.
 
 from __future__ import annotations
 
+import asyncio
 import math
 import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -438,8 +439,10 @@ def pick_row(result: SemanticResult, condition: str | None, *, run_id: str | Non
         raise LookupError("no rows")
     if condition is None:
         names = [column.name for column in result.columns]
-        if run_id is not None and "run.id" in names:
-            index = names.index("run.id")
+        # The run column is run.id in the short form, id when read from runs and run_id elsewhere.
+        column = next((name for name in ("run.id", "id", "run_id") if name in names), None)
+        if run_id is not None and column is not None:
+            index = names.index(column)
             return next((row for row in result.rows if row[index] == run_id), result.rows[0])
         return result.rows[0]
     column, expected = parse_row_condition(condition)
@@ -487,12 +490,17 @@ async def render_note(
         if len(queries) > MAX_DATA_BLOCKS:
             errors[name] = f"a note can hold at most {MAX_DATA_BLOCKS} data blocks"
             continue
+
+    async def run_block(name: str) -> None:
         try:
-            data[name] = await query(build_query(part.body, run_id))
+            data[name] = await query(build_query(queries[name], run_id))
         except Exception as error:  # every failure is shown on the note, not raised
             errors[name] = str(error) or type(error).__name__
 
-    run_values = await _run_references(body_md, run_id=run_id, query=query)
+    # The blocks and the run's own fields are independent queries; run them together.
+    references = asyncio.ensure_future(_run_references(body_md, run_id=run_id, query=query))
+    await asyncio.gather(*(run_block(name) for name in queries if name not in errors))
+    run_values = await references
 
     markdown: list[str] = []
     text: list[str] = []

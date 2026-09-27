@@ -213,7 +213,9 @@ def _sql_client(project: TrackioDataSource, **kwargs: Any) -> TestClient:
     return TestClient(create_http_app(service, ObservatorySettings()))
 
 
-def test_semantic_routes_run_sql_in_storage_and_explain_mistakes(trackio_project: TrackioDataSource) -> None:
+def test_semantic_routes_run_sql_in_storage_and_explain_mistakes(
+    trackio_project: TrackioDataSource, trackio_engine: str
+) -> None:
     with _sql_client(trackio_project) as client:
         model = client.get("/api/v1/semantic/model").json()
         assert any(measure["name"] == "rollout_seconds" for measure in model["measures"])
@@ -226,7 +228,7 @@ def test_semantic_routes_run_sql_in_storage_and_explain_mistakes(trackio_project
         assert result.json()["sql"].startswith("SELECT r.`id` AS `run.id`")
         sql = client.post("/api/v1/semantic/query", json={"sql": "select count(*) as n from runs"})
         assert sql.status_code == 200, sql.text
-        assert sql.json()["rows"] == [[2]] and sql.json()["engine"] == "sqlite"
+        assert sql.json()["rows"] == [[2]] and sql.json()["engine"] == trackio_engine
         unknown = client.post("/api/v1/semantic/query", json={"measures": ["no_such_measure"], "runs": grpo})
         assert unknown.status_code == 422
         assert "no_such_measure" in unknown.json()["message"]

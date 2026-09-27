@@ -23,11 +23,10 @@ def test_replayed_points_move_to_their_update_and_replace_live_points() -> None:
     assert [(point.step, point.value) for point in series.points] == [(1, 0.1), (2, 0.25), (3, 0.4)]
 
 
-def test_identical_duplicates_collapse_and_tagged_points_stay_distinct() -> None:
+def test_every_stored_point_is_an_observation() -> None:
     series = logical_series(
         _series(
             "train/rl/curriculum/class_candidate_groups",
-            MetricPoint(value=2.0, step=1, attributes={"class_id": "a"}),
             MetricPoint(value=2.0, step=1, attributes={"class_id": "a"}),
             MetricPoint(value=2.0, step=1, attributes={"class_id": "b"}),
         )
@@ -46,6 +45,11 @@ def test_legacy_rollout_batches_combine_into_one_value_per_update() -> None:
     )
     assert [(point.step, round(point.value, 1)) for point in seconds.points] == [(1, 369.5), (2, 98.3)]
     assert seconds.points[0].attributes == {"rollout_batches": 3}
+    # Batching can restart within an update: batches with equal ordinals and values are still separate.
+    restarted = logical_series(
+        _series("train/rl/rollouts_attempted", batch(1, 48.0, 1), batch(1, 40.0, 2), batch(1, 48.0, 1))
+    )
+    assert [point.value for point in restarted.points] == [136.0]
     rate = logical_series(_series("train/rl/rollout_tokens_per_second", batch(1, 100.0, 1), batch(1, 300.0, 2)))
     assert [point.value for point in rate.points] == [200.0]
     # SAMPO advantages were written once per batch without a tag.

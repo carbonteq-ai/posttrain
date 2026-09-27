@@ -340,31 +340,35 @@ def _updates_sql(
     # updates does not depend on which columns a statement reads.
     backbone = model.measure("update_seconds")
     present = [*measures, *([] if backbone in measures else [backbone])]
-    views = [(f"_pt_update_{index}", _update_metric_sql(measure)) for index, measure in enumerate(present)]
-    steps = " UNION ".join(f"SELECT run_id, step FROM _pt_update_{index}" for index in range(len(present)))
-    views.append(("_pt_update_steps", steps))
-    selected = ["s.id AS run_id", "st.step AS step"]
+    # One pass for every metric read: stack their points, keep replayed points where a metric has
+    # them for an update (replay authority), then one row per update with one aggregate per metric.
+    # (One sub-query per metric joined together takes Doris seconds to plan.)
+    points = " UNION ALL ".join(_update_points_sql(measure, index) for index, measure in enumerate(present))
+    views = [
+        (
+            "_pt_update_points",
+            f"SELECT p.*, MAX(replay) OVER (PARTITION BY run_id, m, step) AS any_replay FROM ({points}) AS p",
+        )
+    ]
+    selected = ["s.id AS run_id", "u.step AS step"]
     if "time" in columns:
-        first_seen = ", ".join(f"u{index}.ts" for index in range(len(present)))
-        seen = first_seen if len(present) == 1 else f"COALESCE({first_seen})"
-        selected.append(f"unix_timestamp({seen}) - unix_timestamp(s.started_at) AS `time`")
+        firsts = ", ".join(f"MIN(CASE WHEN m = {index} THEN ts END)" for index in range(len(present)))
+        seen = firsts if len(present) == 1 else f"COALESCE({firsts})"
+        selected.append(f"unix_timestamp({seen}) - unix_timestamp(MIN(s.started_at)) AS `time`")
     for measure in measures:
-        selected.append(f"u{present.index(measure)}.v AS {_quote(measure.name)}")
-    joins = " ".join(
-        f"LEFT JOIN _pt_update_{index} AS u{index} ON u{index}.run_id = st.run_id AND u{index}.step = st.step"
-        for index in range(len(present))
-    )
+        selected.append(f"{_update_aggregate(measure, present.index(measure))} AS {_quote(measure.name)}")
     views.append(
         (
             "updates",
-            f"SELECT {', '.join(selected)} FROM _pt_update_steps AS st"
-            f" JOIN _pt_scope AS s ON s.provider_id = st.run_id {joins}",
+            f"SELECT {', '.join(selected)} FROM _pt_update_points AS u"
+            " JOIN _pt_scope AS s ON s.provider_id = u.run_id"
+            " WHERE u.replay = u.any_replay GROUP BY s.id, u.step",
         )
     )
     return views
 
 
-def _update_metric_sql(measure: Measure) -> str:
+def _update_points_sql(measure: Measure, index: int) -> str:
     metric = measure.source.name
     value = _extract("metrics", "number", metric)
     observation = (
@@ -375,26 +379,27 @@ def _update_metric_sql(measure: Measure) -> str:
         f"COALESCE({_extract('metrics', 'integer', metric + '/attributes', 'source_step')}, "
         f"{_extract('metrics', 'integer', 'metric/attributes', 'source_step')})"
     )
-    points = (
-        f"SELECT run_id, step AS provider_step, `timestamp` AS ts, {value} AS v, "
-        f"CASE WHEN {observation} = 'verifiers' AND {source_step} >= 0 THEN 1 ELSE 0 END AS replay, "
-        f"CASE WHEN {observation} = 'verifiers' AND {source_step} >= 0 THEN {source_step} ELSE step END AS step "
-        f"FROM metric_rows WHERE {value} IS NOT NULL"
-    )
-    # Identical points (same update, value and origin) count once.
-    distinct = (
-        f"SELECT run_id, provider_step, v, replay, step, MIN(ts) AS ts FROM ({points}) AS p "
-        "GROUP BY run_id, provider_step, v, replay, step"
-    )
-    ranked = f"SELECT d.*, MAX(replay) OVER (PARTITION BY run_id, step) AS any_replay FROM ({distinct}) AS d"
-    combine = LEGACY_ROLLOUT_BATCH_METRICS.get(metric)
-    aggregate = "SUM(v)" if combine == "sum" else "AVG(v)" if combine == "mean" else "max_by(v, ts)"
-    if measure.source.transform == "one_minus":
-        aggregate = f"1 - {aggregate}"
+    replayed = f"{observation} = 'verifiers' AND {source_step} >= 0"
+    # Every row is one write (Trackio keys rows by log id): rollout batches that repeat a
+    # value, and even an ordinal, are separate points.
     return (
-        f"SELECT run_id, step, {aggregate} AS v, MIN(ts) AS ts FROM ({ranked}) AS r "
-        "WHERE replay = any_replay GROUP BY run_id, step"
+        f"SELECT run_id, {index} AS m, `timestamp` AS ts, {value} AS v, "
+        f"CASE WHEN {replayed} THEN 1 ELSE 0 END AS replay, "
+        f"CASE WHEN {replayed} THEN {source_step} ELSE step END AS step "
+        f"FROM metric_rows WHERE {value} IS NOT NULL AND run_id IN (SELECT provider_id FROM _pt_scope)"
     )
+
+
+def _update_aggregate(measure: Measure, index: int) -> str:
+    value = f"CASE WHEN m = {index} THEN v END"
+    combine = LEGACY_ROLLOUT_BATCH_METRICS.get(measure.source.name)
+    if combine == "sum":
+        aggregate = f"SUM({value})"
+    elif combine == "mean":
+        aggregate = f"AVG({value})"
+    else:
+        aggregate = f"max_by({value}, CASE WHEN m = {index} THEN ts END)"  # last written
+    return f"1 - {aggregate}" if measure.source.transform == "one_minus" else aggregate
 
 
 def _rollouts_sql(owners: Mapping[str, Dimension | Measure | None], columns: frozenset[str]) -> str:

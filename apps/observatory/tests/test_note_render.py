@@ -10,6 +10,7 @@ from posttrain_observatory.note_render import (
     format_value,
     parse_block,
     parse_scope,
+    pick_row,
     render_note,
     split_blocks,
 )
@@ -130,8 +131,8 @@ def test_views_references_and_links_render_from_data_blocks() -> None:
     assert chart.result is not None and chart.query == "select step, entropy, kl from updates order by step"
     assert "select 1 -- a plain sql block stays code" in rendered.text
     assert "- entropy: `" in rendered.text and "0.18 → 0.28 over 3 points" in rendered.text
-    first = layer.queries[0]
-    assert isinstance(first, SqlQuery) and first.runs == ("run-a", "run-b")
+    first = next(query for query in layer.queries if isinstance(query, SqlQuery))
+    assert first.runs == ("run-a", "run-b")
     assert sum(1 for query in layer.queries if isinstance(query, SemanticQuery) and query.measures == ("runs",)) == 1
 
 
@@ -141,6 +142,14 @@ def test_sql_data_blocks_default_to_the_note_run() -> None:
     assert "Updates: 3." in rendered.text
     query = layer.queries[0]
     assert isinstance(query, SqlQuery) and query.runs == ("run-a",)
+
+
+def test_references_without_a_condition_read_the_note_runs_row() -> None:
+    for column in ("run.id", "id", "run_id"):
+        result = _result([(column, "value"), ("updates", "value")], [["older-run", 40], ["run-a", 134]], grain="sql")
+        assert pick_row(result, None, run_id="run-a") == ("run-a", 134), column
+    other = _result([("task", "value"), ("reward", "value")], [["t1", 0.5], ["t2", 0.7]], grain="sql")
+    assert pick_row(other, None, run_id="run-a") == ("t1", 0.5)
 
 
 def test_everything_unresolvable_is_shown_not_blanked() -> None:

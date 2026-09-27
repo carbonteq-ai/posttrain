@@ -73,7 +73,9 @@ def test_runs_come_from_configs_and_lifecycle(trackio_project: TrackioDataSource
     ]
 
 
-def test_updates_apply_the_same_rules_as_the_python_readers(trackio_project: TrackioDataSource) -> None:
+def test_updates_apply_the_same_rules_as_the_python_readers(
+    trackio_project: TrackioDataSource, trackio_engine: str
+) -> None:
     result = _query(
         trackio_project,
         measures=("update_seconds:sum", "rollout_seconds:sum", "rollout_share", "entropy:last", "tool_call_rate"),
@@ -86,11 +88,12 @@ def test_updates_apply_the_same_rules_as_the_python_readers(trackio_project: Tra
     assert row["rollout_share"] == pytest.approx(530.0 / 620.0)
     assert row["entropy_last"] == 0.25
     assert row["tool_call_rate"] == 0.75
-    assert result.sql is not None and "updates AS t" in result.sql and result.engine == "sqlite"
+    assert result.sql is not None and "updates AS t" in result.sql and result.engine == trackio_engine
 
     # Equivalence: the SQL view and posttrain.tracking.logical_series (through the reader) agree per update.
     for metric, measure in (
         ("train/rl/time/rollout_seconds", "rollout_seconds"),
+        ("train/rl/rollouts_attempted", "rollouts_attempted"),
         ("train/rl/tool_call_frequency", "tool_call_rate"),
         ("train/step_time_seconds", "update_seconds"),
     ):
@@ -102,6 +105,8 @@ def test_updates_apply_the_same_rules_as_the_python_readers(trackio_project: Tra
             if row[measure] is not None
         }
         assert sql == python, metric
+        if measure == "rollouts_attempted":
+            assert sql[1] == 136.0  # 48 + 48 + 40: batches with equal values are still separate batches
 
 
 def test_rollouts_are_rows_so_any_aggregation_works(trackio_project: TrackioDataSource) -> None:

@@ -9,13 +9,18 @@ to `carbonteq/dev` and not yet promoted or deployed. It carries dev28's
 revisioned run notes (`run_notes` table; Doris schema version 4) and dev29's
 read-only project SQL (`project_sql`: one Doris SQL SELECT over a project's
 `metric_rows`, `run_configs`, `traces` and `run_notes`, translated on SQLite
-storage), which the Observatory's semantic layer and run notes use. Deploying it
-to the shared server needs, in order: the real-Doris integration tests in the
-fork (`tests/integration/test_doris_storage.py`, with `TRACKIO_DORIS_*`), a
-restore-verified Doris backup, `trackio storage migrate-doris --to 4 --apply
---backup-receipt ...` (a dev28 or later server refuses to start on a version 3
-database), and then the server upgrade. Until then the shared server reports
-dev27, and notes and project SQL report themselves unavailable.
+storage), which the Observatory's semantic layer and run notes use. On
+2026-09-27 the test database `trackio_candidate` (same Doris host as production)
+was backed up with a restore check, migrated to schema version 4, and passed
+the fork's 9 real-Doris tests (`tests/integration/test_doris_storage.py`) and
+the Observatory's tests against a local dev29 server on it. The candidate
+service there still runs dev27, which keeps running but would refuse to restart
+on version 4 until it is upgraded. Deploying dev29 to the shared server needs,
+in order: a restore-verified backup of the production database `trackio`,
+`trackio storage migrate-doris --to 4 --apply --backup-receipt ...` (a dev28 or
+later server refuses to start on a version 3 database), and then the server
+upgrade. Until then the shared server reports dev27, and notes and project SQL
+report themselves unavailable.
 
 Posttrain 0.4.5 pins and deploys `0.31.5.post14.dev27` (fork commit
 `f4d1027441449d3d59870541edb275fa859fee35`, tag
