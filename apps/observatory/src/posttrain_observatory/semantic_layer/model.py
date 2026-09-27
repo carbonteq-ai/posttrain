@@ -19,7 +19,9 @@ from ..models import ObservatoryModel
 
 type Aggregation = Literal["last", "first", "min", "max", "mean", "sum", "count", "stddev"]
 type EntityName = Literal["run", "update", "rollout", "eval_task", "load_level"]
-type SourceKind = Literal["run_field", "setting", "metric_series", "trace_fact", "eval_task", "load_level", "derived"]
+type SourceKind = Literal[
+    "run_field", "setting", "event", "metric_series", "trace_fact", "eval_task", "load_level", "derived"
+]
 type DimensionType = Literal["string", "integer", "number", "time", "boolean"]
 
 AGGREGATIONS: tuple[Aggregation, ...] = ("last", "first", "min", "max", "mean", "sum", "count", "stddev")

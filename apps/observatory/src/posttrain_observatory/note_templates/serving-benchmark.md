@@ -24,6 +24,7 @@ order_by: [load_level.concurrency]
 | Measured for | {{result.serve_measurement_seconds | duration | default "—"}} |
 | Peak VRAM | {{result.serve_peak_vram_bytes | default "—"}} bytes |
 | Error | {{run.error | default "none"}} |
+| Failed in | {{run.failed_phase | default "—"}} (update {{run.failed_step | default "—"}}) |
 
 ```table
 data: levels

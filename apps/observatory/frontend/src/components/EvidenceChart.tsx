@@ -30,6 +30,13 @@ const colors = ['#6356c7', '#e85d3f', '#148c87', '#c68a2c', '#2476a8', '#8f548f'
 const lineTypes = ['solid', 'dashed', 'dotted'] as const;
 export type ChartXDomain = 'logical-step' | 'elapsed-time';
 
+/**
+ * Optional description of a logical x axis that is not a training step: a
+ * name for the axis and tooltip, and category labels when the x values are
+ * not numbers (each point's ``step`` is then the category's index).
+ */
+export type ChartXAxis = { name?: string; categories?: readonly string[] };
+
 function shortName(name: string, metricLabels: Record<string, string>): string {
   return metricLabels[name] ?? name.split('/').at(-1)?.replaceAll('_', ' ') ?? name;
 }
@@ -116,13 +123,20 @@ export function formatTooltip(
   metricLabels: Record<string, string>,
   metricUnits: Record<string, string | null>,
   xDomain: ChartXDomain = 'logical-step',
+  xAxis?: ChartXAxis,
 ): string {
   const entries = (Array.isArray(params) ? params : [params]).filter((param) => param.seriesName);
   if (entries.length === 0) return '';
   const axisValue = entries[0].axisValue;
   const step = typeof axisValue === 'number' ? axisValue : Number(axisValue);
   const observedAt = tooltipObservedAt(entries[0]);
-  const header = xDomain === 'elapsed-time'
+  const category = xAxis?.categories == null
+    ? null
+    : typeof axisValue === 'number' ? xAxis.categories[axisValue] ?? String(axisValue) : String(axisValue ?? '—');
+  const logicalLabel = xAxis?.name ?? 'Step';
+  const header = category != null
+    ? (xAxis?.name ? `${xAxis.name} ${category}` : category)
+    : xDomain === 'elapsed-time'
     ? `${observedAt == null ? 'Time unavailable' : new Date(observedAt).toLocaleString(undefined, {
         month: 'short',
         day: 'numeric',
@@ -130,7 +144,7 @@ export function formatTooltip(
         minute: '2-digit',
         second: '2-digit',
       })}${Number.isFinite(step) ? ` · +${formatElapsedDuration(step)}` : ''}`
-    : `Step ${Number.isFinite(step) ? step.toLocaleString(undefined, { maximumFractionDigits: 0 }) : String(axisValue ?? '—')}`;
+    : `${logicalLabel} ${Number.isFinite(step) ? step.toLocaleString(undefined, { maximumFractionDigits: xAxis?.name ? 4 : 0 }) : String(axisValue ?? '—')}`;
   const rows = entries.map((param) => {
     const name = param.seriesName ?? '';
     const color = typeof param.color === 'string' ? param.color : '#716a73';
@@ -255,6 +269,10 @@ type EvidenceChartProps = {
   xDomain?: ChartXDomain;
   xOrigin?: string;
   xRange?: readonly [number, number];
+  /** Draw lines (default) or bars. */
+  seriesType?: 'line' | 'bar';
+  /** Name and categories for a logical x axis other than the training step. */
+  xAxis?: ChartXAxis;
 };
 
 export function EvidenceChart({
@@ -272,6 +290,8 @@ export function EvidenceChart({
   xDomain = 'logical-step',
   xOrigin,
   xRange,
+  seriesType = 'line',
+  xAxis,
 }: EvidenceChartProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null);
@@ -348,6 +368,10 @@ export function EvidenceChart({
       { length: panelCount },
       (_, index) => legendHeight + index * (panelHeight + panelGap),
     );
+    const categories = xDomain === 'logical-step' ? xAxis?.categories : undefined;
+    const xAxisKind = categories
+      ? { type: 'category' as const, data: [...categories] }
+      : { type: 'value' as const };
     const axes = useSmallMultiples
       ? panelGroups.flatMap((_, panelIndex) => groupAxisGroups[panelIndex].map((group, axisIndex) => ({
           type: 'value' as const,
@@ -370,13 +394,13 @@ export function EvidenceChart({
         }));
     const xAxes = useSmallMultiples
       ? panelGroups.map((_, index) => ({
-          type: 'value' as const,
+          ...xAxisKind,
           scale: xDomain === 'elapsed-time',
           min: xMinimum,
           max: xMaximum,
           gridIndex: index,
-          name: index === panelGroups.length - 1 && (!compact || xDomain === 'elapsed-time')
-            ? (xDomain === 'elapsed-time' ? 'Elapsed run time' : 'Logical step')
+          name: index === panelGroups.length - 1 && (!compact || xDomain === 'elapsed-time' || Boolean(xAxis?.name))
+            ? (xDomain === 'elapsed-time' ? 'Elapsed run time' : xAxis?.name ?? 'Logical step')
             : '',
           nameLocation: 'middle' as const,
           nameGap: 32,
@@ -391,11 +415,11 @@ export function EvidenceChart({
           splitLine: { show: false },
         }))
       : [{
-          type: 'value' as const,
+          ...xAxisKind,
           scale: xDomain === 'elapsed-time',
           min: xMinimum,
           max: xMaximum,
-          name: compact && xDomain === 'logical-step' ? '' : (xDomain === 'elapsed-time' ? 'Elapsed run time' : 'Logical step'),
+          name: compact && xDomain === 'logical-step' && !xAxis?.name ? '' : (xDomain === 'elapsed-time' ? 'Elapsed run time' : xAxis?.name ?? 'Logical step'),
           nameLocation: 'middle' as const,
           nameGap: 34,
           axisLine: { lineStyle: { color: '#aaa4ab' } },
@@ -438,7 +462,7 @@ export function EvidenceChart({
         borderWidth: 1,
         extraCssText: 'border-radius:5px;box-shadow:0 6px 18px rgba(38,33,38,.10);',
         axisPointer: { type: 'line', lineStyle: { color: '#8c858e', width: 1 } },
-        formatter: (params: AxisTooltipParam | AxisTooltipParam[]) => formatTooltip(params, metricLabels, metricUnits, xDomain),
+        formatter: (params: AxisTooltipParam | AxisTooltipParam[]) => formatTooltip(params, metricLabels, metricUnits, xDomain, xAxis),
       },
       axisPointer: useSmallMultiples ? { link: [{ xAxisIndex: 'all' }] } : undefined,
       legend: {
@@ -480,13 +504,14 @@ export function EvidenceChart({
         const indexWithinGroup = groupSeries[panelGroupIndex]?.findIndex((candidate) => candidate.name === item.name) ?? 0;
         return {
           name: item.name,
-          type: 'line',
+          type: seriesType,
           xAxisIndex: useSmallMultiples ? panelGroupIndex : 0,
           yAxisIndex,
           showSymbol: item.points.length < 12,
           symbolSize: 5,
           smooth: false,
-          lineStyle: { width: 1.9, type: lineTypes[indexWithinGroup % lineTypes.length] },
+          lineStyle: seriesType === 'line' ? { width: 1.9, type: lineTypes[indexWithinGroup % lineTypes.length] } : undefined,
+          barMaxWidth: seriesType === 'bar' ? 28 : undefined,
           emphasis: { focus: 'series' },
           markLine: selectedStep == null ? undefined : {
             silent: true,
@@ -536,7 +561,7 @@ export function EvidenceChart({
       chart.dispose();
       if (chartRef.current === chart) chartRef.current = null;
     };
-  }, [compact, elapsedMaximum, metricLabels, metricUnits, onHoverStep, onPointSelect, panelGroups, plottedSeries, renderedHeight, scaleGroups, selectedStep, showLegend, showZoom, useSmallMultiples, xDomain, xMaximum, xMinimum, xOriginMs]);
+  }, [compact, elapsedMaximum, metricLabels, metricUnits, onHoverStep, onPointSelect, panelGroups, plottedSeries, renderedHeight, scaleGroups, selectedStep, seriesType, showLegend, showZoom, useSmallMultiples, xAxis, xDomain, xMaximum, xMinimum, xOriginMs]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -593,7 +618,7 @@ export function EvidenceChart({
         }}
       />
       <div className="sr-only">
-        <p>{ariaLabel}. Values are plotted by {xDomain === 'elapsed-time' ? 'elapsed run time' : 'logical step'}.</p>
+        <p>{ariaLabel}. Values are plotted by {xDomain === 'elapsed-time' ? 'elapsed run time' : xAxis?.name ?? 'logical step'}.</p>
         <ul>
           {series.map((item) => {
             const latest = item.points.at(-1);

@@ -171,7 +171,48 @@ function MarkdownLink({ href, children, ...props }: ComponentPropsWithoutRef<'a'
   >{children}</a>;
 }
 
-function MarkdownContent({ children, compact = false }: { children: string; compact?: boolean }) {
+/** A fenced code block as written: its language, the rest of its info string, and its text. */
+export type FencedBlock = { language: string | null; meta: string | null; code: string };
+
+/**
+ * Replace a fenced code block with a custom element. Return ``undefined`` to
+ * keep the ordinary highlighted code block.
+ */
+export type FencedBlockRenderer = (block: FencedBlock) => ReactNode | undefined;
+
+type HastLike = {
+  type?: string;
+  tagName?: string;
+  value?: string;
+  properties?: { className?: unknown };
+  data?: { meta?: unknown };
+  children?: HastLike[];
+};
+
+function hastText(node: HastLike): string {
+  if (node.type === 'text') return node.value ?? '';
+  return (node.children ?? []).map(hastText).join('');
+}
+
+function fencedBlock(pre: HastLike | undefined): FencedBlock | null {
+  const code = pre?.children?.find((child) => child.type === 'element');
+  if (!code || code.tagName !== 'code') return null;
+  const classes = Array.isArray(code.properties?.className) ? code.properties.className.map(String) : [];
+  const language = classes.find((name) => name.startsWith('language-'))?.slice('language-'.length) ?? null;
+  const meta = typeof code.data?.meta === 'string' ? code.data.meta : null;
+  return { language, meta, code: hastText(code) };
+}
+
+/**
+ * Markdown as Observatory shows it: GitHub-flavoured, raw HTML dropped
+ * (``skipHtml``; no ``rehype-raw``), images omitted and links limited to
+ * http(s), mailto and in-app paths.
+ */
+export function MarkdownContent({ children, compact = false, fencedBlock: renderFenced }: {
+  children: string;
+  compact?: boolean;
+  fencedBlock?: FencedBlockRenderer;
+}) {
   return <div className={`obs-markdown ${compact ? 'obs-markdown-compact' : ''}`}>
     <ReactMarkdown
       skipHtml
@@ -184,6 +225,13 @@ function MarkdownContent({ children, compact = false }: { children: string; comp
         h2: ({ node: _node, ...props }) => <h5 {...props} />,
         h3: ({ node: _node, ...props }) => <h6 {...props} />,
         img: ({ node: _node, alt }) => <span className="rounded bg-subtle px-1.5 py-0.5 text-[10px] text-muted">Image omitted{alt ? `: ${alt}` : ''}</span>,
+        ...(renderFenced ? {
+          pre: ({ node, ...props }) => {
+            const block = fencedBlock(node as HastLike | undefined);
+            const custom = block ? renderFenced(block) : undefined;
+            return custom === undefined ? <pre {...props} /> : <>{custom}</>;
+          },
+        } : {}),
       }}
     >{children}</ReactMarkdown>
   </div>;

@@ -31,6 +31,7 @@ by: update.step
 | Preference accuracy (last) | {{result.preference_accuracy_last | percent | default "—"}} |
 | Reward margin (last) | {{result.reward_margin_last | round 3 | default "—"}} |
 | Error | {{run.error | default "none"}} |
+| Failed in | {{run.failed_phase | default "—"}} (update {{run.failed_step | default "—"}}) |
 
 ```chart
 data: curve

@@ -77,6 +77,9 @@ const TraceTable = lazy(() =>
 const RolloutGroupTable = lazy(() =>
   import('./components/RolloutGroupTable').then((module) => ({ default: module.RolloutGroupTable })),
 );
+const RunNotesPanel = lazy(() =>
+  import('./components/RunNotesPanel').then((module) => ({ default: module.RunNotesPanel })),
+);
 
 type Section = 'Overview' | 'Metrics' | 'System metrics' | 'Traces & evaluation' | 'Artifacts & lineage' | 'Run config';
 
@@ -1321,8 +1324,8 @@ export default function App() {
             const run = runs.find((item) => item.run_key === runKey);
             if (run) void chooseRun(run);
           }} /> : surface === 'compare' ? <CompareView runs={compareCandidates} candidateLoading={compareCandidateLoading} selectedKeys={compareKeys} comparison={comparison} loading={comparisonLoading} onToggle={toggleCompareRun} onCompare={() => void runCompare()} jobKind={selected.run.job_kind} /> : !response ? <RunShell selected={selected} section={section} error={error} /> : <>
-          {section === 'Overview' && (
-            response.view.view_kind === 'job.serving'
+          {section === 'Overview' && <>
+            {response.view.view_kind === 'job.serving'
               ? <ServingBenchmarkOverview response={response} sourceId={selected.locator.source_id} onRunConfig={() => void openSection('Run config')} />
               : <Overview
                   selected={selected}
@@ -1335,8 +1338,9 @@ export default function App() {
                   onTraces={() => void openSection('Traces & evaluation')}
                   onCompare={() => { void openCompare(selected.run_key); }}
                   onRunConfig={() => void openSection('Run config')}
-                />
-          )}
+                />}
+            <Suspense fallback={null}><RunNotesPanel key={selected.run_key} runKey={selected.run_key} /></Suspense>
+          </>}
           {section === 'Metrics' && <GenericMetrics runKey={selected.run_key} />}
           {section === 'System metrics' && <SystemView system={system} />}
           {section === 'Traces & evaluation' && (

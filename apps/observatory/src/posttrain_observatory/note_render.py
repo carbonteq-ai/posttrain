@@ -189,8 +189,11 @@ def parse_block(body: str) -> dict[str, Any]:
                 block.append(lines[index].strip())
                 index += 1
             values[key] = "\n".join(block).strip()
-        else:
+        elif rest[:1] in {"[", "{"}:
             values[key] = parse_value(rest)
+        else:
+            # A plain value is the whole rest of the line, commas included.
+            values[key] = _literal(rest[1:-1] if len(rest) >= 2 and rest[0] == rest[-1] and rest[0] in "'\"" else rest)
     return values
 
 
@@ -410,10 +413,16 @@ def parse_row_condition(text: str) -> tuple[str, Any]:
     return column.strip(), parse_value(value.strip())
 
 
-def pick_row(result: SemanticResult, condition: str | None) -> tuple[Any, ...]:
+def pick_row(result: SemanticResult, condition: str | None, *, run_id: str | None = None) -> tuple[Any, ...]:
+    """The row a `where column = value` names; without one, the note's own run's row, else the first."""
+
     if not result.rows:
         raise LookupError("no rows")
     if condition is None:
+        names = [column.name for column in result.columns]
+        if run_id is not None and "run.id" in names:
+            index = names.index("run.id")
+            return next((row for row in result.rows if row[index] == run_id), result.rows[0])
         return result.rows[0]
     column, expected = parse_row_condition(condition)
     index = _column_index(result, column)
@@ -472,7 +481,7 @@ async def render_note(
     views: list[RenderedView] = []
     for part in parts:
         if isinstance(part, _Text):
-            resolved = _inline(part.text, data, errors, run_values, link_for, missing)
+            resolved = _inline(run_id, part.text, data, errors, run_values, link_for, missing)
             markdown.append(resolved)
             text.append(resolved)
             continue
@@ -490,7 +499,7 @@ async def render_note(
             markdown.append(part.raw)
             text.append(part.raw)
             continue
-        view = _view(len(views), kind, part.body, data, errors, queries)  # type: ignore[arg-type]
+        view = _view(len(views), kind, part.body, data, errors, queries, run_id)  # type: ignore[arg-type]
         views.append(view)
         if view.error is not None:
             marker = unresolved(kind, view.error)
@@ -515,6 +524,7 @@ def _view(
     data: Mapping[str, SemanticResult],
     errors: Mapping[str, str],
     queries: Mapping[str, str],
+    run_id: str,
 ) -> RenderedView:
     try:
         options = parse_block(body)
@@ -558,14 +568,14 @@ def _view(
             raise ValueError("a value needs 'column'")
         filters = parse_filters(str(options["format"])) if options.get("format") else []
         where = options.get("where")
-        row = pick_row(result, str(where) if where is not None else None)
+        row = pick_row(result, str(where) if where is not None else None, run_id=run_id)
         value = row[_column_index(result, str(column))]
         view: dict[str, Any] = {"value": value, "formatted": format_value(value, filters)}
         if options.get("compare") is not None:
             other = pick_row(result, str(options["compare"]))[_column_index(result, str(column))]
             view |= {"compare_value": other, "compare_formatted": format_value(other, filters)}
             if isinstance(value, int | float) and isinstance(other, int | float) and not isinstance(value, bool):
-                view["difference"] = _difference(value, other)
+                view["difference"] = _difference(value, other, filters)
         return RenderedView(**base, **view)
     except (KeyError, LookupError, ValueError) as error:
         return RenderedView(**base, error=_reason(error))
@@ -576,9 +586,14 @@ def _reason(error: Exception) -> str:
     return str(error.args[0]) if isinstance(error, KeyError) and error.args else str(error)
 
 
-def _difference(value: float, other: float) -> str:
+def _difference(value: float, other: float, filters: Sequence[tuple[str, str | None]] = ()) -> str:
+    """The change from `value` to `other`, in the view's format, with the relative change."""
+
     change = other - value
     relative = f" ({change / value:+.1%})" if value else ""
+    unit_filters = [item for item in filters if item[0] in {"round", "sci", "duration"}]
+    if unit_filters:
+        return f"{'+' if change >= 0 else '-'}{format_value(abs(change), unit_filters)}{relative}"
     return f"{change:+.4g}{relative}"
 
 
@@ -604,6 +619,7 @@ async def _run_references(body_md: str, *, run_id: str, query: QueryRunner) -> d
 
 
 def _inline(
+    note_run: str,
     text: str,
     data: Mapping[str, SemanticResult],
     errors: Mapping[str, str],
@@ -631,7 +647,7 @@ def _inline(
             result = data.get(name)
             if result is None:
                 raise ValueError(f"no data block named {name!r}")
-            row = pick_row(result, where.strip() or None)
+            row = pick_row(result, where.strip() or None, run_id=note_run)
             return format_value(row[_column_index(result, column)], filters)
         except (KeyError, LookupError, ValueError) as error:
             marker = unresolved("{{" + expression + "}}", _reason(error))

@@ -8,10 +8,11 @@ of squares, so their mean and standard deviation are combined exactly.
 
 from __future__ import annotations
 
+import asyncio
 import difflib
 import math
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -107,8 +108,35 @@ def setting_value(resolved_inputs: Mapping[str, Any], path: str) -> Any:
 def run_field(summary: RunSummary, name: str) -> Any:
     if name == "error":
         return summary.error.type if summary.error is not None else None
+    if name == "error_message":
+        return summary.error.message if summary.error is not None else None
     value = getattr(summary, name, None)
     return value.isoformat() if isinstance(value, datetime) else value
+
+
+READ_CONCURRENCY = 8
+
+
+async def per_run[T, R](items: Sequence[T], read: Callable[[T], Awaitable[R]]) -> list[R]:
+    """Read for each run concurrently (at most `READ_CONCURRENCY` at once), keeping order."""
+
+    semaphore = asyncio.Semaphore(READ_CONCURRENCY)
+
+    async def one(item: T) -> R:
+        async with semaphore:
+            return await read(item)
+
+    return list(await asyncio.gather(*(one(item) for item in items)))
+
+
+def event_value(detail: RunDetail, name: str) -> Any:
+    """``event:attribute`` of the first event with that name, in recorded order."""
+
+    event_name, _, attribute = name.partition(":")
+    for event in detail.events:
+        if event.name == event_name:
+            return event.attributes.get(attribute)
+    return None
 
 
 def duration_seconds(summary: RunSummary) -> float:
@@ -130,6 +158,9 @@ async def run_row(context: _Context, summary: RunSummary, dimensions: Iterable[D
         elif dimension.source.kind == "setting":
             detail = await context.detail(summary.run_id)
             row[dimension.name] = setting_value(detail.resolved_inputs, dimension.source.name)
+        elif dimension.source.kind == "event":
+            detail = await context.detail(summary.run_id)
+            row[dimension.name] = event_value(detail, dimension.source.name)
     return row
 
 
@@ -177,8 +208,9 @@ async def resolve_runs(
         summaries = list(await context.reader.list_runs(RunQuery(limit=RUN_SCAN_LIMIT, **pushed)))
     dimensions = [context.model.dimension(name) for name in filters]
     selected: list[RunSummary] = []
-    for summary in summaries:
-        row = await run_row(context, summary, dimensions) if dimensions else {}
+    rows = await per_run(summaries, lambda summary: run_row(context, summary, dimensions)) if dimensions else []
+    for index, summary in enumerate(summaries):
+        row = rows[index] if dimensions else {}
         if all(condition.matches(row.get(name)) for name, condition in filters.items()):
             selected.append(summary)
     if len(selected) > max_runs:
@@ -418,6 +450,11 @@ def _grain(model: SemanticModel, requested: Sequence[_Requested], dimensions: It
         try:
             entities.add(model.dimension(name).entity)
         except KeyError:
+            if any(measure.name == name for measure in model.measures):
+                raise QueryError(
+                    f"{name!r} is a measure; by and where take dimensions. Filter on a measure in SQL mode "
+                    "(GROUP BY ... HAVING)"
+                ) from None
             raise QueryError(
                 f"unknown dimension {name!r}{_suggest(name, [d.name for d in model.dimensions])}"
             ) from None
@@ -479,8 +516,8 @@ async def run_semantic_query(
     entity_dimensions = [
         model.dimension(name) for name in dict.fromkeys([*query.by, *entity_filters]) if not name.startswith("run.")
     ]
-    rows: list[dict[str, Any]] = []
-    for summary in runs:
+
+    async def load(summary: RunSummary) -> list[dict[str, Any]]:
         base = await run_row(context, summary, run_dimensions)
         if grain == "run":
             loaded = [{**base, **await load_run_metrics(context, summary, measures)}]
@@ -495,6 +532,10 @@ async def run_semantic_query(
         if not loaded and all(name.startswith("run.") for name in query.by):
             # Keep the run visible with empty measures; `unavailable` says why.
             loaded = [dict(base)]
+        return loaded
+
+    rows: list[dict[str, Any]] = []
+    for loaded in await per_run(runs, load):
         rows.extend(
             row for row in loaded if all(condition.matches(row.get(name)) for name, condition in entity_filters.items())
         )

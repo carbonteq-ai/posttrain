@@ -164,6 +164,27 @@ DIMENSIONS = (
         name="run.error", entity="run", type="string", description="Error type of a failed run.", source=_field("error")
     ),
     Dimension(
+        name="run.failed_phase",
+        entity="run",
+        type="string",
+        description="Runtime phase that failed first (for example rollout or actor_update).",
+        source=Source(kind="event", name="runtime_phase_failed:phase"),
+    ),
+    Dimension(
+        name="run.failed_step",
+        entity="run",
+        type="integer",
+        description="Update during which the first phase failed.",
+        source=Source(kind="event", name="runtime_phase_failed:logical_step"),
+    ),
+    Dimension(
+        name="run.error_message",
+        entity="run",
+        type="string",
+        description="Safe error message of a failed run.",
+        source=_field("error_message"),
+    ),
+    Dimension(
         name="run.model",
         entity="run",
         type="string",

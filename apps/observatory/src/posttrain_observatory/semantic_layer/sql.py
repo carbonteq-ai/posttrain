@@ -25,6 +25,7 @@ from .execute import (
     load_run_metrics,
     load_updates,
     load_view_rows,
+    per_run,
     resolve_runs,
     run_row,
 )
@@ -70,10 +71,14 @@ async def build_database(
         and measure.source.kind == "metric_series"
         and any(applies(measure, summary.job_kind) for summary in runs)
     ]
-    run_rows = [
-        {**await run_row(context, summary, run_dimensions), **await load_run_metrics(context, summary, run_measures)}
-        for summary in runs
-    ]
+
+    async def run_record(summary: Any) -> dict[str, Any]:
+        return {
+            **await run_row(context, summary, run_dimensions),
+            **await load_run_metrics(context, summary, run_measures),
+        }
+
+    run_rows = await per_run(runs, run_record)
     run_columns = [
         "id",
         *(column_name(d.name) for d in run_dimensions if d.name != "run.id"),
@@ -99,9 +104,11 @@ async def build_database(
 
     if "updates" in wanted:
         measures = measures_for("update")
-        rows = []
-        for summary in runs:
-            rows.extend(await load_updates(context, summary, measures))
+        rows = [
+            row
+            for loaded in await per_run(runs, lambda summary: load_updates(context, summary, measures))
+            for row in loaded
+        ]
         _create(
             connection,
             "updates",
@@ -119,9 +126,11 @@ async def build_database(
     if "rollouts" in wanted:
         measures = measures_for("rollout")
         dimensions = [d for d in model.dimensions if d.entity == "rollout"]
-        rows = []
-        for summary in runs:
-            rows.extend(await load_rollouts(context, summary, measures, dimensions))
+        rows = [
+            row
+            for loaded in await per_run(runs, lambda summary: load_rollouts(context, summary, measures, dimensions))
+            for row in loaded
+        ]
         value_columns: list[str] = []
         for measure in measures:
             value_columns += (
@@ -151,10 +160,17 @@ async def build_database(
             continue
         measures = measures_for(entity)
         dimensions = [d for d in model.dimensions if d.entity == entity]
-        rows = []
-        for summary in runs:
-            if any(applies(measure, summary.job_kind) for measure in measures):
-                rows.extend(await load_view_rows(context, summary, entity, measures, dimensions))
+        providers = [summary for summary in runs if any(applies(measure, summary.job_kind) for measure in measures)]
+        rows = [
+            row
+            for loaded in await per_run(
+                providers,
+                lambda summary, entity=entity, measures=measures, dimensions=dimensions: load_view_rows(
+                    context, summary, entity, measures, dimensions
+                ),
+            )
+            for row in loaded
+        ]
         _create(
             connection,
             table,

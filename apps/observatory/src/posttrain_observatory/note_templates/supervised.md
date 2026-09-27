@@ -32,6 +32,7 @@ by: update.step
 | Token accuracy (last) | {{result.token_accuracy_last | percent | default "not measured"}} |
 | Throughput | {{result.tokens_per_second_mean | round 0 | default "—"}} tokens/s |
 | Error | {{run.error | default "none"}} |
+| Failed in | {{run.failed_phase | default "—"}} (update {{run.failed_step | default "—"}}) |
 
 ```chart
 data: curve

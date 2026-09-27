@@ -32,6 +32,7 @@ measures: [task_reward:mean, success_rate:mean, valid_repetitions:sum]
 | Mean task reward | {{overall.task_reward_mean | round 3 | default "—"}} |
 | Mean success rate | {{overall.success_rate_mean | percent | default "—"}} |
 | Error | {{run.error | default "none"}} |
+| Failed in | {{run.failed_phase | default "—"}} (update {{run.failed_step | default "—"}}) |
 
 ```table
 data: tasks

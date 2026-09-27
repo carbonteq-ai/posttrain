@@ -30,6 +30,7 @@ by: update.step
 | Reverse KL (last) | {{result.reverse_kl_last | round 4 | default "—"}} |
 | Teacher failures | {{result.teacher_failures_sum | default "0"}} |
 | Error | {{run.error | default "none"}} |
+| Failed in | {{run.failed_phase | default "—"}} (update {{run.failed_step | default "—"}}) |
 
 ```chart
 data: curve

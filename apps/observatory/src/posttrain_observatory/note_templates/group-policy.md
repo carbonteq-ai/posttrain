@@ -39,6 +39,7 @@ by: update.step
 | Rollouts | {{result.rollouts_attempted_sum | default "—"}} generated, {{result.rollouts_truncated_sum | default "—"}} truncated |
 | Groups with no reward spread | {{result.zero_spread_share_mean | percent | default "—"}} |
 | Error | {{run.error | default "none"}} |
+| Failed in | {{run.failed_phase | default "—"}} (update {{run.failed_step | default "—"}}) |
 
 ```chart
 data: curve

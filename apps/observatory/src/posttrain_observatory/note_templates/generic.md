@@ -13,3 +13,4 @@ measures: [duration_seconds]
 | Started | {{run.started_at}} |
 | Finished | {{run.finished_at | default "not finished"}} |
 | Error | {{run.error | default "none"}} |
+| Failed in | {{run.failed_phase | default "—"}} (update {{run.failed_step | default "—"}}) |
