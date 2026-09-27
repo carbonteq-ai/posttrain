@@ -114,6 +114,14 @@ Every metric point carries at least:
 
 High-cardinality text does **not** belong in metrics — use traces.
 
+A training metric has **one value per update**, written at that update's step.
+Detail finer than an update (for example each rollout batch of an
+active-sampling update) uses its own names, never the per-update name. Metrics
+recomputed from preserved traces when a run finishes carry the update they
+describe (`source_step`); tracking readers return every point at this logical
+step, and such replayed points replace live points of the same name for that
+update.
+
 ### Namespaces
 
 ```text
@@ -212,9 +220,10 @@ Throughput and latency percentiles are **computed** from measured traces +
 
 Mean reward, success rate, truncation rate by slice are **computed views**. Their
 vocabulary is the Observatory's semantic layer: entities, dimensions, measures
-and metrics declared once per job kind, each measure naming its single source,
-queried through one read-only query form or read-only SQL over the same
-entities (`05-apis.md`).
+and metrics declared once in one metric catalog, each measure naming its single
+source. The layer is a set of named tables (runs, updates, rollouts, evaluation
+tasks, serving load levels) queried with read-only SQL; a short
+measures-by-dimensions form compiles to that SQL (`05-apis.md`).
 Every evaluation run declares success, but only traces containing a valid
 configured signal enter the pass-rate denominator. Errors, truncations, and
 missing signals retain their execution/evidence state instead of becoming
@@ -596,8 +605,9 @@ Each revision records its source (`cli`, `mcp` or `observatory`); the platform
 has no user identity, so notes record no author.
 
 A note may cite recorded data instead of copying numbers: named data blocks are
-semantic-layer queries (`05-apis.md`), views (`chart`, `value`, `table`) and
-inline references display their results, and `[[run:ID]]` links another run.
+read-only SQL over the semantic tables (`05-apis.md`), views (`chart`, `value`,
+`table`) and inline references display their results, and `[[run:ID]]` links
+another run.
 Rendering never executes note text as code, drops raw HTML, and shows an
 unresolved reference as a visible marker rather than a blank. Every job kind
 has a versioned note template; rendered for one run it is that run's card.

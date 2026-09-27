@@ -1124,18 +1124,20 @@ The semantic layer is the Observatory's vocabulary for computed views. It
 declares, once per job kind, entities (run, update, rollout, evaluation task,
 serving load level), dimensions, measures and metrics, each measure with its
 single source (a run field, a recorded setting, a metric series, a trace fact
-or an evaluation or serving view field). `query_semantics` accepts either a
-semantic query (measures, `by` dimensions, `where` filters, a run scope) or one
-read-only SQL `SELECT` over the same semantic tables of the runs in scope; both
-execute over a per-query in-memory copy of only the scoped data and never
-write. `describe_semantics` returns what the selected runs provide. HTTP
+or an evaluation or serving view field); measures come from one metric catalog
+that job views share. The query language is read-only SQL (one `SELECT`) over
+the semantic tables of the runs in scope. `query_semantics` also accepts a
+short form (measures, `by` dimensions, `where` filters, a run scope), which
+compiles to SQL; every result carries the SQL that produced it. Queries execute
+over a per-query in-memory copy of only the columns and runs they read and
+never write. `describe_semantics` returns what the selected runs provide. HTTP
 (`/api/v1/semantic/*`), MCP (`describe_semantics`, `query_semantics`) and
 `posttrain query` expose the same two calls.
 
 Run notes are the Observatory's one write. A note is Markdown attached to a run
 and stored by the tracking backend's `RunNoteStore` (not in run evidence); every
 edit is a new revision guarded by `expected_revision`, and a delete is a
-tombstone revision. Notes may contain data blocks (semantic or SQL queries),
+tombstone revision. Notes may contain data blocks (named SQL),
 views of them (`chart`, `value`, `table`), inline references and run links; the
 Observatory renders them. A run card is the job kind's versioned note template
 rendered for one run. HTTP (`/api/v1/runs/{run}/notes`, `/card`,
