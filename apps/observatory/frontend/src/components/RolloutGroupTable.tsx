@@ -60,9 +60,9 @@ function componentValue(trace: TraceSummary, name: string): number | undefined {
   return trace.reward_components[name] ?? trace.native_metrics[name] ?? trace.metrics[name];
 }
 
-function groupMeanCell(traces: TraceSummary[], value: (trace: TraceSummary) => number | null | undefined, digits: number) {
+function groupMeanCell(traces: TraceSummary[], value: (trace: TraceSummary) => number | null | undefined, digits: number, divided = false) {
   const recorded = meanRecorded(traces, value);
-  return <td className="px-2 py-2 text-right tabular-nums" title={recorded ? `Mean of ${recorded.count} of ${traces.length} loaded rollouts` : 'Not recorded on loaded rollouts'}>
+  return <td className={`${divided ? 'border-l border-divider ' : ''}px-2 py-2 text-right tabular-nums`} title={recorded ? `Mean of ${recorded.count} of ${traces.length} loaded rollouts` : 'Not recorded on loaded rollouts'}>
     {recorded ? recorded.value.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits }) : '—'}
   </td>;
 }
@@ -113,21 +113,22 @@ export function RolloutGroupTable({
       {rewards?.state === 'unavailable' && <p role="status" className="mt-1 text-[10px] text-amber-700">Indexed group reward facts are not available for this run.</p>}
     </header>
     <div className="max-h-[430px] overflow-auto">
-      <table className="w-full table-fixed text-left text-[11px]" style={{ minWidth: 870 + metricColumns.length * 78 }} aria-label="Rollout prompt groups">
-        <colgroup><col className="w-[38px]" /><col className="w-[200px]" /><col className="w-[54px]" /><col className="w-[72px]" /><col className="w-[62px]" /><col className="w-[88px]" />{metricColumns.map((metric) => <col key={metric.name} className="w-[78px]" />)}<col className="w-[62px]" /><col className="w-[68px]" /><col className="w-[68px]" /><col className="w-[72px]" /><col className="w-[86px]" /></colgroup>
+      <table className="w-full table-fixed text-left text-[11px]" style={{ minWidth: 924 + metricColumns.length * 78 }} aria-label="Rollout prompt groups">
+        <colgroup><col className="w-[38px]" /><col className="w-[200px]" /><col className="w-[54px]" /><col className="w-[72px]" /><col className="w-[62px]" /><col className="w-[88px]" />{metricColumns.map((metric) => <col key={metric.name} className="w-[78px]" />)}<col className="w-[54px]" /><col className="w-[62px]" /><col className="w-[68px]" /><col className="w-[68px]" /><col className="w-[72px]" /><col className="w-[86px]" /></colgroup>
         <thead className="sticky top-0 z-10 bg-white text-[10px] text-muted">
           <tr className="border-b border-divider">
             <th scope="col" rowSpan={2} className="px-2 py-2">Step</th><th scope="col" rowSpan={2} className="px-2 py-2">Prompt group / rollout</th><th scope="col" rowSpan={2} className="px-2 py-2" title="Loaded rollouts / configured group size">Rollouts</th><th scope="col" rowSpan={2} className="px-2 py-2 text-right">Mean reward</th><th scope="col" rowSpan={2} className="px-2 py-2 text-right" title="Population standard deviation of complete prompt-group rewards from indexed facts">Reward std dev</th><th scope="col" rowSpan={2} className="px-2 py-2 text-right" title="Nearest older optimizer step with complete groups for the same task">Previous mean / std dev</th>
             {metricColumns.length > 0 && <th scope="colgroup" colSpan={metricColumns.length} className="border-l border-divider px-2 py-1.5 text-center">Reward components</th>}
-            <th scope="col" rowSpan={2} className="border-l border-divider px-2 py-2 text-right">Tool calls</th><th scope="colgroup" colSpan={3} className="border-l border-divider px-2 py-1.5 text-center">Tokens</th><th scope="col" rowSpan={2} className="border-l border-divider px-2 py-2">Update selection</th>
+            <th scope="colgroup" colSpan={2} className="border-l border-divider px-2 py-1.5 text-center">Activity</th><th scope="colgroup" colSpan={3} className="border-l border-divider px-2 py-1.5 text-center">Tokens</th><th scope="col" rowSpan={2} className="border-l border-divider px-2 py-2">Update selection</th>
           </tr>
           <tr className="border-b border-divider">
             {metricColumns.map((metric) => <th key={metric.name} scope="col" className="border-l border-divider px-2 py-1.5 text-right" title={metric.label}><span className="block truncate">{metric.label}</span></th>)}
+            <th scope="col" className="border-l border-divider px-2 py-1.5 text-right" title="Assistant turns (model calls) in the rollout">Turns</th><th scope="col" className="px-2 py-1.5 text-right">Tool calls</th>
             <th scope="col" className="border-l border-divider px-2 py-1.5 text-right">Thinking</th><th scope="col" className="px-2 py-1.5 text-right">Output</th><th scope="col" className="px-2 py-1.5 text-right" title="Total completion tokens, including thinking when recorded">Total</th>
           </tr>
         </thead>
         {groups.map((group) => <FragmentGroup key={group.id} group={group} expectedSize={expectedSize} metricColumns={metricColumns} selectedId={selectedId} expanded={expanded === group.id} onToggle={() => setExpanded(expanded === group.id ? null : group.id)} onSelect={onSelect} />)}
-        {!groups.length && <tbody><tr><td colSpan={11 + metricColumns.length} className="px-3 py-8 text-center text-muted">No loaded prompt groups match these filters.</td></tr></tbody>}
+        {!groups.length && <tbody><tr><td colSpan={12 + metricColumns.length} className="px-3 py-8 text-center text-muted">No loaded prompt groups match these filters.</td></tr></tbody>}
       </table>
     </div>
     <footer className="flex items-center justify-between gap-3 border-t border-divider bg-subtle/35 px-3 py-2 text-[10px] text-muted">
@@ -155,8 +156,9 @@ function FragmentGroup({ group, expectedSize, metricColumns, selectedId, expande
       <td className="px-2 py-2 text-right tabular-nums">{formatReward(group.current?.std)}</td>
       <td className="px-2 py-2 text-right tabular-nums" title={group.priorStep == null ? 'No complete earlier task group in the indexed facts' : `Optimizer step ${group.priorStep} · ${group.priorRollouts} rewarded rollouts across complete task groups`}>{group.prior ? `${formatReward(group.prior.mean)} / ${formatReward(group.prior.std)}` : '—'}</td>
       {metricColumns.map((metric) => <td key={metric.name} className="border-l border-divider px-2 py-2 text-right tabular-nums" title={`Mean of recorded ${metric.label} values`}>{formatReward(meanRecorded(group.traces, (trace) => componentValue(trace, metric.name))?.value)}</td>)}
+      {groupMeanCell(group.traces, (trace) => trace.model_calls, 1, true)}
       {groupMeanCell(group.traces, (trace) => trace.tool_calls, 1)}
-      {groupMeanCell(group.traces, (trace) => trace.thinking_tokens, 0)}
+      {groupMeanCell(group.traces, (trace) => trace.thinking_tokens, 0, true)}
       {groupMeanCell(group.traces, (trace) => trace.response_tokens, 0)}
       {groupMeanCell(group.traces, (trace) => trace.completion_tokens, 0)}
       <td className="px-2 py-2 text-muted" title="This run does not record a per-group update-selection decision. Reward and standard deviation do not prove inclusion in an optimizer update.">Not recorded</td>
@@ -169,8 +171,9 @@ function FragmentGroup({ group, expectedSize, metricColumns, selectedId, expande
       <td className="px-2 py-1.5 text-right text-muted">—</td>
       <td className="px-2 py-1.5 text-right text-muted">—</td>
       {metricColumns.map((metric) => <td key={metric.name} className="border-l border-divider px-2 py-1.5 text-right tabular-nums">{formatReward(componentValue(trace, metric.name))}</td>)}
+      <td className="border-l border-divider px-2 py-1.5 text-right tabular-nums">{traceValue(trace.model_calls)}</td>
       <td className="px-2 py-1.5 text-right tabular-nums">{traceValue(trace.tool_calls)}</td>
-      <td className="px-2 py-1.5 text-right tabular-nums">{traceValue(trace.thinking_tokens)}</td>
+      <td className="border-l border-divider px-2 py-1.5 text-right tabular-nums">{traceValue(trace.thinking_tokens)}</td>
       <td className="px-2 py-1.5 text-right tabular-nums">{traceValue(trace.response_tokens)}</td>
       <td className="px-2 py-1.5 text-right tabular-nums">{traceValue(trace.completion_tokens)}</td>
       <td className="px-2 py-1.5 text-muted">Not recorded</td>

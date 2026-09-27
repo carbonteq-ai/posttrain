@@ -7,6 +7,7 @@ import base64
 import hashlib
 import json
 import math
+import re
 import time
 from collections import defaultdict
 from collections.abc import Mapping
@@ -20,6 +21,9 @@ from posttrain.tracking import (
     EventRecord,
     MetricSeries,
     NoteSource,
+    ProjectSql,
+    ProjectSqlError,
+    ProjectSqlUnavailable,
     RunDataSource,
     RunDetail,
     RunNote,
@@ -581,6 +585,64 @@ def _metric_summary(
         value=value,
         unit=unit,
     )
+
+
+_FACT_TRACE_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
+
+
+async def _with_fact_counts(source: object, summaries: tuple[TraceSummary, ...]) -> tuple[TraceSummary, ...]:
+    """Fill a page's token and turn counts from the traces' stored facts.
+
+    The native payload reports thinking tokens only when the provider's usage
+    does, which training rollouts do not; the fact calculator counts them with
+    the model's renderer when the trace is written. One bounded SQL read per
+    page; a source without project SQL keeps the payload-derived values.
+    """
+
+    missing = [
+        item.external_id
+        for item in summaries
+        if (item.thinking_tokens is None or item.model_calls is None) and _FACT_TRACE_ID.match(item.external_id)
+    ]
+    if not missing or not isinstance(source, ProjectSql):
+        return summaries
+    ids = ", ".join(f"'{external_id}'" for external_id in missing)
+    try:
+        result = await source.project_sql(
+            "select external_id, fact_thinking_tokens, fact_model_output_tokens, fact_model_calls "
+            f"from traces where external_id in ({ids})",
+            max_rows=len(missing),
+        )
+    except (ProjectSqlUnavailable, ProjectSqlError):
+        return summaries
+    facts = {str(row[0]): row[1:] for row in result.rows}
+
+    def counted(value: JsonValue) -> int | None:
+        return int(value) if isinstance(value, int | float) and not isinstance(value, bool) and value >= 0 else None
+
+    enriched = []
+    for item in summaries:
+        row = facts.get(item.external_id)
+        if row is None:
+            enriched.append(item)
+            continue
+        thinking, output, calls = (counted(value) for value in row)
+        completion = item.completion_tokens if item.completion_tokens is not None else output
+        thinking = item.thinking_tokens if item.thinking_tokens is not None else thinking
+        response = item.response_tokens
+        if response is None and completion is not None and thinking is not None:
+            response = max(0, completion - thinking)
+        enriched.append(
+            item.model_copy(
+                update={
+                    "thinking_tokens": thinking,
+                    "completion_tokens": completion,
+                    "response_tokens": response,
+                    "model_calls": item.model_calls if item.model_calls is not None else calls,
+                }
+            )
+        )
+    return tuple(enriched)
 
 
 def _grpo_projection(
@@ -2009,7 +2071,7 @@ class ObservatoryService:
         detail = context.detail
         if step is not None or slice_key or outcome or (search and search.strip()):
             summaries, live = await self._trace_filter_population(locator, context)
-            return filtered_trace_summary_page(
+            page = filtered_trace_summary_page(
                 summaries,
                 cursor=cursor,
                 limit=limit,
@@ -2019,7 +2081,8 @@ class ObservatoryService:
                 search=search,
                 live=live,
             )
-        return await trace_summary_page(
+            return page.model_copy(update={"items": await _with_fact_counts(source, page.items)})
+        page = await trace_summary_page(
             source,
             locator.run_id,
             total=detail.trace_count,
@@ -2031,6 +2094,7 @@ class ObservatoryService:
                 _evaluation_metadata(detail.resolved_inputs) if detail.summary.job_kind.startswith("eval.") else None
             ),
         )
+        return page.model_copy(update={"items": await _with_fact_counts(source, page.items)})
 
     async def get_trace_filter_options(self, run: str | RunLocator) -> TraceFilterOptions:
         locator = self._locator(run)

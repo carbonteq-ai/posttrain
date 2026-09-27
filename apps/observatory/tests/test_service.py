@@ -820,3 +820,31 @@ def test_cli_exposes_the_same_telemetry_schema(capsys: pytest.CaptureFixture[str
     payload = json.loads(capsys.readouterr().out)
     assert payload["job_kind"] == "train.sft"
     assert payload["summary_fields"][0]["key"] == "final_loss"
+
+
+@pytest.mark.asyncio
+async def test_trace_pages_take_token_and_turn_counts_from_stored_facts() -> None:
+    from posttrain.tracking import ProjectSqlResult
+    from posttrain_observatory.models import TraceSummary
+    from posttrain_observatory.service import _with_fact_counts
+
+    class FactSource:
+        def __init__(self) -> None:
+            self.statements: list[str] = []
+
+        async def project_sql(self, sql: str, *, max_rows: int = 10_000, timeout_seconds: float = 10.0):
+            self.statements.append(sql)
+            return ProjectSqlResult(
+                engine="doris", columns=("external_id", "t", "o", "c"), rows=(("train-a", 6659, 7916, 6),)
+            )
+
+    source = FactSource()
+    training = TraceSummary(external_id="train-a", trace_type="verifiers", completion_tokens=7916, tool_calls=10)
+    provider = TraceSummary(external_id="eval-b", trace_type="verifiers", thinking_tokens=40, model_calls=2)
+
+    filled, untouched = await _with_fact_counts(source, (training, provider))
+
+    # Training payloads carry no provider reasoning usage; facts hold the renderer count.
+    assert (filled.thinking_tokens, filled.response_tokens, filled.model_calls) == (6659, 1257, 6)
+    assert untouched == provider
+    assert len(source.statements) == 1 and "'train-a'" in source.statements[0] and "eval-b" not in source.statements[0]

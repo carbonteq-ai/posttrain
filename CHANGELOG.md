@@ -62,6 +62,11 @@ where they are recorded.
 
 - Separate rollout batches that reported the same value were merged, which
   undercounted rollouts and rollout time.
+- Observatory rollout tables showed no thinking or output tokens for training
+  runs: those counts come from provider usage, which training rollouts lack.
+  Trace pages now fill token and turn counts from each trace's stored facts
+  (one bounded project-SQL read per page), and the grouped rollout table adds
+  a Turns column beside tool calls (mean per group, exact per rollout).
 - Training runs recorded no system metrics (GPU and CPU use): recoverable jobs
   open their Trackio run with resume "allow", and the adapter started Trackio's
   GPU and CPU monitors only for resume "never", which only evaluations use.
