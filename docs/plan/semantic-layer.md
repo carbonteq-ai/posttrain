@@ -174,3 +174,5 @@ In `service.py`:
     async def query_semantics(self, query: SemanticQuery | SqlQuery) -> SemanticResult: ...
 
 Dependencies: Python's standard `sqlite3` only; no new packages.
+
+Revision note (2026-09-27, later): superseded in part by `docs/plan/observation-simplification.md`. The layer now runs as Doris SQL inside Trackio's storage (translated on local SQLite) through `posttrain.tracking.ProjectSql`; the short form compiles to SQL; the in-memory execution, the Python aggregation path, the formula parser, the run cap and the `eval_task` and `load_level` entities are gone; metric measures come from the metric catalog; readers return logical steps, so the per-round combination described in Surprises now lives in `posttrain.tracking.logical_series` and the `updates` view. W&B projects are not supported by the query layer.
