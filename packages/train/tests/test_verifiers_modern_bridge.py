@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from typing import cast
 
 import pytest
-from posttrain.common import JsonValue
+from posttrain.common import JsonValue, LocalArtifactRef
 from posttrain.train.integrations.verifiers import VerifiersEnvironmentRolloutBridge, _project_training_branch
 from posttrain.train.online_rl import BehaviorPolicySpan, PolicySampling, PolicyTurnResult, RolloutBatch
 from posttrain.train.rollout_execution import CollectionKey, EpisodeKey
@@ -180,11 +180,12 @@ async def test_modern_native_episode_retains_exact_policy_tokens(tmp_path, failu
     assert artifact.metadata["replay_authority"] is True
     assert artifact.metadata["episode_count"] == 1
     assert artifact.metadata["compression"] == "gzip"
-    published = artifact.reference.path
-    assert published.name == "episodes.jsonl.gz"
-    assert gzip.decompress(published.read_bytes()) == (tmp_path / "episodes.jsonl").read_bytes()
+    reference = artifact.reference
+    assert isinstance(reference, LocalArtifactRef)
+    assert reference.path.name == "episodes.jsonl.gz"
+    assert gzip.decompress(reference.path.read_bytes()) == (tmp_path / "episodes.jsonl").read_bytes()
     assert artifact.metadata["uncompressed_bytes"] == (tmp_path / "episodes.jsonl").stat().st_size
-    assert artifact.reference.digest == hashlib.sha256(published.read_bytes()).hexdigest()
+    assert reference.digest == hashlib.sha256(reference.path.read_bytes()).hexdigest()
 
 
 @pytest.mark.asyncio

@@ -14,7 +14,7 @@ from typing import Any, TypeVar, cast
 
 import pytest
 from posttrain.catalog import open_catalog
-from posttrain.common import CatalogRef, InferenceBinding, ModelVariant
+from posttrain.common import CatalogRef, InferenceBinding, LocalArtifactRef, ModelVariant
 from posttrain.eval import EnvironmentBinding
 from posttrain.train import (
     GRPORequest,
@@ -552,6 +552,7 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
     assert len(artifacts) == 1
     assert artifacts[0].metadata["trace_count"] == 2
     assert artifacts[0].metadata["replay_authority"] is True
+    assert isinstance(artifacts[0].reference, LocalArtifactRef)
     assert artifacts[0].reference.path.name.endswith(".jsonl.gz")
     assert artifacts[0].metadata["technique"] == technique
     assert len(evidence.traces) == 2
@@ -591,9 +592,10 @@ def test_finalize_publishes_only_the_compressed_episode_envelope(tmp_path) -> No
     assert artifact.metadata["episode_count"] == 3
     assert artifact.metadata["uncompressed_bytes"] == len(episodes)
     assert artifact.metadata["compression"] == "gzip"
-    published = artifact.reference.path
-    assert gzip.decompress(published.read_bytes()) == episodes
-    assert artifact.reference.digest == hashlib.sha256(published.read_bytes()).hexdigest()
+    reference = artifact.reference
+    assert isinstance(reference, LocalArtifactRef)
+    assert gzip.decompress(reference.path.read_bytes()) == episodes
+    assert reference.digest == hashlib.sha256(reference.path.read_bytes()).hexdigest()
 
 
 def test_native_bridge_runs_distinct_prompt_groups_concurrently(tmp_path) -> None:
