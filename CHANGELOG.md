@@ -6,7 +6,43 @@ version across first-party distributions.
 
 ## Unreleased
 
-## 0.4.10 - unreleased
+## 0.4.11 - unreleased
+
+Runs can be queried in SQL and carry notes; metrics and trace facts are correct
+where they are recorded.
+
+### Added
+
+- Semantic layer: `runs`, `updates` and `rollouts` as SQL tables, computed
+  inside Trackio's storage (Doris SQL; translated on local SQLite storage) for
+  only the columns a statement reads. `posttrain query`, HTTP
+  `/api/v1/semantic/*` and the MCP `query_semantics` tool take SQL or a short
+  `measures`/`by`/`where` form that compiles to SQL; every result shows its SQL.
+- Run notes: Markdown notes stored in Trackio with revisions, named
+  ```` ```sql <name> ```` data blocks, chart/value/table views, `{{block.column}}`
+  and `{{run.<dimension>}}` references and `[[run:id]]` links. Every job kind
+  has a run card template. Surfaces: the Observatory run page, HTTP, MCP and
+  `posttrain note`.
+- One metric catalog (`posttrain_observatory.metric_catalog`) describes every
+  metric job views show and every queryable measure.
+
+### Changed
+
+- The TRL trainer writes rollout metrics once per update; per-batch time is
+  `train/rl/rollout_batch_seconds`. Readers return logical steps with replay
+  authority applied, and combine the per-batch points of older runs.
+- Trace facts v8: `task_id` is the environment's task key (for AutomationBench
+  the task name), falling back to the dataset's example id, so training and
+  evaluation name tasks the same way across runs.
+- Trackio `0.31.5.post14.dev29` (run notes, read-only project SQL; Doris schema
+  version 4).
+
+### Fixed
+
+- Separate rollout batches that reported the same value were merged, which
+  undercounted rollouts and rollout time.
+
+## 0.4.10 - 2026-09-26
 
 SAMPO can train on per-turn rewards from the AutomationBench environment itself.
 
