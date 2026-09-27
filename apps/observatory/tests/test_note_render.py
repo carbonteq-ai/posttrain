@@ -9,6 +9,7 @@ from posttrain_observatory.note_render import (
     BlockSyntaxError,
     format_value,
     parse_block,
+    parse_scope,
     render_note,
     split_blocks,
 )
@@ -161,6 +162,17 @@ def test_everything_unresolvable_is_shown_not_blanked() -> None:
     assert "⟦unresolved: chart — no data block named 'absent'⟧" in text
     assert "⟦unresolved: table — name its data block with 'data: <name>'⟧" in text
     assert len(rendered.unresolved) == 10
+
+
+def test_scopes_take_ids_or_filters_with_any_of_lists() -> None:
+    assert parse_scope("self, run-b", "run-a") == ("run-a", "run-b")
+    assert parse_scope("run.job_kind=train.grpo,train.sampo, run.status=failed", "run-a") == {
+        "run.job_kind": ["train.grpo", "train.sampo"],
+        "run.status": "failed",
+    }
+    assert parse_scope("run.id=lfm12-*", "run-a") == {"run.id": "lfm12-*"}
+    with pytest.raises(BlockSyntaxError):
+        parse_scope("run-b, run.status=failed", "run-a")
 
 
 def test_formatting_filters() -> None:

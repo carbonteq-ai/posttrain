@@ -303,22 +303,32 @@ def build_query(body: str, run_id: str) -> SqlQuery:
 
 
 def parse_scope(text: str, run_id: str) -> tuple[str, ...] | dict[str, Any]:
-    """`self, run-b` (run ids) or `run.job_kind=train.sampo, run.status=failed` (filters)."""
+    """`self, run-b` (run ids) or `run.job_kind=train.grpo,train.sampo, run.status=failed` (filters).
+
+    In filters, a value without an operator continues the previous filter's "any of" list.
+    """
 
     items = [item.strip() for item in text.split(",") if item.strip()]
     if not items:
         raise BlockSyntaxError("-- runs: needs run ids or run-dimension filters")
-    filters = [_FILTER.match(item) for item in items]
-    if all(filters):
-        scope: dict[str, Any] = {}
-        for match in filters:
-            assert match is not None
-            name, operator, value = match.groups()
-            scope[name] = value if operator == "=" else f"{operator} {value}"
-        return scope
-    if any(filters):
-        raise BlockSyntaxError("-- runs: takes either run ids or filters, not both")
-    return tuple(run_id if item == "self" else item for item in items)
+    if not _FILTER.match(items[0]):
+        if any(_FILTER.match(item) for item in items):
+            raise BlockSyntaxError("-- runs: takes either run ids or filters, not both")
+        return tuple(run_id if item == "self" else item for item in items)
+    scope: dict[str, Any] = {}
+    last: str | None = None
+    for item in items:
+        match = _FILTER.match(item)
+        if match is None:
+            if last is None or isinstance(scope[last], str) and scope[last][:1] in "<>!":
+                raise BlockSyntaxError(f"-- runs: {item!r} is neither a filter nor a value of the one before it")
+            previous = scope[last]
+            scope[last] = [*previous, item] if isinstance(previous, list) else [previous, item]
+            continue
+        name, operator, value = match.groups()
+        scope[name] = value if operator == "=" else f"{operator} {value}"
+        last = name
+    return scope
 
 
 def _list(value: Any) -> list[Any]:
