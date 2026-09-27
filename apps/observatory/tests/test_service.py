@@ -505,10 +505,9 @@ def test_grpo_policy_optimization_unifies_learning_signal_and_update_control() -
         "train/rl/clip_fraction_low",
         "train/rl/clip_fraction_high",
     )
-    assert [chart.key for chart in definition.charts][-4:] == [
+    assert [chart.key for chart in definition.charts][-3:] == [
         "dynamic_sampling",
-        "active_sampling_yield",
-        "active_sampling_population",
+        "active_sampling",
         "tool_behavior",
     ]
 
@@ -690,8 +689,8 @@ async def test_olmo3_active_sampling_is_exposed_as_conditional_evidence() -> Non
     view = await ObservatoryService(FakeRunDataSource(details, {run_id: series})).get_run_view(run_id)
 
     chart_keys = [chart.key for chart in view.charts]
-    assert {"active_sampling_yield", "active_sampling_population"}.issubset(chart_keys)
-    assert chart_keys[-2:] == ["active_sampling_yield", "active_sampling_population"]
+    assert "active_sampling" in chart_keys
+    assert chart_keys[-1] == "active_sampling"
     requirement = next(item for item in view.completeness.requirements if item.key == "olmo3_active_sampling")
     assert requirement.state == "available"
     assert requirement.missing_metrics == ()

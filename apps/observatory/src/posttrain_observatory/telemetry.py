@@ -729,19 +729,12 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
             ),
         ),
         ChartDefinition(
-            key="active_sampling_yield",
-            title="Active sampling yield",
-            question="How many generation rounds were needed, and what share of generated candidates supplied usable reward variation?",
+            key="active_sampling",
+            title="Active sampling",
+            question="How many generation rounds did each update need, what share of candidates had usable reward variation, and how did the candidate window divide?",
             metrics=(
                 "train/rl/active_sampling_generation_rounds",
                 "train/rl/active_sampling_retained_fraction",
-            ),
-        ),
-        ChartDefinition(
-            key="active_sampling_population",
-            title="Active sampling population",
-            question="How did the bounded candidate window divide into generated, retained, and unused rows?",
-            metrics=(
                 "train/rl/active_sampling_candidate_groups_reserved",
                 "train/rl/active_sampling_candidate_groups_generated",
                 "train/rl/active_sampling_candidate_groups_retained",

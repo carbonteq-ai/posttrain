@@ -175,7 +175,8 @@ export function scaleGroup(name: string, metricUnits: Record<string, string | nu
   if (name.startsWith('train/logps/')) return 'dpo-log-probability';
   if (name.startsWith('train/logits/')) return 'dpo-logit';
   if (/train\/rl\/rollouts_(requested|attempted|completed|failed|truncated|unscorable|missing)$/.test(name)) return 'rollout-count';
-  if (/train\/rl\/active_sampling_(generation_rounds|generated_rows|candidate_groups_(reserved|generated|retained|unused))$/.test(name)) return 'active-sampling-count';
+  if (name === 'train/rl/active_sampling_generation_rounds') return 'active-sampling-rounds';
+  if (/train\/rl\/active_sampling_(generated_rows|candidate_groups_(reserved|generated|retained|unused))$/.test(name)) return 'active-sampling-count';
   if (name === 'trace/rollout/avg_thinking_tokens' || name === 'trace/rollout/avg_output_tokens') return 'rollout-tokens';
   if (name === 'trace/rollout/avg_tool_calls') return 'rollout-tool-calls';
   if (name === 'train/rl/episode_advantage_abs_mean' || name === 'train/rl/turn_advantage_abs_mean') return 'credit-magnitude';
@@ -239,7 +240,7 @@ function axisBounds(group: string) {
       max: ({ max }: { max: number }) => max > 100 ? Math.ceil(max / 10) * 10 : 100,
     };
   }
-  if (group === 'rollout-count') return { min: 0 };
+  if (group === 'rollout-count' || group === 'active-sampling-count' || group === 'active-sampling-rounds') return { min: 0 };
   return { scale: true };
 }
 
@@ -260,7 +261,7 @@ function groupLabel(
     'policy-update': 'Policy update and exploration',
     'credit-magnitude': 'Episode vs turn credit',
     'credit-share': 'Turn credit share and coverage',
-    'active-sampling-count': 'Candidate rows',
+    'active-sampling-count': 'Candidate groups',
     ratio: 'Rates and fractions',
     'unit:ratio': 'Rates and fractions',
     'unit:%': 'Utilization',

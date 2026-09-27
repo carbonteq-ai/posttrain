@@ -187,7 +187,8 @@ describe('EvidenceChart scale policy', () => {
   });
 
   it('keeps active-sampling population counts on one shared scale', () => {
-    expect(scaleGroup('train/rl/active_sampling_generation_rounds', {})).toBe('active-sampling-count');
+    // Rounds (1-3) would flatten against group counts (hundreds): own lane.
+    expect(scaleGroup('train/rl/active_sampling_generation_rounds', {})).toBe('active-sampling-rounds');
     expect(scaleGroup('train/rl/active_sampling_generated_rows', {})).toBe('active-sampling-count');
     expect(scaleGroup('train/rl/active_sampling_candidate_groups_reserved', {})).toBe('active-sampling-count');
     expect(scaleGroup('train/rl/active_sampling_candidate_groups_retained', {})).toBe('active-sampling-count');
