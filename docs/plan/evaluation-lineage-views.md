@@ -56,7 +56,9 @@ navigation.
   and 0.589), step 100 +0.004, step 130 +0.009, step 150 −0.021, the failed
   step-100 attempt listed but not compared; the comparison page pairs it with
   the v1–v4 runs on `automationbench-heldout-matched-64k-v3`.
-- [ ] Deploy to observatory.lan.
+- [x] (2026-09-27) Deployed to observatory.lan from `86ee66e8` with
+  `ai-infra/scripts/deploy-observatory`; its ingress, discovery, contract,
+  digest and revision checks passed.
 
 ## Surprises & Discoveries
 
@@ -95,7 +97,7 @@ navigation.
 
 ## Outcomes & Retrospective
 
-Implemented on branch `codex/policy-views`; not yet deployed. The per-run Evals
+Implemented on branch `codex/policy-views` and deployed to observatory.lan. The per-run Evals
 tab and the comparison page read the same index, so a new evaluation appears
 in the sidebar, the tab and the page together once the index refreshes.
 
