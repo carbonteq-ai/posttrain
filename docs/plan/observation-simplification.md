@@ -28,7 +28,11 @@ To see it working: `posttrain query -m update_seconds:sum,rollout_share --by run
 - [x] (2026-09-27) Fork dev29 released and pinned (7de0e83b).
 - [x] (2026-09-27) Real-Doris gate on the test database `trackio_candidate` (same Doris host as production, own user): restore-verified backup (ai-infra `scripts/qualify_trackio_doris_backup.py`, 12 tables, 28,852 rows, snapshot `trackio_candidate_pre_v4_20260927` retained; receipt `ai-infra/.state/artifacts/trackio-doris-candidate/pre-v4-backup-receipt.json`), `trackio storage migrate-doris --to 4 --apply` (adds `run_notes`), then the fork's 9 real-Doris tests pass, and all Observatory tests pass against a local dev29 server on that database (`POSTTRAIN_TEST_TRACKIO_SERVER_URL`).
 - [x] (2026-09-27) Real-data fixes from rendering cards on the test database and the four reports on production Doris (read-only): separate rollout batches are no longer merged; the `updates` view is one pass (Doris planning 2.7 s → 0.12 s); a note's blocks run concurrently; unfiltered references read the note's own run in SQL results too.
-- [ ] Milestone 5: re-project the 64K held-out evaluation traces with fact calculator v7 (they carry no task id), update both older plans, release 0.4.11, and upgrade the shared Trackio server (production Doris v3 → v4) only after the user confirms.
+- [x] (2026-09-27, user confirmed) Production Doris `trackio`: restore-verified backup (12 tables, 1,933,882 rows; snapshot `trackio_production_pre_v4_20260927` retained; receipt `ai-infra/.state/artifacts/trackio-doris-production/pre-v4-backup-receipt.json`), then `migrate-doris --to 4 --apply` (adds `run_notes`). The dev27 server keeps serving on v4.
+- [x] (2026-09-27, user confirmed) Fact calculator v8 (90da6edd): `task_id` is the environment's task key. The five 64K held-out evaluation runs are re-projected; the held-out report shows 20 tasks per checkpoint.
+- [ ] Re-project every other `posttrain-lab` run with v8 (running as four workers; the live KL run after it finishes). Replacing facts is slow on dev27: the server rewrites each trace's whole row (payload included) with its own UPDATE, about 0.38 s per trace. The fork change f206e473 (`codex/run-notes`, unreleased) replaces facts with one set-oriented UPDATE per page: 0.17 s → 0.005 s per trace on 100 real rows of the test database; it ships with the next Trackio release.
+- [ ] Deploy dev29 to the shared server (ai-infra `release/components.env` pinned, `scripts/deploy-trackio plan` saved) after the live KL run finishes, so its writes are not interrupted.
+- [ ] Milestone 5: update both older plans and release 0.4.11.
 
 ## Surprises & Discoveries
 
@@ -56,6 +60,9 @@ To see it working: `posttrain query -m update_seconds:sum,rollout_share --by run
 - Observation: Doris spent 2.7 s planning the `updates` view built as one sub-query per metric (each with a window function) joined together, and 0.2 s running it; every card paid it because each run id makes a new statement. One pass (`UNION ALL` of each metric's points, one window for replay authority, one `GROUP BY` update with a conditional aggregate per metric) plans in 0.12 s. Cards went from about 4.4 s to 0.5–1.6 s; the four reports render on production in under a second each.
 - Observation: the 64K held-out evaluation traces were projected with fact calculator v4, which records no task id (`fact_task_id` is empty for all 60 traces of `eval-lfm26-heldout-64k-base-20260924-r1`; the task is only `task_index` in trace metadata). Rollouts grouped by task therefore need those traces re-projected with v7, which records `task_id`. Rollout-level numbers are unaffected: v4 step 20 averages 0.714 over valid rollouts and 0.488 with its 19 truncated rollouts counted as zero; the base model 0.592.
 - Observation: `{{block.column}}` without `where` picked the note's own run only in short-form results (column `run.id`); SQL results name the column `id` or `run_id`, so the KL report read an older run's row.
+
+- Observation: production `traces` is one bucket (one tablet) in a merge-on-write unique-key table on HDD, 2.9 GB compressed with rows averaging 100-280 KB of text. Doris fills in whole rows on every update, so fact rewrites cost in proportion to row width and serialize on the tablet; parallel clients barely help (4 workers ≈ 90 traces/minute). The size is well under Doris's 10 GB-per-tablet guidance for unique-key tables; bucket counts cannot be changed in place, so re-bucketing (or moving mutable facts off the wide row) is a later schema migration if the table grows.
+  Evidence: `SHOW CREATE TABLE traces`, `SHOW DATA`, Doris 4.x docs (partial column update, bucketing), the write benchmark above.
 
 ## Decision Log
 
@@ -97,9 +104,9 @@ To see it working: `posttrain query -m update_seconds:sum,rollout_share --by run
 - Decision: no de-duplication of metric points, in `logical_series` or the SQL view; every stored row is one observation.
   Rationale: storage keys rows by log id, so a repeated write cannot be stored twice, while equal points are common and real (restarted rollout batches). The collapse dated from an early Observatory projection with no recorded cause.
   Date/Author: 2026-09-27, Claude.
-- Decision: evaluation traces without a task id are fixed at the source (re-projection with calculator v7), not by a metadata fallback in the `rollouts` view.
-  Rationale: the plan's first principle is correct evidence where it is recorded; a fallback would be a second definition of the task.
-  Date/Author: 2026-09-27, Claude; the production write needs the user's confirmation.
+- Decision: a trace's `task_id` fact is the environment's native task key (Verifiers `task.key`, what evaluation manifests select by), falling back to the dataset's `example_id` only when a trace has no key (calculator v8), and existing traces are re-projected rather than patched in the `rollouts` view.
+  Rationale: v7 would not have fixed evaluation traces (they carry no `example_id`), and example ids are rows of one dataset: in `posttrain-lab`, `train/000007` names two different tasks in different runs while one task has two ids, so training and evaluation could not be compared by task. Every `posttrain-lab` trace (22,066) has a task key, and within each of its 25 training runs rows and keys map one to one, so per-run groupings do not change. Correct evidence where it is recorded, not a second definition in a view.
+  Date/Author: 2026-09-27, user asked for training and evaluation task ids to align; Claude chose the key.
 
 ## Outcomes & Retrospective
 
