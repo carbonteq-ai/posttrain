@@ -81,7 +81,7 @@ const RunNotesPanel = lazy(() =>
   import('./components/RunNotesPanel').then((module) => ({ default: module.RunNotesPanel })),
 );
 
-type Section = 'Overview' | 'Metrics' | 'System metrics' | 'Traces & evaluation' | 'Artifacts & lineage' | 'Run config';
+type Section = 'Overview' | 'Notes' | 'Metrics' | 'System metrics' | 'Traces & evaluation' | 'Artifacts & lineage' | 'Run config';
 
 const SYSTEM_METRIC_CHART_WINDOW_MS = 60 * 60 * 1000;
 
@@ -132,6 +132,7 @@ const policyOptimizationJobKinds = new Set(['train.grpo', 'train.gdpo', 'train.c
 
 const sections: Section[] = [
   'Overview',
+  'Notes',
   'Metrics',
   'System metrics',
   'Traces & evaluation',
@@ -1327,7 +1328,7 @@ export default function App() {
           {activeWorkPackageId ? <WorkPackagePage view={workPackage} servingCapacity={servingCapacity} loading={workPackageLoading} onOpenRun={(runKey) => {
             const run = runs.find((item) => item.run_key === runKey);
             if (run) void chooseRun(run);
-          }} /> : surface === 'compare' ? <CompareView runs={compareCandidates} candidateLoading={compareCandidateLoading} selectedKeys={compareKeys} comparison={comparison} loading={comparisonLoading} onToggle={toggleCompareRun} onCompare={() => void runCompare()} jobKind={selected.run.job_kind} /> : !response ? <RunShell selected={selected} section={section} error={error} /> : <>
+          }} /> : surface === 'compare' ? <CompareView runs={compareCandidates} candidateLoading={compareCandidateLoading} selectedKeys={compareKeys} comparison={comparison} loading={comparisonLoading} onToggle={toggleCompareRun} onCompare={() => void runCompare()} jobKind={selected.run.job_kind} /> : section === 'Notes' ? <Suspense fallback={null}><RunNotesPanel key={selected.run_key} runKey={selected.run_key} /></Suspense> : !response ? <RunShell selected={selected} section={section} error={error} /> : <>
           {section === 'Overview' && <>
             {response.view.view_kind === 'job.serving'
               ? <ServingBenchmarkOverview response={response} sourceId={selected.locator.source_id} onRunConfig={() => void openSection('Run config')} />
@@ -1343,7 +1344,6 @@ export default function App() {
                   onCompare={() => { void openCompare(selected.run_key); }}
                   onRunConfig={() => void openSection('Run config')}
                 />}
-            <Suspense fallback={null}><RunNotesPanel key={selected.run_key} runKey={selected.run_key} /></Suspense>
           </>}
           {section === 'Metrics' && <GenericMetrics runKey={selected.run_key} />}
           {section === 'System metrics' && <SystemView system={system} />}
