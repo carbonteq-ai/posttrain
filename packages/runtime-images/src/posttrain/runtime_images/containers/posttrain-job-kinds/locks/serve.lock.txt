@@ -156,7 +156,7 @@ cachetools==7.1.4 \
     --hash=sha256:437f55a4e0c1b01a4f3077cc470e6991d47430970e36fbcb77e2be0df4fc1cd6
     # via vllm
 
-carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/e16/e312ccd4bf168/carbonteq_trackio-0.31.5.post14.dev28-py3-none-any.whl#sha256=e16e312ccd4bf1689a23c9a261098f685dcc0caa296248155d17af55175c008b
+carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/594/084ca863a8f4a/carbonteq_trackio-0.31.5.post14.dev29-py3-none-any.whl#sha256=594084ca863a8f4aa686d59e3b005248a6a3b865d25ff910bf73fbe227c9b01d
     # via posttrain-tracking-trackio
 
 cbor2==6.1.3 \
@@ -1893,6 +1893,13 @@ sniffio==1.3.1 \
     # via
     #   anthropic
     #   openai
+
+sqlglot==30.19.0 \
+    --hash=sha256:6fcfbe93c5ee76e07faadf0930dd119eebb545c4f317f8e4f205f177305d8b08 \
+    --hash=sha256:b4500fcced395359feea582f09d2d4433bf1f36362a3a9d0d6d5ebbc1f84242e
+    # via
+    #   carbonteq-trackio
+    #   posttrain-observatory
 
 sse-starlette==3.4.5 \
     --hash=sha256:83072538bc211a2f68b7b0422226c4af3e9b62e106e07034664b832ca019842a \

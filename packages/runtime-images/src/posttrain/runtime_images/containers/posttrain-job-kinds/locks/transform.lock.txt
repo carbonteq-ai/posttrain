@@ -86,8 +86,8 @@ brotli==1.2.0 \
     --hash=sha256:c8565e3cdc1808b1a34714b553b262c5de5fbda202285782173ec137fd13709f \
     --hash=sha256:e310f77e41941c13340a95976fe66a8a95b01e783d430eeaf7a2f87e0a57dd0a
     # via carbonteq-trackio
-carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/e16/e312ccd4bf168/carbonteq_trackio-0.31.5.post14.dev28-py3-none-any.whl \
-    --hash=sha256:e16e312ccd4bf1689a23c9a261098f685dcc0caa296248155d17af55175c008b
+carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/594/084ca863a8f4a/carbonteq_trackio-0.31.5.post14.dev29-py3-none-any.whl \
+    --hash=sha256:594084ca863a8f4aa686d59e3b005248a6a3b865d25ff910bf73fbe227c9b01d
     # via posttrain-awq-runtime
 certifi==2026.6.17 \
     --hash=sha256:024c88eeec92ca068db80f02b8b07c9cef7b9fe261d1d535abfd5abd6f6af432 \
@@ -759,6 +759,10 @@ six==1.17.0 \
     --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274 \
     --hash=sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81
     # via python-dateutil
+sqlglot==30.19.0 \
+    --hash=sha256:6fcfbe93c5ee76e07faadf0930dd119eebb545c4f317f8e4f205f177305d8b08 \
+    --hash=sha256:b4500fcced395359feea582f09d2d4433bf1f36362a3a9d0d6d5ebbc1f84242e
+    # via carbonteq-trackio
 starlette==1.6.0 \
     --hash=sha256:a86dd39d14bb45f85a3d18525215a9ef0cfd1f192ac793220e72598c90335f0c \
     --hash=sha256:d4e3ac5e546444960c710297a3c9fc3f7ebae1b7e963f3d36173b49da535be9b

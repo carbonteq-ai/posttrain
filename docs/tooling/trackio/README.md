@@ -1,5 +1,22 @@
 # Trackio fork and maintenance
 
+The next Posttrain release pins `0.31.5.post14.dev29` (fork commit
+`6b6c87ecca4ffb6cf617045ca53197aecbcbec18`, tag
+`carbonteq-v0.31.5.post14.dev29`; wheel
+`594084ca863a8f4aa686d59e3b005248a6a3b865d25ff910bf73fbe227c9b01d`, sdist
+`33a4b4d48fbb5b432eb8ce34f5993e24520a69f69c19ea9b9ec3cb8d5584a81f`), published
+to `carbonteq/dev` and not yet promoted or deployed. It carries dev28's
+revisioned run notes (`run_notes` table; Doris schema version 4) and dev29's
+read-only project SQL (`project_sql`: one Doris SQL SELECT over a project's
+`metric_rows`, `run_configs`, `traces` and `run_notes`, translated on SQLite
+storage), which the Observatory's semantic layer and run notes use. Deploying it
+to the shared server needs, in order: the real-Doris integration tests in the
+fork (`tests/integration/test_doris_storage.py`, with `TRACKIO_DORIS_*`), a
+restore-verified Doris backup, `trackio storage migrate-doris --to 4 --apply
+--backup-receipt ...` (a dev28 or later server refuses to start on a version 3
+database), and then the server upgrade. Until then the shared server reports
+dev27, and notes and project SQL report themselves unavailable.
+
 Posttrain 0.4.5 pins and deploys `0.31.5.post14.dev27` (fork commit
 `f4d1027441449d3d59870541edb275fa859fee35`, tag
 `carbonteq-v0.31.5.post14.dev27`; wheel
