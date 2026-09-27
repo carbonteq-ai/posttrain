@@ -45,7 +45,7 @@ step-140 checkpoint, with mistakes per episode falling.
   held-out suite at temperature 0.5 (`..._64k_v3_t05.yaml`); gates registered.
 - [x] (2026-09-28) User raised the batch from 16 x 4 to 24 prompt groups x 6
   attempts (144 rollouts) with every episode of a round in flight at once:
-  settings `automationbench-sampo-turns-100-g24x6-lr3e-5-kl1e-2-t05-local-v1`,
+  settings `automationbench-sampo-turns-100-g24x6-lr5e-5-kl1e-2-t05-local-v1`,
   training binding `g144-w12@1` (12 workers x 12 episodes), rollout binding
   `c144-4k-t05@1` (`max_num_seqs` 144, 41 GiB KV cache), environment
   `max_concurrent` 144. `posttrain job plan` passes.
@@ -92,6 +92,10 @@ step-140 checkpoint, with mistakes per episode falling.
   episodes 14.8 GB (539K tokens) peaked at 100%, about 8.4K tokens per
   episode; 41 GiB (about 1.6M tokens) gives 11K per episode at 144.
   Date: 2026-09-28.
+- Decision (user): learning rate 5e-5, the SAMPO run's own rate, instead of
+  3e-5. `job plan` flagged 3e-5 at LoRA alpha 8 as 1.3x below the lowest
+  Tinker RL recipe, and the continuation should not learn slower than the run
+  it extends. Date: 2026-09-28.
 - Decision (user): keep the 160-task mix the SAMPO run trained on
   (`lfm26-automationbench-mix-v2`). Refill rounds draw from those 160
   candidates, so active sampling allows 6 rounds (24 x 6 = 144 reserved
@@ -124,7 +128,7 @@ Not yet run.
 2. Posttrain lab: `automationbench-lfm26-sampo-turns-v2` (SAMPO v1's task
    mix plus adapter 0.4.3 and the mistake penalty, sampling temperature 0.5),
    rollout and training bindings for 144 concurrent episodes, settings
-   (24 x 6, 3e-5, `constant_with_warmup`, warmup 5/100, beta 0.01,
+   (24 x 6, 5e-5, `constant_with_warmup`, warmup 5/100, beta 0.01,
    truncation 0.1, 100 updates), a work package, and held-out evaluation at
    temperature 0.5 beside the existing 0.1 suite.
 3. Launch from a clean worktree with `--provider dstack --model-from-run

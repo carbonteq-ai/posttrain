@@ -2705,7 +2705,7 @@ training:
     max_admission_attempts: 1
 
   # Continue SAMPO from its update-120 checkpoint (where entropy and KL to the
-  # base model were still low) for 100 updates: learning rate 3e-5 after a
+  # base model were still low) for 100 updates: learning rate 5e-5 (the run's own rate) after a
   # 5-update warmup, KL penalty 0.01 to the starting checkpoint, truncation
   # penalty 0.1 (0.2 made finishing within budget the largest reward gap).
   # 24 prompt groups of 6 attempts (144 rollouts, from 16 x 4): better group
@@ -2715,7 +2715,7 @@ training:
   # episode wave as before. Refill rounds draw from the same 160-task mix, so at
   # most 6 rounds (24 x 6 = 144 candidate prompts) fit; earlier runs needed at
   # most 5.
-  lfm2.5-2.6b/automationbench-sampo-turns-100-g24x6-lr3e-5-kl1e-2-t05-local-v1:
+  lfm2.5-2.6b/automationbench-sampo-turns-100-g24x6-lr5e-5-kl1e-2-t05-local-v1:
     selection_type: sampo-settings
     revision: "1"
     loop:
@@ -2723,7 +2723,7 @@ training:
       max_length: 24576
       per_device_batch_size: 1
       gradient_accumulation_steps: 144
-      learning_rate: 0.00003
+      learning_rate: 0.00005
       lr_scheduler_type: constant_with_warmup
       warmup_ratio: 0.05
       logging_steps: 1
