@@ -30,8 +30,11 @@ To see it working: `posttrain query -m update_seconds:sum,rollout_share --by run
 - [x] (2026-09-27) Real-data fixes from rendering cards on the test database and the four reports on production Doris (read-only): separate rollout batches are no longer merged; the `updates` view is one pass (Doris planning 2.7 s → 0.12 s); a note's blocks run concurrently; unfiltered references read the note's own run in SQL results too.
 - [x] (2026-09-27, user confirmed) Production Doris `trackio`: restore-verified backup (12 tables, 1,933,882 rows; snapshot `trackio_production_pre_v4_20260927` retained; receipt `ai-infra/.state/artifacts/trackio-doris-production/pre-v4-backup-receipt.json`), then `migrate-doris --to 4 --apply` (adds `run_notes`). The dev27 server keeps serving on v4.
 - [x] (2026-09-27, user confirmed) Fact calculator v8 (90da6edd): `task_id` is the environment's task key. The five 64K held-out evaluation runs are re-projected; the held-out report shows 20 tasks per checkpoint.
-- [ ] Re-project every other `posttrain-lab` run with v8 (running as four workers; the live KL run after it finishes). Replacing facts is slow on dev27: the server rewrites each trace's whole row (payload included) with its own UPDATE, about 0.38 s per trace. The fork change f206e473 (`codex/run-notes`, unreleased) replaces facts with one set-oriented UPDATE per page: 0.17 s → 0.005 s per trace on 100 real rows of the test database; it ships with the next Trackio release.
-- [ ] Deploy dev29 to the shared server (ai-infra `release/components.env` pinned, `scripts/deploy-trackio plan` saved) after the live KL run finishes, so its writes are not interrupted.
+- [x] (2026-09-27) Re-projected every other `posttrain-lab` run with v8 (four workers; finished 03:40Z). Replacing facts was slow on dev27 (the server rewrote each trace's whole row with its own UPDATE, about 0.38 s per trace); dev30 replaces them with one set-oriented UPDATE per page (0.005 s per trace).
+- [x] (2026-09-27 03:55Z) Trackio dev30 deployed to the shared server and the candidate service (`scripts/deploy-trackio apply`); `/version` reports `0.31.5.post14.dev30`.
+- [x] (2026-09-27) The KL run (`lfm26-vortex-v5-150-lr5e5-kl5e3-20260926-r2`) trained all 150 updates and committed every checkpoint, then failed while publishing its terminal artifacts. Diagnosis and fixes are under Surprises (trace transport). Fork dev31 (6f292fe2, workflow 36293308911) and Posttrain 8097a130/17f514e4 fix it; job images are being republished with dev31. Its native files are copied to `/home/hammad/posttrain-rescue/` and remain on the worker.
+- [ ] Backfill the KL run's 7,546 traces missing from Trackio from its native trace file, then re-project them with v8.
+- [ ] Route LAN jobs to LAN endpoints (`trackio.lan`, the LAN object store) instead of the Cloudflare edge (ai-infra and Lab configuration).
 - [ ] Milestone 5: update both older plans and release 0.4.11.
 
 ## Surprises & Discoveries
@@ -63,6 +66,11 @@ To see it working: `posttrain query -m update_seconds:sum,rollout_share --by run
 
 - Observation: production `traces` is one bucket (one tablet) in a merge-on-write unique-key table on HDD, 2.9 GB compressed with rows averaging 100-280 KB of text. Doris fills in whole rows on every update, so fact rewrites cost in proportion to row width and serialize on the tablet; parallel clients barely help (4 workers ≈ 90 traces/minute). The size is well under Doris's 10 GB-per-tablet guidance for unique-key tables; bucket counts cannot be changed in place, so re-bucketing (or moving mutable facts off the wide row) is a later schema migration if the table grows.
   Evidence: `SHOW CREATE TABLE traces`, `SHOW DATA`, Doris 4.x docs (partial column update, bucketing), the write benchmark above.
+
+- Observation (trace transport): 7,546 of the KL run's 11,876 traces never reached Trackio, always as whole 64-trace batches (half the batches of early updates), and its terminal upload failed. The job sends through the public Cloudflare edge (`trackio.carbonteq.com`, `artifacts.carbonteq.com`), about 5 MB/s from the LAN worker. The Trackio client kept a failed `/bulk_log` request's entries in its local buffer but resent the whole buffer as one request, which grew with each failure and never passed the edge's body and time limits; the buffer died with the container. The server's durable inbox then held trace-fact updates for those traces and retried them over 100 times ("trace does not exist") before dead-lettering them. Multipart uploads signed every part once for 15 minutes; the 3.95 GB episodes file failed at part 418 with 403, and the recovery checkpoint timed out after 600 s queued behind it.
+  Evidence: `verifiers-traces.jsonl` versus `traces.external_id` for run `d407e073…`; the server's `inbox-dead-letter/*.error.json`; the job log's 403 and `publication queue wait timed out`.
+- Observation: failed artifact uploads persist in the Trackio directory under the Hugging Face cache, a volume shared by jobs on the worker, and the next job's Trackio client replays them first. The first held-out evaluation after the KL run spent over 15 minutes uploading the KL run's 3.95 GB episodes file before starting inference.
+- Observation: the job's terminal upload carried the derived trace view (3.8 GB) beside the replay authority (3.95 GB), each read whole into memory to hash; gzip level 1 shrinks both about 5.4x at about 200 MB/s.
 
 ## Decision Log
 
@@ -107,6 +115,13 @@ To see it working: `posttrain query -m update_seconds:sum,rollout_share --by run
 - Decision: a trace's `task_id` fact is the environment's native task key (Verifiers `task.key`, what evaluation manifests select by), falling back to the dataset's `example_id` only when a trace has no key (calculator v8), and existing traces are re-projected rather than patched in the `rollouts` view.
   Rationale: v7 would not have fixed evaluation traces (they carry no `example_id`), and example ids are rows of one dataset: in `posttrain-lab`, `train/000007` names two different tasks in different runs while one task has two ids, so training and evaluation could not be compared by task. Every `posttrain-lab` trace (22,066) has a task key, and within each of its 25 training runs rows and keys map one to one, so per-run groupings do not change. Correct evidence where it is recorded, not a second definition in a view.
   Date/Author: 2026-09-27, user asked for training and evaluation task ids to align; Claude chose the key.
+
+- Decision: training publishes only the native episode envelope, gzip-compressed; the derived trace view is not published when episodes exist.
+  Rationale: the episodes are the replay authority (`06-observation-and-lineage.md`); the derived view is rebuilt from them and is streamed to tracking during the run. This is within the frozen baseline: rule 4 attaches the native directory "when useful", and derived views must not discard the envelope. Reduces a 150-update run's final upload from 7.7 GB to about 0.7 GB.
+  Date/Author: 2026-09-27, owner request ("optimize this, this is too much"); Claude chose the format.
+- Decision: Trackio remote delivery is bounded (8 MB per request), keeps failed entries, re-signs upload parts, and bounds artifact waits by stalls, in the fork (dev31) rather than in Posttrain.
+  Rationale: generic transport reliability belongs to the Trackio fork (`AGENTS.md`); every Trackio client benefits.
+  Date/Author: 2026-09-27, Claude.
 
 ## Outcomes & Retrospective
 
