@@ -170,8 +170,7 @@ accepted release.
    commit and the accepted candidate run. It restores and verifies the retained
    RC receipt and accepted OCI materialization, rejects build-input drift,
    builds final-version metadata, publishes directly to stable, verifies a
-   clean install, and creates the final tag last. It does not rerun the GPU
-   qualification.
+   clean install, and creates the final tag last.
 
 The final tag always names the reviewed, CI-green merged `main` commit. The
 promotion receipt binds that commit to the exact qualified candidate SHA, tree,
@@ -197,8 +196,8 @@ Do the ordinary source and release-preparation work locally: implement, test,
 stage, build, inspect and hash assets, and run deterministic readiness checks.
 CI independently verifies the pushed source. For Posttrain, the protected
 runner performs the credentialed transaction: publishing retained artifacts to
-the internal index, registry-backed runtime-image qualification, the accepted
-remote canary, stable promotion, tagging and GitHub Release creation. It is not
+the internal index, registry-backed runtime-image verification, stable
+promotion, tagging and GitHub Release creation. It is not
 a substitute for local release preparation.
 
 This boundary is especially important for maintained forks.  Forks have no
@@ -209,8 +208,7 @@ and prove a clean install.  See [maintained fork documentation](./tooling/forks.
 
 ### Cold preflight before dispatch
 
-Run the deterministic checks locally before reserving the protected runner or
-GPU:
+Run the deterministic checks locally before reserving the protected runner:
 
 ```bash
 uv sync --all-packages --locked --python 3.13
@@ -231,36 +229,28 @@ the selected maintained-fork versions. Release tests enforce parity between
 the lock, package metadata and public-CI mirror URLs.
 
 The candidate must repeat the consumer installation from `carbonteq/dev` with
-`uv pip install --no-cache`. It then compares the installed job Dockerfile and
-Bake definition with the retained `posttrain-runtime-images` wheel before
-packing. This is intentionally redundant with local wheel testing: local tests
-prove the source, while the cold index-only install proves the published bytes
-and defeats stale runner cache state.
+`uv pip install --no-cache`. This is intentionally redundant with local wheel
+testing: local tests prove the source, while the cold index-only install proves
+the published bytes and defeats stale runner cache state.
 
-After the real job reaches a terminal state, candidate cleanup is also a gate.
-The exact-worker purge may remain submitted briefly while dstack releases the
-worker. The workflow retries the same immutable cleanup request for up to three
-minutes. A fatal scope, identity, or cleanup-command error rejects the
-candidate. If the exact provider task is still durably queued because another
-workload occupies the single-slot worker, the CLI returns temporary-failure
-status 75 and the candidate records the deferral without relabeling it as a
-workload failure. The cleanup task has highest dstack scheduling priority and
-the terminal-marker-validated infrastructure retention timer remains the
-bounded final authority; no parallel purge task is created.
+The candidate runs no GPU job and records nothing in a lab Trackio project.
+Until 0.4.11 it packed and ran a small transformation canary through dstack
+into `posttrain-lab`; every release left a `release-candidate-<run id>` run
+there, and the canary needed the RTX PRO worker idle. Real-workload evidence
+comes from the release's experiment runs, which already use the candidate's
+images.
 
 Do not dispatch until maintained-fork assets have immutable release hashes and
 their required server revisions are deployed. Private-CA validation, live
-service compatibility, registry readback, named hardware capacity and the real
-GPU canary remain protected-runner checks because a workstation cannot prove
-those external states.
+service compatibility and registry readback remain protected-runner checks
+because a workstation cannot prove those external states.
 
 The candidate workflow also has a credential-free GitHub-hosted `preflight`
 job. It proves that the workflow ref and `source_ref` are the same eligible
 `codex/*` branch, the branch is current and descends from `main`, the version
 has no GitHub tag or release, and exact-source Quality is green. Only then can
 GitHub evaluate the protected LAN job. On the LAN runner, stable/development
-version vacancy and named dstack capacity are checked before BuildKit or OCI
-publication. These checks are deliberately duplicated at the trust boundary:
+version vacancy is checked before BuildKit or OCI publication. These checks are deliberately duplicated at the trust boundary:
 local checks help the operator, while workflow checks prevent an expensive or
 irreversible action when the dispatch is wrong or external state changed.
 
@@ -271,18 +261,14 @@ branch="$(git branch --show-current)"
 case "${branch}" in codex/*) ;; *) echo "release branch must match codex/*" >&2; exit 1;; esac
 gh workflow run release-candidate.yml \
   --ref "${branch}" \
-  -f source_ref="${branch}" \
-  -f qualification_profile=rtx-3070ti-8gb \
-  -f run_gpu_qualification=true
+  -f source_ref="${branch}"
 ```
 
 If a candidate fails, classify the owning boundary before retrying. A private
 CA failure belongs to runner trust configuration; an installed/retained wheel
-mismatch belongs to cache and publication identity; an artifact-upload conflict
-after cleanup belongs to the deployed service's metadata/blob recovery; and an
-unavailable qualification profile belongs to live capacity selection. A retry
-without a new proof for the failed boundary only spends runner and GPU time
-again.
+mismatch belongs to cache and publication identity; and an artifact-upload
+conflict belongs to the deployed service's metadata/blob recovery. A retry
+without a new proof for the failed boundary only spends runner time again.
 
 When a PR is already open, keep landing work on that branch until the head is
 green; do not open a second PR for the same release line without a reason.
@@ -358,10 +344,7 @@ gh pr checks <n>
    The candidate workflow can still build when a local build is not possible. It
    publishes to the registry projects
    actual jobs pull from (`registry.lan/carbonteq`). Posttrain does not use GHCR
-   as a release registry. The protected workflow verifies a sanitized dstack
-   capacity receipt and places the bounded canary on the known idle
-   `carbonteq-ai-workstation.lan` RTX PRO worker; scheduler-reported idleness
-   alone is not sufficient when unrelated host GPU processes may exist.
+   as a release registry.
 
    ```bash
    uv run posttrain-release images publish \
@@ -373,9 +356,7 @@ gh pr checks <n>
    The automated path builds kind variants concurrently with rootless BuildKit,
    pushes to the LAN registry, reads each digest back rather than predicting
    it, and regenerates `published.toml` only after the image receipt is
-   accepted. The current protected workflow then runs one bounded packed
-   transformation canary through dstack; a complete changed-kind matrix is a
-   separate follow-up gate. Commit the regenerated manifest.
+   accepted. Commit the regenerated manifest.
 
    **Base should rarely rebuild.** When the committed base still carries the
    current lock digest it is reused automatically. Force reuse of an already
@@ -403,9 +384,8 @@ gh pr checks <n>
    `--force-compression` when a release policy requires them. Use
    `--no-parallel` only when diagnosing a Bake failure.
 
-8. **Qualify the candidate.** Install only from `carbonteq/dev`, run the
-   independent-consumer test, pack a real job, execute the changed-kind dstack
-   matrix, retain Trackio evidence, and read it through Observatory. If any gate
+8. **Qualify the candidate.** The workflow installs only from `carbonteq/dev`
+   and runs the independent-consumer test; it runs no GPU job. If any gate
    fails, fix the branch and return to step 6 with a new candidate run.
 9. **Merge the passing release PR without copying generated candidate state
    into source.** The accepted materialization binds the reviewed source, OCI
@@ -420,8 +400,7 @@ gh pr checks <n>
 11. **Dispatch Publish release for the merged commit and successful candidate
     run.** The runner compares exact source trees, rejects non-release build
     changes, rechecks the RC in `carbonteq/dev`, restores the accepted OCI
-    materialization, and builds final-version Python metadata. It does not
-    repeat the GPU canary.
+    materialization, and builds final-version Python metadata.
 12. **Publish the attested final files to `carbonteq/stable`.** Read them back,
     verify their hashes, and perform a no-cache stable-index install. The
     promotion receipt must bind the RC and final receipts to the same package

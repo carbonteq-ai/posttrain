@@ -296,7 +296,6 @@ jobs:
             .release/SHA256SUMS
             .release/materialization/**
             .release/runtime-images-verify.json
-            .release/dstack-capacity.json
             .release/buildkit-cache-after.txt
 
       - name: Tag and create the GitHub release last

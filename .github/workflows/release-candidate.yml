@@ -7,19 +7,6 @@ on:
         description: Protected codex/* release branch containing the candidate source
         required: true
         type: string
-      qualification_profile:
-        description: Named hardware profile for the bounded packed-GPU qualification
-        required: false
-        default: rtx-pro-96gb
-        type: choice
-        options:
-          - rtx-pro-96gb
-          - rtx-3070ti-8gb
-      run_gpu_qualification:
-        description: Run the packed GPU qualification job
-        required: false
-        default: true
-        type: boolean
 
 permissions:
   contents: read
@@ -173,25 +160,6 @@ jobs:
           echo "version=${candidate_version}" >> "$GITHUB_OUTPUT"
           echo "development candidate=${candidate_version}; stable target=${target_version}"
 
-      - name: Verify qualification capacity before image publication
-        if: ${{ inputs.run_gpu_qualification }}
-        run: |
-          case "${{ inputs.qualification_profile }}" in
-            rtx-pro-96gb)
-              export POSTTRAIN_DSTACK_HOST=carbonteq-ai-workstation.lan
-              export POSTTRAIN_DSTACK_MIN_GPU_MEMORY_MIB=90112
-              ;;
-            rtx-3070ti-8gb)
-              export POSTTRAIN_DSTACK_HOST=pop-os.lan
-              export POSTTRAIN_DSTACK_MIN_GPU_MEMORY_MIB=8192
-              ;;
-            *)
-              echo "unsupported qualification profile: ${{ inputs.qualification_profile }}" >&2
-              exit 2
-              ;;
-          esac
-          scripts/release/verify-dstack-capacity .release/dstack-capacity-preflight.json
-
       - name: Capture the pre-build BuildKit cache
         run: buildctl --addr unix:///var/lib/github-runner/buildkit/buildkitd.sock du
 
@@ -291,124 +259,6 @@ jobs:
             "posttrain-lab==${{ steps.version.outputs.version }}"
           .release/consumer-venv/bin/posttrain --help >/dev/null
 
-      - name: Run one real packed GPU qualification through dstack
-        id: qualification
-        if: ${{ inputs.run_gpu_qualification }}
-        run: |
-          set +e
-          qualification_target_args=()
-          case "${{ inputs.qualification_profile }}" in
-            rtx-pro-96gb)
-              qualification_host="carbonteq-ai-workstation.lan"
-              qualification_min_gpu_memory_mib=90112
-              ;;
-            rtx-3070ti-8gb)
-              qualification_target_args=(--target "targets/pop-os-rtx-3070ti-8gb")
-              qualification_host="pop-os.lan"
-              qualification_min_gpu_memory_mib=8192
-              ;;
-            *)
-              echo "unsupported qualification profile: ${{ inputs.qualification_profile }}" >&2
-              exit 2
-              ;;
-          esac
-          export POSTTRAIN_DSTACK_HOST="${qualification_host}"
-          export POSTTRAIN_DSTACK_MIN_GPU_MEMORY_MIB="${qualification_min_gpu_memory_mib}"
-          candidate_version="${{ steps.version.outputs.version }}"
-          framework_wheelhouse="$(realpath .release/wheelhouse)"
-          # The qualification must pack the same immutable framework bytes that
-          # the clean consumer just installed.  Keep this check immediately
-          # before packing so a stale runner directory, relative-path change,
-          # or versioned candidate mismatch fails with an actionable error.
-          .release/consumer-venv/bin/python - "${candidate_version}" "${framework_wheelhouse}" <<'PY'
-          import importlib.metadata as metadata
-          import importlib.resources as resources
-          import sys
-          import zipfile
-          from pathlib import Path
-
-          expected, wheelhouse_name = sys.argv[1:]
-          wheelhouse = Path(wheelhouse_name)
-          if not wheelhouse.is_dir():
-              raise SystemExit(f"framework wheelhouse is not a directory: {wheelhouse}")
-          if metadata.version("posttrain") != expected:
-              raise SystemExit(
-                  "consumer framework version differs from candidate: "
-                  f"{metadata.version('posttrain')} != {expected}"
-              )
-          names = sorted(path.name for path in wheelhouse.glob("*.whl"))
-          if not names:
-              raise SystemExit(f"framework wheelhouse is empty: {wheelhouse}")
-          mismatched = [name for name in names if f"-{expected}-" not in name]
-          if mismatched:
-              raise SystemExit(
-                  f"framework wheelhouse contains non-candidate wheels: {mismatched}"
-              )
-          runtime_wheels = sorted(wheelhouse.glob(f"posttrain_runtime_images-{expected}-*.whl"))
-          if len(runtime_wheels) != 1:
-              raise SystemExit(
-                  "framework wheelhouse must contain exactly one runtime-images wheel: "
-                  f"{runtime_wheels}"
-              )
-          definitions = (
-              "containers/posttrain-job/Dockerfile",
-              "containers/posttrain-job/docker-bake.hcl",
-          )
-          installed_root = resources.files("posttrain.runtime_images")
-          with zipfile.ZipFile(runtime_wheels[0]) as archive:
-              for relative in definitions:
-                  installed = installed_root.joinpath(relative).read_bytes()
-                  retained = archive.read(f"posttrain/runtime_images/{relative}")
-                  if installed != retained:
-                      raise SystemExit(
-                          "installed job build definition differs from retained candidate wheel: "
-                          f"{relative}"
-                      )
-          print(f"verified consumer and {len(names)} staged framework wheels at {expected}")
-          PY
-          scripts/release/verify-dstack-capacity .release/dstack-capacity.json
-          capacity_status=$?
-          if [[ "${capacity_status}" -ne 0 ]]; then
-            exit "${capacity_status}"
-          fi
-          .release/consumer-venv/bin/posttrain --project-root apps/lab job run \
-            apps/lab/.posttrain/work_packages/qwen08b_transform_qualification.yaml \
-            --job transform \
-            --provider dstack \
-            "${qualification_target_args[@]}" \
-            --registry "${JOB_REGISTRY}" \
-            --framework-wheelhouse "${framework_wheelhouse}" \
-            --run-id "release-candidate-${{ github.run_id }}"
-          status=$?
-          if [[ "${status}" -eq 0 ]]; then
-            .release/consumer-venv/bin/posttrain --project-root apps/lab run wait \
-              "release-candidate-${{ github.run_id }}" \
-              --timeout-seconds 3600 \
-              --poll-interval-seconds 10
-            status=$?
-          fi
-          .release/consumer-venv/bin/posttrain --project-root apps/lab run reconcile \
-            "release-candidate-${{ github.run_id }}" || true
-          cleanup_status=1
-          for cleanup_attempt in $(seq 1 18); do
-            .release/consumer-venv/bin/posttrain --project-root apps/lab run cleanup \
-              "release-candidate-${{ github.run_id }}"
-            cleanup_status=$?
-            if [[ "${cleanup_status}" -eq 0 ]]; then
-              break
-            fi
-            echo "waiting for exact-worker cleanup evidence: attempt=${cleanup_attempt}/18" >&2
-            sleep 10
-          done
-          if [[ "${cleanup_status}" -eq 75 ]]; then
-            echo "exact-worker cleanup is durably queued; bounded worker retention remains authoritative" >&2
-            cleanup_status=0
-          fi
-          if [[ "${status}" -eq 0 && "${cleanup_status}" -ne 0 ]]; then
-            status="${cleanup_status}"
-          fi
-          exit "$status"
-
       - name: Capture the post-build cache and release evidence
         if: always()
         run: |
@@ -433,8 +283,6 @@ jobs:
             .release/materialization/**
             .release/published-manifest.diff
             .release/runtime-images-verify.json
-            .release/dstack-capacity.json
-            .release/dstack-capacity-preflight.json
             .release/buildkit-cache-after.txt
 
       - name: Remove only this run's temporary release material

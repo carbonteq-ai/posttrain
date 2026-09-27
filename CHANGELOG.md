@@ -36,6 +36,12 @@ where they are recorded.
   evaluation name tasks the same way across runs.
 - Trackio `0.31.5.post14.dev31` (run notes, read-only project SQL, set-oriented
   trace-fact replacement, reliable remote delivery; Doris schema version 4).
+- The release candidate workflow no longer runs a GPU job: it builds,
+  verifies, installs from the development index and publishes. Its packed
+  transformation canary wrote a `release-candidate-<run id>` run into the lab
+  Trackio project on every release and needed the RTX PRO worker idle. The
+  `qualification_profile` and `run_gpu_qualification` inputs and
+  `scripts/release/verify-dstack-capacity` are removed.
 - Training publishes its replay authority once, compressed: the native episode
   envelope as gzip (about 5x smaller), hashed without reading it into memory.
   The derived trace view is no longer published a second time; it was streamed
