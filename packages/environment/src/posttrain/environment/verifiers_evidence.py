@@ -13,7 +13,7 @@ from posttrain.common import JsonValue, SignalSource, TraceFactSet, TraceRewardC
 # recovery rules are gone. v7: an episode whose final model request was
 # rejected for exceeding the context is truncated, not an error, and keeps the
 # reward the environment scored.
-VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v7"
+VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v8"
 
 _TRUNCATED_STOP_CONDITIONS = frozenset(
     {
@@ -126,7 +126,9 @@ def project_verifiers_trace_facts(
         "template_revision": template_revision,
         "trace_schema_version": trace_version,
         "task_type": _task_type(record),
-        "task_id": _string(supplied.get("example_id")) or _string(info.get("example_id")),
+        # The environment's own task key (what evaluation manifests select by) names the same task in
+        # every run; a dataset's example id is only a row of that dataset, so it is the fallback.
+        "task_id": _task_key(record) or _string(supplied.get("example_id")) or _string(info.get("example_id")),
         "prompt_group_id": _string(info.get("posttrain_prompt_group_id")),
         "rollout_step": _rollout_step(record, supplied),
         "is_truncated": is_truncated,
@@ -366,6 +368,11 @@ def _rollout_step(record: Mapping[str, object], attributes: Mapping[str, JsonVal
 def _task_type(record: Mapping[str, object]) -> str | None:
     task = record.get("task")
     return _string(task.get("type")) if isinstance(task, Mapping) else None
+
+
+def _task_key(record: Mapping[str, object]) -> str | None:
+    task = record.get("task")
+    return _string(task.get("key")) if isinstance(task, Mapping) else None
 
 
 def _model(record: Mapping[str, object]) -> str:
