@@ -1301,19 +1301,21 @@ def test_grpo_rollout_adapter_emits_population_and_throughput_evidence(
     totals = RolloutUpdateTotals(context)
     rollout = _rollout_function(context, request, object(), totals)
 
-    for _ in range(3):
-        output = rollout(
+    outputs = [
+        rollout(
             [[{"role": "user", "content": "What is 2 + 2?"}]],
             SimpleNamespace(state=SimpleNamespace(global_step=3)),
             inputs=[{"example_id": "gsm8k/train/0"}],
         )
+        for _ in range(3)
+    ]
     per_update = [item for item in observer.metrics_seen if "train/rl/rollouts_attempted" in item.values]
     assert per_update == [], "rollout batches must not write per-update names"
     batches = [item for item in observer.metrics_seen if "train/rl/rollout_batch_seconds" in item.values]
     assert [item.attributes["rollout_batch_ordinal"] for item in batches] == [1, 2, 3]
     totals.flush(4)
 
-    assert output["rollout_reward"] == [1.0]
+    assert all(output["rollout_reward"] == [1.0] for output in outputs)
     assert observer.metrics_seen[-1].attributes["rollout_batches"] == 3
     values = observer.metrics_seen[-1].values
     assert values["train/rl/rollouts_attempted"] == 3
