@@ -14,6 +14,7 @@ from posttrain.train import (
 )
 from posttrain.train.api import _sampo_backend
 from posttrain.train.backends.trl.policy_config import _online_rl_arguments
+from posttrain.train.backends.trl.policy_optimization import _observation_features
 
 
 def _settings(**changes) -> SAMPOSettings:
@@ -314,6 +315,20 @@ def test_sampo_vllm_correction_defaults_to_the_vortex_per_token_cap(tmp_path) ->
     arguments = _online_rl_arguments(_sampo_vllm_request(sequence), tmp_path, {})
     assert arguments["vllm_importance_sampling_mode"] == "sequence_truncate"
     assert arguments["vllm_importance_sampling_clip_min"] == 0.1
+
+
+def test_sampo_owes_the_speculative_evidence_its_engine_emits() -> None:
+    # A SAMPO run on a DSpark engine emits speculative-decoding counters; its
+    # observation features must expect them instead of rejecting the update.
+    request = _sampo_vllm_request(_settings())
+    request.inference.engine = {"mode": "async", "speculative_config": {"method": "dspark"}}
+
+    features = _observation_features(request)
+
+    assert features.speculative_rollout_enabled
+    assert features.tool_environment
+    assert not features.asynchronous_rollout
+    assert features.reference_kl_enabled == (request.settings.beta > 0)
 
 
 def test_sampo_rejects_inconsistent_correction_and_truncation_settings() -> None:

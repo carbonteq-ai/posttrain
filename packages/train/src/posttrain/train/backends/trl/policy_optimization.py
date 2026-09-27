@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -141,15 +142,7 @@ def _run_online_rl(
     dataset = imports["Dataset"].from_list(rows)
     emit_parameter_counts(context, model, request.training.update)
     arguments = _online_rl_arguments(request, output_dir, template_kwargs)
-    observation_features = (
-        GRPOObservationFeatures.from_request(request)
-        if isinstance(request, GRPORequest)
-        else GRPOObservationFeatures(
-            reference_kl_enabled=request.settings.beta > 0,
-            decoupled_rollout=request.inference.backend.split("@", 1)[0] == "vllm",
-            tool_environment=True,
-        )
-    )
+    observation_features = _observation_features(request)
     technique = _technique(request)
     config_type = (
         Olmo3GRPOConfig if isinstance(request, GRPORequest) and request.settings.algorithm == "olmo3" else GRPOConfig
@@ -276,6 +269,24 @@ def _run_online_rl(
                 if failure is None:
                     raise
                 failure.add_note(f"failed to close adaptive curriculum state: {close_error!r}")
+
+
+def _observation_features(
+    request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
+) -> GRPOObservationFeatures:
+    """The metrics a run must emit, from its settings and inference engine.
+
+    Structured techniques (SAMPO, GDPO, CAPO) run in a tool environment and
+    keep the synchronous-rollout obligations; speculative decoding and a
+    quantized KV cache are properties of the engine for every technique.
+    """
+
+    if isinstance(request, GRPORequest):
+        return GRPOObservationFeatures.from_request(request)
+    return replace(
+        GRPOObservationFeatures.from_request(request, tool_environment=True),
+        asynchronous_rollout=False,
+    )
 
 
 def _trainer_arguments(

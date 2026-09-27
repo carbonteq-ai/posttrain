@@ -51,6 +51,9 @@ where they are recorded.
   refused every time, and was dropped when the job exited (7,546 of 11,876
   traces of a 150-update run). Trackio dev31 sends at most 8 MB per request and
   keeps what it could not send.
+- SAMPO, GDPO and CAPO on the TRL backend rejected their first update when the
+  rollout engine used speculative decoding (DSpark, MTP): their observation
+  features ignored the engine, so its speculative counters looked unexpected.
 - A long artifact upload failed with 403 once its 15-minute signed part URLs
   expired, and a queued artifact timed out behind a slow upload; dev31 signs
   parts again and times out only when uploads stall.
