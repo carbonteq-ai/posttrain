@@ -625,6 +625,14 @@ nvidia-cusparselt-cu13==0.8.1 ; sys_platform == 'linux' \
     --hash=sha256:786ce87568c303fadb5afcc7102d454cd3040d75f6f8626f5db460d1871f4dd0
     # via torch
 
+nvidia-ml-py==13.610.43 \
+    --hash=sha256:65437eb73d68d0c62c931ca4d45038472faff03bd0b8729abba4b899f70d60f2 \
+    --hash=sha256:f13c72698edef492f985cc225f14faafe68ae065a2e407f45bdf6f4b9b43fde8
+    # via
+    #   flashinfer-python
+    #   humming-kernels
+    #   posttrain-serve
+
 nvidia-nccl-cu13==2.29.7 ; sys_platform == 'linux' \
     --hash=sha256:674a12383e3c38a1bcccae7d4f3633b37852230b6047883cb2f4c2d1b36d9bf5 \
     --hash=sha256:edd81538446786ec3b73972543e53bb43bcaf0bfc8ef76cb679fcc390ffe136d
