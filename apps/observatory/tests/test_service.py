@@ -504,12 +504,10 @@ def test_grpo_policy_optimization_unifies_learning_signal_and_update_control() -
         "train/rl/clip_fraction",
         "train/rl/clip_fraction_low",
         "train/rl/clip_fraction_high",
+        "train/rl/tool_failure_frequency",
     )
-    assert [chart.key for chart in definition.charts][-3:] == [
-        "dynamic_sampling",
-        "active_sampling",
-        "tool_behavior",
-    ]
+    assert [chart.key for chart in definition.charts][-2:] == ["dynamic_sampling", "active_sampling"]
+    assert "tool_behavior" not in {chart.key for chart in definition.charts}
 
 
 @pytest.mark.parametrize("job_kind", ["train.gdpo", "train.capo"])

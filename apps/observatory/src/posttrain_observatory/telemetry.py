@@ -659,6 +659,9 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
                 "train/rl/clip_fraction",
                 "train/rl/clip_fraction_low",
                 "train/rl/clip_fraction_high",
+                # Tool calls per rollout come from traces (rollout behavior);
+                # the failure rate joins the rates lane here.
+                "train/rl/tool_failure_frequency",
             ),
         ),
         ChartDefinition(
@@ -740,12 +743,6 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
                 "train/rl/active_sampling_candidate_groups_retained",
                 "train/rl/active_sampling_candidate_groups_unused",
             ),
-        ),
-        ChartDefinition(
-            key="tool_behavior",
-            title="Tool behavior",
-            question="Are multi-turn trajectories invoking tools successfully?",
-            metrics=("train/rl/tool_call_frequency", "train/rl/tool_failure_frequency"),
         ),
     ),
     metric_help=_help_for(
