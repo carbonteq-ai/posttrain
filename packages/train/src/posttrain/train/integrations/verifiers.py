@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
 import hashlib
 import inspect
 import json
@@ -61,6 +62,44 @@ class VerifiersRolloutFailure(PartialRolloutBatchError):
 
 
 _VERIFIERS_UV_ORIGINAL: str | None = None
+
+
+_COMPRESS_CHUNK_BYTES = 8 * 1024 * 1024
+
+
+@dataclass(frozen=True, slots=True)
+class _CompressedJsonl:
+    path: Path
+    digest: str
+    records: int
+    uncompressed_bytes: int
+
+
+def _compress_jsonl(source: Path) -> _CompressedJsonl:
+    """Write ``<source>.gz`` in bounded chunks and hash what was written.
+
+    Level 1 compresses native traces about 5x at about 200 MB/s; a multi-GB
+    run file is never held in memory.
+    """
+
+    target = source.with_name(f"{source.name}.gz")
+    records = 0
+    uncompressed = 0
+    last = b"\n"
+    with source.open("rb") as reader, target.open("wb") as raw:
+        with gzip.GzipFile(filename="", fileobj=raw, mode="wb", compresslevel=1, mtime=0) as writer:
+            while chunk := reader.read(_COMPRESS_CHUNK_BYTES):
+                records += chunk.count(b"\n")
+                uncompressed += len(chunk)
+                last = chunk[-1:]
+                writer.write(chunk)
+    if last != b"\n":
+        records += 1
+    digest = hashlib.sha256()
+    with target.open("rb") as written:
+        while chunk := written.read(_COMPRESS_CHUNK_BYTES):
+            digest.update(chunk)
+    return _CompressedJsonl(target, digest.hexdigest(), records, uncompressed)
 
 
 def _native_record(value: Any) -> dict[str, Any]:
@@ -1223,49 +1262,54 @@ class VerifiersEnvironmentRolloutBridge:
             pickle.dump(snapshot, stream, protocol=pickle.HIGHEST_PROTOCOL)
 
     def finalize(self) -> tuple[ProducedArtifact, ...]:
+        """Publish the replay authority, compressed, once per run.
+
+        The native episode envelope is the replay authority; the derived trace
+        view is rebuilt from it and was streamed to tracking as each rollout
+        finished, so it is not published a second time. Runtimes without
+        episode envelopes publish their trace records as the authority.
+        """
+
         episodes_path = self.trace_path.with_name("episodes.jsonl")
-        artifacts: list[ProducedArtifact] = []
+        common = {
+            "technique": self.technique,
+            "environment_id": self.environment_id,
+            "dataset_id": self.dataset.id,
+            "dataset_revision": self.dataset.revision,
+            "replay_authority": True,
+            "compression": "gzip",
+        }
         if episodes_path.is_file():
-            with episodes_path.open("r", encoding="utf-8") as stream:
-                episode_count = sum(1 for line in stream if line.strip())
-            artifacts.append(
+            compressed = _compress_jsonl(episodes_path)
+            return (
                 ProducedArtifact(
                     name=f"training/rollouts/{self.dataset.id}/verifiers-episodes",
                     kind="evaluation-traces",
-                    reference=LocalArtifactRef(
-                        episodes_path.resolve(), hashlib.sha256(episodes_path.read_bytes()).hexdigest()
-                    ),
+                    reference=LocalArtifactRef(compressed.path.resolve(), compressed.digest),
                     metadata={
-                        "technique": self.technique,
-                        "environment_id": self.environment_id,
-                        "dataset_id": self.dataset.id,
-                        "dataset_revision": self.dataset.revision,
-                        "episode_count": episode_count,
-                        "replay_authority": True,
+                        **common,
+                        "episode_count": compressed.records,
+                        "uncompressed_bytes": compressed.uncompressed_bytes,
                         "format": "verifiers-native-episodes",
                     },
-                )
+                ),
             )
         if not self.trace_path.is_file():
-            return tuple(artifacts)
-        with self.trace_path.open("r", encoding="utf-8") as stream:
-            preserved_trace_count = sum(1 for line in stream if line.strip())
-        digest = hashlib.sha256(self.trace_path.read_bytes()).hexdigest()
-        artifact = ProducedArtifact(
-            name=f"training/rollouts/{self.dataset.id}/verifiers-traces",
-            kind="evaluation-traces",
-            reference=LocalArtifactRef(self.trace_path.resolve(), digest),
-            metadata={
-                "technique": self.technique,
-                "environment_id": self.environment_id,
-                "dataset_id": self.dataset.id,
-                "dataset_revision": self.dataset.revision,
-                "trace_count": preserved_trace_count,
-                "schema_version": 2,
-                "replay_authority": not episodes_path.is_file(),
-            },
+            return ()
+        compressed = _compress_jsonl(self.trace_path)
+        return (
+            ProducedArtifact(
+                name=f"training/rollouts/{self.dataset.id}/verifiers-traces",
+                kind="evaluation-traces",
+                reference=LocalArtifactRef(compressed.path.resolve(), compressed.digest),
+                metadata={
+                    **common,
+                    "trace_count": compressed.records,
+                    "uncompressed_bytes": compressed.uncompressed_bytes,
+                    "schema_version": 2,
+                },
+            ),
         )
-        return (*artifacts, artifact)
 
     def evidence(self) -> EnvironmentRolloutEvidence:
         """Replay native trace records and trace-derived metrics in the host process."""

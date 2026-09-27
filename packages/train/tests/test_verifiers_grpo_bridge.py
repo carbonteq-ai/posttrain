@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
+import hashlib
 import json
 from contextlib import asynccontextmanager
 from dataclasses import replace
@@ -549,6 +551,8 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
         assert structured.require_components(("native", "shape")) == (1.0, 0.05)
     assert len(artifacts) == 1
     assert artifacts[0].metadata["trace_count"] == 2
+    assert artifacts[0].metadata["replay_authority"] is True
+    assert artifacts[0].reference.path.name.endswith(".jsonl.gz")
     assert artifacts[0].metadata["technique"] == technique
     assert len(evidence.traces) == 2
     assert evidence.traces[0].external_id == rollouts[0].trace.external_id
@@ -558,6 +562,38 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
     assert evidence.metrics[0].values["train/rl/rollouts_attempted"] == 2
     assert evidence.metrics[0].values["train/rl/rollouts_completed"] == 2
     assert evidence.metrics[0].values["train/rl/reward_std"] == pytest.approx(0.0)
+
+
+def test_finalize_publishes_only_the_compressed_episode_envelope(tmp_path) -> None:
+    task = SimpleNamespace(data=TaskData(idx=7, prompt="prompt"))
+    bridge = VerifiersEnvironmentRolloutBridge(
+        dataset_id="custom/train-v1",
+        revision="revision",
+        tasks={7: task},
+        environment_factory=FakeEnvironment,
+        trace_path=tmp_path / "traces.jsonl",
+        environment_id="custom-v1",
+        run_id="run-1",
+        sampling=PolicySampling(max_tokens=32),
+    )
+    episodes = b"".join(
+        json.dumps({"id": f"episode-{index}", "tokens": [index] * 50}).encode() + b"\n" for index in range(3)
+    )
+    (tmp_path / "episodes.jsonl").write_bytes(episodes)
+    (tmp_path / "traces.jsonl").write_text('{"id": "derived"}\n')
+
+    [artifact] = bridge.finalize()
+
+    # The derived trace view is not published again: it was streamed to
+    # tracking and is rebuilt from the episodes, the replay authority.
+    assert artifact.name == "training/rollouts/custom/train-v1/verifiers-episodes"
+    assert artifact.metadata["replay_authority"] is True
+    assert artifact.metadata["episode_count"] == 3
+    assert artifact.metadata["uncompressed_bytes"] == len(episodes)
+    assert artifact.metadata["compression"] == "gzip"
+    published = artifact.reference.path
+    assert gzip.decompress(published.read_bytes()) == episodes
+    assert artifact.reference.digest == hashlib.sha256(published.read_bytes()).hexdigest()
 
 
 def test_native_bridge_runs_distinct_prompt_groups_concurrently(tmp_path) -> None:
