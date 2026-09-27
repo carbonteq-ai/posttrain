@@ -18,6 +18,19 @@ export function suiteLabel(suite: string | null | undefined): string {
   return parts[parts.length - 1] || suite;
 }
 
+/**
+ * Short suite names that stay distinct: the words every suite name shares at
+ * the start (``automationbench-``) are dropped, so a narrow list shows what
+ * differs (``heldout-matched-64k-v3`` against ``vortex-matched-48k-v2``).
+ */
+export function shortSuiteLabels(suites: Array<string | null | undefined>): Map<string, string> {
+  const labels = [...new Set(suites.map((suite) => suiteLabel(suite)))];
+  const words = labels.map((label) => label.split('-'));
+  let shared = 0;
+  while (words.length > 1 && words.every((parts) => parts.length > shared + 1 && parts[shared] === words[0][shared])) shared += 1;
+  return new Map(suites.map((suite) => [suite ?? '', suiteLabel(suite).split('-').slice(shared).join('-')]));
+}
+
 export function stepLabel(step: number | null | undefined): string {
   return step == null ? 'step —' : `step ${step}`;
 }

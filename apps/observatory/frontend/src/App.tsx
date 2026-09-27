@@ -29,7 +29,7 @@ import {
 } from '@phosphor-icons/react';
 
 import { FilterPopover } from './components/FilterPopover';
-import { evaluationsByParent, formatScore, stepLabel, suiteLabel } from './lib/evaluations';
+import { evaluationsByParent, formatScore, shortSuiteLabels, stepLabel } from './lib/evaluations';
 import { RolloutTimeline, RolloutTimeSummary } from './components/RolloutTime';
 import { PhaseMemoryTimeline } from './components/PhaseMemoryTimeline';
 import { SamplingDistribution, SamplingSummary } from './components/SamplingEvidence';
@@ -1146,6 +1146,7 @@ export default function App() {
   const evaluationError = evaluationIndex?.sourceId === activeSourceId ? evaluationIndex.error : '';
   const evaluationsByRun = useMemo(() => evaluationsByParent(evaluations), [evaluations]);
   const evaluationByRunId = useMemo(() => new Map((evaluations?.records ?? []).map((record) => [record.run_id, record])), [evaluations]);
+  const suiteNames = useMemo(() => shortSuiteLabels((evaluations?.records ?? []).map((record) => record.suite)), [evaluations]);
   const projects = useMemo(() => [...sources].sort((left, right) => left.source_id.localeCompare(right.source_id)), [sources]);
   const filteredRuns = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -1311,7 +1312,7 @@ export default function App() {
                 </button>
                 <div className="ml-[15px] mt-0.5 border-l border-divider pl-2">
                   {group.runs.map((run) => {
-                    const checkpointEvals = evaluationsByRun.get(run.run.run_id) ?? [];
+                    const checkpointEvals = [...(evaluationsByRun.get(run.run.run_id) ?? [])].sort((left, right) => (left.parent_step ?? -1) - (right.parent_step ?? -1) || (suiteNames.get(left.suite ?? '') ?? '').localeCompare(suiteNames.get(right.suite ?? '') ?? ''));
                     const evaluates = evaluationByRunId.get(run.run.run_id);
                     return <div key={run.run_key}>
                     <button type="button" aria-label={`Select run ${run.run.display_name}`} onClick={() => void chooseRun(run)} className={`flex w-full items-start gap-2 rounded px-2 py-1.5 text-left ${!activeWorkPackageId && selected.run_key === run.run_key ? 'bg-violet-50 text-violet-800' : 'hover:bg-subtle'}`}>
@@ -1319,10 +1320,10 @@ export default function App() {
                       <span className="min-w-0 flex-1"><strong title={run.run.display_name} className="block truncate text-[11px] font-medium leading-tight">{run.run.display_name}</strong><small className="mt-0.5 flex min-w-0 items-center justify-between gap-2 text-[9px] text-muted"><span className="truncate">{run.run.job_kind}</span><time className="shrink-0" dateTime={run.run.started_at} title={formatTimestamp(run.run.started_at)}>{formatSidebarTimestamp(run.run.started_at)}</time></small>{evaluates?.parent_run && <small className="mt-0.5 block truncate text-[9px] text-violet-700" title={`Evaluates ${evaluates.parent_run} at ${stepLabel(evaluates.parent_step)}`}>evaluates {runDisplayName(evaluates.parent_run)} @ {evaluates.parent_step ?? '—'}</small>}</span>
                     </button>
                     {checkpointEvals.length > 0 && <ul aria-label={`Evaluations of ${run.run.display_name}`} className="mb-1 ml-3 border-l border-violet-200 pl-1.5">
-                      {checkpointEvals.map((record) => <li key={record.run_key}><button type="button" aria-label={`Open evaluation ${record.run_id}`} title={`${record.suite ?? 'no suite'} · ${record.run_id}`} onClick={() => openRunByKey(record.run_key)} className={`flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[9px] ${selected.run_key === record.run_key ? 'bg-violet-50 text-violet-800' : 'text-secondary hover:bg-subtle'}`}>
+                      {checkpointEvals.map((record) => <li key={record.run_key}><button type="button" aria-label={`Open evaluation ${record.run_id}`} title={`${stepLabel(record.parent_step)} · ${record.suite ?? 'no suite'} · ${record.run_id}`} onClick={() => openRunByKey(record.run_key)} className={`flex w-full items-start gap-1.5 rounded px-1.5 py-1 text-left text-[9px] ${selected.run_key === record.run_key ? 'bg-violet-50 text-violet-800' : 'text-secondary hover:bg-subtle'}`}>
                         <span className="shrink-0 text-violet-500" aria-hidden="true">↳</span>
-                        <span className="shrink-0 tabular-nums">{stepLabel(record.parent_step)}</span>
-                        <span className="min-w-0 flex-1 truncate text-muted">{suiteLabel(record.suite)}</span>
+                        <span className="shrink-0 tabular-nums">{record.parent_step ?? '—'}</span>
+                        <span className="min-w-0 flex-1 leading-tight text-muted">{suiteNames.get(record.suite ?? '')}</span>
                         <span className={`shrink-0 font-mono tabular-nums ${record.status === 'failed' ? 'text-rose-600' : 'text-ink'}`}>{record.status === 'failed' ? 'failed' : formatScore(record.score)}</span>
                       </button></li>)}
                     </ul>}

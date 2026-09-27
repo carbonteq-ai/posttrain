@@ -1016,7 +1016,8 @@ describe('Observatory React product shell', () => {
 
     const nested = await screen.findByRole('list', { name: 'Evaluations of SFT calm harbor' });
     const item = within(nested).getByRole('button', { name: 'Open evaluation runs/eval-step100' });
-    expect(item).toHaveTextContent('step 100');
+    expect(item).toHaveTextContent('100');
+    expect(item).toHaveAttribute('title', expect.stringContaining('step 100'));
     expect(item).toHaveTextContent('heldout');
     expect(item).toHaveTextContent('0.595');
     expect(screen.getByRole('button', { name: 'Select run Held-out eval' })).toHaveTextContent('evaluates SFT calm harbor @ 100');
