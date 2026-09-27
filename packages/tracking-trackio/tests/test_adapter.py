@@ -604,6 +604,29 @@ def test_trackio_backend_resumes_without_replacing_config_or_starting_monitors(
     assert captured["auto_log_cpu"] is False
 
 
+def test_recoverable_job_runs_start_system_monitors(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Training jobs open their run with resume="allow" so an interrupted job can
+    # continue it. That process is the job, so it must record GPU and CPU use;
+    # only reopening a finished run for bookkeeping (resume_run) must not.
+    captured: dict[str, object] = {}
+
+    class StubRun:
+        id = "provider-run"
+
+    def fake_init(**kwargs: object) -> Any:
+        captured.update(kwargs)
+        return StubRun()
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.init", fake_init)
+    backend = TrackioBackend(TrackioSettings(project="monitoring", auto_log_gpu=True, auto_log_cpu=True))
+
+    backend.start_or_resume_run(_spec("00000000-0000-4000-8000-000000000099"), started_at=STARTED)
+
+    assert captured["resume"] == "allow"
+    assert captured["auto_log_gpu"] is True
+    assert captured["auto_log_cpu"] is True
+
+
 def test_trackio_backend_create_or_resume_uses_full_canonical_run_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

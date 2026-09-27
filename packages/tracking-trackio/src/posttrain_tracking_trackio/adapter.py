@@ -569,21 +569,26 @@ class TrackioBackend:
         self.settings = settings or TrackioSettings()
 
     def start_run(self, spec: RunSpec) -> TrackioTrackedRun:
-        return self._open_run(spec, resume="never")
+        return self._open_run(spec, resume="never", monitor=True)
 
     def resume_run(self, spec: RunSpec, *, started_at: datetime) -> TrackioTrackedRun:
         """Resume the provider run selected by the canonical Trackio run name."""
 
-        return self._open_run(spec, resume="must", started_at=started_at)
+        # Reopening a run to record what happened; this process is not the job.
+        return self._open_run(spec, resume="must", started_at=started_at, monitor=False)
 
     def start_or_resume_run(self, spec: RunSpec, *, started_at: datetime) -> TrackioTrackedRun:
         """Idempotently open the full canonical run identity after interruption."""
 
+        # A recoverable job opens its run this way on first start and after an
+        # interruption; either way this process is executing the job, so its GPU
+        # and CPU are the run's system metrics.
         return self._open_run(
             spec,
             resume="allow",
             started_at=started_at,
             full_run_name=True,
+            monitor=True,
         )
 
     def _open_run(
@@ -591,6 +596,7 @@ class TrackioBackend:
         spec: RunSpec,
         *,
         resume: str,
+        monitor: bool,
         started_at: datetime | None = None,
         full_run_name: bool = False,
     ) -> TrackioTrackedRun:
@@ -625,9 +631,9 @@ class TrackioBackend:
             config=_run_config(spec, started_at),
             resume=resume,
             embed=False,
-            auto_log_gpu=self.settings.auto_log_gpu if resume == "never" else False,
+            auto_log_gpu=self.settings.auto_log_gpu and monitor,
             gpu_log_interval=self.settings.gpu_log_interval,
-            auto_log_cpu=self.settings.auto_log_cpu if resume == "never" else False,
+            auto_log_cpu=self.settings.auto_log_cpu and monitor,
             cpu_log_interval=self.settings.cpu_log_interval,
             **init_arguments,
         )

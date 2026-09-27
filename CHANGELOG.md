@@ -62,6 +62,11 @@ where they are recorded.
 
 - Separate rollout batches that reported the same value were merged, which
   undercounted rollouts and rollout time.
+- Training runs recorded no system metrics (GPU and CPU use): recoverable jobs
+  open their Trackio run with resume "allow", and the adapter started Trackio's
+  GPU and CPU monitors only for resume "never", which only evaluations use.
+  Monitoring is now chosen by the opener: a starting or recovering job monitors,
+  reopening a run to record its outcome does not.
 - Traces lost on the way to Trackio: a failed request left its entries in the
   client buffer, which was then resent as one ever-growing request that a proxy
   refused every time, and was dropped when the job exited (7,546 of 11,876
