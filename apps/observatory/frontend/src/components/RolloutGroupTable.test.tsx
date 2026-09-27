@@ -74,13 +74,14 @@ describe('RolloutGroupTable', () => {
     const onSelect = vi.fn();
     render(<RolloutGroupTable traces={traces} allLoadedTraces={traces} total={6} expectedSize={2} rewards={rewards} hasMore={false} loadingMore={false} onLoadMore={vi.fn()} onSelect={onSelect} />);
     expect(screen.getByRole('table', { name: 'Rollout prompt groups' })).toBeInTheDocument();
-    expect(screen.getAllByText('Not recorded')).toHaveLength(3);
-    expect(screen.getByRole('columnheader', { name: 'Reward std dev' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Previous mean / std dev' })).toBeInTheDocument();
+    expect(screen.queryByText('Not recorded')).not.toBeInTheDocument();
+    expect(screen.getByText(/Update selection is not recorded/)).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Std dev' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Previous' })).toBeInTheDocument();
     expect(screen.getByText('0.500 / 0.500')).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'task-a' })[1]);
     const child = screen.getByRole('row', { name: 'Rollout a1' });
-    expect(within(child).getAllByRole('cell')).toHaveLength(11);
+    expect(within(child).getAllByRole('cell')).toHaveLength(10);
     expect(within(child).getByText('0.000')).toBeInTheDocument();
     expect(within(child).getByText('10')).toBeInTheDocument();
     fireEvent.click(within(child).getByRole('button', { name: /a1 task-a/ }));
@@ -94,16 +95,38 @@ describe('RolloutGroupTable', () => {
     ];
     const { container } = render(<RolloutGroupTable traces={detailed} allLoadedTraces={detailed} total={2} expectedSize={2} rewards={rewards} metricColumns={[{ name: 'partial_credit', label: 'Partial credit' }]} hasMore={false} loadingMore={false} onLoadMore={vi.fn()} onSelect={vi.fn()} />);
     const table = within(container).getByRole('table', { name: 'Rollout prompt groups' });
-    expect(table).toHaveStyle({ minWidth: '1002px' });
-    expect(table.querySelectorAll('col')[1]).toHaveClass('w-[200px]');
-    expect(within(table).getByRole('columnheader', { name: 'Reward components' })).toBeInTheDocument();
+    expect(table).toHaveStyle({ minWidth: '1070px' });
+    // The prompt column has no fixed width, so it takes the table's spare room.
+    expect(table.querySelectorAll('col')[1].className).toBe('');
+    expect(within(table).getByRole('columnheader', { name: 'Component' })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Partial credit' })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Tool calls' })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Turns' })).toBeInTheDocument();
     const group = within(table).getByRole('row', { name: 'Prompt group task-a' });
-    expect(within(group).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['1', '2 / 2', '0.500', '0.500', '—', '0.750', '4.0', '3.0', '6', '4', '11', 'Not recorded']);
+    expect(within(group).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['1', '2 / 2', '0.500', '0.500', '—', '0.750', '4.0', '3.0', '6', '4', '11']);
     fireEvent.click(within(group).getByRole('button', { name: 'task-a' }));
     const child = within(table).getByRole('row', { name: 'Rollout a2' });
-    expect(within(child).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['', '2 / 2', '0.750', '—', '—', '1.000', '5', '4', '—', '—', '12', 'Not recorded']);
+    expect(within(child).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['', '2 / 2', '0.750', '—', '—', '1.000', '5', '4', '—', '—', '12']);
+  });
+
+  it('pages prompt groups, sorts them by a column and asks for older rows past the last loaded page', () => {
+    const many = Array.from({ length: 24 }, (_, index) => trace(`t${index}`, index + 1, `step/${index + 1}/group/1`, `task-${String(index).padStart(2, '0')}`, index / 24));
+    const onLoadMore = vi.fn();
+    const { container, rerender } = render(<RolloutGroupTable traces={many} allLoadedTraces={many} total={100} expectedSize={1} rewards={null} hasMore loadingMore={false} onLoadMore={onLoadMore} onSelect={vi.fn()} />);
+    const view = within(container);
+    const rows = () => view.getAllByRole('row', { name: /^Prompt group / });
+    expect(rows()).toHaveLength(10);
+    expect(rows()[0]).toHaveAccessibleName('Prompt group task-23');
+    fireEvent.click(view.getByRole('button', { name: 'Page 3' }));
+    expect(rows()).toHaveLength(4);
+    fireEvent.click(view.getByRole('button', { name: 'Next page' }));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+    // No rows arrived, so the table stays on the last loaded page.
+    expect(rows()).toHaveLength(4);
+    fireEvent.click(view.getByRole('button', { name: 'Step' }));
+    expect(rows()[0]).toHaveAccessibleName('Prompt group task-23');
+    fireEvent.click(view.getByRole('button', { name: 'Step' }));
+    expect(rows()[0]).toHaveAccessibleName('Prompt group task-00');
+    expect(view.getByRole('columnheader', { name: 'Step' })).toHaveAttribute('aria-sort', 'ascending');
   });
 });

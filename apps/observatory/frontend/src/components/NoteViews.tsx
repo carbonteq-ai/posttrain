@@ -1,12 +1,13 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import type { MetricSeries, NoteData, RenderedNote, RenderedView } from '../lib/api';
 import { MarkdownContent, type FencedBlock } from './ContentRenderer';
 import { EvidenceChart, type ChartXAxis } from './EvidenceChart';
+import { FilterInput, Pager, SortButton, sortBy, usePaging, type SortState } from './TableControls';
 
 /** Fenced blocks the service writes in place of each view: ```note-view <index>. */
 export const NOTE_VIEW_FENCE = 'note-view';
-const MAX_TABLE_ROWS = 200;
+const TABLE_PAGE_ROWS = 15;
 
 type ResultColumn = NoteData['columns'][number];
 
@@ -162,36 +163,56 @@ export function NoteValue({ view }: { view: RenderedView }) {
 export function NoteTable({ view }: { view: RenderedView }) {
   const result = view.result;
   const options = view.options ?? {};
-  if (!result) return <UnresolvedView kind="table" message="no data" />;
-  const byName = new Map(result.columns.map((column, index) => [column.name, { column, index }]));
+  const [sort, setSort] = useState<SortState>(null);
+  const [filter, setFilter] = useState('');
+  const allRows = result?.rows ?? [];
+  const byName = new Map((result?.columns ?? []).map((column, index) => [column.name, { column, index }]));
   const names = optionList(options.columns);
-  const selected = (names.length ? names : result.columns.map((column) => column.name))
+  const selected = (names.length ? names : (result?.columns ?? []).map((column) => column.name))
     .map((name) => ({ name, entry: byName.get(name) }))
     .filter((item): item is { name: string; entry: { column: ResultColumn; index: number } } => item.entry != null);
-  const rows = result.rows.slice(0, MAX_TABLE_ROWS);
-  const numeric = selected.map(({ entry }) => rows.some((row) => isNumber(row[entry.index]))
-    && rows.every((row) => row[entry.index] == null || isNumber(row[entry.index])));
+  const numeric = selected.map(({ entry }) => allRows.some((row) => isNumber(row[entry.index]))
+    && allRows.every((row) => row[entry.index] == null || isNumber(row[entry.index])));
+  const needle = filter.trim().toLowerCase();
+  const matching = needle
+    ? allRows.filter((row) => selected.some(({ entry }) => formatCell(row[entry.index]).toLowerCase().includes(needle)))
+    : allRows;
+  const sorted = sortBy(matching, sort, (row, key) => row[Number(key)]);
+  const paging = usePaging(sorted, TABLE_PAGE_ROWS, `${needle}:${sort?.key}:${sort?.direction}`);
+  if (!result) return <UnresolvedView kind="table" message="no data" />;
   const title = optionText(options.title);
+  const searchable = allRows.length > TABLE_PAGE_ROWS / 3;
   return <div>
-    {title && <p className="mb-1 text-[11px] font-medium text-ink">{title}</p>}
-    <div className="overflow-x-auto rounded-[4px] border border-divider">
-      <table className="w-full text-left text-[11px]">
+    {(title || searchable) && <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+      {title ? <p className="text-[11px] font-medium text-ink">{title}</p> : <span />}
+      {searchable && <FilterInput value={filter} onChange={setFilter} label={`Filter ${title ?? 'table'} rows`} />}
+    </div>}
+    <div className="overflow-hidden rounded-[4px] border border-divider">
+      <div className="overflow-x-auto">
+      <table className="obs-data-table w-full text-left text-[11px]">
         <thead className="bg-subtle text-[10px] text-muted">
-          <tr>{selected.map(({ name, entry }, index) => <th key={name} scope="col" className={`px-2.5 py-1.5 font-medium ${numeric[index] ? 'text-right' : ''}`}>
-            {columnLabel(entry.column, name)}{entry.column.unit ? <span className="font-normal"> ({entry.column.unit})</span> : null}
+          <tr>{selected.map(({ name, entry }, index) => <th key={name} scope="col" aria-sort={sort?.key === String(entry.index) ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined} className={`whitespace-nowrap px-2.5 py-1.5 font-medium ${numeric[index] ? 'text-right' : ''}`}>
+            <SortButton
+              sortKey={String(entry.index)}
+              sort={sort}
+              numeric={numeric[index]}
+              onSort={setSort}
+              label={<>{columnLabel(entry.column, name)}{entry.column.unit ? <span className="font-normal"> ({entry.column.unit})</span> : null}</>}
+              title={`Sort by ${columnLabel(entry.column, name)}`}
+            />
           </th>)}</tr>
         </thead>
         <tbody className="divide-y divide-divider">
-          {rows.map((row, rowIndex) => <tr key={rowIndex}>{selected.map(({ name, entry }, index) => <td key={name} className={`px-2.5 py-1.5 text-secondary ${numeric[index] ? 'text-right font-mono tabular-nums' : ''}`}>
+          {paging.items.map((row, rowIndex) => <tr key={rowIndex}>{selected.map(({ name, entry }, index) => <td key={name} className={`px-2.5 py-1.5 text-secondary ${numeric[index] ? 'text-right font-mono tabular-nums' : ''}`}>
             {formatCell(row[entry.index])}
           </td>)}</tr>)}
+          {!paging.items.length && <tr><td colSpan={selected.length} className="px-2.5 py-4 text-center text-muted">No rows match “{filter.trim()}”.</td></tr>}
         </tbody>
       </table>
+      </div>
+      {(sorted.length > TABLE_PAGE_ROWS || needle) && <Pager paging={paging} count={sorted.length} noun={needle ? `matching rows · ${allRows.length.toLocaleString()} in all` : 'rows'} />}
     </div>
-    {(result.rows.length > rows.length || result.truncated) && <p className="mt-1 text-[10px] text-muted">
-      {result.rows.length > rows.length ? `${(result.rows.length - rows.length).toLocaleString()} more rows not shown. ` : ''}
-      {result.truncated ? 'The query result was truncated.' : ''}
-    </p>}
+    {result.truncated && <p className="mt-1 text-[10px] text-muted">The query result was truncated.</p>}
   </div>;
 }
 
@@ -223,5 +244,5 @@ export function NoteMarkdown({ rendered, compact = false }: { rendered: Rendered
       ? <NoteView key={index} view={view} />
       : <UnresolvedView kind="view" message={`view ${block.meta ?? '?'} is missing from the rendered note`} />;
   };
-  return <MarkdownContent compact={compact} fencedBlock={fencedBlock}>{rendered.markdown}</MarkdownContent>;
+  return <MarkdownContent compact={compact} hardBreaks={false} fencedBlock={fencedBlock}>{rendered.markdown}</MarkdownContent>;
 }

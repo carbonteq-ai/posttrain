@@ -209,7 +209,7 @@ meter {
   .obs-markdown ol,
   .obs-markdown blockquote,
   .obs-markdown pre,
-  .obs-markdown table {
+  .obs-markdown table:not(.obs-data-table) {
     margin: 0.5rem 0;
   }
 
@@ -283,22 +283,22 @@ meter {
     white-space: pre;
   }
 
-  .obs-markdown table {
+  .obs-markdown table:not(.obs-data-table) {
     display: block;
     max-width: 100%;
     overflow-x: auto;
     border-collapse: collapse;
   }
 
-  .obs-markdown th,
-  .obs-markdown td {
+  .obs-markdown table:not(.obs-data-table) th,
+  .obs-markdown table:not(.obs-data-table) td {
     border: 1px solid var(--obs-divider);
     padding: 0.3rem 0.45rem;
     text-align: left;
     white-space: nowrap;
   }
 
-  .obs-markdown th {
+  .obs-markdown table:not(.obs-data-table) th {
     background: var(--obs-subtle);
     color: var(--obs-ink);
     font-size: 0.6875rem;

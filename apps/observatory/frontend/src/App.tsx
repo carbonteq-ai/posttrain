@@ -1381,7 +1381,7 @@ function Crumb({ label, value, grow = false, mobileGrow = false }: { label: stri
 
 function RunShell({ selected, section, error }: { selected: RunItem; section: Section; error: string }) {
   return (
-    <section aria-label="Run summary shell" className="obs-card max-w-4xl p-6">
+    <section aria-label="Run summary shell" className="obs-card p-6">
       <p className="type-eyebrow">RUN SUMMARY</p>
       <h1 className="type-page-title mt-1.5">{selected.run.display_name}</h1>
       <p className="mt-2 text-xs text-muted">The {section.toLowerCase()} payload is loading independently from this run identity.</p>

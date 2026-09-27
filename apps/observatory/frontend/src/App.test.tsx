@@ -1407,17 +1407,17 @@ describe('Observatory React product shell', () => {
     render(<App />);
 
     await user.click(await screen.findByRole('button', { name: 'Rollouts & rewards' }));
-    expect(await screen.findByText('2 of 250 loaded')).toBeVisible();
+    expect(await screen.findByText('1–2 of 250 traces · 2 loaded')).toBeVisible();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/traces-evaluation'))).toBe(false);
     expect(screen.getByText('Action Quality')).toBeVisible();
     expect(screen.getByText('Answer Quality')).toBeVisible();
 
-    await user.click(screen.getByRole('button', { name: 'Load 100 more' }));
-    expect(await screen.findByText('3 of 250 loaded')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(await screen.findByText('3 of 250 traces')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'Step: Any' }));
     await user.click(screen.getByRole('option', { name: '1' }));
-    expect(await screen.findByText('1 of 1 loaded')).toBeVisible();
+    expect(await screen.findByText('1 traces')).toBeVisible();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/traces?') && String(input).includes('step=1'))).toBe(true);
   });
 

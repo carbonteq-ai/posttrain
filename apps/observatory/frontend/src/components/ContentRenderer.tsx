@@ -206,17 +206,20 @@ function fencedBlock(pre: HastLike | undefined): FencedBlock | null {
 /**
  * Markdown as Observatory shows it: GitHub-flavoured, raw HTML dropped
  * (``skipHtml``; no ``rehype-raw``), images omitted and links limited to
- * http(s), mailto and in-app paths.
+ * http(s), mailto and in-app paths. Model and tool text keeps its single
+ * newlines as line breaks; authored documents such as notes pass
+ * ``hardBreaks={false}`` so wrapped source lines reflow to the page width.
  */
-export function MarkdownContent({ children, compact = false, fencedBlock: renderFenced }: {
+export function MarkdownContent({ children, compact = false, hardBreaks = true, fencedBlock: renderFenced }: {
   children: string;
   compact?: boolean;
+  hardBreaks?: boolean;
   fencedBlock?: FencedBlockRenderer;
 }) {
   return <div className={`obs-markdown ${compact ? 'obs-markdown-compact' : ''}`}>
     <ReactMarkdown
       skipHtml
-      remarkPlugins={[remarkGfm, remarkBreaks]}
+      remarkPlugins={hardBreaks ? [remarkGfm, remarkBreaks] : [remarkGfm]}
       rehypePlugins={[[rehypeHighlight, { detect: false, plainText: ['text', 'txt'] }]]}
       urlTransform={safeUrlTransform}
       components={{
