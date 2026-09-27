@@ -123,7 +123,15 @@ update.
   Submitted as `lfm26-sampo-turns-150-lr5e5-kl5e3-20260927-r1` (dstack
   `pt-894e97d84349559cd6d2d0d1`, image
   `posttrain-job@sha256:7dd5bf2b9e315be73c83c0cb8ca3e07284df4ec83bc4da16f204d1e7b3bb1062`,
-  Trackio dev31 client, 48-hour limit). The KL run's held-out results for
+  Trackio dev31 client, 48-hour limit). r1 failed after its first update
+  (606 s): "speculative decoding metrics were emitted for a run without
+  speculative rollout". The TRL backend built SAMPO's observation features by
+  hand without the engine's speculative decoding, so DSpark's counters were
+  rejected; fixed in `12854da0` with a regression test. Resubmitted as
+  `lfm26-sampo-turns-150-lr5e5-kl5e3-20260927-r2` (dstack
+  `pt-c4f06c1abd162a77b9a7c347`, image
+  `posttrain-job@sha256:936a44ebf15b2bfc2732aaf9b0d7b06780d7ec6bd38e0fc70bb40528965c9a3c`).
+  The KL run's held-out results for
   comparison: base 0.589, update 100 0.595, 130 0.599, 150 0.569 (note
   `kl-checkpoint-heldout-evals` on the KL run).
 
