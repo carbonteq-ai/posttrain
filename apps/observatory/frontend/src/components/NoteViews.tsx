@@ -20,9 +20,17 @@ function optionText(value: unknown): string | null {
   return value == null || value === '' ? null : String(value);
 }
 
-function columnLabel(column: ResultColumn | undefined, name: string): string {
-  return column?.label || name;
+const ACRONYMS = new Set(['id', 'kl', 'lr', 'gpu', 'kv', 'sql', 'url']);
+
+/** A column's label, or its SQL name made readable: ``reward_first10`` → "Reward first10". */
+export function columnLabel(column: ResultColumn | undefined, name: string): string {
+  if (column?.label) return column.label;
+  const words = name.replace(/_+/g, ' ').trim().split(' ').map((word) => ACRONYMS.has(word) ? word.toUpperCase() : word).join(' ');
+  return words ? words[0].toUpperCase() + words.slice(1) : name;
 }
+
+/** Text up to this many characters (ids, names, short labels) stays on one line. */
+const NOWRAP_TEXT_CHARS = 64;
 
 function isNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -173,6 +181,16 @@ export function NoteTable({ view }: { view: RenderedView }) {
     .filter((item): item is { name: string; entry: { column: ResultColumn; index: number } } => item.entry != null);
   const numeric = selected.map(({ entry }) => allRows.some((row) => isNumber(row[entry.index]))
     && allRows.every((row) => row[entry.index] == null || isNumber(row[entry.index])));
+  // Short text never wraps; longer prose wraps between words within a readable width.
+  const longText = selected.map(({ entry }, index) => !numeric[index]
+    && allRows.some((row) => formatCell(row[entry.index]).length > NOWRAP_TEXT_CHARS));
+  // A wide table scrolls sideways with its first (usually naming) column pinned.
+  const pinFirst = selected.length > 3 && !numeric[0];
+  const cellClass = (index: number) => [
+    'px-2.5 py-1.5',
+    numeric[index] ? 'whitespace-nowrap text-right font-mono tabular-nums' : longText[index] ? 'min-w-[16rem] max-w-[36rem] whitespace-normal [overflow-wrap:break-word]' : 'whitespace-nowrap',
+    index === 0 && pinFirst ? 'sticky left-0 z-[1] bg-surface shadow-[1px_0_0_var(--obs-divider)]' : '',
+  ].join(' ');
   const needle = filter.trim().toLowerCase();
   const matching = needle
     ? allRows.filter((row) => selected.some(({ entry }) => formatCell(row[entry.index]).toLowerCase().includes(needle)))
@@ -189,9 +207,9 @@ export function NoteTable({ view }: { view: RenderedView }) {
     </div>}
     <div className="overflow-hidden rounded-[4px] border border-divider">
       <div className="overflow-x-auto">
-      <table className="obs-data-table w-full text-left text-[11px]">
+      <table className="obs-data-table min-w-full text-left text-[11px] [overflow-wrap:normal]">
         <thead className="bg-subtle text-[10px] text-muted">
-          <tr>{selected.map(({ name, entry }, index) => <th key={name} scope="col" aria-sort={sort?.key === String(entry.index) ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined} className={`whitespace-nowrap px-2.5 py-1.5 font-medium ${numeric[index] ? 'text-right' : ''}`}>
+          <tr>{selected.map(({ name, entry }, index) => <th key={name} scope="col" aria-sort={sort?.key === String(entry.index) ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined} className={`whitespace-nowrap px-2.5 py-1.5 font-medium ${numeric[index] ? 'text-right' : ''} ${index === 0 && pinFirst ? 'sticky left-0 z-[1] bg-subtle shadow-[1px_0_0_var(--obs-divider)]' : ''}`}>
             <SortButton
               sortKey={String(entry.index)}
               sort={sort}
@@ -203,7 +221,7 @@ export function NoteTable({ view }: { view: RenderedView }) {
           </th>)}</tr>
         </thead>
         <tbody className="divide-y divide-divider">
-          {paging.items.map((row, rowIndex) => <tr key={rowIndex}>{selected.map(({ name, entry }, index) => <td key={name} className={`px-2.5 py-1.5 text-secondary ${numeric[index] ? 'text-right font-mono tabular-nums' : ''}`}>
+          {paging.items.map((row, rowIndex) => <tr key={rowIndex}>{selected.map(({ name, entry }, index) => <td key={name} className={`${cellClass(index)} text-secondary`}>
             {formatCell(row[entry.index])}
           </td>)}</tr>)}
           {!paging.items.length && <tr><td colSpan={selected.length} className="px-2.5 py-4 text-center text-muted">No rows match “{filter.trim()}”.</td></tr>}

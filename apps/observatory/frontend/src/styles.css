@@ -295,6 +295,14 @@ meter {
     border: 1px solid var(--obs-divider);
     padding: 0.3rem 0.45rem;
     text-align: left;
+    vertical-align: top;
+    /* Long values wrap between words; ids and names are never split mid-word. */
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+
+  .obs-markdown table:not(.obs-data-table) th,
+  .obs-markdown table:not(.obs-data-table) td:first-child {
     white-space: nowrap;
   }
 
