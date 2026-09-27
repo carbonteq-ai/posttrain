@@ -10,7 +10,7 @@ import math
 import re
 import time
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from statistics import fmean
 from typing import Any, Literal, cast
@@ -37,6 +37,7 @@ from posttrain.tracking import (
 from .configuration import configuration_review
 from .discovery import TrackioSourceDiscovery
 from .evaluation_contracts import read_evaluation_contract
+from .evaluations import EvaluationIndex, EvaluationTaskScores, evaluation_index, evaluation_tasks
 from .execution_targets import execution_target_capacity, execution_target_contexts
 from .models import (
     BackendRuntimeSummary,
@@ -1260,6 +1261,7 @@ class ObservatoryService:
             tuple[str, str], tuple[float, RolloutTimeView, dict[int | None, TraceAggregateBucket] | None]
         ] = {}
         self._rollout_time_locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._evaluation_cache: dict[str, tuple[float, EvaluationIndex]] = {}
         self.notes = RunNotes(
             self, store_factory=note_store_factory, templates=note_templates or TemplateSet(), writes=note_writes
         )
@@ -2482,6 +2484,34 @@ class ObservatoryService:
         if isinstance(query, SqlQuery):
             return await run_sql_query(FRAMEWORK_MODEL, source, query)
         return await run_semantic_query(FRAMEWORK_MODEL, source, query)
+
+    async def evaluations(self, *, source_id: str | None = None) -> EvaluationIndex:
+        """Every evaluation run with the model and checkpoint it scored; cached for a minute."""
+        if not self.registry.source_ids:
+            raise LookupError("Observatory has no configured sources")
+        source = source_id or self.registry.source_ids[0]
+        cached = self._evaluation_cache.get(source)
+        if cached is not None and cached[0] > time.monotonic():
+            return cached[1]
+        index = await evaluation_index(source, lambda query: self.query_semantics(query, source_id=source))
+        self._evaluation_cache[source] = (time.monotonic() + 60.0, index)
+        return index
+
+    async def evaluation_task_scores(self, runs: Sequence[RunLocator]) -> EvaluationTaskScores:
+        """Per-task scores of evaluation runs from one source."""
+        sources = {locator.source_id for locator in runs}
+        if len(sources) > 1:
+            raise ValueError("evaluation task scores read one source at a time")
+        if not sources:
+            if not self.registry.source_ids:
+                raise LookupError("Observatory has no configured sources")
+            return EvaluationTaskScores(source_id=self.registry.source_ids[0])
+        source = sources.pop()
+        return await evaluation_tasks(
+            source,
+            [locator.run_id for locator in runs],
+            lambda query: self.query_semantics(query, source_id=source),
+        )
 
     async def run_card(self, run: str | RunLocator) -> RenderedNote:
         """The job kind's note template rendered for this run."""

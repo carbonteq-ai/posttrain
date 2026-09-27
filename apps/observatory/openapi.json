@@ -1112,6 +1112,34 @@
         "title": "EvaluationFacetSpec",
         "type": "object"
       },
+      "EvaluationIndex": {
+        "additionalProperties": false,
+        "properties": {
+          "records": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationRecord"
+            },
+            "title": "Records",
+            "type": "array"
+          },
+          "score_definition": {
+            "default": "Mean rollout reward over attempts that did not fail; truncated attempts count at their recorded reward (0 when none). Failed attempts are execution errors and are counted separately.",
+            "title": "Score Definition",
+            "type": "string"
+          },
+          "source_id": {
+            "minLength": 1,
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id"
+        ],
+        "title": "EvaluationIndex",
+        "type": "object"
+      },
       "EvaluationMeasurementFacet": {
         "additionalProperties": false,
         "properties": {
@@ -1501,6 +1529,148 @@
           }
         },
         "title": "EvaluationPerformance",
+        "type": "object"
+      },
+      "EvaluationRecord": {
+        "additionalProperties": false,
+        "description": "One evaluation run: the model it scored, its suite and its score.",
+        "properties": {
+          "attempts": {
+            "default": 0,
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment"
+          },
+          "failed": {
+            "default": 0,
+            "title": "Failed",
+            "type": "integer"
+          },
+          "job_kind": {
+            "minLength": 1,
+            "title": "Job Kind",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "parent_run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Run"
+          },
+          "parent_run_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Run Key"
+          },
+          "parent_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Step"
+          },
+          "run_id": {
+            "minLength": 1,
+            "title": "Run Id",
+            "type": "string"
+          },
+          "run_key": {
+            "minLength": 1,
+            "title": "Run Key",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "suite": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suite"
+          },
+          "truncated": {
+            "default": 0,
+            "title": "Truncated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_key",
+          "run_id",
+          "job_kind"
+        ],
+        "title": "EvaluationRecord",
         "type": "object"
       },
       "EvaluationRunView": {
@@ -1895,6 +2065,80 @@
           "truncations"
         ],
         "title": "EvaluationTaskResult",
+        "type": "object"
+      },
+      "EvaluationTaskScore": {
+        "additionalProperties": false,
+        "properties": {
+          "attempts": {
+            "default": 0,
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "failed": {
+            "default": 0,
+            "title": "Failed",
+            "type": "integer"
+          },
+          "run_key": {
+            "minLength": 1,
+            "title": "Run Key",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "task": {
+            "title": "Task",
+            "type": "string"
+          },
+          "truncated": {
+            "default": 0,
+            "title": "Truncated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_key",
+          "task"
+        ],
+        "title": "EvaluationTaskScore",
+        "type": "object"
+      },
+      "EvaluationTaskScores": {
+        "additionalProperties": false,
+        "properties": {
+          "score_definition": {
+            "default": "Mean rollout reward over attempts that did not fail; truncated attempts count at their recorded reward (0 when none). Failed attempts are execution errors and are counted separately.",
+            "title": "Score Definition",
+            "type": "string"
+          },
+          "scores": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationTaskScore"
+            },
+            "title": "Scores",
+            "type": "array"
+          },
+          "source_id": {
+            "minLength": 1,
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id"
+        ],
+        "title": "EvaluationTaskScores",
         "type": "object"
       },
       "EventRecord": {
@@ -6762,6 +7006,96 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/evaluations": {
+      "get": {
+        "operationId": "evaluations_api_v1_evaluations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationIndex"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluations"
+      }
+    },
+    "/api/v1/evaluations/tasks": {
+      "get": {
+        "operationId": "evaluation_tasks_api_v1_evaluations_tasks_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "run_key",
+            "required": false,
+            "schema": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 64,
+              "title": "Run Key",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationTaskScores"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluation Tasks"
+      }
+    },
     "/api/v1/exports": {
       "post": {
         "operationId": "export_api_v1_exports_post",

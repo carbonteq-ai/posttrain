@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from posttrain.tracking import NoteConflict, NotesUnavailable, ProjectSqlUnavailable, RunNote, RunQuery
 from pydantic import BeforeValidator, Field
 
+from .evaluations import EvaluationIndex, EvaluationTaskScores
 from .mcp import create_mcp
 from .models import (
     ErrorResponse,
@@ -176,6 +177,16 @@ def create_http_app(
             limit=limit,
         )
         return [run.model_dump(mode="json") for run in await service.list_runs(query, source_id=source_id)]
+
+    @app.get("/api/v1/evaluations")
+    async def evaluations(source_id: str | None = None) -> EvaluationIndex:
+        return await service.evaluations(source_id=source_id)
+
+    @app.get("/api/v1/evaluations/tasks")
+    async def evaluation_tasks(
+        run_key: tuple[str, ...] = Query(default=(), max_length=64),
+    ) -> EvaluationTaskScores:
+        return await service.evaluation_task_scores([_locator(key) for key in run_key])
 
     @app.get("/api/v1/runs/locate")
     async def locate_run(run_id: str = Query(min_length=1)) -> list[dict[str, object]]:

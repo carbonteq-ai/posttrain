@@ -984,6 +984,45 @@ describe('Observatory React product shell', () => {
     expect(screen.getByRole('button', { name: 'Select run SFT calm harbor' })).toBeVisible();
   });
 
+  it('nests checkpoint evaluations under the training run they evaluated', async () => {
+    const evalRun = {
+      ...run,
+      locator: { source_id: 'fixture', run_id: 'runs/eval-step100' },
+      run_key: 'eval-key',
+      run: { ...run.run, run_id: 'runs/eval-step100', display_name: 'Held-out eval', work_package_id: 'eval/heldout', stage: 'qualify', job_kind: 'eval.general' },
+    };
+    const record = (runId: string, runKey: string, parent: string | null, step: number | null, score: number) => ({
+      run_key: runKey, run_id: runId, job_kind: 'eval.general', suite: 'eval/heldout', environment: 'env', model: 'models/m',
+      parent_run: parent, parent_run_key: parent ? 'run-key' : null, parent_step: step, status: 'succeeded',
+      started_at: '2026-07-23T00:00:00Z', attempts: 60, score, truncated: 0, failed: 0,
+    });
+    const evaluations = {
+      source_id: 'fixture',
+      score_definition: 'Mean rollout reward.',
+      records: [record('runs/eval-base', 'base-key', null, null, 0.589), record('runs/eval-step100', 'eval-key', 'runs/sft', 100, 0.595)],
+    };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      const body = path === '/api/v1/sources'
+        ? sources
+        : path === '/api/v1/runs?source_id=fixture&limit=1000'
+          ? [run, evalRun]
+          : path.startsWith('/api/v1/evaluations?')
+            ? evaluations
+            : path === '/api/v1/runs/run-key' ? run : view;
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    render(<App />);
+
+    const nested = await screen.findByRole('list', { name: 'Evaluations of SFT calm harbor' });
+    const item = within(nested).getByRole('button', { name: 'Open evaluation runs/eval-step100' });
+    expect(item).toHaveTextContent('step 100');
+    expect(item).toHaveTextContent('heldout');
+    expect(item).toHaveTextContent('0.595');
+    expect(screen.getByRole('button', { name: 'Select run Held-out eval' })).toHaveTextContent('evaluates SFT calm harbor @ 100');
+    expect(await screen.findByRole('button', { name: 'Evals' })).toBeVisible();
+  });
+
   it('polls an active routed run once per minute', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input);

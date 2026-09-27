@@ -594,6 +594,10 @@ export type RecommendedSetting = Schemas['RecommendedSetting'];
 export type StepCapacityView = Schemas['StepCapacityView'];
 export type StepOptionView = Schemas['StepOptionView'];
 export type StepCalibration = Schemas['StepCalibration'];
+export type EvaluationIndex = Schemas['EvaluationIndex'];
+export type EvaluationRecord = Schemas['EvaluationRecord'];
+export type EvaluationTaskScores = Schemas['EvaluationTaskScores'];
+export type EvaluationTaskScore = Schemas['EvaluationTaskScore'];
 
 export type RunView = {
   requested_mode: 'auto' | 'job' | 'generic';
@@ -915,6 +919,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   sources: () => request<SourceSummary[]>('/api/v1/sources'),
   runs: (sourceId: string) => request<RunItem[]>(`/api/v1/runs?${new URLSearchParams({ source_id: sourceId, limit: '1000' })}`),
+  evaluations: (sourceId: string) => request<EvaluationIndex>(`/api/v1/evaluations?${new URLSearchParams({ source_id: sourceId })}`),
+  evaluationTasks: (runKeys: string[]) =>
+    request<EvaluationTaskScores>(`/api/v1/evaluations/tasks?${new URLSearchParams(runKeys.map((key) => ['run_key', key]))}`),
   run: (key: string) => request<RunItem>(`/api/v1/runs/${encodeURIComponent(key)}`),
   refreshSources: () => request<SourceRefreshStatus>('/api/v1/sources/refresh', { method: 'POST' }),
   workPackage: (workPackageId: string, projectId: string, sourceId: string) => {

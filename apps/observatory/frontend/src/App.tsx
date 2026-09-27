@@ -6,6 +6,7 @@ import {
   ArrowClockwise,
   ArrowSquareOut,
   Bell,
+  ChartLineUp,
   CaretDown,
   CaretRight,
   Check,
@@ -28,6 +29,7 @@ import {
 } from '@phosphor-icons/react';
 
 import { FilterPopover } from './components/FilterPopover';
+import { evaluationsByParent, formatScore, stepLabel, suiteLabel } from './lib/evaluations';
 import { RolloutTimeline, RolloutTimeSummary } from './components/RolloutTime';
 import { PhaseMemoryTimeline } from './components/PhaseMemoryTimeline';
 import { SamplingDistribution, SamplingSummary } from './components/SamplingEvidence';
@@ -60,6 +62,7 @@ import {
   type TraceSummary,
   type TraceSummaryPage,
   type WorkPackageView,
+  type EvaluationIndex,
 } from './lib/api';
 import { tracePresentation, traceSignalColumns, traceSurfaceMode, type TracePresentation } from './lib/trace-presentation';
 
@@ -80,8 +83,14 @@ const RolloutGroupTable = lazy(() =>
 const RunNotesPanel = lazy(() =>
   import('./components/RunNotesPanel').then((module) => ({ default: module.RunNotesPanel })),
 );
+const RunEvaluations = lazy(() =>
+  import('./components/EvaluationViews').then((module) => ({ default: module.RunEvaluations })),
+);
+const EvalComparePage = lazy(() =>
+  import('./components/EvaluationViews').then((module) => ({ default: module.EvalComparePage })),
+);
 
-type Section = 'Overview' | 'Notes' | 'Metrics' | 'System metrics' | 'Traces & evaluation' | 'Artifacts & lineage' | 'Run config';
+type Section = 'Overview' | 'Notes' | 'Evals' | 'Metrics' | 'System metrics' | 'Traces & evaluation' | 'Artifacts & lineage' | 'Run config';
 
 const SYSTEM_METRIC_CHART_WINDOW_MS = 60 * 60 * 1000;
 
@@ -133,6 +142,7 @@ const policyOptimizationJobKinds = new Set(['train.grpo', 'train.gdpo', 'train.c
 const sections: Section[] = [
   'Overview',
   'Notes',
+  'Evals',
   'Metrics',
   'System metrics',
   'Traces & evaluation',
@@ -777,7 +787,9 @@ export default function App() {
   const [selected, setSelected] = useState<RunItem | null>(null);
   const [loadedView, setLoadedView] = useState<{ runKey: string; response: RunView } | null>(null);
   const [section, setSection] = useState<Section>('Overview');
-  const [surface, setSurface] = useState<'run' | 'compare'>('run');
+  const [surface, setSurface] = useState<'run' | 'compare' | 'eval-compare'>('run');
+  const [evaluationRefresh, setEvaluationRefresh] = useState(0);
+  const [evaluationIndex, setEvaluationIndex] = useState<{ sourceId: string; value: EvaluationIndex | null; error: string } | null>(null);
   const [compareKeys, setCompareKeys] = useState<string[]>([]);
   const [comparison, setComparison] = useState<RunComparison | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
@@ -1039,6 +1051,7 @@ export default function App() {
     if (!selected) return;
     const runKey = selected.run_key;
     setSection(next);
+    if (next === 'Evals') setEvaluationRefresh((value) => value + 1);
     try {
       if (next === 'System metrics' && !system) {
         const value = await api.system(runKey);
@@ -1118,6 +1131,21 @@ export default function App() {
 
   const activeProject = selectedProject ?? selected?.run.project_id ?? '';
   const activeSourceId = selectedSourceId ?? selected?.locator.source_id ?? '';
+  // Evaluation runs with the checkpoint they scored: the sidebar nests them
+  // under their training run and the Evals views compare them with the base
+  // model. Read per project and again whenever an Evals view opens.
+  useEffect(() => {
+    if (!activeSourceId) return;
+    let active = true;
+    api.evaluations(activeSourceId)
+      .then((value) => { if (active) setEvaluationIndex({ sourceId: activeSourceId, value, error: '' }); })
+      .catch((cause: unknown) => { if (active) setEvaluationIndex((current) => ({ sourceId: activeSourceId, value: current?.sourceId === activeSourceId ? current.value : null, error: cause instanceof Error ? cause.message : String(cause) })); });
+    return () => { active = false; };
+  }, [activeSourceId, evaluationRefresh]);
+  const evaluations = evaluationIndex?.sourceId === activeSourceId ? evaluationIndex.value : null;
+  const evaluationError = evaluationIndex?.sourceId === activeSourceId ? evaluationIndex.error : '';
+  const evaluationsByRun = useMemo(() => evaluationsByParent(evaluations), [evaluations]);
+  const evaluationByRunId = useMemo(() => new Map((evaluations?.records ?? []).map((record) => [record.run_id, record])), [evaluations]);
   const projects = useMemo(() => [...sources].sort((left, right) => left.source_id.localeCompare(right.source_id)), [sources]);
   const filteredRuns = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -1217,7 +1245,14 @@ export default function App() {
   const traceEvaluationEnabled = response?.view.run.run_id === selected.run.run_id
     && response.view.trace_evaluation_enabled;
 
-  const visibleSections = sections.filter((item) => item !== 'Traces & evaluation' || traceEvaluationEnabled);
+  const visibleSections = sections.filter((item) => (item !== 'Traces & evaluation' || traceEvaluationEnabled)
+    && (item !== 'Evals' || evaluationsByRun.has(selected.run.run_id)));
+  const openRunByKey = (runKey: string) => {
+    const run = runs.find((item) => item.run_key === runKey);
+    if (run) void chooseRun(run);
+    else navigate({ kind: 'run', runKey });
+  };
+  const runDisplayName = (runId: string) => runs.find((item) => item.run.run_id === runId)?.run.display_name ?? runId;
 
   const copy = jobCopy[selected.run.job_kind] ?? {
     eyebrow: selected.run.job_kind.toUpperCase(),
@@ -1244,18 +1279,20 @@ export default function App() {
           />
         </label>
         <nav aria-label="Primary" className="mt-3 flex gap-1 border-b border-divider pb-3 text-xs">
-          {[
-            [GitDiff, 'Compare'],
-            [Bell, 'Alerts'],
-          ].map(([Icon, label]) => (
+          {([
+            [GitDiff, 'Compare', 'compare'],
+            [ChartLineUp, 'Evals', 'eval-compare'],
+            [Bell, 'Alerts', null],
+          ] as const).map(([Icon, label, target]) => (
             <button
-              key={label as string}
+              key={label}
               type="button"
-              onClick={label === 'Compare' ? () => { void openCompare(); } : undefined}
-              aria-pressed={label === 'Compare' && surface === 'compare'}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-2 ${label === 'Compare' && surface === 'compare' ? 'bg-violet-50 text-violet-800' : 'text-secondary hover:bg-subtle'}`}
+              aria-label={label === 'Evals' ? 'Compare evals' : undefined}
+              onClick={label === 'Compare' ? () => { void openCompare(); } : label === 'Evals' ? () => { setActiveWorkPackageId(null); setWorkPackage(null); setSurface('eval-compare'); setEvaluationRefresh((value) => value + 1); } : undefined}
+              aria-pressed={target != null && surface === target}
+              className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded px-1 py-2 text-[11px] ${target != null && surface === target ? 'bg-violet-50 text-violet-800' : 'text-secondary hover:bg-subtle'}`}
             >
-              <Icon size={17} aria-hidden="true" /> {label as string}
+              <Icon size={15} className="shrink-0" aria-hidden="true" /> {label}
             </button>
           ))}
         </nav>
@@ -1273,12 +1310,24 @@ export default function App() {
                   <CaretRight size={11} className="mt-0.5 shrink-0 text-muted" aria-hidden="true" />
                 </button>
                 <div className="ml-[15px] mt-0.5 border-l border-divider pl-2">
-                  {group.runs.map((run) => (
-                    <button key={run.run_key} type="button" aria-label={`Select run ${run.run.display_name}`} onClick={() => void chooseRun(run)} className={`flex w-full items-start gap-2 rounded px-2 py-1.5 text-left ${!activeWorkPackageId && selected.run_key === run.run_key ? 'bg-violet-50 text-violet-800' : 'hover:bg-subtle'}`}>
+                  {group.runs.map((run) => {
+                    const checkpointEvals = evaluationsByRun.get(run.run.run_id) ?? [];
+                    const evaluates = evaluationByRunId.get(run.run.run_id);
+                    return <div key={run.run_key}>
+                    <button type="button" aria-label={`Select run ${run.run.display_name}`} onClick={() => void chooseRun(run)} className={`flex w-full items-start gap-2 rounded px-2 py-1.5 text-left ${!activeWorkPackageId && selected.run_key === run.run_key ? 'bg-violet-50 text-violet-800' : 'hover:bg-subtle'}`}>
                       <Circle className={`mt-1 shrink-0 ${run.run.status === 'succeeded' ? 'text-emerald-600' : run.run.status === 'failed' ? 'text-rose-600' : 'text-amber-600'}`} size={6} weight="fill" aria-hidden="true" />
-                      <span className="min-w-0 flex-1"><strong title={run.run.display_name} className="block truncate text-[11px] font-medium leading-tight">{run.run.display_name}</strong><small className="mt-0.5 flex min-w-0 items-center justify-between gap-2 text-[9px] text-muted"><span className="truncate">{run.run.job_kind}</span><time className="shrink-0" dateTime={run.run.started_at} title={formatTimestamp(run.run.started_at)}>{formatSidebarTimestamp(run.run.started_at)}</time></small></span>
+                      <span className="min-w-0 flex-1"><strong title={run.run.display_name} className="block truncate text-[11px] font-medium leading-tight">{run.run.display_name}</strong><small className="mt-0.5 flex min-w-0 items-center justify-between gap-2 text-[9px] text-muted"><span className="truncate">{run.run.job_kind}</span><time className="shrink-0" dateTime={run.run.started_at} title={formatTimestamp(run.run.started_at)}>{formatSidebarTimestamp(run.run.started_at)}</time></small>{evaluates?.parent_run && <small className="mt-0.5 block truncate text-[9px] text-violet-700" title={`Evaluates ${evaluates.parent_run} at ${stepLabel(evaluates.parent_step)}`}>evaluates {runDisplayName(evaluates.parent_run)} @ {evaluates.parent_step ?? '—'}</small>}</span>
                     </button>
-                  ))}
+                    {checkpointEvals.length > 0 && <ul aria-label={`Evaluations of ${run.run.display_name}`} className="mb-1 ml-3 border-l border-violet-200 pl-1.5">
+                      {checkpointEvals.map((record) => <li key={record.run_key}><button type="button" aria-label={`Open evaluation ${record.run_id}`} title={`${record.suite ?? 'no suite'} · ${record.run_id}`} onClick={() => openRunByKey(record.run_key)} className={`flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[9px] ${selected.run_key === record.run_key ? 'bg-violet-50 text-violet-800' : 'text-secondary hover:bg-subtle'}`}>
+                        <span className="shrink-0 text-violet-500" aria-hidden="true">↳</span>
+                        <span className="shrink-0 tabular-nums">{stepLabel(record.parent_step)}</span>
+                        <span className="min-w-0 flex-1 truncate text-muted">{suiteLabel(record.suite)}</span>
+                        <span className={`shrink-0 font-mono tabular-nums ${record.status === 'failed' ? 'text-rose-600' : 'text-ink'}`}>{record.status === 'failed' ? 'failed' : formatScore(record.score)}</span>
+                      </button></li>)}
+                    </ul>}
+                    </div>;
+                  })}
                 </div>
               </section>)}
                 </div>
@@ -1328,7 +1377,7 @@ export default function App() {
           {activeWorkPackageId ? <WorkPackagePage view={workPackage} servingCapacity={servingCapacity} loading={workPackageLoading} onOpenRun={(runKey) => {
             const run = runs.find((item) => item.run_key === runKey);
             if (run) void chooseRun(run);
-          }} /> : surface === 'compare' ? <CompareView runs={compareCandidates} candidateLoading={compareCandidateLoading} selectedKeys={compareKeys} comparison={comparison} loading={comparisonLoading} onToggle={toggleCompareRun} onCompare={() => void runCompare()} jobKind={selected.run.job_kind} /> : section === 'Notes' ? <Suspense fallback={null}><RunNotesPanel key={selected.run_key} runKey={selected.run_key} /></Suspense> : !response ? <RunShell selected={selected} section={section} error={error} /> : <>
+          }} /> : surface === 'eval-compare' ? <Suspense fallback={null}><EvalComparePage index={evaluations} loading={!evaluations} error={evaluationError} displayName={runDisplayName} onOpenRun={openRunByKey} initialRunId={selected.run.run_id} /></Suspense> : surface === 'compare' ? <CompareView runs={compareCandidates} candidateLoading={compareCandidateLoading} selectedKeys={compareKeys} comparison={comparison} loading={comparisonLoading} onToggle={toggleCompareRun} onCompare={() => void runCompare()} jobKind={selected.run.job_kind} /> : section === 'Notes' ? <Suspense fallback={null}><RunNotesPanel key={selected.run_key} runKey={selected.run_key} /></Suspense> : section === 'Evals' ? <Suspense fallback={null}><RunEvaluations runId={selected.run.run_id} index={evaluations} loading={!evaluations} error={evaluationError} onOpenRun={openRunByKey} /></Suspense> : !response ? <RunShell selected={selected} section={section} error={error} /> : <>
           {section === 'Overview' && <>
             {response.view.view_kind === 'job.serving'
               ? <ServingBenchmarkOverview response={response} sourceId={selected.locator.source_id} onRunConfig={() => void openSection('Run config')} />

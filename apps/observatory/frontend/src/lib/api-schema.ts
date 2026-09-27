@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/v1/evaluations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evaluations */
+        get: operations["evaluations_api_v1_evaluations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evaluations/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evaluation Tasks */
+        get: operations["evaluation_tasks_api_v1_evaluations_tasks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/exports": {
         parameters: {
             query?: never;
@@ -1044,6 +1078,21 @@ export interface components {
              */
             transform: "identity" | "prefix_before_colon";
         };
+        /** EvaluationIndex */
+        EvaluationIndex: {
+            /**
+             * Records
+             * @default []
+             */
+            records: components["schemas"]["EvaluationRecord"][];
+            /**
+             * Score Definition
+             * @default Mean rollout reward over attempts that did not fail; truncated attempts count at their recorded reward (0 when none). Failed attempts are execution errors and are counted separately.
+             */
+            score_definition: string;
+            /** Source Id */
+            source_id: string;
+        };
         /** EvaluationMeasurementFacet */
         EvaluationMeasurementFacet: {
             /** Dimension */
@@ -1173,6 +1222,51 @@ export interface components {
             latency_ms?: components["schemas"]["EvaluationDistribution"] | null;
             thinking_tokens?: components["schemas"]["EvaluationDistribution"] | null;
             tool_calls?: components["schemas"]["EvaluationDistribution"] | null;
+        };
+        /**
+         * EvaluationRecord
+         * @description One evaluation run: the model it scored, its suite and its score.
+         */
+        EvaluationRecord: {
+            /**
+             * Attempts
+             * @default 0
+             */
+            attempts: number;
+            /** Environment */
+            environment?: string | null;
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
+            /** Job Kind */
+            job_kind: string;
+            /** Model */
+            model?: string | null;
+            /** Parent Run */
+            parent_run?: string | null;
+            /** Parent Run Key */
+            parent_run_key?: string | null;
+            /** Parent Step */
+            parent_step?: number | null;
+            /** Run Id */
+            run_id: string;
+            /** Run Key */
+            run_key: string;
+            /** Score */
+            score?: number | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Suite */
+            suite?: string | null;
+            /**
+             * Truncated
+             * @default 0
+             */
+            truncated: number;
         };
         /** EvaluationRunView */
         EvaluationRunView: {
@@ -1310,6 +1404,45 @@ export interface components {
             truncations: number;
             /** Valid Repetitions */
             valid_repetitions: number;
+        };
+        /** EvaluationTaskScore */
+        EvaluationTaskScore: {
+            /**
+             * Attempts
+             * @default 0
+             */
+            attempts: number;
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
+            /** Run Key */
+            run_key: string;
+            /** Score */
+            score?: number | null;
+            /** Task */
+            task: string;
+            /**
+             * Truncated
+             * @default 0
+             */
+            truncated: number;
+        };
+        /** EvaluationTaskScores */
+        EvaluationTaskScores: {
+            /**
+             * Score Definition
+             * @default Mean rollout reward over attempts that did not fail; truncated attempts count at their recorded reward (0 when none). Failed attempts are execution errors and are counted separately.
+             */
+            score_definition: string;
+            /**
+             * Scores
+             * @default []
+             */
+            scores: components["schemas"]["EvaluationTaskScore"][];
+            /** Source Id */
+            source_id: string;
         };
         /** EventRecord */
         EventRecord: {
@@ -2961,6 +3094,68 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    evaluations_api_v1_evaluations_get: {
+        parameters: {
+            query?: {
+                source_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationIndex"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluation_tasks_api_v1_evaluations_tasks_get: {
+        parameters: {
+            query?: {
+                run_key?: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationTaskScores"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     export_api_v1_exports_post: {
         parameters: {
             query?: never;
