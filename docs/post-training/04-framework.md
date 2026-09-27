@@ -128,7 +128,7 @@ flowchart TB
 | `packages/execution-local` / `execution-dstack` | Local Docker and dstack launch adapters over the same digest-pinned actual-job image | A second code/data upload protocol |
 | `apps/cli` | Primary `posttrain` command: project initialization and install, diagnostics, catalog/work-package execution, and Observatory bring-up | Capability semantics, provider storage logic, project decisions |
 | `apps/lab` | Reference project and qualification suite: scenario policy, backend integration tests, and hardware release gates | Being imported by ordinary projects or owning the standard job contract |
-| `apps/observatory` | Dedicated read product: telemetry definitions, query/intelligence service, Python API, HTTP API, MCP, frontend, materialized reports, and versioned serving-capacity interpretation | Provider storage queries, execution, mutation of runs, or “winner” selection |
+| `apps/observatory` | Dedicated read product: telemetry definitions, query/intelligence service, Python API, HTTP API, MCP, frontend, materialized reports, and versioned serving-capacity interpretation; the one write it offers is run notes (`06-observation-and-lineage.md`) | Provider storage queries, execution, mutation of run evidence or status, or “winner” selection |
 | `apps/release` | Framework-owner release tooling: building the base and job-kind images, publishing them to the framework's public registry, and regenerating the pinned image manifest | Being a dependency of `posttrain`, project or job semantics, site registry policy |
 | `apps/job-builder` | Optional authenticated, isolated service that reconstructs one declared packed context and invokes the existing BuildKit actual-job publisher | Framework base/kind release publication, arbitrary BuildKit/Docker access, project policy, or provider scheduling |
 | Env packages (e.g. AutomationBench) | Published Verifiers environments | Importing lab or train/serve packages |
@@ -151,7 +151,10 @@ flowchart TB
 6. **Environment packages depend on Verifiers**, not on this monorepo’s
    execution packages. Verifiers owns live task interaction and native
    trajectories used by eval, GRPO, and on-policy distillation.
-7. **Observatory is read-only** with respect to execution state.
+7. **Observatory is read-only** with respect to execution state and evidence.
+   Its one exception is run notes: it may add, revise and delete notes, which
+   never change a run's configuration, metrics, events, traces, artifacts or
+   status.
 8. **Observatory's frontend, MCP, HTTP, Python, and report exports use one query
    service and one set of job telemetry definitions.** They do not maintain
    separate metric lists or health rules.

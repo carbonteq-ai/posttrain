@@ -1,6 +1,23 @@
 {
   "components": {
     "schemas": {
+      "Aggregation": {
+        "enum": [
+          "last",
+          "first",
+          "min",
+          "max",
+          "mean",
+          "sum",
+          "count",
+          "stddev",
+          "p50",
+          "p90",
+          "p95",
+          "p99"
+        ],
+        "type": "string"
+      },
       "AlertSeverity": {
         "enum": [
           "info",
@@ -405,6 +422,114 @@
         },
         "title": "ConfigurationReview",
         "type": "object"
+      },
+      "DescribedTable": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "columns",
+          "description"
+        ],
+        "title": "DescribedTable",
+        "type": "object"
+      },
+      "Dimension": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DimensionType"
+          }
+        },
+        "required": [
+          "name",
+          "entity",
+          "type",
+          "description",
+          "source"
+        ],
+        "title": "Dimension",
+        "type": "object"
+      },
+      "DimensionType": {
+        "enum": [
+          "string",
+          "integer",
+          "number",
+          "time",
+          "boolean"
+        ],
+        "type": "string"
+      },
+      "Entity": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "order_dimension": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Dimension"
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "Entity",
+        "type": "object"
+      },
+      "EntityName": {
+        "enum": [
+          "run",
+          "update",
+          "rollout"
+        ],
+        "type": "string"
       },
       "EvaluationBreakdown": {
         "additionalProperties": false,
@@ -987,6 +1112,34 @@
         "title": "EvaluationFacetSpec",
         "type": "object"
       },
+      "EvaluationIndex": {
+        "additionalProperties": false,
+        "properties": {
+          "records": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationRecord"
+            },
+            "title": "Records",
+            "type": "array"
+          },
+          "score_definition": {
+            "default": "Mean rollout reward over attempts that did not fail; truncated attempts count at their recorded reward (0 when none). Failed attempts are execution errors and are counted separately.",
+            "title": "Score Definition",
+            "type": "string"
+          },
+          "source_id": {
+            "minLength": 1,
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id"
+        ],
+        "title": "EvaluationIndex",
+        "type": "object"
+      },
       "EvaluationMeasurementFacet": {
         "additionalProperties": false,
         "properties": {
@@ -1376,6 +1529,148 @@
           }
         },
         "title": "EvaluationPerformance",
+        "type": "object"
+      },
+      "EvaluationRecord": {
+        "additionalProperties": false,
+        "description": "One evaluation run: the model it scored, its suite and its score.",
+        "properties": {
+          "attempts": {
+            "default": 0,
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment"
+          },
+          "failed": {
+            "default": 0,
+            "title": "Failed",
+            "type": "integer"
+          },
+          "job_kind": {
+            "minLength": 1,
+            "title": "Job Kind",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "parent_run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Run"
+          },
+          "parent_run_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Run Key"
+          },
+          "parent_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Step"
+          },
+          "run_id": {
+            "minLength": 1,
+            "title": "Run Id",
+            "type": "string"
+          },
+          "run_key": {
+            "minLength": 1,
+            "title": "Run Key",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "suite": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suite"
+          },
+          "truncated": {
+            "default": 0,
+            "title": "Truncated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_key",
+          "run_id",
+          "job_kind"
+        ],
+        "title": "EvaluationRecord",
         "type": "object"
       },
       "EvaluationRunView": {
@@ -1770,6 +2065,80 @@
           "truncations"
         ],
         "title": "EvaluationTaskResult",
+        "type": "object"
+      },
+      "EvaluationTaskScore": {
+        "additionalProperties": false,
+        "properties": {
+          "attempts": {
+            "default": 0,
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "failed": {
+            "default": 0,
+            "title": "Failed",
+            "type": "integer"
+          },
+          "run_key": {
+            "minLength": 1,
+            "title": "Run Key",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "task": {
+            "title": "Task",
+            "type": "string"
+          },
+          "truncated": {
+            "default": 0,
+            "title": "Truncated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_key",
+          "task"
+        ],
+        "title": "EvaluationTaskScore",
+        "type": "object"
+      },
+      "EvaluationTaskScores": {
+        "additionalProperties": false,
+        "properties": {
+          "score_definition": {
+            "default": "Mean rollout reward over attempts that did not fail; truncated attempts count at their recorded reward (0 when none). Failed attempts are execution errors and are counted separately.",
+            "title": "Score Definition",
+            "type": "string"
+          },
+          "scores": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvaluationTaskScore"
+            },
+            "title": "Scores",
+            "type": "array"
+          },
+          "source_id": {
+            "minLength": 1,
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id"
+        ],
+        "title": "EvaluationTaskScores",
         "type": "object"
       },
       "EventRecord": {
@@ -2489,6 +2858,135 @@
         "description": "Any JSON-compatible value.",
         "title": "JsonValue"
       },
+      "Measure": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregation": {
+            "$ref": "#/components/schemas/Aggregation",
+            "default": "mean"
+          },
+          "allowed": {
+            "default": [
+              "last",
+              "first",
+              "min",
+              "max",
+              "mean",
+              "sum",
+              "count",
+              "stddev",
+              "p50",
+              "p90",
+              "p95",
+              "p99"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Aggregation"
+            },
+            "title": "Allowed",
+            "type": "array"
+          },
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "job_kinds": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Job Kinds",
+            "type": "array"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "name",
+          "entity",
+          "label",
+          "description",
+          "source",
+          "job_kinds"
+        ],
+        "title": "Measure",
+        "type": "object"
+      },
+      "Metric": {
+        "additionalProperties": false,
+        "description": "A SQL expression over aggregated measures of one entity, for example\n`sum(rollout_seconds) / sum(update_seconds)`; the tests plan every formula against its table.",
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "formula": {
+            "minLength": 1,
+            "title": "Formula",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "name",
+          "entity",
+          "label",
+          "description",
+          "formula"
+        ],
+        "title": "Metric",
+        "type": "object"
+      },
       "MetricCatalog": {
         "additionalProperties": false,
         "properties": {
@@ -2740,6 +3238,139 @@
         "title": "MetricSeriesSet",
         "type": "object"
       },
+      "NoteAddRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "body_md": {
+            "maxLength": 262144,
+            "minLength": 1,
+            "title": "Body Md",
+            "type": "string"
+          },
+          "kind": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9_-]*$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "note_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "kind",
+          "body_md"
+        ],
+        "title": "NoteAddRequest",
+        "type": "object"
+      },
+      "NotePreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "body_md": {
+            "maxLength": 262144,
+            "title": "Body Md",
+            "type": "string"
+          },
+          "run_key": {
+            "minLength": 1,
+            "title": "Run Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_key",
+          "body_md"
+        ],
+        "title": "NotePreviewRequest",
+        "type": "object"
+      },
+      "NoteReviseRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "body_md": {
+            "maxLength": 262144,
+            "minLength": 1,
+            "title": "Body Md",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^[a-z][a-z0-9_-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "body_md"
+        ],
+        "title": "NoteReviseRequest",
+        "type": "object"
+      },
+      "NoteScope": {
+        "enum": [
+          "run",
+          "project"
+        ],
+        "type": "string"
+      },
+      "NoteSource": {
+        "enum": [
+          "cli",
+          "mcp",
+          "observatory"
+        ],
+        "type": "string"
+      },
       "PromptGroupReward": {
         "additionalProperties": false,
         "properties": {
@@ -2942,6 +3573,245 @@
           "key"
         ],
         "title": "RecommendedSetting",
+        "type": "object"
+      },
+      "RenderedNote": {
+        "additionalProperties": false,
+        "description": "A note ready to show.\n\n``markdown`` keeps views as fenced ``note-view <index>`` blocks for the page\nto draw from ``views``; ``text`` is the same note with views written out as\nMarkdown text, for the command line and agents.",
+        "properties": {
+          "data": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SemanticResult"
+            },
+            "title": "Data",
+            "type": "object"
+          },
+          "markdown": {
+            "title": "Markdown",
+            "type": "string"
+          },
+          "template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "unresolved": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Unresolved",
+            "type": "array"
+          },
+          "views": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RenderedView"
+            },
+            "title": "Views",
+            "type": "array"
+          }
+        },
+        "required": [
+          "markdown",
+          "text"
+        ],
+        "title": "RenderedNote",
+        "type": "object"
+      },
+      "RenderedRunNote": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "$ref": "#/components/schemas/RunNote"
+          },
+          "rendered": {
+            "$ref": "#/components/schemas/RenderedNote"
+          }
+        },
+        "required": [
+          "note",
+          "rendered"
+        ],
+        "title": "RenderedRunNote",
+        "type": "object"
+      },
+      "RenderedView": {
+        "additionalProperties": false,
+        "description": "One view with the data it displays, for the page to draw.",
+        "properties": {
+          "compare_formatted": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare Formatted"
+          },
+          "compare_value": {
+            "$ref": "#/components/schemas/JsonPayload"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "formatted": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formatted"
+          },
+          "index": {
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ViewKind"
+          },
+          "options": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonPayload"
+            },
+            "title": "Options",
+            "type": "object"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SemanticResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "$ref": "#/components/schemas/JsonPayload"
+          }
+        },
+        "required": [
+          "index",
+          "kind"
+        ],
+        "title": "RenderedView",
+        "type": "object"
+      },
+      "ResultColumn": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "dimension",
+              "measure",
+              "metric",
+              "value"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "ResultColumn",
         "type": "object"
       },
       "RolloutBehaviorPoint": {
@@ -3267,6 +4137,87 @@
           "run_id"
         ],
         "title": "RunLocator",
+        "type": "object"
+      },
+      "RunNote": {
+        "additionalProperties": false,
+        "description": "One revision of one note.",
+        "properties": {
+          "body_md": {
+            "title": "Body Md",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deleted": {
+            "default": false,
+            "title": "Deleted",
+            "type": "boolean"
+          },
+          "kind": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "note_id": {
+            "minLength": 1,
+            "title": "Note Id",
+            "type": "string"
+          },
+          "revised_at": {
+            "format": "date-time",
+            "title": "Revised At",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/NoteScope",
+            "default": "run"
+          },
+          "source": {
+            "$ref": "#/components/schemas/NoteSource"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "note_id",
+          "revision",
+          "kind",
+          "body_md",
+          "source",
+          "created_at",
+          "revised_at"
+        ],
+        "title": "RunNote",
         "type": "object"
       },
       "RunStatus": {
@@ -3676,6 +4627,252 @@
           "message"
         ],
         "title": "SafeRunError",
+        "type": "object"
+      },
+      "SemanticDescribeRequest": {
+        "additionalProperties": false,
+        "description": "Job kinds to describe; none describes everything.",
+        "properties": {
+          "job_kinds": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          },
+          "runs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StringTuple"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs"
+          }
+        },
+        "title": "SemanticDescribeRequest",
+        "type": "object"
+      },
+      "SemanticDescription": {
+        "additionalProperties": false,
+        "properties": {
+          "dimensions": {
+            "items": {
+              "$ref": "#/components/schemas/Dimension"
+            },
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/Entity"
+            },
+            "title": "Entities",
+            "type": "array"
+          },
+          "job_kinds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Job Kinds",
+            "type": "array"
+          },
+          "measures": {
+            "items": {
+              "$ref": "#/components/schemas/Measure"
+            },
+            "title": "Measures",
+            "type": "array"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/Metric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "notes": {
+            "default": [
+              "SQL is Doris SQL: one read-only SELECT (optionally WITH) over the sql_tables. Only the tables and columns a statement reads are computed, for every run of the project unless runs narrows them.",
+              "Useful functions: max_by(value, step) and min_by(value, step) for last and first, percentile(x, 0.9), stddev_samp(x). On local SQLite storage only these and standard SQL are available.",
+              "Short form: measures (name or name:aggregation, including p50/p90/p95/p99), by (dimensions), where (dimension: value, [any of], '>= n', or a '*' wildcard), runs (ids or run-dimension filters), order_by (prefix - for descending), limit. It compiles to SQL, returned with the result.",
+              "Evaluation tasks are rollouts grouped by task: filter out truncated and failed rollouts to read valid rewards."
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "sql_tables": {
+            "items": {
+              "$ref": "#/components/schemas/DescribedTable"
+            },
+            "title": "Sql Tables",
+            "type": "array"
+          }
+        },
+        "required": [
+          "job_kinds",
+          "entities",
+          "dimensions",
+          "measures",
+          "metrics",
+          "sql_tables"
+        ],
+        "title": "SemanticDescription",
+        "type": "object"
+      },
+      "SemanticModel": {
+        "additionalProperties": false,
+        "properties": {
+          "dimensions": {
+            "items": {
+              "$ref": "#/components/schemas/Dimension"
+            },
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/Entity"
+            },
+            "title": "Entities",
+            "type": "array"
+          },
+          "measures": {
+            "items": {
+              "$ref": "#/components/schemas/Measure"
+            },
+            "title": "Measures",
+            "type": "array"
+          },
+          "metrics": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Metric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entities",
+          "dimensions",
+          "measures"
+        ],
+        "title": "SemanticModel",
+        "type": "object"
+      },
+      "SemanticQuery": {
+        "additionalProperties": false,
+        "description": "Measures (or metrics), grouped by dimensions, filtered by conditions.\n\n``measures`` entries are names, optionally with an aggregation\n(``entropy:last``). ``runs`` is shorthand for run filters: explicit run ids,\nor a mapping of run dimensions to conditions.",
+        "properties": {
+          "by": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          },
+          "limit": {
+            "default": 1000,
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "measures": {
+            "$ref": "#/components/schemas/StringTuple",
+            "minLength": 1
+          },
+          "order_by": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
+          },
+          "runs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StringTuple"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs"
+          },
+          "where": {
+            "additionalProperties": true,
+            "title": "Where",
+            "type": "object"
+          }
+        },
+        "required": [
+          "measures"
+        ],
+        "title": "SemanticQuery",
+        "type": "object"
+      },
+      "SemanticResult": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/ResultColumn"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "engine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine"
+          },
+          "grain": {
+            "title": "Grain",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "items": {},
+              "type": "array"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "sql": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sql"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "columns",
+          "rows",
+          "grain"
+        ],
+        "title": "SemanticResult",
         "type": "object"
       },
       "SemanticSummaryRequest": {
@@ -4457,6 +5654,46 @@
         "title": "SettingsRecommendation",
         "type": "object"
       },
+      "Source": {
+        "additionalProperties": false,
+        "description": "Where values come from: a field, a settings path, a metric name, a trace fact.",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "transform": {
+            "default": "identity",
+            "enum": [
+              "identity",
+              "one_minus"
+            ],
+            "title": "Transform",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "Source",
+        "type": "object"
+      },
+      "SourceKind": {
+        "enum": [
+          "run_field",
+          "setting",
+          "event",
+          "metric_series",
+          "trace_fact",
+          "derived"
+        ],
+        "type": "string"
+      },
       "SourceRefreshStatus": {
         "additionalProperties": false,
         "properties": {
@@ -4520,6 +5757,44 @@
           "state"
         ],
         "title": "SourceRefreshStatus",
+        "type": "object"
+      },
+      "SqlQuery": {
+        "additionalProperties": false,
+        "description": "One read-only SELECT (Doris SQL) over the semantic tables; `runs` narrows the runs it sees.",
+        "properties": {
+          "max_rows": {
+            "default": 10000,
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Max Rows",
+            "type": "integer"
+          },
+          "runs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StringTuple"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs"
+          },
+          "sql": {
+            "minLength": 1,
+            "title": "Sql",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sql"
+        ],
+        "title": "SqlQuery",
         "type": "object"
       },
       "Stage": {
@@ -5644,6 +6919,11 @@
             "title": "Provider",
             "type": "string"
           },
+          "run_notes": {
+            "default": false,
+            "title": "Run Notes",
+            "type": "boolean"
+          },
           "trace_facts": {
             "default": "unavailable",
             "enum": [
@@ -5701,6 +6981,14 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "ViewKind": {
+        "enum": [
+          "chart",
+          "value",
+          "table"
+        ],
+        "type": "string"
+      },
       "ViewMode": {
         "enum": [
           "auto",
@@ -5718,6 +7006,96 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/evaluations": {
+      "get": {
+        "operationId": "evaluations_api_v1_evaluations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationIndex"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluations"
+      }
+    },
+    "/api/v1/evaluations/tasks": {
+      "get": {
+        "operationId": "evaluation_tasks_api_v1_evaluations_tasks_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "run_key",
+            "required": false,
+            "schema": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 64,
+              "title": "Run Key",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationTaskScores"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluation Tasks"
+      }
+    },
     "/api/v1/exports": {
       "post": {
         "operationId": "export_api_v1_exports_post",
@@ -5816,6 +7194,66 @@
           }
         },
         "summary": "Job Kind"
+      }
+    },
+    "/api/v1/notes/preview": {
+      "post": {
+        "operationId": "preview_note_api_v1_notes_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderedNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Note"
+      }
+    },
+    "/api/v1/notes/settings": {
+      "get": {
+        "operationId": "note_settings_api_v1_notes_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Note Settings Api V1 Notes Settings Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Note Settings"
       }
     },
     "/api/v1/runs": {
@@ -6109,6 +7547,45 @@
         "summary": "Alerts"
       }
     },
+    "/api/v1/runs/{run_key}/card": {
+      "get": {
+        "operationId": "run_card_api_v1_runs__run_key__card_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderedNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Card"
+      }
+    },
     "/api/v1/runs/{run_key}/comparison-key": {
       "get": {
         "operationId": "comparison_key_api_v1_runs__run_key__comparison_key_get",
@@ -6306,6 +7783,278 @@
           }
         },
         "summary": "Metrics"
+      }
+    },
+    "/api/v1/runs/{run_key}/notes": {
+      "get": {
+        "operationId": "run_notes_api_v1_runs__run_key__notes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RenderedRunNote"
+                  },
+                  "title": "Response Run Notes Api V1 Runs  Run Key  Notes Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Notes"
+      },
+      "post": {
+        "operationId": "add_run_note_api_v1_runs__run_key__notes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteAddRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Run Note"
+      }
+    },
+    "/api/v1/runs/{run_key}/notes/{note_id}": {
+      "delete": {
+        "operationId": "delete_run_note_api_v1_runs__run_key__notes__note_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "title": "Note Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_revision",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Expected Revision",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Run Note"
+      },
+      "put": {
+        "operationId": "revise_run_note_api_v1_runs__run_key__notes__note_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "title": "Note Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteReviseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revise Run Note"
+      }
+    },
+    "/api/v1/runs/{run_key}/notes/{note_id}/history": {
+      "get": {
+        "operationId": "run_note_history_api_v1_runs__run_key__notes__note_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_key",
+            "required": true,
+            "schema": {
+              "title": "Run Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "title": "Note Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RunNote"
+                  },
+                  "title": "Response Run Note History Api V1 Runs  Run Key  Notes  Note Id  History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Note History"
       }
     },
     "/api/v1/runs/{run_key}/rollout-behavior": {
@@ -6853,6 +8602,108 @@
           }
         },
         "summary": "Run View"
+      }
+    },
+    "/api/v1/semantic/describe": {
+      "post": {
+        "operationId": "semantic_describe_api_v1_semantic_describe_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SemanticDescribeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticDescription"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Semantic Describe"
+      }
+    },
+    "/api/v1/semantic/model": {
+      "get": {
+        "operationId": "semantic_model_api_v1_semantic_model_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Semantic Model"
+      }
+    },
+    "/api/v1/semantic/query": {
+      "post": {
+        "operationId": "semantic_query_api_v1_semantic_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SemanticQuery"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SqlQuery"
+                  }
+                ],
+                "title": "Query"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Semantic Query"
       }
     },
     "/api/v1/serving-capacity/work-packages/{work_package_id}": {

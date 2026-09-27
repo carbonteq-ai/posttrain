@@ -21,6 +21,7 @@ from posttrain.tracking import (
     TracePayloadQuery,
     TrackingCapabilities,
 )
+from posttrain.tracking.logical import logical_series
 from posttrain_observatory import (
     DEFAULT_TELEMETRY_DEFINITIONS,
     ChartDefinition,
@@ -80,14 +81,17 @@ class FakeRunDataSource:
     ) -> tuple[MetricSeries, ...]:
         self.metric_reads.append((names, start_step, end_step, page_size))
         values = self.series[run_id]
+        # A conforming reader returns logical steps (posttrain.tracking.logical_series).
         return tuple(
-            MetricSeries(
-                name=name,
-                points=tuple(
-                    point
-                    for point in values.get(name, MetricSeries(name=name)).points
-                    if _metric_point_in_range(point, start_step, end_step)
-                ),
+            logical_series(
+                MetricSeries(
+                    name=name,
+                    points=tuple(
+                        point
+                        for point in values.get(name, MetricSeries(name=name)).points
+                        if _metric_point_in_range(point, start_step, end_step)
+                    ),
+                )
             )
             for name in names
         )
@@ -500,12 +504,10 @@ def test_grpo_policy_optimization_unifies_learning_signal_and_update_control() -
         "train/rl/clip_fraction",
         "train/rl/clip_fraction_low",
         "train/rl/clip_fraction_high",
+        "train/rl/tool_failure_frequency",
     )
-    assert [chart.key for chart in definition.charts][-3:] == [
-        "dynamic_sampling",
-        "active_sampling_yield",
-        "active_sampling_population",
-    ]
+    assert [chart.key for chart in definition.charts][-2:] == ["dynamic_sampling", "active_sampling"]
+    assert "tool_behavior" not in {chart.key for chart in definition.charts}
 
 
 @pytest.mark.parametrize("job_kind", ["train.gdpo", "train.capo"])
@@ -642,7 +644,7 @@ async def test_trace_navigation_follows_job_telemetry_definition() -> None:
 async def test_grpo_projection_exposes_population_and_selection_aware_completeness() -> None:
     view = await ObservatoryService(FixtureRunDataSource()).get_run_view("runs/grpo-silver-pine")
 
-    assert view.schema_version == 2
+    assert view.schema_version == 3
     assert view.grpo is not None
     assert view.grpo.rollout_population.requested.state == "missing"
     assert view.grpo.rollout_population.attempted.value == 96
@@ -685,8 +687,8 @@ async def test_olmo3_active_sampling_is_exposed_as_conditional_evidence() -> Non
     view = await ObservatoryService(FakeRunDataSource(details, {run_id: series})).get_run_view(run_id)
 
     chart_keys = [chart.key for chart in view.charts]
-    assert {"active_sampling_yield", "active_sampling_population"}.issubset(chart_keys)
-    assert chart_keys[-2:] == ["active_sampling_yield", "active_sampling_population"]
+    assert "active_sampling" in chart_keys
+    assert chart_keys[-1] == "active_sampling"
     requirement = next(item for item in view.completeness.requirements if item.key == "olmo3_active_sampling")
     assert requirement.state == "available"
     assert requirement.missing_metrics == ()
@@ -818,3 +820,31 @@ def test_cli_exposes_the_same_telemetry_schema(capsys: pytest.CaptureFixture[str
     payload = json.loads(capsys.readouterr().out)
     assert payload["job_kind"] == "train.sft"
     assert payload["summary_fields"][0]["key"] == "final_loss"
+
+
+@pytest.mark.asyncio
+async def test_trace_pages_take_token_and_turn_counts_from_stored_facts() -> None:
+    from posttrain.tracking import ProjectSqlResult
+    from posttrain_observatory.models import TraceSummary
+    from posttrain_observatory.service import _with_fact_counts
+
+    class FactSource:
+        def __init__(self) -> None:
+            self.statements: list[str] = []
+
+        async def project_sql(self, sql: str, *, max_rows: int = 10_000, timeout_seconds: float = 10.0):
+            self.statements.append(sql)
+            return ProjectSqlResult(
+                engine="doris", columns=("external_id", "t", "o", "c"), rows=(("train-a", 6659, 7916, 6),)
+            )
+
+    source = FactSource()
+    training = TraceSummary(external_id="train-a", trace_type="verifiers", completion_tokens=7916, tool_calls=10)
+    provider = TraceSummary(external_id="eval-b", trace_type="verifiers", thinking_tokens=40, model_calls=2)
+
+    filled, untouched = await _with_fact_counts(source, (training, provider))
+
+    # Training payloads carry no provider reasoning usage; facts hold the renderer count.
+    assert (filled.thinking_tokens, filled.response_tokens, filled.model_calls) == (6659, 1257, 6)
+    assert untouched == provider
+    assert len(source.statements) == 1 and "'train-a'" in source.statements[0] and "eval-b" not in source.statements[0]

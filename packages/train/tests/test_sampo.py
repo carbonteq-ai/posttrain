@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -14,6 +15,7 @@ from posttrain.train import (
 )
 from posttrain.train.api import _sampo_backend
 from posttrain.train.backends.trl.policy_config import _online_rl_arguments
+from posttrain.train.backends.trl.policy_optimization import _observation_features
 
 
 def _settings(**changes) -> SAMPOSettings:
@@ -58,6 +60,67 @@ def test_sampo_combines_episode_and_anchor_relative_sparse_turn_advantages() -> 
     assert result.used_sparse_rewards == (True, True)
     assert result.token_advantages[0] == pytest.approx((0.975, 0.975, 0.0, 0.0, 1.0, 1.0))
     assert result.token_advantages[1] == pytest.approx((-0.975, -0.975, 0.0, 0.0, -1.0, -1.0))
+
+
+def test_sampo_hierarchy_evidence_reports_credit_magnitudes_not_centred_means() -> None:
+    result = compute_sampo_advantages(
+        _settings(),
+        ("task-1", "task-1"),
+        (_rollout(1.0, "good"), _rollout(0.0, "bad")),
+    )
+
+    evidence = result.hierarchy_evidence(step_advantage_weight=1.0)
+
+    # Plain means are zero by construction; magnitudes carry the signal.
+    assert evidence["train/rl/episode_advantage_abs_mean"] == pytest.approx((0.5, 2))
+    assert evidence["train/rl/turn_advantage_abs_mean"] == pytest.approx((0.4875, 4))
+    # Each turn's credit is episode + turn: 1.95 of 3.95 comes from the turn level.
+    assert evidence["train/rl/turn_credit_share"] == pytest.approx((1.95 / 3.95, 4))
+    assert evidence["train/rl/turn_advantage_informative_fraction"] == (1.0, 4)
+    assert evidence["train/rl/singleton_anchor_fraction"] == (0.0, 4)
+
+
+def test_sampo_hierarchy_evidence_counts_turns_without_a_comparable_anchor() -> None:
+    lonely = replace(
+        _rollout(0.0, "bad"),
+        turns=(AgenticTurn(0, 2, "observation-x", None), AgenticTurn(4, 6, "observation-y", None)),
+    )
+    result = compute_sampo_advantages(_settings(), ("task-1", "task-1"), (_rollout(1.0, "good"), lonely))
+
+    evidence = result.hierarchy_evidence(step_advantage_weight=1.0)
+
+    # Every anchor holds one turn, so no turn carries relative turn credit.
+    assert evidence["train/rl/singleton_anchor_fraction"] == (1.0, 4)
+    assert evidence["train/rl/turn_advantage_informative_fraction"] == (0.0, 4)
+    assert evidence["train/rl/turn_credit_share"] == (0.0, 4)
+
+
+def test_trl_sampo_update_records_hierarchical_credit_evidence() -> None:
+    from posttrain.train.backends.trl.policy_rollouts import _sampo_update_means
+
+    result = compute_sampo_advantages(
+        _settings(),
+        ("task-1", "task-1"),
+        (_rollout(1.0, "good"), _rollout(0.0, "bad")),
+    )
+
+    means = _sampo_update_means(result, _settings())
+
+    # Every update records the credit evidence Observatory's Hierarchical credit
+    # tab reads, beside the centred means kept for older readers.
+    assert set(means) == {
+        "train/rl/episode_advantage_mean",
+        "train/rl/turn_advantage_mean",
+        "train/rl/anchor_group_size_mean",
+        "train/rl/sparse_reward_projection_fraction",
+        "train/rl/episode_advantage_abs_mean",
+        "train/rl/turn_advantage_abs_mean",
+        "train/rl/turn_credit_share",
+        "train/rl/turn_advantage_informative_fraction",
+        "train/rl/singleton_anchor_fraction",
+    }
+    assert means["train/rl/turn_credit_share"] == pytest.approx((1.95 / 3.95, 4))
+    assert means["train/rl/anchor_group_size_mean"] == (2.0, 4)
 
 
 def test_sampo_rejects_partial_step_reward_evidence() -> None:
@@ -314,6 +377,20 @@ def test_sampo_vllm_correction_defaults_to_the_vortex_per_token_cap(tmp_path) ->
     arguments = _online_rl_arguments(_sampo_vllm_request(sequence), tmp_path, {})
     assert arguments["vllm_importance_sampling_mode"] == "sequence_truncate"
     assert arguments["vllm_importance_sampling_clip_min"] == 0.1
+
+
+def test_sampo_owes_the_speculative_evidence_its_engine_emits() -> None:
+    # A SAMPO run on a DSpark engine emits speculative-decoding counters; its
+    # observation features must expect them instead of rejecting the update.
+    request = _sampo_vllm_request(_settings())
+    request.inference.engine = {"mode": "async", "speculative_config": {"method": "dspark"}}
+
+    features = _observation_features(request)
+
+    assert features.speculative_rollout_enabled
+    assert features.tool_environment
+    assert not features.asynchronous_rollout
+    assert features.reference_kl_enabled == (request.settings.beta > 0)
 
 
 def test_sampo_rejects_inconsistent_correction_and_truncation_settings() -> None:

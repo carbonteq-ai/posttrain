@@ -69,6 +69,12 @@ class ObservatorySettings(ObservatoryModel):
     semantic_model: str | None = None
     semantic_api_key: str | None = Field(default=None, repr=False)
     frontend_dir: str | None = None
+    note_writes: bool = False
+    """Whether people and agents may add, revise and delete run notes through this Observatory."""
+    trackio_write_token: str | None = Field(default=None, repr=False)
+    """Authorizes note writes to a Trackio server; defaults to TRACKIO_WRITE_TOKEN."""
+    note_templates_dir: str | None = None
+    """A project's `.posttrain/note_templates` directory, overriding framework run-card templates."""
     model_config_source: Literal["hub", "disabled"] = "hub"
     """Where the settings calculator reads model configs; ``disabled`` keeps reviews to rule findings."""
     sources: tuple[ObservatorySourceSettings, ...] = ()
@@ -152,6 +158,8 @@ class ObservatorySettings(ObservatoryModel):
             "semantic_api_key": os.getenv("POSTTRAIN_OBSERVATORY_LLM_API_KEY"),
             "frontend_dir": os.getenv("POSTTRAIN_OBSERVATORY_FRONTEND_DIR"),
             "model_config_source": os.getenv("POSTTRAIN_OBSERVATORY_MODEL_CONFIG", "hub"),
+            "note_writes": _environment_bool("POSTTRAIN_OBSERVATORY_NOTE_WRITES"),
+            "note_templates_dir": os.getenv("POSTTRAIN_OBSERVATORY_NOTE_TEMPLATES"),
             "sources": sources,
         }
 

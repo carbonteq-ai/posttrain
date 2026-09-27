@@ -2771,7 +2771,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
+      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local@1:
     selection_type: training-binding
@@ -2800,7 +2800,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
+      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
 
   # g40@1 scaled to 16 prompt groups x 4 generations. Eight environment workers
   # of eight episodes give the 64 concurrent episodes one rollout batch needs.
@@ -2834,7 +2834,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
+      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
 
 
   # Revision 1 plus the measured optimizer-phase settings; requires the TRL
@@ -2875,7 +2875,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
+      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g40@1:
     selection_type: training-binding
@@ -2904,7 +2904,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
+      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g40@1: &k2_horizon_trl_lora_automationbench_local_g40
     selection_type: training-binding
@@ -2933,7 +2933,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
+      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g16-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -2949,7 +2949,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
+      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g8-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -2965,7 +2965,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
+      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g4-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -2981,7 +2981,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
+      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
     selection_type: training-binding
@@ -3030,7 +3030,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
+      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
 
   training/lfm2.5-1.2b-trl-lora-changed-weight-local@1:
     selection_type: training-binding
@@ -3052,7 +3052,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
+      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
 
   # 8 GB SAMPO development (docs/plan/sampo-vortex-lfm-automationbench.md):
   # the changed-weight binding with a global batch of 2 prompt groups x 4.
@@ -3076,7 +3076,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: fb2d16eca0716a9d0f03449e1e4cab9766d8d8272046b5639a1111fdb240c3dc
+      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
 
   # SAMPO step rewards from the AutomationBench adapter's live per-turn progress.
   # The digest is automationbench-v1 0.4.2's scorer identity at a 0.05 penalty;

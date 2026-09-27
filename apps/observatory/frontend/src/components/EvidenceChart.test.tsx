@@ -21,6 +21,7 @@ import {
   formatElapsedAxis,
   formatElapsedDuration,
   formatTooltip,
+  compactAxisNumber,
   scaleGroup,
 } from './EvidenceChart';
 
@@ -88,6 +89,22 @@ describe('EvidenceChart tooltip', () => {
 });
 
 describe('EvidenceChart scale policy', () => {
+  it('keeps tick labels short for centred signals near zero', () => {
+    expect(compactAxisNumber(2e-18)).toBe('2e-18');
+    expect(compactAxisNumber(-1.5e-19)).toBe('-1.5e-19');
+    expect(compactAxisNumber(0)).toBe('0');
+    expect(compactAxisNumber(0.00345)).toBe('0.00345');
+    expect(compactAxisNumber(4.5)).toBe('4.5');
+  });
+
+  it('groups SAMPO credit into magnitude and share lanes', () => {
+    expect(scaleGroup('train/rl/episode_advantage_abs_mean', {})).toBe('credit-magnitude');
+    expect(scaleGroup('train/rl/turn_advantage_abs_mean', {})).toBe('credit-magnitude');
+    expect(scaleGroup('train/rl/turn_credit_share', { 'train/rl/turn_credit_share': 'ratio' })).toBe('credit-share');
+    expect(scaleGroup('train/rl/singleton_anchor_fraction', {})).toBe('credit-share');
+    expect(scaleGroup('train/rl/sparse_reward_projection_fraction', {})).toBe('credit-share');
+  });
+
   beforeEach(() => {
     chartMocks.setOption.mockClear();
     chartMocks.on.mockClear();
@@ -171,7 +188,8 @@ describe('EvidenceChart scale policy', () => {
   });
 
   it('keeps active-sampling population counts on one shared scale', () => {
-    expect(scaleGroup('train/rl/active_sampling_generation_rounds', {})).toBe('active-sampling-count');
+    // Rounds (1-3) would flatten against group counts (hundreds): own lane.
+    expect(scaleGroup('train/rl/active_sampling_generation_rounds', {})).toBe('active-sampling-rounds');
     expect(scaleGroup('train/rl/active_sampling_generated_rows', {})).toBe('active-sampling-count');
     expect(scaleGroup('train/rl/active_sampling_candidate_groups_reserved', {})).toBe('active-sampling-count');
     expect(scaleGroup('train/rl/active_sampling_candidate_groups_retained', {})).toBe('active-sampling-count');

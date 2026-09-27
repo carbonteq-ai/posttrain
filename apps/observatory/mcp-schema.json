@@ -451,6 +451,311 @@
         "title": "get_job_view_schemaDictOutput",
         "type": "object"
       }
+    },
+    {
+      "description": "The run's card: its job kind's note template rendered from recorded settings and results.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id"
+        ],
+        "title": "get_run_cardArguments",
+        "type": "object"
+      },
+      "name": "get_run_card",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_run_cardDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Notes on a run (latest revision of each, newest first), each with its rendered text.",
+      "inputSchema": {
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Kind"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id"
+        ],
+        "title": "list_run_notesArguments",
+        "type": "object"
+      },
+      "name": "list_run_notes",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "list_run_notesOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Every revision of one note, oldest first.",
+      "inputSchema": {
+        "properties": {
+          "note_id": {
+            "title": "Note Id",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id",
+          "note_id"
+        ],
+        "title": "get_run_note_historyArguments",
+        "type": "object"
+      },
+      "name": "get_run_note_history",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_run_note_historyOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Render note Markdown for a run without saving it; check `unresolved` before adding the note.\n\nCite numbers through data blocks instead of typing them: a fenced block ```sql <name>``` holding one\nDoris SQL SELECT over the tables from describe_semantics (an optional first line `-- runs: self, <run id>`\nscopes it; the default is this run), then `{{<name>.<column>}}` inline, or a ```value```, ```table``` or\n```chart``` block with `data: <name>`.\n`{{run.<dimension>}}` shows a setting of this run and `[[run:<id>]]` links another run.",
+      "inputSchema": {
+        "properties": {
+          "body_md": {
+            "title": "Body Md",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "run_id",
+          "body_md"
+        ],
+        "title": "render_note_previewArguments",
+        "type": "object"
+      },
+      "name": "render_note_preview",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "render_note_previewDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Call this before query_semantics. Lists the SQL tables (runs, updates, rollouts, and Trackio's raw\ntables), their dimensions and measures, and metrics; job_kinds narrows measures to what those provide.",
+      "inputSchema": {
+        "properties": {
+          "job_kinds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Job Kinds"
+          }
+        },
+        "title": "describe_semanticsArguments",
+        "type": "object"
+      },
+      "name": "describe_semantics",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "describe_semanticsDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Answer a question about runs, inside the tracking storage. Prefer sql: one read-only Doris SQL SELECT\nover the tables from describe_semantics (every run of the project; runs, as ids or run-dimension filters\nsuch as {\"run.job_kind\": \"train.sampo\"}, narrows them). Or the short form: measures (name or\nname:aggregation), by dimensions, where ({dimension: value, [any of], \">= n\" or a \"*\" wildcard}); it\ncompiles to SQL, returned in the result.",
+      "inputSchema": {
+        "properties": {
+          "by": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "By"
+          },
+          "limit": {
+            "default": 1000,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "measures": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Measures"
+          },
+          "order_by": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Order By"
+          },
+          "runs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Runs"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Id"
+          },
+          "sql": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sql"
+          },
+          "where": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Where"
+          }
+        },
+        "title": "query_semanticsArguments",
+        "type": "object"
+      },
+      "name": "query_semantics",
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "query_semanticsDictOutput",
+        "type": "object"
+      }
     }
   ]
 }

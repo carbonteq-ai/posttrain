@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import subprocess
 import tomllib
 import zipfile
@@ -615,91 +614,6 @@ def test_distribution_builder_overlays_generated_runtime_manifest() -> None:
     assert 'cp "${generated_image_manifest}" "${staged_image_manifest}"' in builder
 
 
-def test_dstack_capacity_retries_a_malformed_response_and_retains_valid_receipt(tmp_path: Path) -> None:
-    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
-    executable, state = _fake_dstack(tmp_path, ["temporary upstream response\n", _dstack_fleet()])
-    receipt = tmp_path / "capacity.json"
-
-    result = subprocess.run(
-        [str(repository_root / "scripts/release/verify-dstack-capacity"), str(receipt)],
-        env={
-            **os.environ,
-            "POSTTRAIN_DSTACK_BIN": str(executable),
-            "POSTTRAIN_DSTACK_CAPACITY_ATTEMPTS": "2",
-            "POSTTRAIN_DSTACK_CAPACITY_RETRY_SECONDS": "0",
-            "FAKE_DSTACK_STATE": str(state),
-            "FAKE_DSTACK_RESPONSES": str(tmp_path / "dstack-responses"),
-        },
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert state.read_text(encoding="utf-8") == "2"
-    payload = json.loads(receipt.read_text(encoding="utf-8"))
-    assert payload["status"] == "accepted"
-    assert payload["target_host"] == "carbonteq-ai-workstation.lan"
-    assert payload["instance"]["gpu"]["memory_mib"] == 98304
-
-
-def test_dstack_capacity_persists_sanitized_evidence_for_invalid_json(tmp_path: Path) -> None:
-    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
-    executable, state = _fake_dstack(tmp_path, ["not-json\n"])
-    receipt = tmp_path / "capacity.json"
-
-    result = subprocess.run(
-        [str(repository_root / "scripts/release/verify-dstack-capacity"), str(receipt)],
-        env={
-            **os.environ,
-            "POSTTRAIN_DSTACK_BIN": str(executable),
-            "POSTTRAIN_DSTACK_CAPACITY_ATTEMPTS": "2",
-            "POSTTRAIN_DSTACK_CAPACITY_RETRY_SECONDS": "0",
-            "FAKE_DSTACK_STATE": str(state),
-            "FAKE_DSTACK_RESPONSES": str(tmp_path / "dstack-responses"),
-        },
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 3
-    assert state.read_text(encoding="utf-8") == "2"
-    payload = json.loads(receipt.read_text(encoding="utf-8"))
-    assert payload["status"] == "rejected"
-    assert payload["failure_kind"] == "invalid_json"
-    assert payload["attempts"] == 2
-    assert payload["response"]["stdout_bytes"] == len("not-json\n")
-    assert len(payload["response"]["stdout_sha256"]) == 64
-    assert "not-json" not in receipt.read_text(encoding="utf-8")
-
-
-def test_dstack_capacity_distinguishes_a_valid_but_busy_target(tmp_path: Path) -> None:
-    repository_root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
-    executable, state = _fake_dstack(tmp_path, [_dstack_fleet(status="busy")])
-    receipt = tmp_path / "capacity.json"
-
-    result = subprocess.run(
-        [str(repository_root / "scripts/release/verify-dstack-capacity"), str(receipt)],
-        env={
-            **os.environ,
-            "POSTTRAIN_DSTACK_BIN": str(executable),
-            "POSTTRAIN_DSTACK_CAPACITY_ATTEMPTS": "1",
-            "POSTTRAIN_DSTACK_CAPACITY_RETRY_SECONDS": "0",
-            "FAKE_DSTACK_STATE": str(state),
-            "FAKE_DSTACK_RESPONSES": str(tmp_path / "dstack-responses"),
-        },
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 3
-    payload = json.loads(receipt.read_text(encoding="utf-8"))
-    assert payload["failure_kind"] == "target_not_ready"
-    assert '"status": "busy"' in result.stderr
-
-
 def test_stage_can_render_an_rc_without_changing_the_authored_target(tmp_path: Path) -> None:
     source = tmp_path / "source"
     destination = tmp_path / "staged"
@@ -803,7 +717,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
 
     entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
 
-    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev27"
+    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev31"
     assert entries["trl"].revision == "4950b99d457faacbec856cbd5305732e7b3cf7b0"
     assert entries["verl"].release_tag == "carbonteq-v0.9.0.post3"
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
@@ -1098,30 +1012,8 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
         assert "posttrain-lab==" in workflow
         assert "if-no-files-found: error" in workflow
         assert "include-hidden-files: true" in workflow
-        assert ".release/consumer-venv/bin/posttrain --project-root apps/lab job run" in workflow
-        assert "run wait" in workflow
-        assert 'run reconcile \\\n            "release-' in workflow
-        assert "for cleanup_attempt in $(seq 1 18)" in workflow
-        assert "waiting for exact-worker cleanup evidence" in workflow
-        assert 'if [[ "${cleanup_status}" -eq 75 ]]' in workflow
-        assert "bounded worker retention remains authoritative" in workflow
-        assert 'if [[ "${status}" -eq 0 && "${cleanup_status}" -ne 0 ]]' in workflow
 
-    assert 'framework_wheelhouse="$(realpath .release/wheelhouse)"' in candidate
     assert "--no-cache" in candidate
-    assert 'consumer-venv/bin/python - "${candidate_version}" "${framework_wheelhouse}"' in candidate
-    assert "framework wheelhouse contains non-candidate wheels" in candidate
-    assert "installed job build definition differs from retained candidate wheel" in candidate
-    assert '--framework-wheelhouse "${framework_wheelhouse}"' in candidate
-    assert "qualification_profile:" in candidate
-    assert "rtx-pro-96gb" in candidate
-    assert "rtx-3070ti-8gb" in candidate
-    assert 'qualification_target_args=(--target "targets/pop-os-rtx-3070ti-8gb")' in candidate
-    assert "qualification_target_args=()" in candidate
-    assert '"${qualification_target_args[@]}"' in candidate
-    assert "rtx-4090-24gb" not in candidate
-    assert 'qualification_host="pop-os.lan"' in candidate
-    assert 'qualification_target="targets/carbonteq-rtx-pro-6000-96gb"' not in candidate
 
     assert "posttrain-release candidate-version" in candidate
     assert "preflight:" in candidate
@@ -1132,10 +1024,12 @@ def test_protected_release_workflows_keep_the_build_and_qualification_boundaries
     assert "needs: preflight" in candidate
     assert "QUALITY_RUN_ID: ${{ needs.preflight.outputs.quality_run_id }}" in candidate
     assert "Allocate the next immutable release candidate" in candidate
-    assert "Verify qualification capacity before image publication" in candidate
-    assert candidate.index("Verify qualification capacity before image publication") < candidate.index(
-        "Plan immutable runtime image work"
-    )
+    # A release candidate builds, verifies and publishes; it runs no GPU job and
+    # records nothing in a lab tracking project.
+    assert "job run" not in candidate
+    assert "dstack-capacity" not in candidate
+    assert "run_gpu_qualification" not in candidate
+    assert "dstack-capacity" not in final
     assert "posttrain-release readiness-check" in candidate
     assert "posttrain-readiness" in candidate
     assert "QUALITY_RUN_ID" in candidate
@@ -1318,8 +1212,8 @@ def test_required_fork_index_check_uses_every_python_fork_hash(monkeypatch: pyte
     artifacts = captured["artifacts"]
     assert isinstance(artifacts, list)
     assert {item["filename"] for item in artifacts} == {
-        "carbonteq_trackio-0.31.5.post14.dev27-py3-none-any.whl",
-        "carbonteq_trackio-0.31.5.post14.dev27.tar.gz",
+        "carbonteq_trackio-0.31.5.post14.dev31-py3-none-any.whl",
+        "carbonteq_trackio-0.31.5.post14.dev31.tar.gz",
         "trl-1.12.0.post10-py3-none-any.whl",
         "trl-1.12.0.post10.tar.gz",
         "carbonteq_renderers-0.1.12.post1.dev2-py3-none-any.whl",

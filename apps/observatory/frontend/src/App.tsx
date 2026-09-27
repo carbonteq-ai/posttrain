@@ -6,6 +6,7 @@ import {
   ArrowClockwise,
   ArrowSquareOut,
   Bell,
+  ChartLineUp,
   CaretDown,
   CaretRight,
   Check,
@@ -28,6 +29,7 @@ import {
 } from '@phosphor-icons/react';
 
 import { FilterPopover } from './components/FilterPopover';
+import { evaluationsByParent, formatScore, shortSuiteLabels, stepLabel } from './lib/evaluations';
 import { RolloutTimeline, RolloutTimeSummary } from './components/RolloutTime';
 import { PhaseMemoryTimeline } from './components/PhaseMemoryTimeline';
 import { SamplingDistribution, SamplingSummary } from './components/SamplingEvidence';
@@ -60,6 +62,7 @@ import {
   type TraceSummary,
   type TraceSummaryPage,
   type WorkPackageView,
+  type EvaluationIndex,
 } from './lib/api';
 import { tracePresentation, traceSignalColumns, traceSurfaceMode, type TracePresentation } from './lib/trace-presentation';
 
@@ -77,8 +80,17 @@ const TraceTable = lazy(() =>
 const RolloutGroupTable = lazy(() =>
   import('./components/RolloutGroupTable').then((module) => ({ default: module.RolloutGroupTable })),
 );
+const RunNotesPanel = lazy(() =>
+  import('./components/RunNotesPanel').then((module) => ({ default: module.RunNotesPanel })),
+);
+const RunEvaluations = lazy(() =>
+  import('./components/EvaluationViews').then((module) => ({ default: module.RunEvaluations })),
+);
+const EvalComparePage = lazy(() =>
+  import('./components/EvaluationViews').then((module) => ({ default: module.EvalComparePage })),
+);
 
-type Section = 'Overview' | 'Metrics' | 'System metrics' | 'Traces & evaluation' | 'Artifacts & lineage' | 'Run config';
+type Section = 'Overview' | 'Notes' | 'Evals' | 'Metrics' | 'System metrics' | 'Traces & evaluation' | 'Artifacts & lineage' | 'Run config';
 
 const SYSTEM_METRIC_CHART_WINDOW_MS = 60 * 60 * 1000;
 
@@ -123,8 +135,14 @@ type BrowserRoute =
 
 const workflowStageOrder = ['screen', 'train', 'qualify'];
 
+// Policy-optimization runs share one overview: GRPO-family evidence, rollout
+// behavior, sampling policy and grouped rollouts. SAMPO adds hierarchical credit.
+const policyOptimizationJobKinds = new Set(['train.grpo', 'train.gdpo', 'train.capo', 'train.sampo']);
+
 const sections: Section[] = [
   'Overview',
+  'Notes',
+  'Evals',
   'Metrics',
   'System metrics',
   'Traces & evaluation',
@@ -769,7 +787,9 @@ export default function App() {
   const [selected, setSelected] = useState<RunItem | null>(null);
   const [loadedView, setLoadedView] = useState<{ runKey: string; response: RunView } | null>(null);
   const [section, setSection] = useState<Section>('Overview');
-  const [surface, setSurface] = useState<'run' | 'compare'>('run');
+  const [surface, setSurface] = useState<'run' | 'compare' | 'eval-compare'>('run');
+  const [evaluationRefresh, setEvaluationRefresh] = useState(0);
+  const [evaluationIndex, setEvaluationIndex] = useState<{ sourceId: string; value: EvaluationIndex | null; error: string } | null>(null);
   const [compareKeys, setCompareKeys] = useState<string[]>([]);
   const [comparison, setComparison] = useState<RunComparison | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
@@ -1031,6 +1051,7 @@ export default function App() {
     if (!selected) return;
     const runKey = selected.run_key;
     setSection(next);
+    if (next === 'Evals') setEvaluationRefresh((value) => value + 1);
     try {
       if (next === 'System metrics' && !system) {
         const value = await api.system(runKey);
@@ -1110,6 +1131,22 @@ export default function App() {
 
   const activeProject = selectedProject ?? selected?.run.project_id ?? '';
   const activeSourceId = selectedSourceId ?? selected?.locator.source_id ?? '';
+  // Evaluation runs with the checkpoint they scored: the sidebar nests them
+  // under their training run and the Evals views compare them with the base
+  // model. Read per project and again whenever an Evals view opens.
+  useEffect(() => {
+    if (!activeSourceId) return;
+    let active = true;
+    api.evaluations(activeSourceId)
+      .then((value) => { if (active) setEvaluationIndex({ sourceId: activeSourceId, value, error: '' }); })
+      .catch((cause: unknown) => { if (active) setEvaluationIndex((current) => ({ sourceId: activeSourceId, value: current?.sourceId === activeSourceId ? current.value : null, error: cause instanceof Error ? cause.message : String(cause) })); });
+    return () => { active = false; };
+  }, [activeSourceId, evaluationRefresh]);
+  const evaluations = evaluationIndex?.sourceId === activeSourceId ? evaluationIndex.value : null;
+  const evaluationError = evaluationIndex?.sourceId === activeSourceId ? evaluationIndex.error : '';
+  const evaluationsByRun = useMemo(() => evaluationsByParent(evaluations), [evaluations]);
+  const evaluationByRunId = useMemo(() => new Map((evaluations?.records ?? []).map((record) => [record.run_id, record])), [evaluations]);
+  const suiteNames = useMemo(() => shortSuiteLabels((evaluations?.records ?? []).map((record) => record.suite)), [evaluations]);
   const projects = useMemo(() => [...sources].sort((left, right) => left.source_id.localeCompare(right.source_id)), [sources]);
   const filteredRuns = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -1209,7 +1246,14 @@ export default function App() {
   const traceEvaluationEnabled = response?.view.run.run_id === selected.run.run_id
     && response.view.trace_evaluation_enabled;
 
-  const visibleSections = sections.filter((item) => item !== 'Traces & evaluation' || traceEvaluationEnabled);
+  const visibleSections = sections.filter((item) => (item !== 'Traces & evaluation' || traceEvaluationEnabled)
+    && (item !== 'Evals' || evaluationsByRun.has(selected.run.run_id)));
+  const openRunByKey = (runKey: string) => {
+    const run = runs.find((item) => item.run_key === runKey);
+    if (run) void chooseRun(run);
+    else navigate({ kind: 'run', runKey });
+  };
+  const runDisplayName = (runId: string) => runs.find((item) => item.run.run_id === runId)?.run.display_name ?? runId;
 
   const copy = jobCopy[selected.run.job_kind] ?? {
     eyebrow: selected.run.job_kind.toUpperCase(),
@@ -1236,18 +1280,20 @@ export default function App() {
           />
         </label>
         <nav aria-label="Primary" className="mt-3 flex gap-1 border-b border-divider pb-3 text-xs">
-          {[
-            [GitDiff, 'Compare'],
-            [Bell, 'Alerts'],
-          ].map(([Icon, label]) => (
+          {([
+            [GitDiff, 'Compare', 'compare'],
+            [ChartLineUp, 'Evals', 'eval-compare'],
+            [Bell, 'Alerts', null],
+          ] as const).map(([Icon, label, target]) => (
             <button
-              key={label as string}
+              key={label}
               type="button"
-              onClick={label === 'Compare' ? () => { void openCompare(); } : undefined}
-              aria-pressed={label === 'Compare' && surface === 'compare'}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-2 ${label === 'Compare' && surface === 'compare' ? 'bg-violet-50 text-violet-800' : 'text-secondary hover:bg-subtle'}`}
+              aria-label={label === 'Evals' ? 'Compare evals' : undefined}
+              onClick={label === 'Compare' ? () => { void openCompare(); } : label === 'Evals' ? () => { setActiveWorkPackageId(null); setWorkPackage(null); setSurface('eval-compare'); setEvaluationRefresh((value) => value + 1); } : undefined}
+              aria-pressed={target != null && surface === target}
+              className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded px-1 py-2 text-[11px] ${target != null && surface === target ? 'bg-violet-50 text-violet-800' : 'text-secondary hover:bg-subtle'}`}
             >
-              <Icon size={17} aria-hidden="true" /> {label as string}
+              <Icon size={15} className="shrink-0" aria-hidden="true" /> {label}
             </button>
           ))}
         </nav>
@@ -1265,12 +1311,24 @@ export default function App() {
                   <CaretRight size={11} className="mt-0.5 shrink-0 text-muted" aria-hidden="true" />
                 </button>
                 <div className="ml-[15px] mt-0.5 border-l border-divider pl-2">
-                  {group.runs.map((run) => (
-                    <button key={run.run_key} type="button" aria-label={`Select run ${run.run.display_name}`} onClick={() => void chooseRun(run)} className={`flex w-full items-start gap-2 rounded px-2 py-1.5 text-left ${!activeWorkPackageId && selected.run_key === run.run_key ? 'bg-violet-50 text-violet-800' : 'hover:bg-subtle'}`}>
+                  {group.runs.map((run) => {
+                    const checkpointEvals = [...(evaluationsByRun.get(run.run.run_id) ?? [])].sort((left, right) => (left.parent_step ?? -1) - (right.parent_step ?? -1) || (suiteNames.get(left.suite ?? '') ?? '').localeCompare(suiteNames.get(right.suite ?? '') ?? ''));
+                    const evaluates = evaluationByRunId.get(run.run.run_id);
+                    return <div key={run.run_key}>
+                    <button type="button" aria-label={`Select run ${run.run.display_name}`} onClick={() => void chooseRun(run)} className={`flex w-full items-start gap-2 rounded px-2 py-1.5 text-left ${!activeWorkPackageId && selected.run_key === run.run_key ? 'bg-violet-50 text-violet-800' : 'hover:bg-subtle'}`}>
                       <Circle className={`mt-1 shrink-0 ${run.run.status === 'succeeded' ? 'text-emerald-600' : run.run.status === 'failed' ? 'text-rose-600' : 'text-amber-600'}`} size={6} weight="fill" aria-hidden="true" />
-                      <span className="min-w-0 flex-1"><strong title={run.run.display_name} className="block truncate text-[11px] font-medium leading-tight">{run.run.display_name}</strong><small className="mt-0.5 flex min-w-0 items-center justify-between gap-2 text-[9px] text-muted"><span className="truncate">{run.run.job_kind}</span><time className="shrink-0" dateTime={run.run.started_at} title={formatTimestamp(run.run.started_at)}>{formatSidebarTimestamp(run.run.started_at)}</time></small></span>
+                      <span className="min-w-0 flex-1"><strong title={run.run.display_name} className="block truncate text-[11px] font-medium leading-tight">{run.run.display_name}</strong><small className="mt-0.5 flex min-w-0 items-center justify-between gap-2 text-[9px] text-muted"><span className="truncate">{run.run.job_kind}</span><time className="shrink-0" dateTime={run.run.started_at} title={formatTimestamp(run.run.started_at)}>{formatSidebarTimestamp(run.run.started_at)}</time></small>{evaluates?.parent_run && <small className="mt-0.5 block truncate text-[9px] text-violet-700" title={`Evaluates ${evaluates.parent_run} at ${stepLabel(evaluates.parent_step)}`}>evaluates {runDisplayName(evaluates.parent_run)} @ {evaluates.parent_step ?? '—'}</small>}</span>
                     </button>
-                  ))}
+                    {checkpointEvals.length > 0 && <ul aria-label={`Evaluations of ${run.run.display_name}`} className="mb-1 ml-3 border-l border-violet-200 pl-1.5">
+                      {checkpointEvals.map((record) => <li key={record.run_key}><button type="button" aria-label={`Open evaluation ${record.run_id}`} title={`${stepLabel(record.parent_step)} · ${record.suite ?? 'no suite'} · ${record.run_id}`} onClick={() => openRunByKey(record.run_key)} className={`flex w-full items-start gap-1.5 rounded px-1.5 py-1 text-left text-[9px] ${selected.run_key === record.run_key ? 'bg-violet-50 text-violet-800' : 'text-secondary hover:bg-subtle'}`}>
+                        <span className="shrink-0 text-violet-500" aria-hidden="true">↳</span>
+                        <span className="shrink-0 tabular-nums">{record.parent_step ?? '—'}</span>
+                        <span className="min-w-0 flex-1 leading-tight text-muted">{suiteNames.get(record.suite ?? '')}</span>
+                        <span className={`shrink-0 font-mono tabular-nums ${record.status === 'failed' ? 'text-rose-600' : 'text-ink'}`}>{record.status === 'failed' ? 'failed' : formatScore(record.score)}</span>
+                      </button></li>)}
+                    </ul>}
+                    </div>;
+                  })}
                 </div>
               </section>)}
                 </div>
@@ -1320,9 +1378,9 @@ export default function App() {
           {activeWorkPackageId ? <WorkPackagePage view={workPackage} servingCapacity={servingCapacity} loading={workPackageLoading} onOpenRun={(runKey) => {
             const run = runs.find((item) => item.run_key === runKey);
             if (run) void chooseRun(run);
-          }} /> : surface === 'compare' ? <CompareView runs={compareCandidates} candidateLoading={compareCandidateLoading} selectedKeys={compareKeys} comparison={comparison} loading={comparisonLoading} onToggle={toggleCompareRun} onCompare={() => void runCompare()} jobKind={selected.run.job_kind} /> : !response ? <RunShell selected={selected} section={section} error={error} /> : <>
-          {section === 'Overview' && (
-            response.view.view_kind === 'job.serving'
+          }} /> : surface === 'eval-compare' ? <Suspense fallback={null}><EvalComparePage index={evaluations} loading={!evaluations} error={evaluationError} displayName={runDisplayName} onOpenRun={openRunByKey} initialRunId={selected.run.run_id} /></Suspense> : surface === 'compare' ? <CompareView runs={compareCandidates} candidateLoading={compareCandidateLoading} selectedKeys={compareKeys} comparison={comparison} loading={comparisonLoading} onToggle={toggleCompareRun} onCompare={() => void runCompare()} jobKind={selected.run.job_kind} /> : section === 'Notes' ? <Suspense fallback={null}><RunNotesPanel key={selected.run_key} runKey={selected.run_key} /></Suspense> : section === 'Evals' ? <Suspense fallback={null}><RunEvaluations runId={selected.run.run_id} index={evaluations} loading={!evaluations} error={evaluationError} onOpenRun={openRunByKey} /></Suspense> : !response ? <RunShell selected={selected} section={section} error={error} /> : <>
+          {section === 'Overview' && <>
+            {response.view.view_kind === 'job.serving'
               ? <ServingBenchmarkOverview response={response} sourceId={selected.locator.source_id} onRunConfig={() => void openSection('Run config')} />
               : <Overview
                   selected={selected}
@@ -1335,8 +1393,8 @@ export default function App() {
                   onTraces={() => void openSection('Traces & evaluation')}
                   onCompare={() => { void openCompare(selected.run_key); }}
                   onRunConfig={() => void openSection('Run config')}
-                />
-          )}
+                />}
+          </>}
           {section === 'Metrics' && <GenericMetrics runKey={selected.run_key} />}
           {section === 'System metrics' && <SystemView system={system} />}
           {section === 'Traces & evaluation' && (
@@ -1373,7 +1431,7 @@ function Crumb({ label, value, grow = false, mobileGrow = false }: { label: stri
 
 function RunShell({ selected, section, error }: { selected: RunItem; section: Section; error: string }) {
   return (
-    <section aria-label="Run summary shell" className="obs-card max-w-4xl p-6">
+    <section aria-label="Run summary shell" className="obs-card p-6">
       <p className="type-eyebrow">RUN SUMMARY</p>
       <h1 className="type-page-title mt-1.5">{selected.run.display_name}</h1>
       <p className="mt-2 text-xs text-muted">The {section.toLowerCase()} payload is loading independently from this run identity.</p>
@@ -1728,7 +1786,7 @@ function GenericOverview({
     [view.metric_help],
   );
   const baseChart = charts[Math.min(activeChart, Math.max(charts.length - 1, 0))];
-  const isGroupPolicy = ['train.grpo', 'train.gdpo', 'train.capo'].includes(selected.run.job_kind);
+  const isGroupPolicy = policyOptimizationJobKinds.has(selected.run.job_kind);
   const groupPolicyLabel = isGroupPolicy ? selected.run.job_kind.slice('train.'.length).toUpperCase() : null;
   const rolloutSeries: MetricSeries[] = isGroupPolicy && baseChart?.key === 'optimization'
     ? [
@@ -1753,7 +1811,9 @@ function GenericOverview({
   const leadDelta = previousLeadPoint && latestLeadPoint
     ? latestLeadPoint.value - previousLeadPoint.value
     : null;
-  const latestStep = chart?.series[0]?.points.at(-1)?.step ?? null;
+  const recordedSteps = chart?.series.flatMap((series) => series.points.flatMap((point) => point.step == null ? [] : [point.step])) ?? [];
+  const latestStep = recordedSteps.length ? Math.max(...recordedSteps) : null;
+  const unrecordedSeries = chart?.series.filter((series) => series.points.length === 0) ?? [];
   const [selectedStep, setSelectedStep] = useState<number | null>(latestStep);
   useEffect(() => setSelectedStep(latestStep), [activeChart, latestStep, selected.run.run_id]);
   const selectedSeries = chart?.series.map((series) => ({
@@ -1802,6 +1862,7 @@ function GenericOverview({
   const grpoEntropy = summaryByKey.get('entropy');
   const grpoZeroVariance = summaryByKey.get('zero_variance');
   const grpoGradNorm = summaryByKey.get('grad_norm');
+  const sampoTurnShare = summaryByKey.get('turn_credit_share');
   const grpoClip = summaryByKey.get('clip_fraction');
   const grpoClipLow = summaryByKey.get('clip_fraction_low');
   const grpoClipHigh = summaryByKey.get('clip_fraction_high');
@@ -1872,7 +1933,7 @@ function GenericOverview({
           {lead ? (
             <section className="obs-card overflow-hidden">
               {isGroupPolicy ? (
-                <div role="group" aria-label={`${groupPolicyLabel} headline metrics`} className="grid grid-cols-2 border-b border-divider sm:grid-cols-3 xl:grid-cols-5">
+                <div role="group" aria-label={`${groupPolicyLabel} headline metrics`} className={`grid grid-cols-2 border-b border-divider sm:grid-cols-3 ${isSampo ? 'xl:grid-cols-6' : 'xl:grid-cols-5'}`}>
                   <HeadlineMetric
                     label="Mean reward"
                     value={formatValue(grpoReward?.value, grpoReward?.unit)}
@@ -1915,6 +1976,16 @@ function GenericOverview({
                     state={grpoGradNorm?.state ?? 'missing'}
                     note="update scale"
                   />
+                  {isSampo && (
+                    <HeadlineMetric
+                      label="Turn share of credit"
+                      value={formatValue(sampoTurnShare?.value, sampoTurnShare?.unit)}
+                      metric={sampoTurnShare?.metric ?? null}
+                      help={sampoTurnShare?.metric ? helpByMetric.get(sampoTurnShare.metric) : undefined}
+                      state={sampoTurnShare?.state ?? 'missing'}
+                      note="0% is episode-only credit"
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="grid border-b border-divider lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -1923,7 +1994,7 @@ function GenericOverview({
                 </div>
               )}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-divider px-4 py-2.5">
-                {charts.length > 1 ? <div className="inline-flex rounded-[5px] border border-divider bg-subtle p-0.5" role="tablist" aria-label="Training evidence chart"><>{charts.map((item, index) => <button key={item.key} type="button" role="tab" aria-selected={activeChart === index} onClick={() => onChart(index)} className={`rounded-[3px] px-3 py-1.5 text-xs ${activeChart === index ? 'bg-surface text-violet-800 shadow-sm' : 'text-muted hover:text-ink'}`}>{item.title}</button>)}</></div> : <span className="text-xs font-medium">{chart?.title}</span>}
+                {charts.length > 1 ? <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[5px] border border-divider bg-subtle p-0.5" role="tablist" aria-label="Training evidence chart"><>{charts.map((item, index) => <button key={item.key} type="button" role="tab" aria-selected={activeChart === index} onClick={() => onChart(index)} className={`whitespace-nowrap rounded-[3px] px-2.5 py-1.5 text-xs ${activeChart === index ? 'bg-surface text-violet-800 shadow-sm' : 'text-muted hover:text-ink'}`}>{item.title}</button>)}</></div> : <span className="text-xs font-medium">{chart?.title}</span>}
                 <span className="max-w-xl text-right text-[11px] text-muted">{chart?.question ?? 'Select a point to inspect exact evidence'}</span>
               </div>
               <div className="flex min-h-10 flex-wrap items-center gap-x-5 gap-y-2 border-b border-divider bg-subtle/45 px-4 py-2 text-[11px]">
@@ -1931,6 +2002,12 @@ function GenericOverview({
                 {selectedSeries.map((item) => <span key={item.name} className="inline-flex items-center text-secondary"><MetricLabel label={chartLabels[item.name] ?? helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} className="text-muted" /> <strong className="ml-1 font-medium text-ink">{formatValue(item.value, chartUnits[item.name] ?? metricUnits[item.name] ?? helpByMetric.get(item.name)?.unit)}</strong></span>)}
               </div>
               {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
+              {unrecordedSeries.length > 0 && (
+                <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
+                  Not recorded by this run: {unrecordedSeries.map((series) => chartLabels[series.name] ?? helpByMetric.get(series.name)?.label ?? metricLabel(series.name)).join(', ')}.
+                  {isSampo && chart?.key === 'hierarchical_credit' ? ' This run\'s trainer predates the credit metrics; SAMPO runs from newer trainers record them each update.' : ''}
+                </p>
+              )}
               {isGroupPolicy && chart?.key === 'optimization' && rolloutBehaviorLoading && <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">Reading retained rollout evidence…</p>}
               {isGroupPolicy && chart?.key === 'optimization' && rolloutBehavior?.state === 'partial' && rolloutBehavior.points.length > 0 && (
                 <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
@@ -2227,7 +2304,7 @@ function TraceView({
     let active = true;
     setGroupRewards(null);
     setGroupRewardError('');
-    if (jobKind !== 'train.grpo') return () => { active = false; };
+    if (!policyOptimizationJobKinds.has(jobKind)) return () => { active = false; };
     const refresh = () => {
       void api.promptGroupRewards(runKey).then((result) => {
         if (active) {
@@ -2302,7 +2379,7 @@ function TraceView({
   const distillation = useMemo(() => distillationPairing(response), [response]);
   const visiblePage = activeFilters ? filteredPage : page;
   const pageTraces = visiblePage?.items ?? [];
-  const canGroupRollouts = jobKind === 'train.grpo' && Boolean(page?.items.some((trace) => trace.prompt_group_id));
+  const canGroupRollouts = policyOptimizationJobKinds.has(jobKind) && Boolean(page?.items.some((trace) => trace.prompt_group_id));
   const inspectorRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (canGroupRollouts && detail) inspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });

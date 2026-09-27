@@ -60,14 +60,8 @@ tasks:
     requires:
       vars:
         - name: SOURCE_REF
-        - name: PROFILE
-          enum: [rtx-pro-96gb, rtx-3070ti-8gb]
-        - name: GPU
-          enum: ["true", "false"]
     env:
       SOURCE_REF: "{{.SOURCE_REF}}"
-      PROFILE: "{{.PROFILE}}"
-      GPU: "{{.GPU}}"
     preconditions:
       - sh: gh auth status >/dev/null 2>&1
         msg: Authenticate gh before dispatching a release candidate.
@@ -81,8 +75,6 @@ tasks:
         gh workflow run release-candidate.yml
         --ref "$SOURCE_REF"
         -f source_ref="$SOURCE_REF"
-        -f qualification_profile="$PROFILE"
-        -f run_gpu_qualification="$GPU"
 
   release:final:dispatch:
     desc: Dispatch final publication for an exact main SHA and accepted candidate run

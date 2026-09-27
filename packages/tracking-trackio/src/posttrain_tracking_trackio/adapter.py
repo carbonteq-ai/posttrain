@@ -39,6 +39,9 @@ from posttrain.tracking import (
     EventRecord,
     MetricPoint,
     MetricSeries,
+    ProjectSqlError,
+    ProjectSqlResult,
+    ProjectSqlUnavailable,
     RunDetail,
     RunOutcome,
     RunQuery,
@@ -61,6 +64,7 @@ from posttrain.tracking import (
     TrackingPurgePlan,
     TrackingPurgeReceipt,
 )
+from posttrain.tracking.logical import logical_series
 from trackio.remote_client import RemoteClient
 from trackio.run import Run as TrackioSDKRun
 from trackio.utils import parse_trackio_server_url
@@ -188,6 +192,16 @@ def _datetime(value: object, *, field: str) -> datetime:
 
 def _json_mapping(value: object) -> dict[str, JsonValue]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _run_name(spec: RunSpec) -> str:
+    """The Trackio run name: job kind and the full canonical run id."""
+    return f"{spec.job_kind}-{spec.run_id}"
+
+
+def _legacy_run_name(spec: RunSpec) -> str:
+    """The name runs carried before full names: the run id cut to eight characters."""
+    return f"{spec.job_kind}-{spec.run_id[:8]}"
 
 
 def _run_config(spec: RunSpec, started_at: datetime) -> dict[str, JsonValue]:
@@ -565,30 +579,38 @@ class TrackioBackend:
         self.settings = settings or TrackioSettings()
 
     def start_run(self, spec: RunSpec) -> TrackioTrackedRun:
-        return self._open_run(spec, resume="never")
+        return self._open_run(spec, resume="never", monitor=True)
 
     def resume_run(self, spec: RunSpec, *, started_at: datetime) -> TrackioTrackedRun:
         """Resume the provider run selected by the canonical Trackio run name."""
 
-        return self._open_run(spec, resume="must", started_at=started_at)
+        # Reopening a run to record what happened; this process is not the job.
+        try:
+            return self._open_run(spec, resume="must", started_at=started_at, monitor=False)
+        except ValueError as error:
+            legacy = _legacy_run_name(spec)
+            if legacy == _run_name(spec) or "does not exist" not in str(error):
+                raise
+            # Runs started before full names were recorded carry the old
+            # eight-character name.
+            return self._open_run(spec, resume="must", started_at=started_at, monitor=False, name=legacy)
 
     def start_or_resume_run(self, spec: RunSpec, *, started_at: datetime) -> TrackioTrackedRun:
         """Idempotently open the full canonical run identity after interruption."""
 
-        return self._open_run(
-            spec,
-            resume="allow",
-            started_at=started_at,
-            full_run_name=True,
-        )
+        # A recoverable job opens its run this way on first start and after an
+        # interruption; either way this process is executing the job, so its GPU
+        # and CPU are the run's system metrics.
+        return self._open_run(spec, resume="allow", started_at=started_at, monitor=True)
 
     def _open_run(
         self,
         spec: RunSpec,
         *,
         resume: str,
+        monitor: bool,
         started_at: datetime | None = None,
-        full_run_name: bool = False,
+        name: str | None = None,
     ) -> TrackioTrackedRun:
         if spec.job_kind.startswith("eval."):
             # Check the installed client schema before opening a provider run
@@ -615,15 +637,15 @@ class TrackioBackend:
             init_arguments["artifact_finish_timeout"] = self.settings.artifact_publication_timeout_seconds
         run = trackio.init(
             project=project,
-            name=f"{spec.job_kind}-{spec.run_id if full_run_name else spec.run_id[:8]}",
+            name=name or _run_name(spec),
             group=spec.work_package_id,
             server_url=self.settings.server_url,
             config=_run_config(spec, started_at),
             resume=resume,
             embed=False,
-            auto_log_gpu=self.settings.auto_log_gpu if resume == "never" else False,
+            auto_log_gpu=self.settings.auto_log_gpu and monitor,
             gpu_log_interval=self.settings.gpu_log_interval,
-            auto_log_cpu=self.settings.auto_log_cpu if resume == "never" else False,
+            auto_log_cpu=self.settings.auto_log_cpu and monitor,
             cpu_log_interval=self.settings.cpu_log_interval,
             **init_arguments,
         )
@@ -1160,10 +1182,50 @@ class TrackioDataSource:
 
     def __init__(self, project: str, *, server_url: str | None = None) -> None:
         self.project = project
+        self._server_url = server_url
         self._api = trackio.Api(server_url=server_url)
         self._provider_runs_by_id: dict[str, Any] = {}
         self._detail_cache: dict[str, tuple[float, RunDetail]] = {}
         self._detail_cache_lock = Lock()
+
+    async def project_sql(self, sql: str, *, max_rows: int = 10_000, timeout_seconds: float = 10.0) -> ProjectSqlResult:
+        """Run read-only Doris SQL over this project's logical tables inside Trackio's storage."""
+
+        call = getattr(self._api, "project_sql", None)
+        if not callable(call):
+            raise ProjectSqlUnavailable(
+                "the installed Trackio client cannot run project SQL; install carbonteq-trackio 0.31.5.post14.dev29 "
+                "or later"
+            )
+        try:
+            raw = await asyncio.to_thread(call, self.project, sql, max_rows=max_rows, timeout_seconds=timeout_seconds)
+        except FileNotFoundError as error:
+            raise LookupError(f"Trackio project {self.project!r} does not exist") from error
+        except Exception as error:
+            message = str(error)
+            if "does not support '/project_sql'" in message:
+                raise ProjectSqlUnavailable(
+                    f"the Trackio server for project {self.project!r} cannot run project SQL; upgrade it to "
+                    "carbonteq-trackio 0.31.5.post14.dev29 or later"
+                ) from error
+            if isinstance(error, ValueError | RuntimeError):
+                raise ProjectSqlError(message) from error
+            raise
+        if not isinstance(raw, Mapping):
+            raise ContractError("Trackio returned an invalid project SQL result")
+        return ProjectSqlResult(
+            engine=str(raw.get("engine") or "unknown"),
+            columns=tuple(str(column) for column in raw.get("columns") or ()),
+            rows=tuple(tuple(row) for row in raw.get("rows") or ()),
+            truncated=bool(raw.get("truncated")),
+        )
+
+    def note_store(self, *, write_token: str | None = None) -> Any:
+        """The run-note store of this project (`TrackioRunNotes`), on the same server."""
+
+        from .notes import TrackioRunNotes
+
+        return TrackioRunNotes(self.project, server_url=self._server_url, write_token=write_token)
 
     @property
     def capabilities(self) -> TrackingCapabilities:
@@ -1175,6 +1237,8 @@ class TrackioDataSource:
             artifacts=capabilities["artifact_lineage"],
             artifact_lineage=capabilities["artifact_lineage"],
             trace_facts=("available" if hasattr(trackio, "TraceFactsQuery") else "unavailable"),
+            # The client's support; a server older than the client reports it on first use.
+            run_notes=bool(capabilities.get("run_notes", False)),
         )
 
     def _summary(self, run: Any, raw: Mapping[str, Any] | None = None) -> RunSummary:
@@ -1346,10 +1410,15 @@ class TrackioDataSource:
                     type=str(lifecycle.get("run/error_type") or "RunFailed"),
                     message=str(lifecycle.get("run/error_message") or "run failed"),
                 )
+        canonical_run_id = str(config["run_id"])
+        job_kind = str(config["job_kind"])
+        if display_name == f"{job_kind}-{canonical_run_id[:8]}" and len(canonical_run_id) > 8:
+            # Runs started before full names were recorded show their whole id.
+            display_name = f"{job_kind}-{canonical_run_id}"
         return RunSummary(
             provider="trackio",
             provider_run_id=run_id,
-            run_id=str(config["run_id"]),
+            run_id=canonical_run_id,
             display_name=display_name,
             project_id=str(config["project_id"]),
             work_package_id=str(config["work_package_id"]),
@@ -1594,7 +1663,7 @@ class TrackioDataSource:
                         attributes=_json_mapping(point.get("attributes")),
                     )
                 )
-            values_by_name[name] = MetricSeries(name=name, points=tuple(points))
+            values_by_name[name] = logical_series(MetricSeries(name=name, points=tuple(points)))
         requested_system_names = tuple(name for name in names if name.startswith("system/"))
         if requested_system_names:
             detail = self._cached_detail(run_id)

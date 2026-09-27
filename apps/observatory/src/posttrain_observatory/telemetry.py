@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from types import MappingProxyType
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
+from .metric_catalog import metric_help
 from .models import AlertSeverity, MetricHelp, ObservatoryModel
 
 type Reducer = Literal["last", "min", "max", "mean", "sum"]
@@ -159,765 +160,8 @@ def _training_artifacts() -> tuple[ArtifactRoleDefinition, ...]:
     )
 
 
-def _metric(
-    metric: str,
-    label: str,
-    description: str,
-    interpretation: str,
-    *,
-    unit: str | None = None,
-    caveat: str | None = None,
-) -> MetricHelp:
-    return MetricHelp(
-        metric=metric,
-        label=label,
-        description=description,
-        interpretation=interpretation,
-        caveat=caveat,
-        unit=unit,
-    )
-
-
-_METRIC_HELP = {
-    item.metric: item
-    for item in (
-        _metric(
-            "train/loss",
-            "Training loss",
-            "Mean supervised objective on the current optimization batch.",
-            "A sustained decrease means the model is fitting the rendered training targets; compare it with held-out loss before judging generalization.",
-            caveat="Masking, packing, batch composition, and sequence length affect its scale.",
-        ),
-        _metric(
-            "train/validation/loss",
-            "Validation loss",
-            "The same supervised objective measured on the reserved validation split without updating weights.",
-            "A flattening curve suggests diminishing learning benefit; a rise while training loss falls is evidence of overfitting.",
-            caveat="Compare only runs using the same split, renderer, masking policy, and maximum sequence length.",
-        ),
-        _metric(
-            "train/mean_token_accuracy",
-            "Token accuracy",
-            "Share of supervised tokens whose highest-probability prediction matches the target token.",
-            "Higher is better, but use it with loss because it ignores how confident incorrect and correct predictions are.",
-            unit="ratio",
-            caveat="Only supervised, non-masked tokens should contribute.",
-        ),
-        _metric(
-            "train/grad_norm",
-            "Gradient norm",
-            "Trainer-recorded global magnitude of gradients before the optimizer update.",
-            "Spikes can indicate unstable batches; a persistently tiny value can indicate stalled learning.",
-            caveat="The exact norm and whether it is measured before or after clipping depend on the trainer binding.",
-        ),
-        _metric(
-            "train/learning_rate",
-            "Learning rate",
-            "Optimizer step size selected by the learning-rate schedule at this logical step.",
-            "Read it beside loss and gradient norm to explain warmup, decay, and changes in update behavior.",
-        ),
-        _metric(
-            "train/gradient_clipped",
-            "Gradient clipped",
-            "Whether, or what share of, the current gradient update exceeded the clipping threshold.",
-            "Occasional clipping is protective; frequent clipping suggests the update scale or data batches deserve inspection.",
-            unit="ratio",
-            caveat="A per-step boolean is displayed as 0% or 100%; aggregated trainers may report a fraction.",
-        ),
-        _metric(
-            "train/non_padding_tokens_per_second",
-            "Non-padding tokens / second",
-            "Effective supervised and context tokens processed per second, excluding padding.",
-            "Higher is better for throughput and is more comparable than raw tokens when sequence lengths and padding differ.",
-            unit="tokens/s",
-            caveat="Hardware, world size, packing, checkpointing, and measurement window must match for fair comparisons.",
-        ),
-        _metric(
-            "train/step_time_seconds",
-            "Step time",
-            "Wall-clock duration of one logical training step.",
-            "Stable or falling values indicate healthy runtime performance; spikes should be correlated with system metrics and checkpoint activity.",
-            unit="s",
-        ),
-        _metric(
-            "train/num_tokens",
-            "Processed tokens",
-            "Cumulative number of non-padding training tokens reported by the trainer.",
-            "Use it as the denominator for progress and effective throughput rather than comparing optimizer steps alone.",
-            unit="tokens",
-            caveat="The trainer binding determines whether prompt and completion tokens are both included.",
-        ),
-        _metric(
-            "train/data/supervision_token_ratio",
-            "Supervision-token ratio",
-            "Fraction of rendered non-padding tokens that contribute to the supervised loss.",
-            "Very low values mean most compute is spent on context rather than learning targets.",
-            unit="ratio",
-            caveat="The expected range depends on the conversation template and assistant-only masking policy.",
-        ),
-        _metric(
-            "train/data/truncation_rate",
-            "Truncated examples",
-            "Fraction of rendered examples shortened by the configured maximum sequence length.",
-            "Lower is usually safer; a high rate means targets or important context may be removed.",
-            unit="ratio",
-            caveat="Inspect which side of the example is truncated before deciding whether the signal is damaged.",
-        ),
-        _metric(
-            "train/data/max_length_utilization",
-            "Max-length utilization",
-            "Average rendered sequence length as a fraction of the configured maximum length.",
-            "High utilization improves dense batches but leaves less headroom for length variation and increases truncation risk.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/rewards/margins",
-            "Reward margin",
-            "Average chosen-response reward minus rejected-response reward.",
-            "Positive and increasing values indicate the policy is separating preferred responses from rejected ones.",
-        ),
-        _metric(
-            "train/rewards/chosen",
-            "Chosen reward",
-            "Average implicit reward assigned to preferred responses.",
-            "It should generally stay above rejected reward; its absolute scale is less useful than their margin.",
-        ),
-        _metric(
-            "train/rewards/rejected",
-            "Rejected reward",
-            "Average implicit reward assigned to non-preferred responses.",
-            "Read it with chosen reward to determine which side is driving the preference margin.",
-        ),
-        _metric(
-            "train/rewards/accuracies",
-            "Preference accuracy",
-            "Fraction of pairs for which the chosen response receives the higher implicit reward.",
-            "Higher values mean the learned preference ordering agrees with the dataset more often.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/logps/chosen",
-            "Chosen log probability",
-            "Average sequence log probability the policy assigns to preferred completions.",
-            "An increase means the chosen responses are becoming more likely under the policy; read it with rejected log probability to distinguish positive learning from rejection-only suppression.",
-            caveat="Sequence log probability is length-sensitive, so compare runs only when rendering and length distributions match.",
-        ),
-        _metric(
-            "train/logps/rejected",
-            "Rejected log probability",
-            "Average sequence log probability the policy assigns to rejected completions.",
-            "A decrease means rejected responses are becoming less likely; if chosen log probability also falls, the margin may be widening through broad suppression.",
-            caveat="Sequence log probability is length-sensitive, so compare runs only when rendering and length distributions match.",
-        ),
-        _metric(
-            "train/logits/chosen",
-            "Chosen mean logit",
-            "Average raw model logit on tokens from preferred completions.",
-            "Use it as a low-level diagnostic for changes in chosen-token scores, not as a standalone quality measure.",
-        ),
-        _metric(
-            "train/logits/rejected",
-            "Rejected mean logit",
-            "Average raw model logit on tokens from rejected completions.",
-            "Compare it with chosen mean logit only as a low-level optimization diagnostic.",
-        ),
-        _metric(
-            "train/entropy",
-            "Token entropy",
-            "Average uncertainty of the policy distribution over non-masked completion tokens.",
-            "A sharp fall can indicate the policy is becoming overly confident or collapsing; stable entropy alongside improving preference separation is generally healthier.",
-        ),
-        _metric(
-            "train/validation/rewards/margins",
-            "Validation reward margin",
-            "Average implicit chosen-minus-rejected reward on reserved preference pairs without updating weights.",
-            "A positive margin that improves with training is held-out evidence that preference separation generalizes beyond optimization pairs.",
-        ),
-        _metric(
-            "train/validation/rewards/accuracies",
-            "Validation preference accuracy",
-            "Fraction of reserved pairs whose chosen response receives the higher implicit reward.",
-            "Use it with validation margin and loss; saturated training accuracy with weak validation accuracy indicates memorization.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/validation/rewards/chosen",
-            "Validation chosen reward",
-            "Average implicit reward for chosen responses in the reserved preference split.",
-            "Read it with rejected reward to see which side drives held-out separation.",
-        ),
-        _metric(
-            "train/validation/rewards/rejected",
-            "Validation rejected reward",
-            "Average implicit reward for rejected responses in the reserved preference split.",
-            "Read it with chosen reward to distinguish improved chosen likelihood from rejection-only suppression.",
-        ),
-        _metric(
-            "train/validation/logps/chosen",
-            "Validation chosen log probability",
-            "Average policy log-probability assigned to chosen completions in reserved pairs.",
-            "It reveals whether held-out chosen responses become more likely under the policy.",
-            caveat="Sequence log probability is length-sensitive.",
-        ),
-        _metric(
-            "train/validation/logps/rejected",
-            "Validation rejected log probability",
-            "Average policy log-probability assigned to rejected completions in reserved pairs.",
-            "Use it with chosen log probability to explain held-out margin changes.",
-            caveat="Sequence log probability is length-sensitive.",
-        ),
-        _metric(
-            "train/data/preference_pairs",
-            "Preference pairs",
-            "Number of rendered chosen-versus-rejected pairs in the training population.",
-            "Very small populations can be memorized quickly, so training accuracy and reward margin should not be read as generalization evidence.",
-        ),
-        _metric(
-            "train/data/prompt_tokens_mean",
-            "Mean prompt tokens",
-            "Average rendered prompt length across preference pairs.",
-            "Use it to understand how much of each sequence is shared context and to compare dataset composition across runs.",
-            unit="tokens",
-        ),
-        _metric(
-            "train/data/chosen_tokens_mean",
-            "Mean chosen tokens",
-            "Average rendered length of preferred completions.",
-            "Compare it with rejected length to detect a preference dataset that systematically favors longer or shorter answers.",
-            unit="tokens",
-        ),
-        _metric(
-            "train/data/rejected_tokens_mean",
-            "Mean rejected tokens",
-            "Average rendered length of rejected completions.",
-            "Compare it with chosen length because length imbalance can become an unintended preference shortcut.",
-            unit="tokens",
-        ),
-        _metric(
-            "train/data/prompt_tokens_p95",
-            "Prompt tokens p95",
-            "Ninety-fifth percentile of rendered prompt length across preference pairs.",
-            "A high tail value identifies prompts most likely to constrain batch density or approach the sequence limit.",
-            unit="tokens",
-        ),
-        _metric(
-            "train/data/chosen_tokens_p95",
-            "Chosen tokens p95",
-            "Ninety-fifth percentile of preferred-completion length.",
-            "Compare it with rejected p95 to detect a length shortcut hidden by similar means.",
-            unit="tokens",
-        ),
-        _metric(
-            "train/data/rejected_tokens_p95",
-            "Rejected tokens p95",
-            "Ninety-fifth percentile of rejected-completion length.",
-            "Compare it with chosen p95 to detect systematic tail imbalance between alternatives.",
-            unit="tokens",
-        ),
-        _metric(
-            "train/data/max_length_headroom_min",
-            "Minimum length headroom",
-            "Smallest remaining token capacity between a rendered preference pair and the configured maximum length.",
-            "Low headroom means at least one pair is close to failing rendering when the template or data changes.",
-            unit="tokens",
-            caveat="Current DPO rendering rejects over-limit pairs instead of truncating them.",
-        ),
-        _metric(
-            "train/data/chosen_longer_fraction",
-            "Chosen longer than rejected",
-            "Fraction of pairs whose preferred completion is longer than its rejected completion.",
-            "Values far from a balanced population may indicate a systematic length preference that the policy can exploit.",
-            unit="ratio",
-            caveat="Some tasks legitimately prefer concise or detailed answers; interpret this with task intent.",
-        ),
-        _metric(
-            "train/data/preference_score_coverage",
-            "Source score coverage",
-            "Fraction of preference pairs that retain explicit source scores for both alternatives.",
-            "Higher coverage makes it possible to audit how strong or ambiguous the original preference signal was.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/data/preference_score_margin_mean",
-            "Mean source score margin",
-            "Average source-score difference between chosen and rejected completions for scored pairs.",
-            "Larger margins represent clearer source preferences; very small margins may be noisy or ambiguous.",
-            caveat="Only comparable when the same scorer and score scale produced every pair.",
-        ),
-        _metric(
-            "train/data/max_length_utilization",
-            "Max-length utilization",
-            "Average rendered prompt plus longer completion length as a fraction of the configured sequence limit.",
-            "High utilization leaves little room for length variation and increases curation failures near the maximum length.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/rl/reward_mean",
-            "Mean reward",
-            "Mean verifier reward across the sampled rollout group.",
-            "An upward trend suggests policy improvement when the verifier and sampling policy are unchanged.",
-        ),
-        _metric(
-            "train/rl/reward_std",
-            "Reward standard deviation",
-            "Spread of verifier rewards within sampled rollout groups.",
-            "Some spread supplies a learning signal; collapse near zero can make relative advantages uninformative.",
-        ),
-        _metric(
-            "train/rl/kl",
-            "KL divergence",
-            "Recorded divergence between the updated policy and its reference policy.",
-            "Rising KL means the policy is moving farther from the reference; interpret it against reward improvement and the configured penalty.",
-        ),
-        _metric(
-            "train/rl/entropy",
-            "Policy entropy",
-            "Uncertainty of the policy distribution over sampled tokens.",
-            "A sharp decline can indicate premature policy collapse; a persistently high value can indicate weak optimization.",
-        ),
-        _metric(
-            "train/rl/clip_fraction",
-            "Clip fraction",
-            "Fraction of policy updates constrained by the objective's clipping range.",
-            "High values mean many updates are hitting the trust-region guardrail and may be too aggressive.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/rl/clip_fraction_low",
-            "Lower clip fraction",
-            "Fraction of active policy updates constrained by the lower DAPO clipping bound.",
-            "Read it separately from the upper clip fraction to see which asymmetric trust-region side is binding.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/rl/clip_fraction_high",
-            "Upper clip fraction",
-            "Fraction of active policy updates constrained by the upper DAPO clipping bound.",
-            "A rising upper-side fraction can indicate aggressive positive-advantage updates even when total clipping looks small.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/rl/dynamic_sampling_candidate_batches",
-            "Dynamic-sampling candidate batches",
-            "Number of candidate rollout batches consumed to fill one optimizer update.",
-            "Values near the configured bound indicate the current policy is producing too many reward-constant groups and may exhaust the sampler.",
-        ),
-        _metric(
-            "train/rl/dynamic_sampling_retained_fraction",
-            "Dynamic-sampling retained fraction",
-            "Fraction of candidate rollout rows retained after filtering for within-group reward variation.",
-            "A low fraction means the effective environment population is being spent on discarded groups rather than learning signal.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/rl/active_sampling_generation_rounds",
-            "Active-sampling generation rounds",
-            "Number of sequential candidate-generation rounds needed to fill one optimizer update.",
-            "More rounds mean the sampler had to replace more reward-constant candidates before it could assemble an informative update.",
-        ),
-        _metric(
-            "train/rl/active_sampling_retained_fraction",
-            "Active-sampling retained fraction",
-            "Share of generated candidate rows retained after the reward-variation filter.",
-            "A low fraction means the update required substantial replacement sampling; inspect it with the candidate-row accounting.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/rl/active_sampling_generated_rows",
-            "Active-sampling generated rows",
-            "Candidate rows actually generated while filling one optimizer update.",
-            "Compare this with retained rows to quantify the rollout work spent on replacement sampling.",
-        ),
-        _metric(
-            "train/rl/active_sampling_candidate_groups_reserved",
-            "Active-sampling candidate rows reserved",
-            "Candidate rows reserved by the dataloader for the bounded active-sampling window.",
-            "Reserved rows that remain unused are capacity held in reserve rather than rollout work already performed.",
-        ),
-        _metric(
-            "train/rl/active_sampling_candidate_groups_generated",
-            "Active-sampling candidate rows generated",
-            "Candidate rows whose rollouts were generated and scored.",
-            "This is the generated candidate population before filtering, not the final optimizer population.",
-        ),
-        _metric(
-            "train/rl/active_sampling_candidate_groups_retained",
-            "Active-sampling candidate rows retained",
-            "Generated candidate rows kept because their reward group had usable variation.",
-            "This is the population from which the optimizer update is assembled after any bounded oversupply is trimmed.",
-        ),
-        _metric(
-            "train/rl/active_sampling_candidate_groups_unused",
-            "Active-sampling candidate rows unused",
-            "Reserved candidate rows never generated because the target population was already filled.",
-            "A high value is expected when early candidate rounds are productive; it is not a failed rollout count.",
-        ),
-        _metric(
-            "train/rl/curriculum/candidate_groups",
-            "Controller candidate groups",
-            "Task groups selected by the curriculum controller for one initial batch or refill round.",
-            "Sum points at the same optimizer step to recover the complete candidate population selected across refills.",
-        ),
-        _metric(
-            "train/rl/curriculum/unique_tasks",
-            "Controller unique tasks",
-            "Selected task identities that did not require degraded duplicate fallback.",
-            "Compare the step total with candidate groups to detect selection pressure caused by an exhausted eligible pool.",
-        ),
-        _metric(
-            "train/rl/curriculum/new_tasks",
-            "Controller new tasks",
-            "Selected task identities without prior controller evidence.",
-            "This measures task discovery inside the selected candidate population, including refill rounds.",
-        ),
-        _metric(
-            "train/rl/curriculum/discovery_reserved",
-            "Reserved discovery groups",
-            "Candidate slots reserved for tasks without prior controller evidence.",
-            "Sum across a step and compare with fulfilled discovery to distinguish policy intent from available inventory.",
-        ),
-        _metric(
-            "train/rl/curriculum/discovery_fulfilled",
-            "Fulfilled discovery groups",
-            "Reserved discovery slots filled with previously unseen tasks.",
-            "A persistent gap from the reserved count means the eligible unseen inventory could not satisfy the request.",
-        ),
-        _metric(
-            "train/rl/curriculum/duplicate_fallbacks",
-            "Duplicate fallback groups",
-            "Selections that repeated a task within an optimizer step after the eligible unique inventory was exhausted.",
-            "Zero is the normal state; a positive value records graceful degradation rather than a failed run.",
-        ),
-        _metric(
-            "train/rl/curriculum/refill_round",
-            "Controller refill round",
-            "One-based refill round index, or zero for an initial non-refill selection.",
-            "Use the maximum point at a step to reconstruct how many controller decisions were needed.",
-        ),
-        _metric(
-            "train/rl/curriculum/class_candidate_groups",
-            "Candidate groups by class",
-            "Selected task groups for one class, identified by the bounded class_id point attribute.",
-            "Sum by optimizer step and class to reconstruct the controller's allocation without scanning event payloads.",
-        ),
-        _metric(
-            "train/rl/group_zero_variance_fraction",
-            "Zero-variance groups",
-            "Fraction of rollout groups whose rewards contain no within-group variation.",
-            "High values mean GRPO cannot rank alternatives inside many groups even when reward varies globally.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/rl/policy_loss",
-            "Policy loss",
-            "Policy optimization objective after relative advantages and clipping are applied.",
-            "Interpret its trend with reward, entropy, clipping, and gradient norm rather than as a standalone quality score.",
-        ),
-        _metric(
-            "train/rl/rollouts_requested",
-            "Requested rollouts",
-            "Number of rollout attempts requested for the logical step.",
-            "Compare it with terminal attempts to distinguish a smaller configured batch from work that never reached a terminal trace.",
-        ),
-        _metric(
-            "train/rl/rollouts_attempted",
-            "Terminal rollouts",
-            "Number of requested rollout attempts that reached a retained terminal trace.",
-            "This is the observed population denominator for completion, failure, truncation, and scoring coverage.",
-        ),
-        _metric(
-            "train/rl/rollouts_missing",
-            "Missing rollout evidence",
-            "Requested rollout attempts that did not reach a retained terminal trace.",
-            "This is not a failure count: inspect cancellation and runtime evidence before assigning a cause.",
-        ),
-        _metric(
-            "train/rl/rollouts_completed",
-            "Completed rollouts",
-            "Number of rollout attempts that returned a terminal result.",
-            "Compare it with attempted rollouts; a gap means the policy update saw less evidence than configured.",
-        ),
-        _metric(
-            "train/rl/rollouts_failed",
-            "Failed rollouts",
-            "Number of rollout attempts that ended in an execution or environment error.",
-            "Any non-zero value requires trace-level inspection because failed work can bias the effective batch.",
-        ),
-        _metric(
-            "train/rl/rollouts_truncated",
-            "Truncated rollouts",
-            "Number of completed rollouts stopped by a token, step, or time limit.",
-            "Truncation can hide task completion and bias rewards toward shorter trajectories.",
-        ),
-        _metric(
-            "train/rl/rollouts_unscorable",
-            "Unscorable rollouts",
-            "Number of returned rollouts without a finite verifier reward.",
-            "Unscorable trajectories cannot contribute a valid relative learning signal and should be treated as evidence loss.",
-        ),
-        _metric(
-            "train/rl/completion_tokens_mean",
-            "Mean completion tokens",
-            "Average generated completion length for the rollout population.",
-            "Length drift can indicate changing task behavior, truncation pressure, or reward exploitation.",
-            unit="tokens",
-        ),
-        _metric(
-            "train/rl/completion_tokens_max",
-            "Maximum completion tokens",
-            "Longest generated completion in the observed rollout population.",
-            "Repeated contact with the configured limit suggests generation is capacity constrained.",
-            unit="tokens",
-        ),
-        _metric(
-            "train/rl/completion_truncation_rate",
-            "Completion truncation rate",
-            "Fraction of completions stopped at the configured generation limit.",
-            "A rising rate means reward and completion statistics increasingly describe partial trajectories.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/rl/rollout_tokens_per_second",
-            "Rollout tokens per second",
-            "Effective completion-token throughput during rollout generation.",
-            "Compare runs only when model, hardware, sequence distribution, and rollout topology are comparable.",
-            unit="tokens/s",
-        ),
-        _metric(
-            "train/rl/sampling_logp_delta_mean",
-            "Mean sampling log-probability delta",
-            "Mean difference between rollout-server sampling log-probabilities and actor recomputation.",
-            "Drift away from zero can expose serving-versus-training numerical mismatch or stale policy weights.",
-        ),
-        _metric(
-            "train/rl/sampling_logp_delta_max",
-            "Maximum sampling log-probability delta",
-            "Largest observed rollout-versus-actor log-probability difference.",
-            "Outliers can destabilize importance correction even when the mean remains small.",
-        ),
-        _metric(
-            "train/rl/importance_sampling_ratio_mean",
-            "Mean importance ratio",
-            "Mean actor-to-rollout probability ratio used to correct decoupled sampling.",
-            "Values near one indicate close policies; interpret with the min and max because the mean hides tail instability.",
-        ),
-        _metric(
-            "train/rl/importance_sampling_ratio_min",
-            "Minimum importance ratio",
-            "Smallest actor-to-rollout probability ratio in the observed batch.",
-            "Very small values identify samples whose rollout probability substantially exceeds the current actor probability.",
-        ),
-        _metric(
-            "train/rl/importance_sampling_ratio_max",
-            "Maximum importance ratio",
-            "Largest actor-to-rollout probability ratio in the observed batch.",
-            "Large tail values can dominate updates unless correction or clipping is active.",
-        ),
-        _metric(
-            "train/rl/policy_staleness_mean",
-            "Mean policy staleness",
-            "Average number of policy versions between trajectory generation and optimization.",
-            "Higher staleness weakens on-policy assumptions and should be read with importance ratios and reward progress.",
-            unit="versions",
-        ),
-        _metric(
-            "train/rl/policy_staleness_max",
-            "Maximum policy staleness",
-            "Largest observed policy-version delay for trajectories consumed by the update.",
-            "A high tail can reveal queue backlog that is hidden by an acceptable mean.",
-            unit="versions",
-        ),
-        _metric(
-            "train/rl/trajectory_version_span_mean",
-            "Mean trajectory version span",
-            "Average policy-version span represented within an optimization batch.",
-            "Wide batches mix behavior from different policy states and make update interpretation less direct.",
-            unit="versions",
-        ),
-        _metric(
-            "train/rl/tool_call_frequency",
-            "Tool-call frequency",
-            "Fraction of rollouts that invoked at least one environment tool.",
-            "A change can represent better task engagement or reward gaming; inspect linked traces to distinguish them.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/rl/tool_failure_frequency",
-            "Tool-failure frequency",
-            "Fraction of rollouts with at least one failed tool invocation.",
-            "Failures reduce usable evidence and often explain reward degradation or longer trajectories.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/rl/time/rollout_seconds",
-            "Rollout time",
-            "Wall-clock time spent generating trajectories for a logical step.",
-            "Use it with total step time to locate generation-bound runs.",
-            unit="s",
-        ),
-        _metric(
-            "train/rl/time/reward_seconds",
-            "Reward time",
-            "Wall-clock time spent evaluating verifier rewards.",
-            "A large share of step time identifies verifier or environment evaluation as the bottleneck.",
-            unit="s",
-        ),
-        _metric(
-            "train/rl/time/actor_forward_seconds",
-            "Actor forward time",
-            "Wall-clock time spent recomputing actor probabilities for sampled trajectories.",
-            "Compare it with actor update time to distinguish scoring cost from backpropagation cost.",
-            unit="s",
-        ),
-        _metric(
-            "train/rl/time/actor_update_seconds",
-            "Actor update time",
-            "Wall-clock time spent applying the policy optimization update.",
-            "A rising value with stable token counts can reveal memory pressure or distributed synchronization overhead.",
-            unit="s",
-        ),
-        _metric(
-            "train/rl/time/weight_sync_seconds",
-            "Weight synchronization time",
-            "Wall-clock time spent moving updated policy weights to the rollout runtime.",
-            "This is a direct tax of decoupled serving and should be judged against rollout throughput gains.",
-            unit="s",
-        ),
-        _metric(
-            "train/rl/time/checkpoint_seconds",
-            "Checkpoint time",
-            "Wall-clock time spent writing recovery state.",
-            "Checkpoint spikes are operational overhead, not model-learning regressions.",
-            unit="s",
-        ),
-        _metric(
-            "serve/backend/speculative_draft_tokens",
-            "Speculative draft tokens",
-            "Number of tokens proposed by the speculative MTP path.",
-            "This is opportunity volume, not acceleration by itself; pair it with accepted tokens and measured throughput.",
-            unit="tokens",
-        ),
-        _metric(
-            "serve/backend/speculative_accepted_tokens",
-            "Accepted speculative tokens",
-            "Number of drafted tokens accepted by target-model verification.",
-            "More accepted tokens can reduce target decoding work, but only measured throughput establishes a speedup.",
-            unit="tokens",
-        ),
-        _metric(
-            "serve/backend/speculative_acceptance_rate",
-            "Speculative acceptance rate",
-            "Fraction of drafted MTP tokens accepted by target-model verification.",
-            "Acceptance describes draft quality; it does not account for drafting overhead or prove end-to-end acceleration.",
-            unit="ratio",
-        ),
-        _metric(
-            "serve/backend/speculative_accepted_length",
-            "Accepted speculative length",
-            "Mean accepted speculative-token run length per verification cycle.",
-            "Longer accepted runs usually reduce target decode iterations, subject to drafting and synchronization cost.",
-            unit="tokens",
-        ),
-        _metric(
-            "serve/backend/kv_cache_capacity_tokens",
-            "KV-cache token capacity",
-            "Runtime-reported token capacity for the selected KV-cache representation.",
-            "Capacity is a configuration outcome and must not be inferred from the selected TurboQuant dtype alone.",
-            unit="tokens",
-        ),
-        _metric(
-            "serve/backend/kv_cache_peak_usage_ratio",
-            "Peak KV-cache usage",
-            "Highest observed share of the runtime KV-cache capacity used during the run.",
-            "A high value signals limited headroom; a missing value means quantized-cache qualification is incomplete.",
-            unit="ratio",
-        ),
-        _metric(
-            "train/distill/loss",
-            "Distillation loss",
-            "Student training objective computed from teacher-scored tokens.",
-            "A decrease means the student is better matching the teacher under the configured objective.",
-        ),
-        _metric(
-            "train/distill/reverse_kl",
-            "Reverse KL",
-            "Reverse Kullback-Leibler divergence from student to teacher on scored tokens.",
-            "Lower values indicate closer student alignment to the teacher distribution.",
-        ),
-        _metric(
-            "train/distill/scored_tokens",
-            "Scored tokens",
-            "Number of tokens successfully scored by the teacher and included in distillation.",
-            "Use it to confirm that effective supervision volume grows as expected.",
-        ),
-        _metric(
-            "train/distill/teacher_latency_ms",
-            "Teacher latency",
-            "Mean time spent obtaining teacher scores for a batch.",
-            "Higher values identify teacher inference as a throughput bottleneck.",
-            unit="ms",
-        ),
-        _metric(
-            "train/distill/teacher_failures",
-            "Teacher failures",
-            "Count of teacher-scoring failures excluded from training.",
-            "Any non-zero value means the effective training population is incomplete and should be investigated.",
-        ),
-        _metric(
-            "eval/run/rollouts_complete",
-            "Completed rollouts",
-            "Number of evaluation rollouts that reached a terminal result.",
-            "Compare it with the expected population to judge evaluation completeness.",
-        ),
-        _metric(
-            "eval/run/rollouts_failed",
-            "Failed rollouts",
-            "Number of rollouts that ended with an execution or verifier error.",
-            "Non-zero values reduce aggregate coverage and should be inspected at trace level.",
-        ),
-        _metric(
-            "eval/run/model_call_error_rollouts",
-            "Model-call error rollouts",
-            "Number of evaluation attempts containing at least one failed model request.",
-            "These attempts are execution failures, not semantic task failures or valid zero rewards.",
-        ),
-        _metric(
-            "eval/run/model_call_http_400_rollouts",
-            "HTTP 400 model-call rollouts",
-            "Number of evaluation attempts with a model request rejected as HTTP 400.",
-            "Check the inference request and model context budget before interpreting scores.",
-        ),
-        _metric(
-            "eval/run/context_overflow_rollouts",
-            "Context-overflow rollouts",
-            "Number of attempts whose model request reported maximum-context-length overflow.",
-            "Increase qualified context capacity or bound the per-call output reservation.",
-        ),
-        _metric(
-            "eval/run/rollouts_truncated",
-            "Truncated rollouts",
-            "Number of rollouts stopped by a token, time, or step limit.",
-            "A high count can bias aggregate scores because tasks did not receive a full attempt.",
-        ),
-        _metric(
-            "eval/trace_sync_complete",
-            "Trace synchronization complete",
-            "Whether all native evaluation traces have been synchronized into the tracking reader.",
-            "A value of 100% means aggregates can link back to their complete trace population.",
-            unit="ratio",
-        ),
-        _metric(
-            "eval/trace_sync_schema_mismatch",
-            "Trace schema mismatch",
-            "Whether the producer and tracking client disagreed about a trace-fact dimension.",
-            "Use a compatible immutable runtime before submitting another evaluation.",
-        ),
-    )
-}
-
-
 def _help_for(*metrics: str) -> tuple[MetricHelp, ...]:
-    return tuple(_METRIC_HELP[metric] for metric in metrics)
+    return metric_help(*metrics)
 
 
 SFT_TELEMETRY = JobTelemetryDefinition(
@@ -1341,7 +585,7 @@ DPO_TELEMETRY = JobTelemetryDefinition(
 )
 
 GRPO_TELEMETRY = JobTelemetryDefinition(
-    schema_version=2,
+    schema_version=3,
     job_kind="train.grpo",
     display_name="Group relative policy optimization",
     summary_fields=(
@@ -1415,6 +659,9 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
                 "train/rl/clip_fraction",
                 "train/rl/clip_fraction_low",
                 "train/rl/clip_fraction_high",
+                # Tool calls per rollout come from traces (rollout behavior);
+                # the failure rate joins the rates lane here.
+                "train/rl/tool_failure_frequency",
             ),
         ),
         ChartDefinition(
@@ -1485,19 +732,12 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
             ),
         ),
         ChartDefinition(
-            key="active_sampling_yield",
-            title="Active sampling yield",
-            question="How many generation rounds were needed, and what share of generated candidates supplied usable reward variation?",
+            key="active_sampling",
+            title="Active sampling",
+            question="How many generation rounds did each update need, what share of candidates had usable reward variation, and how did the candidate window divide?",
             metrics=(
                 "train/rl/active_sampling_generation_rounds",
                 "train/rl/active_sampling_retained_fraction",
-            ),
-        ),
-        ChartDefinition(
-            key="active_sampling_population",
-            title="Active sampling population",
-            question="How did the bounded candidate window divide into generated, retained, and unused rows?",
-            metrics=(
                 "train/rl/active_sampling_candidate_groups_reserved",
                 "train/rl/active_sampling_candidate_groups_generated",
                 "train/rl/active_sampling_candidate_groups_retained",
@@ -1890,267 +1130,200 @@ CAPO_TELEMETRY = _group_policy_telemetry_variant(
     acronym="CAPO",
 )
 
-SAMPO_TELEMETRY = JobTelemetryDefinition(
-    job_kind="train.sampo",
-    display_name="Step-aware multi-turn policy optimization",
-    summary_fields=(
-        SummaryFieldDefinition(key="reward_mean", label="Mean reward", metric="train/rl/reward_mean", required=True),
-        SummaryFieldDefinition(key="reward_std", label="Reward standard deviation", metric="train/rl/reward_std"),
-        SummaryFieldDefinition(
-            key="episode_advantage",
-            label="Episode advantage",
-            metric="train/rl/episode_advantage_mean",
-            required=True,
-        ),
-        SummaryFieldDefinition(
-            key="turn_advantage",
-            label="Turn advantage",
-            metric="train/rl/turn_advantage_mean",
-            required=True,
-        ),
-        SummaryFieldDefinition(
-            key="anchor_group_size",
-            label="Anchor group size",
-            metric="train/rl/anchor_group_size_mean",
-        ),
-        SummaryFieldDefinition(
-            key="sparse_reward_projection",
-            label="Sparse-reward projection",
-            metric="train/rl/sparse_reward_projection_fraction",
-            unit="ratio",
-        ),
-        SummaryFieldDefinition(key="policy_loss", label="Policy loss", metric="train/rl/policy_loss", required=True),
-        SummaryFieldDefinition(
-            key="failed_rollouts",
-            label="Failed rollouts",
-            metric="train/rl/rollouts_failed",
-            reducer="sum",
-        ),
+# Advantages are centred within their groups, so SAMPO's plain advantage means
+# are zero by construction. The credit tab shows magnitudes and shares instead.
+_SAMPO_CREDIT_CHART = ChartDefinition(
+    key="hierarchical_credit",
+    title="Hierarchical credit",
+    question="How much of each turn's credit is its own, and did turns have a comparable attempt to be judged against?",
+    metrics=(
+        "train/rl/turn_credit_share",
+        "train/rl/turn_advantage_informative_fraction",
+        "train/rl/singleton_anchor_fraction",
+        "train/rl/sparse_reward_projection_fraction",
+        "train/rl/episode_advantage_abs_mean",
+        "train/rl/turn_advantage_abs_mean",
+        "train/rl/anchor_group_size_mean",
     ),
-    charts=(
-        ChartDefinition(
-            key="hierarchical_advantages",
-            title="Hierarchical advantages",
-            question="Do episode and turn credit assignments remain informative across the sampled trajectories?",
-            metrics=(
-                "train/rl/episode_advantage_mean",
-                "train/rl/turn_advantage_mean",
-                "train/rl/anchor_group_size_mean",
-                "train/rl/sparse_reward_projection_fraction",
-            ),
-        ),
-        ChartDefinition(
-            key="learning_signal",
-            title="Learning signal",
-            question="Is verifier reward improving while groups retain enough variation for policy learning?",
-            metrics=("train/rl/reward_mean", "train/rl/reward_std", "train/rl/group_zero_variance_fraction"),
-        ),
-        ChartDefinition(
-            key="optimization",
-            title="Policy optimization",
-            question="Are sequence-clipped updates controlled without collapsing exploration?",
-            metrics=(
-                "train/rl/policy_loss",
-                "train/rl/entropy",
-                "train/rl/kl",
-                "train/rl/clip_fraction",
-                "train/grad_norm",
-                "train/learning_rate",
-            ),
-        ),
-        ChartDefinition(
-            key="rollouts",
-            title="Rollout population",
-            question="How much requested multi-turn evidence completed, failed, truncated, or became unscorable?",
-            metrics=(
-                "train/rl/rollouts_attempted",
-                "train/rl/rollouts_completed",
-                "train/rl/rollouts_failed",
-                "train/rl/rollouts_truncated",
-                "train/rl/rollouts_unscorable",
-            ),
-        ),
-        ChartDefinition(
-            key="runtime",
-            title="Runtime efficiency",
-            question="What end-to-end step cost and effective rollout throughput were observed?",
-            metrics=("train/step_time_seconds", "train/rl/rollout_tokens_per_second"),
-        ),
-        ChartDefinition(
-            key="tool_behavior",
-            title="Tool behavior",
-            question="Are multi-turn trajectories invoking tools successfully?",
-            metrics=("train/rl/tool_call_frequency", "train/rl/tool_failure_frequency"),
-        ),
+)
+
+_SAMPO_CREDIT_SUMMARY = (
+    SummaryFieldDefinition(
+        key="turn_credit_share", label="Turn share of credit", metric="train/rl/turn_credit_share", unit="ratio"
     ),
-    metric_help=(
-        *_help_for(
+    SummaryFieldDefinition(
+        key="turn_credit_coverage",
+        label="Turns with turn credit",
+        metric="train/rl/turn_advantage_informative_fraction",
+        unit="ratio",
+    ),
+    SummaryFieldDefinition(key="episode_credit", label="Episode credit", metric="train/rl/episode_advantage_abs_mean"),
+    SummaryFieldDefinition(key="turn_credit", label="Turn credit", metric="train/rl/turn_advantage_abs_mean"),
+    SummaryFieldDefinition(
+        key="anchor_group_size", label="Anchor group size", metric="train/rl/anchor_group_size_mean"
+    ),
+    SummaryFieldDefinition(
+        key="sparse_reward_projection",
+        label="Sparse-reward projection",
+        metric="train/rl/sparse_reward_projection_fraction",
+        unit="ratio",
+    ),
+)
+
+
+def _sampo_telemetry() -> JobTelemetryDefinition:
+    """SAMPO reads like GRPO, plus the hierarchical credit it adds.
+
+    It shares GRPO's population, stability, runtime, freshness, acceleration and
+    active-sampling evidence (the TRL backend emits the same metrics) and adds
+    one tab for episode- versus turn-level credit. Dynamic sampling is a GRPO
+    algorithm option SAMPO does not have.
+    """
+
+    charts: list[ChartDefinition] = []
+    for chart in GRPO_TELEMETRY.charts:
+        if chart.key == "dynamic_sampling":
+            continue
+        charts.append(chart)
+        if chart.key == "optimization":
+            charts.append(_SAMPO_CREDIT_CHART)
+    summary_fields = (*GRPO_TELEMETRY.summary_fields, *_SAMPO_CREDIT_SUMMARY)
+    fields: dict[str, Any] = {
+        "schema_version": 2,
+        "job_kind": "train.sampo",
+        "display_name": "Step-aware multi-turn policy optimization",
+        "summary_fields": summary_fields,
+        "charts": tuple(charts),
+        "health_rules": SAMPO_HEALTH_RULES,
+        "comparison_keys": ("reward_mean", "turn_credit_share", "policy_loss", "failed_rollouts"),
+        "trace_sections": GRPO_TELEMETRY.trace_sections,
+        "artifact_roles": _training_artifacts(),
+        "delta_tip_metrics": (
             "train/rl/reward_mean",
-            "train/rl/reward_std",
-            "train/rl/group_zero_variance_fraction",
+            "train/rl/turn_credit_share",
+            "train/rl/policy_loss",
+            "train/rl/rollout_tokens_per_second",
+        ),
+        "projection_metrics": GRPO_TELEMETRY.projection_metrics,
+        "evidence_requirements": SAMPO_EVIDENCE_REQUIREMENTS,
+    }
+    names = {
+        *(field.metric for field in summary_fields),
+        *(metric for chart in charts for metric in chart.metrics),
+        *(rule.metric for rule in SAMPO_HEALTH_RULES),
+        *(metric for requirement in SAMPO_EVIDENCE_REQUIREMENTS for metric in requirement.metrics),
+        *GRPO_TELEMETRY.projection_metrics,
+    }
+    return JobTelemetryDefinition(**fields, metric_help=_help_for(*sorted(names)))
+
+
+SAMPO_HEALTH_RULES: tuple[HealthRuleDefinition, ...] = (
+    HealthRuleDefinition(
+        id="sampo-reward-non-finite",
+        kind="non_finite",
+        metric="train/rl/reward_mean",
+        message="SAMPO reward contains a non-finite value.",
+        severity="error",
+    ),
+    HealthRuleDefinition(
+        id="sampo-policy-loss-non-finite",
+        kind="non_finite",
+        metric="train/rl/policy_loss",
+        message="SAMPO policy loss contains a non-finite value.",
+        severity="error",
+    ),
+    HealthRuleDefinition(
+        id="sampo-rollout-failures",
+        kind="threshold",
+        metric="train/rl/rollouts_failed",
+        operator="gt",
+        threshold=0,
+        message="One or more SAMPO rollout attempts failed.",
+        severity="error",
+    ),
+    HealthRuleDefinition(
+        id="sampo-unscorable-rollouts",
+        kind="threshold",
+        metric="train/rl/rollouts_unscorable",
+        operator="gt",
+        threshold=0,
+        message="One or more SAMPO rollouts did not produce a finite reward.",
+        severity="error",
+    ),
+)
+
+SAMPO_EVIDENCE_REQUIREMENTS: tuple[EvidenceRequirementDefinition, ...] = (
+    EvidenceRequirementDefinition(
+        key="hierarchical_credit",
+        label="Hierarchical credit assignment",
+        level="required",
+        metrics=(
+            "train/rl/episode_advantage_mean",
+            "train/rl/turn_advantage_mean",
+            "train/rl/anchor_group_size_mean",
+            "train/rl/sparse_reward_projection_fraction",
+        ),
+        reason="SAMPO needs direct evidence that its episode and turn-level credit assignment executed.",
+    ),
+    EvidenceRequirementDefinition(
+        key="learning_signal",
+        label="Relative learning signal",
+        level="required",
+        metrics=("train/rl/reward_mean", "train/rl/reward_std", "train/rl/group_zero_variance_fraction"),
+        reason="Reward level and within-group variation are both required to interpret policy learning.",
+    ),
+    EvidenceRequirementDefinition(
+        key="controlled_update",
+        label="Controlled policy update",
+        level="required",
+        metrics=(
             "train/rl/policy_loss",
             "train/rl/entropy",
-            "train/rl/kl",
             "train/rl/clip_fraction",
             "train/grad_norm",
             "train/learning_rate",
+        ),
+        reason="The sequence-clipped objective must be paired with exploration and gradient-scale evidence.",
+    ),
+    EvidenceRequirementDefinition(
+        key="rollout_population",
+        label="Rollout population",
+        level="required",
+        metrics=(
             "train/rl/rollouts_attempted",
             "train/rl/rollouts_completed",
             "train/rl/rollouts_failed",
             "train/rl/rollouts_truncated",
             "train/rl/rollouts_unscorable",
-            "train/step_time_seconds",
-            "train/rl/rollout_tokens_per_second",
-            "train/rl/tool_call_frequency",
-            "train/rl/tool_failure_frequency",
         ),
-        _metric(
-            "train/rl/episode_advantage_mean",
-            "Episode advantage",
-            "Mean trajectory-level advantage assigned from the complete episode return.",
-            "Read it with turn advantage to distinguish whole-trajectory credit from local step credit.",
-        ),
-        _metric(
-            "train/rl/turn_advantage_mean",
-            "Turn advantage",
-            "Mean step-aware advantage assigned to sampled assistant turns.",
-            "A useful turn-level signal should vary with consequential intermediate actions rather than only the terminal outcome.",
-        ),
-        _metric(
-            "train/rl/anchor_group_size_mean",
-            "Anchor group size",
-            "Mean number of comparable turns contributing to each step-aware advantage anchor.",
-            "Small groups provide weak relative evidence; compare this value across runs using the same sampling policy.",
-        ),
-        _metric(
-            "train/rl/sparse_reward_projection_fraction",
-            "Sparse-reward projection",
-            "Fraction of sampled trajectories whose terminal reward was projected back across intermediate turns.",
-            "A high value means SAMPO is relying heavily on its sparse-reward credit-assignment path.",
-            unit="ratio",
-        ),
+        reason="Every update needs an auditable population denominator and terminal outcomes.",
     ),
-    health_rules=(
-        HealthRuleDefinition(
-            id="sampo-reward-non-finite",
-            kind="non_finite",
-            metric="train/rl/reward_mean",
-            message="SAMPO reward contains a non-finite value.",
-            severity="error",
-        ),
-        HealthRuleDefinition(
-            id="sampo-policy-loss-non-finite",
-            kind="non_finite",
-            metric="train/rl/policy_loss",
-            message="SAMPO policy loss contains a non-finite value.",
-            severity="error",
-        ),
-        HealthRuleDefinition(
-            id="sampo-rollout-failures",
-            kind="threshold",
-            metric="train/rl/rollouts_failed",
-            operator="gt",
-            threshold=0,
-            message="One or more SAMPO rollout attempts failed.",
-            severity="error",
-        ),
-        HealthRuleDefinition(
-            id="sampo-unscorable-rollouts",
-            kind="threshold",
-            metric="train/rl/rollouts_unscorable",
-            operator="gt",
-            threshold=0,
-            message="One or more SAMPO rollouts did not produce a finite reward.",
-            severity="error",
-        ),
+    EvidenceRequirementDefinition(
+        key="runtime_efficiency",
+        label="Runtime efficiency",
+        level="required",
+        metrics=("train/step_time_seconds", "train/rl/rollout_tokens_per_second"),
+        reason="End-to-end step cost and rollout throughput are required for runtime comparison.",
     ),
-    comparison_keys=(
-        "reward_mean",
-        "episode_advantage",
-        "turn_advantage",
-        "policy_loss",
-        "failed_rollouts",
+    EvidenceRequirementDefinition(
+        key="reference_policy",
+        label="Reference-policy drift",
+        level="conditional",
+        condition="reference_kl_enabled",
+        metrics=("train/rl/kl",),
+        reason="KL evidence is owed whenever a non-zero reference penalty is selected.",
     ),
-    trace_sections=(TraceSectionDefinition(trace_type="verifiers", label="Multi-turn rollouts"),),
-    artifact_roles=_training_artifacts(),
-    delta_tip_metrics=(
-        "train/rl/reward_mean",
-        "train/rl/episode_advantage_mean",
-        "train/rl/turn_advantage_mean",
-        "train/rl/policy_loss",
-        "train/rl/rollout_tokens_per_second",
-    ),
-    evidence_requirements=(
-        EvidenceRequirementDefinition(
-            key="hierarchical_credit",
-            label="Hierarchical credit assignment",
-            level="required",
-            metrics=(
-                "train/rl/episode_advantage_mean",
-                "train/rl/turn_advantage_mean",
-                "train/rl/anchor_group_size_mean",
-                "train/rl/sparse_reward_projection_fraction",
-            ),
-            reason="SAMPO needs direct evidence that its episode and turn-level credit assignment executed.",
-        ),
-        EvidenceRequirementDefinition(
-            key="learning_signal",
-            label="Relative learning signal",
-            level="required",
-            metrics=("train/rl/reward_mean", "train/rl/reward_std", "train/rl/group_zero_variance_fraction"),
-            reason="Reward level and within-group variation are both required to interpret policy learning.",
-        ),
-        EvidenceRequirementDefinition(
-            key="controlled_update",
-            label="Controlled policy update",
-            level="required",
-            metrics=(
-                "train/rl/policy_loss",
-                "train/rl/entropy",
-                "train/rl/clip_fraction",
-                "train/grad_norm",
-                "train/learning_rate",
-            ),
-            reason="The sequence-clipped objective must be paired with exploration and gradient-scale evidence.",
-        ),
-        EvidenceRequirementDefinition(
-            key="rollout_population",
-            label="Rollout population",
-            level="required",
-            metrics=(
-                "train/rl/rollouts_attempted",
-                "train/rl/rollouts_completed",
-                "train/rl/rollouts_failed",
-                "train/rl/rollouts_truncated",
-                "train/rl/rollouts_unscorable",
-            ),
-            reason="Every update needs an auditable population denominator and terminal outcomes.",
-        ),
-        EvidenceRequirementDefinition(
-            key="runtime_efficiency",
-            label="Runtime efficiency",
-            level="required",
-            metrics=("train/step_time_seconds", "train/rl/rollout_tokens_per_second"),
-            reason="End-to-end step cost and rollout throughput are required for runtime comparison.",
-        ),
-        EvidenceRequirementDefinition(
-            key="reference_policy",
-            label="Reference-policy drift",
-            level="conditional",
-            condition="reference_kl_enabled",
-            metrics=("train/rl/kl",),
-            reason="KL evidence is owed whenever a non-zero reference penalty is selected.",
-        ),
-        EvidenceRequirementDefinition(
-            key="tool_behavior",
-            label="Tool-use behavior",
-            level="conditional",
-            condition="tool_environment",
-            metrics=("train/rl/tool_call_frequency", "train/rl/tool_failure_frequency"),
-            reason="Tool environments owe invocation and failure coverage in addition to reward.",
-        ),
+    EvidenceRequirementDefinition(
+        key="tool_behavior",
+        label="Tool-use behavior",
+        level="conditional",
+        condition="tool_environment",
+        metrics=("train/rl/tool_call_frequency", "train/rl/tool_failure_frequency"),
+        reason="Tool environments owe invocation and failure coverage in addition to reward.",
     ),
 )
+
+SAMPO_TELEMETRY = _sampo_telemetry()
 
 DISTILL_TELEMETRY = JobTelemetryDefinition(
     job_kind="train.distill",
@@ -2375,27 +1548,9 @@ SERVE_SMOKE_TELEMETRY = JobTelemetryDefinition(
         ),
     ),
     metric_help=(
-        _metric(
-            "serve/probe_healthy",
-            "Endpoint healthy",
-            "Whether the managed endpoint returned a successful health response.",
-            "A value of 100% confirms the endpoint process answered its health check.",
-            unit="ratio",
-        ),
-        _metric(
-            "serve/probe_model_available",
-            "Model available",
-            "Whether model discovery exposed the exact model selected by the inference binding.",
-            "A healthy server is not usable for this job unless the selected model is also available.",
-            unit="ratio",
-        ),
-        _metric(
-            "serve/probe_latency_seconds",
-            "Probe latency",
-            "Wall-clock time for the combined health and model-discovery probe.",
-            "Use this as startup qualification evidence, not as inference latency.",
-            unit="s",
-        ),
+        *_help_for("serve/probe_healthy"),
+        *_help_for("serve/probe_model_available"),
+        *_help_for("serve/probe_latency_seconds"),
     ),
     health_rules=(
         HealthRuleDefinition(
@@ -2451,19 +1606,8 @@ DATA_PREPARE_TELEMETRY = JobTelemetryDefinition(
         ),
     ),
     metric_help=(
-        _metric(
-            "data/examples",
-            "Prepared examples",
-            "Number of examples materialized into the immutable prepared dataset.",
-            "Use this count to verify that the packaged dataset population matches the selected source.",
-        ),
-        _metric(
-            "data/bytes",
-            "Prepared bytes",
-            "Byte size of the immutable prepared dataset content.",
-            "Use it with example count and the retained dataset artifact to detect unexpected packaging changes.",
-            unit="bytes",
-        ),
+        *_help_for("data/examples"),
+        *_help_for("data/bytes"),
     ),
     comparison_keys=("examples", "bytes"),
     artifact_roles=(ArtifactRoleDefinition(kind="dataset", label="Prepared dataset", direction="output"),),
@@ -2529,46 +1673,12 @@ SERVE_BENCHMARK_TELEMETRY = JobTelemetryDefinition(
         ),
     ),
     metric_help=(
-        _metric(
-            "serve/run/output_tokens_measured",
-            "Measured output tokens",
-            "Successfully generated output tokens in the finalized benchmark point.",
-            "Observatory divides this counter by the matching measurement duration to calculate aggregate throughput.",
-            unit="tokens",
-        ),
-        _metric(
-            "serve/run/measurement_duration_s",
-            "Measurement duration",
-            "Wall-clock duration of the finalized measured inference window.",
-            "This is the denominator for aggregate output-token throughput.",
-            unit="s",
-        ),
-        _metric(
-            "serve/run/requests_measured",
-            "Measured requests",
-            "Number of non-warmup requests successfully retained for the point.",
-            "Decision-grade latency requires the same complete request population in inference traces.",
-        ),
-        _metric(
-            "serve/run/concurrency",
-            "Concurrency",
-            "Number of requests allowed to execute concurrently at this measured operating point.",
-            "Concurrency is a search variable used to characterize the fixed hardware target, not a product constraint.",
-        ),
-        _metric(
-            "serve/run/context_tokens",
-            "Context allocation",
-            "Maximum context allocation configured for the serving runtime.",
-            "It must be at least the context window required by the product.",
-            unit="tokens",
-        ),
-        _metric(
-            "serve/backend/peak_vram_bytes",
-            "Peak GPU memory",
-            "Highest observed GPU memory allocation during the benchmark.",
-            "Use it to understand target headroom; it is not a substitute for KV-cache capacity evidence.",
-            unit="bytes",
-        ),
+        *_help_for("serve/run/output_tokens_measured"),
+        *_help_for("serve/run/measurement_duration_s"),
+        *_help_for("serve/run/requests_measured"),
+        *_help_for("serve/run/concurrency"),
+        *_help_for("serve/run/context_tokens"),
+        *_help_for("serve/backend/peak_vram_bytes"),
     ),
     comparison_keys=(
         "output_tokens_measured",

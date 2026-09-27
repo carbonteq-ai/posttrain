@@ -51,6 +51,7 @@ from posttrain.tracking import (
     TraceRecord,
     TrackingCapabilities,
 )
+from posttrain.tracking.logical import logical_series
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 _WANDB_SYSTEM_METRICS = {
@@ -404,7 +405,7 @@ class WandbBackend:
             entity=self.settings.entity,
             project=self.settings.project,
             id=spec.run_id,
-            name=f"{spec.job_kind}-{spec.run_id[:8]}",
+            name=f"{spec.job_kind}-{spec.run_id}",
             group=spec.work_package_id,
             job_type=spec.job_kind,
             config=_run_config(spec, started_at),
@@ -633,7 +634,7 @@ class WandbDataSource:
                             attributes={"provider_metrics": list(native_names)},
                         )
                     )
-        return tuple(MetricSeries(name=name, points=tuple(points[name])) for name in names)
+        return tuple(logical_series(MetricSeries(name=name, points=tuple(points[name]))) for name in names)
 
     def _artifacts(self, run: Any, method: str) -> Iterable[Any]:
         value = getattr(run, method)

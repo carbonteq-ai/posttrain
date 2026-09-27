@@ -80,7 +80,8 @@ Jobs return evidence. They do **not** accept / revise / reject descendants.
 - every run stores the **resolved** selections (`source_layer` included)
 - backends stay behind capability packages
 - `train` / `eval` / `serve` do not import each other
-- tracking readers and Observatory are read-only
+- tracking readers and Observatory are read-only, except that run notes can be
+  added, revised and deleted (a separate note store, never run evidence)
 
 ### Internal framework
 
@@ -152,6 +153,14 @@ posttrain run reconcile RUN_ID
 posttrain run cleanup RUN_ID
 posttrain run purge RUN_ID --reason REASON [--note SAFE_NOTE] [--cascade | --orphan [--stale-after-hours H]]
 posttrain run show RUN_ID
+posttrain run card RUN_ID
+posttrain run note add RUN_ID --kind KIND (--body TEXT | --file PATH) [--title TITLE]
+posttrain run note edit RUN_ID NOTE_ID --expected-revision N (--body TEXT | --file PATH) [--kind KIND] [--title TITLE]
+posttrain run note delete RUN_ID NOTE_ID --expected-revision N
+posttrain run note show RUN_ID [--raw]
+posttrain run note history RUN_ID NOTE_ID
+posttrain query [--measures M[:AGG] ...] [--by DIM ...] [--where DIM=VALUE ...] [--runs RUN_ID ...] [--sql SQL] [--file QUERY] [--format table|csv|json]
+posttrain query describe [--runs RUN_ID ...] [--job-kind KIND ...]
 posttrain project purge --reason REASON [--note SAFE_NOTE]
 posttrain purge show PURGE_ID
 posttrain purge apply PURGE_ID --expect-digest SHA256 --yes
@@ -1083,6 +1092,13 @@ posttrain.tracking  # provider-neutral lifecycle and raw evidence reads
   traces(run_id, query) -> TracePage
   artifacts(run_id) -> ArtifactSet
 
+posttrain.tracking.RunNoteStore  # separate from readers; optional per backend
+  list_notes(run_id, kind?) -> [RunNote]
+  note_history(note_id) -> [RunNote]
+  add_note(run_id, kind, body_md, source, title?, note_id?) -> RunNote
+  revise_note(note_id, expected_revision, body_md, source, kind?, title?) -> RunNote
+  delete_note(note_id, expected_revision, source) -> RunNote
+
 posttrain_observatory  # dedicated read product and query/intelligence service
   get_job_telemetry_schema(job_kind) -> JobTelemetryDefinition
   get_run_view(run_id) -> RunView
@@ -1095,7 +1111,40 @@ posttrain_observatory  # dedicated read product and query/intelligence service
   serving_capacity_run_view(run_id) -> ServingCapacityRunView
   serving_pareto_view(project_id, screen_work_package_id) -> ParetoView
   export_report(view, format) -> MaterializedReport
+  describe_semantics(runs | job_kinds) -> SemanticDescription
+  query_semantics(SemanticQuery | SqlQuery) -> SemanticResult
+  run_notes(run_id) -> [RenderedRunNote]
+  run_note_history(run_id, note_id) -> [RunNote]
+  add_run_note / revise_run_note / delete_run_note -> RunNote
+  render_note(run_id, body_md) -> RenderedNote
+  run_card(run_id) -> RenderedNote
 ```
+
+The semantic layer is the Observatory's vocabulary for computed views. It
+declares, once per job kind, entities (run, update, rollout, evaluation task,
+serving load level), dimensions, measures and metrics, each measure with its
+single source (a run field, a recorded setting, a metric series, a trace fact
+or an evaluation or serving view field); measures come from one metric catalog
+that job views share. The query language is read-only SQL (one `SELECT`) over
+the semantic tables of the runs in scope. `query_semantics` also accepts a
+short form (measures, `by` dimensions, `where` filters, a run scope), which
+compiles to SQL; every result carries the SQL that produced it. Queries execute
+over a per-query in-memory copy of only the columns and runs they read and
+never write. `describe_semantics` returns what the selected runs provide. HTTP
+(`/api/v1/semantic/*`), MCP (`describe_semantics`, `query_semantics`) and
+`posttrain query` expose the same two calls.
+
+Run notes are the Observatory's one write. A note is Markdown attached to a run
+and stored by the tracking backend's `RunNoteStore` (not in run evidence); every
+edit is a new revision guarded by `expected_revision`, and a delete is a
+tombstone revision. Notes may contain data blocks (named SQL),
+views of them (`chart`, `value`, `table`), inline references and run links; the
+Observatory renders them. A run card is the job kind's versioned note template
+rendered for one run. HTTP (`/api/v1/runs/{run}/notes`, `/card`,
+`/api/v1/notes/preview`), MCP (`list_run_notes`, `get_run_note_history`,
+`get_run_card`, `render_note_preview`, and, when writing is enabled,
+`add_run_note`, `revise_run_note`, `delete_run_note`) and `posttrain run note` /
+`posttrain run card` expose them.
 
 Views must expose `missing` | `failed` | `unsupported` | `not_run` |
 `reused_from_framework` | `incomparable`. No report API picks a production winner.

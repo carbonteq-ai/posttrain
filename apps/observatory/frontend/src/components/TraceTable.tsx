@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import {
   createColumnHelper,
   flexRender,
@@ -7,7 +7,6 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ArrowRight,
   CaretDown,
@@ -20,6 +19,9 @@ import {
 
 import type { DistillationPairing, TraceSummary } from '../lib/api';
 import type { TracePresentation } from '../lib/trace-presentation';
+import { Pager, usePaging } from './TableControls';
+
+const TRACES_PER_PAGE = 25;
 
 const column = createColumnHelper<TraceSummary>();
 
@@ -143,13 +145,16 @@ export function TraceTable({
   const metricHeaders = leafHeaders.filter((header) => header.id.startsWith('signal:'));
   const hasGroupedHeaders = metricHeaders.length > 0;
   const firstMetricColumn = leafHeaders.findIndex((header) => header.id.startsWith('signal:')) + 1;
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 46,
-    overscan: 8,
-  });
+  // Sorting and filtering start over at the first page; loading more only appends.
+  const paging = usePaging(rows, TRACES_PER_PAGE, `${JSON.stringify(sorting)}:${traces[0]?.external_id ?? ''}`, loadingMore);
+  const renderSort = (header: (typeof leafHeaders)[number]) => header.column.getCanSort() ? <button
+    className="flex w-full min-w-0 items-center gap-1 overflow-hidden hover:text-ink"
+    onClick={header.column.getToggleSortingHandler()}
+  >
+    {flexRender(header.column.columnDef.header, header.getContext())}
+    {header.column.getIsSorted() === 'asc' && <CaretUp size={10} />}
+    {header.column.getIsSorted() === 'desc' && <CaretDown size={10} />}
+  </button> : flexRender(header.column.columnDef.header, header.getContext());
 
   return (
     <div className="obs-card overflow-hidden bg-white">
@@ -179,107 +184,44 @@ export function TraceTable({
           <span className="truncate text-[9px] text-muted">Prompt and task lead; trace ID stays secondary.</span>
         </div>
       </div>
-      <div ref={scrollRef} className="max-h-[430px] overflow-auto bg-white">
-        <table
-          className="grid bg-white text-left text-[11px]"
-          style={{ minWidth: Math.max(720, table.getTotalSize()) }}
-          aria-label="Trace population"
-        >
-          <thead
-            className="sticky top-0 z-10 grid border-b border-divider bg-white/95 text-[9px] font-medium text-muted backdrop-blur-sm"
-            style={{
-              gridTemplateColumns: leafHeaders.map((header) => `${header.getSize()}px`).join(' '),
-              gridTemplateRows: hasGroupedHeaders ? '26px 26px' : '38px',
-            }}
-          >
-            <tr className="contents">
+      <div className="overflow-x-auto bg-white">
+        {/* The prompt column has no width of its own, so it takes the room the fixed columns leave. */}
+        <table className="w-full table-fixed bg-white text-left text-[11px]" style={{ minWidth: Math.max(720, table.getTotalSize()) }} aria-label="Trace population">
+          <colgroup>{leafHeaders.map((header) => <col key={header.id} style={header.id === 'prompt_preview' ? undefined : { width: header.getSize() }} />)}</colgroup>
+          <thead className="border-b border-divider bg-white text-[9px] font-medium text-muted">
+            <tr>
               {leafHeaders.map((header, index) => {
                 if (header.id.startsWith('signal:')) {
                   if (index + 1 !== firstMetricColumn) return null;
-                  return <th
-                    key="reward-components"
-                    colSpan={metricHeaders.length}
-                    style={{ gridColumn: `${firstMetricColumn} / span ${metricHeaders.length}`, gridRow: '1' }}
-                    className="flex min-w-0 items-center justify-center overflow-hidden px-2 font-medium"
-                  >
-                    Reward components
-                  </th>;
+                  return <th key="reward-components" scope="colgroup" colSpan={metricHeaders.length} className="h-[26px] overflow-hidden px-2 text-center font-medium">Reward components</th>;
                 }
-                return <th
-                  key={header.id}
-                  rowSpan={hasGroupedHeaders ? 2 : 1}
-                  style={{ gridColumn: `${index + 1}`, gridRow: `1 / span ${hasGroupedHeaders ? 2 : 1}` }}
-                  className="flex min-w-0 items-center overflow-hidden px-2 font-medium"
-                >
-                  {header.column.getCanSort() ? <button
-                    className="flex w-full min-w-0 items-center gap-1 overflow-hidden hover:text-ink"
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                    {header.column.getIsSorted() === 'asc' && <CaretUp size={10} />}
-                    {header.column.getIsSorted() === 'desc' && <CaretDown size={10} />}
-                  </button> : flexRender(header.column.columnDef.header, header.getContext())}
-                </th>;
+                return <th key={header.id} scope="col" rowSpan={hasGroupedHeaders ? 2 : 1} className={`${hasGroupedHeaders ? 'h-[52px]' : 'h-[38px]'} overflow-hidden px-2.5 font-medium`}>{renderSort(header)}</th>;
               })}
             </tr>
-            {hasGroupedHeaders && <tr className="contents">
-              {metricHeaders.map((header) => {
-                const columnStart = leafHeaders.findIndex((leaf) => leaf.id === header.id) + 1;
-                return <th
-                  key={header.id}
-                  style={{ gridColumn: `${columnStart}`, gridRow: '2' }}
-                  className="flex min-w-0 items-center overflow-hidden border-t border-divider/70 px-2 font-medium"
-                >
-                  {header.column.getCanSort() ? <button
-                    className="flex w-full min-w-0 items-center gap-1 overflow-hidden hover:text-ink"
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                    {header.column.getIsSorted() === 'asc' && <CaretUp size={10} />}
-                    {header.column.getIsSorted() === 'desc' && <CaretDown size={10} />}
-                  </button> : flexRender(header.column.columnDef.header, header.getContext())}
-                </th>;
-              })}
+            {hasGroupedHeaders && <tr>
+              {metricHeaders.map((header) => <th key={header.id} scope="col" className="h-[26px] overflow-hidden border-t border-divider/70 px-2 font-medium">{renderSort(header)}</th>)}
             </tr>}
           </thead>
-          <tbody
-            className="relative grid bg-white"
-            style={{ height: `${virtualizer.getTotalSize()}px` }}
-          >
-            {virtualizer.getVirtualItems().map((virtualRow) => {
-              const row = rows[virtualRow.index];
-              return (
-                <tr
-                  key={row.id}
-                  ref={virtualizer.measureElement}
-                  data-index={virtualRow.index}
-                  className={`absolute flex w-full border-b border-divider text-secondary transition-colors hover:bg-subtle/70 ${
-                    selectedId === row.original.external_id ? 'bg-violet-50/80 ring-1 ring-inset ring-violet-300' : 'bg-white'
-                  }`}
-                  style={{ transform: `translateY(${virtualRow.start}px)` }}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} style={{ width: cell.column.getSize() }} className="shrink-0 truncate px-2.5 py-2.5">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
+          <tbody className="bg-white">
+            {paging.items.map((row) => (
+              <tr
+                key={row.id}
+                className={`border-b border-divider text-secondary transition-colors hover:bg-subtle/70 ${
+                  selectedId === row.original.external_id ? 'bg-violet-50/80 ring-1 ring-inset ring-violet-300' : 'bg-white'
+                }`}
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <td key={cell.id} className="truncate px-2.5 py-2.5">
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+            {!paging.items.length && <tr><td colSpan={leafHeaders.length} className="px-3 py-8 text-center text-muted">{loadingMore ? 'Loading more traces…' : 'No loaded traces.'}</td></tr>}
           </tbody>
         </table>
       </div>
-      <div className="border-t border-divider bg-subtle/35 px-3 py-2 text-[10px] text-muted">
-        <div className="flex items-center justify-between gap-3">
-          <span>{traces.length.toLocaleString()} of {total.toLocaleString()} loaded</span>
-          {hasMore && <button
-            type="button"
-            disabled={loadingMore}
-            onClick={onLoadMore}
-            className="rounded border border-divider bg-white px-2.5 py-1 text-[10px] font-medium text-violet-700 hover:border-violet-300 disabled:cursor-wait disabled:text-muted"
-          >{loadingMore ? 'Loading…' : 'Load 100 more'}</button>}
-        </div>
-      </div>
+      <Pager paging={paging} count={rows.length} total={total} noun="traces" hasMore={hasMore} loading={loadingMore} onLoadMore={onLoadMore} />
     </div>
   );
 }

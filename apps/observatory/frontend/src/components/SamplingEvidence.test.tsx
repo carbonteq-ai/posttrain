@@ -49,7 +49,7 @@ describe('SamplingEvidence', () => {
   it('distinguishes OLMo candidate filtering from the optimizer population', () => {
     render(<SamplingSummary sampling={sampling} />);
 
-    expect(screen.getByRole('region', { name: 'OLMo active sampling evidence' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Active sampling evidence' })).toBeInTheDocument();
     expect(screen.getByText('Useful groups')).toBeInTheDocument();
     expect(screen.getByText('Tied groups')).toBeInTheDocument();
     expect(screen.getByText('whole run · all rollouts scored the same, discarded')).toBeInTheDocument();

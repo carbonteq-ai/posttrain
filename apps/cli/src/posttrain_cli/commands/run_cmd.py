@@ -41,6 +41,7 @@ from ..output import emit, json_value
 from ..purge_surface import render_plan, save_run_preview
 from ..run_resolve import project_admission_entries, purged_run_ids, purged_run_tombstones, resolve_run_id
 from ..tracking_config import project_observatory_settings
+from . import note_cmd
 
 RUN_MODE_CHOICE = click.Choice(RUN_MODE_CHOICES)
 
@@ -84,6 +85,7 @@ def register(app: typer.Typer) -> None:
         help="inspect and control submitted runs",
     )
     app.add_typer(run_app, name="run")
+    note_cmd.register(run_app)
     checkpoint_app = typer.Typer(
         rich_markup_mode=None,
         no_args_is_help=True,

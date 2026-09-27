@@ -604,6 +604,29 @@ def test_trackio_backend_resumes_without_replacing_config_or_starting_monitors(
     assert captured["auto_log_cpu"] is False
 
 
+def test_recoverable_job_runs_start_system_monitors(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Training jobs open their run with resume="allow" so an interrupted job can
+    # continue it. That process is the job, so it must record GPU and CPU use;
+    # only reopening a finished run for bookkeeping (resume_run) must not.
+    captured: dict[str, object] = {}
+
+    class StubRun:
+        id = "provider-run"
+
+    def fake_init(**kwargs: object) -> Any:
+        captured.update(kwargs)
+        return StubRun()
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.init", fake_init)
+    backend = TrackioBackend(TrackioSettings(project="monitoring", auto_log_gpu=True, auto_log_cpu=True))
+
+    backend.start_or_resume_run(_spec("00000000-0000-4000-8000-000000000099"), started_at=STARTED)
+
+    assert captured["resume"] == "allow"
+    assert captured["auto_log_gpu"] is True
+    assert captured["auto_log_cpu"] is True
+
+
 def test_trackio_backend_create_or_resume_uses_full_canonical_run_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -627,6 +650,67 @@ def test_trackio_backend_create_or_resume_uses_full_canonical_run_name(
     assert captured["resume"] == "allow"
     assert captured["name"] == f"train.sft-{run_id}"
     assert cast(dict[str, object], captured["config"])["started_at"] == STARTED.isoformat()
+
+
+def test_new_runs_record_the_full_run_id_as_their_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    class StubRun:
+        id = "provider-run"
+
+    def fake_init(**kwargs: object) -> Any:
+        captured.update(kwargs)
+        return StubRun()
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.init", fake_init)
+    run_id = "eval-lfm26-heldout-64k-base-20260927-r2"
+
+    TrackioBackend(TrackioSettings(project="monitoring")).start_run(_spec(run_id))
+
+    assert captured["name"] == f"train.sft-{run_id}"
+
+
+def test_resume_finds_runs_started_under_the_old_truncated_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    names: list[object] = []
+
+    class StubRun:
+        id = "provider-run"
+
+    def fake_init(**kwargs: object) -> Any:
+        names.append(kwargs["name"])
+        if kwargs["name"] != "train.sft-00000000":
+            raise ValueError(f"Run '{kwargs['name']}' does not exist in project 'monitoring'")
+        return StubRun()
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.init", fake_init)
+    run_id = "00000000-0000-4000-8000-000000000099"
+
+    tracked = TrackioBackend(TrackioSettings(project="monitoring")).resume_run(_spec(run_id), started_at=STARTED)
+
+    assert tracked.provider_run_id == "provider-run"
+    assert names == [f"train.sft-{run_id}", "train.sft-00000000"]
+
+
+def test_runs_named_before_full_names_show_their_whole_id() -> None:
+    run_id = "00000000-0000-4000-8000-000000000099"
+    config = {
+        "schema_version": 4,
+        "provider": "trackio",
+        "project_id": "conformance",
+        "work_package_id": "train/qwen",
+        "stage": "train",
+        "run_id": run_id,
+        "job_kind": "train.sft",
+        "job_definition_version": "train/sft@1",
+        "started_at": STARTED.isoformat(),
+    }
+    source = TrackioDataSource.__new__(TrackioDataSource)
+
+    legacy = source._compose_summary(run_id="p", display_name="train.sft-00000000", config=config, lifecycle={})
+    chosen = source._compose_summary(run_id="p", display_name="my label", config=config, lifecycle={})
+
+    assert legacy.display_name == f"train.sft-{run_id}"
+    assert chosen.display_name == "my label"
 
 
 def test_exact_cancelled_recovery_rechecks_identity_and_provider_id(
@@ -1267,7 +1351,8 @@ async def test_trackio_metric_series_pages_projected_windows_and_recovers_replay
         page_size=1,
     )
 
-    assert [(point.step, point.value) for point in series.points] == [(0, 0.2), (56, 0.7)]
+    # Readers return logical steps: the replayed value replaces the live one for update 0.
+    assert [(point.step, point.value) for point in series.points] == [(0, 0.7)]
     assert all(call["limit"] == 1 for call in calls)
     assert calls[0]["start_step"] == 0
     assert calls[0]["end_step"] == 0

@@ -33,7 +33,7 @@ provider-neutral run lifecycle, raw evidence readers, and normalized evidence
 models. `apps/lab` (or another host) selects a Trackio or W&B adapter; Trackio
 is the default local backend. Observatory owns job telemetry definitions,
 computed views, Python analysis, report exports, HTTP, MCP, and the custom
-frontend as one read-only product.
+frontend as one read-only product; its one write is run notes (below).
 
 ## Observable hierarchy
 
@@ -113,6 +113,14 @@ Every metric point carries at least:
 | `tags` | Optional indexed dims (phase=warmup\|measured, slice=, device=) |
 
 High-cardinality text does **not** belong in metrics — use traces.
+
+A training metric has **one value per update**, written at that update's step.
+Detail finer than an update (for example each rollout batch of an
+active-sampling update) uses its own names, never the per-update name. Metrics
+recomputed from preserved traces when a run finishes carry the update they
+describe (`source_step`); tracking readers return every point at this logical
+step, and such replayed points replace live points of the same name for that
+update.
 
 ### Namespaces
 
@@ -210,7 +218,12 @@ Throughput and latency percentiles are **computed** from measured traces +
 | `eval/run/rollouts_truncated` | |
 | `eval/run/coverage_missing` | Tasks/slices with no evidence |
 
-Mean reward, success rate, truncation rate by slice are **computed views**.
+Mean reward, success rate, truncation rate by slice are **computed views**. Their
+vocabulary is the Observatory's semantic layer: entities, dimensions, measures
+and metrics declared once in one metric catalog, each measure naming its single
+source. The layer is a set of named tables (runs, updates, rollouts, evaluation
+tasks, serving load levels) queried with read-only SQL; a short
+measures-by-dimensions form compiles to that SQL (`05-apis.md`).
 Every evaluation run declares success, but only traces containing a valid
 configured signal enter the pass-rate denominator. Errors, truncations, and
 missing signals retain their execution/evidence state instead of becoming
@@ -576,6 +589,29 @@ checkpoint, config, artifact metadata, prompt, diagnostic, signed URL, token,
 or credential. Read products render this state as intentional `purged` history,
 not as a failed, missing, or zero-valued observation.
 
+### Run notes
+
+A run note is Markdown written about a run after (or while) it runs: why it
+was launched, what went wrong, what it showed. Notes are not evidence. They are
+stored by the tracking backend next to the run in a separate note store, never
+change the run's configuration, metrics, events, traces, artifacts or status,
+and follow the run through rename, move, delete and purge.
+
+Each note has a stable id, a kind (for example `summary`, `finding`,
+`correction`) and revisions. Editing adds a revision guarded by the revision
+the editor last saw, so two editors never overwrite each other silently;
+deleting adds a tombstone revision that hides the note and keeps its history.
+Each revision records its source (`cli`, `mcp` or `observatory`); the platform
+has no user identity, so notes record no author.
+
+A note may cite recorded data instead of copying numbers: named data blocks are
+read-only SQL over the semantic tables (`05-apis.md`), views (`chart`, `value`,
+`table`) and inline references display their results, and `[[run:ID]]` links
+another run.
+Rendering never executes note text as code, drops raw HTML, and shows an
+unresolved reference as a visible marker rather than a blank. Every job kind
+has a versioned note template; rendered for one run it is that run's card.
+
 ## Security and redaction
 
 - Never store secrets, tokens, or signed URLs in resolved snapshots or metrics.
@@ -645,7 +681,7 @@ flowchart TB
 | `train` distillation adapter | Divergence/teacher metrics; fresh Verifiers traces; consumed student/teacher/env edges; materialize → model artifact |
 | `data` adapter | Dataset artifact + provenance edges |
 | `tracking` data source | No writes while reading; normalized raw evidence |
-| Observatory | Job-aware views and read-only Python/report/HTTP/frontend/MCP surfaces |
+| Observatory | Job-aware views and read-only Python/report/HTTP/frontend/MCP surfaces; run notes |
 
 ### Work package as observability group
 

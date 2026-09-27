@@ -47,6 +47,14 @@ from .models import (
     TraceRecord,
     TrackingCapabilities,
 )
+from .notes import (
+    InMemoryRunNoteStore,
+    NoteConflict,
+    NoteSource,
+    NotesUnavailable,
+    RunNote,
+    RunNoteStore,
+)
 from .phases import (
     RuntimePhaseInterval,
     RuntimePhaseIntervalSet,
@@ -54,8 +62,19 @@ from .phases import (
     phase_at,
     runtime_phase_intervals,
 )
+from .sql import ProjectSql, ProjectSqlError, ProjectSqlResult, ProjectSqlUnavailable
 
 __all__ = [
+    "ProjectSqlUnavailable",
+    "ProjectSqlResult",
+    "ProjectSqlError",
+    "ProjectSql",
+    "RunNoteStore",
+    "RunNote",
+    "NotesUnavailable",
+    "NoteSource",
+    "NoteConflict",
+    "InMemoryRunNoteStore",
     "ArtifactInput",
     "ArtifactIntegrityResult",
     "ArtifactIntegrityState",

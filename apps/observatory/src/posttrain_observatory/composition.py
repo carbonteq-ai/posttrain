@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from posttrain.advisor import HubModelReader
+from posttrain.tracking import RunDataSource, RunNoteStore
 from posttrain_tracking_trackio import TrackioDataSource, TrackioProjectCatalog
 from posttrain_tracking_wandb import WandbDataSource, WandbSettings
 
 from .discovery import TrackioSourceDiscovery
 from .fixtures import FixtureRunDataSource
+from .run_cards import TemplateSet
 from .semantic import FixtureSemanticSummaryProvider, OpenAICompatibleSemanticSummaryProvider
 from .service import ObservatoryService
 from .settings import (
@@ -17,6 +21,13 @@ from .settings import (
     WandbSourceSettings,
 )
 from .sources import RunSourceRegistry
+
+
+def _note_stores(write_token: str | None) -> Callable[[str, RunDataSource], RunNoteStore | None]:
+    def store(source_id: str, source: RunDataSource) -> RunNoteStore | None:
+        return source.note_store(write_token=write_token) if isinstance(source, TrackioDataSource) else None
+
+    return store
 
 
 def create_service(settings: ObservatorySettings | None = None) -> ObservatoryService:
@@ -70,6 +81,9 @@ def create_service(settings: ObservatorySettings | None = None) -> ObservatorySe
         semantic_provider=semantic,
         source_discovery=discovery,
         architecture_loader=HubModelReader() if settings.model_config_source == "hub" else None,
+        note_store_factory=_note_stores(settings.trackio_write_token),
+        note_templates=TemplateSet(settings.note_templates_dir),
+        note_writes=settings.note_writes,
     )
 
 

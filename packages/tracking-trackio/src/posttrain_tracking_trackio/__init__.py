@@ -14,6 +14,7 @@ from .adapter import (
     TrackioTrackedRun,
     require_remote_trackio_ready,
 )
+from .notes import TrackioRunNotes
 
 __all__ = [
     "TrackioBackend",
@@ -24,6 +25,7 @@ __all__ = [
     "TrackioProjectCatalog",
     "TrackioRunActivity",
     "TrackioRunActivityLookup",
+    "TrackioRunNotes",
     "TrackioSettings",
     "TrackioTraceFactWriter",
     "TrackioTrackedRun",

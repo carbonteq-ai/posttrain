@@ -6,7 +6,108 @@ version across first-party distributions.
 
 ## Unreleased
 
-## 0.4.10 - unreleased
+## 0.4.11 - unreleased
+
+Runs can be queried in SQL and carry notes; metrics and trace facts are correct
+where they are recorded.
+
+### Added
+
+- Semantic layer: `runs`, `updates` and `rollouts` as SQL tables, computed
+  inside Trackio's storage (Doris SQL; translated on local SQLite storage) for
+  only the columns a statement reads. `posttrain query`, HTTP
+  `/api/v1/semantic/*` and the MCP `query_semantics` tool take SQL or a short
+  `measures`/`by`/`where` form that compiles to SQL; every result shows its SQL.
+- Run notes: Markdown notes stored in Trackio with revisions, named
+  ```` ```sql <name> ```` data blocks, chart/value/table views, `{{block.column}}`
+  and `{{run.<dimension>}}` references and `[[run:id]]` links. Every job kind
+  has a run card template. Surfaces: the Observatory run page, HTTP, MCP and
+  `posttrain note`.
+- One metric catalog (`posttrain_observatory.metric_catalog`) describes every
+  metric job views show and every queryable measure.
+- Observatory evaluation views, built from the training run and checkpoint
+  step each evaluation records (`GET /api/v1/evaluations`,
+  `GET /api/v1/evaluations/tasks`): the sidebar lists each training run's
+  checkpoint evaluations under it with their suite and score; a training run's
+  Evals tab compares the base model with each checkpoint step per suite,
+  overall and per task; and the Evals page compares two training runs of the
+  same base model on a suite they share.
+- Observatory run pages have a Notes tab for the run card and notes.
+
+### Changed
+
+- The TRL trainer writes rollout metrics once per update; per-batch time is
+  `train/rl/rollout_batch_seconds`. Readers return logical steps with replay
+  authority applied, and combine the per-batch points of older runs.
+- Trace facts v8: `task_id` is the environment's task key (for AutomationBench
+  the task name), falling back to the dataset's example id, so training and
+  evaluation name tasks the same way across runs.
+- Trackio `0.31.5.post14.dev31` (run notes, read-only project SQL, set-oriented
+  trace-fact replacement, reliable remote delivery; Doris schema version 4).
+- Observatory: SAMPO runs use the GRPO overview (headline metrics, the
+  Policy optimization swimlane with rollout behavior, update stability, rollout
+  population, runtime, freshness, acceleration, active sampling, rollout setup
+  and grouped rollouts) plus a Hierarchical credit tab. SAMPO's
+  episode and turn advantage means are zero by construction; the trainer now
+  records episode and turn credit magnitudes, the turn share of credit, turns
+  with turn credit, and turns without a peer. The tool failure rate joins the
+  Policy optimization swimlane beside tool calls per rollout.
+  Chart lanes share one step range, axis labels stay short for values near
+  zero, and each tab names the metrics a run did not record.
+- Observatory tables page instead of growing or scrolling inside a box (note
+  tables 15 rows, prompt groups 10, traces 25; the last page's Next loads older
+  rows), sort by column, and note tables have a row filter. Note text reflows
+  to the page width, and data tables keep ids on one line, wrap long prose
+  between words and scroll sideways with the first column pinned.
+- Group-policy and SAMPO run cards (templates `@3`) show first and last
+  ten-update averages of reward and entropy, the best ten-update window, KL and
+  truncation over the last ten updates, and the recorded error message.
+- Trackio and W&B runs are named by the full run id instead of its first eight
+  characters (every held-out evaluation showed as `eval.general-eval-lfm`).
+  Resuming a Trackio run falls back to the old name, and runs that carry it
+  are shown with their full id.
+- The release candidate workflow no longer runs a GPU job: it builds,
+  verifies, installs from the development index and publishes. Its packed
+  transformation canary wrote a `release-candidate-<run id>` run into the lab
+  Trackio project on every release and needed the RTX PRO worker idle. The
+  `qualification_profile` and `run_gpu_qualification` inputs and
+  `scripts/release/verify-dstack-capacity` are removed.
+- Training publishes its replay authority once, compressed: the native episode
+  envelope as gzip (about 5x smaller), hashed without reading it into memory.
+  The derived trace view is no longer published a second time; it was streamed
+  to tracking and is rebuilt from the episodes. A 150-update run's final upload
+  falls from 7.7 GB to about 0.7 GB.
+
+### Fixed
+
+- Separate rollout batches that reported the same value were merged, which
+  undercounted rollouts and rollout time.
+- Observatory rollout tables showed no thinking or output tokens for training
+  runs: those counts come from provider usage, which training rollouts lack.
+  Trace pages now fill token and turn counts from each trace's stored facts
+  (one bounded project-SQL read per page), and the grouped rollout table adds
+  a Turns column beside tool calls (mean per group, exact per rollout).
+- Training runs recorded no system metrics (GPU and CPU use): recoverable jobs
+  open their Trackio run with resume "allow", and the adapter started Trackio's
+  GPU and CPU monitors only for resume "never", which only evaluations use.
+  Monitoring is now chosen by the opener: a starting or recovering job monitors,
+  reopening a run to record its outcome does not.
+- Traces lost on the way to Trackio: a failed request left its entries in the
+  client buffer, which was then resent as one ever-growing request that a proxy
+  refused every time, and was dropped when the job exited (7,546 of 11,876
+  traces of a 150-update run). Trackio dev31 sends at most 8 MB per request and
+  keeps what it could not send.
+- SFT/DPO and veRL runs recorded no GPU metrics: their images lacked
+  `nvidia-ml-py`, which Trackio's GPU monitor needs and other images received
+  through vLLM. The common runtime profile now pins it.
+- SAMPO, GDPO and CAPO on the TRL backend rejected their first update when the
+  rollout engine used speculative decoding (DSpark, MTP): their observation
+  features ignored the engine, so its speculative counters looked unexpected.
+- A long artifact upload failed with 403 once its 15-minute signed part URLs
+  expired, and a queued artifact timed out behind a slow upload; dev31 signs
+  parts again and times out only when uploads stall.
+
+## 0.4.10 - 2026-09-26
 
 SAMPO can train on per-turn rewards from the AutomationBench environment itself.
 

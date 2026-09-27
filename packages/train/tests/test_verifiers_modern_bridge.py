@@ -1,11 +1,13 @@
 """Real local native episode lifecycle with an injected exact-token policy."""
 
+import gzip
+import hashlib
 import json
 from types import SimpleNamespace
 from typing import cast
 
 import pytest
-from posttrain.common import JsonValue
+from posttrain.common import JsonValue, LocalArtifactRef
 from posttrain.train.integrations.verifiers import VerifiersEnvironmentRolloutBridge, _project_training_branch
 from posttrain.train.online_rl import BehaviorPolicySpan, PolicySampling, PolicyTurnResult, RolloutBatch
 from posttrain.train.rollout_execution import CollectionKey, EpisodeKey
@@ -172,11 +174,18 @@ async def test_modern_native_episode_retains_exact_policy_tokens(tmp_path, failu
     info = rollout.trace.payload["info"]
     assert isinstance(info, dict)
     assert info["posttrain_episode_id"] == episode.id
-    artifacts = bridge.finalize()
-    assert len(artifacts) == 2
-    assert artifacts[0].metadata["replay_authority"] is True
-    assert artifacts[0].metadata["episode_count"] == 1
-    assert artifacts[1].metadata["replay_authority"] is False
+    # Only the replay authority is published, compressed; the derived trace
+    # view was streamed to tracking and is rebuilt from the episodes.
+    [artifact] = bridge.finalize()
+    assert artifact.metadata["replay_authority"] is True
+    assert artifact.metadata["episode_count"] == 1
+    assert artifact.metadata["compression"] == "gzip"
+    reference = artifact.reference
+    assert isinstance(reference, LocalArtifactRef)
+    assert reference.path.name == "episodes.jsonl.gz"
+    assert gzip.decompress(reference.path.read_bytes()) == (tmp_path / "episodes.jsonl").read_bytes()
+    assert artifact.metadata["uncompressed_bytes"] == (tmp_path / "episodes.jsonl").stat().st_size
+    assert reference.digest == hashlib.sha256(reference.path.read_bytes()).hexdigest()
 
 
 @pytest.mark.asyncio

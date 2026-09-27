@@ -984,6 +984,46 @@ describe('Observatory React product shell', () => {
     expect(screen.getByRole('button', { name: 'Select run SFT calm harbor' })).toBeVisible();
   });
 
+  it('nests checkpoint evaluations under the training run they evaluated', async () => {
+    const evalRun = {
+      ...run,
+      locator: { source_id: 'fixture', run_id: 'runs/eval-step100' },
+      run_key: 'eval-key',
+      run: { ...run.run, run_id: 'runs/eval-step100', display_name: 'Held-out eval', work_package_id: 'eval/heldout', stage: 'qualify', job_kind: 'eval.general' },
+    };
+    const record = (runId: string, runKey: string, parent: string | null, step: number | null, score: number) => ({
+      run_key: runKey, run_id: runId, job_kind: 'eval.general', suite: 'eval/heldout', environment: 'env', model: 'models/m',
+      parent_run: parent, parent_run_key: parent ? 'run-key' : null, parent_step: step, status: 'succeeded',
+      started_at: '2026-07-23T00:00:00Z', attempts: 60, score, truncated: 0, failed: 0,
+    });
+    const evaluations = {
+      source_id: 'fixture',
+      score_definition: 'Mean rollout reward.',
+      records: [record('runs/eval-base', 'base-key', null, null, 0.589), record('runs/eval-step100', 'eval-key', 'runs/sft', 100, 0.595)],
+    };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      const body = path === '/api/v1/sources'
+        ? sources
+        : path === '/api/v1/runs?source_id=fixture&limit=1000'
+          ? [run, evalRun]
+          : path.startsWith('/api/v1/evaluations?')
+            ? evaluations
+            : path === '/api/v1/runs/run-key' ? run : view;
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    render(<App />);
+
+    const nested = await screen.findByRole('list', { name: 'Evaluations of SFT calm harbor' });
+    const item = within(nested).getByRole('button', { name: 'Open evaluation runs/eval-step100' });
+    expect(item).toHaveTextContent('100');
+    expect(item).toHaveAttribute('title', expect.stringContaining('step 100'));
+    expect(item).toHaveTextContent('heldout');
+    expect(item).toHaveTextContent('0.595');
+    expect(screen.getByRole('button', { name: 'Select run Held-out eval' })).toHaveTextContent('evaluates SFT calm harbor @ 100');
+    expect(await screen.findByRole('button', { name: 'Evals' })).toBeVisible();
+  });
+
   it('polls an active routed run once per minute', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input);
@@ -1407,17 +1447,17 @@ describe('Observatory React product shell', () => {
     render(<App />);
 
     await user.click(await screen.findByRole('button', { name: 'Rollouts & rewards' }));
-    expect(await screen.findByText('2 of 250 loaded')).toBeVisible();
+    expect(await screen.findByText('1–2 of 250 traces · 2 loaded')).toBeVisible();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/traces-evaluation'))).toBe(false);
     expect(screen.getByText('Action Quality')).toBeVisible();
     expect(screen.getByText('Answer Quality')).toBeVisible();
 
-    await user.click(screen.getByRole('button', { name: 'Load 100 more' }));
-    expect(await screen.findByText('3 of 250 loaded')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(await screen.findByText('3 of 250 traces')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'Step: Any' }));
     await user.click(screen.getByRole('option', { name: '1' }));
-    expect(await screen.findByText('1 of 1 loaded')).toBeVisible();
+    expect(await screen.findByText('1 traces')).toBeVisible();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/traces?') && String(input).includes('step=1'))).toBe(true);
   });
 

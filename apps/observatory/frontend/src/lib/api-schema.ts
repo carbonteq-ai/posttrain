@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/v1/evaluations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evaluations */
+        get: operations["evaluations_api_v1_evaluations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evaluations/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evaluation Tasks */
+        get: operations["evaluation_tasks_api_v1_evaluations_tasks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/exports": {
         parameters: {
             query?: never;
@@ -47,6 +81,40 @@ export interface paths {
         };
         /** Job Kind */
         get: operations["job_kind_api_v1_job_kinds__job_kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notes/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Note */
+        post: operations["preview_note_api_v1_notes_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notes/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Note Settings */
+        get: operations["note_settings_api_v1_notes_settings_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -140,6 +208,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{run_key}/card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run Card */
+        get: operations["run_card_api_v1_runs__run_key__card_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{run_key}/comparison-key": {
         parameters: {
             query?: never;
@@ -200,6 +285,59 @@ export interface paths {
         };
         /** Metrics */
         get: operations["metrics_api_v1_runs__run_key__metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_key}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run Notes */
+        get: operations["run_notes_api_v1_runs__run_key__notes_get"];
+        put?: never;
+        /** Add Run Note */
+        post: operations["add_run_note_api_v1_runs__run_key__notes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_key}/notes/{note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Revise Run Note */
+        put: operations["revise_run_note_api_v1_runs__run_key__notes__note_id__put"];
+        post?: never;
+        /** Delete Run Note */
+        delete: operations["delete_run_note_api_v1_runs__run_key__notes__note_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_key}/notes/{note_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run Note History */
+        get: operations["run_note_history_api_v1_runs__run_key__notes__note_id__history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -378,6 +516,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/semantic/describe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Semantic Describe */
+        post: operations["semantic_describe_api_v1_semantic_describe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/semantic/model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Semantic Model */
+        get: operations["semantic_model_api_v1_semantic_model_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/semantic/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Semantic Query */
+        post: operations["semantic_query_api_v1_semantic_query_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/serving-capacity/work-packages/{work_package_id}": {
         parameters: {
             query?: never;
@@ -501,6 +690,8 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {string} */
+        Aggregation: "last" | "first" | "min" | "max" | "mean" | "sum" | "count" | "stddev" | "p50" | "p90" | "p95" | "p99";
         /** @enum {string} */
         AlertSeverity: "info" | "warning" | "error";
         /** ArtifactLink */
@@ -632,6 +823,37 @@ export interface components {
              */
             recommendations: components["schemas"]["SettingsRecommendation"][];
         };
+        /** DescribedTable */
+        DescribedTable: {
+            /** Columns */
+            columns: string[];
+            /** Description */
+            description: string;
+            /** Name */
+            name: string;
+        };
+        /** Dimension */
+        Dimension: {
+            /** Description */
+            description: string;
+            entity: components["schemas"]["EntityName"];
+            /** Name */
+            name: string;
+            source: components["schemas"]["Source"];
+            type: components["schemas"]["DimensionType"];
+        };
+        /** @enum {string} */
+        DimensionType: "string" | "integer" | "number" | "time" | "boolean";
+        /** Entity */
+        Entity: {
+            /** Description */
+            description: string;
+            name: components["schemas"]["EntityName"];
+            /** Order Dimension */
+            order_dimension?: string | null;
+        };
+        /** @enum {string} */
+        EntityName: "run" | "update" | "rollout";
         /**
          * EvaluationBreakdown
          * @description One declared compound report with structured groups.
@@ -856,6 +1078,21 @@ export interface components {
              */
             transform: "identity" | "prefix_before_colon";
         };
+        /** EvaluationIndex */
+        EvaluationIndex: {
+            /**
+             * Records
+             * @default []
+             */
+            records: components["schemas"]["EvaluationRecord"][];
+            /**
+             * Score Definition
+             * @default Mean rollout reward over attempts that did not fail; truncated attempts count at their recorded reward (0 when none). Failed attempts are execution errors and are counted separately.
+             */
+            score_definition: string;
+            /** Source Id */
+            source_id: string;
+        };
         /** EvaluationMeasurementFacet */
         EvaluationMeasurementFacet: {
             /** Dimension */
@@ -985,6 +1222,51 @@ export interface components {
             latency_ms?: components["schemas"]["EvaluationDistribution"] | null;
             thinking_tokens?: components["schemas"]["EvaluationDistribution"] | null;
             tool_calls?: components["schemas"]["EvaluationDistribution"] | null;
+        };
+        /**
+         * EvaluationRecord
+         * @description One evaluation run: the model it scored, its suite and its score.
+         */
+        EvaluationRecord: {
+            /**
+             * Attempts
+             * @default 0
+             */
+            attempts: number;
+            /** Environment */
+            environment?: string | null;
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
+            /** Job Kind */
+            job_kind: string;
+            /** Model */
+            model?: string | null;
+            /** Parent Run */
+            parent_run?: string | null;
+            /** Parent Run Key */
+            parent_run_key?: string | null;
+            /** Parent Step */
+            parent_step?: number | null;
+            /** Run Id */
+            run_id: string;
+            /** Run Key */
+            run_key: string;
+            /** Score */
+            score?: number | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Suite */
+            suite?: string | null;
+            /**
+             * Truncated
+             * @default 0
+             */
+            truncated: number;
         };
         /** EvaluationRunView */
         EvaluationRunView: {
@@ -1122,6 +1404,45 @@ export interface components {
             truncations: number;
             /** Valid Repetitions */
             valid_repetitions: number;
+        };
+        /** EvaluationTaskScore */
+        EvaluationTaskScore: {
+            /**
+             * Attempts
+             * @default 0
+             */
+            attempts: number;
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
+            /** Run Key */
+            run_key: string;
+            /** Score */
+            score?: number | null;
+            /** Task */
+            task: string;
+            /**
+             * Truncated
+             * @default 0
+             */
+            truncated: number;
+        };
+        /** EvaluationTaskScores */
+        EvaluationTaskScores: {
+            /**
+             * Score Definition
+             * @default Mean rollout reward over attempts that did not fail; truncated attempts count at their recorded reward (0 when none). Failed attempts are execution errors and are counted separately.
+             */
+            score_definition: string;
+            /**
+             * Scores
+             * @default []
+             */
+            scores: components["schemas"]["EvaluationTaskScore"][];
+            /** Source Id */
+            source_id: string;
         };
         /** EventRecord */
         EventRecord: {
@@ -1366,6 +1687,59 @@ export interface components {
          * @description Any JSON-compatible value.
          */
         JsonValue: unknown;
+        /** Measure */
+        Measure: {
+            /** @default mean */
+            aggregation: components["schemas"]["Aggregation"];
+            /**
+             * Allowed
+             * @default [
+             *       "last",
+             *       "first",
+             *       "min",
+             *       "max",
+             *       "mean",
+             *       "sum",
+             *       "count",
+             *       "stddev",
+             *       "p50",
+             *       "p90",
+             *       "p95",
+             *       "p99"
+             *     ]
+             */
+            allowed: components["schemas"]["Aggregation"][];
+            /** Description */
+            description: string;
+            entity: components["schemas"]["EntityName"];
+            /** Job Kinds */
+            job_kinds: string[];
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            source: components["schemas"]["Source"];
+            /** Unit */
+            unit?: string | null;
+        };
+        /**
+         * Metric
+         * @description A SQL expression over aggregated measures of one entity, for example
+         *     `sum(rollout_seconds) / sum(update_seconds)`; the tests plan every formula against its table.
+         */
+        Metric: {
+            /** Description */
+            description: string;
+            entity: components["schemas"]["EntityName"];
+            /** Formula */
+            formula: string;
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /** Unit */
+            unit?: string | null;
+        };
         /** MetricCatalog */
         MetricCatalog: {
             /** Namespaces */
@@ -1454,6 +1828,39 @@ export interface components {
             /** Series */
             series: components["schemas"]["MetricSeries"][];
         };
+        /** NoteAddRequest */
+        NoteAddRequest: {
+            /** Body Md */
+            body_md: string;
+            /** Kind */
+            kind: string;
+            /** Note Id */
+            note_id?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** NotePreviewRequest */
+        NotePreviewRequest: {
+            /** Body Md */
+            body_md: string;
+            /** Run Key */
+            run_key: string;
+        };
+        /** NoteReviseRequest */
+        NoteReviseRequest: {
+            /** Body Md */
+            body_md: string;
+            /** Expected Revision */
+            expected_revision: number;
+            /** Kind */
+            kind?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** @enum {string} */
+        NoteScope: "run" | "project";
+        /** @enum {string} */
+        NoteSource: "cli" | "mcp" | "observatory";
         /** PromptGroupReward */
         PromptGroupReward: {
             current?: components["schemas"]["PromptGroupRewardStats"] | null;
@@ -1521,6 +1928,85 @@ export interface components {
              */
             reason: string;
             suggested?: components["schemas"]["JsonPayload"];
+        };
+        /**
+         * RenderedNote
+         * @description A note ready to show.
+         *
+         *     ``markdown`` keeps views as fenced ``note-view <index>`` blocks for the page
+         *     to draw from ``views``; ``text`` is the same note with views written out as
+         *     Markdown text, for the command line and agents.
+         */
+        RenderedNote: {
+            /** Data */
+            data?: {
+                [key: string]: components["schemas"]["SemanticResult"];
+            };
+            /** Markdown */
+            markdown: string;
+            /** Template */
+            template?: string | null;
+            /** Text */
+            text: string;
+            /**
+             * Unresolved
+             * @default []
+             */
+            unresolved: string[];
+            /**
+             * Views
+             * @default []
+             */
+            views: components["schemas"]["RenderedView"][];
+        };
+        /** RenderedRunNote */
+        RenderedRunNote: {
+            note: components["schemas"]["RunNote"];
+            rendered: components["schemas"]["RenderedNote"];
+        };
+        /**
+         * RenderedView
+         * @description One view with the data it displays, for the page to draw.
+         */
+        RenderedView: {
+            /** Compare Formatted */
+            compare_formatted?: string | null;
+            compare_value?: components["schemas"]["JsonPayload"];
+            /** Data */
+            data?: string | null;
+            /** Difference */
+            difference?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Formatted */
+            formatted?: string | null;
+            /** Index */
+            index: number;
+            kind: components["schemas"]["ViewKind"];
+            /** Options */
+            options?: {
+                [key: string]: components["schemas"]["JsonPayload"];
+            };
+            /** Query */
+            query?: string | null;
+            result?: components["schemas"]["SemanticResult"] | null;
+            value?: components["schemas"]["JsonPayload"];
+        };
+        /** ResultColumn */
+        ResultColumn: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "dimension" | "measure" | "metric" | "value";
+            /** Label */
+            label?: string | null;
+            /** Name */
+            name: string;
+            /** Type */
+            type?: string | null;
+            /** Unit */
+            unit?: string | null;
         };
         /**
          * RolloutBehaviorPoint
@@ -1637,6 +2123,42 @@ export interface components {
             run_id: string;
             /** Source Id */
             source_id: string;
+        };
+        /**
+         * RunNote
+         * @description One revision of one note.
+         */
+        RunNote: {
+            /** Body Md */
+            body_md: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Deleted
+             * @default false
+             */
+            deleted: boolean;
+            /** Kind */
+            kind: string;
+            /** Note Id */
+            note_id: string;
+            /**
+             * Revised At
+             * Format: date-time
+             */
+            revised_at: string;
+            /** Revision */
+            revision: number;
+            /** Run Id */
+            run_id?: string | null;
+            /** @default run */
+            scope: components["schemas"]["NoteScope"];
+            source: components["schemas"]["NoteSource"];
+            /** Title */
+            title?: string | null;
         };
         /** @enum {string} */
         RunStatus: "running" | "succeeded" | "partial" | "failed" | "cancelled" | "unsupported";
@@ -1763,6 +2285,103 @@ export interface components {
             message: string;
             /** Type */
             type: string;
+        };
+        /**
+         * SemanticDescribeRequest
+         * @description Job kinds to describe; none describes everything.
+         */
+        SemanticDescribeRequest: {
+            /** @default [] */
+            job_kinds: components["schemas"]["StringTuple"];
+            /** Runs */
+            runs?: components["schemas"]["StringTuple"] | {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** SemanticDescription */
+        SemanticDescription: {
+            /** Dimensions */
+            dimensions: components["schemas"]["Dimension"][];
+            /** Entities */
+            entities: components["schemas"]["Entity"][];
+            /** Job Kinds */
+            job_kinds: string[];
+            /** Measures */
+            measures: components["schemas"]["Measure"][];
+            /** Metrics */
+            metrics: components["schemas"]["Metric"][];
+            /**
+             * Notes
+             * @default [
+             *       "SQL is Doris SQL: one read-only SELECT (optionally WITH) over the sql_tables. Only the tables and columns a statement reads are computed, for every run of the project unless runs narrows them.",
+             *       "Useful functions: max_by(value, step) and min_by(value, step) for last and first, percentile(x, 0.9), stddev_samp(x). On local SQLite storage only these and standard SQL are available.",
+             *       "Short form: measures (name or name:aggregation, including p50/p90/p95/p99), by (dimensions), where (dimension: value, [any of], '>= n', or a '*' wildcard), runs (ids or run-dimension filters), order_by (prefix - for descending), limit. It compiles to SQL, returned with the result.",
+             *       "Evaluation tasks are rollouts grouped by task: filter out truncated and failed rollouts to read valid rewards."
+             *     ]
+             */
+            notes: string[];
+            /** Sql Tables */
+            sql_tables: components["schemas"]["DescribedTable"][];
+        };
+        /** SemanticModel */
+        SemanticModel: {
+            /** Dimensions */
+            dimensions: components["schemas"]["Dimension"][];
+            /** Entities */
+            entities: components["schemas"]["Entity"][];
+            /** Measures */
+            measures: components["schemas"]["Measure"][];
+            /**
+             * Metrics
+             * @default []
+             */
+            metrics: components["schemas"]["Metric"][];
+        };
+        /**
+         * SemanticQuery
+         * @description Measures (or metrics), grouped by dimensions, filtered by conditions.
+         *
+         *     ``measures`` entries are names, optionally with an aggregation
+         *     (``entropy:last``). ``runs`` is shorthand for run filters: explicit run ids,
+         *     or a mapping of run dimensions to conditions.
+         */
+        SemanticQuery: {
+            /** @default [] */
+            by: components["schemas"]["StringTuple"];
+            /**
+             * Limit
+             * @default 1000
+             */
+            limit: number;
+            measures: components["schemas"]["StringTuple"];
+            /** @default [] */
+            order_by: components["schemas"]["StringTuple"];
+            /** Runs */
+            runs?: components["schemas"]["StringTuple"] | {
+                [key: string]: unknown;
+            } | null;
+            /** Where */
+            where?: {
+                [key: string]: unknown;
+            };
+        };
+        /** SemanticResult */
+        SemanticResult: {
+            /** Columns */
+            columns: components["schemas"]["ResultColumn"][];
+            /** Engine */
+            engine?: string | null;
+            /** Grain */
+            grain: string;
+            /** Rows */
+            rows: unknown[][];
+            /** Sql */
+            sql?: string | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
         };
         /** SemanticSummaryRequest */
         SemanticSummaryRequest: {
@@ -1986,6 +2605,23 @@ export interface components {
             /** Unavailable Reason */
             unavailable_reason?: string | null;
         };
+        /**
+         * Source
+         * @description Where values come from: a field, a settings path, a metric name, a trace fact.
+         */
+        Source: {
+            kind: components["schemas"]["SourceKind"];
+            /** Name */
+            name: string;
+            /**
+             * Transform
+             * @default identity
+             * @enum {string}
+             */
+            transform: "identity" | "one_minus";
+        };
+        /** @enum {string} */
+        SourceKind: "run_field" | "setting" | "event" | "metric_series" | "trace_fact" | "derived";
         /** SourceRefreshStatus */
         SourceRefreshStatus: {
             /** @default [] */
@@ -2003,6 +2639,23 @@ export interface components {
              * @enum {string}
              */
             state: "disabled" | "pending" | "refreshing" | "succeeded" | "failed";
+        };
+        /**
+         * SqlQuery
+         * @description One read-only SELECT (Doris SQL) over the semantic tables; `runs` narrows the runs it sees.
+         */
+        SqlQuery: {
+            /**
+             * Max Rows
+             * @default 10000
+             */
+            max_rows: number;
+            /** Runs */
+            runs?: components["schemas"]["StringTuple"] | {
+                [key: string]: unknown;
+            } | null;
+            /** Sql */
+            sql: string;
         };
         /** @enum {string} */
         Stage: "screen" | "train" | "qualify";
@@ -2404,6 +3057,11 @@ export interface components {
             /** Provider */
             provider: string;
             /**
+             * Run Notes
+             * @default false
+             */
+            run_notes: boolean;
+            /**
              * Trace Facts
              * @default unavailable
              * @enum {string}
@@ -2424,6 +3082,8 @@ export interface components {
             type: string;
         };
         /** @enum {string} */
+        ViewKind: "chart" | "value" | "table";
+        /** @enum {string} */
         ViewMode: "auto" | "job" | "generic";
     };
     responses: never;
@@ -2434,6 +3094,68 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    evaluations_api_v1_evaluations_get: {
+        parameters: {
+            query?: {
+                source_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationIndex"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluation_tasks_api_v1_evaluations_tasks_get: {
+        parameters: {
+            query?: {
+                run_key?: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationTaskScores"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     export_api_v1_exports_post: {
         parameters: {
             query?: never;
@@ -2518,6 +3240,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_note_api_v1_notes_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderedNote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    note_settings_api_v1_notes_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: boolean;
+                    };
                 };
             };
         };
@@ -2694,6 +3471,37 @@ export interface operations {
             };
         };
     };
+    run_card_api_v1_runs__run_key__card_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderedNote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     comparison_key_api_v1_runs__run_key__comparison_key_get: {
         parameters: {
             query?: never;
@@ -2819,6 +3627,176 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_notes_api_v1_runs__run_key__notes_get: {
+        parameters: {
+            query?: {
+                kind?: string | null;
+            };
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderedRunNote"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_run_note_api_v1_runs__run_key__notes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteAddRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunNote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revise_run_note_api_v1_runs__run_key__notes__note_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteReviseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunNote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_run_note_api_v1_runs__run_key__notes__note_id__delete: {
+        parameters: {
+            query: {
+                expected_revision: number;
+            };
+            header?: never;
+            path: {
+                run_key: string;
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunNote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_note_history_api_v1_runs__run_key__notes__note_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_key: string;
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunNote"][];
                 };
             };
             /** @description Validation Error */
@@ -3152,6 +4130,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunViewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    semantic_describe_api_v1_semantic_describe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SemanticDescribeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SemanticDescription"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    semantic_model_api_v1_semantic_model_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SemanticModel"];
+                };
+            };
+        };
+    };
+    semantic_query_api_v1_semantic_query_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SemanticQuery"] | components["schemas"]["SqlQuery"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SemanticResult"];
                 };
             };
             /** @description Validation Error */

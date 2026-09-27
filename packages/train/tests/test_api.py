@@ -106,6 +106,7 @@ from posttrain.train.backends.trl.policy_telemetry import (
 from posttrain.train.backends.trl.policy_telemetry import (
     normalize_live_metrics as _normalize_live_grpo_metrics,
 )
+from posttrain.train.backends.trl.update_totals import RolloutUpdateTotals
 from posttrain.train.catalog_schema import TrainingRuntimeSchema, decode_training_selection
 from posttrain.train.results import TrainingSummary
 from pydantic import ValidationError
@@ -1297,24 +1298,38 @@ def test_grpo_rollout_adapter_emits_population_and_throughput_evidence(
         "posttrain.train.backends.trl.online_rl.TrlPolicyGenerator",
         lambda *args: object(),
     )
-    rollout = _rollout_function(context, request, object())
+    totals = RolloutUpdateTotals(context)
+    rollout = _rollout_function(context, request, object(), totals)
 
-    output = rollout(
-        [[{"role": "user", "content": "What is 2 + 2?"}]],
-        SimpleNamespace(state=SimpleNamespace(global_step=3)),
-        inputs=[{"example_id": "gsm8k/train/0"}],
-    )
+    outputs = [
+        rollout(
+            [[{"role": "user", "content": "What is 2 + 2?"}]],
+            SimpleNamespace(state=SimpleNamespace(global_step=3)),
+            inputs=[{"example_id": "gsm8k/train/0"}],
+        )
+        for _ in range(3)
+    ]
+    per_update = [item for item in observer.metrics_seen if "train/rl/rollouts_attempted" in item.values]
+    assert per_update == [], "rollout batches must not write per-update names"
+    batches = [item for item in observer.metrics_seen if "train/rl/rollout_batch_seconds" in item.values]
+    assert [item.attributes["rollout_batch_ordinal"] for item in batches] == [1, 2, 3]
+    totals.flush(4)
 
-    assert output["rollout_reward"] == [1.0]
+    assert all(output["rollout_reward"] == [1.0] for output in outputs)
+    assert observer.metrics_seen[-1].attributes["rollout_batches"] == 3
     values = observer.metrics_seen[-1].values
-    assert values["train/rl/rollouts_attempted"] == 1
-    assert values["train/rl/rollouts_completed"] == 1
+    assert values["train/rl/rollouts_attempted"] == 3
+    assert values["train/rl/rollouts_completed"] == 3
+    assert values["train/rl/rollout_selected_tokens"] == 9
+    assert values["train/rl/time/rollout_seconds"] == pytest.approx(
+        sum(item.values["train/rl/rollout_batch_seconds"] for item in batches)
+    )
+    values = observer.metrics_seen[-1].values
     assert values["train/rl/rollouts_failed"] == 0
     assert values["train/rl/rollouts_truncated"] == 0
     assert values["train/rl/rollouts_unscorable"] == 0
     assert values["train/rl/time/rollout_seconds"] > 0
     assert values["train/rl/rollout_tokens_per_second"] > 0
-    assert values["train/rl/rollout_selected_tokens"] == 3
     assert values["train/rl/rollout_selected_token_fraction"] == 1.0
     assert observer.metrics_seen[-1].step == 4
 
@@ -1344,13 +1359,16 @@ def test_grpo_rollout_adapter_rejects_all_truncated_masked_population(
         lambda *args: object(),
     )
 
-    rollout = _rollout_function(context, request, object())
+    totals = RolloutUpdateTotals(context)
+    rollout = _rollout_function(context, request, object(), totals)
     with pytest.raises(RuntimeError, match="all 1 rollouts reached a truncation boundary"):
         rollout(
             [[{"role": "user", "content": "What is 2 + 2?"}]],
             SimpleNamespace(state=SimpleNamespace(global_step=0)),
             inputs=[{"example_id": "gsm8k/train/0"}],
         )
+    # The trainer flushes an update's totals when it fails.
+    totals.flush()
 
     assert observer.metrics_seen[-1].values["train/rl/rollouts_truncated"] == 1
     assert observer.traces[0].external_id == "trace-0"

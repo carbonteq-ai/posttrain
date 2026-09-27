@@ -30,6 +30,13 @@ const colors = ['#6356c7', '#e85d3f', '#148c87', '#c68a2c', '#2476a8', '#8f548f'
 const lineTypes = ['solid', 'dashed', 'dotted'] as const;
 export type ChartXDomain = 'logical-step' | 'elapsed-time';
 
+/**
+ * Optional description of a logical x axis that is not a training step: a
+ * name for the axis and tooltip, and category labels when the x values are
+ * not numbers (each point's ``step`` is then the category's index).
+ */
+export type ChartXAxis = { name?: string; categories?: readonly string[] };
+
 function shortName(name: string, metricLabels: Record<string, string>): string {
   return metricLabels[name] ?? name.split('/').at(-1)?.replaceAll('_', ' ') ?? name;
 }
@@ -116,13 +123,20 @@ export function formatTooltip(
   metricLabels: Record<string, string>,
   metricUnits: Record<string, string | null>,
   xDomain: ChartXDomain = 'logical-step',
+  xAxis?: ChartXAxis,
 ): string {
   const entries = (Array.isArray(params) ? params : [params]).filter((param) => param.seriesName);
   if (entries.length === 0) return '';
   const axisValue = entries[0].axisValue;
   const step = typeof axisValue === 'number' ? axisValue : Number(axisValue);
   const observedAt = tooltipObservedAt(entries[0]);
-  const header = xDomain === 'elapsed-time'
+  const category = xAxis?.categories == null
+    ? null
+    : typeof axisValue === 'number' ? xAxis.categories[axisValue] ?? String(axisValue) : String(axisValue ?? '—');
+  const logicalLabel = xAxis?.name ?? 'Step';
+  const header = category != null
+    ? (xAxis?.name ? `${xAxis.name} ${category}` : category)
+    : xDomain === 'elapsed-time'
     ? `${observedAt == null ? 'Time unavailable' : new Date(observedAt).toLocaleString(undefined, {
         month: 'short',
         day: 'numeric',
@@ -130,7 +144,7 @@ export function formatTooltip(
         minute: '2-digit',
         second: '2-digit',
       })}${Number.isFinite(step) ? ` · +${formatElapsedDuration(step)}` : ''}`
-    : `Step ${Number.isFinite(step) ? step.toLocaleString(undefined, { maximumFractionDigits: 0 }) : String(axisValue ?? '—')}`;
+    : `${logicalLabel} ${Number.isFinite(step) ? step.toLocaleString(undefined, { maximumFractionDigits: xAxis?.name ? 4 : 0 }) : String(axisValue ?? '—')}`;
   const rows = entries.map((param) => {
     const name = param.seriesName ?? '';
     const color = typeof param.color === 'string' ? param.color : '#716a73';
@@ -161,9 +175,12 @@ export function scaleGroup(name: string, metricUnits: Record<string, string | nu
   if (name.startsWith('train/logps/')) return 'dpo-log-probability';
   if (name.startsWith('train/logits/')) return 'dpo-logit';
   if (/train\/rl\/rollouts_(requested|attempted|completed|failed|truncated|unscorable|missing)$/.test(name)) return 'rollout-count';
-  if (/train\/rl\/active_sampling_(generation_rounds|generated_rows|candidate_groups_(reserved|generated|retained|unused))$/.test(name)) return 'active-sampling-count';
+  if (name === 'train/rl/active_sampling_generation_rounds') return 'active-sampling-rounds';
+  if (/train\/rl\/active_sampling_(generated_rows|candidate_groups_(reserved|generated|retained|unused))$/.test(name)) return 'active-sampling-count';
   if (name === 'trace/rollout/avg_thinking_tokens' || name === 'trace/rollout/avg_output_tokens') return 'rollout-tokens';
   if (name === 'trace/rollout/avg_tool_calls') return 'rollout-tool-calls';
+  if (name === 'train/rl/episode_advantage_abs_mean' || name === 'train/rl/turn_advantage_abs_mean') return 'credit-magnitude';
+  if (/train\/rl\/(turn_credit_share|turn_advantage_informative_fraction|singleton_anchor_fraction|sparse_reward_projection_fraction)$/.test(name)) return 'credit-share';
   if (name === 'train/learning_rate') return 'learning-rate';
   if (name === 'train/non_padding_tokens_per_second') return 'tokens-per-second';
   if (name === 'train/step_time_seconds') return 'seconds';
@@ -191,14 +208,24 @@ function axisFormatter(group: string) {
   if (group === 'unit:bytes' || group.includes('bytes')) {
     return (value: number) => `${(value / 1024 ** 3).toFixed(1)} GiB`;
   }
-  if (group === 'ratio' || group === 'unit:ratio') {
+  if (group === 'ratio' || group === 'unit:ratio' || group === 'credit-share') {
     return (value: number) => `${(value * 100).toFixed(0)}%`;
   }
   if (group === 'unit:%') return (value: number) => `${value.toFixed(0)}%`;
-  return undefined;
+  return compactAxisNumber;
+}
+
+/** Short tick labels: centred signals near zero must not print 18 decimals. */
+export function compactAxisNumber(value: number): string {
+  if (value === 0) return '0';
+  const magnitude = Math.abs(value);
+  if (magnitude >= 1e5 || magnitude < 1e-3) return value.toExponential(1).replace('e+', 'e').replace('.0e', 'e');
+  if (magnitude >= 1000) return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return String(Number(value.toPrecision(3)));
 }
 
 function axisBounds(group: string) {
+  if (group === 'credit-share') return { min: 0, max: 1 };
   if (group === 'ratio' || group === 'unit:ratio') {
     return {
       min: ({ min }: { min: number }) => min < 0 ? Math.floor(min * 20) / 20 : 0,
@@ -213,7 +240,7 @@ function axisBounds(group: string) {
       max: ({ max }: { max: number }) => max > 100 ? Math.ceil(max / 10) * 10 : 100,
     };
   }
-  if (group === 'rollout-count') return { min: 0 };
+  if (group === 'rollout-count' || group === 'active-sampling-count' || group === 'active-sampling-rounds') return { min: 0 };
   return { scale: true };
 }
 
@@ -232,7 +259,9 @@ function groupLabel(
     'rollout-count': 'Rollout count',
     'rollout-behavior': 'Rollout behavior',
     'policy-update': 'Policy update and exploration',
-    'active-sampling-count': 'Candidate rows',
+    'credit-magnitude': 'Episode vs turn credit',
+    'credit-share': 'Turn credit share and coverage',
+    'active-sampling-count': 'Candidate groups',
     ratio: 'Rates and fractions',
     'unit:ratio': 'Rates and fractions',
     'unit:%': 'Utilization',
@@ -255,6 +284,10 @@ type EvidenceChartProps = {
   xDomain?: ChartXDomain;
   xOrigin?: string;
   xRange?: readonly [number, number];
+  /** Draw lines (default) or bars. */
+  seriesType?: 'line' | 'bar';
+  /** Name and categories for a logical x axis other than the training step. */
+  xAxis?: ChartXAxis;
 };
 
 export function EvidenceChart({
@@ -272,6 +305,8 @@ export function EvidenceChart({
   xDomain = 'logical-step',
   xOrigin,
   xRange,
+  seriesType = 'line',
+  xAxis,
 }: EvidenceChartProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null);
@@ -300,12 +335,17 @@ export function EvidenceChart({
   const xOriginMs = configuredXOriginMs != null && Number.isFinite(configuredXOriginMs)
     ? configuredXOriginMs
     : Number.isFinite(observedXOriginMs) ? observedXOriginMs : null;
+  // Every lane shares one step range so a selected step lines up across lanes
+  // even when a series starts or stops earlier than the others.
+  const stepValues = xDomain === 'logical-step' && !xAxis?.categories
+    ? plottedSeries.flatMap((item) => item.points.map((point) => point.step)).filter((step): step is number => typeof step === 'number' && Number.isFinite(step))
+    : [];
   const xMinimum = xDomain === 'elapsed-time' && xRange != null && xRange[1] > xRange[0]
     ? xRange[0]
-    : undefined;
+    : stepValues.length ? Math.min(...stepValues) : undefined;
   const xMaximum = xDomain === 'elapsed-time' && xRange != null && xRange[1] > xRange[0]
     ? xRange[1]
-    : undefined;
+    : stepValues.length ? Math.max(...stepValues) : undefined;
   const scaleGroups = useMemo(
     () => [...new Set(plottedSeries.map((item) => scaleGroup(item.name, metricUnits)))],
     [metricUnits, plottedSeries],
@@ -348,6 +388,10 @@ export function EvidenceChart({
       { length: panelCount },
       (_, index) => legendHeight + index * (panelHeight + panelGap),
     );
+    const categories = xDomain === 'logical-step' ? xAxis?.categories : undefined;
+    const xAxisKind = categories
+      ? { type: 'category' as const, data: [...categories] }
+      : { type: 'value' as const };
     const axes = useSmallMultiples
       ? panelGroups.flatMap((_, panelIndex) => groupAxisGroups[panelIndex].map((group, axisIndex) => ({
           type: 'value' as const,
@@ -370,13 +414,13 @@ export function EvidenceChart({
         }));
     const xAxes = useSmallMultiples
       ? panelGroups.map((_, index) => ({
-          type: 'value' as const,
+          ...xAxisKind,
           scale: xDomain === 'elapsed-time',
           min: xMinimum,
           max: xMaximum,
           gridIndex: index,
-          name: index === panelGroups.length - 1 && (!compact || xDomain === 'elapsed-time')
-            ? (xDomain === 'elapsed-time' ? 'Elapsed run time' : 'Logical step')
+          name: index === panelGroups.length - 1 && (!compact || xDomain === 'elapsed-time' || Boolean(xAxis?.name))
+            ? (xDomain === 'elapsed-time' ? 'Elapsed run time' : xAxis?.name ?? 'Logical step')
             : '',
           nameLocation: 'middle' as const,
           nameGap: 32,
@@ -391,11 +435,11 @@ export function EvidenceChart({
           splitLine: { show: false },
         }))
       : [{
-          type: 'value' as const,
+          ...xAxisKind,
           scale: xDomain === 'elapsed-time',
           min: xMinimum,
           max: xMaximum,
-          name: compact && xDomain === 'logical-step' ? '' : (xDomain === 'elapsed-time' ? 'Elapsed run time' : 'Logical step'),
+          name: compact && xDomain === 'logical-step' && !xAxis?.name ? '' : (xDomain === 'elapsed-time' ? 'Elapsed run time' : xAxis?.name ?? 'Logical step'),
           nameLocation: 'middle' as const,
           nameGap: 34,
           axisLine: { lineStyle: { color: '#aaa4ab' } },
@@ -438,7 +482,7 @@ export function EvidenceChart({
         borderWidth: 1,
         extraCssText: 'border-radius:5px;box-shadow:0 6px 18px rgba(38,33,38,.10);',
         axisPointer: { type: 'line', lineStyle: { color: '#8c858e', width: 1 } },
-        formatter: (params: AxisTooltipParam | AxisTooltipParam[]) => formatTooltip(params, metricLabels, metricUnits, xDomain),
+        formatter: (params: AxisTooltipParam | AxisTooltipParam[]) => formatTooltip(params, metricLabels, metricUnits, xDomain, xAxis),
       },
       axisPointer: useSmallMultiples ? { link: [{ xAxisIndex: 'all' }] } : undefined,
       legend: {
@@ -480,13 +524,14 @@ export function EvidenceChart({
         const indexWithinGroup = groupSeries[panelGroupIndex]?.findIndex((candidate) => candidate.name === item.name) ?? 0;
         return {
           name: item.name,
-          type: 'line',
+          type: seriesType,
           xAxisIndex: useSmallMultiples ? panelGroupIndex : 0,
           yAxisIndex,
           showSymbol: item.points.length < 12,
           symbolSize: 5,
           smooth: false,
-          lineStyle: { width: 1.9, type: lineTypes[indexWithinGroup % lineTypes.length] },
+          lineStyle: seriesType === 'line' ? { width: 1.9, type: lineTypes[indexWithinGroup % lineTypes.length] } : undefined,
+          barMaxWidth: seriesType === 'bar' ? 28 : undefined,
           emphasis: { focus: 'series' },
           markLine: selectedStep == null ? undefined : {
             silent: true,
@@ -536,7 +581,7 @@ export function EvidenceChart({
       chart.dispose();
       if (chartRef.current === chart) chartRef.current = null;
     };
-  }, [compact, elapsedMaximum, metricLabels, metricUnits, onHoverStep, onPointSelect, panelGroups, plottedSeries, renderedHeight, scaleGroups, selectedStep, showLegend, showZoom, useSmallMultiples, xDomain, xMaximum, xMinimum, xOriginMs]);
+  }, [compact, elapsedMaximum, metricLabels, metricUnits, onHoverStep, onPointSelect, panelGroups, plottedSeries, renderedHeight, scaleGroups, selectedStep, seriesType, showLegend, showZoom, useSmallMultiples, xAxis, xDomain, xMaximum, xMinimum, xOriginMs]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -593,7 +638,7 @@ export function EvidenceChart({
         }}
       />
       <div className="sr-only">
-        <p>{ariaLabel}. Values are plotted by {xDomain === 'elapsed-time' ? 'elapsed run time' : 'logical step'}.</p>
+        <p>{ariaLabel}. Values are plotted by {xDomain === 'elapsed-time' ? 'elapsed run time' : xAxis?.name ?? 'logical step'}.</p>
         <ul>
           {series.map((item) => {
             const latest = item.points.at(-1);

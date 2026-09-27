@@ -308,6 +308,18 @@ def test_evaluation_step_is_not_promoted_to_rollout_step() -> None:
     assert facts.dimensions["rollout_step"] is None
 
 
+def test_task_id_is_the_native_task_key_else_the_example_id() -> None:
+    task = {"type": "AutomationBenchTask", "key": "simple.gmail_invoice_email", "data": {"idx": 66}}
+    info = {"example_id": "train/000066"}
+    for record in (
+        {"id": "e", "version": 2, "task": task, "info": {}},
+        {"id": "t", "version": 2, "task": task, "info": info},
+    ):
+        assert project_verifiers_trace_facts(record).dimensions["task_id"] == "simple.gmail_invoice_email"
+    keyless = project_verifiers_trace_facts({"id": "k", "version": 2, "task": {"type": "ToolTask"}, "info": info})
+    assert keyless.dimensions["task_id"] == "train/000066"
+
+
 def test_incompatible_thinking_usage_is_not_persisted_as_more_than_total_output() -> None:
     facts = project_verifiers_trace_facts(
         {

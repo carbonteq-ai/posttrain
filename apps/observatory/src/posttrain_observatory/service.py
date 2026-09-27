@@ -7,9 +7,10 @@ import base64
 import hashlib
 import json
 import math
+import re
 import time
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from statistics import fmean
 from typing import Any, Literal, cast
@@ -18,10 +19,14 @@ from posttrain.advisor import ArchitectureLoader
 from posttrain.common import JsonValue
 from posttrain.tracking import (
     EventRecord,
-    MetricPoint,
     MetricSeries,
+    NoteSource,
+    ProjectSql,
+    ProjectSqlError,
+    ProjectSqlUnavailable,
     RunDataSource,
     RunDetail,
+    RunNote,
     RunQuery,
     TraceAggregateBucket,
     TraceFactAggregate,
@@ -32,6 +37,7 @@ from posttrain.tracking import (
 from .configuration import configuration_review
 from .discovery import TrackioSourceDiscovery
 from .evaluation_contracts import read_evaluation_contract
+from .evaluations import EvaluationIndex, EvaluationTaskScores, evaluation_index, evaluation_tasks
 from .execution_targets import execution_target_capacity, execution_target_contexts
 from .models import (
     BackendRuntimeSummary,
@@ -91,10 +97,22 @@ from .models import (
     ViewMode,
     WorkPackageView,
 )
+from .note_render import RenderedNote
 from .redaction import RedactionPolicy
 from .rollout_time import PayloadAggregate, refresh_rollout_time_buckets, rollout_time_view
+from .run_cards import TemplateSet
+from .run_notes import (
+    NoteAddRequest,
+    NoteDeleteRequest,
+    NoteReviseRequest,
+    NoteStoreFactory,
+    RenderedRunNote,
+    RunNotes,
+)
 from .runtime_phases import project_runtime_phases
 from .semantic import SemanticAnalysisService, SemanticSummaryProvider
+from .semantic_layer.describe import SemanticDescription
+from .semantic_layer.query import SemanticQuery, SemanticResult, SqlQuery
 from .serving_capacity import project_serving_benchmark
 from .sources import RunSourceRegistry
 from .telemetry import (
@@ -478,59 +496,6 @@ def _comparison_context(view: EvaluationRunView | RunView) -> dict[str, JsonValu
     }
 
 
-def _logical_metric_series(series: MetricSeries) -> MetricSeries:
-    """Project replayed evidence onto its source step without double plotting.
-
-    Isolated environments replay trace-derived metrics during finalization.
-    Their provider step is append-only storage position, while ``source_step``
-    is the optimizer step they describe. Replay is authoritative when present.
-    For ordinary same-step measurements, collapse only numerically equivalent
-    duplicates and preserve meaningfully different observations.
-    """
-
-    replay: list[tuple[MetricPoint, int]] = []
-    for point in series.points:
-        source_step = point.attributes.get("source_step")
-        if (
-            point.attributes.get("observation_source") == "verifiers"
-            and isinstance(source_step, int)
-            and not isinstance(source_step, bool)
-            and source_step >= 0
-        ):
-            replay.append((point, source_step))
-    if replay:
-        replay_steps = {source_step for _, source_step in replay}
-        # Replay is authoritative only for the optimizer steps it covers. Keep
-        # native points for other steps so a partially finalized run cannot
-        # silently lose its optimizer movement. Multiple replay points for one
-        # source step are intentional: they represent rollout waves and must
-        # remain available to population reducers.
-        native = [
-            point
-            for point in series.points
-            if point.attributes.get("observation_source") != "verifiers" and point.step not in replay_steps
-        ]
-        projected = [point.model_copy(update={"step": source_step}) for point, source_step in replay]
-        return MetricSeries(
-            name=series.name,
-            points=tuple(sorted((*native, *projected), key=lambda point: point.step if point.step is not None else -1)),
-        )
-
-    retained: list[MetricPoint] = []
-    for point in series.points:
-        if point.step is not None and any(
-            existing.step == point.step and existing.value == point.value and existing.attributes == point.attributes
-            for existing in retained
-        ):
-            continue
-        retained.append(point)
-    # Provider history is append-only, but readers are not required to return
-    # rows in logical-step order. Sorting here keeps reducers (especially
-    # ``last``) and every presentation surface on the same timeline.
-    retained.sort(key=lambda point: point.step if point.step is not None else -1)
-    return MetricSeries(name=series.name, points=tuple(retained))
-
-
 def _presentation_metric_series(series: MetricSeries) -> MetricSeries:
     """Drop reducer-only point metadata from chart payloads.
 
@@ -623,6 +588,64 @@ def _metric_summary(
     )
 
 
+_FACT_TRACE_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
+
+
+async def _with_fact_counts(source: object, summaries: tuple[TraceSummary, ...]) -> tuple[TraceSummary, ...]:
+    """Fill a page's token and turn counts from the traces' stored facts.
+
+    The native payload reports thinking tokens only when the provider's usage
+    does, which training rollouts do not; the fact calculator counts them with
+    the model's renderer when the trace is written. One bounded SQL read per
+    page; a source without project SQL keeps the payload-derived values.
+    """
+
+    missing = [
+        item.external_id
+        for item in summaries
+        if (item.thinking_tokens is None or item.model_calls is None) and _FACT_TRACE_ID.match(item.external_id)
+    ]
+    if not missing or not isinstance(source, ProjectSql):
+        return summaries
+    ids = ", ".join(f"'{external_id}'" for external_id in missing)
+    try:
+        result = await source.project_sql(
+            "select external_id, fact_thinking_tokens, fact_model_output_tokens, fact_model_calls "
+            f"from traces where external_id in ({ids})",
+            max_rows=len(missing),
+        )
+    except (ProjectSqlUnavailable, ProjectSqlError):
+        return summaries
+    facts = {str(row[0]): row[1:] for row in result.rows}
+
+    def counted(value: JsonValue) -> int | None:
+        return int(value) if isinstance(value, int | float) and not isinstance(value, bool) and value >= 0 else None
+
+    enriched = []
+    for item in summaries:
+        row = facts.get(item.external_id)
+        if row is None:
+            enriched.append(item)
+            continue
+        thinking, output, calls = (counted(value) for value in row)
+        completion = item.completion_tokens if item.completion_tokens is not None else output
+        thinking = item.thinking_tokens if item.thinking_tokens is not None else thinking
+        response = item.response_tokens
+        if response is None and completion is not None and thinking is not None:
+            response = max(0, completion - thinking)
+        enriched.append(
+            item.model_copy(
+                update={
+                    "thinking_tokens": thinking,
+                    "completion_tokens": completion,
+                    "response_tokens": response,
+                    "model_calls": item.model_calls if item.model_calls is not None else calls,
+                }
+            )
+        )
+    return tuple(enriched)
+
+
 def _grpo_projection(
     resolved_inputs: Mapping[str, JsonValue],
     series: Mapping[str, MetricSeries],
@@ -636,7 +659,12 @@ def _grpo_projection(
         ),
         None,
     )
-    olmo_active = _condition_active("olmo3_algorithm_enabled", resolved_inputs, series)
+    # OLMo 3 GRPO selects active refill through its algorithm; SAMPO always
+    # refills. Either way the run's own active-sampling series are the evidence.
+    active_series = series.get("train/rl/active_sampling_retained_fraction")
+    olmo_active = _condition_active("olmo3_algorithm_enabled", resolved_inputs, series) or bool(
+        active_series and active_series.points
+    )
     dynamic = any(
         series.get(metric, MetricSeries(name=metric)).points
         for metric in (
@@ -1207,6 +1235,9 @@ class ObservatoryService:
         redaction: RedactionPolicy | None = None,
         source_discovery: TrackioSourceDiscovery | None = None,
         architecture_loader: ArchitectureLoader | None = None,
+        note_store_factory: NoteStoreFactory | None = None,
+        note_templates: TemplateSet | None = None,
+        note_writes: bool = False,
     ) -> None:
         if isinstance(source, RunSourceRegistry):
             self.registry = source
@@ -1230,6 +1261,10 @@ class ObservatoryService:
             tuple[str, str], tuple[float, RolloutTimeView, dict[int | None, TraceAggregateBucket] | None]
         ] = {}
         self._rollout_time_locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._evaluation_cache: dict[str, tuple[float, EvaluationIndex]] = {}
+        self.notes = RunNotes(
+            self, store_factory=note_store_factory, templates=note_templates or TemplateSet(), writes=note_writes
+        )
 
     def _locator(self, value: str | RunLocator) -> RunLocator:
         if isinstance(value, RunLocator):
@@ -1413,7 +1448,6 @@ class ObservatoryService:
         series_values, artifacts = await asyncio.gather(
             _read_metric_series(source, locator.run_id, names), source.artifacts(locator.run_id)
         )
-        series_values = tuple(_logical_metric_series(series) for series in series_values)
         by_name = {series.name: series for series in series_values}
         presentation_by_name = {
             name: _presentation_metric_series(_downsample(series, 400)[0]) for name, series in by_name.items()
@@ -1463,7 +1497,7 @@ class ObservatoryService:
             completeness=completeness,
             grpo=(
                 _grpo_projection(detail.resolved_inputs, by_name, detail.events)
-                if definition.job_kind in GROUP_POLICY_JOB_KINDS
+                if definition.job_kind in GROUP_POLICY_JOB_KINDS | {"train.sampo"}
                 else None
             ),
             alerts=self._alerts(
@@ -1625,7 +1659,6 @@ class ObservatoryService:
             )
         )
         series_values = await _read_metric_series(source, locator.run_id, requested)
-        series_values = tuple(_logical_metric_series(series) for series in series_values)
         by_name = {series.name: series for series in series_values}
         presentation_by_name = {
             name: _presentation_metric_series(_downsample(series, 400)[0]) for name, series in by_name.items()
@@ -1805,15 +1838,12 @@ class ObservatoryService:
         unknown = set(query.names) - set(detail.metric_names)
         if unknown:
             raise ValueError(f"unknown metric names: {', '.join(sorted(unknown))}")
-        raw = tuple(
-            _logical_metric_series(series)
-            for series in await source.metric_series(
-                locator.run_id,
-                query.names,
-                start_step=query.start_step,
-                end_step=query.end_step,
-                page_size=min(max(query.max_points * 2, 100), 2000),
-            )
+        raw = await source.metric_series(
+            locator.run_id,
+            query.names,
+            start_step=query.start_step,
+            end_step=query.end_step,
+            page_size=min(max(query.max_points * 2, 100), 2000),
         )
         filtered = []
         requested = 0
@@ -2043,7 +2073,7 @@ class ObservatoryService:
         detail = context.detail
         if step is not None or slice_key or outcome or (search and search.strip()):
             summaries, live = await self._trace_filter_population(locator, context)
-            return filtered_trace_summary_page(
+            page = filtered_trace_summary_page(
                 summaries,
                 cursor=cursor,
                 limit=limit,
@@ -2053,7 +2083,8 @@ class ObservatoryService:
                 search=search,
                 live=live,
             )
-        return await trace_summary_page(
+            return page.model_copy(update={"items": await _with_fact_counts(source, page.items)})
+        page = await trace_summary_page(
             source,
             locator.run_id,
             total=detail.trace_count,
@@ -2065,6 +2096,7 @@ class ObservatoryService:
                 _evaluation_metadata(detail.resolved_inputs) if detail.summary.job_kind.startswith("eval.") else None
             ),
         )
+        return page.model_copy(update={"items": await _with_fact_counts(source, page.items)})
 
     async def get_trace_filter_options(self, run: str | RunLocator) -> TraceFilterOptions:
         locator = self._locator(run)
@@ -2119,8 +2151,8 @@ class ObservatoryService:
                 return cached[1]
             context = await self._trace_read_context(locator)
             detail = context.detail
-            if detail.summary.job_kind != "train.grpo":
-                raise ValueError("prompt-group rewards are only available for train.grpo runs")
+            if detail.summary.job_kind not in GROUP_POLICY_JOB_KINDS | {"train.sampo"}:
+                raise ValueError("prompt-group rewards are only available for group-policy and SAMPO runs")
             result = await self.registry.resolve(locator).aggregate_trace_facts(
                 locator.run_id,
                 TraceFactsQuery(
@@ -2433,6 +2465,80 @@ class ObservatoryService:
             pareto=pareto,
             rows=tuple(rows),
         )
+
+    async def describe_semantics(self, *, job_kinds: tuple[str, ...] = ()) -> SemanticDescription:
+        """The semantic tables, dimensions, measures and metrics, optionally for some job kinds."""
+        from .semantic_layer import FRAMEWORK_MODEL, describe_semantics
+
+        return describe_semantics(FRAMEWORK_MODEL, job_kinds=job_kinds)
+
+    async def query_semantics(self, query: SemanticQuery | SqlQuery, *, source_id: str | None = None) -> SemanticResult:
+        """Answer the short form or read-only SQL inside the source's storage (Trackio project SQL)."""
+        from .semantic_layer import FRAMEWORK_MODEL, run_semantic_query, run_sql_query
+
+        if not self.registry.source_ids:
+            raise LookupError("Observatory has no configured sources")
+        source = self.registry.resolve(
+            RunLocator(source_id=source_id or self.registry.source_ids[0], run_id="semantic-query")
+        )
+        if isinstance(query, SqlQuery):
+            return await run_sql_query(FRAMEWORK_MODEL, source, query)
+        return await run_semantic_query(FRAMEWORK_MODEL, source, query)
+
+    async def evaluations(self, *, source_id: str | None = None) -> EvaluationIndex:
+        """Every evaluation run with the model and checkpoint it scored; cached for a minute."""
+        if not self.registry.source_ids:
+            raise LookupError("Observatory has no configured sources")
+        source = source_id or self.registry.source_ids[0]
+        cached = self._evaluation_cache.get(source)
+        if cached is not None and cached[0] > time.monotonic():
+            return cached[1]
+        index = await evaluation_index(source, lambda query: self.query_semantics(query, source_id=source))
+        self._evaluation_cache[source] = (time.monotonic() + 60.0, index)
+        return index
+
+    async def evaluation_task_scores(self, runs: Sequence[RunLocator]) -> EvaluationTaskScores:
+        """Per-task scores of evaluation runs from one source."""
+        sources = {locator.source_id for locator in runs}
+        if len(sources) > 1:
+            raise ValueError("evaluation task scores read one source at a time")
+        if not sources:
+            if not self.registry.source_ids:
+                raise LookupError("Observatory has no configured sources")
+            return EvaluationTaskScores(source_id=self.registry.source_ids[0])
+        source = sources.pop()
+        return await evaluation_tasks(
+            source,
+            [locator.run_id for locator in runs],
+            lambda query: self.query_semantics(query, source_id=source),
+        )
+
+    async def run_card(self, run: str | RunLocator) -> RenderedNote:
+        """The job kind's note template rendered for this run."""
+        return await self.notes.card(self._locator(run))
+
+    async def render_note(self, run: str | RunLocator, body_md: str) -> RenderedNote:
+        """Render note Markdown for a run without saving it."""
+        return await self.notes.render(self._locator(run), body_md)
+
+    async def run_notes(self, run: str | RunLocator, *, kind: str | None = None) -> tuple[RenderedRunNote, ...]:
+        return await self.notes.notes(self._locator(run), kind=kind)
+
+    async def run_note_history(self, run: str | RunLocator, note_id: str) -> tuple[RunNote, ...]:
+        return await self.notes.history(self._locator(run), note_id)
+
+    async def add_run_note(self, run: str | RunLocator, request: NoteAddRequest, *, source: NoteSource) -> RunNote:
+        return await self.notes.add(self._locator(run), request, source)
+
+    async def revise_run_note(
+        self, run: str | RunLocator, note_id: str, request: NoteReviseRequest, *, source: NoteSource
+    ) -> RunNote:
+        return await self.notes.revise(self._locator(run), note_id, request, source)
+
+    async def delete_run_note(
+        self, run: str | RunLocator, note_id: str, request: NoteDeleteRequest, *, source: NoteSource
+    ) -> RunNote:
+        return await self.notes.delete(self._locator(run), note_id, request, source)
 
     async def summarize_run(self, run: str | RunLocator, request: SemanticSummaryRequest) -> SemanticSummaryResult:
         response = await self.get_run_view_response(

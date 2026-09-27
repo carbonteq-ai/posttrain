@@ -22,6 +22,7 @@ class TrackingCapabilities(TrackingModel):
     artifacts: bool = True
     artifact_lineage: bool = True
     trace_facts: Literal["available", "unsupported", "unavailable"] = "unavailable"
+    run_notes: bool = False
 
 
 class RunQuery(TrackingModel):

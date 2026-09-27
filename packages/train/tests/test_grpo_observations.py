@@ -247,6 +247,30 @@ def test_verl_sampo_metrics_use_hierarchical_credit_names() -> None:
     }
 
 
+def test_trl_sampo_credit_evidence_passes_through_with_ratio_checks() -> None:
+    native = {
+        "train/rl/episode_advantage_abs_mean": 0.15,
+        "train/rl/turn_advantage_abs_mean": 0.06,
+        "train/rl/turn_credit_share": 0.28,
+        "train/rl/turn_advantage_informative_fraction": 0.45,
+        "train/rl/singleton_anchor_fraction": 0.54,
+    }
+    step = normalize_grpo_metrics(backend="trl", step=3, native=native, features=GRPOObservationFeatures())
+
+    assert step.metrics == native
+    with pytest.raises(ValueError, match="between zero and one"):
+        normalize_grpo_metrics(
+            backend="trl", step=3, native={"train/rl/turn_credit_share": 1.2}, features=GRPOObservationFeatures()
+        )
+    with pytest.raises(ValueError, match="cannot be negative"):
+        normalize_grpo_metrics(
+            backend="trl",
+            step=3,
+            native={"train/rl/turn_advantage_abs_mean": -0.1},
+            features=GRPOObservationFeatures(),
+        )
+
+
 @pytest.mark.parametrize(
     ("native", "message"),
     [

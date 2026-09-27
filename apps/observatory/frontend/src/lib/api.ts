@@ -594,6 +594,10 @@ export type RecommendedSetting = Schemas['RecommendedSetting'];
 export type StepCapacityView = Schemas['StepCapacityView'];
 export type StepOptionView = Schemas['StepOptionView'];
 export type StepCalibration = Schemas['StepCalibration'];
+export type EvaluationIndex = Schemas['EvaluationIndex'];
+export type EvaluationRecord = Schemas['EvaluationRecord'];
+export type EvaluationTaskScores = Schemas['EvaluationTaskScores'];
+export type EvaluationTaskScore = Schemas['EvaluationTaskScore'];
 
 export type RunView = {
   requested_mode: 'auto' | 'job' | 'generic';
@@ -861,14 +865,49 @@ export type SemanticResult = {
   };
 };
 
+export type RunNote = Schemas['RunNote'];
+export type RenderedNote = Schemas['RenderedNote'];
+export type RenderedView = Schemas['RenderedView'];
+export type RenderedRunNote = Schemas['RenderedRunNote'];
+export type NoteData = Schemas['SemanticResult'];
+export type NoteAddRequest = Schemas['NoteAddRequest'];
+export type NoteReviseRequest = Schemas['NoteReviseRequest'];
+export type NoteSettings = { writes: boolean };
+
+/**
+ * A failed API request. ``code`` is the Observatory error code from the
+ * response body (for example ``note_conflict``); ``body`` keeps any extra
+ * fields such as a conflict's ``current_revision``.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string | null;
+  readonly body: Record<string, unknown>;
+
+  constructor(message: string, status: number, code: string | null, body: Record<string, unknown>) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    this.body = body;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as {
+    const parsed: unknown = await response.json().catch(() => ({}));
+    const body = (parsed != null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Record<string, unknown> & {
+      code?: string;
       message?: string;
       detail?: string;
     };
-    throw new Error(body.message ?? body.detail ?? `Request failed (${response.status})`);
+    throw new ApiError(
+      body.message ?? body.detail ?? `Request failed (${response.status})`,
+      response.status,
+      typeof body.code === 'string' ? body.code : null,
+      body,
+    );
   }
   const contentType = response.headers?.get?.('content-type');
   if (contentType?.includes('text/html')) {
@@ -880,6 +919,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   sources: () => request<SourceSummary[]>('/api/v1/sources'),
   runs: (sourceId: string) => request<RunItem[]>(`/api/v1/runs?${new URLSearchParams({ source_id: sourceId, limit: '1000' })}`),
+  evaluations: (sourceId: string) => request<EvaluationIndex>(`/api/v1/evaluations?${new URLSearchParams({ source_id: sourceId })}`),
+  evaluationTasks: (runKeys: string[]) =>
+    request<EvaluationTaskScores>(`/api/v1/evaluations/tasks?${new URLSearchParams(runKeys.map((key) => ['run_key', key]))}`),
   run: (key: string) => request<RunItem>(`/api/v1/runs/${encodeURIComponent(key)}`),
   refreshSources: () => request<SourceRefreshStatus>('/api/v1/sources/refresh', { method: 'POST' }),
   workPackage: (workPackageId: string, projectId: string, sourceId: string) => {
@@ -940,6 +982,34 @@ export const api = {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ run_keys: runKeys }),
+    }),
+  noteSettings: () => request<NoteSettings>('/api/v1/notes/settings'),
+  runCard: (key: string) => request<RenderedNote>(`/api/v1/runs/${encodeURIComponent(key)}/card`),
+  runNotes: (key: string) => request<RenderedRunNote[]>(`/api/v1/runs/${encodeURIComponent(key)}/notes`),
+  runNoteHistory: (key: string, noteId: string) =>
+    request<RunNote[]>(`/api/v1/runs/${encodeURIComponent(key)}/notes/${encodeURIComponent(noteId)}/history`),
+  addRunNote: (key: string, note: NoteAddRequest) =>
+    request<RunNote>(`/api/v1/runs/${encodeURIComponent(key)}/notes`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(note),
+    }),
+  reviseRunNote: (key: string, noteId: string, revision: NoteReviseRequest) =>
+    request<RunNote>(`/api/v1/runs/${encodeURIComponent(key)}/notes/${encodeURIComponent(noteId)}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(revision),
+    }),
+  deleteRunNote: (key: string, noteId: string, expectedRevision: number) => {
+    const query = new URLSearchParams({ expected_revision: String(expectedRevision) });
+    return request<RunNote>(`/api/v1/runs/${encodeURIComponent(key)}/notes/${encodeURIComponent(noteId)}?${query}`, { method: 'DELETE' });
+  },
+  previewNote: (key: string, bodyMd: string, signal?: AbortSignal) =>
+    request<RenderedNote>('/api/v1/notes/preview', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      signal,
+      body: JSON.stringify({ run_key: key, body_md: bodyMd }),
     }),
   summarize: (key: string) =>
     request<SemanticResult>(`/api/v1/runs/${key}/semantic-summary`, {
