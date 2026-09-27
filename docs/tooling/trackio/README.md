@@ -1,29 +1,37 @@
 # Trackio fork and maintenance
 
-The next Posttrain release pins `0.31.5.post14.dev30` (fork commit
+The next Posttrain release pins `0.31.5.post14.dev31` (fork commit
+`6f292fe247eed46e6c8d0a5507205b6b9d830d97`, tag
+`carbonteq-v0.31.5.post14.dev31`; wheel
+`4980ee67e56788c3a0755df2fe2eaacce8a95884b46a82403b0161990fa082d1`, sdist
+`7ce09dc7b5cbc956ad005cc31501307a9d3732459ff6c7f50d3f4f1402bb5121`), published
+to `carbonteq/dev` by Posttrain workflow `36293308911`. dev31 makes remote
+delivery reliable for long runs: logs and traces go to `/bulk_log` in requests
+of at most 8 MB and a failed request's entries are kept and retried (before,
+the buffer was resent as one growing request that the Cloudflare edge refused,
+and a 150-update run lost 7,546 of 11,876 traces); multipart uploads sign their
+parts again before the 15-minute URLs expire and after a 403; artifact waits
+time out only when no part has uploaded for the timeout. Only clients (job
+images) need dev31.
+
+The shared server runs `0.31.5.post14.dev30` since 2026-09-27 (fork commit
 `60e1306ebb406ea33776d40c7cf79ad5010f58a2`, tag
 `carbonteq-v0.31.5.post14.dev30`; wheel
 `606c10633bedcaab210565f5b77f3d595db00e2a1ba44471c16583aa9fe85859`, sdist
-`9beacecc5c5a6773350348a4d2b93ad714d68b54a68c37f1fbae9c9d9ac8b832`), published
-to `carbonteq/dev` by Posttrain workflow `36289612769` and not yet promoted or
-deployed. dev30 replaces trace facts with set-oriented Doris writes (re-scoring
-a run with a new fact calculator: 0.17 s → 0.005 s per trace on real rows of
-the test database). It carries dev28's revisioned run notes (`run_notes` table;
-Doris schema version 4) and dev29's read-only project SQL (`project_sql`: one
-Doris SQL SELECT over a project's `metric_rows`, `run_configs`, `traces` and
-`run_notes`, translated on SQLite
-storage), which the Observatory's semantic layer and run notes use. On
-2026-09-27 the test database `trackio_candidate` (same Doris host as production)
-was backed up with a restore check, migrated to schema version 4, and passed
-the fork's 9 real-Doris tests (`tests/integration/test_doris_storage.py`) and
-the Observatory's tests against a local dev29 server on it. The candidate
-service there still runs dev27, which keeps running but would refuse to restart
-on version 4 until it is upgraded. Deploying dev29 to the shared server needs,
-in order: a restore-verified backup of the production database `trackio`,
-`trackio storage migrate-doris --to 4 --apply --backup-receipt ...` (a dev28 or
-later server refuses to start on a version 3 database), and then the server
-upgrade. Until then the shared server reports dev27, and notes and project SQL
-report themselves unavailable.
+`9beacecc5c5a6773350348a4d2b93ad714d68b54a68c37f1fbae9c9d9ac8b832`, workflow
+`36289612769`), after the production database was backed up with a restore
+check and migrated to schema version 4; the candidate service on the test
+database `trackio_candidate` was upgraded with it. dev30 replaces trace facts
+with set-oriented Doris writes (re-scoring a run with a new fact calculator:
+0.17 s → 0.005 s per trace on real rows of the test database). It carries
+dev28's revisioned run notes (`run_notes` table; Doris schema version 4) and
+dev29's read-only project SQL (`project_sql`: one Doris SQL SELECT over a
+project's `metric_rows`, `run_configs`, `traces` and `run_notes`, translated on
+SQLite storage), which the Observatory's semantic layer and run notes use.
+Before the upgrade both databases were backed up with a restore check, and the
+test database passed the fork's real-Doris tests
+(`tests/integration/test_doris_storage.py`) and the Observatory's tests against
+a local server on it.
 
 Posttrain 0.4.5 pins and deploys `0.31.5.post14.dev27` (fork commit
 `f4d1027441449d3d59870541edb275fa859fee35`, tag

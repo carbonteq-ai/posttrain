@@ -34,13 +34,26 @@ where they are recorded.
 - Trace facts v8: `task_id` is the environment's task key (for AutomationBench
   the task name), falling back to the dataset's example id, so training and
   evaluation name tasks the same way across runs.
-- Trackio `0.31.5.post14.dev30` (run notes, read-only project SQL, set-oriented
-  trace-fact replacement; Doris schema version 4).
+- Trackio `0.31.5.post14.dev31` (run notes, read-only project SQL, set-oriented
+  trace-fact replacement, reliable remote delivery; Doris schema version 4).
+- Training publishes its replay authority once, compressed: the native episode
+  envelope as gzip (about 5x smaller), hashed without reading it into memory.
+  The derived trace view is no longer published a second time; it was streamed
+  to tracking and is rebuilt from the episodes. A 150-update run's final upload
+  falls from 7.7 GB to about 0.7 GB.
 
 ### Fixed
 
 - Separate rollout batches that reported the same value were merged, which
   undercounted rollouts and rollout time.
+- Traces lost on the way to Trackio: a failed request left its entries in the
+  client buffer, which was then resent as one ever-growing request that a proxy
+  refused every time, and was dropped when the job exited (7,546 of 11,876
+  traces of a 150-update run). Trackio dev31 sends at most 8 MB per request and
+  keeps what it could not send.
+- A long artifact upload failed with 403 once its 15-minute signed part URLs
+  expired, and a queued artifact timed out behind a slow upload; dev31 signs
+  parts again and times out only when uploads stall.
 
 ## 0.4.10 - 2026-09-26
 
