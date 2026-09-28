@@ -129,3 +129,34 @@ def test_verl_mismatch_metrics_normalize() -> None:
     assert metrics["train/rl/sampling_prob_delta_mean"] == 0.001
     assert metrics["train/rl/sampling_prob_delta_max"] == 0.2
     assert metrics["train/rl/sampling_prob_pearson_corr"] == 0.999
+
+
+def test_post4_loss_scale_and_log_prob_gap_metrics_normalize(tmp_path: Path) -> None:
+    rows = [
+        {"actor/grad_norm": 0.4, "actor/loss_scale": 65536.0, "actor/optimizer_step_skipped": 0.0},
+        {"actor/grad_norm": math.inf, "actor/loss_scale": 65536.0, "actor/optimizer_step_skipped": 0.5},
+        {
+            "actor/grad_norm": 0.3,
+            "actor/loss_scale": 32768.0,
+            "actor/optimizer_step_skipped": 0.0,
+            "training/rollout_logp_diff_mean": 0.002,
+            "training/rollout_logp_diff_p99": 0.02,
+            "training/rollout_logp_diff_max": 0.1,
+            "training/rollout_seq_logp_diff_abs_mean": 0.05,
+            "training/rollout_probs_diff_mean": 0.001,
+        },
+    ]
+    records = read_verl_metric_records(_sidecar(tmp_path / "m.jsonl", rows), loss_scaling=True)
+    normalized = [
+        normalize_grpo_metrics(backend="verl", step=r.step, native=r.data, features=GRPOObservationFeatures()).metrics
+        for r in records
+    ]
+    assert [m["train/optimizer_step_skipped"] for m in normalized] == [0.0, 0.5, 0.0]
+    assert [m["train/optimizer_steps_skipped"] for m in normalized] == [0.0, 1.0, 1.0]
+    assert [m["train/loss_scale"] for m in normalized] == [65536.0, 65536.0, 32768.0]
+    last = normalized[-1]
+    assert last["train/rl/sampling_logp_delta_mean"] == 0.002
+    assert last["train/rl/sampling_logp_delta_p99"] == 0.02
+    assert last["train/rl/sampling_logp_delta_max"] == 0.1
+    assert last["train/rl/sampling_sequence_logp_delta_abs_mean"] == 0.05
+    assert last["train/rl/sampling_prob_delta_mean"] == 0.001

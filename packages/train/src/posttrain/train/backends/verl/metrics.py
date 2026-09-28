@@ -51,9 +51,10 @@ def read_verl_metric_records(path: Path, *, loss_scaling: bool = False) -> tuple
     (``loss_scaling``): an optimizer step whose gradients overflowed is skipped
     by the scaler and reports an infinite or NaN ``actor/grad_norm``, together
     with values derived from it. Such a record keeps its finite values, drops
-    the non-finite ones, and gains ``actor/optimizer_step_skipped = 1`` and a
-    running ``actor/optimizer_steps_skipped``; every other record of a
-    loss-scaled run gains the flag 0. A non-finite value in a record whose
+    the non-finite ones, and gains ``actor/optimizer_step_skipped = 1`` (or
+    keeps the skipped share veRL 0.9.0.post4 reports) and a running
+    ``actor/optimizer_steps_skipped`` count of updates with a skip; every other
+    record of a loss-scaled run gains the flag 0. A non-finite value in a record whose
     gradient norm is finite still fails the read.
     """
 
@@ -85,11 +86,15 @@ def read_verl_metric_records(path: Path, *, loss_scaling: bool = False) -> tuple
             )
         if loss_scaling:
             data, skipped = _drop_skipped_step_values(data, line_number=line_number)
-            if _GRAD_NORM in data or skipped:
-                # veRL logs neither the scale nor the skip; the scaler skips exactly the steps whose
-                # unscaled gradient norm is infinite or NaN.
-                skipped_total += int(skipped)
-                data = {**data, _STEP_SKIPPED: float(skipped), _STEPS_SKIPPED: float(skipped_total)}
+            native = data.get(_STEP_SKIPPED)
+            native = float(native) if isinstance(native, int | float) and not isinstance(native, bool) else None
+            if _GRAD_NORM in data or skipped or native is not None:
+                # veRL 0.9.0.post4 reports the skipped share of the update's optimizer steps
+                # (actor/optimizer_step_skipped); earlier releases report nothing, and the scaler
+                # skips exactly the steps whose unscaled gradient norm is infinite or NaN.
+                share = native if native is not None else float(skipped)
+                skipped_total += int(share > 0)
+                data = {**data, _STEP_SKIPPED: share, _STEPS_SKIPPED: float(skipped_total)}
         _validate_finite(data, line_number=line_number)
         records.append(VerlMetricRecord(step=step, data=data))
         previous_step = step
