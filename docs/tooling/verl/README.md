@@ -1,5 +1,26 @@
 # veRL training backend
 
+## VORTEX port (in progress, unpublished)
+
+Plan: [verl-vortex-port.md](../../plan/verl-vortex-port.md). Fork branch
+`codex/vortex` (from post4 `54124edf`) commit
+`a4d84ad30b94c11c4de41b3d915eca6399ad2b6a` registers the `token_clip` policy
+loss (asymmetric PPO token clipping without veRL's dual clip or log-ratio
+clamp) and the `k3_unclipped` KL estimator. With them the adapter maps
+`algorithm: olmo3` to veRL natively: `loss_agg_mode=token-mean`,
+`policy_loss.loss_mode=token_clip`, clip 0.2/0.272,
+`algorithm.norm_adv_by_std_in_grpo=false`, decoupled rollout correction
+`rollout_is=token`, `rollout_is_threshold=2.0`, and `kl_loss_type=k3_unclipped`
+for a nonzero `beta` (the LoRA reference is the base model, as in TRL). A CPU
+parity test feeds one fixed batch (both clip bounds, the correction cap,
+dual-clip and KL-clamp regions, a truncated rollout) through TRL post11's
+`GRPOTrainer._compute_loss` and veRL's `ppo_loss`; advantages, correction
+weights, loss and gradient agree to float64 round-off. `truncation_penalty` is
+applied in the veRL agent loop by the same shaping function as the TRL path and
+is accepted for GRPO and DAPO. OLMo 3 itself stays rejected on veRL until
+active sampling is ported (plan Phase 2); only the listed revision is accepted
+for the OLMo 3 mapping, and no release or pin exists yet.
+
 ## Rollout-execution development candidate
 
 Branch `codex/verl-rollout-execution` publishes `0.9.0.post3` from immutable

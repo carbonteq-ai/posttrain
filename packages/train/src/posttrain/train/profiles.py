@@ -493,17 +493,45 @@ def shape_online_reward(
 ) -> float:
     """Apply the selected portable DAPO soft overlong punishment and truncation penalty."""
 
-    buffer = settings.overlong_buffer_tokens if isinstance(settings, GRPOSettings) else None
-    if isinstance(settings, GRPOSettings) and settings.algorithm == "dapo" and buffer is not None:
+    grpo = settings if isinstance(settings, GRPOSettings) else None
+    return shape_rollout_reward(
+        reward,
+        completion_tokens,
+        is_truncated=is_truncated,
+        max_completion_tokens=settings.max_completion_length,
+        overlong_buffer_tokens=grpo.overlong_buffer_tokens if grpo is not None and grpo.algorithm == "dapo" else None,
+        overlong_penalty_factor=grpo.overlong_penalty_factor if grpo is not None else 1.0,
+        truncation_penalty=settings.truncation_penalty,
+    )
+
+
+def shape_rollout_reward(
+    reward: float,
+    completion_tokens: int,
+    *,
+    is_truncated: bool,
+    max_completion_tokens: int,
+    overlong_buffer_tokens: int | None,
+    overlong_penalty_factor: float,
+    truncation_penalty: float | None,
+) -> float:
+    """The one reward-shaping rule shared by every online-RL backend.
+
+    DAPO's soft overlong punishment applies first when a buffer is selected; the
+    truncation penalty is then subtracted from a truncated rollout. Both run
+    before group statistics, so they change advantages and group filtering.
+    """
+
+    if overlong_buffer_tokens is not None:
         reward = shape_soft_overlong_reward(
             reward,
             completion_tokens,
-            max_completion_tokens=settings.max_completion_length,
-            buffer_tokens=buffer,
-            penalty_factor=settings.overlong_penalty_factor,
+            max_completion_tokens=max_completion_tokens,
+            buffer_tokens=overlong_buffer_tokens,
+            penalty_factor=overlong_penalty_factor,
         )
-    if is_truncated and settings.truncation_penalty is not None:
-        reward -= settings.truncation_penalty
+    if is_truncated and truncation_penalty is not None:
+        reward -= truncation_penalty
     return reward
 
 
@@ -591,6 +619,7 @@ __all__ = [
     "DynamicGroupSampling",
     "GRPOSettings",
     "shape_online_reward",
+    "shape_rollout_reward",
     "shape_soft_overlong_reward",
     "OnPolicyDistillationSettings",
     "SAMPOSettings",

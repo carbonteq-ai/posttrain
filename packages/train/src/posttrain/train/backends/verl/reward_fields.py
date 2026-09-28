@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ...online_rl import EnvironmentRollout
+from ...profiles import shape_rollout_reward
 from ...reward_evidence import InvalidRewardEvidence
 
 
@@ -51,6 +52,29 @@ def training_response_mask(
     return [int(value) for value in env_mask]
 
 
+def shaped_rollout_reward(
+    rollout: EnvironmentRollout,
+    *,
+    max_completion_tokens: int,
+    overlong_buffer_tokens: int | None,
+    overlong_penalty_factor: float | None,
+    truncation_penalty: float | None,
+) -> float:
+    """The reward veRL groups, filters and trains on: the TRL path's shaping rule."""
+
+    if overlong_buffer_tokens is not None and overlong_penalty_factor is None:
+        raise ValueError("veRL DAPO overlong shaping requires a penalty factor")
+    return shape_rollout_reward(
+        rollout.reward,
+        len(rollout.completion_ids),
+        is_truncated=rollout.is_truncated,
+        max_completion_tokens=max_completion_tokens,
+        overlong_buffer_tokens=overlong_buffer_tokens,
+        overlong_penalty_factor=overlong_penalty_factor if overlong_penalty_factor is not None else 1.0,
+        truncation_penalty=truncation_penalty,
+    )
+
+
 def streaming_reward_extra_info(
     *,
     task_reward: float,
@@ -64,4 +88,4 @@ def streaming_reward_extra_info(
     }
 
 
-__all__ = ["streaming_reward_extra_info", "training_response_mask"]
+__all__ = ["shaped_rollout_reward", "streaming_reward_extra_info", "training_response_mask"]

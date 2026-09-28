@@ -22,8 +22,12 @@ from ...online_rl import (
     RolloutBatch,
 )
 from ...policy_messages import parsed_policy_message
-from ...profiles import shape_soft_overlong_reward
-from .reward_fields import streaming_reward_extra_info, structured_reward_metadata, training_response_mask
+from .reward_fields import (
+    shaped_rollout_reward,
+    streaming_reward_extra_info,
+    structured_reward_metadata,
+    training_response_mask,
+)
 
 try:
     from verl.experimental.agent_loop.agent_loop import (  # pyright: ignore[reportMissingImports]
@@ -257,6 +261,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         max_completion_tokens: int,
         overlong_buffer_tokens: int | None = None,
         overlong_penalty_factor: float | None = None,
+        truncation_penalty: float | None = None,
         emit_sampo_metadata: bool = False,
         structured_algorithm: str | None = None,
         reward_component_names: list[str] | None = None,
@@ -274,6 +279,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         self._max_completion_tokens = max_completion_tokens
         self._overlong_buffer_tokens = overlong_buffer_tokens
         self._overlong_penalty_factor = overlong_penalty_factor
+        self._truncation_penalty = truncation_penalty
         self._emit_sampo_metadata = emit_sampo_metadata
         self._structured_algorithm = structured_algorithm
         self._reward_component_names = tuple(reward_component_names or ())
@@ -314,17 +320,13 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             raise ValueError("Verifiers trajectory prompt exceeds the selected veRL prompt length")
         if len(rollout.completion_ids) > self.rollout_config.response_length:
             raise ValueError("Verifiers trajectory response exceeds the selected veRL response length")
-        reward = rollout.reward
-        if self._overlong_buffer_tokens is not None:
-            if self._overlong_penalty_factor is None:
-                raise ValueError("veRL DAPO overlong shaping requires a penalty factor")
-            reward = shape_soft_overlong_reward(
-                reward,
-                len(rollout.completion_ids),
-                max_completion_tokens=self._max_completion_tokens,
-                buffer_tokens=self._overlong_buffer_tokens,
-                penalty_factor=self._overlong_penalty_factor,
-            )
+        reward = shaped_rollout_reward(
+            rollout,
+            max_completion_tokens=self._max_completion_tokens,
+            overlong_buffer_tokens=self._overlong_buffer_tokens,
+            overlong_penalty_factor=self._overlong_penalty_factor,
+            truncation_penalty=self._truncation_penalty,
+        )
         response_mask = training_response_mask(
             rollout.env_mask,
             is_truncated=rollout.is_truncated,

@@ -29,6 +29,9 @@ from .metrics import read_verl_metric_records
 _METRIC = re.compile(r"'([^']+)':\s*(?:np\.float\d+\()?([-+0-9.eE]+)")
 _INLINE_METRIC = re.compile(r"(?<![\w/])([A-Za-z_][\w]*(?:/[A-Za-z0-9_]+)*):(?:np\.(?:float|int)\d+\()?([-+0-9.eE]+)")
 _ROLLOUT_EXECUTION_FORK_REVISIONS = frozenset({"5dbf667c99b29db613d1dfcded1ed90440ef6311"})
+# CarbonTeq veRL revisions that register the ``token_clip`` policy loss and the
+# ``k3_unclipped`` KL estimator used by the OLMo 3 objective.
+_TOKEN_CLIP_FORK_REVISIONS = frozenset({"a4d84ad30b94c11c4de41b3d915eca6399ad2b6a"})
 
 
 def main() -> None:
@@ -183,7 +186,7 @@ def build_hydra_overrides(
         "actor_rollout_ref.actor.strategy=fsdp2",
         f"actor_rollout_ref.actor.use_kl_loss={str((algorithm.beta or 0.0) > 0).lower()}",
         f"actor_rollout_ref.actor.kl_loss_coef={algorithm.beta or 0.0}",
-        f"actor_rollout_ref.actor.kl_loss_type={'k3_unclipped' if manifest.operation in {'gdpo', 'capo'} else 'low_var_kl'}",
+        f"actor_rollout_ref.actor.kl_loss_type={_kl_loss_type(manifest)}",
         "actor_rollout_ref.actor.use_torch_compile=False",
         f"actor_rollout_ref.actor.fsdp_config.offload_policy={str(parameter_offload or optimizer_offload).lower()}",
         f"actor_rollout_ref.actor.fsdp_config.param_offload={str(parameter_offload).lower()}",
@@ -234,7 +237,7 @@ def build_hydra_overrides(
         "trainer.val_before_train=False",
     ]
     if manifest.operation in {"grpo", "sampo", "gdpo", "capo"}:
-        loss_agg_mode = "token-mean" if algorithm.online_rl_algorithm == "dapo" else "seq-mean-token-mean"
+        loss_agg_mode = "token-mean" if algorithm.online_rl_algorithm in {"dapo", "olmo3"} else "seq-mean-token-mean"
         overrides.extend(
             [
                 f"actor_rollout_ref.actor.loss_agg_mode={loss_agg_mode}",
@@ -242,6 +245,8 @@ def build_hydra_overrides(
                 f"actor_rollout_ref.actor.clip_ratio_high={algorithm.clip_epsilon_high}",
             ]
         )
+        if algorithm.online_rl_algorithm == "olmo3":
+            overrides.extend(_olmo3_hydra_overrides(manifest))
         if manifest.operation in {"gdpo", "capo"}:
             structured = {
                 "reward_contract_digest": algorithm.reward_contract_digest,
@@ -409,6 +414,47 @@ def build_hydra_overrides(
     return overrides
 
 
+def _kl_loss_type(manifest: VerlLaunchManifest) -> str:
+    """veRL's KL estimator: TRL's unclipped k3 wherever the objective must match it."""
+
+    if manifest.operation in {"gdpo", "capo"} or manifest.payload.algorithm.online_rl_algorithm == "olmo3":
+        return "k3_unclipped"
+    return "low_var_kl"
+
+
+def _olmo3_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
+    """The OLMo 3 objective in veRL's native terms, matching TRL's Olmo3GRPOConfig.
+
+    - policy loss ``token_clip``: asymmetric PPO token clipping with no dual clip;
+    - ``norm_adv_by_std_in_grpo=false``: advantage = reward - group mean;
+    - decoupled rollout correction: per-token weight min(exp(old - rollout), cap),
+      old log-probabilities recomputed by the actor (bypass mode off);
+    - token-mean aggregation and the unclipped k3 KL are set by the caller.
+    """
+
+    if manifest.backend_source_revision not in _TOKEN_CLIP_FORK_REVISIONS:
+        raise ValueError(
+            "selected veRL source revision does not provide the token_clip loss and k3_unclipped KL that the "
+            "OLMo 3 recipe requires; select a qualified CarbonTeq veRL revision"
+        )
+    algorithm = manifest.payload.algorithm
+    if (
+        algorithm.normalize_advantage_by_std is not False
+        or algorithm.rollout_importance_sampling != "token"
+        or algorithm.rollout_importance_sampling_cap is None
+    ):
+        raise ValueError("the OLMo 3 veRL manifest is missing its advantage or sampler-correction settings")
+    return [
+        "actor_rollout_ref.actor.policy_loss.loss_mode=token_clip",
+        "algorithm.norm_adv_by_std_in_grpo=false",
+        f"algorithm.rollout_correction.rollout_is={algorithm.rollout_importance_sampling}",
+        f"algorithm.rollout_correction.rollout_is_threshold={algorithm.rollout_importance_sampling_cap}",
+        "algorithm.rollout_correction.rollout_is_batch_normalize=false",
+        "algorithm.rollout_correction.rollout_rs=null",
+        "algorithm.rollout_correction.bypass_mode=false",
+    ]
+
+
 def _uses_turboquant(payload: VerlPayload) -> bool:
     rollout_dtype = payload.rollout.engine.get("kv_cache_dtype", "")
     teacher_dtype = payload.teacher_scoring.engine.get("kv_cache_dtype", "") if payload.teacher_scoring else ""
@@ -482,6 +528,8 @@ def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
         "actor_rollout_ref.actor.kl_loss_type=",
         "actor_rollout_ref.actor.kl_loss_coef=",
         "algorithm.use_kl_in_reward=",
+        "algorithm.norm_adv_by_std_in_grpo=",
+        "algorithm.rollout_correction",
         "algorithm=",
         "algorithm.structured_rewards=",
         "algorithm.adv_estimator=",
@@ -551,6 +599,7 @@ def _write_agent_config(payload: VerlPayload, path: Path) -> None:
             "max_completion_tokens": algorithm.max_completion_length,
             "overlong_buffer_tokens": algorithm.overlong_buffer_tokens,
             "overlong_penalty_factor": algorithm.overlong_penalty_factor,
+            "truncation_penalty": algorithm.truncation_penalty,
             "emit_sampo_metadata": algorithm.advantage_estimator == "sampo",
             "structured_algorithm": (
                 algorithm.advantage_estimator if algorithm.advantage_estimator in {"gdpo", "capo"} else None

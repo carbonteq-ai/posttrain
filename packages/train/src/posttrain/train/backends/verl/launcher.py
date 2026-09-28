@@ -27,6 +27,7 @@ from posttrain.common import (
 
 from ...bindings import FullParameterUpdate, LoRAUpdate
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
+from ...profiles import GRPOSettings
 from ...requests import CAPORequest, GDPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
@@ -59,10 +60,13 @@ VerlLaunchPlan = VerlLaunchManifest
 def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunchPlan:
     _validate_backend(request.training.backend)
     _validate_model(request.policy, "policy")
-    if request.settings.algorithm == "olmo3":
-        raise ValueError("the OLMo 3 GRPO recipe is currently supported by the TRL backend only")
-    if request.settings.truncation_penalty is not None:
-        raise ValueError("GRPO truncation_penalty is currently supported by the TRL backend only")
+    if request.settings.active_sampling is not None:
+        # GRPOSettings requires active sampling for OLMo 3, so this also rejects the
+        # recipe; its objective mapping (grpo_algorithm_payload) is ready for it.
+        raise ValueError(
+            "the OLMo 3 GRPO recipe refills prompt groups with active sampling, which the veRL backend does "
+            "not provide yet; select the TRL backend"
+        )
     return _plan(
         request,
         output_dir,
@@ -70,31 +74,48 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
         {
             "policy": _model(request.policy),
             "reference": _model(request.reference) if request.reference is not None else None,
-            "algorithm": {
-                "advantage_estimator": "grpo",
-                "beta": request.settings.beta,
-                "num_prompts_per_step": request.settings.num_prompts_per_step,
-                "num_generations": request.settings.num_generations,
-                "max_prompt_length": request.settings.max_prompt_length,
-                "max_completion_length": request.settings.max_completion_length,
-                "online_rl_algorithm": request.settings.algorithm,
-                "shuffle_prompts": request.settings.shuffle_prompts,
-                "clip_epsilon_low": request.settings.clip_epsilon_low,
-                "clip_epsilon_high": request.settings.resolved_clip_epsilon_high,
-                "dynamic_sampling": request.settings.dynamic_sampling is not None,
-                "dynamic_sampling_max_candidate_batches": (
-                    request.settings.dynamic_sampling.max_candidate_batches
-                    if request.settings.dynamic_sampling is not None
-                    else None
-                ),
-                "mask_truncated_completions": request.settings.mask_truncated_completions,
-                "overlong_buffer_tokens": request.settings.overlong_buffer_tokens,
-                "overlong_penalty_factor": request.settings.overlong_penalty_factor,
-            },
+            "algorithm": grpo_algorithm_payload(request.settings),
             "rollout": _inference(request.inference),
             "environment": _environment(request, output_dir),
         },
     )
+
+
+def grpo_algorithm_payload(settings: GRPOSettings) -> dict[str, Any]:
+    """Map GRPO, DAPO or OLMo 3 settings to the veRL algorithm contract.
+
+    OLMo 3 fixes mean-only group advantages and token-level sampler correction
+    capped at 2 (validated by GRPOSettings); veRL receives both explicitly. Other
+    algorithms keep veRL's historical advantage and correction behavior.
+    """
+
+    payload: dict[str, Any] = {
+        "advantage_estimator": "grpo",
+        "beta": settings.beta,
+        "num_prompts_per_step": settings.num_prompts_per_step,
+        "num_generations": settings.num_generations,
+        "max_prompt_length": settings.max_prompt_length,
+        "max_completion_length": settings.max_completion_length,
+        "online_rl_algorithm": settings.algorithm,
+        "shuffle_prompts": settings.shuffle_prompts,
+        "clip_epsilon_low": settings.clip_epsilon_low,
+        "clip_epsilon_high": settings.resolved_clip_epsilon_high,
+        "dynamic_sampling": settings.dynamic_sampling is not None,
+        "dynamic_sampling_max_candidate_batches": (
+            settings.dynamic_sampling.max_candidate_batches if settings.dynamic_sampling is not None else None
+        ),
+        "mask_truncated_completions": settings.mask_truncated_completions,
+        "overlong_buffer_tokens": settings.overlong_buffer_tokens,
+        "overlong_penalty_factor": settings.overlong_penalty_factor,
+        "truncation_penalty": settings.truncation_penalty,
+    }
+    if settings.algorithm == "olmo3":
+        payload.update(
+            normalize_advantage_by_std=False,
+            rollout_importance_sampling="token",
+            rollout_importance_sampling_cap=settings.importance_sampling_clip_max,
+        )
+    return payload
 
 
 def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaunchPlan:
@@ -740,6 +761,8 @@ def _grpo_runtime_attributes(
     if isinstance(request, GRPORequest):
         attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
         attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
+        attributes["truncation_penalty"] = request.settings.truncation_penalty
+        attributes["advantage_scaling"] = "none" if request.settings.algorithm == "olmo3" else "group"
     elif isinstance(request, SAMPORequest):
         attributes["discount_gamma"] = request.settings.discount_gamma
         attributes["step_advantage_weight"] = request.settings.step_advantage_weight
@@ -816,6 +839,7 @@ __all__ = [
     "build_distillation_launch_plan",
     "build_grpo_launch_plan",
     "build_sampo_launch_plan",
+    "grpo_algorithm_payload",
     "run_distillation",
     "run_grpo",
     "run_sampo",
