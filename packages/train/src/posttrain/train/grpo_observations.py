@@ -228,7 +228,10 @@ _VERL_METRICS: Mapping[str, str] = MappingProxyType(
         "critic/rewards/std": "train/rl/reward_std",
         "actor/pg_loss": "train/rl/policy_loss",
         "actor/policy_loss": "train/rl/policy_loss",
-        "actor/ppo_kl": "train/rl/kl",
+        # KL to the reference policy (the KL loss term). ``actor/ppo_kl`` is PPO's
+        # approximate KL to the rollout-time policy, which is 0 for an on-policy
+        # single mini-batch update, so it must not stand in for it.
+        "actor/kl_loss": "train/rl/kl",
         "actor/entropy": "train/rl/entropy",
         "actor/pg_clipfrac": "train/rl/clip_fraction",
         "actor/grad_norm": "train/grad_norm",

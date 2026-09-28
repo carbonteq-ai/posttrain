@@ -155,6 +155,10 @@ oversampled active sampling, and a KL penalty measured against the base model.
   `5264ec15`), `e9eacc3c` (on `3a486b0a`), `a344d127` (on `0afb73d7`) and
   `0bad6187` (on `61448b5d`, AutomationBench 0.5.0). Environment code is
   unchanged at each revision.
+- veRL runs reported `train/rl/kl` as PPO's approximate KL to the rollout
+  policy (`actor/ppo_kl`), which is 0 for an on-policy update, instead of the
+  KL to the reference (`actor/kl_loss`); every veRL run so far logged KL 0
+  whatever the policy did. `train/rl/kl` now means the same on TRL and veRL.
 - veRL runs failed after their last update while recording rewards: the
   launcher attached a `rollout_step` dimension to each trace's
   `algorithm_reward` enrichment, which Trackio rejects (`a trace-fact
