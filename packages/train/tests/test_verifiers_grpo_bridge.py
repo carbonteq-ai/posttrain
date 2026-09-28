@@ -128,8 +128,10 @@ def test_packed_training_runs_harness_scripts_without_installing_from_the_networ
     commands: list[str] = []
 
     class Runtime:
+        # Verifiers' own per-script lock map; its type changed across releases
+        # (LoopLocks, earlier a dict), so the test provides the mapping itself.
         _uv_interpreters: dict[str, str] = {}
-        _uv_script_locks = runtime_base.LoopLocks()
+        _uv_script_locks: dict[str, asyncio.Lock] = {}
 
         async def write(self, path: str, data: bytes) -> None:
             del path, data

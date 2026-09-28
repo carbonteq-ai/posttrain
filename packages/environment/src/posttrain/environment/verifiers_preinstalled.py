@@ -13,6 +13,7 @@ and executed with that interpreter; a missing package fails immediately.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import shlex
@@ -26,6 +27,14 @@ HARNESS_IMPORT_CHECK = "import httpx, httpx2, mcp, openai, tenacity"
 _PATCHED = "_posttrain_preinstalled_runtime"
 
 type ScriptPreparer = Callable[..., Coroutine[Any, Any, list[str]]]
+
+
+def _script_lock(locks: Any, digest: str) -> asyncio.Lock:
+    """The Runtime's lock for one script: ``LoopLocks.get`` in Verifiers cdd2ec76, a dict of locks before."""
+
+    if isinstance(locks, dict):
+        return locks.setdefault(digest, asyncio.Lock())
+    return locks.get(digest)
 
 
 def preinstalled_uv_script_preparer(interpreter: str) -> ScriptPreparer:
@@ -45,9 +54,8 @@ def preinstalled_uv_script_preparer(interpreter: str) -> ScriptPreparer:
         digest = hashlib.sha256(data).hexdigest()
         path = f"/tmp/vf-scripts/{digest}.py"
         interpreters = runtime._uv_interpreters
-        locks = runtime._uv_script_locks
         if digest not in interpreters:
-            async with locks.get(digest):
+            async with _script_lock(runtime._uv_script_locks, digest):
                 if digest not in interpreters:
                     temporary = f"{path}.{uuid.uuid4().hex}.tmp"
                     await runtime.write(temporary, data)
