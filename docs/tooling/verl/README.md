@@ -108,6 +108,23 @@ The framework exposes veRL as the general versioned training backend product
 `train.grpo` / `GRPORequest` and `train.distill` /
 `OnPolicyDistillationRequest`; callers do not use veRL-specific job types.
 
+## Trainer and rollout precision
+
+`backend_options.training_precision: fp16` on a veRL training binding selects
+veRL's own FP16 path (upstream verl-project/verl#4036 and #6150, both in the
+published fork 18338a0e): the worker adds
+`+actor_rollout_ref.{actor,ref}.fsdp_config.mixed_precision={param_dtype:fp16,reduce_dtype:fp32,buffer_dtype:fp32}`,
+and the V1 trainer's `FSDPEngine` then computes in float16 over float32 master
+weights with a `ShardedGradScaler(growth_interval=400)` that skips overflowing
+steps. The bf16 default adds no override. The rollout `engine.dtype` becomes
+`actor_rollout_ref.rollout.dtype` (default `bfloat16`; float16 for a TurboQuant
+KV cache). veRL logs neither the loss scale nor skipped steps; Posttrain records
+a step whose gradient norm is infinite under fp16 as
+`train/optimizer_step_skipped`. veRL's rollout-versus-actor mismatch metrics are
+probability differences (`train/rl/sampling_prob_delta_*`). GPU qualification
+(`qwen08b_gsm8k_verl_grpo_precision_{bf16,fp16}_local.yaml`) waits for the
+kind rebuild described below; see `docs/plan/fp16-training-precision.md`.
+
 ## Current support and qualification boundary
 
 The current adapter accepts only the **Qwen 3.5 model family**, for:
