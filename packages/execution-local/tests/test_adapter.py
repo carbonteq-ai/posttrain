@@ -99,6 +99,39 @@ def test_docker_cli_uses_packaged_workdir_and_explicit_worker_entrypoint(
     assert arguments[arguments.index("--dns") + 1] == "192.0.2.53"
     assert 'POSTTRAIN_EXECUTION={"schema":"test"}' in arguments
     assert "/opt/posttrain/bundle" not in arguments
+    assert "--shm-size" not in arguments
+
+
+def test_docker_cli_gives_gpu_jobs_room_for_vllm_shared_memory(monkeypatch: pytest.MonkeyPatch) -> None:
+    """vLLM's multiprocess executor needs a 160 MiB /dev/shm segment; Docker defaults to 64 MiB."""
+
+    calls: list[list[str]] = []
+
+    def run(arguments, **kwargs):
+        del kwargs
+        calls.append(list(arguments))
+        return subprocess.CompletedProcess(arguments, 0, "container-id\n", "")
+
+    monkeypatch.setattr("posttrain_execution_local.adapter.subprocess.run", run)
+    DockerCli(environment={}).invoke(
+        "submit",
+        {
+            "name": "pt-gpu",
+            "image": f"registry.lan/posttrain@sha256:{'b' * 64}",
+            "gpu": True,
+            "environment_names": [],
+            "launch_environment": {},
+            "volumes": [],
+            "dns_servers": [],
+            "labels": {},
+            "command": list(JOB_PACKAGE_WORKER_COMMAND),
+        },
+    )
+
+    arguments = calls[0]
+    assert arguments[arguments.index("--gpus") + 1] == "all"
+    assert arguments[arguments.index("--shm-size") + 1] == "16g"
+    assert arguments.index("--shm-size") < arguments.index(f"registry.lan/posttrain@sha256:{'b' * 64}")
 
 
 def _request(tmp_path: Path) -> ExecutionRequest:

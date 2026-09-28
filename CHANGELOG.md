@@ -124,6 +124,12 @@ oversampled active sampling, and a KL penalty measured against the base model.
 
 ### Fixed
 
+- Local Docker GPU jobs start with a 16 GiB `/dev/shm` limit (`--shm-size`).
+  Docker's default 64 MiB made every veRL run on the local provider fail at
+  vLLM engine start ("Insufficient space in /dev/shm ... 160 MiB required, 64
+  MiB free"): vLLM's multiprocess executor allocates a 160 MiB shared-memory
+  broadcast queue.
+
 - veRL multi-turn episodes reported the prompt message spans of a bridged turn
   with one entry per new message instead of one per message of the
   conversation, so Verifiers attributed tool-result tokens to the wrong

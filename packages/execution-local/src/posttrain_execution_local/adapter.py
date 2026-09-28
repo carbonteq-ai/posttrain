@@ -78,6 +78,10 @@ find {r} -mindepth 1 -maxdepth 1 -exec rm -rf -- {{}} +
 """
 
 
+# /dev/shm limit for GPU containers (see DockerCli.invoke "submit").
+GPU_SHM_SIZE = "16g"
+
+
 class DockerGateway(Protocol):
     def invoke(self, action: str, payload: Mapping[str, Any]) -> Mapping[str, Any]: ...
 
@@ -156,7 +160,12 @@ class DockerCli:
             for dns_server in cast_sequence(payload.get("dns_servers")):
                 arguments.extend(("--dns", str(dns_server)))
             if bool(payload.get("gpu")):
-                arguments.extend(("--gpus", "all"))
+                # Docker's default 64 MiB /dev/shm is too small for GPU jobs: vLLM's
+                # multiprocess executor allocates a 160 MiB shared-memory broadcast
+                # queue (10 chunks of VLLM_MQ_MAX_CHUNK_BYTES_MB=16) and fails at
+                # engine start, and Ray's object store falls back to disk. This is a
+                # tmpfs size limit, not a reservation.
+                arguments.extend(("--gpus", "all", "--shm-size", GPU_SHM_SIZE))
             command = tuple(str(value) for value in cast_sequence(payload.get("command")))
             if not command:
                 raise ValueError("local Docker submission command cannot be empty")
