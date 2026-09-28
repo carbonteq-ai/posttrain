@@ -60,6 +60,7 @@ from posttrain.train.backends.verl.launcher import (
     build_distillation_launch_plan,
     build_grpo_launch_plan,
     build_sampo_launch_plan,
+    build_structured_launch_plan,
     grpo_algorithm_payload,
 )
 from posttrain.train.backends.verl.metrics import (
@@ -585,10 +586,17 @@ def test_verl_checkpoint_steps_zero_keeps_only_terminal_model_save(
     assert f"trainer.save_freq={request.settings.loop.max_steps + 1}" in overrides
 
 
-@pytest.mark.parametrize("algorithm", ["gdpo", "capo"])
-def test_structured_algorithms_select_explicit_native_loss_and_evidence_contract(monkeypatch, tmp_path, algorithm):
+POST5_REVISION = "9fd6e7a31396ba33a29233cc869ab05b0a9e5a80"
+POST4_REVISION = "54124edfb8d0b73694696400cf07a76a14d9be65"
+
+
+def _with_revision(request, revision: str, **options: object):
+    backend_options = {**request.training.backend_options, "source_revision": revision, **options}
+    return replace(request, training=replace(request.training, backend_options=backend_options))
+
+
+def _structured_request(monkeypatch, algorithm: str):
     from posttrain.train import CAPORequest, CAPOSettings, GDPORequest, GDPOSettings
-    from posttrain.train.backends.verl.launcher import build_structured_launch_plan
 
     base = _sampo_request()
     from posttrain.train import RewardComponentProjection, RewardProjection
@@ -616,11 +624,16 @@ def test_structured_algorithms_select_explicit_native_loss_and_evidence_contract
         if algorithm == "gdpo"
         else CAPOSettings(id="capo", loop=loop, shuffle_prompts=True)
     )
-    request = (
+    return (
         GDPORequest(base.policy, base.bridge, settings, base.environment, base.training, base.inference)
         if isinstance(settings, GDPOSettings)
         else CAPORequest(base.policy, base.bridge, settings, base.environment, base.training, base.inference)
     )
+
+
+@pytest.mark.parametrize("algorithm", ["gdpo", "capo"])
+def test_structured_algorithms_select_explicit_native_loss_and_evidence_contract(monkeypatch, tmp_path, algorithm):
+    request = _with_revision(_structured_request(monkeypatch, algorithm), POST5_REVISION)
     from posttrain.train.backends.trl.policy_config import _online_rl_arguments
 
     trl_arguments = _online_rl_arguments(request, tmp_path / "trl", {})
@@ -646,6 +659,70 @@ def test_structured_algorithms_select_explicit_native_loss_and_evidence_contract
     _write_agent_config(plan.payload, config_path)
     config = json.loads(config_path.read_text())
     assert config[0]["structured_algorithm"] == algorithm
+
+
+@pytest.mark.parametrize("algorithm", ["gdpo", "capo"])
+def test_structured_algorithms_fail_before_verl_starts_on_a_fork_without_their_loss(monkeypatch, tmp_path, algorithm):
+    """Regression: post4 registers neither token_clip nor k3_unclipped, so GDPO/CAPO
+    crashed at veRL's first actor update. The worker now rejects such a revision."""
+
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    request = _with_revision(_structured_request(monkeypatch, algorithm), POST4_REVISION)
+    plan = build_structured_launch_plan(request, tmp_path)
+
+    with pytest.raises(ValueError, match=f"{POST4_REVISION} does not register k3_unclipped, token_clip"):
+        build_hydra_overrides(plan, tmp_path / "data", tmp_path / "agent", tmp_path / "checkpoints")
+
+    # A dirty candidate checkout is identified by its content digest; it is not gated here.
+    dirty = _with_revision(_structured_request(monkeypatch, algorithm), POST4_REVISION, source_dirty=True)
+    build_hydra_overrides(
+        build_structured_launch_plan(dirty, tmp_path), tmp_path / "data", tmp_path / "agent", tmp_path / "checkpoints"
+    )
+
+
+def _pinned_verl_revision() -> str:
+    import tomllib
+
+    import posttrain.runtime_images as runtime_images
+
+    profile = (
+        Path(runtime_images.__file__).parent / "containers" / "posttrain-job-kinds" / "verl-py313" / "profile.toml"
+    )
+    return tomllib.loads(profile.read_text(encoding="utf-8"))["fork_revision"]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "the veRL job kind still pins 0.9.0.post3 (18338a0e), which registers neither token_clip nor "
+        "k3_unclipped; remove this marker in the commit that pins 0.9.0.post5"
+    ),
+)
+@pytest.mark.parametrize("operation", ["gdpo", "capo", "olmo3"])
+def test_pinned_verl_fork_registers_every_native_name_posttrain_requests(monkeypatch, tmp_path, operation):
+    from posttrain.train.backends.verl.worker import fork_native_names, requested_fork_native_names
+
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    revision = _pinned_verl_revision()
+    if operation == "olmo3":
+        manifest = _olmo3_manifest(tmp_path)
+        manifest = VerlLaunchManifest.model_validate({**manifest.model_dump(), "backend_source_revision": revision})
+        manifest.payload.training.backend_options["source_revision"] = revision
+    else:
+        request = _with_revision(_structured_request(monkeypatch, operation), revision)
+        manifest = build_structured_launch_plan(request, tmp_path)
+    # Ask for the names with the gate lifted, then require the pinned fork to register them.
+    requested = requested_fork_native_names(
+        build_hydra_overrides(
+            VerlLaunchManifest.model_validate({**manifest.model_dump(), "backend_source_revision": POST5_REVISION}),
+            tmp_path / "data",
+            tmp_path / "agent",
+            tmp_path / "checkpoints",
+        )
+    )
+    assert requested == {"token_clip", "k3_unclipped"}
+    assert requested <= fork_native_names(revision), f"pinned veRL {revision} lacks {sorted(requested)}"
 
 
 def test_verl_rejects_sampo_without_active_sampling(tmp_path):
@@ -757,7 +834,7 @@ def test_verl_olmo3_requires_a_fork_revision_with_token_clip(monkeypatch: pytest
     manifest = _olmo3_manifest(tmp_path)
     legacy = VerlLaunchManifest.model_validate({**manifest.model_dump(), "backend_source_revision": "a" * 40})
 
-    with pytest.raises(ValueError, match="token_clip loss and k3_unclipped KL"):
+    with pytest.raises(ValueError, match="does not register k3_unclipped, token_clip, which the grpo objective"):
         build_hydra_overrides(legacy, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
 
 

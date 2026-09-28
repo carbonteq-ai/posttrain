@@ -1,13 +1,28 @@
 # veRL training backend
 
-## VORTEX port (in progress, unpublished)
+## 0.9.0.post5 candidate and the VORTEX port (in progress)
 
-Plan: [verl-vortex-port.md](../../plan/verl-vortex-port.md). Fork branch
-`codex/vortex` (from post4 `54124edf`) commit
-`a4d84ad30b94c11c4de41b3d915eca6399ad2b6a` registers the `token_clip` policy
-loss (asymmetric PPO token clipping without veRL's dual clip or log-ratio
-clamp) and the `k3_unclipped` KL estimator. With them the adapter maps
-`algorithm: olmo3` to veRL natively: `loss_agg_mode=token-mean`,
+Tag `carbonteq-v0.9.0.post5` (release commit
+`9fd6e7a31396ba33a29233cc869ab05b0a9e5a80`, branch `codex/vortex`, pushed) is
+post4 plus the `token_clip` policy loss (asymmetric PPO token clipping without
+veRL's dual clip or log-ratio clamp) and the `k3_unclipped` KL estimator.
+Retained wheel SHA-256
+`c16a2ad14d1bd60947229bde41fae99955a4fcb7ab3f892020ef0c24e35dd158` (byte
+reproducible), sdist SHA-256
+`3c9e17c2d04a798eae1836e8dd82f64480bcbe4d8ee94441028625b2da71df57`; the
+GitHub release, development publication and pin are pending.
+
+Post5 fixes a live bug: the adapter selects both names for GDPO and CAPO, and
+post3/post4 register neither, so those runs failed at veRL's first actor
+update. The worker now records which fork commits register each fork-only name
+(`_FORK_NATIVE_NAME_REVISIONS` in `backends/verl/worker.py`) and rejects a
+clean checkout at any other revision before veRL starts. A strict-xfail test
+(`test_pinned_verl_fork_registers_every_native_name_posttrain_requests`) fails
+as soon as the job kind pins a fork with the names, so the pin commit must
+remove its marker; `test_verl_fork_native_names.py` checks the record against
+an installed veRL.
+
+With post5 the adapter maps `algorithm: olmo3` natively: `loss_agg_mode=token-mean`,
 `policy_loss.loss_mode=token_clip`, clip 0.2/0.272,
 `algorithm.norm_adv_by_std_in_grpo=false`, decoupled rollout correction
 `rollout_is=token`, `rollout_is_threshold=2.0`, and `kl_loss_type=k3_unclipped`
@@ -18,8 +33,8 @@ dual-clip and KL-clamp regions, a truncated rollout) through TRL post11's
 weights, loss and gradient agree to float64 round-off. `truncation_penalty` is
 applied in the veRL agent loop by the same shaping function as the TRL path and
 is accepted for GRPO and DAPO. OLMo 3 itself stays rejected on veRL until
-active sampling is ported (plan Phase 2); only the listed revision is accepted
-for the OLMo 3 mapping, and no release or pin exists yet.
+active sampling is ported (plan [verl-vortex-port.md](../../plan/verl-vortex-port.md),
+Phase 2).
 
 ## Rollout-execution development candidate
 

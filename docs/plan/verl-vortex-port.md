@@ -89,6 +89,19 @@ adds backend support that meets those contracts; no product meaning changes.
   ruff, format, pyright 0 errors, lint-imports 9 kept, pytest 2061 passed / 25
   skipped (the parity test skips there because veRL is not installed), diff
   check clean. Phase 1 complete; OLMo 3 acceptance on veRL waits for Phase 2.
+- [x] (2026-09-28) Coordinator request: Phase 1 fork delta released as
+  candidate 0.9.0.post5 for release 0.4.12 (GDPO/CAPO crash on post4). Release
+  commit `9fd6e7a31396ba33a29233cc869ab05b0a9e5a80`, annotated tag
+  `carbonteq-v0.9.0.post5` (tag object `3945e01a`), receipt commit
+  `9c10bd1a`; branch and tag pushed to carbonteq-ai/verl. Wheel
+  `c16a2ad1...` (identical across two clean-clone builds), sdist `3c9e17c2...`
+  (members identical), twine check passes; retained at
+  `/home/hammad/verl-release/verl-post5/dist1/`. GitHub release and publish
+  workflow left to the coordinator.
+- [x] (2026-09-28) Posttrain: fork-native-name gate in the worker
+  (`_FORK_NATIVE_NAME_REVISIONS`, `requested_fork_native_names`,
+  `fork_native_names`), GDPO/CAPO regression test on post4, strict-xfail test
+  against the pinned job-kind revision, installed-veRL record check.
 - [ ] Phase 2: active sampling with bounded refill, oversampling and the
   concurrency guard in the veRL fork.
 - [ ] Phase 3: adaptive curriculum on veRL.
@@ -157,6 +170,16 @@ adds backend support that meets those contracts; no product meaning changes.
   image is rebuilt first.
 
 ## Decision Log
+
+- Decision: gate fork-only native names (`token_clip`, `k3_unclipped`) by an
+  explicit per-commit record in the worker and reject clean checkouts at other
+  revisions; do not gate dirty candidate checkouts (`source_dirty: true`).
+  Rationale: GDPO/CAPO on post3/post4 otherwise crash inside veRL after model
+  loading; dirty candidates (such as the GDPO/CAPO qualification worktree) are
+  identified by content digest and may register the names without a release.
+  The pinned-revision test is a strict xfail restricted to `AssertionError`, so
+  it cannot hide a broken test and flips to a failure when the pin moves.
+  Date/Author: 2026-09-28, Claude.
 
 - Decision: implement the OLMo 3 loss on veRL with a new registered policy
   loss `token_clip` and KL type `k3_unclipped` in the fork, not with

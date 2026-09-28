@@ -29,9 +29,21 @@ from .metrics import read_verl_metric_records
 _METRIC = re.compile(r"'([^']+)':\s*(?:np\.float\d+\()?([-+0-9.eE]+)")
 _INLINE_METRIC = re.compile(r"(?<![\w/])([A-Za-z_][\w]*(?:/[A-Za-z0-9_]+)*):(?:np\.(?:float|int)\d+\()?([-+0-9.eE]+)")
 _ROLLOUT_EXECUTION_FORK_REVISIONS = frozenset({"5dbf667c99b29db613d1dfcded1ed90440ef6311"})
-# CarbonTeq veRL revisions that register the ``token_clip`` policy loss and the
-# ``k3_unclipped`` KL estimator used by the OLMo 3 objective.
-_TOKEN_CLIP_FORK_REVISIONS = frozenset({"a4d84ad30b94c11c4de41b3d915eca6399ad2b6a"})
+# Native veRL names Posttrain selects that upstream veRL v0.9.0 does not register.
+# Each maps to the CarbonTeq fork commits that do register it, with the fork
+# version at that commit. A clean checkout at any other revision is rejected
+# before veRL starts instead of failing at its first actor update.
+_FORK_ONLY_NATIVE_NAMES = frozenset({"token_clip", "k3_unclipped"})
+_FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str, frozenset[str]]] = {
+    # codex/vortex development commit for the OLMo 3 objective.
+    "a4d84ad30b94c11c4de41b3d915eca6399ad2b6a": ("0.9.0.post4", _FORK_ONLY_NATIVE_NAMES),
+    # carbonteq-v0.9.0.post5 release commit and its asset receipt.
+    "9fd6e7a31396ba33a29233cc869ab05b0a9e5a80": ("0.9.0.post5", _FORK_ONLY_NATIVE_NAMES),
+    "9c10bd1a5931e7f73dfa4b570eb2c8e767d225ca": ("0.9.0.post5", _FORK_ONLY_NATIVE_NAMES),
+}
+_TOKEN_CLIP_FORK_REVISIONS = frozenset(
+    revision for revision, (_, names) in _FORK_NATIVE_NAME_REVISIONS.items() if "token_clip" in names
+)
 
 
 def main() -> None:
@@ -411,7 +423,38 @@ def build_hydra_overrides(
                 f"{str(bool(teacher_engine['enable_chunked_prefill'])).lower()}"
             )
     overrides.extend(_backend_hydra_overrides(backend_options))
+    _validate_fork_native_names(manifest, overrides)
     return overrides
+
+
+def requested_fork_native_names(overrides: list[str]) -> frozenset[str]:
+    """Fork-only policy-loss and KL names a Hydra override list asks veRL to use."""
+
+    keys = ("actor_rollout_ref.actor.policy_loss.loss_mode=", "actor_rollout_ref.actor.kl_loss_type=")
+    selected = {value.lstrip("+").split("=", 1)[1] for value in overrides if value.lstrip("+").startswith(keys)}
+    return frozenset(selected & _FORK_ONLY_NATIVE_NAMES)
+
+
+def fork_native_names(revision: str) -> frozenset[str]:
+    """Fork-only native names registered at a CarbonTeq veRL commit (empty when unknown)."""
+
+    entry = _FORK_NATIVE_NAME_REVISIONS.get(revision)
+    return entry[1] if entry is not None else frozenset()
+
+
+def _validate_fork_native_names(manifest: VerlLaunchManifest, overrides: list[str]) -> None:
+    missing = requested_fork_native_names(overrides) - fork_native_names(manifest.backend_source_revision)
+    if not missing:
+        return
+    # A dirty candidate checkout is identified by its content digest, not by a
+    # release; its maintainer owns what it registers.
+    if manifest.payload.training.backend_options.get("source_dirty") is True:
+        return
+    raise ValueError(
+        f"selected veRL source revision {manifest.backend_source_revision} does not register "
+        f"{', '.join(sorted(missing))}, which the {manifest.operation} objective requires; select CarbonTeq "
+        "veRL 0.9.0.post5 (9fd6e7a31396ba33a29233cc869ab05b0a9e5a80) or a later qualified revision"
+    )
 
 
 def _kl_loss_type(manifest: VerlLaunchManifest) -> str:
@@ -432,11 +475,6 @@ def _olmo3_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
     - token-mean aggregation and the unclipped k3 KL are set by the caller.
     """
 
-    if manifest.backend_source_revision not in _TOKEN_CLIP_FORK_REVISIONS:
-        raise ValueError(
-            "selected veRL source revision does not provide the token_clip loss and k3_unclipped KL that the "
-            "OLMo 3 recipe requires; select a qualified CarbonTeq veRL revision"
-        )
     algorithm = manifest.payload.algorithm
     if (
         algorithm.normalize_advantage_by_std is not False
