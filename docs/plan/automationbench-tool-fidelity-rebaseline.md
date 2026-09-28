@@ -78,9 +78,10 @@ and lab catalog entries.
   new suites get new ids so the old numbers stay valid for old comparisons.
   Date: 2026-09-28.
 - Decision (user): the re-baseline changes only the tools. Each v4 suite
-  keeps its v3 sampling; the two suites differ only in temperature (0.1 and
-  0.5). Liquid's `top_k 50` / `repetition_penalty 1.1` are not added to the
-  temperature-0.5 suite or to training. Date: 2026-09-28.
+  keeps its v3 settings exactly (v4: temperature 0.1, top-p 1.0, top-k 50,
+  repetition penalty 1.1, 3 attempts; v4-t05: temperature 0.5, top-p 0.95,
+  5 attempts). No sampling change is added to the temperature-0.5 suite or to
+  training. Date: 2026-09-28.
 - Decision: evaluation score stays partial credit, the benchmark's own
   measure; tool mistakes per episode, truncation and the training-penalised
   score are reported beside it (user noted the old evaluations did not
