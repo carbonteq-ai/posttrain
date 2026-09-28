@@ -222,8 +222,10 @@ adds backend support that meets those contracts; no product meaning changes.
   Posttrain pin commit: `packages/train/pyproject.toml` and `uv.lock` to
   post6, the veRL kind profile and locks, and drop the olmo3 strict-xfail in
   `test_pinned_verl_fork_registers_every_native_name_posttrain_requests`.
-- [ ] Rebase `codex/verl-vortex` onto `codex/release-0.4.12` once that branch
-  is final.
+- [x] (2026-09-29) `codex/verl-vortex-active-sampling` rebased onto
+  `origin/codex/release-0.4.12` at `36932821` (one test-file conflict, both
+  sides kept); full ladder and the seven parity files pass after the rebase.
+  Rebase again onto the final 0.4.12 before merging for 0.4.13.
 
 ## Surprises & Discoveries
 
