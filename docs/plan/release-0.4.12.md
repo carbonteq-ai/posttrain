@@ -34,6 +34,9 @@ made on `codex/episode-endings` (episode ending labels).
 | 3 | Tool fidelity (AutomationBench fork, adapter 0.5.0) | carbonteq-ai/AutomationBench#2, carbonteq-ai/verifiers-environments#2; catalog pins on `codex/eval-train-budget` | fork suite, adapter suite, grading-compatibility replay; first updates of `lfm26-sampo-cont40-fixed-tools-20260928-r1` |
 | 4 | Trackio release: artifact-commit retries + `episode_ending` fact column | Trackio `codex/next-release`; Posttrain `codex/episode-endings` → `codex/trackio-next` | fork tests; Doris migration; backfill dry run; Observatory list/detail agree |
 | 5 | Active-sampling oversampling (`oversample`, `oversample_refill`) | TRL `codex/active-sampling-oversample`; Posttrain `codex/active-sampling-oversample` | defaults byte-identical; unit tests; short 8 GB canary with oversampling on |
+| 7 | KL reference = base model when a run continues a trained adapter (`kl_reference: base`, TRL `peft_reference`) | TRL post11 (published 2026-09-28); Posttrain `codex/active-sampling-oversample` | TRL test: reference log-probs equal the base model's with a non-zero starting adapter; job plan prints the reference |
+| 8 | veRL: start from a trained adapter, KL to base | Posttrain (+ veRL fork if needed) | 8 GB: 2 fresh updates then 2 from that adapter; adapter loaded, KL > 0 vs base |
+| 9 | veRL: FP16 training and rollout dtype | Posttrain (+ veRL fork if needed) | 8 GB Qwen3.5-0.8B bf16 vs fp16: finite grads, loss scale, smaller gap |
 | 6 | Checkpoint on cancel | `codex/cancel-checkpoint` | 8 GB cancel mid-rollout and mid-actor: checkpoint listed and verified, run `cancelled` |
 
 Out of scope: held-out re-baselines and checkpoint evaluations on the
@@ -48,7 +51,10 @@ settings of running experiments.
 - [ ] #1 kernels: wheel built, image rebuilt, before/after measured.
 - [ ] #2 precision: code committed; training arms after #1.
 - [ ] #4 Trackio release prepared; publish + server migration (maintainers; no run writing).
-- [ ] #5 TRL release prepared; publish; Posttrain pin.
+- [x] (2026-09-28) TRL 1.12.0.post11 published (oversampling + `peft_reference`): tag `carbonteq-v1.12.0.post11` → `3135b502`, workflow run 36434036656, carbonteq/dev serves wheel `7fcea40a…` and sdist `bb3cdec9…`.
+- [ ] #5/#7 Posttrain pin to post11 relocked and validated.
+- [x] (2026-09-28) Trackio dev32 published (tag → `d71cf2a5`, workflow run 36432505907); Posttrain pin relocked on `codex/trackio-next` (`9a3779cf`). Server migration pending a quiet window.
+- [ ] #8 veRL adapter start; #9 veRL FP16.
 - [ ] #6 GPU cancel qualification on the 8 GB card.
 - [ ] Integrate on `codex/release-0.4.12` in the order below, full validation ladder, changelog.
 - [ ] Release candidate per `docs/release-engineering.md`; final.
@@ -84,6 +90,7 @@ feature's behaviour and re-running its tests.
   none. Checked as an error at job plan and again in the trainer before the
   first rollout.
 - Decision (user): no automatic stop on KL or entropy.
+- Decision (user): KL is measured against the base model, also when a run continues a trained adapter; veRL must support starting from an adapter (not reject it) and FP16 training, in this release.
 - Decision (user): FP16 A/B replicates the paper's headline pair (BF16/BF16 vs
   FP16/FP16, arXiv 2510.26788 Section 4.4) on Qwen3.5-0.8B.
 
