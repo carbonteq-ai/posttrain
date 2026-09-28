@@ -712,6 +712,7 @@ packaging==26.2 \
     #   accelerate
     #   bitsandbytes
     #   build
+    #   causal-conv1d
     #   datasets
     #   flashinfer-python
     #   gradio-client

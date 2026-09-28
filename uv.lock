@@ -388,6 +388,19 @@ wheels = [
 ]
 
 [[package]]
+name = "causal-conv1d"
+version = "1.7.0+cu130torch2.13"
+source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
+dependencies = [
+    { name = "ninja" },
+    { name = "packaging" },
+    { name = "torch" },
+]
+wheels = [
+    { url = "https://pypi.lan/carbonteq/dev/+f/b69/f39142ac88cac/causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl", hash = "sha256:b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a" },
+]
+
+[[package]]
 name = "cbor2"
 version = "6.1.3"
 source = { registry = "https://pypi.org/simple" }
@@ -3269,6 +3282,7 @@ trl = [
     { name = "accelerate" },
     { name = "bitsandbytes" },
     { name = "carbonteq-renderers" },
+    { name = "causal-conv1d", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "datasets" },
     { name = "fla-core" },
     { name = "huggingface-hub" },
@@ -3301,6 +3315,7 @@ requires-dist = [
     { name = "aiohttp", marker = "extra == 'trl-vllm'", specifier = ">=3.13,<4" },
     { name = "bitsandbytes", marker = "extra == 'trl'", specifier = ">=0.49,<0.50" },
     { name = "carbonteq-renderers", marker = "extra == 'trl'", specifier = "==0.1.12.post1.dev2", index = "https://pypi.lan/carbonteq/dev/+simple/" },
+    { name = "causal-conv1d", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'trl'", specifier = "==1.7.0+cu130torch2.13", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "datasets", marker = "extra == 'trl'", specifier = ">=4.6.1,<4.7" },
     { name = "fla-core", marker = "extra == 'trl'", specifier = ">=0.5.2,<0.6" },
     { name = "httpx", specifier = ">=0.28,<0.29" },

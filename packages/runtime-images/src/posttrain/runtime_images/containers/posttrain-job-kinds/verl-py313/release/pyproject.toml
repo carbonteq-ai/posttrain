@@ -12,6 +12,7 @@ dependencies = [
     # Qwen3.5 linear-attention layers through Transformers' torch fallback
     # without them.
     "fla-core>=0.5.2,<0.6",
+    "causal-conv1d==1.7.0+cu130torch2.13; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "fastapi>=0.135,<0.136",
     "hydra-core>=1.3,<1.4",
     "latex2sympy2-extended>=1.10,<2",
@@ -49,15 +50,22 @@ dependencies = [
 
 [tool.uv]
 package = false
+system-certs = true
 environments = ["sys_platform == 'linux' and platform_machine == 'x86_64' and python_full_version == '3.13.12'"]
 
 [tool.uv.sources]
+causal-conv1d = { index = "carbonteq-dev" }
 torch = { index = "pytorch-cu130" }
 torchaudio = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
 verifiers = { git = "https://github.com/carbonteq-ai/verifiers.git", rev = "b71ade0a7ac712cdee9e1a4c0e53030d70768aff" }
 verl = { git = "https://github.com/carbonteq-ai/verl.git", rev = "18338a0efbd6f103378d2861f4a078ad243db455" }
 vllm = { git = "https://github.com/carbonteq-ai/vllm.git", rev = "f09e4479123d348cee87d217c695a22f9b2daacc" }
+
+[[tool.uv.index]]
+name = "carbonteq-dev"
+url = "https://pypi.lan/carbonteq/dev/+simple/"
+explicit = true
 
 [[tool.uv.index]]
 name = "pytorch-cu130"

@@ -2,6 +2,7 @@ accelerate==1.14.0
 bitsandbytes==0.49.2
 carbonteq-renderers==0.1.12.post1.dev2
 datasets==4.6.1
+causal-conv1d==1.7.0+cu130torch2.13
 fla-core==0.5.2
 huggingface-hub==1.31.0
 liger-kernel==0.8.2

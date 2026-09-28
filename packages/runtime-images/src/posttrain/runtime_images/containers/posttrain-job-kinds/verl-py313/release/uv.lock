@@ -202,6 +202,19 @@ wheels = [
 ]
 
 [[package]]
+name = "causal-conv1d"
+version = "1.7.0+cu130torch2.13"
+source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
+dependencies = [
+    { name = "ninja" },
+    { name = "packaging" },
+    { name = "torch" },
+]
+wheels = [
+    { url = "https://pypi.lan/carbonteq/dev/+f/b69/f39142ac88cac/causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl", hash = "sha256:b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a" },
+]
+
+[[package]]
 name = "cbor2"
 version = "6.1.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1981,6 +1994,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "accelerate" },
+    { name = "causal-conv1d" },
     { name = "codetiming" },
     { name = "datasets" },
     { name = "dill" },
@@ -2020,6 +2034,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", specifier = ">=1.14,<1.15" },
+    { name = "causal-conv1d", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = "==1.7.0+cu130torch2.13", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "codetiming", specifier = ">=1.4,<1.5" },
     { name = "datasets", specifier = ">=4.5,<5" },
     { name = "dill", specifier = ">=0.4,<0.5" },

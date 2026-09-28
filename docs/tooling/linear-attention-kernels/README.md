@@ -24,7 +24,7 @@ vLLM sampler ran different Gated DeltaNet implementations.
 | Package | Version | Source | Artifact SHA-256 |
 | --- | --- | --- | --- |
 | fla-core | 0.5.2 | PyPI (`fla_core-0.5.2-py3-none-any.whl`) | `5e830c85bad3d0d34677f98ac7074d08687a3756f0f0499d95ceb96eb6920761` |
-| causal-conv1d | 1.7.0+cu130torch2.13 | CarbonTeq rebuild of upstream `v1.7.0` (`cd81f0413cad2fc1e6f17e785ac39f59aae690cd`) | `b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a` |
+| causal-conv1d | 1.7.0+cu130torch2.13 | CarbonTeq rebuild of upstream `v1.7.0` (`cd81f0413cad2fc1e6f17e785ac39f59aae690cd`), `carbonteq-dev` | `b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a` |
 
 fla-core needs only `einops` (plus the image's torch and Triton 3.7.1). The
 `flash-linear-attention` distribution adds `fla.layers`/`fla.models` and a
@@ -81,25 +81,28 @@ exact bytes on the `lan-release` runner, checks the hash and uploads them to
 `https://pypi.lan/carbonteq/dev/`. The runner holds the index credentials
 (`UV_PUBLISH_USERNAME`/`UV_PUBLISH_PASSWORD`); forks and workstations do not.
 
-Status: **not yet published.** The mirror repository, its release
-`carbonteq-v1.7.0+cu130torch2.13`, and the publisher workflow on `main` do not
-exist yet. Until then causal-conv1d is not in `uv.lock` or any runtime lock,
-and it was qualified only from a local wheelhouse. Once it is on
-`carbonteq/dev`, one command adopts it everywhere fla-core is:
+Status: **published to `carbonteq/dev` and locked.** The fork is
+<https://github.com/carbonteq-ai/causal-conv1d> (ledger commit
+`b7bec200ce1391f69fac132bf7f8ae007446d46d` on top of the unmodified base);
+the pre-release
+[`carbonteq-v1.7.0+cu130torch2.13`](https://github.com/carbonteq-ai/causal-conv1d/releases/tag/carbonteq-v1.7.0%2Bcu130torch2.13)
+retains the wheel. Posttrain run
+<https://github.com/carbonteq-ai/posttrain/actions/runs/36433711245> published
+it; the index serves it at
+`https://pypi.lan/carbonteq/dev/+f/b69/f39142ac88cac/causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl`
+with the same SHA-256.
 
-    uv run python tools/kernel-wheels/causal-conv1d/adopt.py
-
-It first downloads the wheel from `carbonteq/dev` and refuses to continue
-unless the bytes match the retained SHA-256. It then adds
-`causal-conv1d==1.7.0+cu130torch2.13` (marker: Linux x86_64; the only wheel is
-CPython 3.13) with the `carbonteq-dev` index source to the `trl` extra, the
-quantization tool and the veRL backend project, pins it in
-`profiles/supervised.txt` and `profiles/transform.txt`, adds `causal_conv1d`
-to every smoke import, and regenerates `uv.lock`, the quantization lock and
-`transform.lock.txt`, the veRL lock, constraints and profile digests, the
-runtime locks and the catalog lock digests. Locks only ever reference the
-index URL, never a local path. Afterwards run the validation ladder, rebuild
-and publish the kind images, and regenerate `published.toml`.
+`tools/kernel-wheels/causal-conv1d/adopt.py` then added it wherever fla-core
+is: the `trl` extra (index source `carbonteq-dev`), the veRL backend project
+(same, plus `system-certs = true` so uv trusts pypi.lan's CA), the quantization
+tool (an immutable direct reference to the index file, because
+`transform.lock.txt` is exported without index URLs, as for
+carbonteq-trackio), `profiles/supervised.txt` and `profiles/transform.txt`,
+and every smoke import; it regenerated all derived locks and digests. It
+refuses to run unless the index serves the retained bytes and is safe to
+re-run. Promotion to `carbonteq/stable` (`promote-retained-fork-candidate.yml`
+does not list causal-conv1d yet, and it expects an sdist) is a release step
+still to do.
 
 ## Qualification evidence
 

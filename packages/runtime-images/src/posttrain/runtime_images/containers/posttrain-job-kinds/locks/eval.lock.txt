@@ -956,6 +956,7 @@ ninja==1.13.0 \
     --hash=sha256:fb46acf6b93b8dd0322adc3a4945452a4e774b75b91293bafcc7b7f8e6517dfa \
     --hash=sha256:fb8ee8719f8af47fed145cced4a85f0755dd55d45b2bddaf7431fa89803c5f3e
     # via
+    #   causal-conv1d
     #   flashinfer-python
     #   posttrain-serve
     #   vllm
@@ -1357,6 +1358,7 @@ packaging==26.2 \
     #   accelerate
     #   bitsandbytes
     #   build
+    #   causal-conv1d
     #   datasets
     #   flashinfer-python
     #   gradio-client
@@ -2193,6 +2195,7 @@ torch @ https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp3
     # via
     #   accelerate
     #   bitsandbytes
+    #   causal-conv1d
     #   compressed-tensors
     #   flashinfer-python
     #   humming-kernels

@@ -43,7 +43,7 @@ def test_candidate_image_smokes_both_python_313_environments() -> None:
     bake = (PROFILE_ROOT / "docker-bake.hcl").read_text(encoding="utf-8")
 
     assert (
-        "import fla.modules, fla.ops.gated_delta_rule, ray, torch, transformers, tensordict, verl, verifiers, vllm"
+        "import causal_conv1d, fla.modules, fla.ops.gated_delta_rule, ray, torch, transformers, tensordict, verl, verifiers, vllm"
         in dockerfile
     )
     assert "version('fla-core') == '0.5.2'" in dockerfile

@@ -34,10 +34,10 @@ Gated DeltaNet kernels) so it avoids the slow torch fallback: `supervised` and
 `online-rl-trl-py312` through `profiles/supervised.txt`, `transform` through
 `profiles/transform.txt` and `tools/quantization`, and the veRL backend
 through `verl-py313/release/pyproject.toml`; their smoke stages import it.
-Its CUDA partner `causal-conv1d` has no upstream wheel for this PyTorch and is
-built with `tools/kernel-wheels/causal-conv1d/build.sh`;
-`tools/kernel-wheels/causal-conv1d/adopt.py` adds it to the same places once
-the retained wheel is on `carbonteq/dev`. See
+Its CUDA partner `causal-conv1d` has no upstream wheel for this PyTorch; the
+CarbonTeq rebuild (`tools/kernel-wheels/causal-conv1d/build.sh`, retained on
+`carbonteq/dev`) is installed in the same places, and every smoke stage
+imports both. See
 `docs/tooling/linear-attention-kernels/README.md`.
 
 The large dependency layers are shared across actual jobs. A framework or

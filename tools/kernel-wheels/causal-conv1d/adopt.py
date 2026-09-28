@@ -29,6 +29,7 @@ VERSION = "1.7.0+cu130torch2.13"
 WHEEL = f"causal_conv1d-{VERSION}-cp313-cp313-linux_x86_64.whl"
 WHEEL_SHA256 = "b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a"
 SIMPLE = "https://pypi.lan/carbonteq/dev/+simple/causal-conv1d/"
+INDEX_FILE = f"https://pypi.lan/carbonteq/dev/+f/b69/f39142ac88cac/{WHEEL}"  # devpi path: digest prefix
 MARKER = "sys_platform == 'linux' and platform_machine == 'x86_64'"
 REQUIREMENT = f'"causal-conv1d=={VERSION}; {MARKER}",'
 
@@ -47,7 +48,10 @@ def verify_published() -> None:
     hrefs = [h for h in re.findall(r'href="([^"]+)"', page) if WHEEL in urllib.parse.unquote(h)]
     if not hrefs:
         raise SystemExit(f"{WHEEL} is not on {SIMPLE}; publish it first (docs/tooling/linear-attention-kernels)")
-    data = urllib.request.urlopen(urllib.parse.urljoin(SIMPLE, hrefs[0].split("#")[0]), timeout=600).read()
+    url = urllib.parse.urljoin(SIMPLE, hrefs[0].split("#")[0])
+    if urllib.parse.unquote(url) != INDEX_FILE:
+        raise SystemExit(f"carbonteq/dev stores the wheel at {url}, not {INDEX_FILE}")
+    data = urllib.request.urlopen(url, timeout=600).read()
     digest = hashlib.sha256(data).hexdigest()
     if digest != WHEEL_SHA256:
         raise SystemExit(f"carbonteq/dev serves {digest}, expected the retained {WHEEL_SHA256}")
@@ -66,11 +70,17 @@ def edit(path: Path, old: str, new: str, done: str) -> None:
 
 def edit_sources() -> None:
     fla = '    "fla-core>=0.5.2,<0.6",\n'
-    for project in (
-        ROOT / "packages/train/pyproject.toml",
+    # transform.lock.txt is exported without index URLs (like carbonteq-trackio there), so the quantization
+    # project references the immutable index file directly.
+    edit(
         ROOT / "tools/quantization/pyproject.toml",
-        VERL / "release/pyproject.toml",
-    ):
+        fla,
+        fla
+        + "    # Exported to transform.lock.txt without index URLs, so internal wheels use immutable direct references.\n"
+        f'    "causal-conv1d @ {INDEX_FILE}#sha256={WHEEL_SHA256} ; {MARKER}",\n',
+        "causal-conv1d @",
+    )
+    for project in (ROOT / "packages/train/pyproject.toml", VERL / "release/pyproject.toml"):
         edit(project, fla, fla + f"    {REQUIREMENT}\n", "causal-conv1d==")
         edit(
             project,
@@ -83,6 +93,13 @@ def edit_sources() -> None:
         '[[tool.uv.index]]\nname = "pytorch-cu130"',
         DEV_INDEX + '\n[[tool.uv.index]]\nname = "pytorch-cu130"',
         'name = "carbonteq-dev"',
+    )
+    # pypi.lan uses the CarbonTeq CA; the root and quantization projects already trust the system store.
+    edit(
+        VERL / "release/pyproject.toml",
+        "[tool.uv]\npackage = false\n",
+        "[tool.uv]\npackage = false\nsystem-certs = true\n",
+        "system-certs = true",
     )
     for profile in (KINDS / "profiles/supervised.txt", KINDS / "profiles/transform.txt"):
         edit(profile, "fla-core==0.5.2\n", f"causal-conv1d=={VERSION}\nfla-core==0.5.2\n", "causal-conv1d==")
@@ -114,8 +131,12 @@ def run(*command: str, cwd: Path = ROOT) -> str:
 
 
 def relock() -> None:
-    # The catalog lock record and its lab overlay copy carry the SHA-256 of uv.lock.
-    old_digest = hashlib.sha256((ROOT / "uv.lock").read_bytes()).hexdigest()
+    # The catalog lock record and its lab overlay copy carry the SHA-256 of uv.lock. Read the recorded value
+    # (not the current file) so a retry after a partial run still rewrites the overlay copy.
+    recorded = re.search(r'dependency_lock_sha256 = "([0-9a-f]{64})"', CATALOG_LOCKS.read_text(encoding="utf-8"))
+    if recorded is None:
+        raise SystemExit(f"{CATALOG_LOCKS.relative_to(ROOT)} records no uv.lock digest")
+    old_digest = recorded.group(1)
     run("uv", "lock")
     run("uv", "lock", "--project", "tools/quantization")
     run(
@@ -163,7 +184,7 @@ def relock() -> None:
         raise SystemExit("posttrain-release lock-dependencies did not record the new uv.lock digest")
     LAB_OVERLAY.write_text(LAB_OVERLAY.read_text(encoding="utf-8").replace(old_digest, new_digest), encoding="utf-8")
     for path in sorted((KINDS / "locks").glob("*.lock.txt")):
-        if "causal-conv1d" in path.read_text(encoding="utf-8"):
+        if any(line.startswith("causal-conv1d") for line in path.read_text(encoding="utf-8").splitlines()):
             print(f"causal-conv1d locked in {path.name}")
 
 
