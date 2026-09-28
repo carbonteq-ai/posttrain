@@ -162,6 +162,14 @@ oversampled active sampling, and a KL penalty measured against the base model.
   `train/rl/active_sampling_round_<n>_{requested,generated,retained}_groups`
   (rounds bounded by `max_candidate_batches`), described in the Observatory
   metric catalog; they previously stayed in TRL's console log.
+- `posttrain run cleanup` completes for dstack runs whose exact-worker cleanup
+  task reclaimed more than about 2 GB: the task logged the total in awk's
+  scientific notation, which cleanup rejected, leaving the run in attention
+  with its placement held. The count is now printed in whole bytes, the old
+  form is accepted, late logs are retried, and a finished task whose log is
+  gone still completes cleanup.
+- `posttrain controller run` logs why a run needs attention (exception type
+  and first line, bounded), and `posttrain controller status` lists those runs.
 - FP16 training starts its dynamic loss scaler at 1024 instead of PyTorch's
   65536 (`backend_options.fp16_initial_loss_scale` on a training binding, TRL
   and veRL): starting high, the Qwen3.5-0.8B fp16 arm skipped six of its first

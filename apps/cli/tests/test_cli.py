@@ -3096,3 +3096,58 @@ def test_run_show_rejects_project_without_tracking(tmp_path: Path, capsys) -> No
 
     assert main(["--project-root", str(project), "run", "show", "run-1"]) == 1
     assert "was submitted with tracking disabled" in capsys.readouterr().err
+
+
+def test_controller_logs_and_records_why_a_run_needs_attention(
+    tmp_path: Path,
+    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    health = tmp_path / "controller-health"
+    failure = RuntimeError("cleanup task did not return verification evidence\nsecond line " + "x" * 800)
+
+    class Admission:
+        def pump_available(self):
+            return None
+
+        def list(self):
+            return [SimpleNamespace(run_id="run-1", state="terminal_pending_evidence", control_locator=object())]
+
+    def owner(_entry):
+        raise failure
+
+    monkeypatch.setattr("posttrain_cli.commands.controller.execution_admission_service", lambda _layout: Admission())
+    monkeypatch.setattr("posttrain_cli.commands.controller._owner", owner)
+
+    assert main(["--project-root", str(project), "controller", "run", "--once", "--health-file", str(health)]) == 0
+    output = capsys.readouterr().out
+    assert (
+        "run-1  action=reconcile  state=attention  "
+        "message=RuntimeError: cleanup task did not return verification evidence"
+    ) in output
+    assert "second line" not in output  # first line only
+
+    assert main(["--project-root", str(project), "controller", "status", "--health-file", str(health)]) == 0
+    status = capsys.readouterr().out
+    assert "attention: run-1  action=reconcile  message=RuntimeError: cleanup task did not return" in status
+    assert main(["--json", "--project-root", str(project), "controller", "status", "--health-file", str(health)]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["healthy"] is True
+    assert payload["attention"] == [
+        {
+            "run_id": "run-1",
+            "action": "reconcile",
+            "message": "RuntimeError: cleanup task did not return verification evidence",
+        }
+    ]
+
+
+def test_controller_attention_messages_are_bounded() -> None:
+    from posttrain_cli.commands.controller import _attention_message
+
+    message = _attention_message(ValueError("y" * 2000))
+    assert len(message) == 500 and message.startswith("ValueError: yyy") and message.endswith("…")
+    assert _attention_message(KeyError()) == "KeyError"

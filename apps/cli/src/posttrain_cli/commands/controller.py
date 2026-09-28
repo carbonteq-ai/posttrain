@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from pathlib import Path
 from typing import Annotated, Any
@@ -15,6 +16,53 @@ from ..context import CliState
 from ..execution_config import resolve_admission_state_root
 from ..execution_provider import execution_admission_service, reconciliation_source_for_run
 from ..output import emit
+
+_MESSAGE_LIMIT = 500
+
+
+def _attention_message(error: BaseException) -> str:
+    """The exception type and its first line, bounded, for logs and controller health."""
+
+    lines = str(error).strip().splitlines()
+    detail = f"{type(error).__name__}: {lines[0]}" if lines else type(error).__name__
+    return detail if len(detail) <= _MESSAGE_LIMIT else detail[: _MESSAGE_LIMIT - 1] + "…"
+
+
+def _event_line(event: dict[str, Any]) -> str:
+    line = f"{event.get('run_id', '-')}  action={event['action']}  state={event['state']}"
+    message = event.get("message")
+    return f"{line}  message={message}" if message else line
+
+
+def _write_health(path: Path, events: list[dict[str, Any]]) -> None:
+    """First line: the last completed sweep's time; second: the runs that need attention."""
+
+    attention = [
+        {"run_id": event.get("run_id"), "action": event["action"], "message": event.get("message")}
+        for event in events
+        if event.get("state") == "attention"
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(f"{time.time()}\n{json.dumps({'attention': attention}, sort_keys=True)}\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def _read_health(path: Path) -> tuple[float, list[dict[str, Any]]]:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        observed_at = float(lines[0].strip()) if lines else 0.0
+    except (FileNotFoundError, ValueError):
+        return 0.0, []
+    attention: list[dict[str, Any]] = []
+    if len(lines) > 1:
+        try:
+            decoded = json.loads(lines[1])
+        except json.JSONDecodeError:
+            decoded = {}
+        value = decoded.get("attention") if isinstance(decoded, dict) else None
+        attention = [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+    return observed_at, attention
 
 
 def _owner(entry: object) -> ProjectLayout:
@@ -36,7 +84,7 @@ async def controller_sweep(layout: ProjectLayout) -> list[dict[str, Any]]:
         try:
             promoted = admission.pump_available()
         except Exception as error:
-            events.append({"action": "submit", "state": "attention", "message": f"{type(error).__name__}: {error}"})
+            events.append({"action": "submit", "state": "attention", "message": _attention_message(error)})
             break
         if promoted is None:
             break
@@ -110,7 +158,7 @@ async def controller_sweep(layout: ProjectLayout) -> list[dict[str, Any]]:
                     "run_id": initial.run_id,
                     "action": "reconcile",
                     "state": "attention",
-                    "message": f"{type(error).__name__}: {error}",
+                    "message": _attention_message(error),
                 }
             )
     return events
@@ -142,13 +190,8 @@ def register(app: typer.Typer) -> None:
         selected_health_file = health_file or (resolve_admission_state_root() / "controller-health")
         while True:
             events = asyncio.run(controller_sweep(layout))
-            selected_health_file.parent.mkdir(parents=True, exist_ok=True)
-            temporary = selected_health_file.with_suffix(".tmp")
-            temporary.write_text(f"{time.time()}\n", encoding="utf-8")
-            temporary.replace(selected_health_file)
-            lines = [
-                f"{event.get('run_id', '-')}  action={event['action']}  state={event['state']}" for event in events
-            ]
+            _write_health(selected_health_file, events)
+            lines = [_event_line(event) for event in events]
             if events or once:
                 emit(state, events, "\n".join(lines) if lines else "No lifecycle actions required.")
             if once:
@@ -169,10 +212,7 @@ def register(app: typer.Typer) -> None:
     ) -> None:
         state: CliState = ctx.obj
         selected = health_file or (resolve_admission_state_root() / "controller-health")
-        try:
-            observed_at = float(selected.read_text(encoding="utf-8").strip())
-        except (FileNotFoundError, ValueError):
-            observed_at = 0.0
+        observed_at, attention = _read_health(selected)
         age_seconds = max(0.0, time.time() - observed_at) if observed_at else None
         healthy = age_seconds is not None and age_seconds <= stale_after_seconds
         emit(
@@ -182,8 +222,18 @@ def register(app: typer.Typer) -> None:
                 "observed_at": observed_at or None,
                 "age_seconds": age_seconds,
                 "health_file": str(selected),
+                "attention": attention,
             },
-            f"Controller: {'healthy' if healthy else 'stale-or-missing'} ({selected})",
+            "\n".join(
+                (
+                    f"Controller: {'healthy' if healthy else 'stale-or-missing'} ({selected})",
+                    *(
+                        f"attention: {item.get('run_id') or '-'}  action={item.get('action')}  "
+                        f"message={item.get('message')}"
+                        for item in attention
+                    ),
+                )
+            ),
         )
         if not healthy:
             raise typer.Exit(code=1)
