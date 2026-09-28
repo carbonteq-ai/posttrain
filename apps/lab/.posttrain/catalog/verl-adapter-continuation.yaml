@@ -54,7 +54,7 @@ training:
       python_executable: /opt/posttrain-verl/bin/python
       working_directory: /opt/posttrain-verl/workdir
       source_revision: ef1c37715fa75de5973ae5b3c398383cd7e0093d
-      dependency_lock_sha256: a8391c4e989053e75c76dae38d6e34184e56efc80f5df8cd8550248320c00df8
+      dependency_lock_sha256: cdd614f2ab442c655ee211ab433030dcddf6367c2b27eaae801a89495807dbdd
       source_dirty: false
       attention_implementation: sdpa
       hydra_overrides:

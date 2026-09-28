@@ -25,8 +25,8 @@ fork_revision = "ef1c37715fa75de5973ae5b3c398383cd7e0093d"
 release_tag = "carbonteq-v0.9.0.post8"
 release_wheel_sha256 = "9da6fb77815d66aa424ab71adfed4862be5291dd12f7a15df4da81d8ffcc0d08"
 release_sdist_sha256 = "ea34395aea7121f45e43045161830245e4239b0dd08495c9bf2a8f3438725cb1"
-dependency_lock_sha256 = "a8391c4e989053e75c76dae38d6e34184e56efc80f5df8cd8550248320c00df8"
-backend_constraints_sha256 = "3a9c30f4e1df27a7126f572ed76ad72b142e9d7825d5a0be5a62968bc1f33456"
+dependency_lock_sha256 = "cdd614f2ab442c655ee211ab433030dcddf6367c2b27eaae801a89495807dbdd"
+backend_constraints_sha256 = "afa46a88c76ad6add9cba481983fdb514433960769f90c4bff6f521eb3c15ba1"
 [dependencies]
 torch = "2.13.0+cu130"
 transformers = "5.14.1"
@@ -39,7 +39,7 @@ vllm_binary_base = "0.29.1rc1.dev366+g44dd18fe0-cp38-abi3-manylinux_2_28_x86_64"
 vllm_binary_wheel_sha256 = "2b8f85d32b952cb05743c2edb02c4ae5be59921445b97069a609f186fdf6c5f0"
 ray = "2.56.1"
 tensordict = "0.10.0"
-verifiers_revision = "cdd2ec7614131545df66484f9de11250daf16065"
+verifiers_revision = "e6a3d9bbfe6959b97878f451fc721793a232cd5f"
 
 [worker_projection]
 # Namespace-package source projections, not a second installation of the

@@ -8,7 +8,7 @@ Current inputs:
 1. `pyproject.toml` selects CarbonTeq veRL
    `ef1c37715fa75de5973ae5b3c398383cd7e0093d` (`0.9.0.post8`), CarbonTeq vLLM
    `f09e4479123d348cee87d217c695a22f9b2daacc`, and the framework's Verifiers
-   core `cdd2ec7614131545df66484f9de11250daf16065` with no concrete
+   core `e6a3d9bbfe6959b97878f451fc721793a232cd5f` with no concrete
    environment packages and no editable or path sources.
 2. `uv.lock` is generated for exact Python `3.13.12`.
 3. `backend-constraints.txt` is the exact, hash-bound export of that lock used

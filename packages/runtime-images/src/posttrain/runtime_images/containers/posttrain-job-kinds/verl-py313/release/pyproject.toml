@@ -62,7 +62,7 @@ causal-conv1d = { index = "carbonteq-dev" }
 torch = { index = "pytorch-cu130" }
 torchaudio = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
-verifiers = { git = "https://github.com/carbonteq-ai/verifiers.git", rev = "cdd2ec7614131545df66484f9de11250daf16065" }
+verifiers = { git = "https://github.com/carbonteq-ai/verifiers.git", rev = "e6a3d9bbfe6959b97878f451fc721793a232cd5f" }
 verl = { git = "https://github.com/carbonteq-ai/verl.git", rev = "ef1c37715fa75de5973ae5b3c398383cd7e0093d" }
 vllm = { git = "https://github.com/carbonteq-ai/vllm.git", rev = "f09e4479123d348cee87d217c695a22f9b2daacc" }
 

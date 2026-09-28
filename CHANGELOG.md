@@ -109,7 +109,7 @@ oversampled active sampling, and a KL penalty measured against the base model.
   instead of 0.01, seeds its prompt order, and uses the selected micro-batch
   instead of one row. It always ran a constant learning rate; the lab veRL
   settings, which left the `linear` default, now say `constant`.
-- The veRL backend environment uses the framework's Verifiers (`cdd2ec76`) and
+- The veRL backend environment uses the framework's Verifiers (`e6a3d9bb`) and
   `carbonteq-renderers` 0.1.12.post1.dev2, the same as the control
   environment, so Verifiers environments can be packaged for veRL again; the
   image declares Verifiers as provided in both environments, and a release
@@ -143,6 +143,13 @@ oversampled active sampling, and a KL penalty measured against the base model.
   `0.9.0.post7`, which uses vLLM's rename-only mapper as vLLM's own adapter
   loader does (post8 carries the same fix). Every other veRL setting the
   release generates resolves as on post5.
+- veRL trained on zero reward for math environments: Verifiers'
+  `verify_boxed_math_answer` bounds math-verify with `signal.alarm`, which only
+  the main thread may set, and veRL scores episodes inside Ray actors off the
+  main thread, so every answer scored 0 (all GSM8K traces of the qualification
+  run, correct replies included). Verifiers `e6a3d9bb` (`0.3.2.dev94`) scores
+  such calls in a worker process that keeps the timeout. TRL scored on the
+  main thread and was unaffected.
 - veRL runs failed after their last update while recording rewards: the
   launcher attached a `rollout_step` dimension to each trace's
   `algorithm_reward` enrichment, which Trackio rejects (`a trace-fact

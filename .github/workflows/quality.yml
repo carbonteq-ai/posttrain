@@ -231,7 +231,7 @@ jobs:
           VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}" "${CARBONTEQ_RENDERERS_WHEEL_PATH}"
       - name: Install the Verifiers integration
         # gsm8k-v1 at 5264ec15 (the revision the lab catalog pins) depends on the
-        # framework's Verifiers cdd2ec76; the constraint makes any environment
+        # framework's Verifiers e6a3d9bb; the constraint makes any environment
         # that selects another Verifiers fail to install instead of replacing it.
         run: |
           uv sync --frozen --all-packages --extra verifiers --python 3.13 --no-install-package carbonteq-renderers --no-install-package carbonteq-trackio --inexact

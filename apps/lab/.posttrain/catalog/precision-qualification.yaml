@@ -22,7 +22,7 @@ environment:
     activation:
       kind: verifiers-config
       config:
-        # Verifiers cdd2ec76 accepts the harness and timeouts only under agent.
+        # Verifiers e6a3d9bb accepts the harness and timeouts only under agent.
         agent:
           harness: {id: "null"}
           runtime: {type: subprocess}
@@ -84,7 +84,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
-      dependency_lock_sha256: 7a28a659a58a7e2fcdb7c58bf12520d58a35778f96e770b6147af91571a2bbd5
+      dependency_lock_sha256: 3806d4249cde3a1541b9529a662a9434cfb1da1cecf2cb5e5499f97193f13d95
   training/qwen3.5-0.8b-trl-grpo-precision-fp16@1:
     selection_type: training-binding
     revision: "1"
@@ -104,7 +104,7 @@ training:
       training_precision: fp16
       dependency_lock: trl-fork@current
       source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
-      dependency_lock_sha256: 7a28a659a58a7e2fcdb7c58bf12520d58a35778f96e770b6147af91571a2bbd5
+      dependency_lock_sha256: 3806d4249cde3a1541b9529a662a9434cfb1da1cecf2cb5e5499f97193f13d95
 
   # LFM2.5-2.6B SAMPO precision canaries on the RTX PRO 6000
   # (docs/plan/fp16-training-precision.md, "Workstation runbook"): the
@@ -176,7 +176,7 @@ training:
       training_precision: fp16
       dependency_lock: trl-fork@current
       source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
-      dependency_lock_sha256: 7a28a659a58a7e2fcdb7c58bf12520d58a35778f96e770b6147af91571a2bbd5
+      dependency_lock_sha256: 3806d4249cde3a1541b9529a662a9434cfb1da1cecf2cb5e5499f97193f13d95
 
   # veRL precision qualification on the local 8 GB GPU with the veRL runtime
   # (fork 0.9.0.post8, ef1c3771; post4 added the loss scale, skipped steps and
@@ -229,7 +229,7 @@ training:
       python_executable: /opt/posttrain-verl/bin/python
       working_directory: /opt/posttrain-verl/workdir
       source_revision: ef1c37715fa75de5973ae5b3c398383cd7e0093d
-      dependency_lock_sha256: a8391c4e989053e75c76dae38d6e34184e56efc80f5df8cd8550248320c00df8
+      dependency_lock_sha256: cdd614f2ab442c655ee211ab433030dcddf6367c2b27eaae801a89495807dbdd
       source_dirty: false
       attention_implementation: sdpa
       training_precision: bf16

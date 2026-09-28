@@ -983,7 +983,7 @@ environment:
     source:
       package: reverse-text
       repository: https://github.com/carbonteq-ai/verifiers
-      revision: cdd2ec7614131545df66484f9de11250daf16065
+      revision: e6a3d9bbfe6959b97878f451fc721793a232cd5f
       subdirectory: environments/reverse_text
     activation:
       kind: verifiers-config
