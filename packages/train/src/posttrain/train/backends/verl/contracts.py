@@ -73,10 +73,25 @@ class VerlEnvironment(VerlContract):
     examples: tuple[VerlEnvironmentExample, ...]
 
 
+class VerlToolCallProtocol(VerlContract):
+    id: str
+    start_token: str
+    end_token: str
+
+
 class VerlRenderer(VerlContract):
+    """The policy model's renderer, resolved by the launcher exactly as TRL resolves it."""
+
     id: str
     implementation: str
     reasoning_mode: str
+    model_family: str
+    # ``renderer_config_spec``: the pinned renderer config and its arguments.
+    config: str
+    config_kwargs: dict[str, JsonValue]
+    # A package chat template replaces the tokenizer's, as on TRL.
+    chat_template: str | None
+    tool_call_protocol: VerlToolCallProtocol | None
 
 
 class VerlFullUpdate(VerlContract):

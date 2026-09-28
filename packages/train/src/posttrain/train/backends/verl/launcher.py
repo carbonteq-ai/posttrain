@@ -30,7 +30,8 @@ from ...bindings import FullParameterUpdate, LoRAUpdate
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
 from ...kl_reference import kl_reference_problem, resolved_kl_reference
 from ...precision import resolve_precision, training_precision, verl_rollout_dtype
-from ...profiles import GRPOSettings, SAMPOSettings
+from ...profiles import GRPOSettings, SAMPOSettings, TrainingRenderer
+from ...rendering import renderer_config_spec
 from ...requests import CAPORequest, GDPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
@@ -53,7 +54,7 @@ from .metrics import (
     read_verl_rollout_reward_records,
 )
 
-_SUPPORTED_MODEL_FAMILIES = frozenset({"qwen3.5"})
+_SUPPORTED_MODEL_FAMILIES = frozenset({"lfm2.5", "qwen3.5"})
 _RESULT_FILE = "posttrain-result.json"
 
 
@@ -413,11 +414,10 @@ def _plan(
             **operation_payload,
             "training": {
                 "binding_id": request.training.id,
-                "renderer": {
-                    "id": request.training.renderer.id,
-                    "implementation": request.training.renderer.implementation,
-                    "reasoning_mode": request.training.renderer.reasoning_mode,
-                },
+                "renderer": _renderer_payload(
+                    request.student if isinstance(request, OnPolicyDistillationRequest) else request.policy,
+                    request.training.renderer,
+                ),
                 "update": update_payload,
                 "loop": {
                     "max_steps": loop.max_steps,
@@ -457,6 +457,27 @@ def _plan(
         result_file=(output_dir / _RESULT_FILE).resolve(),
         payload=payload,
     )
+
+
+def _renderer_payload(model: ModelVariant, renderer: TrainingRenderer) -> dict[str, object]:
+    """Resolve the policy renderer on the launcher, as the TRL backend does in-process."""
+
+    config, config_kwargs = renderer_config_spec(model, renderer)
+    protocol = model.conversation.tool_calls
+    return {
+        "id": renderer.id,
+        "implementation": renderer.implementation,
+        "reasoning_mode": renderer.reasoning_mode,
+        "model_family": model.family,
+        "config": config,
+        "config_kwargs": config_kwargs,
+        "chat_template": model.conversation.chat_template.text(),
+        "tool_call_protocol": (
+            None
+            if protocol is None
+            else {"id": protocol.id, "start_token": protocol.start_token, "end_token": protocol.end_token}
+        ),
+    }
 
 
 def _launch(

@@ -27,11 +27,12 @@ from posttrain.common import (
     TraceFactUpdateObservation,
     TraceObservation,
 )
-from posttrain.common.variants import LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common.variants import LFM_25_12B_THINKING, NANBEIGE_42_3B, QWEN_35_2B
 from posttrain.data import RolloutDataset, RolloutExample
 from posttrain.train import (
     LFM25_RENDERER,
     QWEN35_RENDERER,
+    QWEN35_THINKING_RENDERER,
     ActiveGroupSampling,
     AdaptiveCurriculum,
     DynamicGroupSampling,
@@ -47,6 +48,7 @@ from posttrain.train import (
     SAMPOSettings,
     TrainingBinding,
     TrainingLoop,
+    TrainingRenderer,
     TrainingRuntime,
     verl_grpo_settings_problem,
     verl_training_loop_problem,
@@ -97,7 +99,9 @@ from posttrain.train.backends.verl.worker import (
     build_hydra_overrides,
 )
 from posttrain.train.online_rl import BehaviorPolicySpan, EnvironmentRollout
+from posttrain.train.policy_messages import parsed_policy_message
 from posttrain.train.profiles import shape_online_reward
+from posttrain.train.rendering import create_renderer_config, renderer_config_from_spec, renderer_config_spec
 from pydantic import ValidationError
 
 
@@ -164,7 +168,11 @@ def _target(identifier: str) -> ExecutionTarget:
 
 
 def _training(*, family: str = "qwen3.5", update=None) -> TrainingBinding:
-    renderer = QWEN35_RENDERER if family == "qwen3.5" else LFM25_RENDERER
+    renderer = {
+        "qwen3.5": QWEN35_RENDERER,
+        "lfm2.5": LFM25_RENDERER,
+        "nanbeige4.2": TrainingRenderer("nanbeige4.2-off-v1", "nanbeige4.2", "default", "off"),
+    }[family]
     return TrainingBinding(
         "training/verl-test@1",
         "1",
@@ -294,8 +302,16 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
 
     renderers = ModuleType("renderers")
     renderer_configs: list[object] = []
-    renderers.__dict__["Qwen35RendererConfig"] = lambda *, enable_thinking: {"enable_thinking": enable_thinking}
-    renderers.__dict__["DefaultRendererConfig"] = lambda: {"default": True}
+    for name in (
+        "Qwen35RendererConfig",
+        "DefaultRendererConfig",
+        "LFM25RendererConfig",
+        "K2HorizonRendererConfig",
+        "Nanbeige42RendererConfig",
+        "Spark25RendererConfig",
+        "Gemma4RendererConfig",
+    ):
+        renderers.__dict__[name] = lambda *, _name=name, **kwargs: {_name: kwargs}
     renderers.__dict__["create_renderer"] = lambda tokenizer, config: (renderer_configs.append(config), FakeRenderer())[
         1
     ]
@@ -317,14 +333,32 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
 
     agent_loop = importlib.import_module(module_name)
     server = ServerManager()
-    generator = agent_loop.VerlPolicyGenerator(server, object(), enable_thinking=False)
-    agent_loop.VerlPolicyGenerator(
+    generator = agent_loop.VerlPolicyGenerator(
         server,
         object(),
-        enable_thinking=False,
-        renderer_implementation="default",
+        renderer={
+            "config": "qwen3.5",
+            "config_kwargs": {"enable_thinking": False},
+            "chat_template": None,
+            "tool_call_protocol": None,
+        },
     )
-    assert renderer_configs == [{"enable_thinking": False}, {"default": True}]
+    tokenizer = SimpleNamespace(chat_template="tokenizer template")
+    agent_loop.VerlPolicyGenerator(
+        server,
+        tokenizer,
+        renderer={
+            "config": "lfm2.5",
+            "config_kwargs": {},
+            "chat_template": "package template",
+            "tool_call_protocol": {"id": "lfm2_pythonic", "start_token": "<a>", "end_token": "</a>"},
+        },
+    )
+    assert renderer_configs == [
+        {"Qwen35RendererConfig": {"enable_thinking": False}},
+        {"LFM25RendererConfig": {}},
+    ]
+    assert tokenizer.chat_template == "package template"
     sampling = PolicySampling(
         max_tokens=32,
         temperature=0.7,
@@ -399,6 +433,120 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
     sys.modules.pop(module_name, None)
 
 
+def test_verl_policy_generator_recovers_lfm25_python_calls_like_trl(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LFM2.5 emits a Python call list; both backends recover it through the model's protocol."""
+
+    module_name = "posttrain.train.backends.verl.agent_loop"
+    monkeypatch.delitem(sys.modules, module_name, raising=False)
+    for package in ("verl", "verl.experimental", "verl.experimental.agent_loop"):
+        module = ModuleType(package)
+        module.__path__ = []  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, package, module)
+    verl_agent_loop = ModuleType("verl.experimental.agent_loop.agent_loop")
+    for name in ("AgentLoopBase", "AgentLoopMetrics", "AgentLoopOutput"):
+        verl_agent_loop.__dict__[name] = object
+    monkeypatch.setitem(sys.modules, "verl.experimental.agent_loop.agent_loop", verl_agent_loop)
+    content = '<|tool_call_start|>[lookup(query="rl", limit=2)]<|tool_call_end|>'
+    real_renderers = pytest.importorskip("renderers")
+
+    class FakeRenderer:
+        def render(self, messages, *, tools, add_generation_prompt):
+            return SimpleNamespace(token_ids=(1, 2), message_token_spans=lambda: ((0, 2),), is_content=(True, True))
+
+        def bridge_to_next_turn(self, prompt_ids, completion_ids, new_messages, *, tools):
+            # Prefix (1, 2, 3, 4) retained; the tool result and generation prompt follow.
+            assert (prompt_ids, completion_ids) == ([1, 2], [3, 4])
+            assert [message["role"] for message in new_messages] == ["tool"]
+            return SimpleNamespace(
+                token_ids=(1, 2, 3, 4, 7, 8, 9),
+                message_indices=[-1, -1, -1, -1, 0, 0, -1],
+                message_roles=["tool"],
+                is_content=(True,) * 7,
+            )
+
+        def parse_response(self, token_ids, *, tools):
+            return SimpleNamespace(content=content, reasoning_content="think", tool_calls=())
+
+        def get_stop_token_ids(self):
+            return (4,)
+
+    renderers = ModuleType("renderers")
+    for name in (
+        "Qwen35RendererConfig",
+        "DefaultRendererConfig",
+        "LFM25RendererConfig",
+        "K2HorizonRendererConfig",
+        "Nanbeige42RendererConfig",
+        "Spark25RendererConfig",
+        "Gemma4RendererConfig",
+    ):
+        renderers.__dict__[name] = lambda **kwargs: kwargs
+    renderers.__dict__["create_renderer"] = lambda tokenizer, config: FakeRenderer()
+    renderers.__dict__["RenderedTokens"] = real_renderers.RenderedTokens
+    monkeypatch.setitem(sys.modules, "renderers", renderers)
+
+    class ServerManager:
+        async def generate(self, **kwargs):
+            return SimpleNamespace(token_ids=(3, 4), log_probs=(-0.1, -0.2), extra_fields={})
+
+    protocol = LFM_25_12B_THINKING.conversation.tool_calls
+    assert protocol is not None
+    agent_loop = importlib.import_module(module_name)
+    generator = agent_loop.VerlPolicyGenerator(
+        ServerManager(),
+        SimpleNamespace(chat_template=None),
+        renderer={
+            "config": "lfm2.5",
+            "config_kwargs": {},
+            "chat_template": None,
+            "tool_call_protocol": {
+                "id": protocol.id,
+                "start_token": protocol.start_token,
+                "end_token": protocol.end_token,
+            },
+        },
+    )
+    tools = ({"type": "function", "function": {"name": "lookup", "parameters": {"type": "object"}}},)
+    sampling = PolicySampling(max_tokens=32, temperature=1.0, top_p=1.0, top_k=0)
+    result = asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(messages=({"role": "user", "content": "find"},), tools=tools, sampling=sampling)
+        )
+    )
+
+    expected = parsed_policy_message(
+        SimpleNamespace(content=content, reasoning_content="think", tool_calls=()),
+        (3, 4),
+        None,
+        tool_call_protocol=protocol,
+        tools=[dict(tool) for tool in tools],
+    )
+    assert result.message == expected
+    assert result.message["tool_calls"] == [{"id": "call_0", "name": "lookup", "arguments": '{"query":"rl","limit":2}'}]
+    assert result.finish_reason == "tool_calls"
+
+    # A bridged turn reports spans over the full message list, as on TRL.
+    messages = (
+        {"role": "user", "content": "find"},
+        {"role": "assistant", "content": content},
+        {"role": "tool", "content": "result"},
+    )
+    bridged = asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=messages,
+                tools=tools,
+                sampling=sampling,
+                previous_prompt_ids=(1, 2),
+                previous_completion_ids=(3, 4),
+                tail_start=2,
+            )
+        )
+    )
+    assert bridged.prompt_message_spans == (None, None, (4, 6))
+    sys.modules.pop(module_name, None)
+
+
 def test_verl_policy_generator_reports_bridged_spans_over_the_full_message_list(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -437,8 +585,16 @@ def test_verl_policy_generator_reports_bridged_spans_over_the_full_message_list(
             return (6,)
 
     renderers = ModuleType("renderers")
-    renderers.__dict__["Qwen35RendererConfig"] = lambda **kwargs: kwargs
-    renderers.__dict__["DefaultRendererConfig"] = lambda **kwargs: kwargs
+    for name in (
+        "Qwen35RendererConfig",
+        "DefaultRendererConfig",
+        "LFM25RendererConfig",
+        "K2HorizonRendererConfig",
+        "Nanbeige42RendererConfig",
+        "Spark25RendererConfig",
+        "Gemma4RendererConfig",
+    ):
+        renderers.__dict__[name] = lambda **kwargs: kwargs
     renderers.__dict__["create_renderer"] = lambda tokenizer, config: FakeRenderer()
     renderers.__dict__["RenderedTokens"] = real_renderers.RenderedTokens
     monkeypatch.setitem(sys.modules, "renderers", renderers)
@@ -448,7 +604,16 @@ def test_verl_policy_generator_reports_bridged_spans_over_the_full_message_list(
             return SimpleNamespace(token_ids=(5, 6), log_probs=(-0.1, -0.2), extra_fields={})
 
     agent_loop = importlib.import_module(module_name)
-    generator = agent_loop.VerlPolicyGenerator(ServerManager(), object(), enable_thinking=False)
+    generator = agent_loop.VerlPolicyGenerator(
+        ServerManager(),
+        object(),
+        renderer={
+            "config": "qwen3.5",
+            "config_kwargs": {"enable_thinking": False},
+            "chat_template": None,
+            "tool_call_protocol": None,
+        },
+    )
     messages = (
         {"role": "user", "content": "find"},
         {"role": "assistant", "content": "calling"},
@@ -497,6 +662,11 @@ def test_qwen35_grpo_translation_is_deterministic_and_backend_neutral(tmp_path: 
         "id": "qwen3.5-off-v1",
         "implementation": "qwen3.5",
         "reasoning_mode": "off",
+        "model_family": "qwen3.5",
+        "config": "qwen3.5",
+        "config_kwargs": {"enable_thinking": False},
+        "chat_template": None,
+        "tool_call_protocol": {"id": "qwen3_xml", "start_token": "<tool_call>", "end_token": "</tool_call>"},
     }
     assert first.payload.environment.examples[0].id == "train/000000"
     assert first.command[0] == "/opt/posttrain-verl/bin/python"
@@ -1970,8 +2140,10 @@ def test_verl_agent_loop_honors_selected_reasoning_mode(tmp_path: Path) -> None:
     _write_agent_config(payload, path)
 
     config = json.loads(path.read_text(encoding="utf-8"))
-    assert config[0]["enable_thinking"] is True
-    assert config[0]["renderer_implementation"] == "qwen3.5"
+    assert config[0]["renderer"]["config"] == "qwen3.5"
+    assert config[0]["renderer"]["config_kwargs"] == {"enable_thinking": True}
+    assert config[0]["renderer"]["chat_template"] is None
+    assert "enable_thinking" not in config[0]
 
 
 def test_verl_streaming_reward_exposes_dynamic_filter_metric() -> None:
@@ -1988,10 +2160,78 @@ def test_masked_truncated_rows_carry_nan_group_reward_like_trl() -> None:
     assert fields["seq_reward"] == 0.5  # the curriculum still observes the reward, as TRL's hook does
 
 
-def test_verl_preflight_rejects_models_outside_current_qwen35_qualification(tmp_path: Path) -> None:
-    request = _grpo_request(model=LFM_25_12B_THINKING, family="lfm2.5")
-    with pytest.raises(ValueError, match="currently qualifies only qwen3.5"):
+def test_verl_preflight_rejects_models_outside_qualified_families(tmp_path: Path) -> None:
+    request = _grpo_request(model=NANBEIGE_42_3B, family="nanbeige4.2")
+    with pytest.raises(ValueError, match="currently qualifies only lfm2.5, qwen3.5"):
         build_grpo_launch_plan(request, tmp_path)
+
+
+def test_verl_resolves_the_lfm25_renderer_exactly_as_trl(tmp_path: Path) -> None:
+    request = _grpo_request(model=LFM_25_12B_THINKING, family="lfm2.5", update=LoRAUpdate(rank=4, alpha=8))
+    payload = build_grpo_launch_plan(request, tmp_path).payload
+    renderer = payload.training.renderer
+
+    assert payload.policy is not None and payload.policy.family == "lfm2.5"
+    assert renderer.model_family == "lfm2.5"
+    assert renderer.config == "lfm2.5"
+    assert renderer.config_kwargs == {}
+    # The package template replaces the tokenizer's, as TrlPolicyGenerator does.
+    assert renderer.chat_template == LFM_25_12B_THINKING.conversation.chat_template.text()
+    assert renderer.chat_template is not None and "<|tool_call_start|>" in renderer.chat_template
+    assert renderer.tool_call_protocol is not None
+    assert renderer.tool_call_protocol.model_dump() == {
+        "id": "lfm2_pythonic",
+        "start_token": "<|tool_call_start|>",
+        "end_token": "<|tool_call_end|>",
+    }
+    pytest.importorskip("renderers")
+    # The veRL agent loop rebuilds the very config the TRL backend builds.
+    trl_config = create_renderer_config(LFM_25_12B_THINKING, request.training.renderer)
+    assert renderer_config_from_spec(renderer.config, renderer.config_kwargs) == trl_config
+    assert type(trl_config).__name__ == "LFM25RendererConfig"
+
+    agent_config = tmp_path / "agent-loop.json"
+    _write_agent_config(payload, agent_config)
+    written = json.loads(agent_config.read_text(encoding="utf-8"))[0]["renderer"]
+    assert written["config"] == "lfm2.5"
+    assert written["chat_template"] == renderer.chat_template
+    assert written["tool_call_protocol"]["id"] == "lfm2_pythonic"
+
+
+@pytest.mark.parametrize(
+    ("model", "renderer"),
+    [
+        (QWEN_35_2B, QWEN35_RENDERER),
+        (QWEN_35_2B, QWEN35_THINKING_RENDERER),
+        (LFM_25_12B_THINKING, LFM25_RENDERER),
+    ],
+)
+def test_renderer_spec_rebuilds_the_trl_renderer_config(model, renderer) -> None:
+    pytest.importorskip("renderers")
+    assert renderer_config_from_spec(*renderer_config_spec(model, renderer)) == create_renderer_config(model, renderer)
+
+
+def test_verl_lfm25_lora_translation_targets_every_linear_projection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    request = _grpo_request(model=LFM_25_12B_THINKING, family="lfm2.5", update=LoRAUpdate(rank=4, alpha=8))
+    plan = build_grpo_launch_plan(request, tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/lfm25")
+
+    overrides = build_hydra_overrides(
+        plan,
+        tmp_path / "rollouts.parquet",
+        tmp_path / "agent-loop.json",
+        tmp_path / "checkpoints",
+    )
+    # PEFT "all-linear" on Lfm2ForCausalLM: attention q/k/v/out_proj, short
+    # convolution in_proj/out_proj and feed-forward w1/w2/w3, never the tied
+    # lm_head; the same selection the TRL backend adapts.
+    assert 'actor_rollout_ref.model.target_modules="all-linear"' in overrides
+    assert "actor_rollout_ref.model.lora_rank=4" in overrides
+    assert "actor_rollout_ref.model.use_remove_padding=False" in overrides
+    assert not any("use_fused_kernels" in item for item in overrides)
 
 
 def test_qwen35_distillation_translation_uses_native_exact_token_k1_loss(

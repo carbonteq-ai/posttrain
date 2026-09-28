@@ -172,11 +172,34 @@ gradient through the mean log ratio) and SAMPO hierarchy evidence metrics. The
 adapter now accepts SAMPO: fork SAMPO estimator, `sequence_clip`,
 `seq-mean-token-mean`, clip 0.003/0.004, `k3_unclipped` KL, token or sequence
 sampler correction truncated at the selected cap, round-based active sampling,
-optional curriculum and truncation penalty. It rejects
-`mask_truncated_completions`, `max_admission_attempts` other than 1 and
-correction modes with a lower bound or masking. This replaces the historical
-GSPO mapping described under "SAMPO operating configuration" below, whose
-runs predate the rejection that preceded this port.
+optional curriculum and truncation penalty; the TRL-equivalent settings
+above (masked truncated completions, admission retries, every correction mode
+and bound) apply to SAMPO too. This replaces the historical GSPO mapping
+described under "SAMPO operating configuration" below, whose runs predate the
+rejection that preceded this port.
+
+## LFM2.5 on veRL (unreleased candidate)
+
+LFM2.5 (hybrid short-convolution and attention blocks, tied input and output
+embeddings) needs no fork source change: Transformers' `Lfm2ForCausalLM`
+trains under FSDP2 with `use_remove_padding=false`, PEFT `all-linear` selects
+the attention `q_proj`/`k_proj`/`v_proj`/`out_proj`, short-convolution
+`in_proj`/`out_proj` and feed-forward `w1`/`w2`/`w3` projections (never the
+tied `lm_head`), and the CarbonTeq vLLM's `Lfm2ForCausalLM` accepts those
+LoRA names through its packed-module mapping. Fork commit `7d850ef5` adds a
+CPU regression test that exports such an adapter through `verl.model_merger`
+and reloads it with identical logits.
+
+The Posttrain side was the renderer. The veRL agent loop used the default
+renderer for every non-Qwen family, ignored the model's package chat template
+and never recovered LFM2.5's Python call lists (`<|tool_call_start|>[...]`),
+so LFM2.5 would have seen different prompts and tool calls than on TRL. The
+launcher now resolves the renderer with the TRL backend's own function
+(`renderer_config_spec`: family config, reasoning-mode template arguments,
+package chat template, tool-call protocol) and the agent loop rebuilds it.
+Bindings for LFM2.5 on veRL use no fused-kernel or Qwen-specific Hydra
+overrides; `attention_implementation: sdpa` is fine. The GPU qualification
+(two updates of LFM2.5-1.2B on the 8 GB card) waits for the post6 image.
 
 ## FP16 metrics (0.9.0.post4, contained in post5)
 
@@ -354,7 +377,8 @@ sampling; `truncation_penalty` is applied for GRPO and DAPO.
 
 ## Current support and qualification boundary
 
-The current adapter accepts only the **Qwen 3.5 model family**, for:
+The current adapter accepts the **Qwen 3.5** and, pending its GPU
+qualification with the post6 image, **LFM2.5** model families, for:
 
 - GRPO with fresh trajectories owned and scored by a Verifiers environment.
 - On-policy distillation in which a Qwen 3.5 teacher scores the exact token ids
@@ -407,6 +431,7 @@ Verifiers as provided in both roles; then run the package fresh and again with
 | --- | --- | --- |
 | GRPO | Qwen 3.5 | Qwen 3.5 0.8B ordinary BF16 LoRA qualified locally on GPU |
 | On-policy distillation | Qwen 3.5 student and teacher | Two-step GPU execution and retained artifacts qualified; required telemetry gate open |
+| GRPO, SAMPO | LFM2.5 | CPU renderer and export tests; two-update 8 GB GPU run pending the post6 image |
 
 The complete backend release is therefore not yet production-qualified.
 

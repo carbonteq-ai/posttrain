@@ -44,6 +44,11 @@ Targets 0.4.13, which pins CarbonTeq veRL 0.9.0.post6.
   `mask_truncated_completions`, `max_admission_attempts`, `lr_scheduler_type:
   linear`, curriculum with DAPO). Each is checked against TRL's real code by
   CPU parity tests; see `docs/plan/verl-vortex-port.md`.
+- LFM2.5 on veRL. The launcher resolves the policy's renderer exactly as the
+  TRL backend does (the family's renderer config, the reasoning mode's
+  template arguments, the package chat template and the tool-call protocol)
+  and the veRL agent loop rebuilds that renderer, so LFM2.5's Python call
+  lists are recovered as tool calls on veRL too.
 
 ## 0.4.12 - unreleased
 

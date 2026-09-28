@@ -177,8 +177,19 @@ adds backend support that meets those contracts; no product meaning changes.
   `94606019` (retry test). Posttrain maps DAPO to candidate batches and
   `verl_grpo_settings_problem` rejects nothing. DAPO parity test passes (see
   Artifacts).
-- [ ] Phase 4: LFM2.5 on veRL (CPU parts next; GPU runs wait for the local
-  GPU to be free of the 0.4.12 qualification queue).
+- [x] (2026-09-29) Phase 4 CPU parts. Fork commit `7d850ef5` (not pushed):
+  CPU test exporting a PEFT `all-linear` adapter of a tiny `Lfm2ForCausalLM`
+  through `verl.model_merger` (eight projection targets, tied `lm_head`
+  dropped, identical logits on reload); no fork source change is needed.
+  Posttrain: the launcher resolves the policy renderer with the TRL backend's
+  `renderer_config_spec` (family config, template arguments, package chat
+  template, tool-call protocol) into `VerlRenderer`; the veRL agent loop
+  rebuilds it with `renderer_config_from_spec`, recovers LFM2.5 Python call
+  lists through the protocol and reports bridged-turn message spans with the
+  TRL backend's `bridged_message_spans`; `lfm2.5` joins the veRL launcher's
+  families (see Decision Log).
+- [ ] Phase 4 GPU: two LFM2.5-1.2B updates on veRL on the 8 GB card, with
+  the post6 image.
 - [x] (2026-09-28) Phase 5 fork: `sequence_clip` policy loss (TRL's
   sequence-level ratio) and SAMPO hierarchy evidence metrics; commits
   `d344b545` and `4d37a18bc492f0f4f9c224285603740ef4a2ba54` (not pushed); PPO
@@ -285,8 +296,44 @@ adds backend support that meets those contracts; no product meaning changes.
   `codex/precision-fp16-verl`). Phases 4 and 6 will run the isolated worker
   directly from a locally built veRL environment (see Phase 4) unless that
   image is rebuilt first.
+  Update (2026-09-29): release 0.4.12 rebuilt the veRL kind image (post5,
+  digest `sha256:523b5525...`) and its qualification runs veRL packages with
+  `posttrain job run --provider local`. A kind image must be in a registry
+  for packing, so the Phase 4 and Phase 6 GPU runs wait for the post6 image
+  the coordinator builds, instead of a local-only image.
+
+- Observation: the veRL agent loop did not render LFM2.5 as TRL does. It
+  chose `DefaultRendererConfig` for every non-Qwen family (TRL chooses
+  `LFM25RendererConfig`), kept the tokenizer's chat template (TRL installs the
+  model's package template `lfm25_tool_chat.jinja`), passed no tool-call
+  protocol to `parsed_policy_message` (TRL recovers LFM2.5's
+  `<|tool_call_start|>[call(...)]<|tool_call_end|>` lists through it), and
+  reported a bridged turn's message spans relative to the new messages only
+  (TRL offsets them and pads the earlier messages with `None`). The last one
+  also affected Qwen 3.5 multi-turn runs.
+  Evidence: `packages/train/src/posttrain/train/backends/verl/agent_loop.py`
+  before this phase; tests
+  `test_verl_policy_generator_recovers_lfm25_python_calls_like_trl` and
+  `test_verl_resolves_the_lfm25_renderer_exactly_as_trl`.
+- Observation: the local image `posttrain-kind-online-rl-verl-py313:qwen-kernels-local-cc1d`
+  (post3) has upstream `renderers` 0.1.12.dev3 installed over the CarbonTeq
+  fork, so `LFM25RendererConfig` is missing there. The 0.4.12 veRL kind lock
+  selects only `carbonteq-renderers`; do not use that local image for LFM2.5.
 
 ## Decision Log
+
+- Decision: `lfm2.5` joins the veRL launcher's qualified families in the
+  Phase 4 code change, before its GPU run.
+  Rationale: the GPU qualification runs through the launcher, which rejects
+  unlisted families, and the branch ships only in 0.4.13 after the Phase 4
+  and Phase 6 GPU runs; the README table marks LFM2.5 as pending until then.
+  Date/Author: 2026-09-29, Claude.
+- Decision: resolve the renderer on the launcher and pass it to the agent
+  loop as data, rather than duplicating TRL's family table in the agent loop.
+  Rationale: one function (`renderer_config_spec`) now decides the renderer
+  for both backends, so they cannot drift again; the control environment does
+  not need `renderers` installed because the spec is plain data.
+  Date/Author: 2026-09-29, Claude.
 
 - Decision: DAPO on veRL uses TRL's candidate-batch dynamic sampling, and the
   curriculum makes one `initial_batch` decision for the whole candidate pool

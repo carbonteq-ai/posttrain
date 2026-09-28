@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 from time import perf_counter
+from types import SimpleNamespace
 from typing import Any, Literal, cast
 from uuid import uuid4
 
@@ -22,7 +23,7 @@ from ...online_rl import (
     RolloutBatch,
 )
 from ...policy_messages import parsed_policy_message
-from ...rendering import bridged_message_spans
+from ...rendering import bridged_message_spans, renderer_config_from_spec
 from .reward_fields import (
     shaped_rollout_reward,
     streaming_reward_extra_info,
@@ -134,27 +135,25 @@ class VerlPolicyGenerator:
         server_manager: Any,
         tokenizer: Any,
         *,
-        enable_thinking: bool,
-        renderer_implementation: str = "qwen3.5",
+        renderer: Mapping[str, Any],
         sampling_overrides: Mapping[str, Any] | None = None,
     ) -> None:
         try:
-            from renderers import (  # pyright: ignore[reportMissingImports]
-                DefaultRendererConfig,
-                Qwen35RendererConfig,
-                create_renderer,
-            )
+            from renderers import create_renderer  # pyright: ignore[reportMissingImports]
         except ImportError as error:  # pragma: no cover - isolated runtime dependency
             raise RuntimeError("the veRL environment requires the selected renderer implementation") from error
         self._server_manager = server_manager
         self._tokenizer = tokenizer
-        if renderer_implementation == "qwen3.5":
-            renderer_config = Qwen35RendererConfig(enable_thinking=enable_thinking)
-        elif renderer_implementation == "default":
-            renderer_config = DefaultRendererConfig()
-        else:
-            raise ValueError(f"unsupported veRL renderer implementation: {renderer_implementation!r}")
-        self._renderer = create_renderer(tokenizer, renderer_config)
+        # The launcher resolved the renderer exactly as the TRL backend does:
+        # the family's pinned config, the reasoning mode's template arguments
+        # and a package chat template replacing the tokenizer's.
+        chat_template = renderer.get("chat_template")
+        if chat_template is not None:
+            tokenizer.chat_template = str(chat_template)
+        config = renderer_config_from_spec(str(renderer["config"]), dict(renderer.get("config_kwargs") or {}))
+        self._renderer = create_renderer(tokenizer, config)
+        protocol = renderer.get("tool_call_protocol")
+        self._tool_call_protocol = None if protocol is None else SimpleNamespace(**dict(protocol))
         self._sampling_overrides = _validated_sampling_overrides(sampling_overrides or {})
         self._behavior_policy: BehaviorPolicySpan | None = None
 
@@ -220,7 +219,13 @@ class VerlPolicyGenerator:
                 behavior_policy if self._behavior_policy is None else self._behavior_policy.merge(behavior_policy)
             )
         parsed = self._renderer.parse_response(list(token_ids), tools=renderer_tools)
-        message = parsed_policy_message(parsed, token_ids, self._tokenizer)
+        message = parsed_policy_message(
+            parsed,
+            token_ids,
+            self._tokenizer,
+            tool_call_protocol=self._tool_call_protocol,
+            tools=tools,
+        )
         finish_reason = _finish_reason(
             token_ids,
             frozenset(self._renderer.get_stop_token_ids()),
@@ -258,8 +263,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         self,
         *args: Any,
         bridge_snapshot: str,
-        enable_thinking: bool = False,
-        renderer_implementation: str = "qwen3.5",
+        renderer: dict[str, Any],
         mask_truncated_completions: bool | None = False,
         max_completion_tokens: int,
         overlong_buffer_tokens: int | None = None,
@@ -275,8 +279,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         self._generator = VerlPolicyGenerator(
             self.server_manager,
             self.tokenizer,
-            enable_thinking=enable_thinking,
-            renderer_implementation=renderer_implementation,
+            renderer=renderer,
         )
         self._mask_truncated_completions = bool(mask_truncated_completions)
         self._max_completion_tokens = max_completion_tokens

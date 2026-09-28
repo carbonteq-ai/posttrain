@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -28,6 +29,62 @@ class RenderedPreferenceExample:
     rejected_ids: tuple[int, ...]
 
 
+# Renderer config per model family in the pinned ``carbonteq-renderers`` fork;
+# every other family renders through the tokenizer's chat template.
+_FAMILY_RENDERER_CONFIGS = ("lfm2.5", "k2-horizon", "nanbeige4.2", "spark2.5", "gemma4")
+
+
+def renderer_config_spec(model: ModelVariant, renderer: TrainingRenderer) -> tuple[str, dict[str, Any]]:
+    """Name the renderer config and its keyword arguments for a model contract.
+
+    The result is plain data, so a backend that renders in another process
+    (veRL's agent loop) rebuilds exactly the config TRL builds in-process
+    through ``renderer_config_from_spec``.
+    """
+
+    if model.family != renderer.model_family:
+        raise ValueError("training renderer is incompatible with the model family")
+    mode = model.conversation.reasoning_mode(renderer.reasoning_mode)
+    if renderer.implementation == "qwen3.5":
+        enable_thinking = mode.kwargs().get("enable_thinking")
+        if enable_thinking is not None and not isinstance(enable_thinking, bool):
+            raise TypeError("Qwen enable_thinking must be a boolean")
+        return "qwen3.5", {"enable_thinking": enable_thinking}
+    template_kwargs = cast(dict[str, Any], mode.kwargs())
+    name = model.family if model.family in _FAMILY_RENDERER_CONFIGS else "default"
+    return name, template_kwargs
+
+
+def renderer_config_from_spec(name: str, kwargs: Mapping[str, Any]) -> Any:
+    """Build the pinned renderer config named by ``renderer_config_spec``."""
+
+    try:
+        from renderers import (  # pyright: ignore[reportMissingImports]
+            DefaultRendererConfig,
+            Gemma4RendererConfig,
+            K2HorizonRendererConfig,
+            LFM25RendererConfig,
+            Nanbeige42RendererConfig,
+            Qwen35RendererConfig,
+            Spark25RendererConfig,
+        )
+    except ImportError as error:
+        raise RuntimeError("install posttrain-train with the trl extra") from error
+
+    configs: dict[str, Any] = {
+        "qwen3.5": Qwen35RendererConfig,
+        "lfm2.5": LFM25RendererConfig,
+        "k2-horizon": K2HorizonRendererConfig,
+        "nanbeige4.2": Nanbeige42RendererConfig,
+        "spark2.5": Spark25RendererConfig,
+        "gemma4": Gemma4RendererConfig,
+        "default": DefaultRendererConfig,
+    }
+    if name not in configs:
+        raise ValueError(f"unknown renderer config {name!r}")
+    return configs[name](**dict(kwargs))
+
+
 def create_renderer_config(
     model: ModelVariant,
     renderer: TrainingRenderer,
@@ -43,37 +100,7 @@ def create_renderer_config(
     compatibility; dedicated renderers always parse their own tool calls.
     """
     del structured_output
-    try:
-        from renderers import (  # pyright: ignore[reportMissingImports]
-            DefaultRendererConfig,
-            Gemma4RendererConfig,
-            K2HorizonRendererConfig,
-            LFM25RendererConfig,
-            Nanbeige42RendererConfig,
-            Qwen35RendererConfig,
-            Spark25RendererConfig,
-        )
-    except ImportError as error:
-        raise RuntimeError("install posttrain-train with the trl extra") from error
-
-    if model.family != renderer.model_family:
-        raise ValueError("training renderer is incompatible with the model family")
-    mode = model.conversation.reasoning_mode(renderer.reasoning_mode)
-    if renderer.implementation == "qwen3.5":
-        enable_thinking = mode.kwargs().get("enable_thinking")
-        if enable_thinking is not None and not isinstance(enable_thinking, bool):
-            raise TypeError("Qwen enable_thinking must be a boolean")
-        return Qwen35RendererConfig(enable_thinking=enable_thinking)
-    template_kwargs = cast(dict[str, Any], mode.kwargs())
-    family_configs: dict[str, Any] = {
-        "lfm2.5": LFM25RendererConfig,
-        "k2-horizon": K2HorizonRendererConfig,
-        "nanbeige4.2": Nanbeige42RendererConfig,
-        "spark2.5": Spark25RendererConfig,
-        "gemma4": Gemma4RendererConfig,
-    }
-    config_class = family_configs.get(model.family, DefaultRendererConfig)
-    return config_class(**template_kwargs)
+    return renderer_config_from_spec(*renderer_config_spec(model, renderer))
 
 
 def bridged_message_spans(rendered: Any, tail_start: int, prefix_tokens: int) -> tuple[tuple[int, int] | None, ...]:
