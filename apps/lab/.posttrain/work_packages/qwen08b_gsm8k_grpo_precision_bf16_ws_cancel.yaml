@@ -1,0 +1,30 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/gsm8k-grpo-precision-bf16-ws-cancel
+stage: train
+description: The Qwen3.5-0.8B GSM8K GRPO bf16 precision selection retargeted to the RTX PRO 6000 workstation, used to qualify checkpoint-on-cancel on dstack (SIGINT path) by cancelling it mid-rollout after a few updates (release 0.4.12).
+recipe:
+  type: inline
+  id: recipes/qwen3.5-0.8b-gsm8k-grpo-precision-bf16-ws-cancel@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: grpo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/qwen3.5-0.8b@bf16}
+  environment: {type: ref, family: environment, id: gsm8k-grpo-precision}
+  settings: {type: ref, family: training, id: qwen3.5-0.8b/gsm8k-grpo-precision-v1}
+  training: {type: ref, family: training, id: training/qwen3.5-0.8b-trl-grpo-precision-bf16-ws@1}
+  rollout_inference: {type: ref, family: inference, id: inference/qwen3.5-0.8b-vllm-precision-rollout-bf16-ws@1}
+enabled_optional_jobs: []
+metadata:
+  question: Does a dstack cancel save, commit and verify the last completed update as a checkpoint and end the run cancelled?
+  labels: [qualification, cancel-checkpoint, dstack, grpo, gsm8k, qwen3.5, carbonteq-rtx-pro-6000]

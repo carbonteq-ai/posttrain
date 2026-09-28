@@ -1,0 +1,30 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/verl-gsm8k-grpo-precision-bf16-ws
+stage: train
+description: Four Qwen3.5-0.8B veRL GRPO updates on GSM8K on the RTX PRO 6000 workstation (8 GB selections retargeted) with the FSDP trainer and the vLLM rollout both in bf16; checks finite gradients, loss scaling, the sampler-trainer gap and throughput (docs/plan/fp16-training-precision.md).
+recipe:
+  type: inline
+  id: recipes/qwen3.5-0.8b-verl-gsm8k-grpo-precision-bf16-ws@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: grpo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/qwen3.5-0.8b@bf16}
+  environment: {type: ref, family: environment, id: gsm8k-grpo-precision}
+  settings: {type: ref, family: training, id: qwen3.5-0.8b/verl-gsm8k-grpo-precision-v1}
+  training: {type: ref, family: training, id: training/qwen3.5-0.8b-verl-grpo-precision-bf16-ws@1}
+  rollout_inference: {type: ref, family: inference, id: inference/qwen3.5-0.8b-vllm-verl-precision-rollout-bf16-ws@1}
+enabled_optional_jobs: []
+metadata:
+  question: Does veRL train Qwen3.5-0.8B GRPO with bf16 on both the FSDP trainer and the vLLM rollout, with finite gradients, working loss scaling and a smaller sampler-trainer gap in fp16?
+  labels: [experiment, precision, verl, grpo, gsm8k, qwen3.5, carbonteq-rtx-pro-6000]

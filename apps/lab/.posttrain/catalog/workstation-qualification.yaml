@@ -1,0 +1,269 @@
+# Release 0.4.12 workstation qualification (RTX PRO 6000 96 GB via dstack).
+# Exact copies of the local 8 GB veRL precision pair, veRL adapter-continuation
+# and TRL precision bf16 bindings (precision-qualification.yaml,
+# verl-adapter-continuation.yaml) with only the target changed to
+# targets/carbonteq-rtx-pro-6000-96gb; model, settings, precision, LoRA,
+# offload and engine settings are unchanged so the results compare with the
+# 8 GB selections. Generated from those entries; keep them in step.
+training:
+  training/qwen3.5-0.8b-verl-grpo-precision-bf16-ws@1:
+    selection_type: training-binding
+    revision: '1'
+    backend: verl@9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: 'off'
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: .*language_model.*[.](o_proj|down_proj)$
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 8
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: true
+      optimizer_offload: true
+    backend_options:
+      python_executable: /opt/posttrain-verl/bin/python
+      working_directory: /opt/posttrain-verl/workdir
+      source_revision: 9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
+      dependency_lock_sha256: 96d02bccf37e0ebeb9cdd3811412ded07a28875f82057b096692da4c0256d409
+      source_dirty: false
+      attention_implementation: sdpa
+      training_precision: bf16
+      hydra_overrides:
+      - actor_rollout_ref.model.use_remove_padding=false
+      - actor_rollout_ref.model.enable_gradient_checkpointing=true
+      - actor_rollout_ref.model.use_fused_kernels=true
+      - actor_rollout_ref.model.fused_kernel_options.impl_backend=torch
+      - actor_rollout_ref.actor.strategy=fsdp2
+      - actor_rollout_ref.actor.entropy_from_logits_with_chunking=true
+      - actor_rollout_ref.actor.entropy_from_logits_chunk_size=256
+      - actor_rollout_ref.actor.fsdp_config.use_torch_compile=false
+  training/qwen3.5-0.8b-verl-grpo-precision-fp16-ws@1:
+    selection_type: training-binding
+    revision: '1'
+    backend: verl@9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: 'off'
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: .*language_model.*[.](o_proj|down_proj)$
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 8
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: true
+      optimizer_offload: true
+    backend_options:
+      python_executable: /opt/posttrain-verl/bin/python
+      working_directory: /opt/posttrain-verl/workdir
+      source_revision: 9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
+      dependency_lock_sha256: 96d02bccf37e0ebeb9cdd3811412ded07a28875f82057b096692da4c0256d409
+      source_dirty: false
+      attention_implementation: sdpa
+      training_precision: fp16
+      hydra_overrides:
+      - actor_rollout_ref.model.use_remove_padding=false
+      - actor_rollout_ref.model.enable_gradient_checkpointing=true
+      - actor_rollout_ref.model.use_fused_kernels=true
+      - actor_rollout_ref.model.fused_kernel_options.impl_backend=torch
+      - actor_rollout_ref.actor.strategy=fsdp2
+      - actor_rollout_ref.actor.entropy_from_logits_with_chunking=true
+      - actor_rollout_ref.actor.entropy_from_logits_chunk_size=256
+      - actor_rollout_ref.actor.fsdp_config.use_torch_compile=false
+  training/qwen3.5-0.8b-verl-grpo-lora-ws@1:
+    selection_type: training-binding
+    revision: '1'
+    backend: verl@9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: 'off'
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: .*language_model.*[.](o_proj|down_proj)$
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 8
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: false
+      optimizer_offload: false
+    backend_options:
+      python_executable: /opt/posttrain-verl/bin/python
+      working_directory: /opt/posttrain-verl/workdir
+      source_revision: 9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
+      dependency_lock_sha256: 96d02bccf37e0ebeb9cdd3811412ded07a28875f82057b096692da4c0256d409
+      source_dirty: false
+      attention_implementation: sdpa
+      hydra_overrides:
+      - actor_rollout_ref.model.use_remove_padding=false
+      - actor_rollout_ref.model.enable_gradient_checkpointing=true
+      - actor_rollout_ref.model.use_fused_kernels=true
+      - actor_rollout_ref.model.fused_kernel_options.impl_backend=torch
+      - actor_rollout_ref.actor.strategy=fsdp2
+      - actor_rollout_ref.actor.entropy_from_logits_with_chunking=true
+      - actor_rollout_ref.actor.entropy_from_logits_chunk_size=256
+      - actor_rollout_ref.actor.fsdp_config.use_torch_compile=false
+  training/qwen3.5-0.8b-trl-grpo-precision-bf16-ws@1:
+    selection_type: training-binding
+    revision: '1'
+    backend: trl@1.12.0.post11
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: 'off'
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: all-linear
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 32
+      devices_per_node: 1
+      timeout_seconds: 1800
+    backend_options:
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      training_precision: bf16
+      dependency_lock: trl-fork@current
+      source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
+      dependency_lock_sha256: 7a28a659a58a7e2fcdb7c58bf12520d58a35778f96e770b6147af91571a2bbd5
+inference:
+  inference/qwen3.5-0.8b-vllm-verl-precision-rollout-bf16-ws@1:
+    revision: '1'
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.3
+      tensor_parallel_size: 1
+      max_model_len: 768
+      max_num_seqs: 8
+      max_num_batched_tokens: 4096
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 268435456
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose:
+    - rollout
+  inference/qwen3.5-0.8b-vllm-verl-precision-rollout-fp16-ws@1:
+    revision: '1'
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.3
+      tensor_parallel_size: 1
+      max_model_len: 768
+      max_num_seqs: 8
+      max_num_batched_tokens: 4096
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 268435456
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: float16
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose:
+    - rollout
+  inference/qwen3.5-0.8b-vllm-verl-rollout-ws@1:
+    revision: '1'
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.26.1
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.2
+      tensor_parallel_size: 1
+      max_model_len: 640
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 67108864
+      weight_sync_mode: lora
+      enforce_eager: true
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose:
+    - rollout
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: An 8 GB functional qualification of adapter continuation; decode
+        speed is not measured, and eager decode avoids CUDA-graph capture memory.
+      VLLM_HYBRID_CONTINUATION_REUSE_MISSING: GSM8K episodes are single-turn, so multi-turn continuation
+        reuse does not apply to this qualification.
+  inference/qwen3.5-0.8b-vllm-precision-rollout-bf16-ws@1:
+    revision: '1'
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.37
+      tensor_parallel_size: 1
+      max_model_len: 768
+      max_num_seqs: 32
+      max_num_batched_tokens: 8192
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 268435456
+      weight_sync_mode: lora
+      weight_name_prefix: language_model.
+      enforce_eager: false
+      dtype: bfloat16
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose:
+    - rollout

@@ -1,0 +1,33 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/verl-grpo-2-adapter-continuation-ws
+stage: train
+description: Two Qwen 3.5 0.8B veRL GRPO updates with a KL penalty against the base model; run fresh, then again with --model-from-run of the first run's adapter to qualify veRL adapter continuation.
+recipe:
+  type: inline
+  id: recipes/qwen3.5-0.8b-verl-grpo-2-adapter-continuation-ws@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: grpo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts:
+    - trained adapter
+    - native Verifiers trajectories
+    - training summary
+bindings:
+  model: {type: ref, family: model, id: models/qwen3.5-0.8b@bf16}
+  environment: {type: ref, family: environment, id: gsm8k-grpo-qualification}
+  settings: {type: ref, family: training, id: qwen3.5-0.8b/verl-grpo-2-step-kl-v1}
+  training: {type: ref, family: training, id: training/qwen3.5-0.8b-verl-grpo-lora-ws@1}
+  rollout_inference: {type: ref, family: inference, id: inference/qwen3.5-0.8b-vllm-verl-rollout-ws@1}
+enabled_optional_jobs: []
+metadata:
+  question: Does veRL continue a trained LoRA adapter (loaded on the foundation weights, synced to the rollout) with the base model as the KL reference?
+  labels: [qualification, verl, grpo, adapter-continuation, kl-reference, carbonteq-rtx-pro-6000]
