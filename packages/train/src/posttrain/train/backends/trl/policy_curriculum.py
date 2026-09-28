@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import math
 import os
@@ -175,14 +176,27 @@ class AdaptiveCurriculumRuntime:
         )
         return observation
 
-    def checkpoint(self, checkpoint: Path) -> None:
+    def capture_state(self) -> dict[str, object]:
+        """Copy the controller state at an optimizer-step boundary.
+
+        A cancellation checkpoint is written after the next rollout has already
+        advanced the controller, so it restores this copy instead of the live state.
+        """
+
+        return copy.deepcopy(self.controller.state())
+
+    def checkpoint(self, checkpoint: Path, state: Mapping[str, object] | None = None) -> None:
         self.controller.flush()
-        self.controller.snapshot(checkpoint / _SNAPSHOT_NAME)
+        if state is None:
+            self.controller.snapshot(checkpoint / _SNAPSHOT_NAME)
+        else:
+            self.controller.backend.snapshot(checkpoint / _SNAPSHOT_NAME, state)
+        decision_index = state.get("decision_index") if state is not None else self.controller.decision_index
         self.context.event(
             "adaptive_curriculum_checkpointed",
             {
                 "checkpoint": checkpoint.name,
-                "decision_index": self.controller.decision_index,
+                "decision_index": decision_index if isinstance(decision_index, int) else None,
             },
         )
 
