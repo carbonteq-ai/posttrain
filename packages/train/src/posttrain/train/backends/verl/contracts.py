@@ -102,6 +102,7 @@ class VerlLoop(VerlContract):
     per_device_batch_size: int = Field(gt=0)
     gradient_accumulation_steps: int = Field(gt=0)
     learning_rate: float = Field(gt=0, allow_inf_nan=False)
+    lr_scheduler_type: Literal["constant", "constant_with_warmup"]
     warmup_steps: int = Field(ge=0)
     max_grad_norm: float = Field(gt=0, allow_inf_nan=False)
     checkpoint_steps: int = Field(ge=0)

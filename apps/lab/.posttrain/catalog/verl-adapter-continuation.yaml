@@ -11,6 +11,9 @@ training:
     revision: "1"
     loop:
       max_steps: 2
+      # veRL runs a constant rate after warmup (it has no linear decay), and did
+      # before 0.4.12 made the schedule explicit.
+      lr_scheduler_type: constant
       max_length: 640
       per_device_batch_size: 1
       gradient_accumulation_steps: 8

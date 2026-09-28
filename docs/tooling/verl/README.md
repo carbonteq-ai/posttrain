@@ -145,6 +145,34 @@ probability differences (`train/rl/sampling_prob_delta_*`). GPU qualification
 (`qwen08b_gsm8k_verl_grpo_precision_{bf16,fp16}_local.yaml`) waits for the
 kind rebuild described below; see `docs/plan/fp16-training-precision.md`.
 
+## Training settings on veRL
+
+The veRL backend runs a selection exactly as the TRL backend would, or rejects
+it at `posttrain work-package plan` and again when the launch plan is built
+(`posttrain.train.backend_support`). Training loop, as of 0.4.12:
+
+| Setting | veRL mapping |
+| --- | --- |
+| `lr_scheduler_type: constant` | `actor.optim.lr_scheduler_type=constant`, `lr_warmup_steps=0` (Transformers' `constant` never warms up) |
+| `lr_scheduler_type: constant_with_warmup` | `constant` with `lr_warmup_steps = ceil(max_steps * warmup_ratio)`, the TRL value |
+| `lr_scheduler_type: linear` (the default) | rejected: veRL 0.9.0.post4 schedules only constant (after linear warmup) and cosine |
+| `seed` | `data.seed` (prompt order), `rollout.seed`, `actor.data_loader_seed`, `actor/ref.fsdp_config.seed` |
+| `logging_steps` | must be 1; veRL logs every update |
+| `per_device_batch_size` x `gradient_accumulation_steps` | must equal prompt groups x generations; one optimizer step per update (`ppo_mini_batch_size` = prompt groups) in micro-batches of `per_device_batch_size` rows per device (`ppo_micro_batch_size_per_gpu` and the log-prob micro-batches); the rows must split evenly over the devices |
+
+Weight decay is 0.0, the Transformers default the TRL backend trains with
+(veRL's own default is 0.01). Before 0.4.12 veRL ignored the schedule, seed,
+logging cadence and batch split: it always ran a constant rate, micro-batches
+of one row, weight decay 0.01 and an unseeded prompt order, while the lab veRL
+settings left the schedule at the `linear` default. Those settings now state
+`lr_scheduler_type: constant`, what they ran.
+
+GRPO settings veRL does not receive are rejected unless left at their
+defaults: `adaptive_curriculum`, `active_sampling`, `advantage_scaling`
+(`group`), `importance_sampling_mode`/`_clip_min`/`_clip_max`
+(`sequence_truncate`, 0.1, 3.0), `max_admission_attempts` (3), `truncation_penalty`
+and the OLMo 3 recipe.
+
 ## Current support and qualification boundary
 
 The current adapter accepts only the **Qwen 3.5 model family**, for:

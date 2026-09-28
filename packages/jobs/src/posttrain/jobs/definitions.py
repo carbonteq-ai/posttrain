@@ -66,6 +66,7 @@ from posttrain.train import (
     SFTRequest,
     SFTSettings,
     TrainingBinding,
+    TrainingLoop,
     TransformRequest,
     TransformResult,
     build_verifiers_distillation_request,
@@ -85,6 +86,7 @@ from posttrain.train import (
     transform,
     validate_verifiers_policy_sampling,
     verl_grpo_settings_problem,
+    verl_training_loop_problem,
 )
 from posttrain.work import JobDefinition, ResolvedSeats
 
@@ -366,6 +368,7 @@ def distillation_definition(
         run,
         "Generate fresh student rollouts, score with the teacher, and apply distillation.",
         required_artifact_roles=("model", "summary"),
+        static_validator=_validate_verl_training_loop_seats,
     )
 
 
@@ -559,6 +562,7 @@ def structured_rl_definition(
         run,
         "Train from explicitly selected retained outcome and process evidence.",
         required_artifact_roles=("model", "summary"),
+        static_validator=_validate_verl_training_loop_seats,
     )
 
 
@@ -995,6 +999,7 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
         unsupported = verl_grpo_settings_problem(settings)
         if unsupported is not None:
             raise ContractError(unsupported)
+    _validate_verl_training_loop(settings, training)
     expected_batch = settings.num_prompts_per_step * settings.num_generations
     global_batch = training.runtime.global_batch_size
     if isinstance(global_batch, int) and global_batch != expected_batch:
@@ -1030,6 +1035,33 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
         problem = kl_reference_problem(training.backend, settings.beta, settings.kl_reference, model.form)
         if problem is not None:
             raise ContractError(problem)
+
+
+def _validate_verl_training_loop_seats(seats: ResolvedSeats) -> None:
+    """Static check for veRL-capable jobs without online-RL batch seats (distillation, GDPO, CAPO)."""
+
+    settings = seats.get("settings")
+    training = seats.get("training")
+    if isinstance(training, TrainingBinding) and settings is not None:
+        _validate_verl_training_loop(settings, training)
+
+
+def _validate_verl_training_loop(settings: object, training: TrainingBinding) -> None:
+    """Reject training-loop settings the veRL backend cannot run exactly as selected."""
+
+    if training.backend.split("@", 1)[0] != "verl":
+        return
+    loop = getattr(settings, "loop", None)
+    prompts = getattr(settings, "num_prompts_per_step", None)
+    generations = getattr(settings, "num_generations", None)
+    if not isinstance(loop, TrainingLoop) or not isinstance(prompts, int) or not isinstance(generations, int):
+        return
+    world_size = training.target.placement.get("world_size", 1)
+    if not isinstance(world_size, int) or world_size < 1:
+        raise ContractError("veRL training target world_size must be a positive integer")
+    problem = verl_training_loop_problem(loop, rows_per_update=prompts * generations, world_size=world_size)
+    if problem is not None:
+        raise ContractError(problem)
 
 
 def _validate_task_supply(

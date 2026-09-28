@@ -157,8 +157,11 @@ def build_hydra_overrides(
     rollout_tp = _positive_int_option(engine.get("tensor_parallel_size"), "tensor_parallel_size", 1)
     kv_cache_dtype = engine.get("kv_cache_dtype")
     rollout_dtype, _source = verl_rollout_dtype(engine)
+    # One optimizer step per update over every row (prompt groups x
+    # generations), in micro-batches of per_device_batch_size rows per device;
+    # the launcher checked that the split is exact.
     actor_mini_batch = algorithm.num_prompts_per_step
-    micro_batch = 1
+    micro_batch = loop.per_device_batch_size
     update = training.update
     resume_from = payload.resume_from
     rollout_load_format = engine.get("load_format", "safetensors" if update.kind == "lora" else "dummy")
@@ -176,11 +179,24 @@ def build_hydra_overrides(
         "data.filter_overlong_prompts=True",
         "data.truncation=error",
         f"data.shuffle={str(bool(algorithm.shuffle_prompts)).lower()}",
+        # loop.seed drives prompt order, the rollout sampler, the actor's
+        # mini-batch order and the FSDP engines, as seed and data_seed do on TRL.
+        f"data.seed={loop.seed}",
+        f"actor_rollout_ref.rollout.seed={loop.seed}",
+        f"actor_rollout_ref.actor.data_loader_seed={loop.seed}",
+        f"actor_rollout_ref.actor.fsdp_config.seed={loop.seed}",
+        f"actor_rollout_ref.ref.fsdp_config.seed={loop.seed}",
         f"actor_rollout_ref.model.path={model_path}",
         "actor_rollout_ref.model.use_remove_padding=False",
         f"actor_rollout_ref.model.enable_gradient_checkpointing={str(loop.gradient_checkpointing).lower()}",
         f"actor_rollout_ref.actor.optim.lr={loop.learning_rate}",
+        # Transformers "constant" and "constant_with_warmup" are veRL constant
+        # with 0 or the selected warmup steps (see backend_support).
+        "actor_rollout_ref.actor.optim.lr_scheduler_type=constant",
         f"actor_rollout_ref.actor.optim.lr_warmup_steps={loop.warmup_steps}",
+        # TrainingLoop has no weight decay; the TRL backend trains with
+        # Transformers' default 0.0, and veRL's own default is 0.01.
+        "actor_rollout_ref.actor.optim.weight_decay=0.0",
         f"actor_rollout_ref.actor.optim.clip_grad={loop.max_grad_norm}",
         f"actor_rollout_ref.actor.ppo_mini_batch_size={actor_mini_batch}",
         f"actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu={micro_batch}",

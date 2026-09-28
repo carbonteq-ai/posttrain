@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import os
 import signal
 import subprocess
@@ -25,7 +24,7 @@ from posttrain.common import (
     TraceObservation,
 )
 
-from ...backend_support import verl_grpo_settings_problem
+from ...backend_support import verl_grpo_settings_problem, verl_training_loop_problem, verl_warmup_steps
 from ...bindings import FullParameterUpdate, LoRAUpdate
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
 from ...kl_reference import kl_reference_problem, resolved_kl_reference
@@ -258,6 +257,16 @@ def _plan(
             }
         )
     loop = request.settings.loop
+    world_size = request.training.target.placement.get("world_size", 1)
+    if not isinstance(world_size, int):
+        raise ValueError("veRL training target world_size must be an integer")
+    loop_problem = verl_training_loop_problem(
+        loop,
+        rows_per_update=request.settings.num_prompts_per_step * request.settings.num_generations,
+        world_size=world_size,
+    )
+    if loop_problem is not None:
+        raise ValueError(loop_problem)
     payload = VerlPayload.model_validate(
         {
             **operation_payload,
@@ -274,7 +283,8 @@ def _plan(
                     "per_device_batch_size": loop.per_device_batch_size,
                     "gradient_accumulation_steps": loop.gradient_accumulation_steps,
                     "learning_rate": loop.learning_rate,
-                    "warmup_steps": math.ceil(loop.max_steps * loop.warmup_ratio),
+                    "lr_scheduler_type": loop.lr_scheduler_type,
+                    "warmup_steps": verl_warmup_steps(loop),
                     "max_grad_norm": loop.max_grad_norm,
                     "checkpoint_steps": loop.checkpoint_steps,
                     "checkpoint_limit": loop.checkpoint_limit,

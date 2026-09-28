@@ -47,6 +47,7 @@ from posttrain.train import (
     TrainingLoop,
     TrainingRuntime,
     verl_grpo_settings_problem,
+    verl_training_loop_problem,
 )
 from posttrain.train.api import _distillation_backend, _grpo_backend, _sampo_backend
 from posttrain.train.backends.verl.contracts import VerlLaunchManifest, VerlWorkerResult
@@ -193,7 +194,13 @@ def _grpo_request(*, model=QWEN_35_2B, family="qwen3.5", update=None) -> GRPOReq
         bridge=FakeBridge(),
         settings=GRPOSettings(
             "settings/grpo-test@1",
-            TrainingLoop(max_steps=1, max_length=384, per_device_batch_size=2),
+            TrainingLoop(
+                max_steps=1,
+                max_length=384,
+                per_device_batch_size=1,
+                gradient_accumulation_steps=2,
+                lr_scheduler_type="constant",
+            ),
             max_prompt_length=256,
             max_completion_length=128,
         ),
@@ -209,7 +216,13 @@ def _sampo_request() -> SAMPORequest:
         bridge=FakeBridge(),
         settings=SAMPOSettings(
             "settings/sampo-test@1",
-            TrainingLoop(max_steps=1, max_length=384, per_device_batch_size=2),
+            TrainingLoop(
+                max_steps=1,
+                max_length=384,
+                per_device_batch_size=1,
+                gradient_accumulation_steps=2,
+                lr_scheduler_type="constant",
+            ),
             max_prompt_length=256,
             max_completion_length=128,
         ),
@@ -444,6 +457,104 @@ def test_grpo_worker_maps_prompt_groups_generations_and_kl_without_importing_ver
     assert "trainer.resume_mode=disable" in overrides
     assert not any(value.startswith("trainer.resume_from_path=") for value in overrides)
     assert "trainer.logger=['console','file']" in overrides
+
+
+@pytest.mark.parametrize(
+    ("schedule", "warmup_ratio", "warmup_steps"),
+    [("constant", 0.0, 0), ("constant", 0.2, 0), ("constant_with_warmup", 0.0, 0), ("constant_with_warmup", 0.2, 2)],
+)
+def test_verl_worker_maps_the_training_loop_exactly(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    schedule: str,
+    warmup_ratio: float,
+    warmup_steps: int,
+) -> None:
+    request = _grpo_request()
+    loop = replace(
+        request.settings.loop,
+        max_steps=10,
+        lr_scheduler_type=schedule,  # type: ignore[arg-type]
+        warmup_ratio=warmup_ratio,
+        seed=1729,
+    )
+    plan = build_grpo_launch_plan(replace(request, settings=replace(request.settings, loop=loop)), tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+
+    overrides = build_hydra_overrides(
+        plan, tmp_path / "rollouts.parquet", tmp_path / "agent-loop.json", tmp_path / "checkpoints"
+    )
+
+    # Transformers "constant" never warms up; "constant_with_warmup" warms up for
+    # ceil(max_steps * warmup_ratio) steps, then veRL holds the rate constant.
+    assert plan.payload.training.loop.lr_scheduler_type == schedule
+    assert "actor_rollout_ref.actor.optim.lr_scheduler_type=constant" in overrides
+    assert f"actor_rollout_ref.actor.optim.lr_warmup_steps={warmup_steps}" in overrides
+    assert "actor_rollout_ref.actor.optim.weight_decay=0.0" in overrides
+    for key in (
+        "data.seed",
+        "actor_rollout_ref.rollout.seed",
+        "actor_rollout_ref.actor.data_loader_seed",
+        "actor_rollout_ref.actor.fsdp_config.seed",
+        "actor_rollout_ref.ref.fsdp_config.seed",
+    ):
+        assert f"{key}=1729" in overrides
+
+
+def test_verl_worker_uses_the_per_device_batch_as_its_micro_batch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    request = _grpo_request()
+    settings = replace(
+        request.settings,
+        num_prompts_per_step=2,
+        num_generations=4,
+        loop=replace(request.settings.loop, per_device_batch_size=2, gradient_accumulation_steps=4),
+    )
+    training = replace(request.training, runtime=replace(request.training.runtime, global_batch_size=8))
+    plan = build_grpo_launch_plan(replace(request, settings=settings, training=training), tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+
+    overrides = build_hydra_overrides(
+        plan, tmp_path / "rollouts.parquet", tmp_path / "agent-loop.json", tmp_path / "checkpoints"
+    )
+
+    # One optimizer step per update over all 8 rows, two rows per device per micro-batch.
+    assert "actor_rollout_ref.actor.ppo_mini_batch_size=2" in overrides
+    assert "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2" in overrides
+    assert "actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=2" in overrides
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"lr_scheduler_type": "linear"}, "lr_scheduler_type 'linear' is not available on the veRL backend"),
+        ({"logging_steps": 2}, "logging_steps 2 is not available on the veRL backend"),
+        (
+            {"per_device_batch_size": 2, "gradient_accumulation_steps": 1},
+            "the 2 rows of one update do not split into micro-batches of per_device_batch_size 2 on 2 device(s)",
+        ),
+    ],
+)
+def test_verl_rejects_training_loops_it_cannot_run_exactly(
+    tmp_path: Path, changes: dict[str, object], message: str
+) -> None:
+    request = _grpo_request()
+    loop = replace(request.settings.loop, **changes)  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match=re.escape(message)):
+        build_grpo_launch_plan(replace(request, settings=replace(request.settings, loop=loop)), tmp_path)
+
+
+def test_verl_training_loop_problem_checks_the_batch_split() -> None:
+    loop = TrainingLoop(
+        max_steps=1, per_device_batch_size=2, gradient_accumulation_steps=3, lr_scheduler_type="constant"
+    )
+
+    assert verl_training_loop_problem(loop, rows_per_update=6, world_size=1) is None
+    assert "(2 x 3) must equal the 8 rows" in str(verl_training_loop_problem(loop, rows_per_update=8, world_size=1))
+    assert "on 2 device(s)" in str(verl_training_loop_problem(loop, rows_per_update=6, world_size=2))
 
 
 def test_grpo_worker_maps_bounded_rollout_execution_to_native_verl(
@@ -1374,7 +1485,13 @@ def test_qwen35_distillation_translation_uses_native_exact_token_k1_loss(
         bridge=FakeBridge(),
         settings=OnPolicyDistillationSettings(
             "settings/distill-test@1",
-            TrainingLoop(max_steps=1, max_length=384, per_device_batch_size=2),
+            TrainingLoop(
+                max_steps=1,
+                max_length=384,
+                per_device_batch_size=1,
+                gradient_accumulation_steps=2,
+                lr_scheduler_type="constant",
+            ),
             num_generations=2,
             max_prompt_length=256,
             max_completion_length=128,

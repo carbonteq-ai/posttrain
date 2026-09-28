@@ -89,6 +89,18 @@ oversampled active sampling, and a KL penalty measured against the base model.
   `importance_sampling_clip_max` other than their defaults
   (`sequence_truncate`, 0.1, 3.0), `max_admission_attempts` other than 3, and
   `active_sampling`, in addition to the OLMo 3 recipe and `truncation_penalty`.
+- veRL runs the training loop as selected, or rejects it: `lr_scheduler_type`
+  `constant` and `constant_with_warmup` map to veRL's constant schedule with
+  zero or `ceil(max_steps * warmup_ratio)` warmup steps, and `linear` is
+  rejected (veRL has no linear decay); `seed` seeds prompt order, the rollout
+  sampler and the FSDP engines; `logging_steps` must be 1; and
+  `per_device_batch_size` becomes the per-device micro-batch, with
+  `per_device_batch_size x gradient_accumulation_steps` required to equal
+  prompt groups x generations and to split evenly over the devices. Behaviour
+  change: veRL now trains with weight decay 0.0 (the TRL backend's value)
+  instead of 0.01, seeds its prompt order, and uses the selected micro-batch
+  instead of one row. It always ran a constant learning rate; the lab veRL
+  settings, which left the `linear` default, now say `constant`.
 - The veRL backend environment uses the framework's Verifiers (`cdd2ec76`) and
   `carbonteq-renderers` 0.1.12.post1.dev2, the same as the control
   environment, so Verifiers environments can be packaged for veRL again; the

@@ -55,7 +55,10 @@ from posttrain.jobs.definitions import (
     _materialize_grpo_policy,
     _materialize_selected_model_variant,
     _validate_task_supply,
+    _validate_verl_training_loop_seats,
+    distillation_definition,
     sampo_definition,
+    structured_rl_definition,
 )
 from posttrain.train import (
     AdaptiveCurriculum,
@@ -657,7 +660,10 @@ def test_static_preparation_rejects_a_kl_reference_verl_cannot_provide(form, kl_
     settings = cast(SAMPOSettings, seats["settings"])
     training = cast(TrainingBinding, seats["training"])
     inference = cast(InferenceBinding, seats["rollout_inference"])
-    seats["settings"] = replace(settings, beta=0.01, kl_reference=kl_reference)
+    # A constant learning rate keeps the loop representable on veRL, so the KL check is reached.
+    seats["settings"] = replace(
+        settings, beta=0.01, kl_reference=kl_reference, loop=replace(settings.loop, lr_scheduler_type="constant")
+    )
     seats["model"] = inference.model
     validator(seats)  # type: ignore[arg-type]
     seats["model"] = replace(inference.model, form=form)
@@ -765,6 +771,37 @@ def test_static_grpo_preparation_rejects_settings_verl_would_ignore(changes: dic
 
     with pytest.raises(ContractError, match=re.escape(message)):
         grpo_definition().static_validator(seats)  # type: ignore[misc,arg-type]
+
+
+def test_static_preparation_rejects_a_training_loop_verl_cannot_run() -> None:
+    validator = sampo_definition().static_validator
+    assert validator is not None
+    seats = _oversampled_sampo_seats(oversample=0)
+    settings = cast(SAMPOSettings, seats["settings"])
+    training = cast(TrainingBinding, seats["training"])
+    seats["settings"] = replace(settings, loop=replace(settings.loop, lr_scheduler_type="linear"))
+    validator(seats)  # type: ignore[arg-type]  # TRL runs a linear schedule
+
+    seats["training"] = replace(training, backend="verl@candidate")
+    with pytest.raises(ContractError, match="lr_scheduler_type 'linear' is not available on the veRL backend"):
+        validator(seats)  # type: ignore[arg-type]
+    seats["settings"] = replace(settings, loop=replace(settings.loop, lr_scheduler_type="constant", logging_steps=5))
+    with pytest.raises(ContractError, match="logging_steps 5 is not available on the veRL backend"):
+        validator(seats)  # type: ignore[arg-type]
+
+
+def test_structured_and_distillation_preparation_check_the_verl_training_loop() -> None:
+    seats = _oversampled_sampo_seats(oversample=0)
+    settings = cast(SAMPOSettings, seats["settings"])
+    training = cast(TrainingBinding, seats["training"])
+    for definition in (distillation_definition(), structured_rl_definition("gdpo"), structured_rl_definition("capo")):
+        assert definition.static_validator is _validate_verl_training_loop_seats
+    linear = {"settings": replace(settings, loop=replace(settings.loop, lr_scheduler_type="linear"))}
+    _validate_verl_training_loop_seats({**linear, "training": training})  # type: ignore[arg-type]
+    with pytest.raises(ContractError, match="not available on the veRL backend"):
+        _validate_verl_training_loop_seats(
+            {**linear, "training": replace(training, backend="verl@candidate")}  # type: ignore[arg-type]
+        )
 
 
 def test_static_grpo_preparation_rejects_inference_completion_length_mismatch() -> None:
