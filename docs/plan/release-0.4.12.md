@@ -63,12 +63,12 @@ settings of running experiments.
 - [x] (2026-09-28) `posttrain-release images plan` (registry.lan/carbonteq, LAN trust bundle): base reused remotely; all six kinds (supervised, online-rl-trl-py312, online-rl-verl-py313, eval, serve, transform) rebuild; not blocked.
 - [x] (2026-09-28) Job-kind images published and `published.toml` committed (`d4d644ca`, by the coordinator); strict `posttrain-release check` passes.
 - [x] (2026-09-28) Lab environments validate against Verifiers `cdd2ec76` (`5ef066ef`: seat-level harness, timeouts and turn/token limits in 23+5 environments; new test `apps/lab/tests/test_environment_activation_configs.py`); `gsm8k-grpo-qualification` deferred (`8eaa90ea`); rollout-topology tests independent of the host CPU count (`b61f5c18`, Quality run 36448533918). `posttrain job pack --local --allow-deferred-qualification` succeeds for the veRL adapter continuation (package `0e0790de…`), `gsm8k_qwen08b_grpo_qualification` (TRL, `3398f813…`) and `environment_library_ifeval_qualification` (`d8bb514f…`).
-- [ ] Push `codex/release-0.4.12`, open the release PR, wait for Quality (dispatch it with `allow_pending_runtime_lock=true` if the push run needs it).
-- [ ] Publish the 0.4.12 job-kind images (locally per `docs/publishing.md` step 7, or in the candidate) so `published.toml` records the merged locks and veRL post4; then `posttrain-release check` (strict) passes and the veRL packages can pack.
+- [x] (2026-09-28) `codex/release-0.4.12` pushed and PR #131 opened (coordinator); job-kind images published and `published.toml` committed (`d4d644ca`); strict `posttrain-release check` passes.
 - [x] (2026-09-28 15:32Z) Trackio server: Doris backups, `migrate-doris --to 5`, dev32 deployed, episode-ending backfill (record merged from `codex/trackio-next` `c896ef58`; `docs/tooling/trackio/README.md`).
 - [x] (2026-09-28) Observatory semantic SQL read the first discovered project; now the requested or configured source (`aae90bb4`), checked read-only against the dev32 server (posttrain-lab 58 runs; ai-infra-qualification 0).
 - [ ] GPU gates on the new images: #1 kernels in the kind image, #2/#9 precision arms, #6 cancel on the 8 GB card, #8 veRL continuation (fresh then `--model-from-run`), #5 oversampling canary.
 - [ ] Release candidate per `docs/release-engineering.md`; final.
+- [ ] Deploy the 0.4.12 Observatory from ai-infra branch `deploy/observatory-0.4.12` (`9d3c7e3`, sets `POSTTRAIN_OBSERVATORY_DEFAULT_SOURCE=posttrain-lab`), then run the post-deploy check below.
 
 ## Integration order
 
@@ -196,6 +196,36 @@ From each worktree root: `uv sync --all-packages --locked --python 3.13`
 (add `--extra trl --extra verifiers` for train tests), `uv run ruff check .`,
 `uv run pyright`, `uv run lint-imports`, `uv run pytest`, `git diff --check`.
 Release: `docs/release-engineering.md` candidate and final workflows.
+
+## Observatory deployment and post-deploy check
+
+The Observatory ships separately from ai-infra (`scripts/package-observatory`,
+`scripts/deploy-observatory`; `docs/publishing.md`, "After a release"). For
+0.4.12 its compose environment must set
+`POSTTRAIN_OBSERVATORY_DEFAULT_SOURCE=posttrain-lab` (ai-infra branch
+`deploy/observatory-0.4.12`, commit `9d3c7e3`; the discovery self-test
+`scripts/self_test_observatory_discovery.py` asserts it). Without it, a
+request that names no source is refused, because discovery serves 14 Trackio
+projects and the fallback project `posttrain` is not one of them.
+
+After the deploy, with the ingress credentials the Observatory qualification
+uses, the deployed semantic SQL must return posttrain-lab runs, both by
+default and when named, and the other project must stay separate:
+
+    curl -fsS -X POST https://observatory.lan/api/v1/semantic/query \
+      -H 'content-type: application/json' \
+      -d '{"sql": "select count(*) as runs from runs"}'
+    # expect rows [[N]] with N > 0 (58 on 2026-09-28)
+    curl -fsS -X POST 'https://observatory.lan/api/v1/semantic/query?source_id=posttrain-lab' \
+      -H 'content-type: application/json' \
+      -d '{"sql": "select job_kind, count(*) as n from runs group by job_kind"}'
+    # expect eval.general, train.grpo and train.sampo rows
+    curl -fsS -X POST 'https://observatory.lan/api/v1/semantic/query?source_id=ai-infra-qualification' \
+      -H 'content-type: application/json' \
+      -d '{"sql": "select count(*) as runs from runs"}'
+    # a different count from the first query (0 on 2026-09-28)
+
+The first query returning 0 means the default source is not applied.
 
 ## Validation and Acceptance
 
