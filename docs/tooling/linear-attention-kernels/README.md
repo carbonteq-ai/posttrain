@@ -100,9 +100,23 @@ tool (an immutable direct reference to the index file, because
 carbonteq-trackio), `profiles/supervised.txt` and `profiles/transform.txt`,
 and every smoke import; it regenerated all derived locks and digests. It
 refuses to run unless the index serves the retained bytes and is safe to
-re-run. Promotion to `carbonteq/stable` (`promote-retained-fork-candidate.yml`
-does not list causal-conv1d yet, and it expects an sdist) is a release step
-still to do.
+re-run.
+
+Promotion to `carbonteq/stable` is a wheel-only fork release: there is no
+source distribution, because the retained platform wheel is the identity and
+a rebuild does not reproduce its hash. `release/forks.toml` lists
+`causal-conv1d` (scope `direct-package`, tag `carbonteq-v1.7.0+cu130torch2.13`,
+fork commit `b7bec200`), and `[tool.posttrain.causal-conv1d]` in
+`packages/train/pyproject.toml` records the wheel filename and SHA-256 with no
+`sdist-sha256`. `posttrain-release fork-ledger` rejects an sdist for it and
+checks that the train extra selects that exact version;
+`posttrain-release fork-index-check` (run by the final release workflow against
+`carbonteq/stable`) then requires exactly that wheel. Promote it with
+`promote-retained-fork-candidate.yml`, `fork: causal-conv1d`, the tag, the
+wheel SHA-256 and an empty `sdist_sha256`; the workflow refuses an sdist hash
+for a wheel-only fork, verifies the development bytes, transfers them
+server-side, and proves stable readback with `uv pip install --no-deps` (the
+import needs the image's CUDA PyTorch).
 
 ## Qualification evidence
 
@@ -159,6 +173,7 @@ The scripts and raw results are recorded in
 ## Remaining gates
 
 Build and publish the job-kind images from the release branch and regenerate
-`published.toml` there; promote causal-conv1d to `carbonteq/stable`. Eval and
+`published.toml` there; dispatch the causal-conv1d promotion to
+`carbonteq/stable` (described above) before final release publication. Eval and
 serve images run Qwen3.5 only through vLLM, which vendors its own copy of the
 kernels.

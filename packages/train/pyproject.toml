@@ -89,3 +89,13 @@ allow-direct-references = true
 Documentation = "https://github.com/carbonteq-ai/posttrain#readme"
 Issues = "https://github.com/carbonteq-ai/posttrain/issues"
 Repository = "https://github.com/carbonteq-ai/posttrain"
+
+# CarbonTeq rebuild of unmodified upstream causal-conv1d v1.7.0 for PyTorch
+# 2.13.0+cu130 (tools/kernel-wheels/causal-conv1d). A wheel-only fork release:
+# the retained CPython 3.13 x86_64 wheel is the identity; there is no sdist.
+[tool.posttrain.causal-conv1d]
+version = "1.7.0+cu130torch2.13"
+release-tag = "carbonteq-v1.7.0+cu130torch2.13"
+source-revision = "b7bec200ce1391f69fac132bf7f8ae007446d46d"
+wheel-filename = "causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl"
+wheel-sha256 = "b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a"

@@ -62,9 +62,12 @@ jobs:
         # The committed lock records the internal stable index. Public runners
         # consume its hash-identical GitHub Release wheel and must not resolve
         # the private index while installing the remaining frozen lock.
+        # causal-conv1d (a CUDA extension served only by the internal index) is
+        # skipped: no test imports it, and it needs the images' CUDA PyTorch.
         run: |
           uv sync --frozen --all-packages --group dev --extra trl --python 3.13 \
-            --no-install-package carbonteq-renderers --no-install-package carbonteq-trackio --no-install-package trl --inexact
+            --no-install-package carbonteq-renderers --no-install-package carbonteq-trackio --no-install-package trl \
+            --no-install-package causal-conv1d --inexact
           uv pip install --python .venv/bin/python --no-deps "${CARBONTEQ_TRL_WHEEL_PATH}"
       - name: Verify repository ownership
         run: uv run --no-sync posttrain-release repository-check

@@ -12,6 +12,7 @@ on:
           - verl
           - trackio
           - renderers
+          - causal-conv1d
       release_tag:
         description: Immutable carbonteq-v release tag already published to carbonteq/dev
         required: true
@@ -21,8 +22,11 @@ on:
         required: true
         type: string
       sdist_sha256:
-        description: Expected SHA-256 of the retained source distribution
-        required: true
+        description: >-
+          Expected SHA-256 of the retained source distribution; leave empty for a
+          wheel-only fork release (causal-conv1d retains only its CUDA wheel)
+        required: false
+        default: ""
         type: string
 
 permissions:
@@ -40,9 +44,15 @@ jobs:
         env:
           FORK: ${{ inputs.fork }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          SDIST_SHA256: ${{ inputs.sdist_sha256 }}
         run: |
           version="${RELEASE_TAG#carbonteq-v}"
           test "${RELEASE_TAG}" = "carbonteq-v${version}"
+          # A pure-Python fork retains a wheel and an sdist. causal-conv1d is a
+          # CUDA extension rebuilt from an unmodified upstream tag; its retained
+          # platform wheel is the only release identity (release/forks.toml).
+          wheel_only=false
+          install_flags=""
           case "${FORK}" in
             trl)
               package=trl
@@ -64,17 +74,44 @@ jobs:
               repository=carbonteq-ai/renderers
               filename_prefix=carbonteq_renderers
               ;;
+            causal-conv1d)
+              package=causal-conv1d
+              repository=carbonteq-ai/causal-conv1d
+              filename_prefix=causal_conv1d
+              wheel_only=true
+              # Its import needs the runtime image's CUDA PyTorch; readback proves
+              # the exact version resolves without installing that stack.
+              install_flags=--no-deps
+              ;;
             *)
               echo "unsupported maintained fork: ${FORK}" >&2
               exit 1
               ;;
           esac
+          if test "${wheel_only}" = true; then
+            if test -n "${SDIST_SHA256}"; then
+              echo "${FORK} is a wheel-only fork release; leave sdist_sha256 empty" >&2
+              exit 1
+            fi
+            wheel_filename="${filename_prefix}-${version}-cp313-cp313-linux_x86_64.whl"
+            files="${wheel_filename}"
+          else
+            if test -z "${SDIST_SHA256}"; then
+              echo "${FORK} retains a source distribution; sdist_sha256 is required" >&2
+              exit 1
+            fi
+            wheel_filename="${filename_prefix}-${version}-py3-none-any.whl"
+            files="${wheel_filename} ${filename_prefix}-${version}.tar.gz"
+          fi
           {
             printf 'PACKAGE=%s\n' "${package}"
             printf 'REPOSITORY=%s\n' "${repository}"
             printf 'VERSION=%s\n' "${version}"
-            printf 'WHEEL_FILENAME=%s-%s-py3-none-any.whl\n' "${filename_prefix}" "${version}"
-            printf 'SDIST_FILENAME=%s-%s.tar.gz\n' "${filename_prefix}" "${version}"
+            printf 'WHEEL_FILENAME=%s\n' "${wheel_filename}"
+            printf 'SDIST_FILENAME=%s\n' "${filename_prefix}-${version}.tar.gz"
+            printf 'PROMOTION_FILES=%s\n' "${files}"
+            printf 'WHEEL_ONLY=%s\n' "${wheel_only}"
+            printf 'INSTALL_FLAGS=%s\n' "${install_flags}"
           } >> "${GITHUB_ENV}"
 
       - name: Verify development-channel bytes against the retained release
@@ -84,10 +121,11 @@ jobs:
         run: |
           mkdir -p candidate-dist
           simple_page="$(curl --fail --location --retry 3 "${DEVELOPMENT_SIMPLE_URL}${PACKAGE}/")"
-          printf '%s\n' "${simple_page}" | grep -F ">${WHEEL_FILENAME}<" | grep -F '../../+f/'
-          printf '%s\n' "${simple_page}" | grep -F ">${SDIST_FILENAME}<" | grep -F '../../+f/'
+          for filename in ${PROMOTION_FILES}; do
+            printf '%s\n' "${simple_page}" | grep -F ">${filename}<" | grep -F '../../+f/'
+          done
           uv venv .candidate-reader --clear --python 3.13
-          for filename in "${WHEEL_FILENAME}" "${SDIST_FILENAME}"; do
+          for filename in ${PROMOTION_FILES}; do
             href="$(printf '%s\n' "${simple_page}" | grep -F ">${filename}<" | grep -F '../../+f/' | \
               sed -n 's/.*href="\([^"]*\)".*/\1/p' | head -n 1)"
             test -n "${href}"
@@ -98,8 +136,12 @@ jobs:
             curl --fail --location --retry 3 "${url}" --output "candidate-dist/${filename}"
           done
           test "$(sha256sum "candidate-dist/${WHEEL_FILENAME}" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
-          test "$(sha256sum "candidate-dist/${SDIST_FILENAME}" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
-          sha256sum "candidate-dist/${WHEEL_FILENAME}" "candidate-dist/${SDIST_FILENAME}" > promotion-SHA256SUMS
+          if test "${WHEEL_ONLY}" = true; then
+            sha256sum "candidate-dist/${WHEEL_FILENAME}" > promotion-SHA256SUMS
+          else
+            test "$(sha256sum "candidate-dist/${SDIST_FILENAME}" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
+            sha256sum "candidate-dist/${WHEEL_FILENAME}" "candidate-dist/${SDIST_FILENAME}" > promotion-SHA256SUMS
+          fi
           # A package's first promotion has no stable page yet; any other
           # failure to read the stable index stops the promotion.
           stable_status="$(curl --location --retry 3 --silent --show-error \
@@ -109,14 +151,23 @@ jobs:
             404) stable_page="" ;;
             *) echo "stable index returned HTTP ${stable_status} for ${PACKAGE}" >&2; exit 1 ;;
           esac
-          stable_wheel="$(printf '%s\n' "${stable_page}" | grep -F ">${WHEEL_FILENAME}<" || true)"
-          stable_sdist="$(printf '%s\n' "${stable_page}" | grep -F ">${SDIST_FILENAME}<" || true)"
-          if test -n "${stable_wheel}" || test -n "${stable_sdist}"; then
-            test -n "${stable_wheel}"
-            test -n "${stable_sdist}"
+          # Either every retained file is already stable (readback verifies it)
+          # or none is; a partial stable set stops the promotion.
+          present=0
+          total=0
+          for filename in ${PROMOTION_FILES}; do
+            total=$((total + 1))
+            if printf '%s\n' "${stable_page}" | grep -qF ">${filename}<"; then
+              present=$((present + 1))
+            fi
+          done
+          if test "${present}" -eq "${total}"; then
             printf 'PROMOTION_ALREADY_STABLE=true\n' >> "${GITHUB_ENV}"
-          else
+          elif test "${present}" -eq 0; then
             printf 'PROMOTION_ALREADY_STABLE=false\n' >> "${GITHUB_ENV}"
+          else
+            echo "stable holds only part of ${PACKAGE}==${VERSION}" >&2
+            exit 1
           fi
 
       - name: Promote unchanged development bytes server-side
@@ -140,10 +191,11 @@ jobs:
         run: |
           mkdir -p stable-dist
           simple_page="$(curl --fail --location --retry 3 "${STABLE_SIMPLE_URL}${PACKAGE}/")"
-          printf '%s\n' "${simple_page}" | grep -F ">${WHEEL_FILENAME}<" | grep -F '../../+f/'
-          printf '%s\n' "${simple_page}" | grep -F ">${SDIST_FILENAME}<" | grep -F '../../+f/'
+          for filename in ${PROMOTION_FILES}; do
+            printf '%s\n' "${simple_page}" | grep -F ">${filename}<" | grep -F '../../+f/'
+          done
           uv venv .stable-reader --clear --python 3.13
-          for filename in "${WHEEL_FILENAME}" "${SDIST_FILENAME}"; do
+          for filename in ${PROMOTION_FILES}; do
             href="$(printf '%s\n' "${simple_page}" | grep -F ">${filename}<" | grep -F '../../+f/' | \
               sed -n 's/.*href="\([^"]*\)".*/\1/p' | head -n 1)"
             test -n "${href}"
@@ -154,8 +206,12 @@ jobs:
             curl --fail --location --retry 3 "${url}" --output "stable-dist/${filename}"
           done
           test "$(sha256sum "stable-dist/${WHEEL_FILENAME}" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
-          test "$(sha256sum "stable-dist/${SDIST_FILENAME}" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
-          uv pip install --python .stable-reader/bin/python --index-url "${STABLE_SIMPLE_URL}" "${PACKAGE}==${VERSION}"
+          if test "${WHEEL_ONLY}" != true; then
+            test "$(sha256sum "stable-dist/${SDIST_FILENAME}" | cut -d ' ' -f 1)" = "${SDIST_SHA256}"
+          fi
+          # INSTALL_FLAGS is empty or --no-deps; it is intentionally unquoted.
+          uv pip install --python .stable-reader/bin/python ${INSTALL_FLAGS} \
+            --index-url "${STABLE_SIMPLE_URL}" "${PACKAGE}==${VERSION}"
           .stable-reader/bin/python - <<'PY'
           import importlib.metadata
           import os
