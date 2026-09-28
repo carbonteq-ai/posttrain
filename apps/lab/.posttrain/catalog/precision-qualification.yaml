@@ -178,6 +178,71 @@ training:
       source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
       dependency_lock_sha256: 7a28a659a58a7e2fcdb7c58bf12520d58a35778f96e770b6147af91571a2bbd5
 
+  # Float32 loss qualification on the local 8 GB GPU (docs/plan/fp16-training-precision.md,
+  # "FP16 loss in float32"): Qwen3.5-0.8B SAMPO with AutomationBench per-turn
+  # rewards and a KL term, the setup whose masked tool-output tokens overflowed
+  # the float16 KL term on the LFM2.5-2.6B canary. The environment, reward
+  # projection and shape follow lfm2.5-1.2b/automationbench-sampo-local-8gb-v1
+  # (2 prompt groups x 4, 8K context) with twelve updates, the canary's KL
+  # coefficient and token-level truncated importance sampling at cap 2.
+  qwen3.5-0.8b/automationbench-sampo-turns-12-precision-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 12
+      max_length: 8192
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00005
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 12
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 1729
+    num_prompts_per_step: 2
+    num_generations: 4
+    max_prompt_length: 5120
+    max_completion_length: 3072
+    beta: 0.01
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10}
+    truncation_penalty: 0.2
+    mask_truncated_completions: false
+  training/qwen3.5-0.8b-trl-lora-automationbench-sampo-precision-bf16@1: &sampo_precision_training
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post11
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: "off"
+    update: {kind: lora, rank: 8, alpha: 16, target_modules: all-linear}
+    target: targets/local-cuda-8gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 8, devices_per_node: 1, timeout_seconds: 1800}
+    backend_options: &sampo_precision_options
+      rollout_execution: {env_workers: 1, episodes_per_worker: 2, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      importance_sampling_from_training_logps: true
+      vllm_policy_parity_max_sequence_tokens: 1024
+      training_precision: bf16
+      dependency_lock: trl-fork@current
+      source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
+      dependency_lock_sha256: 7a28a659a58a7e2fcdb7c58bf12520d58a35778f96e770b6147af91571a2bbd5
+  training/qwen3.5-0.8b-trl-lora-automationbench-sampo-precision-fp16@1:
+    <<: *sampo_precision_training
+    backend_options:
+      <<: *sampo_precision_options
+      training_precision: fp16
+
   # veRL precision qualification on the local 8 GB GPU with the veRL runtime
   # (fork 0.9.0.post5, 9fd6e7a3; post4 added the loss scale, skipped steps and
   # the log-prob gap): four GRPO updates, bf16 against fp16 (FSDP fp16 compute
@@ -286,6 +351,43 @@ inference:
     sampling: {max_tokens: 384, temperature: 1.0, top_p: 1.0}
     target: targets/local-cuda-rollout-8gb
     purpose: [rollout]
+
+  # AutomationBench SAMPO rollouts for the float32 loss qualification, on the
+  # shape of inference/lfm2.5-1.2b-vllm-sampo-local-8gb@1 and the environment's
+  # sampling policy (temperature 0.8, top_p 0.95), so both arms' gaps include the
+  # same nucleus renormalization offset.
+  inference/qwen3.5-0.8b-vllm-automationbench-sampo-precision-bf16@1: &sampo_precision_rollout
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: qwen3.5-tools@1
+    engine: &sampo_precision_engine
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.40
+      tensor_parallel_size: 1
+      max_model_len: 8192
+      max_num_seqs: 4
+      max_num_batched_tokens: 2048
+      kv_cache_memory_bytes: 268435456
+      weight_sync_mode: lora
+      weight_name_prefix: language_model.
+      enforce_eager: false
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      dtype: bfloat16
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 0.95}
+    target: targets/local-cuda-rollout-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+  inference/qwen3.5-0.8b-vllm-automationbench-sampo-precision-fp16@1:
+    <<: *sampo_precision_rollout
+    engine:
+      <<: *sampo_precision_engine
+      dtype: float16
 
   # inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c144-4k-t05@1 with
   # the rollout computed in float16 (the bf16 twin uses that binding unchanged).

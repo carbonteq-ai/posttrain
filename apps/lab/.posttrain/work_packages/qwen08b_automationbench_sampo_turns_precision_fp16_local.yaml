@@ -1,0 +1,34 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/automationbench-sampo-turns-precision-fp16-local
+stage: train
+description: Twelve Qwen3.5-0.8B SAMPO updates with AutomationBench per-turn rewards and a KL term on the local 8 GB GPU, with the trainer and the vLLM rollout both in fp16; qualifies that the loss stays finite and the loss scaler stops skipping under fp16 (float32 loss arithmetic) and compares the sampler-trainer log-prob gap (docs/plan/fp16-training-precision.md).
+recipe:
+  type: inline
+  id: recipes/qwen3.5-0.8b-automationbench-sampo-turns-precision-fp16@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    reward_projection: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: sampo
+      kind: train.sampo
+      definition: train/sampo-turns@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, per-turn environment reward evidence, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/qwen3.5-0.8b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm12-sampo-8gb-turns-v1}
+  settings: {type: ref, family: training, id: qwen3.5-0.8b/automationbench-sampo-turns-12-precision-v1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-turn-progress@1}
+  training: {type: ref, family: training, id: training/qwen3.5-0.8b-trl-lora-automationbench-sampo-precision-fp16@1}
+  rollout_inference: {type: ref, family: inference, id: inference/qwen3.5-0.8b-vllm-automationbench-sampo-precision-fp16@1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: qwen08b-automationbench-sampo-precision-v1
+  arm: sampo-turns-precision-fp16
+  question: With float32 loss arithmetic, does fp16 SAMPO with per-turn tool rewards and a KL term train without NaN losses or repeated skipped updates, and with a smaller sampler-trainer log-prob gap than bf16?
+  labels: [experiment, precision, fp16, sampo, turn-rewards, automationbench, qwen3.5, local, 8gb]
