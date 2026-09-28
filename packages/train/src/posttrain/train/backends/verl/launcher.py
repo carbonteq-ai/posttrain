@@ -171,12 +171,12 @@ def grpo_algorithm_payload(settings: GRPOSettings) -> dict[str, Any]:
             active_sampling_oversample=settings.active_sampling.oversample,
             active_sampling_oversample_refill=settings.active_sampling.oversample_refill,
         )
-    if settings.algorithm == "olmo3":
-        payload.update(
-            normalize_advantage_by_std=False,
-            rollout_importance_sampling="token",
-            rollout_importance_sampling_cap=settings.importance_sampling_clip_max,
-        )
+    payload.update(_rollout_importance_sampling(settings))
+    if settings.advantage_scaling == "none":
+        payload["normalize_advantage_by_std"] = False
+    else:
+        payload.update(normalize_advantage_by_std=True, advantage_std_scope=settings.advantage_scaling)
+    payload["max_admission_attempts"] = settings.max_admission_attempts
     return payload
 
 
@@ -187,10 +187,6 @@ def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaun
     _validate_backend(request.training.backend)
     _validate_model(request.policy, "policy")
     settings = request.settings
-    if settings.max_admission_attempts != 1:
-        raise ValueError("SAMPO max_admission_attempts other than 1 is currently supported by the TRL backend only")
-    if settings.mask_truncated_completions:
-        raise ValueError("SAMPO mask_truncated_completions is currently supported by the TRL backend only")
     problem = kl_reference_problem(request.training.backend, settings.beta, settings.kl_reference, request.policy.form)
     if problem is not None:
         raise ValueError(problem)
@@ -213,7 +209,6 @@ def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaun
 def sampo_algorithm_payload(settings: SAMPOSettings) -> dict[str, Any]:
     """Map SAMPOSettings to the veRL algorithm contract (TRL SAMPO semantics)."""
 
-    level, cap = _rollout_importance_sampling(settings)
     payload: dict[str, Any] = {
         "advantage_estimator": "sampo",
         "online_rl_algorithm": "sampo",
@@ -226,19 +221,20 @@ def sampo_algorithm_payload(settings: SAMPOSettings) -> dict[str, Any]:
         "clip_epsilon_low": settings.clip_epsilon_low,
         "clip_epsilon_high": settings.clip_epsilon_high,
         "dynamic_sampling": False,
-        "mask_truncated_completions": False,
+        "mask_truncated_completions": settings.mask_truncated_completions,
         "overlong_penalty_factor": 1.0,
         "truncation_penalty": settings.truncation_penalty,
+        # TRL runs one admission attempt under active sampling; a failed group is refilled.
+        "max_admission_attempts": settings.max_admission_attempts,
         "discount_gamma": settings.discount_gamma,
         "step_advantage_weight": settings.step_advantage_weight,
         "advantage_normalization": settings.advantage_normalization,
-        "rollout_importance_sampling": level,
-        "rollout_importance_sampling_cap": cap,
         "active_sampling": True,
         "active_sampling_max_candidate_batches": settings.active_sampling.max_candidate_batches,
         "active_sampling_oversample": settings.active_sampling.oversample,
         "active_sampling_oversample_refill": settings.active_sampling.oversample_refill,
     }
+    payload.update(_rollout_importance_sampling(settings))
     if settings.adaptive_curriculum is not None:
         payload["adaptive_curriculum"] = {
             item.name: getattr(settings.adaptive_curriculum, item.name)
@@ -247,23 +243,16 @@ def sampo_algorithm_payload(settings: SAMPOSettings) -> dict[str, Any]:
     return payload
 
 
-def _rollout_importance_sampling(settings: SAMPOSettings) -> tuple[Literal["token", "sequence"], float]:
-    """The sampler correction veRL reproduces exactly: truncation at an upper cap only."""
+def _rollout_importance_sampling(settings: GRPOSettings | SAMPOSettings) -> dict[str, Any]:
+    """TRL's vLLM sampler correction in the veRL contract: level, truncate or mask, and its bounds."""
 
-    if (
-        settings.importance_sampling_mode not in {"token_truncate", "sequence_truncate"}
-        or settings.importance_sampling_clip_min is not None
-        or settings.importance_sampling_clip_max is None
-    ):
-        raise ValueError(
-            f"SAMPO importance_sampling_mode={settings.importance_sampling_mode!r} with "
-            f"clip_min={settings.importance_sampling_clip_min!r} is currently supported by the TRL backend only; "
-            "veRL truncates token or sequence ratios at an upper cap"
-        )
-    level: Literal["token", "sequence"] = (
-        "token" if settings.importance_sampling_mode == "token_truncate" else "sequence"
-    )
-    return level, settings.importance_sampling_clip_max
+    mode = settings.importance_sampling_mode
+    return {
+        "rollout_importance_sampling": "token" if mode.startswith("token") else "sequence",
+        "rollout_importance_sampling_mode": "truncate" if mode.endswith("truncate") else "mask",
+        "rollout_importance_sampling_cap": settings.importance_sampling_clip_max,
+        "rollout_importance_sampling_min": settings.importance_sampling_clip_min,
+    }
 
 
 def build_structured_launch_plan(request: GDPORequest | CAPORequest, output_dir: Path) -> VerlLaunchPlan:

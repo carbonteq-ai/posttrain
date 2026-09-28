@@ -27,7 +27,6 @@ from .reward_fields import (
     shaped_rollout_reward,
     streaming_reward_extra_info,
     structured_reward_metadata,
-    training_response_mask,
 )
 
 try:
@@ -331,12 +330,10 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             overlong_penalty_factor=self._overlong_penalty_factor,
             truncation_penalty=self._truncation_penalty,
         )
-        response_mask = training_response_mask(
-            rollout.env_mask,
-            is_truncated=rollout.is_truncated,
-            mask_truncated_completions=self._mask_truncated_completions,
-            requires_complete_group=self._emit_sampo_metadata,
-        )
+        # TRL's mask_truncated_completions: the fork drops the row from GRPO statistics and the
+        # loss after advantages (SAMPO still centres it), so the mask keeps every policy token.
+        excluded = bool(rollout.is_truncated and self._mask_truncated_completions)
+        response_mask = [int(value) for value in rollout.env_mask]
         extra_fields: dict[str, Any] = {
             "rollout_trace_id": rollout.trace.external_id,
             "example_id": rollout.example_id,
@@ -350,7 +347,9 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             "reward_extra_info": streaming_reward_extra_info(
                 task_reward=rollout.reward,
                 algorithm_reward=reward,
+                excluded=excluded,
             ),
+            "exclude_from_loss": excluded,
             "min_global_steps": behavior_policy.start,
             "max_global_steps": behavior_policy.end,
         }

@@ -62,6 +62,7 @@ from posttrain.jobs.definitions import (
 )
 from posttrain.train import (
     AdaptiveCurriculum,
+    DynamicGroupSampling,
     GRPOSettings,
     SAMPOSettings,
     SFTRequest,
@@ -729,9 +730,15 @@ def test_static_grpo_preparation_rejects_sampling_policy_mismatch() -> None:
             },
             "adaptive_curriculum with DAPO is currently supported by the TRL backend only",
         ),
-        ({"advantage_scaling": "batch"}, "advantage_scaling='batch' is currently supported by the TRL backend only"),
-        ({"importance_sampling_clip_max": 2.0}, "importance_sampling_clip_max=2.0"),
-        ({"max_admission_attempts": 1}, "max_admission_attempts=1"),
+        (
+            {
+                "algorithm": "dapo",
+                "clip_epsilon_high": 0.28,
+                "dynamic_sampling": DynamicGroupSampling(max_candidate_batches=2),
+                "advantage_scaling": "batch",
+            },
+            "advantage_scaling='batch' with DAPO dynamic sampling is currently supported by the TRL backend only",
+        ),
     ],
 )
 def test_static_grpo_preparation_rejects_settings_verl_would_ignore(changes: dict[str, object], message: str) -> None:
@@ -787,8 +794,7 @@ def test_static_preparation_rejects_a_training_loop_verl_cannot_run() -> None:
     validator(seats)  # type: ignore[arg-type]  # TRL runs a linear schedule
 
     seats["training"] = replace(training, backend="verl@candidate")
-    with pytest.raises(ContractError, match="lr_scheduler_type 'linear' is not available on the veRL backend"):
-        validator(seats)  # type: ignore[arg-type]
+    validator(seats)  # type: ignore[arg-type]  # the veRL fork runs the same linear schedule
     seats["settings"] = replace(settings, loop=replace(settings.loop, lr_scheduler_type="constant", logging_steps=5))
     with pytest.raises(ContractError, match="logging_steps 5 is not available on the veRL backend"):
         validator(seats)  # type: ignore[arg-type]
@@ -800,11 +806,11 @@ def test_structured_and_distillation_preparation_check_the_verl_training_loop() 
     training = cast(TrainingBinding, seats["training"])
     for definition in (distillation_definition(), structured_rl_definition("gdpo"), structured_rl_definition("capo")):
         assert definition.static_validator is _validate_verl_training_loop_seats
-    linear = {"settings": replace(settings, loop=replace(settings.loop, lr_scheduler_type="linear"))}
-    _validate_verl_training_loop_seats({**linear, "training": training})  # type: ignore[arg-type]
+    logging = {"settings": replace(settings, loop=replace(settings.loop, logging_steps=5))}
+    _validate_verl_training_loop_seats({**logging, "training": training})  # type: ignore[arg-type]
     with pytest.raises(ContractError, match="not available on the veRL backend"):
         _validate_verl_training_loop_seats(
-            {**linear, "training": replace(training, backend="verl@candidate")}  # type: ignore[arg-type]
+            {**logging, "training": replace(training, backend="verl@candidate")}  # type: ignore[arg-type]
         )
 
 

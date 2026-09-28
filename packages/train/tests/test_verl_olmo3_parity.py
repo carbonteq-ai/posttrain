@@ -294,7 +294,9 @@ def _verl_configs(tmp_path: Path) -> tuple[Any, Any, list[str]]:
     from verl.utils.config import omega_conf_to_dataclass
 
     revision = next(
-        revision for revision, (_, names) in _FORK_NATIVE_NAME_REVISIONS.items() if "active_sampling" in names
+        revision
+        for revision, (_, names) in reversed(_FORK_NATIVE_NAME_REVISIONS.items())
+        if {"active_sampling", "trl_sampler_correction"} <= names
     )
     request = _request(f"verl@{revision[:7]}", source_revision=revision)
     manifest = build_grpo_launch_plan(request, tmp_path / "verl")

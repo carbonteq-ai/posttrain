@@ -152,6 +152,20 @@ adds backend support that meets those contracts; no product meaning changes.
   publishes views from a veRL selector, selects step 1, checks it holds the
   step-1 controller, and warm-starts a new selector from it.
 - [ ] Phase 3 GPU check with the other phases (post6 image).
+- [x] (2026-09-28) Coordinator: replace rejections with support. Fork commits
+  `c55867dcfa6ca0716bccf57b492e2f4b6f7b0717` and
+  `2607b91d3cccc9d73aae924734b5104bf8cfb590`: sampler-correction lower clamp and
+  exact log ratios, TRL GRPO scaling (epsilon 1e-4, batch std, NaN-excluded rows
+  with TRL's own `nanstd` arithmetic), row exclusion after advantages
+  (`algorithm.exclude_flagged_rows`), NaN-aware DAPO/active filters, group
+  admission retries with real-row loss normalization
+  (`trainer.v1.sampler.failed_group_attempts`), linear LR schedule. Fork suites
+  328 passed, 2 skipped. Posttrain maps all of them for GRPO, DAPO, OLMo 3 and
+  SAMPO; GRPO and DAPO now also use `token_clip` and `k3_unclipped` (TRL's
+  loss and KL). Remaining rejections, each with its reason in the error: DAPO
+  plus curriculum and DAPO plus batch advantage scaling. Parity: 48 CPU parity
+  tests pass (see Artifacts). Ladder: pyright 0, lint-imports 9 kept, pytest
+  2205 passed.
 - [ ] Phase 4: LFM2.5 on veRL (CPU parts next; GPU runs wait for the local
   GPU to be free of the 0.4.12 qualification queue).
 - [x] (2026-09-28) Phase 5 fork: `sequence_clip` policy loss (TRL's
@@ -175,6 +189,24 @@ adds backend support that meets those contracts; no product meaning changes.
   is final.
 
 ## Surprises & Discoveries
+
+- Observation: veRL's DAPO dynamic sampling (streaming refill, two credits per
+  filtered group, bounded by candidate prompts) is not TRL's DAPO dynamic
+  sampling (whole candidate batches of the target size until filled). This
+  predates the port and is the reason for the two remaining DAPO rejections;
+  DAPO itself stays accepted on veRL as before.
+- Observation: TRL's `nanstd` computes Bessel's factor as `count / (count - 1)`
+  on integer tensors, which rounds it to float32 even for float64 rewards, so
+  veRL's exact `torch.std` differed from TRL by about 1.5e-8 relative. The
+  fork's TRL-mode statistics repeat TRL's operations; advantages now match
+  bitwise.
+- Observation: TRL rejects `*_truncate` correction with neither bound set
+  (`GRPOConfig` raises), although `GRPOSettings` allows it; the veRL mapping
+  accepts it as uncorrected weights. Not tested as parity because TRL cannot
+  run it.
+- Observation: TRL stores `admission_loss_scale` as a float32 tensor, so a
+  partial admitted batch's loss agrees with veRL's real-row normalization to
+  float32 precision (checked at 1e-7 relative).
 
 - Observation: veRL's `gspo` loss is not TRL's sequence-level objective when
   advantages vary inside a row. GSPO's stop-gradient token form gives token t
@@ -244,6 +276,33 @@ adds backend support that meets those contracts; no product meaning changes.
   image is rebuilt first.
 
 ## Decision Log
+
+- Decision: veRL GRPO and DAPO now run TRL's objective in full: `token_clip`
+  (no dual clip), `k3_unclipped`, the selected sampler correction (the GRPO
+  default is sequence-truncated to [0.1, 3.0], which veRL previously did not
+  apply at all), TRL's advantage scaling (std + 1e-4, not veRL's 1e-6), TRL's
+  group admission (retry the same prompt, then drop) instead of refilling
+  failed groups with new prompts.
+  Rationale: the settings always declared these semantics; veRL runs silently
+  used different ones. Recorded veRL GRPO runs therefore do not match their
+  settings, and new runs will differ numerically from them. Every mapping has
+  a parity test against TRL's real code.
+  Date/Author: 2026-09-28, Claude.
+- Decision: keep exactly two rejections. (1) `adaptive_curriculum` with DAPO:
+  veRL's DAPO refill streams single prompts with no per-round decision point,
+  while the curriculum contract requires decisions per refill round. (2)
+  `advantage_scaling: batch` with DAPO dynamic sampling: TRL divides by the std
+  of each candidate batch before filtering; veRL's streaming refill has no
+  candidate batch with that population. Both reasons are in the error
+  messages (`packages/train/src/posttrain/train/backend_support.py`). Porting
+  TRL's candidate-batch DAPO refill to veRL would remove both and is noted
+  under Surprises as a pre-existing difference.
+  Date/Author: 2026-09-28, Claude.
+- Decision: under active sampling (OLMo 3, SAMPO) `max_admission_attempts` is
+  accepted and behaves as one attempt, because TRL forces one admission attempt
+  when active sampling refills groups (`max_attempts=1 if active_sampling` in
+  `backends/trl/policy_rollouts.py`).
+  Date/Author: 2026-09-28, Claude.
 
 - Decision: SAMPO on veRL uses the new `sequence_clip` loss, not `gspo`.
   Rationale: the recipe is defined by the TRL path (sequence-level ratio with
@@ -632,6 +691,19 @@ seq-mean-token-mean divides by tokens + 1e-8; TRL clamps at 1). Sequence
 ratios fall both inside and outside the 0.003/0.004 clip range.
 
     all parity files: 24 passed in 14.55s
+
+TRL-settings parity (`packages/train/tests/test_verl_trl_settings_parity.py`,
+24 cases): sampler-correction weights for token/sequence truncate and mask
+with and without lower and upper bounds, including log ratios of +24 and -26
+nats, agree to 1e-12 relative; GRPO advantages for group, batch and no scaling,
+with and without masked truncated completions, are bitwise equal, and loss and
+gradient agree to 1e-8 relative; four admission scripts (retry then succeed,
+drop after attempts, single attempt, mixed) give identical retained groups and
+per-group attempt counts to Posttrain's TRL admission loop; a partial batch's
+loss matches TRL's padded, rescaled loss (float32-limited); the linear schedule
+gives TRL's learning rate at every step for three warmup/length settings.
+
+    all parity files together: 48 passed in 29.53s
 
 ## Interfaces and Dependencies
 

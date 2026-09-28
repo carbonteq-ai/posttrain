@@ -143,6 +143,23 @@ TRL path's per-checkpoint view (`checkpoint-<N>/curriculum`), so
 adapter accepts the curriculum with GRPO and OLMo 3 (not DAPO) on revisions
 recorded with `prompt_selector`.
 
+## TRL-equivalent GRPO settings (unreleased candidate)
+
+Fork commit `2607b91d3cccc9d73aae924734b5104bf8cfb590` lets veRL reproduce every
+GRPO setting Posttrain selects: sampler correction in all four TRL modes with
+lower and upper bounds and exact log ratios; TRL's advantage scaling (group or
+batch std + 1e-4, or none) with masked truncated completions excluded as TRL's
+NaN rewards are; row exclusion after advantages; TRL's group admission (retry
+with the same prompt, then drop, loss normalized over real rows); and the
+linear LR schedule. GRPO and DAPO on veRL now use `token_clip` and
+`k3_unclipped`, so their loss matches TRL's too. This changes veRL GRPO runs:
+their settings always declared these semantics, but earlier veRL runs used
+dual clipping, a clamped KL, no sampler correction, veRL's 1e-6 std epsilon
+and refill-with-new-prompts on failures. Two DAPO combinations stay TRL-only
+with the reason in the error: curriculum with DAPO, and batch advantage
+scaling with DAPO dynamic sampling. CPU parity: 48 tests against TRL post11's
+real code (plan Artifacts).
+
 ## SAMPO on veRL (unreleased candidate)
 
 Fork commit `4d37a18bc492f0f4f9c224285603740ef4a2ba54` adds `sequence_clip`

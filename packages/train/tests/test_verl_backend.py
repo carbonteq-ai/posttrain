@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
+import math
 import re
 import subprocess
 import sys
@@ -85,7 +86,6 @@ from posttrain.train.backends.verl.metrics import (
 from posttrain.train.backends.verl.reward_fields import (
     shaped_rollout_reward,
     streaming_reward_extra_info,
-    training_response_mask,
 )
 from posttrain.train.backends.verl.worker import (
     CURRICULUM_SELECTOR_CONFIG,
@@ -182,7 +182,7 @@ def _training(*, family: str = "qwen3.5", update=None) -> TrainingBinding:
         backend_options={
             "python_executable": "/opt/posttrain-verl/bin/python",
             "working_directory": "/opt/src/verl",
-            "source_revision": "a35908ca3c9632859c58d6a2855d858918ae21dc",
+            "source_revision": "2607b91d3cccc9d73aae924734b5104bf8cfb590",
             "attention_implementation": "sdpa",
         },
     )
@@ -622,7 +622,6 @@ def test_verl_worker_uses_the_per_device_batch_as_its_micro_batch(
 @pytest.mark.parametrize(
     ("changes", "message"),
     [
-        ({"lr_scheduler_type": "linear"}, "lr_scheduler_type 'linear' is not available on the veRL backend"),
         ({"logging_steps": 2}, "logging_steps 2 is not available on the veRL backend"),
         (
             {"per_device_batch_size": 2, "gradient_accumulation_steps": 1},
@@ -661,7 +660,6 @@ def test_grpo_worker_maps_bounded_rollout_execution_to_native_verl(
         request.training,
         backend_options={
             **request.training.backend_options,
-            "source_revision": "5dbf667c99b29db613d1dfcded1ed90440ef6311",
             "rollout_execution": {
                 "env_workers": 4,
                 "episodes_per_worker": 8,
@@ -683,7 +681,9 @@ def test_grpo_worker_maps_bounded_rollout_execution_to_native_verl(
     assert "actor_rollout_ref.rollout.agent.num_cpus_per_worker=1" in overrides
     assert "actor_rollout_ref.rollout.agent.max_concurrent_episodes=32" in overrides
     assert "actor_rollout_ref.rollout.agent.max_concurrent_episodes_per_worker=8" in overrides
-    assert "trainer.v1.sampler.refill_all_failed_groups=True" in overrides
+    # GRPO follows TRL's group admission (retry, then drop) instead of refilling failed groups.
+    assert "trainer.v1.sampler.refill_all_failed_groups=True" not in overrides
+    assert "trainer.v1.sampler.failed_group_attempts=3" in overrides
 
 
 def test_grpo_worker_rejects_rollout_capacity_above_environment_limit(
@@ -724,6 +724,8 @@ def test_grpo_worker_rejects_bounded_execution_on_legacy_verl_revision(
         request.training,
         backend_options={
             **request.training.backend_options,
+            "source_revision": "a35908ca3c9632859c58d6a2855d858918ae21dc",
+            "source_dirty": True,
             "rollout_execution": {
                 "env_workers": 4,
                 "episodes_per_worker": 8,
@@ -791,6 +793,8 @@ POST5_REVISION = "9fd6e7a31396ba33a29233cc869ab05b0a9e5a80"
 POST4_REVISION = "54124edfb8d0b73694696400cf07a76a14d9be65"
 # codex/vortex-active-sampling: post5 plus round-based active sampling (unreleased).
 ACTIVE_SAMPLING_REVISION = "6c7295cd411c4d3973ddc206e43816560c842336"
+# codex/vortex-active-sampling with every TRL-equivalence delta (unreleased).
+FULL_REVISION = "2607b91d3cccc9d73aae924734b5104bf8cfb590"
 
 
 def _with_revision(request, revision: str, **options: object):
@@ -927,23 +931,23 @@ def test_pinned_verl_fork_registers_every_native_name_posttrain_requests(monkeyp
     # Ask for the names with the gate lifted, then require the pinned fork to register them.
     requested = requested_fork_native_names(
         build_hydra_overrides(
-            VerlLaunchManifest.model_validate(
-                {**manifest.model_dump(), "backend_source_revision": ACTIVE_SAMPLING_REVISION}
-            ),
+            VerlLaunchManifest.model_validate({**manifest.model_dump(), "backend_source_revision": FULL_REVISION}),
             tmp_path / "data",
             tmp_path / "agent",
             tmp_path / "checkpoints",
         )
     )
-    expected = {"token_clip", "k3_unclipped"} | ({"active_sampling"} if operation == "olmo3" else set())
+    expected = {"token_clip", "k3_unclipped"} | (
+        {"active_sampling", "trl_sampler_correction"} if operation == "olmo3" else set()
+    )
     assert requested == expected
     assert requested <= fork_native_names(revision), f"pinned veRL {revision} lacks {sorted(requested)}"
 
 
-SAMPO_REVISION = "4d37a18bc492f0f4f9c224285603740ef4a2ba54"
+SAMPO_REVISION = FULL_REVISION
 
 
-def _verl_sampo_request(revision: str = SAMPO_REVISION, **changes):
+def _verl_sampo_request(revision: str = SAMPO_REVISION, **changes: object):
     request = _with_revision(_sampo_request(), revision)
     loop = replace(request.settings.loop, lr_scheduler_type="constant")
     return replace(request, settings=replace(request.settings, loop=loop, **changes))
@@ -997,17 +1001,27 @@ def test_verl_sampo_maps_the_curriculum_and_sequence_correction(
 
 
 @pytest.mark.parametrize(
-    ("changes", "message"),
+    ("changes", "expected"),
     [
-        ({"mask_truncated_completions": True}, "mask_truncated_completions is currently supported by the TRL"),
-        ({"max_admission_attempts": 2}, "max_admission_attempts other than 1"),
-        ({"importance_sampling_mode": "token_mask", "importance_sampling_clip_min": 0.5}, "token_mask"),
-        ({"importance_sampling_clip_min": 0.5}, "clip_min=0.5"),
+        ({"mask_truncated_completions": True}, ["algorithm.exclude_flagged_rows=true"]),
+        # TRL makes one admission attempt under active sampling and refills the group instead.
+        ({"max_admission_attempts": 2}, ["algorithm.active_sampling.enable=true"]),
+        (
+            {"importance_sampling_mode": "token_mask", "importance_sampling_clip_min": 0.5},
+            ["algorithm.rollout_correction.rollout_is_threshold='0.5_2.0'"],
+        ),
+        ({"importance_sampling_clip_min": 0.5}, ["algorithm.rollout_correction.rollout_is_clip_min=0.5"]),
     ],
 )
-def test_verl_rejects_sampo_settings_it_cannot_reproduce(tmp_path: Path, changes, message: str) -> None:
-    with pytest.raises(ValueError, match=message):
-        build_sampo_launch_plan(_verl_sampo_request(**changes), tmp_path)
+def test_verl_maps_every_sampo_setting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, changes: dict[str, object], expected: list[str]
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    plan = build_sampo_launch_plan(_verl_sampo_request(SAMPO_REVISION, **changes), tmp_path)
+    overrides = build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+    for value in expected:
+        assert value in overrides
+    assert not any("failed_group_attempts" in value for value in overrides)
 
 
 def test_verl_sampo_requires_a_fork_with_its_objective(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -1048,7 +1062,7 @@ def test_verl_dapo_uses_core_trainer_and_maps_all_dynamic_sampling_controls(
     assert "actor_rollout_ref.actor.clip_ratio_high=0.28" in overrides
     assert "data.gen_batch_size=1" in overrides
     assert "algorithm.filter_groups.enable=true" in overrides
-    assert "algorithm.filter_groups.metric=seq_reward" in overrides
+    assert "algorithm.filter_groups.metric=group_reward" in overrides
     assert "algorithm.filter_groups.max_num_gen_batches=7" in overrides
 
 
@@ -1066,7 +1080,7 @@ def _olmo3_settings(settings: GRPOSettings, **changes: object) -> GRPOSettings:
 
 
 def _olmo3_request(*, max_num_seqs: int | None = None, **changes: object) -> GRPORequest:
-    request = _with_revision(_grpo_request(), ACTIVE_SAMPLING_REVISION)
+    request = _with_revision(_grpo_request(), FULL_REVISION)
     if max_num_seqs is not None:
         engine = {**request.inference.engine, "max_num_seqs": max_num_seqs}
         request = replace(request, inference=replace(request.inference, engine=engine))
@@ -1095,7 +1109,7 @@ def test_verl_accepts_olmo3_and_maps_its_active_sampling(monkeypatch: pytest.Mon
         "algorithm.active_sampling.oversample=1",
         "algorithm.active_sampling.oversample_refill=2",
         "algorithm.active_sampling.reward_std_epsilon=0.0",
-        "algorithm.active_sampling.metric=seq_reward",
+        "algorithm.active_sampling.metric=group_reward",
     ):
         assert expected in overrides
     assert not any(value.startswith("algorithm.filter_groups.") for value in overrides)
@@ -1175,7 +1189,8 @@ def test_verl_olmo3_requires_a_fork_revision_with_token_clip(monkeypatch: pytest
     legacy = VerlLaunchManifest.model_validate({**manifest.model_dump(), "backend_source_revision": "a" * 40})
 
     with pytest.raises(
-        ValueError, match="does not register active_sampling, k3_unclipped, token_clip, which the grpo objective"
+        ValueError,
+        match="does not register active_sampling, k3_unclipped, token_clip, trl_sampler_correction, which the grpo",
     ):
         build_hydra_overrides(legacy, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
 
@@ -1188,21 +1203,76 @@ def test_verl_olmo3_manifest_rejects_a_changed_recipe(tmp_path: Path) -> None:
         VerlLaunchManifest.model_validate(data)
 
 
-def test_verl_grpo_keeps_its_historical_advantage_and_correction_mapping(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_verl_grpo_maps_trl_grpo_semantics(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """GRPO defaults on veRL are TRL's: sequence-truncated correction [0.1, 3], group std + 1e-4."""
+
     monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
     plan = build_grpo_launch_plan(_grpo_request(), tmp_path)
-    data = plan.model_dump()
-    data["payload"]["algorithm"]["rollout_importance_sampling"] = "token"
-    with pytest.raises(ValidationError, match="only for OLMo 3"):
-        VerlLaunchManifest.model_validate(data)
-
     overrides = build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
-    assert "actor_rollout_ref.actor.kl_loss_type=low_var_kl" in overrides
-    assert "actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean" in overrides
-    assert not any(value.startswith("algorithm.rollout_correction") for value in overrides)
-    assert not any(value.startswith("algorithm.norm_adv_by_std_in_grpo") for value in overrides)
+
+    for expected in (
+        "actor_rollout_ref.actor.policy_loss.loss_mode=token_clip",
+        "actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean",
+        "actor_rollout_ref.actor.kl_loss_type=k3_unclipped",
+        "algorithm.norm_adv_by_std_in_grpo=true",
+        "algorithm.grpo_std_epsilon=0.0001",
+        "algorithm.grpo_std_scope=group",
+        "algorithm.rollout_correction.rollout_is=sequence",
+        "algorithm.rollout_correction.rollout_is_threshold=3.0",
+        "algorithm.rollout_correction.rollout_is_clip_min=0.1",
+        "algorithm.rollout_correction.rollout_is_log_ratio_bound=null",
+        "trainer.v1.sampler.failed_group_attempts=3",
+    ):
+        assert expected in overrides
+    assert "algorithm.exclude_flagged_rows=true" not in overrides
+
+
+@pytest.mark.parametrize(
+    ("changes", "expected"),
+    [
+        ({"advantage_scaling": "batch"}, ["algorithm.grpo_std_scope=batch"]),
+        ({"advantage_scaling": "none"}, ["algorithm.norm_adv_by_std_in_grpo=false"]),
+        (
+            {"importance_sampling_mode": "token_mask", "importance_sampling_clip_min": 0.5},
+            [
+                "algorithm.rollout_correction.rollout_is=token",
+                "algorithm.rollout_correction.rollout_is_threshold='0.5_3.0'",
+            ],
+        ),
+        (
+            {"importance_sampling_mode": "sequence_mask", "importance_sampling_clip_min": None},
+            ["algorithm.rollout_correction.rollout_is_threshold='1e-300_3.0'"],
+        ),
+        (
+            {"importance_sampling_mode": "token_truncate", "importance_sampling_clip_max": None},
+            ["algorithm.rollout_correction.rollout_is_threshold=inf"],
+        ),
+        ({"mask_truncated_completions": True}, ["algorithm.exclude_flagged_rows=true"]),
+        ({"max_admission_attempts": 1}, ["trainer.v1.sampler.failed_group_attempts=1"]),
+    ],
+)
+def test_verl_grpo_maps_every_trl_setting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, changes: dict[str, object], expected: list[str]
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    request = _grpo_request()
+    plan = build_grpo_launch_plan(replace(request, settings=replace(request.settings, **changes)), tmp_path)
+    overrides = build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+    for value in expected:
+        assert value in overrides
+
+
+def test_verl_rejects_batch_scaling_with_dapo_dynamic_sampling(tmp_path: Path) -> None:
+    request = _grpo_request()
+    settings = replace(
+        request.settings,
+        algorithm="dapo",
+        clip_epsilon_high=0.28,
+        dynamic_sampling=DynamicGroupSampling(max_candidate_batches=3),
+        advantage_scaling="batch",
+    )
+    with pytest.raises(ValueError, match="std of each candidate batch before filtering"):
+        build_grpo_launch_plan(replace(request, settings=settings), tmp_path)
 
 
 @pytest.mark.parametrize(
@@ -1286,12 +1356,6 @@ def test_verl_reward_shaping_is_the_trl_rule(algorithm: str, reward: float, toke
             },
             "adaptive_curriculum with DAPO is currently supported by the TRL backend only",
         ),
-        ({"advantage_scaling": "batch"}, "advantage_scaling='batch' is currently supported by the TRL backend only"),
-        ({"advantage_scaling": "none"}, "advantage_scaling='none' is currently supported by the TRL backend only"),
-        ({"importance_sampling_mode": "token_mask"}, "importance_sampling_mode='token_mask'"),
-        ({"importance_sampling_clip_min": None}, "importance_sampling_clip_min=None"),
-        ({"importance_sampling_clip_max": 2.0}, "importance_sampling_clip_max=2.0"),
-        ({"max_admission_attempts": 1}, "max_admission_attempts=1 is currently supported by the TRL backend only"),
     ],
 )
 def test_verl_rejects_grpo_settings_it_would_silently_ignore(
@@ -1909,32 +1973,17 @@ def test_verl_agent_loop_honors_selected_reasoning_mode(tmp_path: Path) -> None:
 
 
 def test_verl_streaming_reward_exposes_dynamic_filter_metric() -> None:
-    assert streaming_reward_extra_info(
-        task_reward=0.75,
-        algorithm_reward=0.5,
-    ) == {
+    assert streaming_reward_extra_info(task_reward=0.75, algorithm_reward=0.5) == {
         "seq_reward": 0.5,
         "task_reward": 0.75,
+        "group_reward": 0.5,
     }
 
 
-def test_sampo_rejects_masked_truncation_for_bounded_replacement() -> None:
-    with pytest.raises(RuntimeError, match="SAMPO requires replacement"):
-        training_response_mask(
-            (True, True, False),
-            is_truncated=True,
-            mask_truncated_completions=True,
-            requires_complete_group=True,
-        )
-
-
-def test_non_sampo_truncation_remains_fully_masked() -> None:
-    assert training_response_mask(
-        (True, True, False),
-        is_truncated=True,
-        mask_truncated_completions=True,
-        requires_complete_group=False,
-    ) == [0, 0, 0]
+def test_masked_truncated_rows_carry_nan_group_reward_like_trl() -> None:
+    fields = streaming_reward_extra_info(task_reward=0.75, algorithm_reward=0.5, excluded=True)
+    assert math.isnan(fields["group_reward"])
+    assert fields["seq_reward"] == 0.5  # the curriculum still observes the reward, as TRL's hook does
 
 
 def test_verl_preflight_rejects_models_outside_current_qwen35_qualification(tmp_path: Path) -> None:
@@ -2246,7 +2295,7 @@ def test_verl_launcher_rejects_olmo3_on_a_fork_without_active_sampling(tmp_path:
     build_grpo_launch_plan(_with_revision(_olmo3_request(), POST5_REVISION, source_dirty=True), tmp_path)
 
 
-SELECTOR_REVISION = "24920b395f8571f8f5be6b9d8469737f2355dcc9"
+SELECTOR_REVISION = FULL_REVISION
 ACTIVE_ONLY_REVISION = "6c7295cd411c4d3973ddc206e43816560c842336"
 CURRICULUM = AdaptiveCurriculum(class_field="domain", policy="yield_first", seed=7)
 

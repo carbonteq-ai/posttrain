@@ -102,7 +102,7 @@ class VerlLoop(VerlContract):
     per_device_batch_size: int = Field(gt=0)
     gradient_accumulation_steps: int = Field(gt=0)
     learning_rate: float = Field(gt=0, allow_inf_nan=False)
-    lr_scheduler_type: Literal["constant", "constant_with_warmup"]
+    lr_scheduler_type: Literal["constant", "constant_with_warmup", "linear"]
     warmup_steps: int = Field(ge=0)
     max_grad_norm: float = Field(gt=0, allow_inf_nan=False)
     checkpoint_steps: int = Field(ge=0)
@@ -169,7 +169,12 @@ class VerlAlgorithm(VerlContract):
     normalize_advantage_by_std: bool | None = None
     # Decoupled sampler correction: weight = min(exp(old_logp - rollout_logp), cap) per token.
     rollout_importance_sampling: Literal["token", "sequence"] | None = None
+    # TRL's vLLM correction: "truncate" clamps weights to [min, cap]; "mask" zeroes weights outside it.
+    rollout_importance_sampling_mode: Literal["truncate", "mask"] | None = None
     rollout_importance_sampling_cap: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    rollout_importance_sampling_min: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    # GRPO std scaling: None/False keeps plain centring; "group" or "batch" std with TRL's epsilon.
+    advantage_std_scope: Literal["group", "batch"] | None = None
     discount_gamma: float | None = Field(default=None, gt=0, le=1, allow_inf_nan=False)
     step_advantage_weight: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     advantage_normalization: Literal["mean", "mean_std"] | None = None
@@ -275,7 +280,9 @@ class VerlLaunchManifest(VerlContract):
                 self.operation != "grpo"
                 or algorithm.normalize_advantage_by_std is not False
                 or algorithm.rollout_importance_sampling != "token"
+                or algorithm.rollout_importance_sampling_mode != "truncate"
                 or algorithm.rollout_importance_sampling_cap != 2.0
+                or algorithm.rollout_importance_sampling_min is not None
                 or algorithm.clip_epsilon_low != 0.2
                 or algorithm.clip_epsilon_high != 0.272
                 or algorithm.dynamic_sampling
@@ -286,17 +293,23 @@ class VerlLaunchManifest(VerlContract):
                 algorithm.dynamic_sampling or algorithm.active_sampling_max_candidate_batches is None
             ):
                 raise ValueError("veRL active sampling requires a bounded candidate pool and excludes dynamic sampling")
-            if algorithm.online_rl_algorithm not in {"olmo3", "sampo"} and (
-                algorithm.rollout_importance_sampling is not None
-                or algorithm.rollout_importance_sampling_cap is not None
+            trl_objective = algorithm.online_rl_algorithm in {"grpo", "dapo", "olmo3", "sampo"}
+            if trl_objective and (algorithm.rollout_importance_sampling is None) != (
+                algorithm.rollout_importance_sampling_mode is None
             ):
-                raise ValueError("veRL maps sampler correction only for OLMo 3 and SAMPO")
-            if algorithm.online_rl_algorithm != "olmo3" and algorithm.normalize_advantage_by_std is not None:
-                raise ValueError("veRL maps advantage scaling only for OLMo 3")
+                raise ValueError("veRL sampler correction needs both its level and its mode")
+            if not trl_objective and algorithm.rollout_importance_sampling is not None:
+                raise ValueError("veRL maps TRL's sampler correction only for GRPO, DAPO, OLMo 3 and SAMPO")
+            if algorithm.online_rl_algorithm not in {"grpo", "dapo", "olmo3"} and (
+                algorithm.normalize_advantage_by_std is not None or algorithm.advantage_std_scope is not None
+            ):
+                raise ValueError("veRL maps GRPO advantage scaling only for GRPO, DAPO and OLMo 3")
+            if algorithm.normalize_advantage_by_std is False and algorithm.advantage_std_scope is not None:
+                raise ValueError("an unscaled GRPO advantage has no std scope")
+            if algorithm.advantage_std_scope == "batch" and algorithm.dynamic_sampling:
+                raise ValueError("batch advantage scaling with DAPO dynamic sampling is TRL-only")
             if algorithm.online_rl_algorithm == "sampo" and (
-                algorithm.rollout_importance_sampling is None
-                or algorithm.rollout_importance_sampling_cap is None
-                or not algorithm.active_sampling
+                algorithm.rollout_importance_sampling is None or not algorithm.active_sampling
             ):
                 raise ValueError("the SAMPO manifest requires its sampler correction and active sampling")
         else:

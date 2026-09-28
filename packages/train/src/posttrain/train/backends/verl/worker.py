@@ -29,7 +29,7 @@ from .metrics import read_verl_metric_records
 
 _METRIC = re.compile(r"'([^']+)':\s*(?:np\.float\d+\()?([-+0-9.eE]+)")
 _INLINE_METRIC = re.compile(r"(?<![\w/])([A-Za-z_][\w]*(?:/[A-Za-z0-9_]+)*):(?:np\.(?:float|int)\d+\()?([-+0-9.eE]+)")
-_ROLLOUT_EXECUTION_FORK_REVISIONS = frozenset({"5dbf667c99b29db613d1dfcded1ed90440ef6311"})
+_ROLLOUT_EXECUTION_FORK_REVISIONS_BASE = frozenset({"5dbf667c99b29db613d1dfcded1ed90440ef6311"})
 # Native veRL names Posttrain selects that upstream veRL v0.9.0 does not register.
 # Each maps to the CarbonTeq fork commits that do register it, with the fork
 # version at that commit. A clean checkout at any other revision is rejected
@@ -38,7 +38,12 @@ _ROLLOUT_EXECUTION_FORK_REVISIONS = frozenset({"5dbf667c99b29db613d1dfcded1ed904
 # (round-based refill with TRL's semantics); ``prompt_selector`` its
 # ``data.prompt_selector`` extension point (used by the adaptive curriculum).
 _OLMO3_OBJECTIVE_NAMES = frozenset({"token_clip", "k3_unclipped"})
-_FORK_ONLY_NATIVE_NAMES = _OLMO3_OBJECTIVE_NAMES | {"active_sampling", "prompt_selector", "sequence_clip"}
+_TRL_SETTING_NAMES = frozenset(
+    {"trl_sampler_correction", "grpo_scaling", "row_exclusion", "admission_retries", "linear_lr"}
+)
+_FORK_ONLY_NATIVE_NAMES = (
+    _OLMO3_OBJECTIVE_NAMES | {"active_sampling", "prompt_selector", "sequence_clip"} | _TRL_SETTING_NAMES
+)
 # The version is recorded for release commits only; a development commit shares
 # its parent release's version string without its content.
 _FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str | None, frozenset[str]]] = {
@@ -55,9 +60,16 @@ _FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str | None, frozenset[str]]] = {
         _OLMO3_OBJECTIVE_NAMES | {"active_sampling", "prompt_selector"},
     ),
     # codex/vortex-active-sampling: plus the sequence_clip loss and SAMPO hierarchy metrics.
-    "d344b545eeb60b8fa1de8174fb65924df26757aa": (None, _FORK_ONLY_NATIVE_NAMES),
-    "4d37a18bc492f0f4f9c224285603740ef4a2ba54": (None, _FORK_ONLY_NATIVE_NAMES),
+    "d344b545eeb60b8fa1de8174fb65924df26757aa": (None, _FORK_ONLY_NATIVE_NAMES - _TRL_SETTING_NAMES),
+    "4d37a18bc492f0f4f9c224285603740ef4a2ba54": (None, _FORK_ONLY_NATIVE_NAMES - _TRL_SETTING_NAMES),
+    # codex/vortex-active-sampling: plus TRL's correction bounds, GRPO scaling, row exclusion,
+    # group admission retries and the linear LR schedule.
+    "c55867dcfa6ca0716bccf57b492e2f4b6f7b0717": (None, _FORK_ONLY_NATIVE_NAMES),
+    # codex/vortex-active-sampling: TRL-mode GRPO statistics bitwise equal to TRL's nanstd.
+    "2607b91d3cccc9d73aae924734b5104bf8cfb590": (None, _FORK_ONLY_NATIVE_NAMES),
 }
+# Every recorded fork commit descends from post2, which added bounded rollout execution.
+_ROLLOUT_EXECUTION_FORK_REVISIONS = _ROLLOUT_EXECUTION_FORK_REVISIONS_BASE | frozenset(_FORK_NATIVE_NAME_REVISIONS)
 _TOKEN_CLIP_FORK_REVISIONS = frozenset(
     revision for revision, (_, names) in _FORK_NATIVE_NAME_REVISIONS.items() if "token_clip" in names
 )
@@ -226,9 +238,9 @@ def build_hydra_overrides(
         "actor_rollout_ref.model.use_remove_padding=False",
         f"actor_rollout_ref.model.enable_gradient_checkpointing={str(loop.gradient_checkpointing).lower()}",
         f"actor_rollout_ref.actor.optim.lr={loop.learning_rate}",
-        # Transformers "constant" and "constant_with_warmup" are veRL constant
-        # with 0 or the selected warmup steps (see backend_support).
-        "actor_rollout_ref.actor.optim.lr_scheduler_type=constant",
+        # Transformers "constant" and "constant_with_warmup" are veRL constant with 0 or the
+        # selected warmup steps; "linear" is the fork's Transformers-identical linear decay.
+        f"actor_rollout_ref.actor.optim.lr_scheduler_type={'linear' if loop.lr_scheduler_type == 'linear' else 'constant'}",
         f"actor_rollout_ref.actor.optim.lr_warmup_steps={loop.warmup_steps}",
         # TrainingLoop has no weight decay; the TRL backend trains with
         # Transformers' default 0.0, and veRL's own default is 0.01.
@@ -300,6 +312,10 @@ def build_hydra_overrides(
         )
         if algorithm.online_rl_algorithm == "olmo3":
             overrides.extend(_olmo3_hydra_overrides(manifest))
+        elif manifest.operation == "grpo":
+            overrides.extend(_trl_grpo_hydra_overrides(manifest))
+        if manifest.operation in {"grpo", "sampo"}:
+            overrides.extend(_trl_shared_hydra_overrides(manifest))
         if algorithm.active_sampling:
             overrides.extend(_active_sampling_hydra_overrides(manifest))
         if algorithm.adaptive_curriculum is not None:
@@ -341,7 +357,6 @@ def build_hydra_overrides(
                     f"algorithm.sampo.discount_gamma={algorithm.discount_gamma}",
                     f"algorithm.sampo.step_advantage_weight={algorithm.step_advantage_weight}",
                     f"algorithm.sampo.advantage_normalization={algorithm.advantage_normalization}",
-                    *_rollout_correction_hydra_overrides(manifest),
                 ]
             )
         if algorithm.dynamic_sampling:
@@ -349,7 +364,8 @@ def build_hydra_overrides(
                 [
                     f"data.gen_batch_size={algorithm.num_prompts_per_step}",
                     "algorithm.filter_groups.enable=true",
-                    "algorithm.filter_groups.metric=seq_reward",
+                    # NaN marks a trajectory TRL excludes from group statistics.
+                    "algorithm.filter_groups.metric=group_reward",
                     f"algorithm.filter_groups.max_num_gen_batches={algorithm.dynamic_sampling_max_candidate_batches}",
                 ]
             )
@@ -489,6 +505,16 @@ def requested_fork_native_names(overrides: list[str]) -> frozenset[str]:
         selected.add("active_sampling")
     if any(value.startswith("data.prompt_selector.class_path=") and not value.endswith("=null") for value in plain):
         selected.add("prompt_selector")
+    if any(value.startswith("algorithm.rollout_correction.rollout_is_log_ratio_bound=") for value in plain):
+        selected.add("trl_sampler_correction")
+    if any(value.startswith("algorithm.grpo_std_") for value in plain):
+        selected.add("grpo_scaling")
+    if "algorithm.exclude_flagged_rows=true" in plain:
+        selected.add("row_exclusion")
+    if any(value.startswith("trainer.v1.sampler.failed_group_attempts=") for value in plain):
+        selected.add("admission_retries")
+    if "actor_rollout_ref.actor.optim.lr_scheduler_type=linear" in plain:
+        selected.add("linear_lr")
     return frozenset(selected & _FORK_ONLY_NATIVE_NAMES)
 
 
@@ -518,7 +544,7 @@ def _validate_fork_native_names(manifest: VerlLaunchManifest, overrides: list[st
 def _kl_loss_type(manifest: VerlLaunchManifest) -> str:
     """veRL's KL estimator: TRL's unclipped k3 wherever the objective must match it."""
 
-    if manifest.operation in {"gdpo", "capo", "sampo"} or manifest.payload.algorithm.online_rl_algorithm == "olmo3":
+    if manifest.operation in {"grpo", "gdpo", "capo", "sampo"}:
         return "k3_unclipped"
     return "low_var_kl"
 
@@ -543,19 +569,72 @@ def _olmo3_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
     return [
         "actor_rollout_ref.actor.policy_loss.loss_mode=token_clip",
         "algorithm.norm_adv_by_std_in_grpo=false",
-        *_rollout_correction_hydra_overrides(manifest),
     ]
 
 
-def _rollout_correction_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
-    """Decoupled sampler correction truncated at the selected cap (old log-probs recomputed)."""
+def _trl_grpo_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
+    """TRL's GRPO/DAPO objective: plain token clipping and TRL's advantage scaling (epsilon 1e-4)."""
 
     algorithm = manifest.payload.algorithm
-    if algorithm.rollout_importance_sampling is None or algorithm.rollout_importance_sampling_cap is None:
+    overrides = ["actor_rollout_ref.actor.policy_loss.loss_mode=token_clip"]
+    if algorithm.normalize_advantage_by_std is False:
+        overrides.append("algorithm.norm_adv_by_std_in_grpo=false")
+    else:
+        overrides.extend(
+            [
+                "algorithm.norm_adv_by_std_in_grpo=true",
+                "algorithm.grpo_std_epsilon=0.0001",
+                f"algorithm.grpo_std_scope={algorithm.advantage_std_scope or 'group'}",
+            ]
+        )
+    return overrides
+
+
+def _trl_shared_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
+    """Sampler correction, truncated-completion exclusion and group admission as TRL applies them."""
+
+    algorithm = manifest.payload.algorithm
+    overrides = _rollout_correction_hydra_overrides(manifest)
+    if algorithm.mask_truncated_completions:
+        overrides.append("algorithm.exclude_flagged_rows=true")
+    if not algorithm.active_sampling:
+        # TRL retries a failed group with its prompt, then drops it. Under active sampling it
+        # makes one attempt and refills the missing group, which the active buffer already does.
+        overrides.append(f"trainer.v1.sampler.failed_group_attempts={algorithm.max_admission_attempts or 1}")
+    return overrides
+
+
+def _rollout_correction_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
+    """TRL's vLLM sampler correction: truncate to [min, cap] or mask outside it, from exact ratios."""
+
+    algorithm = manifest.payload.algorithm
+    if algorithm.rollout_importance_sampling is None or algorithm.rollout_importance_sampling_mode is None:
         raise ValueError("the veRL manifest selects no sampler correction")
+    cap = (
+        "inf" if algorithm.rollout_importance_sampling_cap is None else repr(algorithm.rollout_importance_sampling_cap)
+    )
+    if algorithm.rollout_importance_sampling_mode == "truncate":
+        threshold = cap
+        minimum = (
+            "null"
+            if algorithm.rollout_importance_sampling_min is None
+            else repr(algorithm.rollout_importance_sampling_min)
+        )
+    else:
+        # IcePop keeps lower <= w <= upper. Weights are positive, so a vanishing lower bound is
+        # TRL's missing minimum (a ratio that underflows to 0 is 0 either way).
+        lower = (
+            "1e-300"
+            if algorithm.rollout_importance_sampling_min is None
+            else repr(algorithm.rollout_importance_sampling_min)
+        )
+        threshold = f"'{lower}_{cap}'"
+        minimum = "null"
     return [
         f"algorithm.rollout_correction.rollout_is={algorithm.rollout_importance_sampling}",
-        f"algorithm.rollout_correction.rollout_is_threshold={algorithm.rollout_importance_sampling_cap}",
+        f"algorithm.rollout_correction.rollout_is_threshold={threshold}",
+        f"algorithm.rollout_correction.rollout_is_clip_min={minimum}",
+        "algorithm.rollout_correction.rollout_is_log_ratio_bound=null",
         "algorithm.rollout_correction.rollout_is_batch_normalize=false",
         "algorithm.rollout_correction.rollout_rs=null",
         "algorithm.rollout_correction.bypass_mode=false",
@@ -611,7 +690,7 @@ def _active_sampling_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
         f"algorithm.active_sampling.oversample={algorithm.active_sampling_oversample or 0}",
         f"algorithm.active_sampling.oversample_refill={algorithm.active_sampling_oversample_refill or 0}",
         "algorithm.active_sampling.reward_std_epsilon=0.0",
-        "algorithm.active_sampling.metric=seq_reward",
+        "algorithm.active_sampling.metric=group_reward",
     ]
 
 
@@ -668,7 +747,8 @@ def _rollout_execution_hydra_overrides(manifest: VerlLaunchManifest) -> list[str
         f"actor_rollout_ref.rollout.agent.num_cpus_per_worker={execution.worker_native_threads}",
         f"actor_rollout_ref.rollout.agent.max_concurrent_episodes={global_limit}",
         f"actor_rollout_ref.rollout.agent.max_concurrent_episodes_per_worker={execution.episodes_per_worker}",
-        "trainer.v1.sampler.refill_all_failed_groups=True",
+        # GRPO, DAPO, OLMo 3 and SAMPO follow TRL's group admission instead of refilling failures.
+        *(["trainer.v1.sampler.refill_all_failed_groups=True"] if manifest.operation in {"gdpo", "capo"} else []),
     ]
 
 
@@ -701,6 +781,10 @@ def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
         "data.gen_batch_size=",
         "algorithm.filter_groups.",
         "algorithm.active_sampling",
+        "algorithm.grpo_std_",
+        "algorithm.exclude_flagged_rows",
+        "trainer.v1.sampler.failed_group_attempts",
+        "actor_rollout_ref.actor.optim.lr_scheduler_type",
         "data.prompt_selector",
         "actor_rollout_ref.rollout.agent.agent_loop_config_path=",
         "actor_rollout_ref.rollout.agent.num_workers=",
