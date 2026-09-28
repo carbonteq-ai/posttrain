@@ -280,10 +280,27 @@ adds backend support that meets those contracts; no product meaning changes.
   and the local admission queue are idle, so this checkout starts each
   container itself; a submission that still lands in the queue is cancelled
   and retried under the next attempt id.
-- [ ] Paused at the coordinator's request so the release-0.4.12 veRL check
-  (`q0412g-verl-qwen08b-bf16-r1`) runs first. On resume, in order: Phase 4
-  check `-r5`, Qwen veRL VORTEX `-r2` and SAMPO `-r1`, then the four LFM2.5
-  Phase 6 runs (only if the check succeeds).
+- [x] (2026-09-29) Paused at the coordinator's request for the release-0.4.12
+  veRL checks; no run of this plan was active.
+- [x] (2026-09-29) Rebased onto `origin/codex/release-0.4.12` at `82e20d81`,
+  which pins veRL 0.9.0.post8 (`ef1c3771` = post7 plus agent-loop config
+  defaults). Dropped this branch's post6 and post7 pin and image commits (the
+  release branch pins post8 and ships its image); kept every port, lab and
+  documentation commit. `_FORK_NATIVE_NAME_REVISIONS` keeps the release
+  branch's post7 and post8 entries with the full post6 name set; post8's
+  development commit `bbe090b8` is not recorded because no binding or image
+  selects it. The Phase 4 and Phase 6 veRL bindings pin post8 (`ef1c3771`,
+  backend lock `a8391c4e`). The Phase 6 environment is AutomationBench
+  (`partial_credit`), not a math-verify scorer, so the Verifiers
+  off-main-thread `signal.alarm` bug found by the 0.4.12 checks does not
+  affect these runs; none of this plan's veRL GPU runs trained (all failed at
+  start or the first sync). Validated on post8: full ladder, and the seven
+  parity files (49 passed) and the fork CPU suite (348 passed, 2 skipped)
+  against the post8 release commit.
+- [ ] GPU, when the coordinator releases the local card: Phase 4 check
+  `-r5`, Qwen veRL VORTEX `-r2` and SAMPO `-r1`, then the four LFM2.5 Phase 6
+  runs (only if the check succeeds); all on post8 from a clean detached
+  worktree of the branch head.
 - [x] (2026-09-29) `codex/verl-vortex-active-sampling` rebased onto
   `origin/codex/release-0.4.12` at `36932821` (one test-file conflict, both
   sides kept); full ladder and the seven parity files pass after the rebase.

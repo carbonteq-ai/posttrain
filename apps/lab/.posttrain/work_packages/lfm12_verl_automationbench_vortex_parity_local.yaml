@@ -1,7 +1,7 @@
 project_id: posttrain-lab
 work_package_id: train/lfm2.5-1.2b/verl-automationbench-vortex-parity-local
 stage: train
-description: Phase 6 of docs/plan/verl-vortex-port.md - four lfm2.5-1.2b VORTEX (OLMo 3 objective, oversampled active sampling, curriculum, truncation penalty) updates on veRL 0.9.0.post6 on the local 8 GB GPU over the 24-task AutomationBench comparison set; its TRL twin uses the same seed, data and settings.
+description: Phase 6 of docs/plan/verl-vortex-port.md - four lfm2.5-1.2b VORTEX (OLMo 3 objective, oversampled active sampling, curriculum, truncation penalty) updates on veRL on the local 8 GB GPU over the 24-task AutomationBench comparison set; its TRL twin uses the same seed, data and settings.
 recipe:
   type: inline
   id: recipes/lfm2.5-1.2b-verl-automationbench-vortex-parity@1

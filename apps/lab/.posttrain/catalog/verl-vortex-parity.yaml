@@ -1,7 +1,9 @@
 # veRL VORTEX port qualification (docs/plan/verl-vortex-port.md): the LFM2.5
-# model-family check on veRL 0.9.0.post6 (Phase 4) and the TRL-vs-veRL
-# comparison runs (Phase 6). Every veRL binding pins the post6 kind image
-# (release commit 1badbebd, backend lock 680342f0).
+# model-family check on veRL (Phase 4) and the TRL-vs-veRL comparison runs
+# (Phase 6). Every veRL binding pins the 0.4.12/0.4.13 kind image's veRL
+# 0.9.0.post8 (release commit ef1c3771, backend lock a8391c4e): post6's VORTEX
+# and SAMPO deltas, post7's LoRA tensor-sync fix that LFM2.5 needs, and post8's
+# agent-loop config defaults.
 
 environment:
   # Phase 6 comparison set: 20 single-app tasks and four finance/operations
@@ -121,7 +123,7 @@ training:
   training/lfm2.5-1.2b-verl-lora-local-g4@1: &verl_lfm_training
     selection_type: training-binding
     revision: "1"
-    backend: verl@1badbebd22aee7af5b85185760275f697af3a073
+    backend: verl@ef1c37715fa75de5973ae5b3c398383cd7e0093d
     renderer:
       id: lfm2.5-tools@1
       model_family: lfm2.5
@@ -139,8 +141,8 @@ training:
     backend_options: &verl_lfm_options
       python_executable: /opt/posttrain-verl/bin/python
       working_directory: /opt/posttrain-verl/workdir
-      source_revision: 1badbebd22aee7af5b85185760275f697af3a073
-      dependency_lock_sha256: 680342f0a5b446dcd88370d1ec42cec5ce2e60363426c4ab0d94f97d978c4747
+      source_revision: ef1c37715fa75de5973ae5b3c398383cd7e0093d
+      dependency_lock_sha256: a8391c4e989053e75c76dae38d6e34184e56efc80f5df8cd8550248320c00df8
       source_dirty: false
       attention_implementation: sdpa
       training_precision: bf16
@@ -348,7 +350,7 @@ training:
   training/qwen3.5-0.8b-verl-lora-parity-local-g16@1:
     selection_type: training-binding
     revision: "1"
-    backend: verl@1badbebd22aee7af5b85185760275f697af3a073
+    backend: verl@ef1c37715fa75de5973ae5b3c398383cd7e0093d
     renderer: {id: qwen3.5-off-v1, model_family: qwen3.5, implementation: qwen3.5, reasoning_mode: "off"}
     update: {kind: lora, rank: 8, alpha: 16, target_modules: ".*[.](o_proj|down_proj)$"}
     target: targets/local-cuda-8gb
@@ -385,7 +387,7 @@ training:
   training/lfm2.5-1.2b-verl-lora-parity-local-g16@1:
     selection_type: training-binding
     revision: "1"
-    backend: verl@1badbebd22aee7af5b85185760275f697af3a073
+    backend: verl@ef1c37715fa75de5973ae5b3c398383cd7e0093d
     renderer: {id: lfm2.5-tools@1, model_family: lfm2.5, implementation: default, reasoning_mode: native}
     update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
     target: targets/local-cuda-8gb

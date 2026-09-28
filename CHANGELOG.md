@@ -6,7 +6,8 @@ version across first-party distributions.
 
 ## Unreleased
 
-Targets 0.4.13, which pins CarbonTeq veRL 0.9.0.post6.
+Targets 0.4.13, which keeps CarbonTeq veRL 0.9.0.post8 (pinned by 0.4.12); the VORTEX port
+selects the post6 additions that 0.4.12 leaves off.
 
 ### Changed
 

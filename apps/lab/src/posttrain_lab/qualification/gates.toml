@@ -1354,7 +1354,7 @@ state = "candidate"
 job_kind = "train.grpo"
 acceptance = "verifiers-trajectories"
 experiment_family = "verl-vortex-port-v1"
-hypothesis = "veRL 0.9.0.post6 trains LFM2.5-1.2B (LoRA over hybrid short-convolution blocks with tied embeddings) through two updates on the local 8 GB GPU, rendering and recovering tool calls exactly as TRL, syncing the updated adapter to vLLM and exporting it."
+hypothesis = "veRL 0.9.0.post8 trains LFM2.5-1.2B (LoRA over hybrid short-convolution blocks with tied embeddings) through two updates on the local 8 GB GPU, rendering and recovering tool calls exactly as TRL, syncing the updated adapter to vLLM and exporting it."
 owner = "posttrain-platform"
 replacement_condition = "Retire once the Phase 6 TRL-vs-veRL LFM2.5 comparison of docs/plan/verl-vortex-port.md supersedes it as the LFM2.5 veRL evidence."
 

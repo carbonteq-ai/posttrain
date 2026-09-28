@@ -1073,17 +1073,7 @@ def _pinned_verl_revision() -> str:
     [
         "gdpo",
         "capo",
-        pytest.param(
-            "olmo3",
-            marks=pytest.mark.xfail(
-                strict=True,
-                raises=AssertionError,
-                reason=(
-                    "the veRL job kind pins 0.9.0.post5, which has the OLMo 3 loss but not active sampling; "
-                    "remove this marker in the commit that pins the active-sampling release"
-                ),
-            ),
-        ),
+        "olmo3",
     ],
 )
 def test_pinned_verl_fork_registers_every_native_name_posttrain_requests(monkeypatch, tmp_path, operation):
