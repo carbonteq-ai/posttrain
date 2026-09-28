@@ -1,0 +1,97 @@
+name: Publish retained causal-conv1d rebuild to development
+
+# causal-conv1d is a CUDA extension without an upstream wheel for the runtime
+# images' PyTorch 2.13.0+cu130. CarbonTeq rebuilds the pinned upstream tag with
+# tools/kernel-wheels/causal-conv1d/build.sh and retains the wheel on an
+# immutable GitHub Release of carbonteq-ai/causal-conv1d. This workflow only
+# downloads those bytes, verifies the caller-supplied hash, and publishes them
+# unchanged to carbonteq/dev. It never builds source.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Immutable carbonteq-v causal-conv1d release tag (for example carbonteq-v1.7.0+cu130torch2.13)
+        required: true
+        type: string
+      wheel_sha256:
+        description: Expected SHA-256 of the retained CPython 3.13 x86_64 wheel
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish-causal-conv1d:
+    runs-on: [self-hosted, linux, x64, lan-release]
+    env:
+      UV_SYSTEM_CERTS: "true"
+      INTERNAL_UPLOAD_URL: https://pypi.lan/carbonteq/dev/
+      INTERNAL_SIMPLE_URL: https://pypi.lan/carbonteq/dev/+simple/
+    steps:
+      - name: Download the immutable GitHub Release asset
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          version="${RELEASE_TAG#carbonteq-v}"
+          test "${RELEASE_TAG}" = "carbonteq-v${version}"
+          filename="causal_conv1d-${version}-cp313-cp313-linux_x86_64.whl"
+          encoded_tag="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "${RELEASE_TAG}")"
+          encoded_file="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "${filename}")"
+          mkdir -p causal-conv1d-dist
+          curl --fail --location --retry 3 \
+            "https://github.com/carbonteq-ai/causal-conv1d/releases/download/${encoded_tag}/${encoded_file}" \
+            --output "causal-conv1d-dist/${filename}"
+          {
+            printf 'VERSION=%s\n' "${version}"
+            printf 'WHEEL_FILENAME=%s\n' "${filename}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Verify the retained artifact identity
+        env:
+          WHEEL_SHA256: ${{ inputs.wheel_sha256 }}
+        run: |
+          wheel="causal-conv1d-dist/${WHEEL_FILENAME}"
+          test "$(sha256sum "${wheel}" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
+          uvx twine check "${wheel}"
+          sha256sum "${wheel}" > causal-conv1d-internal-SHA256SUMS
+
+      - name: Publish exact bytes to the development index
+        run: uv publish --publish-url "${INTERNAL_UPLOAD_URL}" --check-url "${INTERNAL_SIMPLE_URL}" causal-conv1d-dist/* || true
+
+      - name: Prove the candidate is stored in development
+        env:
+          WHEEL_SHA256: ${{ inputs.wheel_sha256 }}
+        run: |
+          simple_page="$(curl --fail --location --retry 3 "${INTERNAL_SIMPLE_URL}causal-conv1d/")"
+          printf '%s\n' "${simple_page}" | grep -F "${WHEEL_FILENAME}" | grep -F '../../+f/'
+          uv venv .causal-conv1d-index --clear --python 3.13
+          href="$(printf '%s\n' "${simple_page}" | grep -F ">${WHEEL_FILENAME}<" | grep -F '../../+f/' | \
+            sed -n 's/.*href="\([^"]*\)".*/\1/p' | head -n 1)"
+          test -n "${href}"
+          href="${href%%#*}"
+          url="$(.causal-conv1d-index/bin/python -c \
+            'import sys; from urllib.parse import urljoin; print(urljoin(sys.argv[1], sys.argv[2]))' \
+            "${INTERNAL_SIMPLE_URL}causal-conv1d/" "${href}")"
+          mkdir -p causal-conv1d-index
+          curl --fail --location --retry 3 "${url}" --output "causal-conv1d-index/${WHEEL_FILENAME}"
+          test "$(sha256sum "causal-conv1d-index/${WHEEL_FILENAME}" | cut -d ' ' -f 1)" = "${WHEEL_SHA256}"
+          # Importing the extension needs the image's CUDA PyTorch; the kind
+          # image build and GPU qualification exercise it. Here prove that the
+          # index resolves exactly this version without dependencies.
+          uv pip install --python .causal-conv1d-index/bin/python --no-deps \
+            --index-url "${INTERNAL_SIMPLE_URL}" "causal-conv1d==${VERSION}"
+          .causal-conv1d-index/bin/python - <<'PY'
+          import importlib.metadata
+          import os
+
+          assert importlib.metadata.version("causal-conv1d") == os.environ["VERSION"]
+          PY
+
+      - name: Retain the internal publication receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: causal-conv1d-candidate-${{ inputs.wheel_sha256 }}
+          path: causal-conv1d-internal-SHA256SUMS
+          if-no-files-found: error
