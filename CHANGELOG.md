@@ -98,8 +98,8 @@ oversampled active sampling, and a KL penalty measured against the base model.
 - veRL runs the training loop as selected, or rejects it: `lr_scheduler_type`
   `constant` and `constant_with_warmup` map to veRL's constant schedule with
   zero or `ceil(max_steps * warmup_ratio)` warmup steps, and `linear` is
-  rejected (veRL has no linear decay); `seed` seeds prompt order, the rollout
-  sampler and the FSDP engines; `logging_steps` must be 1; and
+  rejected (this release does not map it to veRL); `seed` seeds prompt order,
+  the rollout sampler and the FSDP engines; `logging_steps` must be 1; and
   `per_device_batch_size` becomes the per-device micro-batch, with
   `per_device_batch_size x gradient_accumulation_steps` required to equal
   prompt groups x generations and to split evenly over the devices. Behaviour
@@ -117,13 +117,23 @@ oversampled active sampling, and a KL penalty measured against the base model.
   version 5). Migrate the shared server to schema version 5 and run dev32
   before job images from this release write to it.
 - Maintained forks: TRL `1.12.0.post11` (oversampling and `peft_reference`),
-  veRL `0.9.0.post5` (loss scale, skipped steps and log-probability gap
-  metrics from post4; `token_clip` and `k3_unclipped`), Trackio
-  `0.31.5.post14.dev32`, and the `causal-conv1d` `1.7.0+cu130torch2.13` rebuild, which is promoted to the stable index as a
+  veRL `0.9.0.post7` (loss scale, skipped steps and log-probability gap
+  metrics from post4; `token_clip` and `k3_unclipped` from post5; post6's
+  opt-in trainer features, which this release does not select; the LoRA
+  weight-sync fix), Trackio `0.31.5.post14.dev32`, and the `causal-conv1d`
+  `1.7.0+cu130torch2.13` rebuild, which is promoted to the stable index as a
   wheel-only fork release.
 
 ### Fixed
 
+- veRL LoRA training on models with fused layers: veRL `0.9.0.post5` named the
+  synced LoRA tensors with vLLM's stacking weight mapper, which merges
+  `q_proj`/`k_proj`/`v_proj` into `qkv_proj` and LFM2's `w1`/`w3` into `w13`,
+  so the constituents collapsed onto one name and the rollout engine crashed
+  or silently loaded the wrong adapter weights. The veRL kind now pins
+  `0.9.0.post7`, which uses vLLM's rename-only mapper as vLLM's own adapter
+  loader does. Every other veRL setting the release generates resolves as on
+  post5.
 - Every job container now gets an explicit `/dev/shm` size. Docker and dstack
   left the 64 MiB default, and veRL's rollout server failed at start
   (`Insufficient space in /dev/shm ... 160 MiB required, 64 MiB free`) on both

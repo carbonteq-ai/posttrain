@@ -1,6 +1,6 @@
 """Ray worker setup hook: start veRL's fp16 ShardedGradScaler at the selected scale.
 
-veRL 0.9.0.post5's FSDP engine creates ``ShardedGradScaler(growth_interval=400)``
+veRL 0.9.0.post5's and post7's FSDP engine creates ``ShardedGradScaler(growth_interval=400)``
 inside its Ray actors, so the starting scale cannot be passed through its
 configuration. The worker passes ``POSTTRAIN_FP16_INITIAL_LOSS_SCALE`` and this
 hook in the Ray runtime environment; the hook runs in every Ray worker process

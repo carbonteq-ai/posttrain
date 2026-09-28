@@ -41,6 +41,10 @@ _FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str, frozenset[str]]] = {
     # carbonteq-v0.9.0.post5 release commit and its asset receipt.
     "9fd6e7a31396ba33a29233cc869ab05b0a9e5a80": ("0.9.0.post5", _FORK_ONLY_NATIVE_NAMES),
     "9c10bd1a5931e7f73dfa4b570eb2c8e767d225ca": ("0.9.0.post5", _FORK_ONLY_NATIVE_NAMES),
+    # carbonteq-v0.9.0.post7 release commit (post6 plus the LoRA-sync rename
+    # mapper) and its asset receipt.
+    "6069abe14e2b3d27c89815a6502b849f15124e12": ("0.9.0.post7", _FORK_ONLY_NATIVE_NAMES),
+    "07ecac23596d7fd6babdfb88e9dc0442dfc65a72": ("0.9.0.post7", _FORK_ONLY_NATIVE_NAMES),
 }
 _TOKEN_CLIP_FORK_REVISIONS = frozenset(
     revision for revision, (_, names) in _FORK_NATIVE_NAME_REVISIONS.items() if "token_clip" in names
@@ -478,7 +482,7 @@ def _validate_fork_native_names(manifest: VerlLaunchManifest, overrides: list[st
     raise ValueError(
         f"selected veRL source revision {manifest.backend_source_revision} does not register "
         f"{', '.join(sorted(missing))}, which the {manifest.operation} objective requires; select CarbonTeq "
-        "veRL 0.9.0.post5 (9fd6e7a31396ba33a29233cc869ab05b0a9e5a80) or a later qualified revision"
+        "veRL 0.9.0.post7 (6069abe14e2b3d27c89815a6502b849f15124e12) or a later qualified revision"
     )
 
 

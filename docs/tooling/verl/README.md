@@ -1,6 +1,44 @@
 # veRL training backend
 
-## 0.9.0.post5 (selected) and the VORTEX port (in progress)
+## 0.9.0.post7 (selected)
+
+Tag `carbonteq-v0.9.0.post7` (release commit
+`6069abe14e2b3d27c89815a6502b849f15124e12`, branch `codex/vortex-lora-sync`,
+asset receipt `07ecac23`) is post6 plus the LoRA weight-sync fix. veRL named
+the synced LoRA tensors with the model's full HF-to-vLLM mapper, whose stacked
+maps rename `q_proj`/`k_proj`/`v_proj` to `qkv_proj` and LFM2's `w1`/`w3` to
+`w13`; the constituents collapsed onto one name, the last one won, and LoRA on
+fused layers crashed or silently loaded the wrong weights. Post7 uses vLLM's
+rename-only mapper, as vLLM's own adapter loader does. Post5 and post6 have the
+bug. Wheel SHA-256
+`9786ec44fbdba367791d8e9a4c58a895955639c79c4b9dd0e3a403a05b5e29c5`, sdist
+SHA-256 `3b0259523476d67aff9282b2b3c775c081bd866c04d369ad7a5eda8af6607088`
+(`carbonteq/dev` serves both). Published: GitHub release
+<https://github.com/carbonteq-ai/verl/releases/tag/carbonteq-v0.9.0.post7> and
+Posttrain run <https://github.com/carbonteq-ai/posttrain/actions/runs/36483660287>.
+
+Post6's additions (round-based active sampling, candidate-batch DAPO, a prompt
+selector, TRL-mode GRPO statistics and excluded rows, admission retries, the
+`sequence_clip` loss, the rollout-correction lower clamp and log-ratio bound,
+a linear LR schedule, extra SAMPO metrics) are opt-in, and 0.4.12's adapter
+selects none of them. Composing veRL's Hydra config for every override set the
+0.4.12 train tests generate (35 sets: GRPO with and without LoRA, DAPO group
+filtering, GDPO, CAPO, OLMo 3, FP16 and BF16 training and rollouts, adapter
+continuation, distillation, TurboQuant KV cache; veRL SAMPO stays rejected)
+under post5 and under post7 differs only by
+the new keys at their defaults (`algorithm.active_sampling.enable=false`,
+`filter_groups.candidate_batches=false`, `grpo_std_epsilon=null`,
+`grpo_std_scope=group`, `exclude_flagged_rows=false`,
+`rollout_correction.rollout_is_clip_min=null`,
+`rollout_is_log_ratio_bound=20.0` (the previous fixed bound),
+`data.prompt_selector.class_path=null`,
+`trainer.v1.sampler.failed_group_attempts=0`); with those defaults the trainer
+takes the post5 code paths. The one runtime change is the LoRA-sync mapper.
+`_FORK_NATIVE_NAME_REVISIONS` records post7 and its receipt, so GDPO and CAPO
+(`token_clip`, `k3_unclipped`) are accepted on it. `codex/release-0.4.12` pins
+post7 for the `online-rl-verl-py313` kind; relocking changed only veRL.
+
+## 0.9.0.post5 and the VORTEX port (in progress)
 
 Tag `carbonteq-v0.9.0.post5` (release commit
 `9fd6e7a31396ba33a29233cc869ab05b0a9e5a80`, branch `codex/vortex`, pushed) is
@@ -55,7 +93,7 @@ Wheel SHA-256
 `1e5e5a50c14ec486019421ca06de03fbbc24010f850f5e66f2d731469a8f8eb0`;
 sdist SHA-256
 `8620646c250e85a0dee984d360a4c102e97a4776d5711accea8eb66a743445e5`.
-Post4 is published; post5 (below) contains it and is the 0.4.12 selection.
+Post4 is published; post5 and post7 contain it; post7 is the 0.4.12 selection.
 
 ## Rollout-execution development candidate
 

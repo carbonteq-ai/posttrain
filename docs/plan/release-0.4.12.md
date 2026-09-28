@@ -67,6 +67,7 @@ settings of running experiments.
 - [x] (2026-09-28 15:32Z) Trackio server: Doris backups, `migrate-doris --to 5`, dev32 deployed, episode-ending backfill (record merged from `codex/trackio-next` `c896ef58`; `docs/tooling/trackio/README.md`).
 - [x] (2026-09-28) Observatory semantic SQL read the first discovered project; now the requested or configured source (`aae90bb4`), checked read-only against the dev32 server (posttrain-lab 58 runs; ai-infra-qualification 0).
 - [x] (2026-09-29) Every job container gets an explicit `/dev/shm` size (veRL rollout servers failed at start on both providers with Docker's 64 MiB default): 16 GiB by default, target placement `shm_size_gb` / `host_memory_gb`; local `docker run --shm-size`, dstack `resources.shm_size` plus a matching `resources.memory` minimum; recorded in job plan, run plan, provider plan and submission receipt.
+- [x] (2026-09-29) veRL 0.9.0.post7 pinned (`6069abe1`: post6 plus the LoRA-sync rename mapper; post5 merged q/k/v and LFM2 w1/w3 LoRA tensors onto one name). Relock changed only veRL: backend lock `a9562cb1…`, constraints `8562363a…`; profile, forks ledger, the precision and adapter-continuation bindings and the native-name gate (post7 + receipt `07ecac23`) follow. Hydra config for all 35 test-generated override sets differs from post5 only by post6's new keys at their inert defaults. Needs the veRL kind image republished.
 - [ ] GPU gates on the new images: #1 kernels in the kind image, #2/#9 precision arms, #6 cancel on the 8 GB card, #8 veRL continuation (fresh then `--model-from-run`), #5 oversampling canary.
 - [ ] Release candidate per `docs/release-engineering.md`; final.
 - [ ] Deploy the 0.4.12 Observatory from ai-infra branch `deploy/observatory-0.4.12` (`9d3c7e3`, sets `POSTTRAIN_OBSERVATORY_DEFAULT_SOURCE=posttrain-lab`), then run the post-deploy check below.
@@ -189,6 +190,9 @@ followed by the touched packages' tests (run with `CUDA_VISIBLE_DEVICES=""`).
   a reservation. On dstack the offer's RAM minimum is raised to the shm size
   (or the declared host memory) so it can hold it. The cleanup containers
   only run find/mv/rm and keep the default.
+- Decision (coordinator, 2026-09-29): pin veRL 0.9.0.post7 in 0.4.12 for the
+  LoRA weight-sync fix; post6's trainer features stay unselected, so every
+  other generated veRL setting behaves as on post5.
 - Decision (user): FP16 A/B replicates the paper's headline pair (BF16/BF16 vs
   FP16/FP16, arXiv 2510.26788 Section 4.4) on Qwen3.5-0.8B.
 
