@@ -69,6 +69,7 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
     )
     if problem is not None:
         raise ValueError(problem)
+    _validate_adapter_continuation(request.policy, request.training.update)
     return _plan(
         request,
         output_dir,
@@ -118,6 +119,7 @@ def build_structured_launch_plan(request: GDPORequest | CAPORequest, output_dir:
 
     _validate_backend(request.training.backend)
     _validate_model(request.policy, "policy")
+    _validate_adapter_continuation(request.policy, request.training.update)
     technique = "gdpo" if isinstance(request, GDPORequest) else "capo"
     settings = request.settings
     algorithm: dict[str, Any] = {
@@ -774,6 +776,10 @@ def _validate_model(model: ModelVariant, role: str) -> None:
 def _model(model: ModelVariant | None) -> VerlModel | None:
     if model is None:
         return None
+    base = None
+    if model.form in {"adapter", "peft-adapter"}:
+        # The adapter is attached to its foundation weights inside veRL.
+        base = VerlHubArtifact(repo_id=model.base.repo_id, revision=model.base.revision)
     if isinstance(model.artifact, HubModelRef):
         artifact = VerlHubArtifact(repo_id=model.artifact.repo_id, revision=model.artifact.revision)
     elif isinstance(model.artifact, LocalArtifactRef):
@@ -787,7 +793,30 @@ def _model(model: ModelVariant | None) -> VerlModel | None:
         artifact=artifact,
         tokenizer_fingerprint=model.tokenizer_fingerprint,
         renderer_contract=model.renderer_contract,
+        base=base,
     )
+
+
+def _validate_adapter_continuation(model: ModelVariant, update: object) -> None:
+    """A PEFT-adapter starting model continues training that adapter, so the plan must match it."""
+
+    # The request itself rejects a full-parameter update from an unmerged adapter.
+    if model.form not in {"adapter", "peft-adapter"} or not isinstance(update, LoRAUpdate):
+        return
+    if not isinstance(model.artifact, LocalArtifactRef):
+        raise ValueError("the host must materialize the starting adapter before veRL training")
+    config_path = model.artifact.path / "adapter_config.json"
+    try:
+        config = json.loads(config_path.read_text())
+    except (OSError, ValueError) as error:
+        raise ValueError(f"starting adapter lacks a readable {config_path.name}") from error
+    rank = config.get("r")
+    if rank != update.rank:
+        # vLLM sizes its LoRA slots from the binding's rank; the actor takes the adapter's.
+        raise ValueError(
+            f"the starting adapter has LoRA rank {rank} but the training binding selects rank {update.rank}; "
+            "select a binding with the adapter's rank"
+        )
 
 
 def _inference(binding: Any) -> VerlInference:

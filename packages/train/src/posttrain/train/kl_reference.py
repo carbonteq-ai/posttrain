@@ -28,20 +28,21 @@ def kl_reference_problem(backend: str, beta: float, kl_reference: str | None, po
     """Explain a KL reference the selected training backend cannot provide.
 
     TRL continues a PEFT adapter with either reference (``peft_reference``) and loads
-    no other non-foundation form for training. veRL computes a LoRA reference with
-    the adapter disabled and otherwise loads the reference from the actor's own path,
-    the starting checkpoint; Posttrain passes it no adapter path, so it cannot
-    continue a PEFT adapter at all.
+    no other non-foundation form for training. veRL continues a PEFT adapter by
+    loading the foundation model and attaching the adapter; with LoRA its reference
+    is the actor with the adapter disabled, the base model, and it cannot hold a
+    frozen copy of the starting adapter. For any other starting model veRL loads the
+    reference from the actor's own path, the starting checkpoint.
     """
 
-    if backend.split("@", 1)[0] != "verl":
+    if backend.split("@", 1)[0] != "verl" or beta == 0:
         return None
-    if policy_form in {"adapter", "peft-adapter"}:
+    if policy_form in {"adapter", "peft-adapter"} and kl_reference == "start":
         return (
-            "the veRL backend cannot continue a PEFT adapter (it would load the adapter directory as the model); "
-            "select the TRL backend"
+            "veRL scores the KL reference with the LoRA adapter disabled (the base model) and cannot hold a frozen "
+            "copy of the starting adapter; set kl_reference: base or select the TRL backend"
         )
-    if beta > 0 and kl_reference == "base" and policy_form != "foundation":
+    if policy_form not in {"foundation", "adapter", "peft-adapter"} and kl_reference == "base":
         return (
             f"veRL uses the starting checkpoint as the KL reference, so kl_reference: base cannot hold for a "
             f"{policy_form} starting model; set kl_reference: start or select the TRL backend"

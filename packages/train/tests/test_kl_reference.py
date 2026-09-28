@@ -107,13 +107,16 @@ def test_earlier_trl_releases_reject_a_base_reference_for_a_continued_adapter() 
         _trainer_arguments(ReleasedConfig, {"peft_reference": "base"}, request)
 
 
-def test_verl_rejects_references_it_cannot_provide() -> None:
+def test_verl_rejects_only_references_it_cannot_provide() -> None:
     assert kl_reference_problem("trl@1.12.0.post11", 0.01, "base", "adapter") is None
+    assert kl_reference_problem("trl@1.12.0.post11", 0.01, "start", "full-finetuned") is None
     assert kl_reference_problem("verl@candidate", 0.01, "base", "foundation") is None
+    # veRL continues an adapter with the adapter disabled as its reference: the base model.
+    assert kl_reference_problem("verl@candidate", 0.01, "base", "adapter") is None
     assert kl_reference_problem("verl@candidate", 0.01, "start", "full-finetuned") is None
-    assert kl_reference_problem("verl@candidate", 0.0, "base", "full-finetuned") is None
+    assert kl_reference_problem("verl@candidate", 0.0, "start", "adapter") is None
     adapter = kl_reference_problem("verl@candidate", 0.01, "start", "adapter")
-    assert adapter is not None and "cannot continue a PEFT adapter" in adapter
+    assert adapter is not None and "cannot hold a frozen copy of the starting adapter" in adapter
     full = kl_reference_problem("verl@candidate", 0.01, "base", "full-finetuned")
     assert full is not None and "set kl_reference: start" in full
 

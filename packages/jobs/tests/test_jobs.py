@@ -645,7 +645,7 @@ def test_static_preparation_bounds_concurrency_by_first_round_oversampling_only(
     ("form", "kl_reference", "message"),
     [
         ("full-finetuned", "base", "veRL uses the starting checkpoint as the KL reference"),
-        ("adapter", "start", "cannot continue a PEFT adapter"),
+        ("adapter", "start", "cannot hold a frozen copy of the starting adapter"),
     ],
 )
 def test_static_preparation_rejects_a_kl_reference_verl_cannot_provide(form, kl_reference, message) -> None:

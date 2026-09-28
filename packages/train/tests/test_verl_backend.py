@@ -1482,3 +1482,62 @@ def test_verl_rollout_honours_the_bindings_prefix_caching_and_eager_choice(
     assert "actor_rollout_ref.rollout.enforce_eager=false" in chosen
     omitted = overrides_for({"enable_prefix_caching": False})
     assert "actor_rollout_ref.rollout.enable_prefix_caching=false" in omitted
+
+
+def _adapter_request(tmp_path: Path, *, rank: int = 8, beta: float = 0.01, kl_reference: str = "base") -> GRPORequest:
+    adapter = tmp_path / "adapter"
+    adapter.mkdir(exist_ok=True)
+    (adapter / "adapter_config.json").write_text(json.dumps({"r": rank, "lora_alpha": 16}))
+    started = replace(
+        QWEN_35_2B,
+        artifact=LocalArtifactRef(adapter.resolve(), "a" * 64),
+        form="adapter",
+        revision=None,
+        parent=QWEN_35_2B.id,
+    )
+    request = _grpo_request(model=started, update=LoRAUpdate(rank=8, alpha=16))
+    return replace(request, settings=replace(request.settings, beta=beta, kl_reference=kl_reference))
+
+
+def test_verl_continues_a_trained_adapter_on_its_foundation_weights(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    request = _adapter_request(tmp_path)
+    plan = build_grpo_launch_plan(request, tmp_path / "out")
+    policy = plan.payload.policy
+    assert policy is not None and policy.base is not None
+    assert (policy.base.repo_id, policy.base.revision) == (QWEN_35_2B.base.repo_id, QWEN_35_2B.base.revision)
+    monkeypatch.setattr(
+        "posttrain.train.backends.verl.worker._model_path",
+        lambda artifact: str(artifact.path) if artifact.kind == "local" else "/models/foundation",
+    )
+
+    overrides = build_hydra_overrides(
+        plan, tmp_path / "rollouts.parquet", tmp_path / "agent-loop.json", tmp_path / "checkpoints"
+    )
+    # The actor and rollout load the foundation; the actor attaches the starting adapter.
+    assert "actor_rollout_ref.model.path=/models/foundation" in overrides
+    assert f"actor_rollout_ref.model.lora_adapter_path={json.dumps(str(tmp_path / 'adapter'))}" in overrides
+    assert "actor_rollout_ref.model.lora_rank=8" in overrides
+    assert "actor_rollout_ref.actor.use_kl_loss=true" in overrides
+
+    fresh = build_hydra_overrides(
+        build_grpo_launch_plan(_grpo_request(update=LoRAUpdate(rank=8, alpha=16)), tmp_path / "fresh"),
+        tmp_path / "rollouts.parquet",
+        tmp_path / "agent-loop.json",
+        tmp_path / "checkpoints",
+    )
+    assert not any(value.startswith("actor_rollout_ref.model.lora_adapter_path=") for value in fresh)
+
+
+def test_verl_adapter_continuation_rejects_what_it_cannot_honor(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="cannot hold a frozen copy of the starting adapter"):
+        build_grpo_launch_plan(_adapter_request(tmp_path, kl_reference="start"), tmp_path / "out")
+    # Without a KL penalty there is no reference to hold.
+    build_grpo_launch_plan(_adapter_request(tmp_path, beta=0.0, kl_reference="start"), tmp_path / "out")
+    with pytest.raises(ValueError, match="starting adapter has LoRA rank 4 but the training binding selects rank 8"):
+        build_grpo_launch_plan(_adapter_request(tmp_path, rank=4), tmp_path / "out")
+    request = _adapter_request(tmp_path)
+    with pytest.raises(ValueError, match="full-parameter updates cannot continue from an unmerged PEFT adapter"):
+        build_grpo_launch_plan(replace(request, training=_training()), tmp_path / "out")
