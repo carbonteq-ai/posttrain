@@ -360,11 +360,18 @@ def _prepare_adaptive_active_sampling_inputs(
     if target_size == 0 or len(candidate_inputs) % max_batches != 0:
         raise RuntimeError("adaptive active sampling received an incomplete candidate generation batch")
 
+    # Oversampling mirrors TRL's GRPOTrainer: extra prompt groups in the first round
+    # and in each refill, no round larger than the first, cut to the reservation.
+    # Trainers from TRL releases before these settings never oversample.
+    first_round_extra_rows = int(getattr(trainer, "active_sampling_oversample", 0)) * trainer.num_generations
+    refill_extra_rows = int(getattr(trainer, "active_sampling_oversample_refill", 0)) * trainer.num_generations
+    oversampling = bool(first_round_extra_rows or refill_extra_rows)
     retained_batches: list[dict[str, Any]] = []
     retained_count = 0
     candidate_count = 0
     candidate_cursor = 0
     generation_rounds = 0
+    oversampled_count = 0
     for round_index in range(1, max_batches + 1):
         local_missing = max(target_size - retained_count, 0)
         missing_by_process = trainer.accelerator.gather(torch.tensor(local_missing, device=trainer.accelerator.device))
@@ -373,16 +380,24 @@ def _prepare_adaptive_active_sampling_inputs(
             break
         if synchronized_missing % trainer.num_generations != 0:
             raise RuntimeError("adaptive active sampling refill size must contain complete prompt groups")
-        if candidate_cursor + synchronized_missing > len(candidate_inputs):
+        round_size = synchronized_missing
+        if oversampling:
+            requested = min(
+                synchronized_missing + (refill_extra_rows if round_index > 1 else first_round_extra_rows),
+                target_size + first_round_extra_rows,
+            )
+            round_size = max(min(requested, len(candidate_inputs) - candidate_cursor), synchronized_missing)
+        if candidate_cursor + round_size > len(candidate_inputs):
             raise RuntimeError("adaptive active sampling exhausted its bounded candidate capacity")
 
         candidate_batch = runtime.select_task_groups(
-            synchronized_missing // trainer.num_generations,
+            round_size // trainer.num_generations,
             step=step,
             selection_kind="active_sampling_refill",
             round_index=round_index,
         )
-        candidate_cursor += synchronized_missing
+        candidate_cursor += round_size
+        oversampled_count += round_size - synchronized_missing
 
         try:
             scored_batch = trainer._generate_and_score_completions(candidate_batch)
@@ -435,15 +450,15 @@ def _prepare_adaptive_active_sampling_inputs(
                 f"native_group_std={native_group_values} trl_group_std={trl_group_values}",
                 flush=True,
             )
-        runtime.context.metrics(
-            {
-                "train/rl/active_sampling_round_requested_rows": len(candidate_batch),
-                "train/rl/active_sampling_round_kept_rows": kept_rows,
-                "train/rl/active_sampling_round_kept_fraction": kept_rows / len(candidate_batch),
-            },
-            step=step,
-            attributes={"round_index": round_index},
-        )
+        round_metrics = {
+            "train/rl/active_sampling_round_requested_rows": len(candidate_batch),
+            "train/rl/active_sampling_round_kept_rows": kept_rows,
+            "train/rl/active_sampling_round_kept_fraction": kept_rows / len(candidate_batch),
+        }
+        if oversampling:
+            # Rows the round needed; the rest of the requested rows were oversampled.
+            round_metrics["train/rl/active_sampling_round_missing_rows"] = synchronized_missing
+        runtime.context.metrics(round_metrics, step=step, attributes={"round_index": round_index})
         generation_rounds += 1
         candidate_count += len(candidate_batch)
         if keep.any():
@@ -485,6 +500,13 @@ def _prepare_adaptive_active_sampling_inputs(
     # generation round before filtering. Report the batch actually optimized.
     trainer._metrics["train"]["active_sampling/retained_groups"].append(retained_count / trainer.num_generations)
     trainer._metrics["train"]["active_sampling/generated_groups"].append(candidate_count / trainer.num_generations)
+    if oversampling:
+        trainer._metrics["train"]["active_sampling/oversampled_groups"].append(
+            oversampled_count // trainer.num_generations
+        )
+        trainer._metrics["train"]["active_sampling/discarded_groups"].append(
+            max(retained_count - target_size, 0) // trainer.num_generations
+        )
     advantages = batch.get("advantages")
     if isinstance(advantages, torch.Tensor) and advantages.numel() % trainer.num_generations == 0:
         zero = advantages.detach().abs().reshape(-1, trainer.num_generations) <= 1e-8

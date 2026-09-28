@@ -111,13 +111,41 @@ class DynamicGroupSampling:
 
 @dataclass(frozen=True, slots=True)
 class ActiveGroupSampling:
-    """Bounded OLMo 3 refill sampling for reward-constant prompt groups."""
+    """Bounded OLMo 3 refill sampling for reward-constant prompt groups.
+
+    Each update reserves ``num_prompts_per_step * max_candidate_batches`` candidate
+    prompts. The first round generates the target prompt groups plus ``oversample``
+    extra groups; each refill round generates the missing groups plus
+    ``oversample_refill``, never more than the first round. Both count prompt groups,
+    not rows or episodes, and every round is cut to the remaining reservation. The
+    update keeps the first target groups with reward spread in candidate order and
+    discards surplus groups, so oversampling trades extra rollouts for fewer serial
+    refill rounds without changing how the update is assembled. The first round,
+    ``(num_prompts_per_step + oversample) * num_generations`` episodes, is the largest
+    concurrent rollout load and must fit the rollout concurrency.
+    """
 
     max_candidate_batches: int = 10
+    oversample: int = 0
+    oversample_refill: int = 0
 
     def __post_init__(self) -> None:
         if self.max_candidate_batches < 1:
             raise ValueError("active sampling max candidate batches must be positive")
+        if self.oversample < 0 or self.oversample_refill < 0:
+            raise ValueError("active sampling oversample and oversample_refill must be non-negative prompt groups")
+
+    def validate_reservation(self, num_prompts_per_step: int) -> None:
+        """Require the candidate reservation to hold the oversampled first round."""
+
+        reserved = num_prompts_per_step * self.max_candidate_batches
+        if self.oversample and reserved < num_prompts_per_step + self.oversample:
+            raise ValueError(
+                f"active sampling oversample {self.oversample} needs {num_prompts_per_step + self.oversample} "
+                f"candidate prompts in the first round but each update reserves {reserved} "
+                f"({num_prompts_per_step} prompts x {self.max_candidate_batches} max_candidate_batches); "
+                "raise max_candidate_batches or lower oversample"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,6 +234,11 @@ class GRPOSettings:
     # scored rollout that finished. None keeps truncated rollouts at task reward.
     truncation_penalty: float | None = None
     max_admission_attempts: int = 3
+    # KL reference when beta > 0: "base" measures distance from the foundation model,
+    # "start" from the checkpoint the run started from. They differ only when the run
+    # continues a trained adapter (for example `--model-from-run`); a fresh LoRA
+    # adapter starts at zero, so both are the base model.
+    kl_reference: Literal["base", "start"] = "base"
 
     def __post_init__(self) -> None:
         _validate_settings(self.id, self.revision)
@@ -260,6 +293,8 @@ class GRPOSettings:
             raise ValueError("active group sampling requires the OLMo 3 algorithm")
         if self.algorithm == "olmo3" and self.active_sampling is None:
             raise ValueError("OLMo 3 requires active group sampling")
+        if self.active_sampling is not None:
+            self.active_sampling.validate_reservation(self.num_prompts_per_step)
         if self.overlong_buffer_tokens is not None:
             if self.algorithm != "dapo":
                 raise ValueError("soft overlong punishment requires the DAPO algorithm")
@@ -274,6 +309,8 @@ class GRPOSettings:
                 raise ValueError("GRPO truncation penalty has no effect when truncated completions are masked")
         if self.max_admission_attempts < 1:
             raise ValueError("GRPO group admission attempts must be positive")
+        if self.kl_reference not in {"base", "start"}:
+            raise ValueError("KL reference must be 'base' or 'start'")
 
     @property
     def resolved_clip_epsilon_high(self) -> float:
@@ -328,6 +365,11 @@ class SAMPOSettings:
     shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
     max_admission_attempts: int = 1
+    # KL reference when beta > 0: "base" measures distance from the foundation model,
+    # "start" from the checkpoint the run started from. They differ only when the run
+    # continues a trained adapter (for example `--model-from-run`); a fresh LoRA
+    # adapter starts at zero, so both are the base model.
+    kl_reference: Literal["base", "start"] = "base"
     revision: str = "1"
 
     def __post_init__(self) -> None:
@@ -358,6 +400,9 @@ class SAMPOSettings:
             raise ValueError("SAMPO clip epsilons must be positive")
         if self.max_admission_attempts < 1:
             raise ValueError("SAMPO group admission attempts must be positive")
+        if self.kl_reference not in {"base", "start"}:
+            raise ValueError("KL reference must be 'base' or 'start'")
+        self.active_sampling.validate_reservation(self.num_prompts_per_step)
         bounds = (self.importance_sampling_clip_min, self.importance_sampling_clip_max)
         if any(value is not None and (not math.isfinite(value) or value <= 0) for value in bounds):
             raise ValueError("SAMPO importance-sampling bounds must be finite and positive")

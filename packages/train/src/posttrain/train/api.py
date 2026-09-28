@@ -761,9 +761,12 @@ def _seat_attributes(
         attributes["clip_epsilon_high"] = request.settings.resolved_clip_epsilon_high
         attributes["mask_truncated_completions"] = request.settings.mask_truncated_completions
         attributes["shuffle_prompts"] = request.settings.shuffle_prompts
+        attributes["kl_reference"] = request.settings.kl_reference
         attributes["active_sampling"] = request.settings.active_sampling is not None
         if request.settings.active_sampling is not None:
             attributes["active_sampling_max_candidate_batches"] = request.settings.active_sampling.max_candidate_batches
+            attributes["active_sampling_oversample"] = request.settings.active_sampling.oversample
+            attributes["active_sampling_oversample_refill"] = request.settings.active_sampling.oversample_refill
         attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
         if request.settings.truncation_penalty is not None:
             attributes["truncation_penalty"] = request.settings.truncation_penalty
@@ -793,8 +796,11 @@ def _seat_attributes(
                 "advantage_normalization": request.settings.advantage_normalization,
                 "mask_truncated_completions": request.settings.mask_truncated_completions,
                 "shuffle_prompts": request.settings.shuffle_prompts,
+                "kl_reference": request.settings.kl_reference,
                 "active_sampling": True,
                 "active_sampling_max_candidate_batches": request.settings.active_sampling.max_candidate_batches,
+                "active_sampling_oversample": request.settings.active_sampling.oversample,
+                "active_sampling_oversample_refill": request.settings.active_sampling.oversample_refill,
                 "adaptive_curriculum_policy": (
                     request.settings.adaptive_curriculum.policy
                     if request.settings.adaptive_curriculum is not None

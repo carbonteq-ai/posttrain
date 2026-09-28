@@ -53,6 +53,7 @@ from .grpo_observations import (
     normalize_grpo_metrics,
     required_grpo_metrics,
 )
+from .kl_reference import describe_kl_reference, kl_reference_problem, resolved_kl_reference
 from .model_configuration import ResolvedTrainingModelConfiguration, resolve_training_model_configuration
 from .online_rl import (
     AgenticTurn,
@@ -109,6 +110,7 @@ from .results import TeacherScoringSummary, TrainingResult, TrainingSummary
 from .reward_advantages import RewardAdvantages, compute_capo_advantages, compute_gdpo_advantages
 from .reward_evidence import InvalidRewardEvidence, ProcessCredit, RewardEvidence, RewardValue
 from .reward_projection import RewardComponentProjection, RewardProjection
+from .rollout_execution import oversampled_round_capacity_error
 from .sampo_advantages import SAMPOAdvantages, compute_sampo_advantages
 from .transform import (
     TransformContext,
@@ -241,6 +243,10 @@ __all__ = [
     "build_verifiers_grpo_request",
     "build_verifiers_sampo_request",
     "validate_verifiers_policy_sampling",
+    "oversampled_round_capacity_error",
+    "describe_kl_reference",
+    "kl_reference_problem",
+    "resolved_kl_reference",
     "compute_sampo_advantages",
     "normalize_grpo_metrics",
     "render_preferences",

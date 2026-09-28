@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import replace
+from dataclasses import fields, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -38,6 +38,7 @@ from .policy_config import (
     _online_rl_arguments,
     _online_rl_runtime_attributes,
     _resolved_precision,
+    validate_oversampled_round_capacity,
 )
 from .policy_curriculum import (
     AdaptiveCurriculumRuntime as _AdaptiveCurriculumRuntime,
@@ -248,6 +249,11 @@ def _run_online_rl(
                 callbacks=callbacks,
             )
             _configure_liger_loss(trainer, request)
+            # Re-check with the engine's resolved limit before the first rollout.
+            validate_oversampled_round_capacity(
+                request,
+                vllm_max_num_seqs=getattr(getattr(trainer, "vllm_generation", None), "max_num_seqs", None),
+            )
         resume = str(request.resume_from.path) if request.resume_from is not None else None
         with trainer_lifecycle(trainer):
             try:
@@ -338,6 +344,16 @@ def _trainer_arguments(
 ) -> Any:
     """Build the TRL config; the OLMo 3 recipe takes its selectable KL penalty after construction."""
 
+    unsupported = sorted(
+        name
+        for name in ("active_sampling_oversample", "active_sampling_oversample_refill", "peft_reference")
+        if name in arguments and name not in {item.name for item in fields(config_type)}
+    )
+    if unsupported:
+        raise RuntimeError(
+            f"{request.training.backend} does not provide {', '.join(unsupported)}; active_sampling oversample, "
+            "oversample_refill and kl_reference: base for a continued adapter require TRL 1.12.0.post11 or later"
+        )
     config = config_type(**arguments)
     if isinstance(request, GRPORequest) and request.settings.algorithm == "olmo3":
         # Olmo3GRPOConfig declares beta as a fixed init=False field (always 0.0), so

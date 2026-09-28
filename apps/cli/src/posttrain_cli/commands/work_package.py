@@ -13,7 +13,7 @@ import typer
 from posttrain.common import ConfigurationIssue, ContractError, HostedInferenceBinding, InferenceBinding
 from posttrain.execution import ProjectControlLocator, compare_job_packages, unchanged_fields
 from posttrain.project import JobIntent, Project
-from posttrain.train import TrainingBinding
+from posttrain.train import GRPOSettings, SAMPOSettings, TrainingBinding, describe_kl_reference
 from posttrain.train.precision import ResolvedPrecision, resolve_precision
 from posttrain.work import resolve_work_package, run_work_package_job, work_package_findings
 
@@ -274,6 +274,10 @@ def plan_work_package_cmd(
     if precision is not None:
         payload["precision"] = precision.as_dict()
         lines.append(f"Precision: {precision.summary()}")
+    kl_line = _kl_reference_line(intent.prepared.seats)
+    if kl_line is not None:
+        payload["kl_reference"] = kl_line
+        lines.append(kl_line)
     paid_judge_limits = _paid_judge_limits(intent.prepared.seats)
     if paid_judge_limits:
         payload["paid_judge_cost_limits"] = paid_judge_limits
@@ -800,6 +804,13 @@ def _training_precision(seats: Mapping[str, object]) -> ResolvedPrecision | None
     if rollout is None:
         return resolve_precision(training.backend_options, None, "bf16", backend=backend).without_rollout()
     return resolve_precision(training.backend_options, rollout.engine, rollout.model.weight_precision, backend=backend)
+
+
+def _kl_reference_line(seats: Mapping[str, object]) -> str | None:
+    settings = seats.get("settings")
+    if not isinstance(settings, GRPOSettings | SAMPOSettings):
+        return None
+    return describe_kl_reference(settings.beta, settings.kl_reference)
 
 
 def _paid_judge_limits(seats: Mapping[str, object]) -> dict[str, dict[str, object]]:

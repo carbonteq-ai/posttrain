@@ -12,3 +12,4 @@ files:
   - starter-qualification.yaml
   - transform-qualification.yaml
   - verl-capsule-qualification.yaml
+  - verl-adapter-continuation.yaml

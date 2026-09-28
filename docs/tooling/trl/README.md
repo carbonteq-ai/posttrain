@@ -28,6 +28,69 @@ resume checkpoint 1 to matching uninterrupted weights, and generate from the
 export. This is deterministic full-parameter fixture evidence, not live Verifiers,
 judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
 
+Prepared candidate (not yet published): `1.12.0.post11`, fork branch
+`codex/active-sampling-oversample`, release commit
+`3135b502d69956200d1c030a514470c351d2ee9f` (feature commits `0b428cd6` and
+`2393648d`), on top of post10. It adds active-sampling oversampling:
+`GRPOConfig.active_sampling_oversample` adds that many prompt groups to the
+first round and `active_sampling_oversample_refill` adds that many to each
+refill round, never exceeding the first round. The update still keeps the first
+target groups with reward spread in candidate order and discards the surplus.
+Both default to `0`, which is byte-for-byte post10 behavior. Local build from
+the release commit (`SOURCE_DATE_EPOCH=1790604110 uv build --python 3.13` on a
+`git archive` export; the wheel rebuilds to identical bytes, the sdist does
+not): wheel SHA-256
+`7fcea40a21239ae57d22333aa612af939cf8e44a72443681ad4900a697e5a5b2`; sdist
+`bb3cdec95d3562054b4ad599a8ce8975232f466c7a593171f8798372c40c7785`. Publish
+those exact files, or record the new hashes if the release is rebuilt. The
+Posttrain pin stays at post10 until publication.
+
+Post11 also adds `peft_reference` to `GRPOConfig` and `RLOOConfig`. Upstream
+gives a run that continues a trained adapter a frozen copy of that adapter as
+its KL reference, so every `--model-from-run` restart re-anchored the penalty
+to an already drifted policy. `peft_reference="base"` creates no copy and
+scores the reference with adapters disabled, the base model. Posttrain's GRPO
+and SAMPO settings take `kl_reference: base | start`, default `base`. The TRL
+backend passes `peft_reference="base"` only for a continued adapter with
+`beta > 0` and `kl_reference: base`; everywhere else TRL's default already gives
+the intended reference (a fresh LoRA adapter starts at zero, so disabling it is
+the base model, and a full-parameter run from the foundation loads the
+foundation as `ref_model`). The TRL backend loads no other starting form for
+training: a full-parameter update from an adapter or a `full-finetuned`
+checkpoint is rejected when the model loads. `kl_reference` is part of the
+SAMPO reward-contract digest; `start` hashes like settings written before the
+field existed, so older checkpoints resume with `kl_reference: start`, and a
+resume that would switch the reference is refused. `posttrain job plan` prints
+the reference and runs record `kl_reference` (resolved: `off`, `base` or
+`start`) and `kl_reference_setting`. GDPO and CAPO have no setting and keep TRL's
+default. The veRL backend continues an adapter on its foundation weights and
+computes the LoRA reference with the adapter disabled (the base model), and
+otherwise loads the reference from the starting checkpoint; job planning and
+the veRL launcher reject `kl_reference: start` for a continued adapter and
+`kl_reference: base` for any other non-foundation starting model (see
+`docs/tooling/verl/README.md`).
+
+Posttrain exposes it as GRPO (OLMo 3) and SAMPO settings
+`active_sampling: {max_candidate_batches: N, oversample: K1, oversample_refill:
+K2}`, counted in prompt groups. `oversample` and `oversample_refill` are passed
+to TRL only when non-zero, so exact refill keeps working on post10; a non-zero
+value with an earlier TRL fails before training with the required version. The
+adaptive-curriculum sampler in `policy_curriculum.py` applies the same round
+sizes. The first round, `(num_prompts_per_step + oversample) *
+num_generations` episodes, is the largest round and must fit every rollout
+concurrency limit: the rollout engine's `max_num_seqs` (TRL's default is one
+generation batch), the environment's `max_concurrent` and, with native workers,
+`env_workers * episodes_per_worker`. `posttrain job plan` and trainer start
+reject an oversampled first round that exceeds any of them, naming each limit.
+The candidate reservation (`num_prompts_per_step * max_candidate_batches`) must
+hold `num_prompts_per_step + oversample` and still fit the environment's tasks.
+Oversampling is excluded from the SAMPO reward-contract digest: it changes
+rollout cost and wall time, not rewards, credit or how an update is assembled,
+so existing checkpoints keep their digest and a resumed run may turn it on.
+With an adaptive curriculum it does change which tasks later rounds select,
+because extra groups add evidence before a refill is chosen; that is a sampling
+choice recorded in the run attributes, not a learning-semantics change.
+
 Latest candidate: `1.12.0.post10`, release commit
 `4950b99d457faacbec856cbd5305732e7b3cf7b0`, tag `carbonteq-v1.12.0.post10`.
 It makes the single-process GRPO actor update cheaper for long agentic

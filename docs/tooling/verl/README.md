@@ -162,6 +162,40 @@ adapter rejects unqualified families before starting Ray.
 This first slice accepts full-parameter and LoRA updates. QLoRA and
 quantization-aware updates are not qualified.
 
+A GRPO run can continue a trained LoRA adapter (`--model-from-run` of an
+adapter view). The launcher records the adapter's foundation as the model's
+`base`; the worker loads that foundation as `actor_rollout_ref.model.path` and
+attaches the adapter with the fork's `actor_rollout_ref.model.lora_adapter_path`
+(upstream veRL: the FSDP engine calls `PeftModel.from_pretrained(...,
+is_trainable=True)`). The synchronous trainer's initial weight sync then gives
+the vLLM rollout that adapter before the first collection, and the adapter
+keeps training. With LoRA, veRL's KL reference is the actor with the adapter
+disabled, the base model, so `kl_reference: base` holds; veRL cannot keep a
+frozen copy of the starting adapter, so `kl_reference: start` with `beta > 0`
+is rejected at planning and launch. The adapter's `adapter_config.json` rank
+must equal the binding's LoRA rank, because vLLM sizes its LoRA slots from the
+binding. Any other non-foundation starting model (for example
+`full-finetuned`) takes its reference from the starting checkpoint, so there
+`kl_reference: base` is rejected and `start` is required. No fork change was
+needed; published post3 (`18338a0e`) already carries `lora_adapter_path`.
+
+GPU qualification of this path is blocked by the published `online-rl-verl-py313`
+kind image, not by the continuation code. Packing
+`qwen08b_verl_grpo_2_adapter_continuation.yaml` (Qwen 3.5 0.8B, local RTX 3070 Ti)
+cannot package any Verifiers environment for that kind. Its control
+environment locks Verifiers `cdd2ec76` and its backend environment
+`b71ade0a`, so gsm8k-v1 0.3.0 (`cdd2ec76`) fails the backend resolution with
+conflicting Verifiers URLs. gsm8k-v1 0.2.0 (`b71ade0a`) and the unpinned
+alphabet-sort environment resolve, but the kind declares neither
+`provided_packages` nor `backend_provided_packages`. The backend compile
+therefore emits `verifiers @ git+...` without a hash, and environment
+packaging rejects it ("every compiled dependency must have a sha256 hash"). The
+release tooling derives provided packages only from
+`profiles/<variant>.txt`, which the veRL kind lacks. The fix is a veRL kind
+rebuild whose backend selects the framework's Verifiers revision and declares
+Verifiers as provided in both roles; then run the package fresh and again with
+`--model-from-run` of its adapter.
+
 | Technique | Accepted family | Validation status |
 | --- | --- | --- |
 | GRPO | Qwen 3.5 | Qwen 3.5 0.8B ordinary BF16 LoRA qualified locally on GPU |

@@ -10,11 +10,16 @@ from typing import Any, cast
 
 from posttrain.common import JsonValue
 
+from ...kl_reference import resolved_kl_reference
 from ...online_rl import policy_sampling_from_binding
 from ...precision import ResolvedPrecision, logits_float32, resolve_precision, training_precision
-from ...profiles import CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings
+from ...profiles import ActiveGroupSampling, CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings
 from ...requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
-from ...rollout_execution import RolloutExecutionConfig, validate_execution_config
+from ...rollout_execution import (
+    RolloutExecutionConfig,
+    oversampled_round_capacity_error,
+    validate_execution_config,
+)
 from .common import trainer_arguments, vllm_rollout_options
 from .policy_rollouts import technique as _technique
 
@@ -58,6 +63,7 @@ def _online_rl_arguments(
     template_kwargs: dict[str, Any],
 ) -> dict[str, Any]:
     _rollout_execution_config(request)
+    validate_oversampled_round_capacity(request)
     arguments = trainer_arguments(
         request.settings.loop, output_dir, precision=training_precision(request.training.backend_options)
     )
@@ -197,6 +203,7 @@ def _online_rl_arguments(
         arguments["active_sampling"] = True
         arguments["active_sampling_max_batches"] = settings.active_sampling.max_candidate_batches
         arguments["active_sampling_reward_std_epsilon"] = 0.0
+        arguments.update(_oversample_arguments(settings.active_sampling))
     if is_olmo3:
         # Olmo3GRPOConfig owns these recipe-defining fields as init=False
         # invariants. Posttrain only supplies workload and capacity controls.
@@ -216,6 +223,12 @@ def _online_rl_arguments(
         olmo3_settings = cast(GRPOSettings, settings)
         assert olmo3_settings.active_sampling is not None
         arguments["active_sampling_max_batches"] = olmo3_settings.active_sampling.max_candidate_batches
+        arguments.update(_oversample_arguments(olmo3_settings.active_sampling))
+    if kl_reference(request) == "base" and request.policy.form in {"adapter", "peft-adapter"}:
+        # TRL's default reference for a continued adapter is a frozen copy of it;
+        # "base" scores the reference with adapters disabled. Fresh adapters and
+        # full-parameter foundation runs already use the base model.
+        arguments["peft_reference"] = "base"
     if request.inference.backend.split("@", 1)[0] == "vllm":
         rollout = request.inference.engine
         speculative = rollout.get("speculative_config")
@@ -266,6 +279,64 @@ def _online_rl_arguments(
             ):
                 arguments.pop(name)
     return arguments
+
+
+def kl_reference(request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest) -> str:
+    return resolved_kl_reference(
+        request.settings.beta, getattr(request.settings, "kl_reference", None), request.policy.form
+    )
+
+
+def _oversample_arguments(active_sampling: ActiveGroupSampling) -> dict[str, int]:
+    """Select TRL oversampling only when requested, so exact refill works on earlier TRL releases."""
+
+    arguments = {}
+    if active_sampling.oversample:
+        arguments["active_sampling_oversample"] = active_sampling.oversample
+    if active_sampling.oversample_refill:
+        arguments["active_sampling_oversample_refill"] = active_sampling.oversample_refill
+    return arguments
+
+
+def validate_oversampled_round_capacity(
+    request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
+    *,
+    vllm_max_num_seqs: int | None = None,
+) -> None:
+    """Fail before rollout when the oversampled first round exceeds the resolved rollout concurrency.
+
+    ``vllm_max_num_seqs`` is the engine's resolved limit once it exists; before
+    construction it is derived the way TRL derives it: the binding's declared
+    ``max_num_seqs``, or one generation batch per process times tensor parallelism.
+    """
+
+    active_sampling = getattr(request.settings, "active_sampling", None)
+    if not isinstance(active_sampling, ActiveGroupSampling) or active_sampling.oversample == 0:
+        return
+    engine = request.inference.engine
+    if vllm_max_num_seqs is None and request.inference.backend.split("@", 1)[0] == "vllm":
+        declared = engine.get("max_num_seqs")
+        tensor_parallel = engine.get("tensor_parallel_size", 1)
+        loop = request.settings.loop
+        vllm_max_num_seqs = (
+            declared
+            if isinstance(declared, int)
+            else loop.per_device_batch_size
+            * loop.gradient_accumulation_steps
+            * (tensor_parallel if isinstance(tensor_parallel, int) else 1)
+        )
+    execution = _rollout_execution_config(request)
+    environment_limit = getattr(request.bridge, "max_concurrent", None)
+    error = oversampled_round_capacity_error(
+        num_prompts_per_step=request.settings.num_prompts_per_step,
+        num_generations=request.settings.num_generations,
+        oversample=active_sampling.oversample,
+        vllm_max_num_seqs=vllm_max_num_seqs,
+        environment_max_concurrent=environment_limit if isinstance(environment_limit, int) else None,
+        worker_slots=(execution.env_workers, execution.episodes_per_worker) if execution is not None else None,
+    )
+    if error is not None:
+        raise ValueError(error)
 
 
 def _rollout_execution_config(
@@ -412,6 +483,12 @@ def _online_rl_runtime_attributes(
         "active_sampling": active_sampling is not None,
         "active_sampling_max_candidate_batches": (
             active_sampling.max_candidate_batches if active_sampling is not None else None
+        ),
+        "kl_reference": kl_reference(request),
+        "kl_reference_setting": getattr(request.settings, "kl_reference", None),
+        "active_sampling_oversample": active_sampling.oversample if active_sampling is not None else None,
+        "active_sampling_oversample_refill": (
+            active_sampling.oversample_refill if active_sampling is not None else None
         ),
         "adaptive_curriculum": curriculum is not None,
         "adaptive_curriculum_sampling_mode": (

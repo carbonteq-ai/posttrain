@@ -38,6 +38,10 @@ class VerlModel(VerlContract):
     artifact: VerlModelArtifact
     tokenizer_fingerprint: str | None
     renderer_contract: str
+    # Set for a PEFT-adapter model: the foundation weights the adapter in
+    # `artifact` is attached to. veRL loads it as the actor model path and the
+    # adapter through `lora_adapter_path`.
+    base: VerlHubArtifact | None = None
 
 
 class VerlTarget(VerlContract):

@@ -20,7 +20,7 @@ from ...rollout_execution import RolloutExecutionConfig, validate_execution_conf
 from ..retention import finalize_training_outputs
 from .contracts import (
     VerlLaunchManifest,
-    VerlModel,
+    VerlModelArtifact,
     VerlPayload,
     VerlTrainingSummary,
     VerlWorkerResult,
@@ -144,7 +144,11 @@ def build_hydra_overrides(
     backend_options = training.backend_options
     model = payload.policy if manifest.operation in {"grpo", "sampo", "gdpo", "capo"} else payload.student
     assert model is not None
-    model_path = _model_path(model)
+    # A PEFT-adapter model trains the adapter on its foundation weights: the actor
+    # and rollout load the foundation, the actor attaches the starting adapter, and
+    # the first weight sync gives the rollout that adapter. With LoRA the KL
+    # reference is the actor with the adapter disabled, i.e. the base model.
+    model_path = _model_path(model.base if model.base is not None else model.artifact)
     world_size = training.target.world_size
     nnodes = runtime_options.nodes
     n_gpus_per_node = runtime_options.devices_per_node or world_size // nnodes
@@ -344,6 +348,10 @@ def build_hydra_overrides(
                 f"actor_rollout_ref.model.target_modules={json.dumps(update.target_modules)}",
             ]
         )
+        if model.base is not None:
+            overrides.append(
+                f"actor_rollout_ref.model.lora_adapter_path={json.dumps(str(_model_path(model.artifact)))}"
+            )
     if manifest.operation == "distill":
         teacher = payload.teacher
         teacher_scoring = payload.teacher_scoring
@@ -376,7 +384,7 @@ def build_hydra_overrides(
                 "distillation.enable_resource_pool=False",
                 f"distillation.n_gpus_per_node={teacher_gpus_per_node}",
                 f"distillation.nnodes={teacher_nnodes}",
-                f"distillation.teacher_models.teacher_model.model_path={_model_path(teacher)}",
+                f"distillation.teacher_models.teacher_model.model_path={_model_path(teacher.artifact)}",
                 f"distillation.teacher_models.teacher_model.num_replicas={teacher_replicas}",
                 "distillation.teacher_models.teacher_model.inference.name=vllm",
                 f"distillation.teacher_models.teacher_model.inference.dtype={teacher_dtype}",
@@ -571,8 +579,7 @@ def _write_agent_config(payload: VerlPayload, path: Path) -> None:
     path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
 
 
-def _model_path(model: VerlModel) -> str:
-    artifact = model.artifact
+def _model_path(artifact: VerlModelArtifact) -> str:
     if artifact.kind == "hub":
         try:
             from huggingface_hub import snapshot_download
