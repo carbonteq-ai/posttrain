@@ -65,7 +65,8 @@ settings of running experiments.
 - [x] (2026-09-28) Lab environments validate against Verifiers `cdd2ec76` (`5ef066ef`: seat-level harness, timeouts and turn/token limits in 23+5 environments; new test `apps/lab/tests/test_environment_activation_configs.py`); `gsm8k-grpo-qualification` deferred (`8eaa90ea`); rollout-topology tests independent of the host CPU count (`b61f5c18`, Quality run 36448533918). `posttrain job pack --local --allow-deferred-qualification` succeeds for the veRL adapter continuation (package `0e0790de…`), `gsm8k_qwen08b_grpo_qualification` (TRL, `3398f813…`) and `environment_library_ifeval_qualification` (`d8bb514f…`).
 - [ ] Push `codex/release-0.4.12`, open the release PR, wait for Quality (dispatch it with `allow_pending_runtime_lock=true` if the push run needs it).
 - [ ] Publish the 0.4.12 job-kind images (locally per `docs/publishing.md` step 7, or in the candidate) so `published.toml` records the merged locks and veRL post4; then `posttrain-release check` (strict) passes and the veRL packages can pack.
-- [ ] Trackio server: Doris backup, `migrate-doris --to 5`, dev32 server, before any 0.4.12 job image writes to it.
+- [x] (2026-09-28 15:32Z) Trackio server: Doris backups, `migrate-doris --to 5`, dev32 deployed, episode-ending backfill (record merged from `codex/trackio-next` `c896ef58`; `docs/tooling/trackio/README.md`).
+- [x] (2026-09-28) Observatory semantic SQL read the first discovered project; now the requested or configured source (`aae90bb4`), checked read-only against the dev32 server (posttrain-lab 58 runs; ai-infra-qualification 0).
 - [ ] GPU gates on the new images: #1 kernels in the kind image, #2/#9 precision arms, #6 cancel on the 8 GB card, #8 veRL continuation (fresh then `--model-from-run`), #5 oversampling canary.
 - [ ] Release candidate per `docs/release-engineering.md`; final.
 
