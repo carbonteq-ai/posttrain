@@ -5,6 +5,9 @@ description = "Dependency-only Python 3.13.12 lock for the online-rl-verl-py313 
 requires-python = "==3.13.12"
 dependencies = [
     "accelerate>=1.14,<1.15",
+    # Verifiers requires the CarbonTeq renderers fork; pin the framework's exact
+    # pre-release so control and backend install the same bytes.
+    "carbonteq-renderers==0.1.12.post1.dev2",
     "codetiming>=1.4,<1.5",
     "datasets>=4.5,<5",
     "dill>=0.4,<0.5",
@@ -54,11 +57,12 @@ system-certs = true
 environments = ["sys_platform == 'linux' and platform_machine == 'x86_64' and python_full_version == '3.13.12'"]
 
 [tool.uv.sources]
+carbonteq-renderers = { index = "carbonteq-dev" }
 causal-conv1d = { index = "carbonteq-dev" }
 torch = { index = "pytorch-cu130" }
 torchaudio = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
-verifiers = { git = "https://github.com/carbonteq-ai/verifiers.git", rev = "b71ade0a7ac712cdee9e1a4c0e53030d70768aff" }
+verifiers = { git = "https://github.com/carbonteq-ai/verifiers.git", rev = "cdd2ec7614131545df66484f9de11250daf16065" }
 verl = { git = "https://github.com/carbonteq-ai/verl.git", rev = "18338a0efbd6f103378d2861f4a078ad243db455" }
 vllm = { git = "https://github.com/carbonteq-ai/vllm.git", rev = "f09e4479123d348cee87d217c695a22f9b2daacc" }
 

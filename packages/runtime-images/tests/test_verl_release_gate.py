@@ -319,3 +319,26 @@ def test_ready_profile_requires_real_container_smoke_not_definition_strings(
     )
 
     assert "release requires the real veRL Docker/Bake smoke gate" in blockers
+
+
+def test_verl_control_and_backend_select_the_framework_verifiers() -> None:
+    """One Verifiers revision across the framework, veRL control and veRL backend.
+
+    The backend project is locked separately; it once kept Verifiers b71ade0a
+    after the framework moved to cdd2ec76, so no environment could be packed.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "posttrain_runtime_validate", ROOT / "containers" / "posttrain-job-kinds" / "validate.py"
+    )
+    assert spec is not None and spec.loader is not None
+    validate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(validate)
+    validate._validate_shared_verifiers()
+    project = (PROFILE_ROOT / "release" / "pyproject.toml").read_text(encoding="utf-8")
+    assert validate._verifiers_revisions(project) == validate._verifiers_revisions(
+        (ROOT / "containers" / "posttrain-job-kinds" / "profiles" / "online-rl-verl-py313-control.txt").read_text(
+            encoding="utf-8"
+        )
+    )
+    stale = project.replace(next(iter(validate._verifiers_revisions(project))), "b71ade0a" + "0" * 32)
+    assert validate._verifiers_revisions(stale) != validate._verifiers_revisions(project)

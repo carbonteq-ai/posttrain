@@ -1700,3 +1700,20 @@ def test_kinds_that_provide_verifiers_also_provide_its_locked_renderers_fork() -
     assert _provided_packages("serve", root) == ()
     manifest = (root / "published.toml").read_text(encoding="utf-8")
     assert 'provided_packages = ["verifiers"]\n' not in manifest
+
+
+def test_verl_declares_verifiers_provided_in_both_environments() -> None:
+    """Environment wheels compile against both veRL roles.
+
+    With no provided packages the backend compile emitted Verifiers as an
+    unhashed Git URL and every veRL environment pack failed.
+    """
+    from posttrain_release.publish import _backend_provided_packages, _provided_packages
+
+    root = (
+        Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+        / "packages/runtime-images/src/posttrain/runtime_images"
+    )
+    assert _provided_packages("online-rl-verl-py313", root) == ("verifiers", "carbonteq-renderers")
+    assert _backend_provided_packages("online-rl-verl-py313", root) == ("verifiers", "carbonteq-renderers")
+    assert _backend_provided_packages("online-rl-trl-py312", root) == ()
