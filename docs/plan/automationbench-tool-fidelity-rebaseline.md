@@ -44,9 +44,10 @@ and lab catalog entries.
   (`environments/automationbench_v1/src/automationbench/`), bump the adapter
   to 0.5.0, lock, push.
 - [ ] Posttrain lab catalog: held-out suites `automationbench-lfm26-heldout-mix-v4`
-  and `...-v4-t05`, identical to the v3 suites (same sampling, budgets and
-  tasks) except the fixed adapter, with their evaluation plans, work packages
-  and gates.
+  and `...-v4-t05` on the fixed adapter, same tasks and budgets as v3, both
+  sampling with Liquid's top-k 50 / repetition penalty 1.1 / top-p 1.0 at
+  temperature 0.1 and 0.5, with their evaluation plans, work packages and
+  gates.
 - [ ] Re-baseline: base, SAMPO update 120, continuation updates 20 and 40 on
   both suites; record score, tool mistakes per episode and truncation.
 
@@ -77,11 +78,12 @@ and lab catalog entries.
 - Decision (user): re-baseline held-out evaluations on the fixed environment;
   new suites get new ids so the old numbers stay valid for old comparisons.
   Date: 2026-09-28.
-- Decision (user): the re-baseline changes only the tools. Each v4 suite
-  keeps its v3 settings exactly (v4: temperature 0.1, top-p 1.0, top-k 50,
-  repetition penalty 1.1, 3 attempts; v4-t05: temperature 0.5, top-p 0.95,
-  5 attempts). No sampling change is added to the temperature-0.5 suite or to
-  training. Date: 2026-09-28.
+- Decision (user): evaluations sample with Liquid's recommended numbers
+  from the model's `generation_config.json` (top-k 50, repetition penalty 1.1,
+  no top-p cut) and the two v4 suites differ only in temperature: v4 at 0.1
+  (3 attempts, as v3), v4-t05 at 0.5 (5 attempts). Training sampling stays as
+  it is (temperature 0.5, top-p 0.95, no top-k or repetition penalty).
+  Date: 2026-09-28.
 - Decision: evaluation score stays partial credit, the benchmark's own
   measure; tool mistakes per episode, truncation and the training-penalised
   score are reported beside it (user noted the old evaluations did not
