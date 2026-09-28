@@ -71,3 +71,11 @@ sha256sum backend-constraints.txt
 
 Then update `dependency_lock_sha256` and `backend_constraints_sha256` in
 `../profile.toml` to match.
+
+The backend must select the framework's Verifiers revision (the one in
+`packages/eval/pyproject.toml`) and the same `carbonteq-renderers` release as
+the control environment: environment wheels are compiled once and installed
+into both roles, and `posttrain-release images publish` declares Verifiers and
+its companions as provided packages for both. When the framework moves
+Verifiers, move `[tool.uv.sources] verifiers` here and `verifiers_revision` in
+`../profile.toml` in the same change; `validate.py` fails otherwise.

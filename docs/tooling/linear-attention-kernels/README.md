@@ -158,6 +158,7 @@ The scripts and raw results are recorded in
 
 ## Remaining gates
 
-causal-conv1d publication (above), then `adopt.py`, the kind image publish and
-`published.toml`. Eval and serve images run Qwen3.5 only through vLLM, which
-vendors its own copy of the kernels.
+Build and publish the job-kind images from the release branch and regenerate
+`published.toml` there; promote causal-conv1d to `carbonteq/stable`. Eval and
+serve images run Qwen3.5 only through vLLM, which vendors its own copy of the
+kernels.

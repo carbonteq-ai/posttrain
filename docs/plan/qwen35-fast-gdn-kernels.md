@@ -50,8 +50,19 @@ runtime images and does not change any public API or product meaning.
   the causal-conv1d wheel: warning gone, finite bf16/fp16 gradients, 0.36-0.38 s versus 1.70-1.72 s.
 - [x] (13:40Z) `tools/kernel-wheels/causal-conv1d/adopt.py`: after publication, one command adds causal-conv1d
   wherever fla-core is and regenerates every derived lock (separate commit).
-- [ ] Publish causal-conv1d to `carbonteq/dev` (blocked on credentials and GitHub release; see Outcomes).
-- [ ] Run `adopt.py`, the ladder, rebuild and publish the kind images, regenerate `published.toml`.
+- [x] (14:05Z) Published causal-conv1d: forked `carbonteq-ai/causal-conv1d` (public, like the other forks), ledger
+  commit `b7bec200` on the unmodified v1.7.0 base, pre-release `carbonteq-v1.7.0+cu130torch2.13` with the wheel
+  (read back by hash); PR #130 (workflow only) merged as `305d5269`; run 36433711245 published it to
+  `carbonteq/dev`; the index serves `b69f3914…4947a`.
+- [x] (14:20Z) Ran `adopt.py`; fixed two adoption gaps it exposed (the quantization project needs a direct index-file
+  reference because `transform.lock.txt` carries no index URL; the veRL project needs `system-certs = true`);
+  kind smokes and the veRL release gate pass with the locked wheel (`15e7236c`).
+- [x] (15:10Z) Fixed the veRL Verifiers split (see Surprises and Decision Log), added a validation check, and verified
+  `posttrain job pack` of two veRL work packages against a rebuilt veRL image.
+- [x] (15:40Z) Sequencing change from the release owner: job-kind images and `published.toml` are built once from the
+  integrated release branch `codex/release-0.4.12`. The development images already pushed as `0.4.12.dev1` are left
+  unreferenced and the two manifest commits were dropped from this branch. Composition with the veRL 0.9.0.post4 pin
+  (`969adbfd`) was checked in a scratch tree (see Outcomes).
 
 ## Surprises & Discoveries
 
@@ -79,6 +90,16 @@ runtime images and does not change any public API or product meaning.
 - Observation: installing fla-core adds a `# via fla-core` comment to the `einops` entry of the eval, serve
   and vllm-common locks, changing their bytes and therefore their lock digests. Their contents are the same,
   but the next image publish rebuilds those kinds (mostly from cache).
+- Observation: the published veRL image had Verifiers cdd2ec76 in its control environment but b71ade0a (with upstream
+  `renderers` 0.1.12.dev3) in its backend, so no Verifiers environment could be packed for veRL.
+  Evidence: the backend is locked by its own project (`verl-py313/release/pyproject.toml` and `uv.lock`). Commits
+  61859ba3 (b71ade0a → d223c320) and de5aa014 (→ cdd2ec76) moved the eval/data/train extras and every kind profile,
+  including `profiles/online-rl-verl-py313-control.txt`, but never the backend project, and nothing compared them.
+  Independently, `posttrain-release images publish` derived provided packages from `profiles/<variant>.txt`, which
+  does not exist for veRL (its control profile is `*-control.txt`), and never derived `backend_provided_packages`,
+  so the veRL image declared none and each environment compile emitted Verifiers as an unhashed Git URL.
+- Observation: the unpublished veRL 0.9.0.post4 pin (`969adbfd`) also keeps backend Verifiers b71ade0a; the new
+  validation rejects it until it is integrated with this branch's Verifiers pin.
 - Observation: the benchmark first ran with the model in eval mode, so gradient checkpointing was inactive and
   every step ran out of memory. `model.train()` fixes it; Transformers applies checkpointing only in training
   mode.
@@ -119,6 +140,19 @@ runtime images and does not change any public API or product meaning.
   environments. The backend shares torch and Triton with the control environment through the
   `shared-heavy.toml` fallback, so fla-core's Triton kernels use the same Triton 3.7.1.
   Date/Author: 2026-09-28, Claude.
+- Decision: fix the veRL split at the source, not by widening packing: pin the backend project to the framework's
+  Verifiers (cdd2ec76) and `carbonteq-renderers==0.1.12.post1.dev2` from `carbonteq-dev`; derive control provided
+  packages from the veRL control profile and backend provided packages from `backend-constraints.txt` in
+  `apps/release/src/posttrain_release/publish.py`; make `validate.py` fail unless the framework, veRL control
+  profile, backend project, backend lock, backend constraints and `profile.toml` select one Verifiers revision.
+  Rationale: environment wheels are compiled once and installed into both roles; one hashed Verifiers must satisfy
+  both, and the drift must be caught before an image is built.
+  Date/Author: 2026-09-28, Claude.
+- Decision: do not publish job-kind images from this branch (release owner's sequencing).
+  Rationale: all images are built once from `codex/release-0.4.12`, which also carries TRL post11, veRL post4 and
+  Trackio dev32. This branch leaves `published.toml` at the 0.4.11 manifest; `posttrain-release check` reports the
+  kinds stale until the release candidate rebuilds them.
+  Date/Author: 2026-09-28, Claude.
 - Decision: stage causal-conv1d adoption as a script (`adopt.py`) rather than a commit of manifest edits.
   Rationale: `uv lock` cannot resolve causal-conv1d until the index serves it, so a commit editing the
   manifests now would leave `uv sync --locked` and Quality broken on the branch. The script refuses to run
@@ -143,26 +177,38 @@ forward+backward on 2,048 tokens (tied embedding frozen, loss on the last 256 to
 fp16 (veRL) and 0.38 s / 0.36 s (transform), against 1.72 s and 1.70 s bf16 in the published images, with the
 warning gone and finite gradients.
 
-Blocked: causal-conv1d publication. The repository's route for CarbonTeq-built artifacts is: attach the wheel
-to an immutable GitHub Release of a CarbonTeq repository, then dispatch the repository-owned publisher on the
-`lan-release` runner, which holds `UV_PUBLISH_USERNAME`/`UV_PUBLISH_PASSWORD` for `https://pypi.lan/carbonteq/dev/`.
-None of those credentials or GitHub rights were available to this work. A maintainer must:
+causal-conv1d is published (`carbonteq-ai/causal-conv1d` release `carbonteq-v1.7.0+cu130torch2.13`, Posttrain
+run 36433711245, `carbonteq/dev` serves SHA-256 `b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a`)
+and locked by `adopt.py` into the trl extra, the quantization tool, the veRL backend and the supervised and
+transform profiles.
 
-1. create `carbonteq-ai/causal-conv1d` (mirror of `Dao-AILab/causal-conv1d`) with a `CARBONTEQ_FORK.md`
-   stating "no source delta; binary rebuild of v1.7.0 for torch 2.13.0+cu130 by
-   tools/kernel-wheels/causal-conv1d/build.sh";
-2. create release `carbonteq-v1.7.0+cu130torch2.13` with the retained wheel
-   (SHA-256 `b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a`);
-3. merge this branch so `.github/workflows/publish-causal-conv1d-internal.yml` is on `main`, then run
-   `gh workflow run publish-causal-conv1d-internal.yml -f release_tag='carbonteq-v1.7.0+cu130torch2.13'
-   -f wheel_sha256=b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a`.
+Pack verification. With the rebuilt veRL image (development push `0.4.12.dev1`,
+`posttrain-kind-online-rl-verl-py313@sha256:6354e5a44d1b561d62d47b3f03f1fb563e497483e202c9282292dd955b561b53`, now
+unreferenced), `posttrain job pack --local` succeeded for both
+`qwen08b_gsm8k_verl_grpo_precision_bf16_local.yaml` (branch `codex/precision-fp16-verl` at `e7edb8ef`, merged into a
+scratch tree) and `qwen08b_verl_sampo_2_qualification.yaml`: one hashed Verifiers compiled for control and backend
+and the environment wheel installed in both roles. Each package also needed catalog fixes that are independent of
+the image and belong to its owner:
 
-Then run `uv run python tools/kernel-wheels/causal-conv1d/adopt.py`, the ladder, and the image publish.
+- precision: the veRL `dependency_lock_sha256` must be the new backend lock digest; its `gsm8k-grpo-precision`
+  activation declares `harness`/`timeout` both under `agent` and at the top level, which Verifiers cdd2ec76 (already
+  the control Verifiers of the published image) rejects; and the environment loads `openai/gsm8k` from the Hub, so it
+  needs `qualification: deferred` (as the other lab gsm8k environments have) and `--allow-deferred-qualification`.
+- SAMPO-2: `training/qwen3.5-0.8b-verl-grpo-capsule-lora@4` pins veRL `c3f49b91` and an old lock, and the base
+  `multi-turn-alphabet-sort` environment's sampling (max_tokens 2048, no temperature/top_p) disagrees with
+  `inference/qwen3.5-0.8b-vllm-distill-rollout@2` (384, 1.0, 1.0), which the online-RL sampling check rejects before
+  any image step.
 
-A maintainer who already holds devpi credentials could instead upload the same file directly with
-`UV_PUBLISH_USERNAME=... UV_PUBLISH_PASSWORD=... uv publish --publish-url https://pypi.lan/carbonteq/dev/
-causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl`, but that bypasses the retained-release
-record the fork policy requires.
+Composition with veRL 0.9.0.post4 (`969adbfd`, scratch cherry-pick): take its fork fields (revision `54124edf`,
+tag, wheel/sdist hashes) and keep this branch's Verifiers cdd2ec76, carbonteq-renderers, fla-core, causal-conv1d and
+`carbonteq-dev` index; relock gives backend `uv.lock` `d33bdfa77c23649a4eaa4fde34224f16d145421f66919232d2c52cf69394e845`
+and constraints `2c185aa1f15f2f82f1021457bc973b8d8df798f08fb93aafccf51f41003675df` (re-derive them on the release
+branch). The definition check, `validate.py`, the release-image tests and the full veRL release gate (real Bake
+smoke against a clean veRL checkout at `54124edf`) pass on that composition.
+
+Remaining: build and publish the job-kind images from `codex/release-0.4.12` and regenerate `published.toml` there;
+promote causal-conv1d to `carbonteq/stable` (add it to `promote-retained-fork-candidate.yml` and `release/forks.toml`;
+the promotion workflow currently expects an sdist, which this binary-only release does not have).
 
 ## Context and Orientation
 
@@ -207,7 +253,7 @@ kind (`tools/quantization/pyproject.toml`, `uv lock --project tools/quantization
 tools/quantization ... --output-file .../locks/transform.lock.txt` command from `.github/workflows/quality.yml`,
 and `uv run posttrain-release lock-dependencies`, which refreshes the catalog `quantization.yaml` digest).
 
-Milestone 4 (blocked) publishes causal-conv1d, then `tools/kernel-wheels/causal-conv1d/adopt.py` adds
+Milestone 4 (done) published causal-conv1d, then `tools/kernel-wheels/causal-conv1d/adopt.py` adds
 `"causal-conv1d==1.7.0+cu130torch2.13; sys_platform == 'linux' and platform_machine == 'x86_64'"` to the `trl`
 extra with `causal-conv1d = { index = "carbonteq-dev" }` in `[tool.uv.sources]`, adds
 `causal-conv1d==1.7.0+cu130torch2.13` to `profiles/supervised.txt`, adds `causal_conv1d` to both smoke imports,
@@ -317,6 +363,9 @@ To back out fla-core, revert the `trl` extra and profile lines and rerun the two
 After Milestone 4 it will also require `causal-conv1d==1.7.0+cu130torch2.13` from `carbonteq-dev`
 (`causal_conv1d.causal_conv1d_fn`, `causal_conv1d_update`). No Posttrain code imports either package; they
 are runtime accelerators discovered by Transformers.
+
+Revision note (2026-09-28, later): causal-conv1d published and adopted, veRL Verifiers split fixed, image
+publication moved to the release branch.
 
 Revision note (2026-09-28): widened to the veRL and transform kinds and added `adopt.py` at the user's
 request; the earlier decision to defer them is marked superseded.
