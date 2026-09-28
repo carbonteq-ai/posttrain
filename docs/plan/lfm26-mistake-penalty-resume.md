@@ -56,7 +56,9 @@ step-140 checkpoint, with mistakes per episode falling.
   the context limit. Update 40 is the last saved checkpoint (verified).
   Run notes `cont120-why-this-run` and `cont120-why-stopped` hold the details.
 - [ ] Fix the environment and harness issues, choose a stronger drift brake,
-  restart from update 40.
+  restart from update 40 (user, 2026-09-28: restart from this run's update 40,
+  not SAMPO update 120, although update 40 scored below its start on held-out
+  tasks).
 
 ## Surprises & Discoveries
 
@@ -103,6 +105,12 @@ step-140 checkpoint, with mistakes per episode falling.
   3e-5. `job plan` flagged 3e-5 at LoRA alpha 8 as 1.3x below the lowest
   Tinker RL recipe, and the continuation should not learn slower than the run
   it extends. Date: 2026-09-28.
+- Decision (user, after r1): restart from r1's update-40 checkpoint (exact
+  resume with its optimizer and curriculum), with fixed tools, the adapter
+  list-argument fix and a stronger drift brake; the mistake penalty stays.
+  Held-out at update 40: 0.557 vs 0.590 at temperature 0.1 and 0.624 vs 0.647
+  at 0.5 against SAMPO update 120, with tool mistakes per episode roughly
+  halved. Date: 2026-09-28.
 - Decision (user): keep the 160-task mix the SAMPO run trained on
   (`lfm26-automationbench-mix-v2`). Refill rounds draw from those 160
   candidates, so active sampling allows 6 rounds (24 x 6 = 144 reserved
