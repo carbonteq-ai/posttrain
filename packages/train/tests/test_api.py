@@ -245,6 +245,27 @@ class TruncatedRLBridge(FakeRLBridge):
         return tuple(replace(rollout, is_truncated=True) for rollout in rollouts)
 
 
+@dataclass
+class EndingLabelledRLBridge(FakeRLBridge):
+    """Traces carry the episode ending the Verifiers evidence records."""
+
+    endings: tuple[str, ...] = ("completed",)
+    calls: int = 0
+
+    async def run(self, batch, generator) -> tuple[EnvironmentRollout, ...]:
+        rollouts = await super().run(batch, generator)
+        ending = self.endings[self.calls % len(self.endings)]
+        self.calls += 1
+        return tuple(
+            replace(
+                rollout,
+                is_truncated=ending not in {"completed", "error"},
+                trace=replace(rollout.trace, attributes={"episode_ending": ending}),
+            )
+            for rollout in rollouts
+        )
+
+
 def test_environment_rollout_rejects_nonfinite_sampling_logprobs() -> None:
     with pytest.raises(ValueError, match="sampling logprobs must be finite"):
         EnvironmentRollout(
@@ -1372,6 +1393,53 @@ def test_grpo_rollout_adapter_rejects_all_truncated_masked_population(
 
     assert observer.metrics_seen[-1].values["train/rl/rollouts_truncated"] == 1
     assert observer.traces[0].external_id == "trace-0"
+
+
+def test_grpo_rollout_adapter_writes_episode_ending_counts_and_rates_once_per_update(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observer = Observer()
+    context = _run_context(
+        tmp_path.resolve(),
+        observer,
+        job_kind="train.grpo",
+        run_id="runs/grpo-episode-endings",
+    )
+    model = QWEN_35_2B
+    request = GRPORequest(
+        model,
+        EndingLabelledRLBridge(endings=("reply_token_limit", "completed", "context_rejected", "completed")),
+        QWEN35_GRPO_SMOKE,
+        FakeEnvironment(),
+        _training(),
+        _inference(model),
+    )
+    monkeypatch.setattr(
+        "posttrain.train.backends.trl.online_rl.TrlPolicyGenerator",
+        lambda *args: object(),
+    )
+    totals = RolloutUpdateTotals(context)
+    rollout = _rollout_function(context, request, object(), totals)
+    for _ in range(4):
+        rollout(
+            [[{"role": "user", "content": "What is 2 + 2?"}]],
+            SimpleNamespace(state=SimpleNamespace(global_step=3)),
+            inputs=[{"example_id": "gsm8k/train/0"}],
+        )
+    totals.flush(4)
+
+    values = observer.metrics_seen[-1].values
+    assert values["train/rl/rollouts_ending_completed"] == 2
+    assert values["train/rl/rollouts_ending_reply_token_limit"] == 1
+    assert values["train/rl/rollouts_ending_context_rejected"] == 1
+    assert values["train/rl/rollouts_ending_turn_limit"] == 0
+    assert values["train/rl/ending_completed_rate"] == 0.5
+    assert values["train/rl/ending_reply_token_limit_rate"] == 0.25
+    assert values["train/rl/ending_context_rejected_rate"] == 0.25
+    assert values["train/rl/ending_context_limit_reply_cut_rate"] == 0.0
+    # Truncation keeps its meaning: every ending other than completed and error.
+    assert values["train/rl/rollouts_truncated"] == 2
 
 
 def test_grpo_actor_update_phase_starts_after_retained_rollouts_and_ends_at_optimizer_step(

@@ -531,6 +531,19 @@
         ],
         "type": "string"
       },
+      "EpisodeEnding": {
+        "enum": [
+          "completed",
+          "turn_limit",
+          "token_budget",
+          "time_limit",
+          "reply_token_limit",
+          "context_limit_reply_cut",
+          "context_rejected",
+          "error"
+        ],
+        "type": "string"
+      },
       "EvaluationBreakdown": {
         "additionalProperties": false,
         "description": "One declared compound report with structured groups.",
@@ -5656,7 +5669,7 @@
       },
       "Source": {
         "additionalProperties": false,
-        "description": "Where values come from: a field, a settings path, a metric name, a trace fact.",
+        "description": "Where values come from: a field, a settings path, a metric name, a trace fact.\n\nA ``trace_attribute`` is a key the producer recorded in the trace's metadata\n(its attributes); it serves labels Trackio has no fact column for yet.",
         "properties": {
           "kind": {
             "$ref": "#/components/schemas/SourceKind"
@@ -5690,6 +5703,7 @@
           "event",
           "metric_series",
           "trace_fact",
+          "trace_attribute",
           "derived"
         ],
         "type": "string"
@@ -6539,6 +6553,16 @@
               }
             ],
             "title": "Completion Tokens"
+          },
+          "ending": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EpisodeEnding"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "error": {
             "anyOf": [

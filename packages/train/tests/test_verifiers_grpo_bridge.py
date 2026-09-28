@@ -826,6 +826,52 @@ def test_terminal_error_reward_is_never_folded_into_learning_aggregates() -> Non
     assert "train/rl/reward_std" not in metrics
 
 
+def test_replayed_step_metrics_count_every_episode_ending() -> None:
+    def record(trace_id: str, stop: str, last_call: dict[str, object]) -> dict[str, object]:
+        return {
+            "id": trace_id,
+            "ok": True,
+            "errors": [],
+            "stop_condition": stop,
+            "is_completed": True,
+            "rewards": {"verifier": 0.5},
+            "calls": [last_call],
+            "nodes": [],
+        }
+
+    cut = {"finish_reason": "length", "usage": {"prompt_tokens": 9000, "completion_tokens": 4096}}
+    shortened = {"finish_reason": "length", "usage": {"prompt_tokens": 24108, "completion_tokens": 468}}
+    refused = {
+        "finish_reason": None,
+        "error": {
+            "type": "ProviderError",
+            "status_code": 400,
+            "message": "Prompt length (34021) exceeds maximum context length (24576).",
+        },
+    }
+    for call in (cut, shortened):
+        call["sampling"] = {"max_tokens": 4096}
+    metrics = _trace_metrics(
+        (
+            record("done", "agent_completed", {"finish_reason": "stop"}),
+            record("turns", "max_turns", {"finish_reason": "tool_calls"}),
+            record("cut", "agent_completed", cut),
+            record("shortened", "agent_completed", shortened),
+            record("refused", "agent_completed", refused),
+        ),
+        requested=5,
+    )
+
+    assert metrics["train/rl/rollouts_truncated"] == 4
+    assert metrics["train/rl/rollouts_failed"] == 0
+    assert metrics["train/rl/rollouts_unscorable"] == 0
+    for ending in ("completed", "turn_limit", "reply_token_limit", "context_limit_reply_cut", "context_rejected"):
+        assert metrics[f"train/rl/rollouts_ending_{ending}"] == 1
+        assert metrics[f"train/rl/ending_{ending}_rate"] == pytest.approx(0.2)
+    assert metrics["train/rl/ending_token_budget_rate"] == 0
+    assert metrics["train/rl/ending_error_rate"] == 0
+
+
 def test_native_bridge_preserves_declared_task_facets_in_dataset_and_trace_evidence(tmp_path) -> None:
     task = SimpleNamespace(
         data=FacetedTaskData(

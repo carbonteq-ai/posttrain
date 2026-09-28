@@ -5,7 +5,15 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 
-from posttrain.common import JsonValue, SignalSource, TraceFactSet, TraceRewardComponent
+from posttrain.common import (
+    EPISODE_ENDING_ATTRIBUTE,
+    EpisodeEnding,
+    JsonValue,
+    SignalSource,
+    TraceFactSet,
+    TraceRewardComponent,
+    episode_ending_is_truncated,
+)
 
 # v5: facts record the task id and prompt-group id, so group rewards aggregate
 # from indexed facts. v6: thinking tokens come only from per-call usage, which
@@ -15,16 +23,16 @@ from posttrain.common import JsonValue, SignalSource, TraceFactSet, TraceRewardC
 # reward the environment scored.
 VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v8"
 
-_TRUNCATED_STOP_CONDITIONS = frozenset(
-    {
-        "max_turns",
-        "max_input_tokens",
-        "max_output_tokens",
-        "max_total_tokens",
-        "context_length",
-        "harness_timeout",
-    }
-)
+# Verifiers stop conditions that are limits, and the ending each one records.
+# `context_length` and `harness_timeout` come from pre-v1 Verifiers records.
+_LIMIT_STOP_CONDITIONS: dict[str, EpisodeEnding] = {
+    "max_turns": "turn_limit",
+    "max_input_tokens": "token_budget",
+    "max_output_tokens": "token_budget",
+    "max_total_tokens": "token_budget",
+    "context_length": "context_rejected",
+    "harness_timeout": "time_limit",
+}
 
 
 def verifiers_trace_attributes(record: Mapping[str, object]) -> dict[str, JsonValue]:
@@ -34,6 +42,7 @@ def verifiers_trace_attributes(record: Mapping[str, object]) -> dict[str, JsonVa
         "model": _model(record),
         "is_truncated": verifiers_trace_is_truncated(record),
         "has_error": verifiers_trace_has_error(record),
+        EPISODE_ENDING_ATTRIBUTE: verifiers_episode_ending(record),
         "trace_schema_version": _nonnegative_int(record.get("version")),
     }
 
@@ -79,16 +88,59 @@ def verifiers_trace_has_error(record: Mapping[str, object]) -> bool:
 
 
 def verifiers_trace_is_truncated(record: Mapping[str, object]) -> bool:
-    """Recompute Verifiers' derived truncation property from serialized fields."""
+    """Recompute Verifiers' derived truncation property from serialized fields.
+
+    Every ending other than ``completed`` and ``error`` is a truncation.
+    """
+
+    return episode_ending_is_truncated(verifiers_episode_ending(record))
+
+
+def verifiers_episode_ending(record: Mapping[str, object], *, max_model_len: int | None = None) -> EpisodeEnding:
+    """How one native Verifiers episode ended, from the serialized record alone.
+
+    The rules, first match wins:
+
+    1. ``error`` when the episode failed execution (``verifiers_trace_has_error``).
+    2. A limit stop condition: ``max_turns`` is ``turn_limit``; ``max_input_tokens``,
+       ``max_output_tokens`` and ``max_total_tokens`` are ``token_budget``; the legacy
+       ``context_length`` is ``context_rejected`` and ``harness_timeout`` is ``time_limit``.
+    3. ``context_rejected`` when the final model request was refused for exceeding the
+       context (``final_call_overflowed_context``).
+    4. When the last successful call finished with ``finish_reason == "length"``:
+       ``context_limit_reply_cut`` when the reply stopped short of that call's
+       ``sampling.max_tokens`` (only the context can cut it earlier) or, when
+       ``max_model_len`` is known, prompt plus reply reached it; otherwise
+       ``reply_token_limit`` (the per-call max_tokens cut it, or the record lacks
+       the usage to tell).
+    5. ``completed`` otherwise.
+    """
 
     if verifiers_trace_has_error(record):
-        return False
-    if record.get("stop_condition") in _TRUNCATED_STOP_CONDITIONS:
-        return True
+        return "error"
+    stop = record.get("stop_condition")
+    if isinstance(stop, str) and stop in _LIMIT_STOP_CONDITIONS:
+        return _LIMIT_STOP_CONDITIONS[stop]
     if final_call_overflowed_context(record.get("calls")):
-        return True
+        return "context_rejected"
     last = _last_successful_call(record)
-    return bool(last and last.get("finish_reason") == "length")
+    if last is None or last.get("finish_reason") != "length":
+        return "completed"
+    return "context_limit_reply_cut" if _reply_cut_by_context(last, max_model_len) else "reply_token_limit"
+
+
+def _reply_cut_by_context(call: Mapping[str, object], max_model_len: int | None) -> bool:
+    usage = call.get("usage")
+    usage = usage if isinstance(usage, Mapping) else {}
+    completion = _nonnegative_int(usage.get("completion_tokens"))
+    if completion is None:
+        return False
+    prompt = _nonnegative_int(usage.get("prompt_tokens"))
+    if max_model_len is not None and prompt is not None and prompt + completion >= max_model_len:
+        return True
+    sampling = call.get("sampling")
+    max_tokens = _nonnegative_int(sampling.get("max_tokens")) if isinstance(sampling, Mapping) else None
+    return max_tokens is not None and completion < max_tokens
 
 
 def project_verifiers_trace_facts(
@@ -434,6 +486,7 @@ __all__ = [
     "final_call_overflowed_context",
     "is_context_overflow_error",
     "project_verifiers_trace_facts",
+    "verifiers_episode_ending",
     "verifiers_trace_attributes",
     "verifiers_trace_has_error",
     "verifiers_trace_is_truncated",

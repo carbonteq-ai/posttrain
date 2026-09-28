@@ -239,6 +239,18 @@ after its evidence is recorded), `partial` when some failed, coverage is
 missing or traces did not synchronize, `truncated` when all ran but some hit a
 turn, output or context budget, and `complete` otherwise.
 
+Every rollout trace also records one **episode ending** as the trace attribute
+`episode_ending`, defined once in `posttrain.common.episodes`: `completed`,
+`turn_limit`, `token_budget`, `time_limit`, `reply_token_limit` (the last
+reply hit the per-call `max_tokens`), `context_limit_reply_cut` (the last
+reply was cut because prompt plus reply reached the context length),
+`context_rejected` (the next request's prompt exceeded the context), or
+`error`. The integration that understands the native trace derives it from the
+record; every ending other than `completed` and `error` is a truncation, so
+the truncation flag keeps its meaning. Training writes each update's count and
+share of every ending (`train/rl/rollouts_ending_<ending>`,
+`train/rl/ending_<ending>_rate`) alongside `train/rl/rollouts_truncated`.
+
 Evaluation environments declare native task facets as independent dimensions.
 Evaluation plans may select versioned compound breakdowns across those
 dimensions, such as problem type by difficulty. Observatory groups the

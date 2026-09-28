@@ -11,6 +11,15 @@ from .artifacts import (
     TrackioArtifactRef,
 )
 from .catalog import Catalog, CatalogLayer, CatalogRef, Resolved
+from .episodes import (
+    EPISODE_ENDING_ATTRIBUTE,
+    EPISODE_ENDING_DESCRIPTIONS,
+    EPISODE_ENDINGS,
+    TRUNCATED_EPISODE_ENDINGS,
+    EpisodeEnding,
+    episode_ending,
+    episode_ending_is_truncated,
+)
 from .errors import ContractError, OperationCancelled, PostTrainError
 from .execution import (
     CancellationToken,
@@ -50,6 +59,10 @@ from .selections import ExecutionTarget, HardwareCapabilities, InferenceBinding,
 from .validation import CheckOutcome, ConfigurationIssue, SettingOrigin
 
 __all__ = [
+    "EPISODE_ENDINGS",
+    "EPISODE_ENDING_ATTRIBUTE",
+    "EPISODE_ENDING_DESCRIPTIONS",
+    "TRUNCATED_EPISODE_ENDINGS",
     "ArtifactRef",
     "AppendOnlyJsonlTailer",
     "CancellationToken",
@@ -60,6 +73,7 @@ __all__ = [
     "CheckOutcome",
     "ConfigurationIssue",
     "ContractError",
+    "EpisodeEnding",
     "EventObservation",
     "ExternalInferenceService",
     "ExecutionTarget",
@@ -100,5 +114,7 @@ __all__ = [
     "TraceRewardComponent",
     "TrackioArtifactRef",
     "Workload",
+    "episode_ending",
+    "episode_ending_is_truncated",
     "validate_secret_free_http_url",
 ]

@@ -32,11 +32,13 @@ from posttrain.common import (
 from posttrain.data import RolloutDataset, RolloutExample
 from posttrain.environment import (
     project_verifiers_trace_facts,
+    verifiers_episode_ending,
     verifiers_trace_attributes,
     verifiers_trace_has_error,
     verifiers_trace_is_truncated,
 )
 
+from ..grpo_observations import episode_ending_metrics
 from ..online_rl import (
     AgenticTurn,
     AsyncTerminalTraceObserver,
@@ -1433,6 +1435,7 @@ def _trace_metrics(
         "train/rl/rollouts_failed": float(sum(_trace_has_error(record) for record in records)),
         "train/rl/rollouts_truncated": float(sum(_trace_is_truncated(record) for record in records)),
         "train/rl/rollouts_unscorable": float(attempted - len(rewards)),
+        **episode_ending_metrics(verifiers_episode_ending(record) for record in records),
     }
     if attempted:
         values["train/rl/tool_call_frequency"] = sum(_trace_has_tool_call(record) for record in records) / attempted

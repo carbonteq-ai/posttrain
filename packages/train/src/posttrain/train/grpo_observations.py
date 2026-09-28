@@ -3,14 +3,59 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections import Counter
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Literal
 
+from posttrain.common import EPISODE_ENDINGS, EpisodeEnding, episode_ending
+
 from .requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
 
 type GRPOBackendProduct = Literal["trl", "verl"]
+
+
+# How rollout episodes ended (`posttrain.common.EpisodeEnding`), one count and
+# one rate per ending for each update. The trace attribute `episode_ending` is
+# the authority; these are its per-update totals.
+EPISODE_ENDING_COUNT_METRICS: Mapping[EpisodeEnding, str] = MappingProxyType(
+    {ending: f"train/rl/rollouts_ending_{ending}" for ending in EPISODE_ENDINGS}
+)
+EPISODE_ENDING_RATE_METRICS: Mapping[EpisodeEnding, str] = MappingProxyType(
+    {ending: f"train/rl/ending_{ending}_rate" for ending in EPISODE_ENDINGS}
+)
+
+
+def episode_ending_counts(endings: Iterable[object]) -> dict[str, float]:
+    """How many of ``endings`` carry each known label (every ending, zeros included).
+
+    Unknown or missing labels are left out; with no known label the result is
+    empty, so a run without labelled traces writes nothing.
+    """
+
+    counts = Counter(label for value in endings if (label := episode_ending(value)) is not None)
+    if not counts:
+        return {}
+    return {name: float(counts[ending]) for ending, name in EPISODE_ENDING_COUNT_METRICS.items()}
+
+
+def episode_ending_metrics(endings: Iterable[object]) -> dict[str, float]:
+    """Counts and rates of the known ending labels among ``endings``."""
+
+    return episode_ending_rates(episode_ending_counts(endings))
+
+
+def episode_ending_rates(counts: Mapping[str, float]) -> dict[str, float]:
+    """Every ending's count and its share of the labelled rollouts, from summed counts."""
+
+    values = {name: float(counts.get(name, 0.0)) for name in EPISODE_ENDING_COUNT_METRICS.values()}
+    total = sum(values.values())
+    if total <= 0:
+        return {}
+    for ending, name in EPISODE_ENDING_COUNT_METRICS.items():
+        values[EPISODE_ENDING_RATE_METRICS[ending]] = values[name] / total
+    return values
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,6 +246,8 @@ _CANONICAL_PASSTHROUGH = frozenset(
         "train/rl/rollouts_failed",
         "train/rl/rollouts_truncated",
         "train/rl/rollouts_unscorable",
+        *EPISODE_ENDING_COUNT_METRICS.values(),
+        *EPISODE_ENDING_RATE_METRICS.values(),
         "train/rl/completion_tokens_total",
         "train/rl/completion_tokens_mean",
         "train/rl/completion_tokens_max",
@@ -281,6 +328,7 @@ _RATIO_METRICS = frozenset(
         "serve/backend/speculative_acceptance_rate",
         "serve/backend/kv_cache_peak_usage_ratio",
         "serve/backend/prefix_cache_hit_rate",
+        *EPISODE_ENDING_RATE_METRICS.values(),
     }
 )
 
@@ -296,6 +344,7 @@ _NON_NEGATIVE_METRICS = frozenset(
         "train/rl/rollouts_failed",
         "train/rl/rollouts_truncated",
         "train/rl/rollouts_unscorable",
+        *EPISODE_ENDING_COUNT_METRICS.values(),
         "train/rl/dynamic_sampling_candidate_batches",
         "train/rl/active_sampling_generation_rounds",
         "train/rl/active_sampling_generated_rows",
@@ -471,10 +520,15 @@ def _validate_metric_value(name: str, value: float) -> None:
 
 
 __all__ = [
+    "EPISODE_ENDING_COUNT_METRICS",
+    "EPISODE_ENDING_RATE_METRICS",
     "GRPOEvidenceStatus",
     "GRPOObservationFeatures",
     "NormalizedGRPOStep",
     "assess_grpo_evidence",
+    "episode_ending_counts",
+    "episode_ending_metrics",
+    "episode_ending_rates",
     "normalize_grpo_metrics",
     "required_grpo_metrics",
 ]
