@@ -124,12 +124,19 @@ oversampled active sampling, and a KL penalty measured against the base model.
 
 ### Fixed
 
-- Local Docker GPU jobs start with a 16 GiB `/dev/shm` limit (`--shm-size`).
-  Docker's default 64 MiB made every veRL run on the local provider fail at
-  vLLM engine start ("Insufficient space in /dev/shm ... 160 MiB required, 64
-  MiB free"): vLLM's multiprocess executor allocates a 160 MiB shared-memory
-  broadcast queue.
-
+- Every job container now gets an explicit `/dev/shm` size. Docker and dstack
+  left the 64 MiB default, and veRL's rollout server failed at start
+  (`Insufficient space in /dev/shm ... 160 MiB required, 64 MiB free`) on both
+  providers: vLLM's multiprocess executor allocates a 160 MiB shared-memory
+  broadcast queue at engine start. The size is 16 GiB unless the execution
+  target's placement declares `shm_size_gb`; a declared `host_memory_gb` caps
+  the default at half of it and rejects a larger explicit size. The local
+  provider passes `docker run --shm-size` (a private tmpfs, not `--ipc=host`);
+  dstack receives `resources.shm_size` and a matching `resources.memory`
+  minimum so the offer can hold it. dstack applies the size on VM and SSH
+  fleets; its RunPod backend creates pods whose shared memory RunPod sets.
+  `posttrain job plan` prints `Container shared memory:`, and the job run
+  plan, provider plan and submission receipt record `shared_memory_gb`.
 - veRL multi-turn episodes reported the prompt message spans of a bridged turn
   with one entry per new message instead of one per message of the
   conversation, so Verifiers attributed tool-result tokens to the wrong

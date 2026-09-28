@@ -2388,7 +2388,9 @@ bindings:
         )
         == 0
     )
-    assert "Job intent: screen/cpu-check/validate" in capsys.readouterr().out
+    plan_output = capsys.readouterr().out
+    assert "Job intent: screen/cpu-check/validate" in plan_output
+    assert "Container shared memory: 16 GiB (/dev/shm, target " in plan_output
 
     execution_config.write_text(local_execution_config, encoding="utf-8")
     execution_config.chmod(0o600)
@@ -2423,6 +2425,11 @@ bindings:
     assert second_launch.settings.timeout_seconds == 240
     assert first_launch.mounts[0].instance_path.name == "capsule-launch-a"
     assert second_launch.mounts[0].instance_path.name == "capsule-launch-b"
+    from posttrain_cli.commands.work_package import _execution_plan_payload
+    from posttrain_cli.execution_planning import PlannedJobExecution
+
+    launch_payload = _execution_plan_payload(PlannedJobExecution(reusable_package, first_launch))
+    assert cast(dict[str, object], launch_payload["target"])["shared_memory_gb"] == 16
 
     remote_training_package = replace(
         reusable_package,

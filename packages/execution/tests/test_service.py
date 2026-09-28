@@ -144,6 +144,10 @@ def test_submission_store_is_idempotent_and_rejects_conflicts(tmp_path: Path) ->
     assert payload["evidence_source"] is None
     assert payload["job_image"] == submission.job_image
     assert payload["local_image"] == submission.local_image
+    # A receipt without a recorded size (written before sizes were explicit)
+    # keeps loading and omits the field.
+    assert submission.shared_memory_gb is None
+    assert "shared_memory_gb" not in payload
     assert "bundle_digest" not in payload
     assert "runtime_image" not in payload
     assert store.save(replace(submission, submitted_at=datetime.now(UTC))) == submission
@@ -422,3 +426,20 @@ def test_service_rejects_conflicting_immutable_resubmission(tmp_path: Path) -> N
 
     with pytest.raises(ContractError, match="conflicting immutable submission"):
         service.submit(service.plan(replace(request, image=RuntimeImageRef(f"x@y@sha256:{'d' * 64}"))))
+
+
+def test_submission_receipt_records_the_container_shared_memory_size(tmp_path: Path) -> None:
+    provider = FakeProvider()
+    store = ExecutionSubmissionStore((tmp_path / "state").resolve())
+    service = JobExecutionService(provider, store, provider_name="fake")
+    request = _request(tmp_path)
+    request = replace(request, target=replace(request.target, placement={"shm_size_gb": 32}))
+
+    submission = service.submit(service.plan(request))
+
+    assert submission.shared_memory_gb == 32
+    payload = json.loads(store.submission_path(submission.run_id).read_text(encoding="utf-8"))
+    assert payload["shared_memory_gb"] == 32
+    assert store.load(submission.run_id) == submission
+    with pytest.raises(ContractError, match="shared-memory size must be positive"):
+        replace(submission, shared_memory_gb=0)

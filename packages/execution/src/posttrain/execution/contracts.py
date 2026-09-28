@@ -45,6 +45,47 @@ _ACTUAL_JOB_COMMAND = (
 )
 EXECUTION_LAUNCH_ENVIRONMENT = "POSTTRAIN_EXECUTION"
 
+# Container runtimes default /dev/shm to 64 MiB. vLLM's shared-memory message
+# queues, NCCL's intra-node transport and PyTorch dataloader workers allocate
+# far more (veRL's rollout server needs 160 MiB at start), so every job
+# container gets an explicit size. A target may declare ``shm_size_gb`` in its
+# placement; ``host_memory_gb`` bounds it. /dev/shm is a tmpfs limit, not a
+# reservation: pages count against the container's memory only once written.
+DEFAULT_SHARED_MEMORY_GB = 16
+
+
+def execution_shared_memory_gb(target: ExecutionTarget) -> int:
+    """The /dev/shm size, in GiB, every job container on ``target`` receives.
+
+    An explicit placement ``shm_size_gb`` wins. Otherwise the framework default
+    applies, capped at half of a declared ``host_memory_gb`` so the tmpfs can
+    never claim most of a small host. An explicit size larger than the declared
+    host memory is a contradictory target and is rejected.
+    """
+
+    declared_host_memory = target.placement.get("host_memory_gb")
+    host_memory: float | None = None
+    if declared_host_memory is not None:
+        if (
+            isinstance(declared_host_memory, bool)
+            or not isinstance(declared_host_memory, int | float)
+            or declared_host_memory <= 0
+        ):
+            raise ContractError(f"execution target {target.id} host_memory_gb must be a positive number")
+        host_memory = float(declared_host_memory)
+    requested = target.placement.get("shm_size_gb")
+    if requested is not None:
+        if isinstance(requested, bool) or not isinstance(requested, int) or requested < 1:
+            raise ContractError(f"execution target {target.id} shm_size_gb must be a positive integer")
+        if host_memory is not None and requested > host_memory:
+            raise ContractError(
+                f"execution target {target.id} shm_size_gb {requested} exceeds its host_memory_gb {host_memory:g}"
+            )
+        return requested
+    if host_memory is None:
+        return DEFAULT_SHARED_MEMORY_GB
+    return max(1, min(DEFAULT_SHARED_MEMORY_GB, int(host_memory // 2)))
+
 
 @dataclass(frozen=True, slots=True)
 class BundleRef:
@@ -154,6 +195,13 @@ class ExecutionRequest:
             or any(character.isspace() for character in self.local_image)
         ):
             raise ContractError("local execution image tag is invalid")
+        execution_shared_memory_gb(self.target)
+
+    @property
+    def shared_memory_gb(self) -> int:
+        """The /dev/shm size, in GiB, the provider must give this job's container."""
+
+        return execution_shared_memory_gb(self.target)
 
     def launch_environment(self, *, provider: str) -> dict[str, str]:
         """Encode non-secret run context separately from the packaged job."""

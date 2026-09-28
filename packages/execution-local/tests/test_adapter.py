@@ -80,6 +80,7 @@ def test_docker_cli_uses_packaged_workdir_and_explicit_worker_entrypoint(
             "name": "pt-test",
             "image": f"registry.lan/posttrain@sha256:{'b' * 64}",
             "gpu": False,
+            "shm_size_gb": 16,
             "environment_names": ["TRACKIO_SERVER_URL"],
             "launch_environment": {"POSTTRAIN_EXECUTION": '{"schema":"test"}'},
             "volumes": [],
@@ -99,7 +100,10 @@ def test_docker_cli_uses_packaged_workdir_and_explicit_worker_entrypoint(
     assert arguments[arguments.index("--dns") + 1] == "192.0.2.53"
     assert 'POSTTRAIN_EXECUTION={"schema":"test"}' in arguments
     assert "/opt/posttrain/bundle" not in arguments
-    assert "--shm-size" not in arguments
+    # A private, sized /dev/shm; the host IPC namespace is never shared.
+    assert arguments[arguments.index("--shm-size") + 1] == "16g"
+    assert arguments.index("--shm-size") < arguments.index(f"registry.lan/posttrain@sha256:{'b' * 64}")
+    assert not any(argument.startswith("--ipc") for argument in arguments)
 
 
 def test_docker_cli_gives_gpu_jobs_room_for_vllm_shared_memory(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -119,6 +123,7 @@ def test_docker_cli_gives_gpu_jobs_room_for_vllm_shared_memory(monkeypatch: pyte
             "name": "pt-gpu",
             "image": f"registry.lan/posttrain@sha256:{'b' * 64}",
             "gpu": True,
+            "shm_size_gb": 16,
             "environment_names": [],
             "launch_environment": {},
             "volumes": [],
@@ -132,6 +137,40 @@ def test_docker_cli_gives_gpu_jobs_room_for_vllm_shared_memory(monkeypatch: pyte
     assert arguments[arguments.index("--gpus") + 1] == "all"
     assert arguments[arguments.index("--shm-size") + 1] == "16g"
     assert arguments.index("--shm-size") < arguments.index(f"registry.lan/posttrain@sha256:{'b' * 64}")
+
+
+def test_docker_cli_refuses_a_job_container_without_a_shared_memory_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "posttrain_execution_local.adapter.subprocess.run",
+        lambda *args, **kwargs: pytest.fail("docker must not run"),
+    )
+    payload = {
+        "name": "pt-test",
+        "image": f"registry.lan/posttrain@sha256:{'b' * 64}",
+        "command": list(JOB_PACKAGE_WORKER_COMMAND),
+    }
+    for size in (None, 0, True, "16g"):
+        with pytest.raises(ValueError, match="positive shared-memory size"):
+            DockerCli(environment={}).invoke("submit", {**payload, "shm_size_gb": size})
+
+
+def test_local_docker_sizes_shared_memory_from_the_target(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TRACKIO_SERVER_URL", "https://trackio.example")
+    gateway = FakeDocker()
+    provider = LocalDockerExecutionProvider(gateway, state_root=(tmp_path / "state").resolve())
+    request = _request(tmp_path)
+
+    plan = provider.plan(request)
+    assert plan.details["shared_memory_gb"] == 16
+
+    declared = replace(request, target=replace(request.target, placement={"shm_size_gb": 40}))
+    plan = provider.plan(declared)
+    provider.submit(plan)
+    submit = next(payload for action, payload in gateway.calls if action == "submit")
+    assert plan.details["shared_memory_gb"] == 40
+    assert submit["shm_size_gb"] == 40
 
 
 def _request(tmp_path: Path) -> ExecutionRequest:
@@ -190,6 +229,7 @@ def test_local_docker_lifecycle_and_cancel_are_durable(
     assert launch["job_image"] == plan.request.image.value
     assert launch["target"]["id"] == plan.request.target.id
     assert submit["gpu"] is True
+    assert submit["shm_size_gb"] == 16
     assert submit["dns_servers"] == ["192.0.2.53"]
     assert all("trackio.example" not in str(payload) for _, payload in gateway.calls)
     assert submit["command"] == [
@@ -532,3 +572,5 @@ def test_docker_cli_runs_the_cleanup_program_with_the_retention_mount(monkeypatc
     assert "/state/retained/r:/opt/posttrain/retained" in arguments
     assert arguments[-1] == workspace_cleanup_script()
     assert response == {"emptied": True, "retained": ["out/checkpoint-45"]}
+    # The cleanup program only runs find/mv/rm: no GPU, no sized /dev/shm.
+    assert "--gpus" not in arguments and "--shm-size" not in arguments

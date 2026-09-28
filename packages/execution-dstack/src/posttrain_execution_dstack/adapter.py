@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import shlex
@@ -248,6 +249,13 @@ class DstackExecutionProvider:
                     "TRITON_CACHE_DIR": str(_MANAGED_RUN_STORAGE_ROOT / ".cache/compile/triton"),
                 }
             )
+        shared_memory_gb = request.shared_memory_gb
+        declared_host_memory = placement.get("host_memory_gb")
+        host_memory_gb = (
+            math.ceil(declared_host_memory)
+            if isinstance(declared_host_memory, int | float) and not isinstance(declared_host_memory, bool)
+            else shared_memory_gb
+        )
         command = shlex.join(request.command)
         command = f"ulimit -n {POSTTRAIN_NOFILE_LIMIT} 2>/dev/null || true; exec {command}"
         configuration: dict[str, Any] = {
@@ -260,6 +268,12 @@ class DstackExecutionProvider:
             "resources": {
                 "gpu": gpu,
                 "disk": {"size": f"{_integer(placement.get('disk_gb'), 100)}GB.."},
+                # dstack otherwise leaves Docker's 64 MiB /dev/shm, too small for
+                # vLLM, NCCL and dataloader workers. The offer must have at
+                # least that much RAM (or the declared host memory) for the
+                # tmpfs to be fillable at all.
+                "shm_size": f"{shared_memory_gb}GB",
+                "memory": f"{host_memory_gb}GB..",
             },
             "priority": request.policy.priority,
             # Arbitrary runtime errors remain fail-fast. Training retries only
@@ -350,6 +364,7 @@ class DstackExecutionProvider:
                 "job_image": request.image.value,
                 "submission_ready": request.bundle is None,
                 "capacity_wait_seconds": self._capacity_wait_seconds,
+                "shared_memory_gb": request.shared_memory_gb,
             },
         )
 

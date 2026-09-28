@@ -9,7 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from posttrain.common import ExecutionTarget
+from posttrain.common import ContractError, ExecutionTarget
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
     BundleRef,
@@ -153,6 +153,10 @@ def test_translation_and_submit_have_no_secret_values(tmp_path: Path) -> None:
         for _, config in configurations
     )
     assert all(config["resources"]["gpu"]["memory"] == "24GB..30GB" for _, config in configurations)
+    # dstack otherwise leaves Docker's 64 MiB /dev/shm; the offer must hold it.
+    assert all(config["resources"]["shm_size"] == "16GB" for _, config in configurations)
+    assert all(config["resources"]["memory"] == "16GB.." for _, config in configurations)
+    assert plan.details["shared_memory_gb"] == 16
     assert all(config["instances"] == [{"hostname": "remote.lan"}] for _, config in configurations)
     assert all(
         config["commands"]
@@ -660,6 +664,33 @@ def test_target_can_constrain_backend_region_and_spot_policy(tmp_path: Path) -> 
     assert configuration["regions"] == ["US-MO-1"]
     assert configuration["spot_policy"] == "spot"
     assert configuration["max_price"] == 1.0
+
+
+def test_target_declares_shared_memory_and_the_host_memory_that_bounds_it(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    provider = DstackExecutionProvider(gateway, project="posttrain")
+    request = _request(tmp_path)
+
+    def resources(**placement: object) -> dict[str, object]:
+        gateway.calls.clear()
+        target = replace(request.target, placement={**request.target.placement, **placement})
+        plan = provider.plan(replace(request, target=target))
+        configuration = gateway.calls[0][1]["configuration"]
+        assert plan.details["shared_memory_gb"] == int(configuration["resources"]["shm_size"].removesuffix("GB"))
+        return configuration["resources"]
+
+    assert resources(shm_size_gb=32) | {"gpu": None} == {
+        "gpu": None,
+        "disk": {"size": "120GB.."},
+        "shm_size": "32GB",
+        "memory": "32GB..",
+    }
+    declared_host = resources(host_memory_gb=62.5)
+    assert (declared_host["shm_size"], declared_host["memory"]) == ("16GB", "63GB..")
+    small_host = resources(host_memory_gb=12)
+    assert (small_host["shm_size"], small_host["memory"]) == ("6GB", "12GB..")
+    with pytest.raises(ContractError, match="exceeds its host_memory_gb"):
+        resources(host_memory_gb=12, shm_size_gb=16)
 
 
 def test_gpu_memory_maximum_must_cover_the_target_minimum(tmp_path: Path) -> None:

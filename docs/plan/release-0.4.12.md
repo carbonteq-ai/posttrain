@@ -66,6 +66,7 @@ settings of running experiments.
 - [x] (2026-09-28) `codex/release-0.4.12` pushed and PR #131 opened (coordinator); job-kind images published and `published.toml` committed (`d4d644ca`); strict `posttrain-release check` passes.
 - [x] (2026-09-28 15:32Z) Trackio server: Doris backups, `migrate-doris --to 5`, dev32 deployed, episode-ending backfill (record merged from `codex/trackio-next` `c896ef58`; `docs/tooling/trackio/README.md`).
 - [x] (2026-09-28) Observatory semantic SQL read the first discovered project; now the requested or configured source (`aae90bb4`), checked read-only against the dev32 server (posttrain-lab 58 runs; ai-infra-qualification 0).
+- [x] (2026-09-29) Every job container gets an explicit `/dev/shm` size (veRL rollout servers failed at start on both providers with Docker's 64 MiB default): 16 GiB by default, target placement `shm_size_gb` / `host_memory_gb`; local `docker run --shm-size`, dstack `resources.shm_size` plus a matching `resources.memory` minimum; recorded in job plan, run plan, provider plan and submission receipt.
 - [ ] GPU gates on the new images: #1 kernels in the kind image, #2/#9 precision arms, #6 cancel on the 8 GB card, #8 veRL continuation (fresh then `--model-from-run`), #5 oversampling canary.
 - [ ] Release candidate per `docs/release-engineering.md`; final.
 - [ ] Deploy the 0.4.12 Observatory from ai-infra branch `deploy/observatory-0.4.12` (`9d3c7e3`, sets `POSTTRAIN_OBSERVATORY_DEFAULT_SOURCE=posttrain-lab`), then run the post-deploy check below.
@@ -151,6 +152,13 @@ followed by the touched packages' tests (run with `CUDA_VISIBLE_DEVICES=""`).
   and `kl_loss_type=k3_unclipped` for GDPO/CAPO, which veRL 0.9.0.post4 lacks,
   so GDPO/CAPO on veRL would fail at the first update until post5 is pinned.
 
+- Observation (qualification, 2026-09-29): every veRL job failed at rollout
+  server start on local Docker and dstack: `Insufficient space in /dev/shm
+  for shared-memory allocation: 160 MiB required, 64 MiB free`. Neither
+  provider set a shared-memory size. dstack applies `resources.shm_size` on
+  VM and SSH fleets (through its shim); its RunPod backend creates pods and
+  ignores it, so RunPod pods keep the shared memory RunPod gives them.
+
 ## Decision Log
 
 - Decision (user, 2026-09-28): release scope is exactly fixes 1–6; fix now,
@@ -174,6 +182,13 @@ followed by the touched packages' tests (run with `CUDA_VISIBLE_DEVICES=""`).
   `sdist_sha256` only for it.
 - Decision: the SAMPO-2 veRL package stays retired (veRL rejects SAMPO until
   the VORTEX port lands) and is annotated rather than repinned.
+- Decision (2026-09-29): job containers get a private, sized `/dev/shm`
+  (16 GiB default, `shm_size_gb` on the target placement, capped at half of a
+  declared `host_memory_gb`) rather than `--ipc=host`, which would share the
+  host's IPC namespace and shared memory with the job. The tmpfs limit is not
+  a reservation. On dstack the offer's RAM minimum is raised to the shm size
+  (or the declared host memory) so it can hold it. The cleanup containers
+  only run find/mv/rm and keep the default.
 - Decision (user): FP16 A/B replicates the paper's headline pair (BF16/BF16 vs
   FP16/FP16, arXiv 2510.26788 Section 4.4) on Qwen3.5-0.8B.
 

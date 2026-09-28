@@ -11,7 +11,12 @@ from typing import Annotated, cast
 
 import typer
 from posttrain.common import ConfigurationIssue, ContractError, HostedInferenceBinding, InferenceBinding
-from posttrain.execution import ProjectControlLocator, compare_job_packages, unchanged_fields
+from posttrain.execution import (
+    ProjectControlLocator,
+    compare_job_packages,
+    execution_shared_memory_gb,
+    unchanged_fields,
+)
 from posttrain.project import JobIntent, Project
 from posttrain.train import GRPOSettings, SAMPOSettings, TrainingBinding, describe_kl_reference
 from posttrain.train.precision import ResolvedPrecision, resolve_precision
@@ -33,6 +38,7 @@ from ..execution_planning import (
     PlannedJobPackage,
     plan_job_execution,
     plan_job_package,
+    primary_execution_target,
     runtime_credential_status,
     runtime_credential_status_for_seats,
     with_curriculum_state,
@@ -270,6 +276,14 @@ def plan_work_package_cmd(
     if credential_status:
         payload["runtime_credentials"] = credential_status
         lines.extend(f"Runtime credential {name}: {status}" for name, status in credential_status.items())
+    try:
+        target = primary_execution_target(intent.prepared)
+    except ContractError:
+        target = None  # no single detached target; job run chooses one
+    if target is not None:
+        shared_memory_gb = execution_shared_memory_gb(target)
+        payload["execution_target"] = {"id": target.id, "shared_memory_gb": shared_memory_gb}
+        lines.append(f"Container shared memory: {shared_memory_gb} GiB (/dev/shm, target {target.id})")
     precision = _training_precision(intent.prepared.seats)
     if precision is not None:
         payload["precision"] = precision.as_dict()
@@ -541,6 +555,7 @@ def run_work_package_cmd(
                     f"Execution {admission_entry.state}: {admission_entry.run_id}",
                     f"Image: {packed.image.image.value}",
                     f"Provider: {prepared_submission.provider_plan.provider}",
+                    f"Container shared memory: {prepared_submission.provider_plan.request.shared_memory_gb} GiB",
                     provider_detail,
                     f"Status: posttrain run status {admission_entry.run_id}",
                 )
@@ -757,6 +772,7 @@ def _execution_plan_payload(planned: PlannedJobExecution) -> dict[str, object]:
                 "revision": planned.target.revision,
                 "device_class": planned.target.device_class,
                 "memory_gb": planned.target.memory_gb,
+                "shared_memory_gb": execution_shared_memory_gb(planned.target),
             },
             "runtime_profile": settings.runtime_profile,
             "policy": {

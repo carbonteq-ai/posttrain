@@ -78,10 +78,6 @@ find {r} -mindepth 1 -maxdepth 1 -exec rm -rf -- {{}} +
 """
 
 
-# /dev/shm limit for GPU containers (see DockerCli.invoke "submit").
-GPU_SHM_SIZE = "16g"
-
-
 class DockerGateway(Protocol):
     def invoke(self, action: str, payload: Mapping[str, Any]) -> Mapping[str, Any]: ...
 
@@ -160,12 +156,18 @@ class DockerCli:
             for dns_server in cast_sequence(payload.get("dns_servers")):
                 arguments.extend(("--dns", str(dns_server)))
             if bool(payload.get("gpu")):
-                # Docker's default 64 MiB /dev/shm is too small for GPU jobs: vLLM's
-                # multiprocess executor allocates a 160 MiB shared-memory broadcast
-                # queue (10 chunks of VLLM_MQ_MAX_CHUNK_BYTES_MB=16) and fails at
-                # engine start, and Ray's object store falls back to disk. This is a
-                # tmpfs size limit, not a reservation.
-                arguments.extend(("--gpus", "all", "--shm-size", GPU_SHM_SIZE))
+                arguments.extend(("--gpus", "all"))
+            # Docker's 64 MiB /dev/shm default is too small for job containers:
+            # vLLM's multiprocess executor allocates a 160 MiB shared-memory
+            # broadcast queue (10 chunks of VLLM_MQ_MAX_CHUNK_BYTES_MB=16) and
+            # fails at engine start; NCCL and dataloader workers also use it.
+            # This is a tmpfs size limit, not a reservation. A private, sized
+            # tmpfs keeps the container's IPC namespace isolated; --ipc=host
+            # would share the host's.
+            shared_memory_gb = payload.get("shm_size_gb")
+            if isinstance(shared_memory_gb, bool) or not isinstance(shared_memory_gb, int) or shared_memory_gb < 1:
+                raise ValueError("local Docker submission requires a positive shared-memory size")
+            arguments.extend(("--shm-size", f"{shared_memory_gb}g"))
             command = tuple(str(value) for value in cast_sequence(payload.get("command")))
             if not command:
                 raise ValueError("local Docker submission command cannot be empty")
@@ -225,7 +227,9 @@ class DockerCli:
             return {"removed": True}
         if action == "cleanup_workspace":
             # Files are owned by the container user, so a container scans the
-            # workspace, keeps unfinalized checkpoints and empties the rest.
+            # workspace, keeps unfinalized checkpoints and empties the rest. It
+            # only runs find/mv/rm, so it needs no GPU and Docker's default
+            # /dev/shm is enough.
             result = self._run(
                 "run",
                 "--rm",
@@ -303,6 +307,7 @@ class LocalDockerExecutionProvider:
             "name": _container_name(request.idempotency_key),
             "image": request.local_image or request.image.value,
             "gpu": request.target.device_class in {"cuda", "nvidia-cuda"},
+            "shm_size_gb": request.shared_memory_gb,
             "environment_names": list(request.environment_names),
             "launch_environment": self._launch_environment(request),
             "volumes": self._volumes(request),
@@ -323,6 +328,7 @@ class LocalDockerExecutionProvider:
             native_plan_id=name,
             details={
                 "container_name": name,
+                "shared_memory_gb": request.shared_memory_gb,
                 "submission_ready": request.bundle is None,
             },
         )
