@@ -77,6 +77,12 @@ feature's behaviour and re-running its tests.
   `oversample` (first round) and `oversample_refill` (each refill round),
   because the right number depends on rollout concurrency; job plan checks
   that the first round fits vLLM and worker capacity.
+- Decision (user): guard oversampling against concurrency. The largest round,
+  (prompts + max(oversample, oversample_refill)) × generations episodes, must
+  not exceed min(vLLM max_num_seqs, environment max_concurrent, env_workers ×
+  episodes_per_worker); a refill can need every prompt group if round 1 kept
+  none. Checked as an error at job plan and again in the trainer before the
+  first rollout.
 - Decision (user): no automatic stop on KL or entropy.
 - Decision (user): FP16 A/B replicates the paper's headline pair (BF16/BF16 vs
   FP16/FP16, arXiv 2510.26788 Section 4.4) on Qwen3.5-0.8B.
