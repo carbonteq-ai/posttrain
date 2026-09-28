@@ -569,6 +569,8 @@ def test_grpo_worker_maps_bounded_rollout_execution_to_native_verl(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    # The native-thread reservation is checked against the host CPUs; fix them so the test runs anywhere.
+    monkeypatch.setattr("posttrain.train.rollout_execution.effective_cpu_count", lambda: 64)
     request = _grpo_request()
     training = replace(
         request.training,

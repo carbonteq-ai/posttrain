@@ -30,7 +30,9 @@ def request(
     )
 
 
-def test_trl_rollout_execution_is_opt_in_and_capacity_bounded():
+def test_trl_rollout_execution_is_opt_in_and_capacity_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The native-thread reservation is checked against the host CPUs; fix them so the test runs anywhere.
+    monkeypatch.setattr("posttrain.train.rollout_execution.effective_cpu_count", lambda: 64)
     assert _rollout_execution_config(request()) is None
     execution = _rollout_execution_config(
         request(

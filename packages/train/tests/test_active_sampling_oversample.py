@@ -21,6 +21,18 @@ from posttrain.train.reward_recovery import reward_contract_digest
 from posttrain.train.rollout_execution import oversampled_round_capacity_error
 
 
+@pytest.fixture(autouse=True)
+def _host_cpus(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give the 12-worker rollout topologies the CPUs a training host has, on any test runner.
+
+    Trainer start also checks the environment workers' native-thread reservation
+    against the host's CPUs; these tests are about the concurrency guard, so they
+    fix the CPU count instead of depending on the machine that runs them.
+    """
+
+    monkeypatch.setattr("posttrain.train.rollout_execution.effective_cpu_count", lambda: 64)
+
+
 def _settings(**active_sampling: int) -> SAMPOSettings:
     # 24 prompts x 6 generations, the LFM2.5-2.6B SAMPO shape.
     return SAMPOSettings(

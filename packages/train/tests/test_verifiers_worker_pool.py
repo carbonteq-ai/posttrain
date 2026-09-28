@@ -116,7 +116,9 @@ def create_pool(client, projector=None, *, cancel_timeout=1.0, behavior_policy_f
 
 
 @pytest.mark.asyncio
-async def test_fixed_native_pool_dispatches_and_fences_collection_identity():
+async def test_fixed_native_pool_dispatches_and_fences_collection_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The native-thread reservation is checked against the host CPUs; fix them so the test runs anywhere.
+    monkeypatch.setattr("posttrain.train.rollout_execution.effective_cpu_count", lambda: 64)
     FakePool.instances.clear()
     client = FakeClient("unused")
     workers = create_pool(client)
