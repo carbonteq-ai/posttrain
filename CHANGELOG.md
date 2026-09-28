@@ -6,17 +6,105 @@ version across first-party distributions.
 
 ## Unreleased
 
+## 0.4.12 - unreleased
+
+Training-harness fixes found by auditing the LFM2.5-2.6B SAMPO continuation:
+tools that behave as documented, FP16 training, fast Qwen3.5 kernels, a label
+for how every episode ended, a checkpoint when a run is cancelled,
+oversampled active sampling, and a KL penalty measured against the base model.
+
+### Added
+
+- FP16 training for TRL and veRL online RL (GRPO, SAMPO, GDPO, CAPO). On a
+  training binding, `backend_options.training_precision: fp16` (default
+  `bf16`) trains a LoRA adapter in float32 over a float16 base with dynamic
+  loss scaling; `logits_float32: true` computes the trainer's log-probabilities
+  from float32 logits (TRL). The rollout inference binding's `engine.dtype`
+  (`bfloat16`, `float16` or `float32`) sets the vLLM sampler's precision.
+  `posttrain work-package plan` prints the resolved precision on a
+  `Precision:` line. Runs record the loss scale and skipped optimizer steps
+  (`train/loss_scale`, `train/optimizer_step_skipped`), and veRL runs also
+  record the rollout-versus-trainer log-probability gap. The advisor rejects
+  `dtype: float32` for Qwen3.5 rollouts (vLLM's Gated DeltaNet kernel does not
+  support it) and warns when an FP16 trainer samples in another precision.
+  New lab work packages compare BF16 and FP16 on Qwen3.5-0.8B GSM8K (TRL and
+  veRL, 8 GB GPU) and on the LFM2.5-2.6B SAMPO continuation.
+- Episode ending labels. Every training and evaluation episode records how it
+  ended: `completed`, `turn_limit`, `token_budget`, `time_limit`,
+  `reply_token_limit`, `context_limit_reply_cut`, `context_rejected` or
+  `error`. Every ending other than `completed` and `error` is a truncation, so
+  the `truncated` flag, truncation penalties and masking are unchanged.
+  Training writes per-update counts and rates (for example
+  `train/rl/ending_reply_token_limit_rate`); Observatory shows the ending in
+  the trace table and trace detail, and the semantic layer groups rollouts by
+  `rollout.ending`. Trace facts v9 store it in the `episode_ending` fact
+  column, and `posttrain trace-facts backfill` fills it for existing runs.
+- Checkpoint on cancel. When the host cancels a TRL GRPO, DAPO, OLMo 3,
+  SAMPO, GDPO or CAPO run, the last completed optimizer update is saved and
+  published as a checkpoint if it is newer than the last periodic one. A
+  cancellation that arrives during an optimizer step waits for that update to
+  finish (at most 60 seconds). The `cancel_checkpoint` event records the
+  saved step or why nothing was saved, and the run finishes as cancelled.
+- Oversampling for active sampling. `active_sampling: {oversample: N,
+  oversample_refill: M}` starts N extra prompt groups in the first round and M
+  in each refill round, so an update fills in fewer rounds; the surplus is
+  discarded. Both default to 0, which keeps the previous behaviour. Job plan,
+  and the trainer again before the first rollout, reject a first round larger
+  than vLLM `max_num_seqs`, the environment's `max_concurrent` or the rollout
+  workers can run at once. TRL only.
+- KL reference. GRPO and SAMPO settings take `kl_reference: base | start`
+  (default `base`). When a run continues a trained adapter
+  (`--model-from-run`), the KL penalty now measures distance from the base
+  model instead of from the adapter the run started from; `start` keeps the
+  previous behaviour on TRL. Job plan prints which reference a run uses.
+- veRL can continue a trained LoRA adapter: the adapter is attached to its
+  foundation model, reaches the vLLM rollout before the first collection, and
+  keeps training, with the base model as the KL reference. veRL rejects
+  `kl_reference: start` for a continued adapter, which it cannot provide.
+- Lab: held-out AutomationBench suites `automationbench-lfm26-heldout-mix-v4`
+  and `-v4-t05` on the fixed tools, with Liquid's recommended sampling at
+  temperature 0.1 and 0.5, and a continuation of the LFM2.5-2.6B SAMPO run
+  from its update-40 adapter on the fixed tools.
+
 ### Changed
 
-- The `supervised`, `online-rl-trl-py312`, `online-rl-verl-py313` (backend
-  environment) and `transform` job-kind images install `fla-core` 0.5.2, so Transformers trains Qwen3.5 Gated DeltaNet layers with
-  Triton kernels instead of its torch fallback: a Qwen3.5-0.8B LoRA actor step
-  on 4,096 tokens drops from 5.0 s to 1.5 s on an RTX 3070 Ti, and fp16 steps
-  no longer produce NaN gradients. `tools/kernel-wheels/causal-conv1d/build.sh`
-  builds the matching causal-conv1d CUDA wheel for PyTorch 2.13.0+cu130; it
-  joins the images once published to the internal index.
+- AutomationBench tools behave as documented: `automationbench-v1` 0.5.0
+  (`61448b5d`) vendors the CarbonTeq AutomationBench tool fixes. For example, a
+  Sheets row search now searches instead of returning the first ten rows,
+  Drive search no longer mixes placeholder files into results, Salesforce
+  search matches without a field name, list arguments are no longer corrupted
+  into strings, and Sheets row updates are kept for scoring. Graders are
+  unchanged; scores on the new suites are not comparable with earlier suites.
+- Fast Qwen3.5 kernels: the `supervised`, `online-rl-trl-py312`,
+  `online-rl-verl-py313` (backend environment) and `transform` job-kind images
+  install `fla-core` 0.5.2 and CarbonTeq's `causal-conv1d` 1.7.0 build for
+  PyTorch 2.13.0+cu130, so Transformers trains Qwen3.5 Gated DeltaNet layers on
+  fast kernels instead of its torch fallback. A Qwen3.5-0.8B LoRA actor step on
+  4,096 tokens drops from 5.0 s to 1.5 s on an RTX 3070 Ti, and FP16 steps no
+  longer produce NaN gradients.
+- veRL rejects GRPO settings it would otherwise silently ignore, at job plan
+  and when the launch plan is built: `adaptive_curriculum` ("currently
+  supported by the TRL backend only"), `advantage_scaling` other than `group`,
+  `importance_sampling_mode`, `importance_sampling_clip_min` or
+  `importance_sampling_clip_max` other than their defaults
+  (`sequence_truncate`, 0.1, 3.0), `max_admission_attempts` other than 3, and
+  `active_sampling`, in addition to the OLMo 3 recipe and `truncation_penalty`.
+- The veRL backend environment uses the framework's Verifiers (`cdd2ec76`) and
+  `carbonteq-renderers` 0.1.12.post1.dev2, the same as the control
+  environment, so Verifiers environments can be packaged for veRL again; the
+  image declares Verifiers as provided in both environments, and a release
+  check fails if the two ever select different Verifiers.
+- Trackio `0.31.5.post14.dev32`: artifact commits keep retrying while the
+  server is slow, and the `episode_ending` trace-fact column (Doris schema
+  version 5). Migrate the shared server to schema version 5 and run dev32
+  before job images from this release write to it.
+- Maintained forks: TRL `1.12.0.post11` (oversampling and `peft_reference`),
+  veRL `0.9.0.post4` (loss scale, skipped steps and log-probability gap
+  metrics), Trackio `0.31.5.post14.dev32`, and the `causal-conv1d`
+  `1.7.0+cu130torch2.13` rebuild, which is promoted to the stable index as a
+  wheel-only fork release.
 
-## 0.4.11 - unreleased
+## 0.4.11 - 2026-09-28
 
 Runs can be queried in SQL and carry notes; metrics and trace facts are correct
 where they are recorded.
@@ -52,15 +140,8 @@ where they are recorded.
 - Trace facts v8: `task_id` is the environment's task key (for AutomationBench
   the task name), falling back to the dataset's example id, so training and
   evaluation name tasks the same way across runs.
-- Trackio `0.31.5.post14.dev32` (run notes, read-only project SQL, set-oriented
-  trace-fact replacement, reliable remote delivery, patient artifact commits,
-  the `episode_ending` fact column; Doris schema version 5). The shared server
-  must be migrated to schema version 5 and run dev32 before job images with
-  this release write to it.
-- Trace facts v9: the episode ending is the fact dimension `episode_ending`;
-  `rollout.ending` reads it (falling back to the trace attribute), and
-  `posttrain trace-facts backfill` fills it for existing runs and reports the
-  endings it projects.
+- Trackio `0.31.5.post14.dev31` (run notes, read-only project SQL, set-oriented
+  trace-fact replacement, reliable remote delivery; Doris schema version 4).
 - Observatory: SAMPO runs use the GRPO overview (headline metrics, the
   Policy optimization swimlane with rollout behavior, update stability, rollout
   population, runtime, freshness, acceleration, active sampling, rollout setup
