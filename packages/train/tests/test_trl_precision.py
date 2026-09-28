@@ -258,3 +258,66 @@ def test_float16_trainable_parameters_are_rejected(tmp_path: Path) -> None:
             parameter.data = parameter.data.to(torch.float16)
     with pytest.raises(ValueError, match="requires float32 trainable parameters"):
         require_float32_trainable_parameters(fresh)
+
+
+def test_a_fused_optimizer_skip_is_detected_from_the_loss_scale() -> None:
+    """Accelerate reports no skip for a fused optimizer; the halved scale does (run q0412-trl-qwen08b-fp16-r1)."""
+
+    torch = pytest.importorskip("torch")
+    accelerate = pytest.importorskip("accelerate")
+    accelerate_optimizer = pytest.importorskip("accelerate.optimizer")
+    accelerate_state = pytest.importorskip("accelerate.state")
+    accelerate.Accelerator(cpu=True)  # AcceleratedOptimizer reads the process state
+    try:
+        _fused_skip_scenario(torch, accelerate_optimizer)
+    finally:
+        accelerate_state.AcceleratorState._reset_state(reset_partial_state=True)
+
+
+def _fused_skip_scenario(torch: Any, accelerate_optimizer: Any) -> None:
+    parameter = torch.nn.Parameter(torch.ones(4))
+    scaler = torch.amp.GradScaler("cpu", init_scale=65536.0)
+    optimizer = accelerate_optimizer.AcceleratedOptimizer(
+        torch.optim.AdamW([parameter], lr=1e-3, fused=True), device_placement=False, scaler=scaler
+    )
+    context = _Context()
+    monitor = LossScaleMonitor(cast(Any, context))
+    seen: list[dict[str, object]] = []
+    normalize = monitor.finite_grad_norm(lambda _step, native: seen.append(dict(native)) or {})
+
+    # Update 1 overflows: the fused step is still called, so Accelerate reports no skip.
+    scaler.scale((parameter * math.inf).sum()).backward()
+    monitor.before_step(optimizer)
+    optimizer.step()
+    assert optimizer.step_was_skipped is False
+    monitor.observe(optimizer, 1)
+    normalize(1, {"grad_norm": math.nan, "loss": 0.5})
+    assert torch.equal(parameter.detach(), torch.ones(4))  # the fused kernel skipped the update
+
+    # Update 2 is finite and steps.
+    optimizer.zero_grad()
+    scaler.scale((parameter * 0.1).sum()).backward()
+    monitor.before_step(optimizer)
+    optimizer.step()
+    monitor.observe(optimizer, 2)
+    normalize(2, {"grad_norm": 0.2})
+
+    assert [values for values, _step in context.metrics_seen] == [
+        {"train/loss_scale": 32768.0, "train/optimizer_step_skipped": 1.0, "train/optimizer_steps_skipped": 1.0},
+        {"train/loss_scale": 32768.0, "train/optimizer_step_skipped": 0.0, "train/optimizer_steps_skipped": 1.0},
+    ]
+    assert seen == [{"loss": 0.5}, {"grad_norm": 0.2}]
+    assert [name for name, _attributes in context.events] == ["optimizer_step_skipped"]
+
+
+def test_a_non_finite_grad_norm_without_a_scaler_skip_still_fails_the_run() -> None:
+    context = _Context()
+    monitor = LossScaleMonitor(cast(Any, context))
+    seen: list[dict[str, object]] = []
+    normalize = monitor.finite_grad_norm(lambda _step, native: seen.append(dict(native)) or {})
+    optimizer = SimpleNamespace(scaler=_Scaler(65536.0), step_was_skipped=False)
+    monitor.before_step(optimizer)
+    monitor.observe(optimizer, 1)  # the scale did not drop: not a scaler skip
+    normalize(1, {"grad_norm": math.nan})
+    assert math.isnan(cast(float, seen[0]["grad_norm"]))  # kept, so the normalizer fails the run
+    assert context.metrics_seen[0][0]["train/optimizer_step_skipped"] == 0.0

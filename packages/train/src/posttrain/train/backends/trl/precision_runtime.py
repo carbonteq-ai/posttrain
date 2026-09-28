@@ -22,22 +22,38 @@ type MetricNormalizer = Callable[[int, Mapping[str, object]], Mapping[str, float
 
 
 class LossScaleMonitor:
-    """Record the dynamic loss scale and skipped optimizer steps of a float16 run."""
+    """Record the dynamic loss scale and skipped optimizer steps of a float16 run.
+
+    A step is skipped when the scaler found an infinite or NaN gradient. Accelerate
+    reports that as ``step_was_skipped`` only for an optimizer the scaler does not
+    call on overflow; a fused optimizer (Transformers' default ``adamw_torch_fused``)
+    is always called and skips the update inside its kernel, so Accelerate reports
+    ``False``. The scaler halves its scale exactly when it found an overflow, so a
+    scale lower after the step than before it is the robust skip signal.
+    """
 
     def __init__(self, context: RunContext) -> None:
         self._context = context
         self.optimizer_steps = 0
         self.skipped_steps = 0
         self.last_step_skipped = False
+        self._scale_before_step: float | None = None
+
+    def before_step(self, optimizer: Any) -> None:
+        """Remember the loss scale before one optimizer step (a no-op without loss scaling)."""
+
+        scaler = getattr(optimizer, "scaler", None)
+        self._scale_before_step = float(scaler.get_scale()) if scaler is not None else None
 
     def observe(self, optimizer: Any, global_step: int) -> None:
         """Read the scaler after one optimizer step (a no-op without loss scaling)."""
 
         scaler = getattr(optimizer, "scaler", None)
+        before, self._scale_before_step = self._scale_before_step, None
         if scaler is None:
             return
-        skipped = bool(getattr(optimizer, "step_was_skipped", False))
         scale = float(scaler.get_scale())
+        skipped = bool(getattr(optimizer, "step_was_skipped", False)) or (before is not None and scale < before)
         self.optimizer_steps += 1
         self.last_step_skipped = skipped
         if skipped:
@@ -82,6 +98,13 @@ def loss_scale_callback_type(imports: Mapping[str, Any], monitor: LossScaleMonit
     parent = imports["TrainerCallback"]
 
     class LossScaleCallback(parent):
+        def on_pre_optimizer_step(self, args: Any, state: Any, control: Any, **kwargs: Any) -> Any:
+            del args, state
+            optimizer = kwargs.get("optimizer")
+            if optimizer is not None:
+                monitor.before_step(optimizer)
+            return control
+
         def on_step_end(self, args: Any, state: Any, control: Any, **kwargs: Any) -> Any:
             del args
             optimizer = kwargs.get("optimizer")
