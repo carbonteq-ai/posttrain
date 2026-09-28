@@ -164,3 +164,15 @@ def test_episode_endings_are_a_rollout_dimension_and_update_rates() -> None:
     )
     with pytest.raises(ValueError, match="only a trace_fact source"):
         Source(kind="metric_series", name="train/rl/reward_mean", fallback_attribute="episode_ending")
+
+
+def test_catalog_describes_trl_per_round_active_sampling_metrics() -> None:
+    from posttrain_observatory.metric_catalog import ACTIVE_SAMPLING_CATALOG_ROUNDS
+
+    # The lab's largest max_candidate_batches is 10; every round a run may record is described.
+    assert ACTIVE_SAMPLING_CATALOG_ROUNDS >= 10
+    for round_index in range(1, ACTIVE_SAMPLING_CATALOG_ROUNDS + 1):
+        for kind in ("requested", "generated", "retained"):
+            entry = CATALOG_BY_METRIC[f"train/rl/active_sampling_round_{round_index}_{kind}_groups"]
+            assert entry.entity is None  # described, not a semantic measure: the round is in the name
+            assert entry.help().label == f"Active-sampling round {round_index} {kind} groups"

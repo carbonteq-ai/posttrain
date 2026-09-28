@@ -409,3 +409,29 @@ def test_any_drafting_method_owes_speculative_evidence(method: str) -> None:
     assert features.speculative_rollout_enabled
     payload = _fixture("mtp_step.json")
     normalize_grpo_metrics(backend="trl", step=payload["step"], native=payload["native"], features=features)
+
+
+def test_trl_per_round_active_sampling_metrics_are_bounded_by_the_candidate_batches() -> None:
+    native = {
+        "active_sampling/round_1_requested_groups": 4.0,
+        "active_sampling/round_3_retained_groups": 2.0,
+        "active_sampling/round_4_generated_groups": 5.0,  # beyond max_candidate_batches: not a real round
+    }
+    bounded = normalize_grpo_metrics(
+        backend="trl", step=1, native=native, features=GRPOObservationFeatures(active_sampling_rounds=3)
+    ).metrics
+    assert dict(bounded) == {
+        "train/rl/active_sampling_round_1_requested_groups": 4.0,
+        "train/rl/active_sampling_round_3_retained_groups": 2.0,
+    }
+    # Without active sampling the names are not this run's vocabulary.
+    assert (
+        normalize_grpo_metrics(backend="trl", step=1, native=native, features=GRPOObservationFeatures()).metrics == {}
+    )
+    with pytest.raises(ValueError, match="cannot be negative"):
+        normalize_grpo_metrics(
+            backend="trl",
+            step=1,
+            native={"active_sampling/round_1_generated_groups": -1.0},
+            features=GRPOObservationFeatures(active_sampling_rounds=3),
+        )

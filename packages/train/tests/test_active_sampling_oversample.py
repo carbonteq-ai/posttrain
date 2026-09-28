@@ -232,3 +232,98 @@ def test_reward_contract_digest_ignores_oversampling() -> None:
     exact = digest(_settings())
     assert digest(_settings(oversample=4, oversample_refill=2)) == exact
     assert digest(_settings(max_candidate_batches=5)) != exact
+
+
+def test_a_plain_olmo3_run_records_trl_per_round_active_sampling_metrics() -> None:
+    """Run q0412d-oversample-qwen08b-r1 (no curriculum) kept these in TRL's stdout log only."""
+
+    from collections import defaultdict
+
+    import torch
+    from posttrain.train import GRPOSettings
+    from posttrain.train.backends.trl.policy_optimization import _observation_features
+    from posttrain.train.backends.trl.policy_telemetry import normalize_live_metrics
+    from trl.trainer.grpo_trainer import GRPOTrainer
+
+    settings = GRPOSettings(
+        "qwen3.5/olmo3-oversample-metrics@1",
+        TrainingLoop(max_steps=1, per_device_batch_size=1, gradient_accumulation_steps=8),
+        num_prompts_per_step=2,
+        num_generations=4,
+        algorithm="olmo3",
+        advantage_scaling="none",
+        clip_epsilon_high=0.272,
+        importance_sampling_mode="token_truncate",
+        importance_sampling_clip_min=None,
+        importance_sampling_clip_max=2.0,
+        active_sampling=ActiveGroupSampling(max_candidate_batches=3, oversample=1, oversample_refill=1),
+    )
+
+    class Accelerator:
+        num_processes = 1
+        process_index = 0
+        device = torch.device("cpu")
+
+        @staticmethod
+        def gather(value: object) -> object:
+            tensor = cast(Any, value)
+            return tensor.reshape(1) if isinstance(value, torch.Tensor) and tensor.ndim == 0 else value
+
+    class Trainer:
+        """What TRL's own active-sampling loop reads from the trainer, with round 1 lacking spread."""
+
+        _select_dynamic_sampling_rows = staticmethod(GRPOTrainer._select_dynamic_sampling_rows)
+        _concatenate_dynamic_sampling_batches = GRPOTrainer._concatenate_dynamic_sampling_batches
+        _prepare_active_sampling_inputs = GRPOTrainer._prepare_active_sampling_inputs
+
+        def __init__(self) -> None:
+            self.model = SimpleNamespace(training=True)
+            self.accelerator = Accelerator()
+            self._tokenizer = SimpleNamespace(pad_token_id=0)
+            self.active_sampling = True
+            self.active_sampling_max_batches = 3
+            self.active_sampling_reward_std_epsilon = 0.0
+            self.active_sampling_oversample = 1
+            self.active_sampling_oversample_refill = 1
+            self.num_generations = 4
+            self.state = SimpleNamespace(global_step=0)
+            self._metrics = {"train": defaultdict(list)}
+            self.rounds = 0
+
+        def _generate_and_score_completions(self, inputs: list[dict[str, object]]) -> dict[str, object]:
+            self.rounds += 1
+            spread = 0.0 if self.rounds == 1 else 1.0
+            return {
+                "prompt_ids": torch.ones((len(inputs), 1), dtype=torch.long),
+                "prompt_mask": torch.ones((len(inputs), 1), dtype=torch.long),
+                "completion_ids": torch.arange(len(inputs)).reshape(-1, 1),
+                "completion_mask": torch.ones((len(inputs), 1), dtype=torch.long),
+                "advantages": torch.ones(len(inputs)),
+                "group_reward_std": torch.full((len(inputs),), spread),
+            }
+
+    trainer = Trainer()
+    candidates = [{"example_id": f"task-{index // 4}", "prompt": "q"} for index in range(24)]  # 6 groups reserved
+    trainer._prepare_active_sampling_inputs(candidates)
+    # TRL logs the mean of each list at the logging step.
+    logged = {name: sum(values) / len(values) for name, values in trainer._metrics["train"].items()}
+    assert "active_sampling/round_1_requested_groups" in logged  # TRL's own name
+
+    request = SimpleNamespace(
+        settings=settings,
+        inference=SimpleNamespace(backend="vllm@0.29.1", engine={"mode": "colocate"}),
+    )
+    metrics = normalize_live_metrics(1, logged, _observation_features(cast(Any, request)))
+
+    rounds = {name: value for name, value in metrics.items() if name.startswith("train/rl/active_sampling_round_")}
+    assert rounds == {
+        "train/rl/active_sampling_round_1_requested_groups": logged["active_sampling/round_1_requested_groups"],
+        "train/rl/active_sampling_round_1_generated_groups": logged["active_sampling/round_1_generated_groups"],
+        "train/rl/active_sampling_round_1_retained_groups": 0.0,
+        "train/rl/active_sampling_round_2_requested_groups": logged["active_sampling/round_2_requested_groups"],
+        "train/rl/active_sampling_round_2_generated_groups": logged["active_sampling/round_2_generated_groups"],
+        "train/rl/active_sampling_round_2_retained_groups": logged["active_sampling/round_2_retained_groups"],
+    }
+    assert rounds["train/rl/active_sampling_round_1_generated_groups"] == 3  # 2 prompt groups + oversample 1
+    assert metrics["train/rl/active_sampling_oversampled_groups"] >= 1
+    assert "train/rl/active_sampling_discarded_groups" in metrics

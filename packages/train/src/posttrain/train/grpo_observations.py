@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -70,6 +71,10 @@ class GRPOObservationFeatures:
     """Any drafting method (MTP, DSpark, Uno, ...): vLLM reports the same speculative counters."""
     quantized_kv_cache: bool = False
     tool_environment: bool = False
+    active_sampling_rounds: int = 0
+    """Generation rounds one active-sampling update may run (max_candidate_batches; 0 without it).
+
+    Bounds the per-round metrics TRL logs as ``active_sampling/round_<n>_*_groups``."""
 
     @classmethod
     def from_request(
@@ -91,7 +96,37 @@ class GRPOObservationFeatures:
             speculative_rollout_enabled=isinstance(speculative, Mapping) and bool(speculative.get("method")),
             quantized_kv_cache=isinstance(kv_cache_dtype, str) and kv_cache_dtype.startswith("turboquant_"),
             tool_environment=tool_environment,
+            active_sampling_rounds=_active_sampling_rounds(request),
         )
+
+
+def _active_sampling_rounds(request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest) -> int:
+    active_sampling = getattr(request.settings, "active_sampling", None)
+    return int(active_sampling.max_candidate_batches) if active_sampling is not None else 0
+
+
+ACTIVE_SAMPLING_ROUND_KINDS = ("requested", "generated", "retained")
+_ACTIVE_SAMPLING_ROUND = re.compile(r"^active_sampling/round_(\d+)_(requested|generated|retained)_groups$")
+
+
+def active_sampling_round_metric(round_index: int, kind: str) -> str:
+    """Canonical name of one active-sampling round's prompt-group count (rounds count from 1)."""
+
+    if round_index < 1 or kind not in ACTIVE_SAMPLING_ROUND_KINDS:
+        raise ValueError(f"invalid active-sampling round metric: round {round_index}, {kind!r}")
+    return f"train/rl/active_sampling_round_{round_index}_{kind}_groups"
+
+
+def _active_sampling_round_canonical(name: str, features: GRPOObservationFeatures) -> str | None:
+    """Map TRL's per-round group counts, for rounds the run's settings allow."""
+
+    match = _ACTIVE_SAMPLING_ROUND.fullmatch(name)
+    if match is None:
+        return None
+    round_index = int(match.group(1))
+    if not 1 <= round_index <= features.active_sampling_rounds:
+        return None
+    return active_sampling_round_metric(round_index, match.group(2))
 
 
 @dataclass(frozen=True, slots=True)
@@ -455,6 +490,8 @@ def normalize_grpo_metrics(
     origins: dict[str, str] = {}
     for name, raw_value in native.items():
         canonical = name if name in _CANONICAL_PASSTHROUGH else mapping.get(name)
+        if canonical is None and backend == "trl":
+            canonical = _active_sampling_round_canonical(name, features)
         if canonical is None or isinstance(raw_value, bool) or not isinstance(raw_value, int | float):
             continue
         value = float(raw_value)
@@ -538,6 +575,8 @@ def assess_grpo_evidence(
 
 
 def _validate_metric_value(name: str, value: float) -> None:
+    if name.startswith("train/rl/active_sampling_round_") and value < 0:
+        raise ValueError(f"GRPO metric {name!r} cannot be negative")
     if name in _RATIO_METRICS and not 0 <= value <= 1:
         raise ValueError(f"GRPO ratio metric {name!r} must be between zero and one")
     if name in _NON_NEGATIVE_METRICS and value < 0:
@@ -545,11 +584,13 @@ def _validate_metric_value(name: str, value: float) -> None:
 
 
 __all__ = [
+    "ACTIVE_SAMPLING_ROUND_KINDS",
     "EPISODE_ENDING_COUNT_METRICS",
     "EPISODE_ENDING_RATE_METRICS",
     "GRPOEvidenceStatus",
     "GRPOObservationFeatures",
     "NormalizedGRPOStep",
+    "active_sampling_round_metric",
     "assess_grpo_evidence",
     "episode_ending_counts",
     "episode_ending_metrics",

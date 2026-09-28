@@ -157,6 +157,11 @@ oversampled active sampling, and a KL penalty measured against the base model.
   most prompt groups x generations rows per round, so the oversampled first
   round ((prompts + oversample) x generations) failed every OLMo 3 GRPO and
   SAMPO run, including adaptive-curriculum rounds, at its first rollout.
+- Runs without an adaptive curriculum now record TRL's per-round
+  active-sampling counts as
+  `train/rl/active_sampling_round_<n>_{requested,generated,retained}_groups`
+  (rounds bounded by `max_candidate_batches`), described in the Observatory
+  metric catalog; they previously stayed in TRL's console log.
 - FP16 training starts its dynamic loss scaler at 1024 instead of PyTorch's
   65536 (`backend_options.fp16_initial_loss_scale` on a training binding, TRL
   and veRL): starting high, the Qwen3.5-0.8B fp16 arm skipped six of its first
