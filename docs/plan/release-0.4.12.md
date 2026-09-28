@@ -58,6 +58,8 @@ settings of running experiments.
 - [ ] #6 GPU cancel qualification on the 8 GB card.
 - [x] (2026-09-28) Integrated on `codex/release-0.4.12` (worktree `/home/hammad/projects/rl-release-0.4.12`, base `codex/eval-train-budget` `c35da68e`). Merge order and conflicts: see "Integration record" below. Version set with `posttrain-release prepare 0.4.12`; CHANGELOG `## 0.4.12` written. Full ladder green (see Validation and Acceptance).
 - [x] (2026-09-28) Coordinator additions on the release branch: veRL rejects GRPO settings it would silently ignore (`af5684ed`); veRL precision pair and adapter-continuation catalog fixes and the retired veRL SAMPO-2 note (`58535c27`); causal-conv1d as a wheel-only required fork with stable promotion support (`6d8fbefa`) and its public-CI consumer wheel (`350ad262`).
+- [x] (2026-09-28) veRL runs the training loop as selected or rejects it (`1a76166a`): schedule, warmup, seed, logging cadence, batch split, weight decay 0.0; lab veRL settings state `lr_scheduler_type: constant`. Ladder: pytest 2167 passed, 24 skipped; ruff, pyright, lint-imports clean.
+- [ ] Pin veRL 0.9.0.post5 (fork commit `a4d84ad3`, adds the `token_clip` policy loss and `k3_unclipped` KL that Posttrain requests for GDPO/CAPO; post4 lacks both) once it is published, the same way as post4, before publishing images.
 - [ ] Push `codex/release-0.4.12`, open the release PR, wait for Quality (dispatch it with `allow_pending_runtime_lock=true` if the push run needs it).
 - [ ] Publish the 0.4.12 job-kind images (locally per `docs/publishing.md` step 7, or in the candidate) so `published.toml` records the merged locks and veRL post4; then `posttrain-release check` (strict) passes and the veRL packages can pack.
 - [ ] Trackio server: Doris backup, `migrate-doris --to 5`, dev32 server, before any 0.4.12 job image writes to it.
@@ -139,6 +141,11 @@ followed by the touched packages' tests (run with `CUDA_VISIBLE_DEVICES=""`).
   warmup, so the default `linear` is not applied), `logging_steps`, `seed`,
   and the `per_device_batch_size` / `gradient_accumulation_steps` split. Not
   changed here because rejecting the default would break every veRL package.
+  Superseded by `1a76166a`: veRL maps these exactly or rejects them, and the
+  lab veRL settings now state the constant schedule veRL always ran.
+- Observation (coordinator): Posttrain requests veRL `policy_loss.loss_mode=token_clip`
+  and `kl_loss_type=k3_unclipped` for GDPO/CAPO, which veRL 0.9.0.post4 lacks,
+  so GDPO/CAPO on veRL would fail at the first update until post5 is pinned.
 
 ## Decision Log
 
