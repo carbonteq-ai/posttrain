@@ -20,8 +20,9 @@ from posttrain.common import (
 # the renderer fills on the train path (carbonteq-renderers); model-specific
 # recovery rules are gone. v7: an episode whose final model request was
 # rejected for exceeding the context is truncated, not an error, and keeps the
-# reward the environment scored.
-VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v8"
+# reward the environment scored. v9: the episode ending label is a fact
+# dimension (`episode_ending`), which needs Trackio 0.31.5.post14.dev32.
+VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v9"
 
 # Verifiers stop conditions that are limits, and the ending each one records.
 # `context_length` and `harness_timeout` come from pre-v1 Verifiers records.
@@ -185,6 +186,7 @@ def project_verifiers_trace_facts(
         "rollout_step": _rollout_step(record, supplied),
         "is_truncated": is_truncated,
         "has_error": has_error,
+        EPISODE_ENDING_ATTRIBUTE: _string(shared[EPISODE_ENDING_ATTRIBUTE]),
     }
 
     calls = _calls(record)

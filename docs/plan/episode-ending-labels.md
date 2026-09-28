@@ -19,7 +19,13 @@ Truncation keeps its exact meaning. Every ending other than `completed` and `err
 - [x] (2026-09-28 07:25Z) Milestone 3: Observatory list and detail agree; the ending is shown in both; the semantic layer gains `rollout.ending` and the rate measures; OpenAPI and the frontend schema are regenerated. Commit `8b2babd7`.
 - [x] (2026-09-28 07:31Z) Canonical baseline amendment in `docs/post-training/06-observation-and-lineage.md` and this plan.
 - [x] (2026-09-28 07:40Z) Validation ladder run on the whole repository (results under Validation and Acceptance).
-- [ ] Follow-up (not in this plan's scope; see Outcomes): Trackio fact column for the ending, label for historical traces, evaluation run counters, veRL live counters, and passing `max_model_len` to the classifier.
+- [x] (2026-09-28 15:40Z) Milestone 4, Trackio side (repository `../trackio`, worktree `/home/hammad/projects/trackio-release-next`, branch `codex/next-release` from tag `carbonteq-v0.31.5.post14.dev31`): fast-forwarded the unreleased f3be77d7 (artifact-commit retries), added the `episode_ending` fact dimension and Doris schema version 5 (commit `f0abb2c0`), and bumped to `0.31.5.post14.dev32` with the fork ledger (commit `d71cf2a5cbcc561bd72e3932d8032200a791d79c`). Unit suite: 516 passed, 7 skipped, 1 failed (`test_gpu_hardware.py`, `pynvml` not installed; the ledger's separate GPU gate). `ruff check trackio tests` passed. The real-Doris test file skipped (no isolated Doris credentials in this environment).
+- [x] (2026-09-28 15:45Z) Built dev32 from a fresh clone of `d71cf2a5` with `uv build` (the same command rebuilt dev31's published wheel and sdist byte for byte): wheel `78e3ecf207c074c43281edff75343086bf379a22cc281308cc12436e5a5260a3`, sdist `94d3f3bb7084346f441ce39b8e9d4cd775d1197d07ca6e5fba87726dfbddddc0`; `twine check` passed; a clean Python 3.12 install reports matching distribution and import versions, schema version 5 and the dimension. Retained under `/home/hammad/projects/trackio-release-next/dist/` (git-ignored) with `SHA256SUMS`.
+- [x] (2026-09-28 16:10Z) Milestone 4, Posttrain side (branch `codex/trackio-next` from `codex/episode-endings`): pin commit `b28b0dc5` (assumes dev32 is published; locks written from the hashes), code commit `55eb9ed3` (calculator v9 emits `episode_ending`; `rollout.ending` reads `fact_episode_ending` with the attribute as fallback; backfill reports endings). Validated with the local dev32 wheel installed into the worktree venv (`uv pip install --no-deps`), not through the lock.
+- [x] (2026-09-28 16:15Z) Read-only backfill preview against the shared server: `posttrain-lab` run `aab30e6e079b4974bb82512a703e8592` (`train.sampo-lfm26-sampo-cont120-g24x6-lr5e5-kl1e2-t05-20260928-r1`), first 50 traces: 50 complete, endings `completed` 49 and `turn_limit` 1, nothing written.
+- [x] (2026-09-28 14:05Z) Release steps 1-3: pushed fork branch `codex/next-release` and annotated tag `carbonteq-v0.31.5.post14.dev32` (both at `d71cf2a5`), created the GitHub prerelease with the two retained files (downloaded assets hash to `78e3ecf2…` and `94d3f3bb…`), and ran Posttrain workflow `publish-trackio-internal.yml` run `36432505907` (success). `https://pypi.lan/carbonteq/dev/+simple/carbonteq-trackio/` lists both files under `../../+f/78e/3ecf207c074c4/` and `../../+f/94d/3f3bb7084346f/`, the paths the pin commit predicted, and both download with the expected SHA-256. `uv lock`, the quantization `uv lock`, `posttrain-release lock-dependencies` and `posttrain-release lock-runtime-dependencies` (and its `--check`) changed nothing. Ladder from the lock (`uv sync --all-packages --locked --python 3.13 --extra trl --extra verifiers`): 2052 passed, 24 skipped; ruff, pyright (0 errors), lint-imports (9 kept), frontend tests and build pass. `posttrain-release check` fails only because the job-kind images predate the new closures (republish them in step 5); `--allow-pending-runtime-lock` passes.
+- [ ] Release steps 4-7 (see "Release and deployment of the fact column" below): Doris backup and migration with the dev32 server, job images, backfill, promotion. Evaluations are writing to the shared server; the migration window is scheduled separately.
+- [ ] Other follow-ups (see Outcomes): evaluation run counters, veRL live counters, and passing `max_model_len` to the classifier.
 
 ## Surprises & Discoveries
 
@@ -33,6 +39,11 @@ Truncation keeps its exact meaning. Every ending other than `completed` and `err
   Evidence: reading the installed `carbonteq-trackio` package in `.venv/lib/python3.13/site-packages/trackio/`.
 - Observation: the worktree's default `uv sync` omits the `trl` and `verifiers` extras, so 20 train tests fail on import (`torch`, `trl`, `aiohttp`, `renderers`). CI installs `--extra trl` and `--extra verifiers`.
   Evidence: `uv sync --all-packages --locked --python 3.13 --extra trl --extra verifiers` then `uv run --no-sync pytest packages/train/tests` passes.
+
+- Observation: a second `uv build` in the same tree gives a different sdist (the first build's `dist/` and build products are picked up), while a fresh clone reproduces the published bytes.
+  Evidence: rebuilding dev31 from a fresh clone of `6f292fe2` gave exactly the published hashes (`4980ee67…`, `7ce09dc7…`); building dev32 twice in one clone gave the same wheel and sdists `94d3f3bb…` then `faadcc98…`.
+- Observation: Trackio's Doris schema check is strict in both directions, so the migration and the server switch are one maintenance step, and rolling back the server after migrating needs the schema row set back to 4.
+  Evidence: `trackio/doris_schema.py`, `negotiate_schema`: a recorded version above the runtime's is "newer than this Trackio runtime", below is "requires an explicit migration".
 
 ## Decision Log
 
@@ -55,13 +66,26 @@ Truncation keeps its exact meaning. Every ending other than `completed` and `err
   Rationale: evaluation rollouts are already rows of the `rollouts` table, so `group by ending` answers the question; adding eval counters is a separate, optional change.
   Date/Author: 2026-09-28, Claude.
 
+- Decision: the fact calculator derives `episode_ending` from the native record (the same `verifiers_episode_ending` the trace attribute uses), not from caller attributes, and the version moves to `verifiers-trace-facts.v9`.
+  Rationale: the backfill re-projects from retained native traces, so the fact must be a pure function of the record to be reproducible; the new dimension changes every projection id, which the version bump makes explicit.
+  Date/Author: 2026-09-28, Claude.
+- Decision: `rollout.ending` reads `COALESCE(t.fact_episode_ending, <metadata attribute>)` through a new optional `Source.fallback_attribute` on `trace_fact` sources.
+  Rationale: traces recorded between the attribute (v8) and v9, and runs not yet backfilled, keep their label; after the backfill the column answers alone. A fallback-free switch would blank those rows until every run is backfilled.
+  Date/Author: 2026-09-28, Claude.
+- Decision: Trackio validates the ending only as bounded text (at most 128 characters, `VARCHAR(128)` on Doris), not against Posttrain's vocabulary.
+  Rationale: the fork keeps generic storage; the vocabulary belongs to `posttrain.common.episodes`.
+  Date/Author: 2026-09-28, Claude.
+- Decision: the Posttrain pin commit writes `uv.lock`, the quantization lock and the job-kind closures from the dev32 hashes (carbonteq/dev paths are `+f/<sha[:3]>/<sha[3:16]>/`) rather than leaving the dev31 lock or pointing at a local wheelhouse.
+  Rationale: dev32's dependency list equals dev31's, so the entries are fully determined by the hashes; relocking after publication must then be a no-op, which checks both the prediction and the published bytes. Local validation installed the wheel into the venv instead.
+  Date/Author: 2026-09-28, Claude.
+
 ## Outcomes & Retrospective
 
 All three milestones are complete. New training and evaluation traces carry `episode_ending`; training metrics carry per-update counts and rates; Observatory's list and detail agree for context-rejected episodes and show the label; the semantic layer can group rollouts by `rollout.ending` and read `ending_<ending>_rate` per update. Truncation, rewards, penalties, and trace facts are unchanged.
 
-What remains, each a separate follow-up:
+Milestone 4 (the Trackio fact column, formerly follow-up 1) is implemented and built but not released; the steps that need the maintainers are listed in "Release and deployment of the fact column". What remains, each a separate follow-up:
 
-1. Trackio fact column (repository `../trackio`, then the pin here). Add `episode_ending` to `_DIMENSION_NAMES` in `trackio/trace_facts.py`, a nullable `fact_episode_ending` column to the SQLite and Doris trace schemas (a Doris schema migration), to `FACT_COLUMNS` in `trackio/project_sql.py`, and to the restricted aggregation; publish the fork, update the exact pin and `uv.lock`; then add `episode_ending` to the dimensions `project_verifiers_trace_facts` emits (bump the calculator to v9), switch `rollout.ending` in `apps/observatory/src/posttrain_observatory/semantic_layer/framework.py` to `Source(kind="trace_fact", name="episode_ending")` with a metadata fallback for older rows, and run `posttrain trace-facts backfill` for retained runs.
+1. (Implemented in Milestone 4; release pending.) Trackio fact column (repository `../trackio`, then the pin here). Add `episode_ending` to `_DIMENSION_NAMES` in `trackio/trace_facts.py`, a nullable `fact_episode_ending` column to the SQLite and Doris trace schemas (a Doris schema migration), to `FACT_COLUMNS` in `trackio/project_sql.py`, and to the restricted aggregation; publish the fork, update the exact pin and `uv.lock`; then add `episode_ending` to the dimensions `project_verifiers_trace_facts` emits (bump the calculator to v9), switch `rollout.ending` in `apps/observatory/src/posttrain_observatory/semantic_layer/framework.py` to `Source(kind="trace_fact", name="episode_ending")` with a metadata fallback for older rows, and run `posttrain trace-facts backfill` for retained runs.
 2. Labels for historical traces. Trace metadata cannot be rewritten through the current Trackio API, so traces recorded before this change (including run `lfm26-sampo-cont120-…-r1`) show no label. Follow-up 1 plus a backfill makes the label available for them. Separately, Trackio's summary payload for list pages could retain the last call's `finish_reason`, `usage`, `sampling.max_tokens`, and `error` so readers can classify without the full payload.
 3. Evaluation run counters `eval/run/rollouts_ending_<ending>` if screens want them next to `eval/run/rollouts_truncated`.
 4. veRL live counters: the veRL agent loop (`packages/train/src/posttrain/train/backends/verl/agent_loop.py`) writes no live ending counts; the trace replay covers veRL runs whose native traces are retained.
@@ -123,6 +147,22 @@ Live acceptance (read-only, against the shared Trackio server): start this branc
 
 then request the detail `GET /api/v1/runs/<key>/traces/06d0f371052643dcbc7f250d8f8127e5` and the list `GET /api/v1/runs/<key>/traces?step=43&limit=250` for run key `WyJ0cmFja2lvLWNhcmJvbnRlcSIsImxmbTI2LXNhbXBvLWNvbnQxMjAtZzI0eDYtbHI1ZTUta2wxZTItdDA1LTIwMjYwOTI4LXIxIl0`. Both return outcome `truncated`, truncated true, reward −0.02, error null, ending null (the trace predates the label). `POST /api/v1/semantic/query` with `{"measures":["rollouts"],"by":["rollout.ending","rollout.truncated"],"runs":["lfm26-sampo-cont120-g24x6-lr5e5-kl1e2-t05-20260928-r1"]}` runs on Doris and returns `[[null, false, 5955], [null, true, 699]]`; a run trained after this change returns one row per ending.
 
+## Release and deployment of the fact column
+
+These steps need the maintainers' credentials or touch shared services; nothing here has been run. A training run is writing to the shared Trackio now, so do steps 4-5 only after it finishes (its last artifact commits have landed and the job is terminal), not while it runs.
+
+1. Trackio fork (`/home/hammad/projects/trackio-release-next`): review, push branch `codex/next-release` to `origin`, merge or keep as the release commit, tag `carbonteq-v0.31.5.post14.dev32` at `d71cf2a5cbcc561bd72e3932d8032200a791d79c`, and create the immutable GitHub Release with the two retained files from `dist/` (verify `sha256sum -c dist/SHA256SUMS` first). If the commit changes, rebuild from a fresh clone with `uv build` and update every hash below.
+2. Dispatch Posttrain's `Publish retained Trackio candidate to development` (`.github/workflows/publish-trackio-internal.yml`) with `release_tag=carbonteq-v0.31.5.post14.dev32`, `wheel_sha256=78e3ecf207c074c43281edff75343086bf379a22cc281308cc12436e5a5260a3`, `sdist_sha256=94d3f3bb7084346f441ce39b8e9d4cd775d1197d07ca6e5fba87726dfbddddc0`.
+3. On `codex/trackio-next`: `uv lock`, `(cd tools/quantization && uv lock)`, `uv run posttrain-release lock-dependencies`, `uv run posttrain-release lock-runtime-dependencies`, then `uv sync --all-packages --locked --python 3.13 --extra trl --extra verifiers` and the ladder. Expect no lock change; commit any difference.
+4. Server (ai-infra `scripts/deploy-trackio`, candidate database `trackio_candidate` first, then production): take a retained, restore-verified Doris backup; run `trackio storage migrate-doris --to 5 --preview` (it must list only the `ALTER TABLE traces ADD COLUMN fact_episode_ending VARCHAR(128) NULL`), then `--apply --backup-receipt <receipt>`; deploy the dev32 server immediately after, because the dev30 server refuses a v5 database on its next start. Run the fork's real-Doris test `tests/integration/test_doris_storage.py::test_episode_ending_fact_dimension_on_real_doris` against an isolated database, and check `/version` reports dev32.
+5. Only then release job images built from this branch (calculator v9); older images keep writing v8 facts, which the new server accepts.
+6. Backfill each retained run, preview then apply, from `apps/lab`: `uv run posttrain trace-facts backfill <provider run id> --window-size 1000` and then the same with `--apply`, resuming with `--cursor <next cursor>` until it prints `done`. Runs whose traces carry reasoning text without reasoning-token usage need `--renderer-model <model id>` (the command refuses otherwise). Reconcile a run that was training during the backfill again after it ends.
+7. Promote dev32 to `carbonteq/stable` with `promote-retained-fork-candidate.yml` after qualification.
+
+Rollback: before step 4 nothing shared changed; revert the Posttrain branch. After step 4, the column is additive and old servers never read it: redeploy the dev30/dev31 server after setting the schema row back with `INSERT INTO schema_versions (component, version, applied_at) VALUES ('trackio', 4, UTC_TIMESTAMP())` (the table is keyed by component), and keep job images on calculator v8 (a dev31 client rejects `episode_ending`). Dropping the column (`ALTER TABLE traces DROP COLUMN fact_episode_ending`) is optional and loses backfilled labels; the native traces and the `episode_ending` trace attribute still hold them.
+
+Milestone 4 validation (branch `codex/trackio-next`, dev32 wheel installed into the venv): whole suite with extras `uv run --no-sync pytest -q` 2052 passed, 24 skipped; `ruff check .` passed; `pyright` 0 errors; `lint-imports` 9 contracts kept; `posttrain-release check --allow-pending-runtime-lock` OK; frontend 120 tests passed and the production build succeeded. `test_rollouts_group_by_the_recorded_episode_ending` now covers a label present only as a fact (rollout-1) and only as a trace attribute (rollout-3); `test_backfilled_facts_are_accepted_by_the_pinned_trackio_client` fails with a Trackio client older than dev32.
+
 ## Idempotence and Recovery
 
 All steps are code and test changes; rerunning them is safe. Regenerating `openapi.json` and `api-schema.ts` is deterministic. The live check only reads from the shared Trackio server; stop the port-7871 server afterwards. To back out, revert the four commits; no stored data was changed, and traces written with the attribute remain readable by older code (the extra metadata key is ignored).
@@ -167,6 +207,8 @@ In `posttrain.train.grpo_observations`:
     def episode_ending_metrics(endings: Iterable[object]) -> dict[str, float]
     def episode_ending_rates(counts: Mapping[str, float]) -> dict[str, float]
 
-In Observatory: `TraceSummary.ending: EpisodeEnding | None`; semantic `Source.kind` gains `trace_attribute`; dimension `rollout.ending`; measures `ending_<ending>_rate` (update entity). No new external dependency; no Trackio, TRL, or Verifiers pin changes.
+In Observatory: `TraceSummary.ending: EpisodeEnding | None`; semantic `Source.kind` gains `trace_attribute`; dimension `rollout.ending`; measures `ending_<ending>_rate` (update entity). Milestones 1-3 changed no pin. Milestone 4 pins `carbonteq-trackio==0.31.5.post14.dev32` and adds `Source.fallback_attribute: str | None` (only on `trace_fact` sources), the `episode_ending` literal in `posttrain.tracking.TraceFactsQuery` and `PayloadDimension`, and `endings: Mapping[str, int]` on `TraceFactBackfillPage` and `TraceFactBackfillWindow`.
 
 Revision note (2026-09-28): plan created and completed in one pass; all milestones implemented, validation recorded, and the Trackio follow-up described.
+
+Revision note (2026-09-28, later): Milestone 4 (Trackio `episode_ending` fact column, dev32, calculator v9, fact-backed `rollout.ending`, backfill reporting) implemented and validated locally; release and deployment steps recorded for the maintainers.

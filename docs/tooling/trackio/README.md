@@ -1,6 +1,32 @@
 # Trackio fork and maintenance
 
-The next Posttrain release pins `0.31.5.post14.dev31` (fork commit
+The framework pin on branch `codex/trackio-next` is `0.31.5.post14.dev32`, fork
+commit `d71cf2a5cbcc561bd72e3932d8032200a791d79c` on fork branch
+`codex/next-release` (dev31 plus f3be77d7 and the episode-ending change), tag
+`carbonteq-v0.31.5.post14.dev32` (GitHub prerelease), published unchanged to
+`carbonteq/dev` by Posttrain workflow `36432505907` on 2026-09-28. The shared
+server has **not** been migrated or upgraded. A clean clone of that commit built with
+`uv build` gives wheel
+`78e3ecf207c074c43281edff75343086bf379a22cc281308cc12436e5a5260a3` and sdist
+`94d3f3bb7084346f441ce39b8e9d4cd775d1197d07ca6e5fba87726dfbddddc0` (the same
+procedure rebuilt dev31's published bytes exactly; build from a fresh clone,
+because a second build in the same tree changes the sdist). The pin commit
+wrote the lock entries from those hashes; relocking after publication changed
+nothing.
+dev32 adds the trace-fact dimension `episode_ending` (column
+`fact_episode_ending`, Doris schema version 5, migration
+`trackio storage migrate-doris --to 5`: one
+`ALTER TABLE traces ADD COLUMN fact_episode_ending VARCHAR(128) NULL`) and keeps
+retrying idempotent artifact commits for up to 30 minutes while the server is
+slow (a 150-update run failed at the end although every artifact committed).
+Fact calculator `verifiers-trace-facts.v9` emits the dimension, so a job image
+with it must not write to a server older than dev32: a dev31 client rejects the
+dimension locally and a dev30/dev31 server rejects it on import. Deploy order:
+publish dev32, back up Doris, migrate to v5 and switch the server to dev32 in
+one step (a dev32 server refuses a v4 database and an older server refuses v5),
+then release job images, then backfill.
+
+Before dev32, the Posttrain pin was `0.31.5.post14.dev31` (fork commit
 `6f292fe247eed46e6c8d0a5507205b6b9d830d97`, tag
 `carbonteq-v0.31.5.post14.dev31`; wheel
 `4980ee67e56788c3a0755df2fe2eaacce8a95884b46a82403b0161990fa082d1`, sdist

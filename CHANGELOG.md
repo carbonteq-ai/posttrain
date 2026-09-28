@@ -42,8 +42,15 @@ where they are recorded.
 - Trace facts v8: `task_id` is the environment's task key (for AutomationBench
   the task name), falling back to the dataset's example id, so training and
   evaluation name tasks the same way across runs.
-- Trackio `0.31.5.post14.dev31` (run notes, read-only project SQL, set-oriented
-  trace-fact replacement, reliable remote delivery; Doris schema version 4).
+- Trackio `0.31.5.post14.dev32` (run notes, read-only project SQL, set-oriented
+  trace-fact replacement, reliable remote delivery, patient artifact commits,
+  the `episode_ending` fact column; Doris schema version 5). The shared server
+  must be migrated to schema version 5 and run dev32 before job images with
+  this release write to it.
+- Trace facts v9: the episode ending is the fact dimension `episode_ending`;
+  `rollout.ending` reads it (falling back to the trace attribute), and
+  `posttrain trace-facts backfill` fills it for existing runs and reports the
+  endings it projects.
 - Observatory: SAMPO runs use the GRPO overview (headline metrics, the
   Policy optimization swimlane with rollout behavior, update stability, rollout
   population, runtime, freshness, acceleration, active sampling, rollout setup

@@ -410,6 +410,9 @@ def _rollouts_sql(owners: Mapping[str, Dimension | Measure | None], columns: fro
         fact = owner.source.name
         if owner.source.kind == "trace_attribute":
             expression = _extract("t.metadata", "string", fact)
+        elif owner.source.fallback_attribute is not None:
+            fallback = _extract("t.metadata", "string", owner.source.fallback_attribute)
+            expression = f"COALESCE(t.fact_{fact}, {fallback})"
         else:
             expression = "1" if fact == "trace_count" else f"t.fact_{fact}"
         selected.append(f"{expression} AS {_quote(name)}")

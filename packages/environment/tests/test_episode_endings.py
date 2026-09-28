@@ -35,7 +35,11 @@ def test_real_automationbench_episodes_get_their_ending(case: dict[str, Any]) ->
     # none of these is an error, and every one keeps its environment reward.
     assert attributes["is_truncated"] is (expected != "completed")
     assert attributes["has_error"] is False
-    assert project_verifiers_trace_facts(record).measures["task_reward"] is not None
+    facts = project_verifiers_trace_facts(record)
+    assert facts.measures["task_reward"] is not None
+    # The ending is also a fact dimension, so Trackio stores it in its own column.
+    assert facts.dimensions["episode_ending"] == expected
+    assert facts.calculator_version == "verifiers-trace-facts.v9"
 
 
 def test_context_rejection_keeps_the_scored_reward() -> None:

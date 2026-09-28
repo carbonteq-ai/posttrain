@@ -68,6 +68,7 @@ def test_preview_projects_a_bounded_page_without_constructing_a_writer(monkeypat
     assert receipt.applied == 0
     assert receipt.partial == 1
     assert receipt.next_cursor == "225"
+    assert receipt.endings == {"completed": 1}
 
 
 def test_backfill_pipelines_a_larger_window_with_page_checkpoints(monkeypatch) -> None:
@@ -128,6 +129,8 @@ def test_backfill_pipelines_a_larger_window_with_page_checkpoints(monkeypatch) -
     assert [page.next_cursor for page in checkpoints] == ["1", "2", "3", "4", None]
     assert writes[0][0] == "trace-0"
     assert writes[-1][-1] == "trace-4999"
+    assert receipt.endings == {"completed": 5000}
+    assert all(page.endings == {"completed": 1000} for page in receipt.pages)
 
 
 def test_backfill_checkpoints_only_successful_pages_before_interruption(monkeypatch) -> None:
@@ -232,6 +235,22 @@ def test_apply_uses_exact_provider_identity_and_shared_projection(monkeypatch) -
     assert updates[0][0] == "trace-1"
     facts = cast(TraceFactSet, updates[0][1])
     assert facts.dimensions["rollout_step"] == 7
+    # Re-projection fills Trackio's episode-ending fact column for existing traces.
+    assert facts.dimensions["episode_ending"] == "completed"
+
+
+def test_backfilled_facts_are_accepted_by_the_pinned_trackio_client() -> None:
+    """Every dimension the backfill writes must be one the pinned Trackio stores, or each page fails."""
+
+    from posttrain.environment import project_verifiers_trace_facts
+    from posttrain_tracking_trackio.adapter import _trackio_trace_facts
+
+    trace = _trace()
+    payload = {**trace.payload, "info": {"posttrain_prompt_group_id": "group-a"}, "stop_condition": "max_turns"}
+    facts = project_verifiers_trace_facts(payload, attributes=trace.attributes)
+    assert facts.dimensions["episode_ending"] == "turn_limit"
+    update = _trackio_trace_facts("verifiers", trace.external_id, facts)
+    assert dict(update.dimensions) == dict(facts.dimensions)
 
 
 class _CountingRenderer:

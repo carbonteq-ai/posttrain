@@ -153,10 +153,14 @@ def test_episode_endings_are_a_rollout_dimension_and_update_rates() -> None:
     from posttrain.common import EPISODE_ENDINGS
 
     ending = FRAMEWORK_MODEL.dimension("rollout.ending")
-    assert ending.source == Source(kind="trace_attribute", name="episode_ending")
+    assert ending.source == Source(kind="trace_fact", name="episode_ending", fallback_attribute="episode_ending")
     for name in EPISODE_ENDINGS:
         assert name in ending.description
         measure = FRAMEWORK_MODEL.measure(f"ending_{name}_rate")
         assert measure.entity == "update" and measure.source.name == f"train/rl/ending_{name}_rate"
     sql = assemble(FRAMEWORK_MODEL, "select ending, count(*) from rollouts group by ending", None)
-    assert """JSON_EXTRACT_STRING(t.metadata, '$."episode_ending"') AS `ending`""" in sql
+    assert (
+        """COALESCE(t.fact_episode_ending, JSON_EXTRACT_STRING(t.metadata, '$."episode_ending"')) AS `ending`""" in sql
+    )
+    with pytest.raises(ValueError, match="only a trace_fact source"):
+        Source(kind="metric_series", name="train/rl/reward_mean", fallback_attribute="episode_ending")
