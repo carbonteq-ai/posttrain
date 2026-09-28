@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import signal
 import sys
 import time
@@ -11,7 +12,7 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from posttrain.catalog import open_catalog
@@ -51,6 +52,14 @@ from posttrain_runtime.execute import (
     _tree_digest,
     _verify_backend_worktree,
 )
+
+
+@pytest.fixture(autouse=True)
+def _restore_verifiers_preinstalled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """execute_manifest sets POSTTRAIN_VERIFIERS_PREINSTALLED for the process; undo it after each test."""
+
+    monkeypatch.setenv("POSTTRAIN_VERIFIERS_PREINSTALLED", "unset")
+    monkeypatch.delenv("POSTTRAIN_VERIFIERS_PREINSTALLED")
 
 
 def test_backend_worktree_accepts_deterministic_revision_marker(tmp_path: Path) -> None:
@@ -606,6 +615,27 @@ def test_worker_executes_verified_actual_job_with_launch_attempt(
     assert isinstance(package, dict)
     assert package["package_key"] == manifest.package_key
     assert package["framework_source_digest"] == (manifest.framework_source_digest)
+
+
+def test_worker_runs_verifiers_harnesses_from_the_packed_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Training kinds do not set POSTTRAIN_VERIFIERS_PREINSTALLED; the packed worker does, for every job."""
+
+    manifest_path, manifest = _actual_job(tmp_path / "job")
+    observed: list[str | None] = []
+    monkeypatch.setenv("POSTTRAIN_EXECUTION", _launch(manifest))
+    monkeypatch.setattr("posttrain_runtime.execute._RUN_ROOT", (tmp_path / "runs").resolve())
+
+    def runtime(request: Any, tracking: Any) -> Any:
+        observed.append(os.environ.get("POSTTRAIN_VERIFIERS_PREINSTALLED"))
+        return _runtime(request.catalog, [], [])
+
+    monkeypatch.setattr("posttrain_runtime.execute.build_job_runtime", runtime)
+
+    assert execute_manifest(manifest_path).status == "succeeded"
+    assert observed == ["1"]
 
 
 @pytest.mark.parametrize(

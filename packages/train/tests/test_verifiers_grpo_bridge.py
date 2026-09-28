@@ -110,6 +110,60 @@ def test_verifiers_runtime_compatibility_prefers_selected_uv(monkeypatch, tmp_pa
     assert "command -v uv >/dev/null 2>&1 || { download-uv; }" in runtime_base._ENSURE_UV
 
 
+def test_packed_training_runs_harness_scripts_without_installing_from_the_network(monkeypatch) -> None:
+    """A packed job sets POSTTRAIN_VERIFIERS_PREINSTALLED: no pip, uv or PyPI at the first rollout."""
+
+    import sys
+
+    from verifiers.v1.runtimes import base as runtime_base
+
+    monkeypatch.setattr(runtime_base.Runtime, "prepare_uv_script", runtime_base.Runtime.prepare_uv_script)
+    monkeypatch.setattr(runtime_base.Runtime, "_posttrain_preinstalled_runtime", None, raising=False)
+    monkeypatch.setattr(runtime_base, "_ENSURE_UV", "curl https://astral.sh/uv/install.sh | sh")
+    monkeypatch.setenv("POSTTRAIN_VERIFIERS_PREINSTALLED", "1")
+    monkeypatch.setenv("POSTTRAIN_UV_EXECUTABLE", "relative/uv")  # unused: nothing is installed
+
+    _apply_verifiers_runtime_compatibility()
+
+    commands: list[str] = []
+
+    class Runtime:
+        _uv_interpreters: dict[str, str] = {}
+        _uv_script_locks = runtime_base.LoopLocks()
+
+        async def write(self, path: str, data: bytes) -> None:
+            del path, data
+
+        async def run(self, argv: list[str], env: dict[str, str]) -> Any:
+            del env
+            commands.append(argv[-1])
+            return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+    script = '# /// script\n# dependencies = ["openai", "mcp==2.0.0", "httpx", "httpx2", "tenacity"]\n# ///\n'
+    argv = asyncio.run(runtime_base.Runtime.prepare_uv_script(cast(Any, Runtime()), script))
+
+    assert argv[0] == sys.executable
+    assert argv[1].startswith("/tmp/vf-scripts/")
+    [command] = commands
+    assert "import httpx, httpx2, mcp, openai, tenacity" in command
+    for installer in ("pip", "uv ", "curl", "astral.sh"):
+        assert installer not in command
+    assert runtime_base._ENSURE_UV == "curl https://astral.sh/uv/install.sh | sh"  # left untouched and unused
+
+
+def test_unpacked_training_keeps_the_verifiers_script_environments(monkeypatch) -> None:
+    from verifiers.v1.runtimes import base as runtime_base
+
+    original = runtime_base.Runtime.prepare_uv_script
+    monkeypatch.setattr(runtime_base.Runtime, "_posttrain_preinstalled_runtime", None, raising=False)
+    monkeypatch.delenv("POSTTRAIN_VERIFIERS_PREINSTALLED", raising=False)
+    monkeypatch.delenv("POSTTRAIN_UV_EXECUTABLE", raising=False)
+
+    _apply_verifiers_runtime_compatibility()
+
+    assert runtime_base.Runtime.prepare_uv_script is original
+
+
 def test_verifiers_runtime_compatibility_rejects_invalid_selected_uv(monkeypatch, tmp_path) -> None:
     uv = tmp_path / "uv"
     uv.write_text("not executable")

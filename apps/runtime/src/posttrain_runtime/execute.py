@@ -43,6 +43,7 @@ from posttrain.environment import (
     PythonFactoryActivation,
     VerifiersV1ConfigActivation,
 )
+from posttrain.environment.verifiers_preinstalled import PREINSTALLED_ENV
 from posttrain.eval import EvaluationPlan
 from posttrain.execution import (
     EXECUTION_LAUNCH_ENVIRONMENT,
@@ -201,6 +202,9 @@ def _execute_manifest(path: Path) -> WorkerExecutionResult:
     package = _verify_package(path)
     launch = _load_launch()
     _verify_launch_identity(package.manifest, launch)
+    # A packed job image carries every Verifiers harness dependency in its locked
+    # environments; rollouts and evaluations must not install them from PyPI.
+    os.environ.setdefault(PREINSTALLED_ENV, "1")
 
     layout = load_project_layout(package.project_root)
     if layout.manifest != package.project_manifest:

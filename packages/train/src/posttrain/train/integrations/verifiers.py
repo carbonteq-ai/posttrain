@@ -139,9 +139,14 @@ def _native_failure_detail(episode: Any) -> str | None:
 def _apply_verifiers_runtime_compatibility() -> None:
     """Apply bounded compatibility fixes for the pinned Verifiers runtime."""
 
+    from posttrain.environment.verifiers_preinstalled import configure_preinstalled_runtime
     from posttrain.environment.verifiers_runtime import enable_verifiers_fork_server
 
     enable_verifiers_fork_server()
+    # In a packed job (TRL control or veRL backend environment) harness scripts
+    # run from this process's locked interpreter: no pip, uv or PyPI at a rollout.
+    if configure_preinstalled_runtime():
+        return
     uv_executable = os.environ.get("POSTTRAIN_UV_EXECUTABLE")
     if uv_executable is None:
         return
