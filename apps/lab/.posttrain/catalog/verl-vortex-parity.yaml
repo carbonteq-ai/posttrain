@@ -1,0 +1,92 @@
+# veRL VORTEX port qualification (docs/plan/verl-vortex-port.md): the LFM2.5
+# model-family check on veRL 0.9.0.post6 (Phase 4) and the TRL-vs-veRL
+# comparison runs (Phase 6). Every veRL binding pins the post6 kind image
+# (release commit 1badbebd, backend lock 680342f0).
+
+training:
+  # Phase 4: two LFM2.5-1.2B GRPO updates on veRL over the five-task local
+  # AutomationBench set (the TRL changed-weight gate's settings, two updates).
+  lfm2.5-1.2b/verl-automationbench-check-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 3072
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 4
+      learning_rate: 0.00004
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 1
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 1729
+    num_prompts_per_step: 1
+    num_generations: 4
+    max_prompt_length: 2048
+    max_completion_length: 1024
+    shuffle_prompts: false
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
+  training/lfm2.5-1.2b-verl-lora-local-g4@1: &verl_lfm_training
+    selection_type: training-binding
+    revision: "1"
+    backend: verl@1badbebd22aee7af5b85185760275f697af3a073
+    renderer:
+      id: lfm2.5-tools@1
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/local-cuda-8gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 4
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: true
+      optimizer_offload: true
+    backend_options: &verl_lfm_options
+      python_executable: /opt/posttrain-verl/bin/python
+      working_directory: /opt/posttrain-verl/workdir
+      source_revision: 1badbebd22aee7af5b85185760275f697af3a073
+      dependency_lock_sha256: 680342f0a5b446dcd88370d1ec42cec5ce2e60363426c4ab0d94f97d978c4747
+      source_dirty: false
+      attention_implementation: sdpa
+      training_precision: bf16
+      # No Qwen fused kernels: LFM2.5 trains on the unfused head with chunked entropy.
+      hydra_overrides:
+        - actor_rollout_ref.model.use_remove_padding=false
+        - actor_rollout_ref.model.enable_gradient_checkpointing=true
+        - actor_rollout_ref.actor.strategy=fsdp2
+        - actor_rollout_ref.actor.entropy_from_logits_with_chunking=true
+        - actor_rollout_ref.actor.entropy_from_logits_chunk_size=256
+        - actor_rollout_ref.actor.fsdp_config.use_torch_compile=false
+
+inference:
+  inference/lfm2.5-1.2b-vllm-verl-check-local@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 3072
+      max_num_seqs: 4
+      max_num_batched_tokens: 3072
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 268435456
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    target: targets/local-cuda-rollout-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
