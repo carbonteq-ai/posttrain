@@ -490,60 +490,113 @@ def callback_type(
     return ObservationCallback
 
 
+Technique = Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "gdpo", "capo", "distill"]
+
+
+class CheckpointPublisher:
+    """Publish one complete TRL checkpoint directory as the run's checkpoint views.
+
+    A periodic save and a cancellation save share this path, so both produce the
+    same controller snapshot, reward-contract record, recovery view, and model view.
+    """
+
+    def __init__(
+        self,
+        context: RunContext,
+        *,
+        model: ModelVariant,
+        technique: Technique,
+        settings: Any,
+        update: ParameterUpdatePlan,
+        workspace: Path,
+        reward_contract: str | None = None,
+        checkpoint_state_writer: Callable[[Path], None] | None = None,
+    ) -> None:
+        self.context = context
+        self.model = model
+        self.technique: Technique = technique
+        self.settings = settings
+        self.update = update
+        self.workspace = workspace
+        self.reward_contract = reward_contract
+        self.checkpoint_state_writer = checkpoint_state_writer
+        self.published_steps: set[int] = set()
+
+    def publish(
+        self,
+        checkpoint: Path,
+        *,
+        step: int,
+        interrupted: bool = False,
+        checkpoint_state_writer: Callable[[Path], None] | None = None,
+    ) -> None:
+        checkpoint = checkpoint.resolve()
+        writer = checkpoint_state_writer or self.checkpoint_state_writer
+        if writer is not None:
+            writer(checkpoint)
+        if self.reward_contract is not None:
+            from ...reward_recovery import retain_reward_contract
+
+            retain_reward_contract(checkpoint, self.reward_contract)
+        publish_checkpoint_views(
+            self.context,
+            checkpoint,
+            model=self.model,
+            technique=self.technique,
+            settings=self.settings,
+            update=self.update,
+            workspace=self.workspace,
+            interrupted=interrupted,
+        )
+        self.published_steps.add(step)
+
+
 def checkpoint_callback_type(
     context: RunContext,
     imports: Mapping[str, Any],
     *,
     model: ModelVariant,
-    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "gdpo", "capo", "distill"],
+    technique: Technique,
     settings: Any,
     update: ParameterUpdatePlan,
     workspace: Path,
     reward_contract: str | None = None,
     checkpoint_state_writer: Callable[[Path], None] | None = None,
+    publisher: CheckpointPublisher | None = None,
 ) -> type[Any]:
     """Create a callback that publishes both views after a trainer save.
 
     The callback only projects a loadable model view for adapter updates. Full
     parameter checkpoints remain recovery-only until a backend explicitly
     attests that its checkpoint representation is safe to load as a model.
+    Passing ``publisher`` shares its record of published steps with a later
+    cancellation save.
     """
 
     parent = imports["TrainerCallback"]
+    shared = publisher or CheckpointPublisher(
+        context,
+        model=model,
+        technique=technique,
+        settings=settings,
+        update=update,
+        workspace=workspace,
+        reward_contract=reward_contract,
+        checkpoint_state_writer=checkpoint_state_writer,
+    )
 
     class CheckpointPublicationCallback(parent):
-        def __init__(self) -> None:
-            super().__init__()
-            self._published_steps: set[int] = set()
-
         def on_save(self, args: Any, state: Any, control: Any, **kwargs: Any) -> Any:
             del kwargs
             step = int(getattr(state, "global_step", 0))
-            if step < 1 or step in self._published_steps:
+            if step < 1 or step in shared.published_steps:
                 return control
             output_dir = Path(str(args.output_dir)).resolve()
             latest = imports["get_last_checkpoint"](str(output_dir))
             if latest is None:
                 context.event("checkpoint_publication_unavailable", {"technique": technique, "global_step": step})
                 return control
-            checkpoint = Path(latest).resolve()
-            if checkpoint_state_writer is not None:
-                checkpoint_state_writer(checkpoint)
-            if reward_contract is not None:
-                from ...reward_recovery import retain_reward_contract
-
-                retain_reward_contract(checkpoint, reward_contract)
-            publish_checkpoint_views(
-                context,
-                checkpoint,
-                model=model,
-                technique=technique,
-                settings=settings,
-                update=update,
-                workspace=workspace,
-                interrupted=False,
-            )
-            self._published_steps.add(step)
+            shared.publish(Path(latest), step=step)
             return control
 
     return CheckpointPublicationCallback
@@ -870,6 +923,8 @@ def finish_training(
 __all__ = [
     "BackendTrainingResult",
     "callback_type",
+    "CheckpointPublisher",
+    "Technique",
     "checkpoint_callback_type",
     "emit_parameter_counts",
     "emit_runtime_versions",

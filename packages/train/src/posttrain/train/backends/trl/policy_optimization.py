@@ -12,8 +12,15 @@ from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
 
 from ...grpo_observations import GRPOObservationFeatures
 from ...requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
+from .cancellation import (
+    UpdateBoundary,
+    retain_checkpoint_after_interruption,
+    update_boundary_callback_type,
+    update_boundary_trainer_type,
+)
 from .common import (
     BackendTrainingResult,
+    CheckpointPublisher,
     callback_type,
     checkpoint_callback_type,
     emit_parameter_counts,
@@ -22,7 +29,6 @@ from .common import (
     framework_imports,
     load_tokenizer,
     load_trainable_model,
-    preserve_recovery_checkpoint_after_error,
     trainer_lifecycle,
 )
 from .policy_config import (
@@ -165,6 +171,20 @@ def _run_online_rl(
             warm_start_state_dir=curriculum_from.path if curriculum_from is not None else None,
         )
         trainer_type = _adaptive_curriculum_trainer_type(trainer_type, curriculum)
+    # A host cancellation lands between optimizer updates, and the last completed
+    # update is saved as a checkpoint before the run finalizes as cancelled.
+    update_boundary = UpdateBoundary(controller_state=curriculum.capture_state if curriculum is not None else None)
+    trainer_type = update_boundary_trainer_type(trainer_type, update_boundary)
+    checkpoint_publisher = CheckpointPublisher(
+        context,
+        model=request.policy,
+        technique=technique,
+        settings=request.settings,
+        update=request.training.update,
+        workspace=output_dir.parent,
+        reward_contract=reward_contract,
+        checkpoint_state_writer=curriculum.checkpoint if curriculum is not None else None,
+    )
     checkpoint_callback = checkpoint_callback_type(
         context,
         imports,
@@ -173,10 +193,10 @@ def _run_online_rl(
         settings=request.settings,
         update=request.training.update,
         workspace=output_dir.parent,
-        reward_contract=reward_contract,
-        checkpoint_state_writer=curriculum.checkpoint if curriculum is not None else None,
+        publisher=checkpoint_publisher,
     )()
     callbacks = [
+        update_boundary_callback_type(imports, update_boundary)(),
         callback_type(
             context,
             imports,
@@ -246,16 +266,14 @@ def _run_online_rl(
                 # Keep the rollout evidence of the update that failed.
                 rollout_totals.flush()
                 actor_update.fail(error)
-                preserve_recovery_checkpoint_after_error(
+                retain_checkpoint_after_interruption(
                     context,
                     trainer,
                     error,
-                    technique=technique,
-                    model=request.policy,
-                    settings=request.settings,
-                    update=request.training.update,
+                    boundary=update_boundary,
+                    publisher=checkpoint_publisher,
                     imports=imports,
-                    checkpoint_state_writer=curriculum.checkpoint if curriculum is not None else None,
+                    controller_state_writer=curriculum.checkpoint if curriculum is not None else None,
                 )
                 raise
     except BaseException as error:

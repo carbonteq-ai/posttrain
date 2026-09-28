@@ -373,10 +373,19 @@ materialized `training-checkpoint`. LoRA and QLoRA checkpoints contain the
 adapter plus trainer, optimizer, scheduler, and RNG state and are rejected if
 they duplicate immutable base-model weights. On failure or cancellation, the
 latest complete checkpoint is committed before the worker workspace is
-released. A new `posttrain job run --resume-from-run RUN_ID` invocation uses a
-fresh run identity and requires exactly one checkpoint output from the source
-run. Recovery may lose work after the last configured checkpoint; interruption
-before the first checkpoint has no safe resume point.
+released. When the host cancels a GRPO, DAPO, OLMo 3, SAMPO, GDPO, or CAPO run,
+the online-RL adapter first saves and publishes a checkpoint of the last
+completed optimizer update if it is newer than the last periodic one; a
+cancellation that arrives during an optimizer step is delivered after that
+update completes (bounded at 60 seconds), and the run's `cancel_checkpoint`
+event records the saved step or why nothing was saved
+(`docs/plan/cancel-checkpoint.md`). A new
+`posttrain job run --resume-from-run RUN_ID` invocation uses a fresh run
+identity and requires exactly one checkpoint output from the source run. SFT,
+DPO, and distillation recovery may still lose work after the last configured
+checkpoint, and a failure other than cancellation keeps the last periodic
+checkpoint; interruption before the first checkpoint and before any completed
+update has no safe resume point.
 The current release exposes that same generic `VLLMGeneration`
 synchronization choice through experimental `IWOPDConfig`. This is required
 when an on-policy distillation student
