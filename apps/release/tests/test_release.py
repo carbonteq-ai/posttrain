@@ -1691,6 +1691,25 @@ def test_public_ci_trl_mirror_matches_selected_distribution() -> None:
     assert 'uv pip install --python .venv/bin/python --no-deps "${CARBONTEQ_TRL_WHEEL_PATH}"' in workflow
 
 
+def test_public_ci_causal_conv1d_mirror_matches_selected_wheel() -> None:
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    train = tomllib.loads((root / "packages/train/pyproject.toml").read_text(encoding="utf-8"))
+    selection = train["tool"]["posttrain"]["causal-conv1d"]
+    filename = selection["wheel-filename"]
+    workflow = (root / ".github/workflows/quality.yml").read_text(encoding="utf-8")
+
+    url_tag = selection["release-tag"].replace("+", "%2B")
+    url_file = filename.replace("+", "%2B")
+    assert (
+        "CARBONTEQ_CAUSAL_CONV1D_WHEEL_URL: "
+        f"https://github.com/carbonteq-ai/causal-conv1d/releases/download/{url_tag}/{url_file}"
+    ) in workflow
+    assert f"CARBONTEQ_CAUSAL_CONV1D_WHEEL_SHA256: {selection['wheel-sha256']}" in workflow
+    assert f"CARBONTEQ_CAUSAL_CONV1D_WHEEL_PATH: /tmp/{filename}" in workflow
+    assert f":/tmp/{filename}\n" in workflow
+    assert "--no-install-package causal-conv1d" in workflow
+
+
 def test_final_release_verifies_and_stages_one_candidate_materialization() -> None:
     root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
     workflow = (root / ".github/workflows/release.yml").read_text(encoding="utf-8")
