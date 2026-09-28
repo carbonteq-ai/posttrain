@@ -242,6 +242,10 @@ training:
         - actor_rollout_ref.actor.entropy_from_logits_with_chunking=true
         - actor_rollout_ref.actor.entropy_from_logits_chunk_size=256
         - actor_rollout_ref.actor.fsdp_config.use_torch_compile=false
+        # The 62 GB local host with a desktop hit Ray's 95% RAM threshold: veRL's
+        # default 8 reward workers plus 8 TransferQueue storage units took about 7.4 GB.
+        - reward.num_workers=2
+        - transfer_queue.backend.SimpleStorage.num_data_storage_units=2
   training/qwen3.5-0.8b-verl-grpo-precision-fp16-local@1:
     <<: *verl_precision_training
     backend_options:
