@@ -179,10 +179,10 @@ def test_trl_training_precision_rules(snap) -> None:
         return _codes({"job_definition": job, "training": training, "rollout_inference": rollout})
 
     # An fp16 trainer with a bf16 (or checkpoint-dtype) sampler keeps the sampler's rounding.
-    assert codes_for({}, grpo)["TRL_FP16_TRAINER_WITH_NON_FP16_ROLLOUT"] == "warning"
-    assert codes_for({"dtype": "bfloat16"}, grpo)["TRL_FP16_TRAINER_WITH_NON_FP16_ROLLOUT"] == "warning"
+    assert codes_for({}, grpo)["FP16_TRAINER_WITH_NON_FP16_ROLLOUT"] == "warning"
+    assert codes_for({"dtype": "bfloat16"}, grpo)["FP16_TRAINER_WITH_NON_FP16_ROLLOUT"] == "warning"
     unified = codes_for({"dtype": "float16"}, grpo)
-    assert "TRL_FP16_TRAINER_WITH_NON_FP16_ROLLOUT" not in unified
+    assert "FP16_TRAINER_WITH_NON_FP16_ROLLOUT" not in unified
     assert "TRL_PRECISION_UNQUALIFIED_FOR_JOB" not in unified
     # Only online RL implements the precision options.
     assert codes_for({"dtype": "float16"}, {"kind": "train.sft"})["TRL_PRECISION_UNQUALIFIED_FOR_JOB"] == "error"
@@ -227,3 +227,22 @@ def test_float16_reports_bf16_only_kernels(snap) -> None:
     assert "VLLM_FLOAT16_BF16_ONLY_KERNEL" not in _codes(
         {"execution_targets": snap.targets(), "rollout_inference": bf16}
     )
+
+
+def test_verl_precision_rules(snap) -> None:
+    lfm = _served("lfm2.5", "LiquidAI/LFM2.5-1.2B-Thinking")
+    training = snap.training()
+    training["resolved"]["backend"] = "verl@18338a0efbd6f103378d2861f4a078ad243db455"
+    training["resolved"]["backend_options"] = {"training_precision": "fp16"}
+
+    def codes_for(engine: dict[str, Any]) -> dict[str, str]:
+        rollout = _seat(snap, {**engine}, purpose=("rollout",), model=lfm)
+        return _codes({"job_definition": {"kind": "train.sampo"}, "training": training, "rollout_inference": rollout})
+
+    # veRL passes bfloat16 unless the binding selects a dtype.
+    assert codes_for({})["FP16_TRAINER_WITH_NON_FP16_ROLLOUT"] == "warning"
+    assert "FP16_TRAINER_WITH_NON_FP16_ROLLOUT" not in codes_for({"dtype": "float16"})
+    # The trainer options are not TRL-only any more.
+    assert "TRL_PRECISION_UNQUALIFIED_FOR_JOB" not in codes_for({"dtype": "float16"})
+    # A LoRA policy is synced through Punica, which rejects float32, whatever the engine keys say.
+    assert codes_for({"dtype": "float32"})["VLLM_FLOAT32_KERNEL_UNSUPPORTED"] == "error"

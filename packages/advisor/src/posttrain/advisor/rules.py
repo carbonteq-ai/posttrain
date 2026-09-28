@@ -172,8 +172,8 @@ def _binding_findings(
     training = training_seat(snapshot)
     unified_fp16 = (
         rollout
-        and trl_training
         and training is not None
+        and backend_name(training.resolved.get("backend")) in {"trl", "verl"}
         and mapping(training.resolved.get("backend_options")).get("training_precision") == "fp16"
     )
     if engine.get("dtype") in {"float16", "half"} and bf16 and not turboquant and not unified_fp16:

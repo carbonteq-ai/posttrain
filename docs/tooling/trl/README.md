@@ -485,7 +485,7 @@ float16 and rejects any other explicit dtype. vLLM's chunked Gated-DeltaNet
 kernel rejects float32, so the advisor fails a Qwen3.5 binding with
 `dtype: float32` at plan time (`VLLM_FLOAT32_UNSUPPORTED_FOR_GATED_DELTANET`).
 A float16 trainer with a non-float16 sampler is a warning
-(`TRL_FP16_TRAINER_WITH_NON_FP16_ROLLOUT`), and a float16 sampler on a bf16
+(`FP16_TRAINER_WITH_NON_FP16_ROLLOUT`), and a float16 sampler on a bf16
 checkpoint is only reported (`VLLM_FLOAT16_ON_BF16_CHECKPOINT`) when the trainer
 is not also float16. The fork itself is unchanged; see
 `docs/plan/fp16-training-precision.md` for the offline mismatch matrix and the

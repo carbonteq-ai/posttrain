@@ -781,12 +781,13 @@ def _execution_plan_payload(planned: PlannedJobExecution) -> dict[str, object]:
 
 
 def _training_precision(seats: Mapping[str, object]) -> ResolvedPrecision | None:
-    """The trainer and rollout precision a TRL training job resolves to, for display."""
+    """The trainer and rollout precision a TRL or veRL training job resolves to, for display."""
 
     trainings = [cast(TrainingBinding, item) for item in seats.values() if isinstance(item, TrainingBinding)]
-    if not trainings or trainings[0].backend.split("@", 1)[0] != "trl":
+    if not trainings or trainings[0].backend.split("@", 1)[0] not in {"trl", "verl"}:
         return None
     training = trainings[0]
+    backend = "verl" if training.backend.startswith("verl@") else "trl"
     inferences = [cast(InferenceBinding, item) for item in seats.values() if isinstance(item, InferenceBinding)]
     rollout = next(
         (
@@ -797,8 +798,8 @@ def _training_precision(seats: Mapping[str, object]) -> ResolvedPrecision | None
         None,
     )
     if rollout is None:
-        return resolve_precision(training.backend_options, None, "bf16").without_rollout()
-    return resolve_precision(training.backend_options, rollout.engine, rollout.model.weight_precision)
+        return resolve_precision(training.backend_options, None, "bf16", backend=backend).without_rollout()
+    return resolve_precision(training.backend_options, rollout.engine, rollout.model.weight_precision, backend=backend)
 
 
 def _paid_judge_limits(seats: Mapping[str, object]) -> dict[str, dict[str, object]]:

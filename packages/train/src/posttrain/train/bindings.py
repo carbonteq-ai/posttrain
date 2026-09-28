@@ -130,22 +130,29 @@ class TrainingBinding:
 def _validate_precision(backend: str, update: ParameterUpdatePlan, options: Mapping[str, JsonValue]) -> None:
     """Reject precision selections no backend implements, when the catalog loads.
 
-    Float16 training scales the loss and steps float32 master weights; with the
+    Float16 training scales the loss and steps float32 master weights. With the
     TRL backend only LoRA adapters are float32 (PEFT keeps them so while the
-    base is float16), so full-parameter and QLoRA updates stay bfloat16.
+    base is float16), so full-parameter and QLoRA updates stay bfloat16; veRL's
+    FSDP keeps float32 masters for every parameter.
     """
 
     precision = training_precision(options)
     float32_logits = logits_float32(options)
     if precision == "bf16" and not float32_logits:
         return
-    if backend.split("@", 1)[0] != "trl":
-        raise ValueError("training_precision and logits_float32 are implemented by the TRL backend only")
-    if precision == "fp16" and update.kind != "lora":
+    product = backend.split("@", 1)[0]
+    if product not in {"trl", "verl"}:
+        raise ValueError("training_precision and logits_float32 are implemented by the TRL and veRL backends only")
+    if float32_logits and product != "trl":
+        raise ValueError("logits_float32 is implemented by the TRL backend only")
+    if precision == "fp16" and product == "trl" and update.kind != "lora":
         raise ValueError(
             "training_precision fp16 requires a LoRA update: the adapter holds the float32 master weights "
             f"that dynamic loss scaling steps, and a {update.kind} update has none"
         )
+    if precision == "fp16" and product == "verl" and update.kind not in {"lora", "full"}:
+        # veRL's FSDP keeps float32 master weights for full and LoRA updates alike.
+        raise ValueError(f"veRL training_precision fp16 supports LoRA and full updates, not {update.kind}")
 
 
 @dataclass(frozen=True, slots=True)

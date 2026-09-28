@@ -27,6 +27,7 @@ from posttrain.common import (
 
 from ...bindings import FullParameterUpdate, LoRAUpdate
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
+from ...precision import resolve_precision, training_precision, verl_rollout_dtype
 from ...requests import CAPORequest, GDPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
@@ -384,7 +385,9 @@ def _launch(
         _record_failure_artifacts_best_effort(context, plan, output_dir)
         raise RuntimeError(f"veRL process completed without its result contract: {result_path}")
     result = VerlWorkerResult.read(result_path)
-    backend, records = _backend_result(result, output_dir)
+    backend, records = _backend_result(
+        result, output_dir, loss_scaling=training_precision(request.training.backend_options) == "fp16"
+    )
     if isinstance(request, GRPORequest | SAMPORequest | GDPORequest | CAPORequest):
         _replay_grpo_metrics(context, request, records)
         _replay_trace_fact_updates(
@@ -550,6 +553,8 @@ def _record_failure_artifacts_best_effort(
 def _backend_result(
     payload: VerlWorkerResult,
     output_dir: Path,
+    *,
+    loss_scaling: bool = False,
 ) -> tuple[BackendTrainingResult, tuple[VerlMetricRecord, ...]]:
     summary = payload.summary
     training_summary = TrainingSummary(
@@ -571,7 +576,7 @@ def _backend_result(
         if payload.retention_manifest is not None
         else None
     )
-    records = read_verl_metric_records(metrics_path)
+    records = read_verl_metric_records(metrics_path, loss_scaling=loss_scaling)
     if not model_dir.is_dir():
         raise FileNotFoundError(model_dir)
     if checkpoint is not None and not checkpoint.exists():
@@ -721,7 +726,16 @@ def _grpo_runtime_attributes(
         "rollout_mode": str(engine.get("mode", "async")),
         "update_kind": request.training.update.kind,
         "world_size": request.training.target.placement.get("world_size", 1),
-        "rollout_precision": str(engine.get("dtype", "bfloat16")),
+        **{
+            key: value
+            for key, value in resolve_precision(
+                request.training.backend_options, engine, request.policy.weight_precision, backend="verl"
+            )
+            .as_dict()
+            .items()
+            if key in {"training_precision", "loss_scaling"}
+        },
+        "rollout_precision": verl_rollout_dtype(engine)[0],
         "kv_cache_dtype": str(engine.get("kv_cache_dtype", "auto")),
         "max_model_len": engine.get(
             "max_model_len",

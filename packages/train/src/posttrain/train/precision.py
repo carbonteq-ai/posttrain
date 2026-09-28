@@ -92,6 +92,21 @@ def rollout_dtype(
     return dtype, "binding"
 
 
+def verl_rollout_dtype(
+    engine: Mapping[str, JsonValue],
+) -> tuple[RolloutDtype, Literal["binding", "turboquant", "backend-default"]]:
+    """The vLLM dtype the veRL backend passes (it always passes one).
+
+    veRL's rollout configuration defaults to bfloat16 regardless of the
+    checkpoint, and the backend selects float16 for a TurboQuant KV cache.
+    """
+
+    dtype, source = rollout_dtype(engine)
+    if dtype is None:
+        return "bfloat16", "backend-default"
+    return dtype, "binding" if source == "binding" else "turboquant"
+
+
 @dataclass(frozen=True, slots=True)
 class ResolvedPrecision:
     """The numeric precision one online-RL job runs with, as recorded and displayed."""
@@ -101,7 +116,8 @@ class ResolvedPrecision:
     loss_scaling: Literal["none", "dynamic"]
     logits_float32: bool
     rollout_dtype: str | None
-    rollout_dtype_source: Literal["binding", "turboquant", "checkpoint"] | None
+    rollout_dtype_source: Literal["binding", "turboquant", "checkpoint", "backend-default"] | None
+    backend: Literal["trl", "verl"] = "trl"
 
     def as_dict(self) -> dict[str, JsonValue]:
         return {
@@ -111,6 +127,7 @@ class ResolvedPrecision:
             "logits_float32": self.logits_float32,
             "rollout_dtype": self.rollout_dtype,
             "rollout_dtype_source": self.rollout_dtype_source,
+            "backend": self.backend,
         }
 
     def without_rollout(self) -> ResolvedPrecision:
@@ -119,9 +136,15 @@ class ResolvedPrecision:
         return replace(self, rollout_dtype=None, rollout_dtype_source=None)
 
     def summary(self) -> str:
-        logits = "float32 logits" if self.logits_float32 else f"{self.model_load_dtype} logits"
         scaling = ", dynamic loss scaling" if self.loss_scaling == "dynamic" else ""
-        trainer = f"trainer {self.training} (base weights {self.model_load_dtype}{scaling}; log-probs from {logits})"
+        if self.backend == "verl":
+            compute = "float16" if self.training == "fp16" else "bfloat16"
+            trainer = f"trainer {self.training} (FSDP {compute} compute over float32 master weights{scaling})"
+        else:
+            logits = "float32 logits" if self.logits_float32 else f"{self.model_load_dtype} logits"
+            trainer = (
+                f"trainer {self.training} (base weights {self.model_load_dtype}{scaling}; log-probs from {logits})"
+            )
         if self.rollout_dtype is None:
             return trainer
         return f"{trainer}; rollout vLLM {self.rollout_dtype} ({self.rollout_dtype_source})"
@@ -131,23 +154,53 @@ def resolve_precision(
     backend_options: Mapping[str, JsonValue],
     engine: Mapping[str, JsonValue] | None,
     weight_precision: str,
+    *,
+    backend: Literal["trl", "verl"] = "trl",
 ) -> ResolvedPrecision:
-    """Resolve the trainer and rollout precision of one training job."""
+    """Resolve the trainer and rollout precision of one training job.
+
+    TRL loads the frozen base in the compute dtype (LoRA adapters stay
+    float32); veRL's FSDP keeps float32 master weights for every parameter and
+    computes in the mixed-precision dtype.
+    """
 
     training = training_precision(backend_options)
+    source: Literal["binding", "turboquant", "checkpoint", "backend-default"]
     if engine is None:
         dtype, source = None, "checkpoint"
+    elif backend == "verl":
+        dtype, source = verl_rollout_dtype(engine)
     else:
         dtype, source = rollout_dtype(engine)
     resolved_rollout = dtype if dtype is not None else _CHECKPOINT_DTYPE.get(weight_precision, weight_precision)
     return ResolvedPrecision(
         training=training,
-        model_load_dtype=model_load_dtype(training),
+        model_load_dtype="float32" if backend == "verl" else model_load_dtype(training),
         loss_scaling="dynamic" if training == "fp16" else "none",
         logits_float32=logits_float32(backend_options),
         rollout_dtype=resolved_rollout,
         rollout_dtype_source=source,
+        backend=backend,
     )
+
+
+def verl_mixed_precision_overrides(backend_options: Mapping[str, JsonValue]) -> list[str]:
+    """Hydra overrides selecting veRL's FSDP mixed precision (none for the bf16 default).
+
+    veRL's FSDP engine computes in ``mixed_precision.param_dtype`` over float32
+    master weights and, for float16, creates a ``ShardedGradScaler`` with
+    dynamic loss scaling (growth interval 400) that skips a step whose
+    gradients overflow. The actor and the reference policy use the same
+    precision so the KL term compares like with like.
+    """
+
+    if training_precision(backend_options) != "fp16":
+        return []
+    policy = "{param_dtype:fp16,reduce_dtype:fp32,buffer_dtype:fp32}"
+    return [
+        f"+actor_rollout_ref.actor.fsdp_config.mixed_precision={policy}",
+        f"+actor_rollout_ref.ref.fsdp_config.mixed_precision={policy}",
+    ]
 
 
 __all__ = [
@@ -161,4 +214,6 @@ __all__ = [
     "resolve_precision",
     "rollout_dtype",
     "training_precision",
+    "verl_mixed_precision_overrides",
+    "verl_rollout_dtype",
 ]

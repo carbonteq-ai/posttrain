@@ -172,7 +172,13 @@ def _binding_findings(snapshot: Snapshot, seat: Seat) -> Iterator[ConfigurationI
             unsupported.append(
                 "the selected FlashAttention/FlashInfer/SM120_FA4 attention accepts float16 and bfloat16 only"
             )
-        if engine.get("weight_sync_mode") == "lora":
+        training = training_seat(snapshot)
+        trained_lora = (
+            rollout
+            and training is not None
+            and mapping(training.resolved.get("parameter_update")).get("kind") in {"lora", "qlora"}
+        )
+        if engine.get("weight_sync_mode") == "lora" or trained_lora:
             unsupported.append("the Punica LoRA shrink kernel accepts float16 and bfloat16 inputs only")
         if unsupported:
             yield _issue(
@@ -482,19 +488,21 @@ def _training_findings(snapshot: Snapshot) -> Iterator[ConfigurationIssue]:
             "the job fails when training starts",
             "Remove training_precision and logits_float32 from this training binding.",
         )
-    if backend == "trl" and rollout is not None:
+    if backend in {"trl", "verl"} and rollout is not None and precision == "fp16":
         rollout_dtype = engine.get("dtype")
-        if precision == "fp16" and rollout_dtype != "float16":
+        if rollout_dtype != "float16":
+            default = "the checkpoint dtype" if backend == "trl" else "bfloat16 (the veRL default)"
             yield issue(
-                "TRL_FP16_TRAINER_WITH_NON_FP16_ROLLOUT",
+                "FP16_TRAINER_WITH_NON_FP16_ROLLOUT",
                 "warning",
                 f"{role}.engine.dtype",
-                f"the trainer computes in float16 but the rollout samples in {rollout_dtype or 'the checkpoint dtype'}; "
+                f"the trainer computes in float16 but the rollout samples in {rollout_dtype or default}; "
                 "the sampler side then keeps its own rounding (Qwen3.5-0.8B offline: mean per-token log-prob gap "
                 "0.0112 with a bf16 sampler against 0.0019 with float16 on both sides, "
                 "docs/plan/fp16-training-precision.md)",
                 "Set the rollout engine dtype to float16 to match training_precision fp16.",
             )
+    if backend == "trl" and rollout is not None:
         if colocated and engine.get("sleep_during_optimization") is not True:
             yield issue(
                 "TRL_COLOCATED_ROLLOUT_WITHOUT_SLEEP",

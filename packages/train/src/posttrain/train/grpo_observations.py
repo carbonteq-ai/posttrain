@@ -150,6 +150,11 @@ _VERL_METRICS: Mapping[str, str] = MappingProxyType(
         "actor/entropy": "train/rl/entropy",
         "actor/pg_clipfrac": "train/rl/clip_fraction",
         "actor/grad_norm": "train/grad_norm",
+        "actor/optimizer_step_skipped": "train/optimizer_step_skipped",
+        "actor/optimizer_steps_skipped": "train/optimizer_steps_skipped",
+        "training/rollout_probs_diff_mean": "train/rl/sampling_prob_delta_mean",
+        "training/rollout_probs_diff_max": "train/rl/sampling_prob_delta_max",
+        "training/rollout_actor_probs_pearson_corr": "train/rl/sampling_prob_pearson_corr",
         "actor/lr": "train/learning_rate",
         "perf/time_per_step": "train/step_time_seconds",
         "perf/total_num_tokens": "train/num_tokens",
@@ -265,6 +270,7 @@ _CANONICAL_PASSTHROUGH = frozenset(
 _RATIO_METRICS = frozenset(
     {
         "train/rl/group_zero_variance_fraction",
+        "train/optimizer_step_skipped",
         "train/rl/clip_fraction",
         "train/rl/clip_fraction_low",
         "train/rl/clip_fraction_high",
@@ -290,6 +296,10 @@ _RATIO_METRICS = frozenset(
 
 _NON_NEGATIVE_METRICS = frozenset(
     {
+        "train/loss_scale",
+        "train/optimizer_steps_skipped",
+        "train/rl/sampling_prob_delta_mean",
+        "train/rl/sampling_prob_delta_max",
         "train/rl/sampling_logp_delta_p99",
         "train/rl/sampling_sequence_logp_delta_abs_mean",
         "train/rl/reward_std",

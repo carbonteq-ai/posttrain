@@ -86,6 +86,9 @@ def test_float16_on_a_recorded_bf16_checkpoint_is_an_error_except_for_turboquant
     assert _codes({**seats, "training": snap.training(), "rollout_inference": fp16_rollout}) == {
         "VLLM_FLOAT16_ON_BF16_CHECKPOINT": "error"
     }
+    # The same holds for a veRL trainer in fp16.
+    unified["resolved"]["backend"] = "verl@18338a0efbd6f103378d2861f4a078ad243db455"
+    assert _codes({**seats, "training": unified, "rollout_inference": fp16_rollout}) == {}
 
 
 def test_hosted_and_non_generating_bindings_are_out_of_scope(snap) -> None:

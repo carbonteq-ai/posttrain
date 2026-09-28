@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ...precision import training_precision, verl_mixed_precision_overrides, verl_rollout_dtype
 from ...rollout_execution import RolloutExecutionConfig, validate_execution_config
 from ..retention import finalize_training_outputs
 from .contracts import (
@@ -85,7 +86,9 @@ def main() -> None:
         shutil.rmtree(checkpoint_dir)
         recovery_checkpoint = None
     update_kind = payload.training.update.kind
-    records = read_verl_metric_records(metrics_file)
+    records = read_verl_metric_records(
+        metrics_file, loss_scaling=training_precision(payload.training.backend_options) == "fp16"
+    )
     metrics = records[-1].data
     observed_step = metrics.get("training/global_step")
     steps = int(observed_step) if isinstance(observed_step, int | float) else records[-1].step
@@ -149,10 +152,7 @@ def build_hydra_overrides(
         raise ValueError("veRL training nnodes multiplied by n_gpus_per_node must equal target world_size")
     rollout_tp = _positive_int_option(engine.get("tensor_parallel_size"), "tensor_parallel_size", 1)
     kv_cache_dtype = engine.get("kv_cache_dtype")
-    rollout_dtype = engine.get(
-        "dtype",
-        "float16" if str(kv_cache_dtype).startswith("turboquant_") else "bfloat16",
-    )
+    rollout_dtype, _source = verl_rollout_dtype(engine)
     actor_mini_batch = algorithm.num_prompts_per_step
     micro_batch = 1
     update = training.update
@@ -290,6 +290,7 @@ def build_hydra_overrides(
                 ]
             )
         overrides.extend(_rollout_execution_hydra_overrides(manifest))
+    overrides.extend(verl_mixed_precision_overrides(backend_options))
     if resume_from is not None:
         overrides.append(f"trainer.resume_from_path={json.dumps(str(resume_from))}")
     if kv_cache_dtype is not None:
@@ -474,6 +475,9 @@ def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
         "data.train_files=",
         "data.val_files=",
         "actor_rollout_ref.model.path=",
+        "actor_rollout_ref.rollout.dtype=",
+        "actor_rollout_ref.actor.fsdp_config.mixed_precision",
+        "actor_rollout_ref.ref.fsdp_config.mixed_precision",
         "actor_rollout_ref.actor.loss_agg_mode=",
         "actor_rollout_ref.actor.clip_ratio_low=",
         "actor_rollout_ref.actor.clip_ratio_high=",

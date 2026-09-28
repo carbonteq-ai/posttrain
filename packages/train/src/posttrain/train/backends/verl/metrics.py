@@ -39,18 +39,36 @@ class VerlRolloutRewardRecord:
             raise ValueError("veRL rollout reward record values must be finite")
 
 
-def read_verl_metric_records(path: Path) -> tuple[VerlMetricRecord, ...]:
-    """Read a complete, monotonic JSONL sidecar without importing veRL."""
+_GRAD_NORM = "actor/grad_norm"
+_STEP_SKIPPED = "actor/optimizer_step_skipped"
+_STEPS_SKIPPED = "actor/optimizer_steps_skipped"
+
+
+def read_verl_metric_records(path: Path, *, loss_scaling: bool = False) -> tuple[VerlMetricRecord, ...]:
+    """Read a complete, monotonic JSONL sidecar without importing veRL.
+
+    Every value must be finite, except under float16 dynamic loss scaling
+    (``loss_scaling``): an optimizer step whose gradients overflowed is skipped
+    by the scaler and reports an infinite or NaN ``actor/grad_norm``, together
+    with values derived from it. Such a record keeps its finite values, drops
+    the non-finite ones, and gains ``actor/optimizer_step_skipped = 1`` and a
+    running ``actor/optimizer_steps_skipped``; every other record of a
+    loss-scaled run gains the flag 0. A non-finite value in a record whose
+    gradient norm is finite still fails the read.
+    """
 
     if not path.is_file():
         raise FileNotFoundError(path)
     records: list[VerlMetricRecord] = []
     previous_step: int | None = None
+    skipped_total = 0
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip():
             raise ValueError(f"veRL metric sidecar contains a blank line at {line_number}")
         try:
-            payload = json.loads(line, parse_constant=_reject_non_finite_constant)
+            payload = json.loads(
+                line, parse_constant=_parse_non_finite_constant if loss_scaling else _reject_non_finite_constant
+            )
         except json.JSONDecodeError as error:
             raise ValueError(f"invalid veRL metric JSON at line {line_number}") from error
         if not isinstance(payload, dict):
@@ -65,6 +83,13 @@ def read_verl_metric_records(path: Path) -> tuple[VerlMetricRecord, ...]:
             raise ValueError(
                 f"veRL metric steps must be monotonic; line {line_number} moved from {previous_step} to {step}"
             )
+        if loss_scaling:
+            data, skipped = _drop_skipped_step_values(data, line_number=line_number)
+            if _GRAD_NORM in data or skipped:
+                # veRL logs neither the scale nor the skip; the scaler skips exactly the steps whose
+                # unscaled gradient norm is infinite or NaN.
+                skipped_total += int(skipped)
+                data = {**data, _STEP_SKIPPED: float(skipped), _STEPS_SKIPPED: float(skipped_total)}
         _validate_finite(data, line_number=line_number)
         records.append(VerlMetricRecord(step=step, data=data))
         previous_step = step
@@ -108,6 +133,25 @@ def read_verl_rollout_reward_records(path: Path) -> tuple[VerlRolloutRewardRecor
 
 def _reject_non_finite_constant(value: str) -> None:
     raise ValueError(f"veRL metric JSON contains non-finite constant {value}")
+
+
+def _parse_non_finite_constant(value: str) -> float:
+    return float(value)
+
+
+def _drop_skipped_step_values(data: dict[str, object], *, line_number: int) -> tuple[dict[str, object], bool]:
+    """Remove the non-finite values of a step the loss scaler skipped."""
+
+    non_finite = {name for name, value in data.items() if isinstance(value, float) and not math.isfinite(value)}
+    if not non_finite:
+        return data, False
+    grad_norm = data.get(_GRAD_NORM)
+    if not (isinstance(grad_norm, float) and not math.isfinite(grad_norm)):
+        raise ValueError(
+            f"veRL metric line {line_number} has non-finite {sorted(non_finite)} on a step whose gradient norm "
+            "is finite, so it is not a loss-scaler skip"
+        )
+    return {name: value for name, value in data.items() if name not in non_finite}, True
 
 
 def _validate_finite(value: object, *, line_number: int) -> None:

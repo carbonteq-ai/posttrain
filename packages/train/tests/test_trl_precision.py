@@ -31,6 +31,7 @@ def test_defaults_resolve_to_the_existing_bf16_behaviour() -> None:
         "logits_float32": False,
         "rollout_dtype": "bfloat16",
         "rollout_dtype_source": "checkpoint",
+        "backend": "trl",
     }
     arguments = trainer_arguments(TrainingLoop(max_steps=2), Path("out"))
     assert (arguments["bf16"], arguments["fp16"]) == (True, False)
@@ -72,12 +73,19 @@ def test_rollout_dtype_keeps_the_turboquant_float16_requirement() -> None:
 def test_training_binding_rejects_precision_no_backend_implements() -> None:
     _validate_precision("trl@1.12.0.post10", LoRAUpdate(), {"training_precision": "fp16", "logits_float32": True})
     _validate_precision("verl@0.6", FullParameterUpdate(), {"training_precision": "bf16"})
+    # veRL's FSDP keeps float32 masters for every parameter, so full updates may train in fp16.
+    _validate_precision("verl@0.6", FullParameterUpdate(), {"training_precision": "fp16"})
+    _validate_precision("verl@0.6", LoRAUpdate(), {"training_precision": "fp16"})
     with pytest.raises(ValueError, match="requires a LoRA update"):
         _validate_precision("trl@1.12.0.post10", FullParameterUpdate(), {"training_precision": "fp16"})
     with pytest.raises(ValueError, match="requires a LoRA update"):
         _validate_precision("trl@1.12.0.post10", QLoRAUpdate(), {"training_precision": "fp16"})
     with pytest.raises(ValueError, match="TRL backend only"):
-        _validate_precision("verl@0.6", LoRAUpdate(), {"training_precision": "fp16"})
+        _validate_precision("verl@0.6", LoRAUpdate(), {"logits_float32": True})
+    with pytest.raises(ValueError, match="not qlora"):
+        _validate_precision("verl@0.6", QLoRAUpdate(), {"training_precision": "fp16"})
+    with pytest.raises(ValueError, match="TRL and veRL backends only"):
+        _validate_precision("nemo@1", LoRAUpdate(), {"training_precision": "fp16"})
     with pytest.raises(ValueError, match="one of bf16, fp16"):
         _validate_precision("trl@1.12.0.post10", LoRAUpdate(), {"training_precision": "float16"})
     with pytest.raises(ValueError, match="must be a boolean"):
