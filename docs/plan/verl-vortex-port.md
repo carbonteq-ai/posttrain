@@ -218,16 +218,78 @@ adds backend support that meets those contracts; no product meaning changes.
   Fork CPU suite: 348 passed, 2 skipped. Posttrain records the three post6
   commits in `_FORK_NATIVE_NAME_REVISIONS`; the fork-native-name test now
   checks every post6 name against the installed fork.
-- [ ] Push the fork branch and tag, publish post6 (coordinator), then the
-  Posttrain pin commit: `packages/train/pyproject.toml` and `uv.lock` to
-  post6, the veRL kind profile and locks, and drop the olmo3 strict-xfail in
-  `test_pinned_verl_fork_registers_every_native_name_posttrain_requests`.
+- [x] (2026-09-29) The coordinator pushed the fork branch and tag and
+  published post6 (GitHub release `carbonteq-v0.9.0.post6`, Posttrain publish
+  run 36474625071; `carbonteq/dev` serves both hashes).
+- [x] (2026-09-29) Posttrain post6 pin commit. veRL is not a dependency of
+  `packages/train` or the root `uv.lock` (it lives only in the isolated veRL
+  kind), so the pin is the kind's release project, as for post5:
+  `verl-py313/release/pyproject.toml` selects `1badbebd`, `uv lock --python
+  3.13.12` changes only veRL (lock `680342f0...`, constraints `760fe709...`),
+  `profile.toml`, `release/forks.toml`, the release tests, the veRL precision
+  and adapter-continuation bindings follow, and the olmo3 strict xfail is
+  removed. `posttrain-release images plan --registry registry.lan/carbonteq`
+  (LAN trust bundle): base and every other kind reused remotely, only
+  `kinds.online-rl-verl-py313` rebuilds; not blocked. Plan output saved in the
+  session scratchpad (`images-plan-0.4.13-dev.json`); not published.
+- [x] (2026-09-29) The coordinator published the 0.4.13.dev1 veRL kind
+  image (`sha256:37d284be...f994`, post6) and committed `published.toml`
+  (strict `posttrain-release check` passes). The span fix `b5b30cc3` merged
+  into 0.4.12; this branch is rebased onto it.
+- [x] (2026-09-29) Phase 4 and Phase 6 packages committed
+  (`lfm12_verl_automationbench_check_local.yaml` and the eight
+  `*_automationbench_*_parity_local.yaml`, catalog `verl-vortex-parity.yaml`,
+  qualification gates registered); all plan cleanly.
+- [x] (2026-09-29) Phase 4 GPU attempts on the local card, from a clean
+  detached worktree (`../rl-verl-vortex-run`):
+  `verl-vortex-lfm12-check-20260929-r1` and `-r2` failed at vLLM start
+  (`/dev/shm` 64 MiB, see Surprises; fixed by execution-local `520131a9`,
+  branch `codex/local-docker-shm`, cherry-picked here as `40491337`);
+  `-r3` passed vLLM start and failed at the first LoRA sync to vLLM (stacked
+  LoRA names, see Surprises; cancelled at 20:53 UTC when the Ray driver hung).
+  Each run carries notes.
+- [x] (2026-09-29) Fork fix `f74e84e4` on `codex/vortex-lora-sync`
+  (`lora_weights_mapper`: vLLM's rename-only mapper for synced LoRA tensors)
+  with a CPU regression test run in the kind image and a GPU check (below).
+  Release candidate `0.9.0.post7` prepared, not pushed: release commit
+  `6069abe14e2b3d27c89815a6502b849f15124e12`, local tag
+  `carbonteq-v0.9.0.post7` (tag object `b60890dc...`), receipt `07ecac23`;
+  wheel `9786ec44fbdba367791d8e9a4c58a895955639c79c4b9dd0e3a403a05b5e29c5`
+  (byte-identical across two clean builds), sdist
+  `3b0259523476d67aff9282b2b3c775c081bd866c04d369ad7a5eda8af6607088`; assets in
+  `/home/hammad/verl-release/verl-post7/dist1/`.
+- [ ] Publish post7, pin it (release project, profile, bindings), publish the
+  veRL kind image, then rerun the Phase 4 check and the Phase 6 runs.
 - [x] (2026-09-29) `codex/verl-vortex-active-sampling` rebased onto
   `origin/codex/release-0.4.12` at `36932821` (one test-file conflict, both
   sides kept); full ladder and the seven parity files pass after the rebase.
   Rebase again onto the final 0.4.12 before merging for 0.4.13.
 
 ## Surprises & Discoveries
+
+- Observation: every veRL run on the local Docker provider failed at vLLM
+  engine start: `Insufficient space in /dev/shm for shared-memory allocation:
+  160 MiB required, 64 MiB free`. The provider ran containers with Docker's
+  default 64 MiB `/dev/shm`; vLLM 0.29.1.dev4's multiprocess executor allocates
+  a 160 MiB broadcast queue (10 chunks of `VLLM_MQ_MAX_CHUNK_BYTES_MB=16`) and
+  checks the free space. It also stopped the 0.4.12 veRL qualification
+  (`q0412d-verl-qwen08b-bf16-r1`). A queued run is dispatched by whichever
+  checkout's `posttrain` process drains the local queue, so `-r2` still ran
+  without the fix.
+  Evidence: runs `verl-vortex-lfm12-check-20260929-r1`, `-r2` (notes).
+- Observation: veRL's in-memory LoRA sync (`VLLMHijack._load_adapter`) named
+  LoRA modules with the full `hf_to_vllm_mapper`; its stacked maps rename
+  `w1`/`w3` to `w13` and `q_proj`/`k_proj`/`v_proj` to `qkv_proj`, so the
+  constituents collapsed and vLLM's merged column layer raised `IndexError:
+  tuple index out of range` in `set_lora`. vLLM's own loader uses
+  `get_rename_mapper()`. Qwen3.5 veRL runs never hit it: their LoRA targets
+  only `o_proj`/`down_proj`. TRL was unaffected because it reloads the adapter
+  from a PEFT directory through vLLM's own loader.
+  Evidence: run `verl-vortex-lfm12-check-20260929-r3`; GPU check with the fix
+  (RTX 3070 Ti, post6 kind image with the fork source mounted): an
+  LFM2.5-1.2B all-linear adapter synced as tensors scores a 29-token text
+  within 0.055 nats/token (max 0.30) of PEFT, against vLLM's base-model gap of
+  0.040 and an adapter effect of 1.03 nats/token.
 
 - Observation: veRL's DAPO dynamic sampling (streaming refill, two credits per
   filtered group, bounded by candidate prompts) is not TRL's DAPO dynamic
@@ -680,6 +742,45 @@ Short runs (two to four updates) of the same VORTEX settings on TRL and veRL
 with the same seed and data on the 8 GB card, first Qwen3.5-0.8B then
 LFM2.5-1.2B; compare per-update reward, KL, entropy, advantage distribution,
 active-sampling counts and loss; document tolerances.
+
+Packages (`apps/lab/.posttrain/work_packages/`, catalog
+`apps/lab/.posttrain/catalog/verl-vortex-parity.yaml`): for each model
+(`qwen08b`, `lfm12`) and technique (`vortex`, `sampo`) a TRL and a veRL twin,
+`<model>_<trl|verl>_automationbench_<vortex|sampo>_parity_local.yaml`. Twins
+share the 24-task environment `automationbench-verl-parity-v1` (20 `simple`,
+two `finance`, two `operations` tasks: three curriculum classes; six turns of
+up to 1,024 tokens), the settings
+(`<model>/automationbench-vortex-parity-v1`: OLMo 3 objective, 4 prompts x 4
+generations, active sampling with `max_candidate_batches: 4, oversample: 1,
+oversample_refill: 1`, the yield-first curriculum, truncation penalty 0.1,
+token-truncated correction at 2.0, seed 1729, four updates;
+`<model>/automationbench-sampo-parity-v1`: the same sampling with SAMPO,
+beta 0.005, truncation penalty 0.2), the LoRA update (Qwen: r8/a16 on
+`o_proj`/`down_proj`, the module set veRL's Qwen3.5 bindings qualify; LFM:
+r4/a8 `all-linear`), and the rollout sampling (T 0.8, top-p 0.95). They
+differ only in the backend and in engine placement options that do not change
+sampling semantics. One known numeric difference remains: TRL trains LoRA over
+a bfloat16 base in bfloat16, veRL's FSDP computes in bfloat16 over float32
+master weights.
+
+What must agree. Rollouts are stochastic and the two stacks use different
+random streams, so no rollout-dependent value can be bitwise equal. The
+checks are:
+1. Deterministic invariants, exactly: the learning rate, the number of
+   updates, the first round's oversampled group count (1), the pool size, and
+   for OLMo 3 a zero per-group mean advantage.
+2. Rollout statistics of update 1 (both policies are the base model): mean
+   reward within two standard errors of the group-mean difference; completion
+   length and sampler entropy within 15% relative.
+3. Training statistics per update: KL (SAMPO) of the same order and zero at
+   update 1; advantage absolute mean, positive and negative fractions and the
+   informative fraction within two standard errors given the observed reward
+   spread; clip and correction fractions of the same order.
+4. Active-sampling and curriculum evidence: rounds, retained and discarded
+   group counts consistent with each run's own rewards (the arithmetic is
+   checked exactly against TRL by the CPU parity tests); curriculum class
+   shares of the same order. The runs record the observed differences in
+   Artifacts.
 
 ## Concrete Steps
 

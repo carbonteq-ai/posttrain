@@ -78,6 +78,12 @@ _FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str | None, frozenset[str]]] = {
     # carbonteq-v0.9.0.post6 release commit and its asset receipt.
     "1badbebd22aee7af5b85185760275f697af3a073": ("0.9.0.post6", _FORK_ONLY_NATIVE_NAMES),
     "1cd7702f6b2f6aadfa149ec261e277552178eb5a": ("0.9.0.post6", _FORK_ONLY_NATIVE_NAMES),
+    "100a0a889c31f6c617988dc68e3caa185e9dae38": ("0.9.0.post6", _FORK_ONLY_NATIVE_NAMES),
+    # codex/vortex-lora-sync: synced LoRA tensors keep constituent module names.
+    "f74e84e49be243b963153a6c88a6d49ccd75e0b5": (None, _FORK_ONLY_NATIVE_NAMES),
+    # carbonteq-v0.9.0.post7 release commit and its asset receipt.
+    "6069abe14e2b3d27c89815a6502b849f15124e12": ("0.9.0.post7", _FORK_ONLY_NATIVE_NAMES),
+    "07ecac23596d7fd6babdfb88e9dc0442dfc65a72": ("0.9.0.post7", _FORK_ONLY_NATIVE_NAMES),
 }
 # Every recorded fork commit descends from post2, which added bounded rollout execution.
 _ROLLOUT_EXECUTION_FORK_REVISIONS = _ROLLOUT_EXECUTION_FORK_REVISIONS_BASE | frozenset(_FORK_NATIVE_NAME_REVISIONS)
