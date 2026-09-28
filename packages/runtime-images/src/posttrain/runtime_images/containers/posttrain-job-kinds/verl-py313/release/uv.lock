@@ -2037,7 +2037,7 @@ requires-dist = [
     { name = "transformers", specifier = "==5.14.1" },
     { name = "uvicorn", specifier = ">=0.52,<0.53" },
     { name = "verifiers", git = "https://github.com/carbonteq-ai/verifiers.git?rev=b71ade0a7ac712cdee9e1a4c0e53030d70768aff" },
-    { name = "verl", git = "https://github.com/carbonteq-ai/verl.git?rev=18338a0efbd6f103378d2861f4a078ad243db455" },
+    { name = "verl", git = "https://github.com/carbonteq-ai/verl.git?rev=54124edfb8d0b73694696400cf07a76a14d9be65" },
     { name = "vllm", git = "https://github.com/carbonteq-ai/vllm.git?rev=f09e4479123d348cee87d217c695a22f9b2daacc" },
     { name = "wandb", specifier = ">=0.28,<0.29" },
 ]
@@ -3209,8 +3209,8 @@ dependencies = [
 
 [[package]]
 name = "verl"
-version = "0.9.0.post3"
-source = { git = "https://github.com/carbonteq-ai/verl.git?rev=18338a0efbd6f103378d2861f4a078ad243db455#18338a0efbd6f103378d2861f4a078ad243db455" }
+version = "0.9.0.post4"
+source = { git = "https://github.com/carbonteq-ai/verl.git?rev=54124edfb8d0b73694696400cf07a76a14d9be65#54124edfb8d0b73694696400cf07a76a14d9be65" }
 dependencies = [
     { name = "accelerate" },
     { name = "cachetools" },

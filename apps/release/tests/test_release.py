@@ -719,7 +719,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
 
     assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev31"
     assert entries["trl"].revision == "4950b99d457faacbec856cbd5305732e7b3cf7b0"
-    assert entries["verl"].release_tag == "carbonteq-v0.9.0.post3"
+    assert entries["verl"].release_tag == "carbonteq-v0.9.0.post4"
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
         "7ba6018dd6bbc5872876c69a661cf136a6705221f937c3b5cbd826483c476bcb"
     )
@@ -1218,8 +1218,8 @@ def test_required_fork_index_check_uses_every_python_fork_hash(monkeypatch: pyte
         "trl-1.12.0.post10.tar.gz",
         "carbonteq_renderers-0.1.12.post1.dev2-py3-none-any.whl",
         "carbonteq_renderers-0.1.12.post1.dev2.tar.gz",
-        "verl-0.9.0.post3-py3-none-any.whl",
-        "verl-0.9.0.post3.tar.gz",
+        "verl-0.9.0.post4-py3-none-any.whl",
+        "verl-0.9.0.post4.tar.gz",
     }
 
 
