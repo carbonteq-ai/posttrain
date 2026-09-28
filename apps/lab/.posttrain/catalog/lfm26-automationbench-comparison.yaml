@@ -1274,6 +1274,37 @@ environment:
           max_output_tokens: 12288
     max_concurrent: 64
 
+  # v7 at automationbench-v1 0.4.2 with per-turn rewards: after every turn the
+  # live world is scored, and each assistant turn earns its change in partial
+  # credit minus 0.05 per failed tool call (projection
+  # reward/automationbench-turn-progress@1). Tasks, budgets and tools match v7.
+  automationbench-lfm26-train-mix-v7-turns-v1:
+    <<: *automationbench_train_mix_v3
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 3a486b0ab173ece56f480f135c4cadfbf0135b57
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 12
+            turn_rewards: {tool_failure_penalty: 0.05}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 12288
+    max_concurrent: 64
+
   automationbench-lfm26-train-mix-episode-judged-v2: &automationbench_train_mix_episode_judged_v2
     category: agentic-tool-use
     source:
@@ -2416,6 +2447,50 @@ training:
       history_groups: 4
       seed: 172846
     truncation_penalty: 0.2
+
+  # SAMPO matched to the VORTEX v5 KL control
+  # (lfm2.5-2.6b/automationbench-vortex-yield-first-64-150-lr5e-5-kl5e-3-local-v5):
+  # same updates, batch, learning rate, KL, curriculum, refill pool, truncation
+  # penalty and prompt order. SAMPO adds anchor-state step advantages and keeps
+  # its sequence-level policy ratio and clip range.
+  lfm2.5-2.6b/automationbench-sampo-64-150-lr5e-5-kl5e-3-local-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 150
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 64
+      learning_rate: 0.00005
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 10
+      checkpoint_limit: 3
+      gradient_checkpointing: true
+    num_prompts_per_step: 16
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    beta: 0.005
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    active_sampling: {max_candidate_batches: 10}
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_max: 2.0
+    truncation_penalty: 0.2
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
 
   # Matched 50-update adaptive-GRPO ablation requested after the 0.4.4 release.
   # Full VORTEX requires OLMo3 active refill, so the no-oversampling arm uses
