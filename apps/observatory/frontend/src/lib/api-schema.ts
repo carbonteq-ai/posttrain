@@ -4209,7 +4209,9 @@ export interface operations {
     };
     semantic_query_api_v1_semantic_query_post: {
         parameters: {
-            query?: never;
+            query?: {
+                source_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;

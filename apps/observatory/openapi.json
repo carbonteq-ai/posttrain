@@ -8699,6 +8699,24 @@
     "/api/v1/semantic/query": {
       "post": {
         "operationId": "semantic_query_api_v1_semantic_query_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Id"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {

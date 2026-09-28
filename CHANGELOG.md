@@ -118,9 +118,25 @@ oversampled active sampling, and a KL penalty measured against the base model.
   before job images from this release write to it.
 - Maintained forks: TRL `1.12.0.post11` (oversampling and `peft_reference`),
   veRL `0.9.0.post5` (loss scale, skipped steps and log-probability gap
-  metrics from post4; `token_clip` and `k3_unclipped`), Trackio `0.31.5.post14.dev32`, and the `causal-conv1d`
-  `1.7.0+cu130torch2.13` rebuild, which is promoted to the stable index as a
+  metrics from post4; `token_clip` and `k3_unclipped`), Trackio
+  `0.31.5.post14.dev32`, and the `causal-conv1d` `1.7.0+cu130torch2.13` rebuild, which is promoted to the stable index as a
   wheel-only fork release.
+
+### Fixed
+
+- Observatory semantic SQL (`/api/v1/semantic/query`, MCP `query_semantics`,
+  evaluations and bare run ids) read whichever source sorted first when no
+  source was named; with discovered Trackio projects that was an unrelated
+  project (`ai-infra-qualification` instead of `posttrain-lab`, 0 runs). A
+  request now reads the source it names (`?source_id=` on HTTP, `source_id`
+  on MCP), else the configured default, else the only source; with several
+  sources and no default it is refused with the available sources listed.
+  The default is `POSTTRAIN_OBSERVATORY_DEFAULT_SOURCE`, else the configured
+  Trackio project (`POSTTRAIN_TRACKIO_PROJECT`) when projects are discovered.
+  Deployments that discover projects must set one of them to `posttrain-lab`.
+- Lab Verifiers environments state the harness, stage timeouts and turn and
+  token limits on the agent seat, which Verifiers `cdd2ec76` requires; a test
+  validates every catalog environment against the pinned Verifiers.
 
 ## 0.4.11 - 2026-09-28
 

@@ -637,7 +637,7 @@
       }
     },
     {
-      "description": "Answer a question about runs, inside the tracking storage. Prefer sql: one read-only Doris SQL SELECT\nover the tables from describe_semantics (every run of the project; runs, as ids or run-dimension filters\nsuch as {\"run.job_kind\": \"train.sampo\"}, narrows them). Or the short form: measures (name or\nname:aggregation), by dimensions, where ({dimension: value, [any of], \">= n\" or a \"*\" wildcard}); it\ncompiles to SQL, returned in the result.",
+      "description": "Answer a question about runs, inside the tracking storage. Prefer sql: one read-only Doris SQL SELECT\nover the tables from describe_semantics (every run of the project; runs, as ids or run-dimension filters\nsuch as {\"run.job_kind\": \"train.sampo\"}, narrows them). Or the short form: measures (name or\nname:aggregation), by dimensions, where ({dimension: value, [any of], \">= n\" or a \"*\" wildcard}); it\ncompiles to SQL, returned in the result. source_id selects the source (with discovered Trackio projects,\nthe project name); omitted, the Observatory's configured default source is read.",
       "inputSchema": {
         "properties": {
           "by": {
