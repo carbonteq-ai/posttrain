@@ -83,7 +83,7 @@ def _verl(target: int, max_batches: int, oversample: int, refill: int, keep: lis
     calls: list[int] = []
     order: dict[str, int] = {}
 
-    def dispatch(count: int) -> list[str]:
+    def dispatch(count: int, round_index: int | None = None) -> list[str]:
         calls.append(count)
         uids = []
         for _ in range(count):

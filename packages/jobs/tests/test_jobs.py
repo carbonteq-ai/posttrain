@@ -1098,14 +1098,18 @@ def test_runtime_preflight_rejects_serving_workload_below_project_context(tmp_pa
         validate_work_package(runtime, _serving_package())
 
 
-def test_static_preparation_keeps_sampo_oversampling_off_verl_until_sampo_is_ported() -> None:
+def test_static_preparation_checks_sampo_oversampling_capacity_on_verl() -> None:
     validator = sampo_definition().static_validator
     assert validator is not None
-    seats = _oversampled_sampo_seats()
-    training = cast(TrainingBinding, seats["training"])
-    settings = cast(SAMPOSettings, seats["settings"])
-    seats["settings"] = replace(settings, loop=replace(settings.loop, lr_scheduler_type="constant"))
-    seats["training"] = replace(training, backend="verl@6c7295cd")
 
-    with pytest.raises(ContractError, match="not available on the veRL backend yet"):
-        validator(seats)  # type: ignore[arg-type]
+    def on_verl(**changes: object) -> dict[str, object]:
+        seats = _oversampled_sampo_seats(**changes)  # type: ignore[arg-type]
+        training = cast(TrainingBinding, seats["training"])
+        settings = cast(SAMPOSettings, seats["settings"])
+        seats["settings"] = replace(settings, loop=replace(settings.loop, lr_scheduler_type="constant"))
+        seats["training"] = replace(training, backend="verl@d344b545")
+        return seats
+
+    validator(on_verl())  # type: ignore[arg-type]
+    with pytest.raises(ContractError, match="oversample 1 needs 12 concurrent episodes"):
+        validator(on_verl(max_num_seqs=8))  # type: ignore[arg-type]

@@ -143,6 +143,20 @@ TRL path's per-checkpoint view (`checkpoint-<N>/curriculum`), so
 adapter accepts the curriculum with GRPO and OLMo 3 (not DAPO) on revisions
 recorded with `prompt_selector`.
 
+## SAMPO on veRL (unreleased candidate)
+
+Fork commit `4d37a18bc492f0f4f9c224285603740ef4a2ba54` adds `sequence_clip`
+(TRL's `importance_sampling_level="sequence"` objective: one ratio per row with
+gradient through the mean log ratio) and SAMPO hierarchy evidence metrics. The
+adapter now accepts SAMPO: fork SAMPO estimator, `sequence_clip`,
+`seq-mean-token-mean`, clip 0.003/0.004, `k3_unclipped` KL, token or sequence
+sampler correction truncated at the selected cap, round-based active sampling,
+optional curriculum and truncation penalty. It rejects
+`mask_truncated_completions`, `max_admission_attempts` other than 1 and
+correction modes with a lower bound or masking. This replaces the historical
+GSPO mapping described under "SAMPO operating configuration" below, whose
+runs predate the rejection that preceded this port.
+
 ## FP16 metrics (0.9.0.post4, contained in post5)
 
 Branch `codex/precision-fp16` tags `carbonteq-v0.9.0.post4` at immutable

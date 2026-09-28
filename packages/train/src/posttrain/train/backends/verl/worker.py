@@ -38,7 +38,7 @@ _ROLLOUT_EXECUTION_FORK_REVISIONS = frozenset({"5dbf667c99b29db613d1dfcded1ed904
 # (round-based refill with TRL's semantics); ``prompt_selector`` its
 # ``data.prompt_selector`` extension point (used by the adaptive curriculum).
 _OLMO3_OBJECTIVE_NAMES = frozenset({"token_clip", "k3_unclipped"})
-_FORK_ONLY_NATIVE_NAMES = _OLMO3_OBJECTIVE_NAMES | {"active_sampling", "prompt_selector"}
+_FORK_ONLY_NATIVE_NAMES = _OLMO3_OBJECTIVE_NAMES | {"active_sampling", "prompt_selector", "sequence_clip"}
 # The version is recorded for release commits only; a development commit shares
 # its parent release's version string without its content.
 _FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str | None, frozenset[str]]] = {
@@ -50,7 +50,13 @@ _FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str | None, frozenset[str]]] = {
     # codex/vortex-active-sampling development commit (post5 + active sampling).
     "6c7295cd411c4d3973ddc206e43816560c842336": (None, _OLMO3_OBJECTIVE_NAMES | {"active_sampling"}),
     # codex/vortex-active-sampling: plus the data.prompt_selector extension point.
-    "24920b395f8571f8f5be6b9d8469737f2355dcc9": (None, _FORK_ONLY_NATIVE_NAMES),
+    "24920b395f8571f8f5be6b9d8469737f2355dcc9": (
+        None,
+        _OLMO3_OBJECTIVE_NAMES | {"active_sampling", "prompt_selector"},
+    ),
+    # codex/vortex-active-sampling: plus the sequence_clip loss and SAMPO hierarchy metrics.
+    "d344b545eeb60b8fa1de8174fb65924df26757aa": (None, _FORK_ONLY_NATIVE_NAMES),
+    "4d37a18bc492f0f4f9c224285603740ef4a2ba54": (None, _FORK_ONLY_NATIVE_NAMES),
 }
 _TOKEN_CLIP_FORK_REVISIONS = frozenset(
     revision for revision, (_, names) in _FORK_NATIVE_NAME_REVISIONS.items() if "token_clip" in names
@@ -329,11 +335,13 @@ def build_hydra_overrides(
                 )
             overrides.extend(
                 [
-                    "actor_rollout_ref.actor.policy_loss.loss_mode=gspo",
+                    # TRL's sequence-level ratio with gradient through the mean log ratio.
+                    "actor_rollout_ref.actor.policy_loss.loss_mode=sequence_clip",
                     f"algorithm.gamma={algorithm.discount_gamma}",
                     f"algorithm.sampo.discount_gamma={algorithm.discount_gamma}",
                     f"algorithm.sampo.step_advantage_weight={algorithm.step_advantage_weight}",
                     f"algorithm.sampo.advantage_normalization={algorithm.advantage_normalization}",
+                    *_rollout_correction_hydra_overrides(manifest),
                 ]
             )
         if algorithm.dynamic_sampling:
@@ -510,7 +518,7 @@ def _validate_fork_native_names(manifest: VerlLaunchManifest, overrides: list[st
 def _kl_loss_type(manifest: VerlLaunchManifest) -> str:
     """veRL's KL estimator: TRL's unclipped k3 wherever the objective must match it."""
 
-    if manifest.operation in {"gdpo", "capo"} or manifest.payload.algorithm.online_rl_algorithm == "olmo3":
+    if manifest.operation in {"gdpo", "capo", "sampo"} or manifest.payload.algorithm.online_rl_algorithm == "olmo3":
         return "k3_unclipped"
     return "low_var_kl"
 
@@ -535,6 +543,17 @@ def _olmo3_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
     return [
         "actor_rollout_ref.actor.policy_loss.loss_mode=token_clip",
         "algorithm.norm_adv_by_std_in_grpo=false",
+        *_rollout_correction_hydra_overrides(manifest),
+    ]
+
+
+def _rollout_correction_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
+    """Decoupled sampler correction truncated at the selected cap (old log-probs recomputed)."""
+
+    algorithm = manifest.payload.algorithm
+    if algorithm.rollout_importance_sampling is None or algorithm.rollout_importance_sampling_cap is None:
+        raise ValueError("the veRL manifest selects no sampler correction")
+    return [
         f"algorithm.rollout_correction.rollout_is={algorithm.rollout_importance_sampling}",
         f"algorithm.rollout_correction.rollout_is_threshold={algorithm.rollout_importance_sampling_cap}",
         "algorithm.rollout_correction.rollout_is_batch_normalize=false",

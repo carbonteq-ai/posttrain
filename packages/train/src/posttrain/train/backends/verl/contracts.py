@@ -168,7 +168,7 @@ class VerlAlgorithm(VerlContract):
     # None keeps veRL's historical GRPO default (divide by the group standard deviation).
     normalize_advantage_by_std: bool | None = None
     # Decoupled sampler correction: weight = min(exp(old_logp - rollout_logp), cap) per token.
-    rollout_importance_sampling: Literal["token"] | None = None
+    rollout_importance_sampling: Literal["token", "sequence"] | None = None
     rollout_importance_sampling_cap: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     discount_gamma: float | None = Field(default=None, gt=0, le=1, allow_inf_nan=False)
     step_advantage_weight: float | None = Field(default=None, ge=0, allow_inf_nan=False)
@@ -286,12 +286,19 @@ class VerlLaunchManifest(VerlContract):
                 algorithm.dynamic_sampling or algorithm.active_sampling_max_candidate_batches is None
             ):
                 raise ValueError("veRL active sampling requires a bounded candidate pool and excludes dynamic sampling")
-            if algorithm.online_rl_algorithm != "olmo3" and (
+            if algorithm.online_rl_algorithm not in {"olmo3", "sampo"} and (
                 algorithm.rollout_importance_sampling is not None
                 or algorithm.rollout_importance_sampling_cap is not None
-                or algorithm.normalize_advantage_by_std is not None
             ):
-                raise ValueError("veRL maps sampler correction and advantage scaling only for OLMo 3")
+                raise ValueError("veRL maps sampler correction only for OLMo 3 and SAMPO")
+            if algorithm.online_rl_algorithm != "olmo3" and algorithm.normalize_advantage_by_std is not None:
+                raise ValueError("veRL maps advantage scaling only for OLMo 3")
+            if algorithm.online_rl_algorithm == "sampo" and (
+                algorithm.rollout_importance_sampling is None
+                or algorithm.rollout_importance_sampling_cap is None
+                or not algorithm.active_sampling
+            ):
+                raise ValueError("the SAMPO manifest requires its sampler correction and active sampling")
         else:
             if payload.student is None or payload.teacher is None or payload.policy is not None:
                 raise ValueError("distillation manifest requires student and teacher and forbids policy")

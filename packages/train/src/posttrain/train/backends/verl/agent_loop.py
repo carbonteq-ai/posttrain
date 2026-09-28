@@ -355,7 +355,8 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             "max_global_steps": behavior_policy.end,
         }
         if self._emit_sampo_metadata:
-            extra_fields.update(_sampo_metadata(rollout))
+            # The native prompt occurrence identifies the group even if a task repeats in one batch.
+            extra_fields.update(_sampo_metadata(rollout, str(kwargs.get("uid", rollout.example_id))))
         if self._structured_algorithm is not None:
             extra_fields["structured_rewards"] = structured_reward_metadata(
                 rollout,
@@ -435,11 +436,11 @@ def _append_rollout_reward_record(
         os.close(descriptor)
 
 
-def _sampo_metadata(rollout: EnvironmentRollout) -> dict[str, Any]:
+def _sampo_metadata(rollout: EnvironmentRollout, prompt_group_id: str) -> dict[str, Any]:
     if not rollout.turns:
         raise RuntimeError("SAMPO requires sampled assistant-turn metadata")
     return {
-        "sampo_prompt_group_id": rollout.example_id,
+        "sampo_prompt_group_id": prompt_group_id,
         "sampo_turn_lengths": [turn.completion_end - turn.completion_start for turn in rollout.turns],
         "sampo_turn_spans": [[turn.completion_start, turn.completion_end] for turn in rollout.turns],
         "sampo_anchor_state_keys": [turn.anchor_state_key for turn in rollout.turns],

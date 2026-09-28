@@ -1111,8 +1111,6 @@ def _validate_oversampled_round_capacity(
             "active_sampling oversample and oversample_refill are implemented by the TRL and veRL backends, "
             f"not {training.backend}"
         )
-    if backend == "verl" and isinstance(settings, SAMPOSettings):
-        raise ContractError("SAMPO active sampling is not available on the veRL backend yet")
     vllm_limit = None
     if inference.backend.split("@", 1)[0] == "vllm":
         declared = inference.engine.get("max_num_seqs")

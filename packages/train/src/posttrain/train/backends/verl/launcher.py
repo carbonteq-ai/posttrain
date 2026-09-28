@@ -30,7 +30,7 @@ from ...bindings import FullParameterUpdate, LoRAUpdate
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
 from ...kl_reference import kl_reference_problem, resolved_kl_reference
 from ...precision import resolve_precision, training_precision, verl_rollout_dtype
-from ...profiles import GRPOSettings
+from ...profiles import GRPOSettings, SAMPOSettings
 from ...requests import CAPORequest, GDPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
@@ -90,7 +90,7 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
     )
 
 
-def _validate_active_sampling_capacity(request: GRPORequest) -> None:
+def _validate_active_sampling_capacity(request: GRPORequest | SAMPORequest) -> None:
     """The oversampled first round must fit rollout concurrency, as on TRL (the fork checks it again)."""
 
     from ...rollout_execution import oversampled_round_capacity_error
@@ -181,13 +181,89 @@ def grpo_algorithm_payload(settings: GRPOSettings) -> dict[str, Any]:
 
 
 def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaunchPlan:
-    """veRL has no active group sampling, so SAMPO is TRL-only."""
+    """SAMPO on veRL: the fork's SAMPO estimator, TRL's sequence-ratio objective,
+    round-based active sampling and optionally the adaptive curriculum."""
 
-    del request, output_dir
-    raise ValueError(
-        "SAMPO refills prompt groups with VORTEX active sampling, which the veRL backend does not provide; "
-        "select the TRL backend"
+    _validate_backend(request.training.backend)
+    _validate_model(request.policy, "policy")
+    settings = request.settings
+    if settings.max_admission_attempts != 1:
+        raise ValueError("SAMPO max_admission_attempts other than 1 is currently supported by the TRL backend only")
+    if settings.mask_truncated_completions:
+        raise ValueError("SAMPO mask_truncated_completions is currently supported by the TRL backend only")
+    problem = kl_reference_problem(request.training.backend, settings.beta, settings.kl_reference, request.policy.form)
+    if problem is not None:
+        raise ValueError(problem)
+    _validate_adapter_continuation(request.policy, request.training.update)
+    _validate_active_sampling_capacity(request)
+    return _plan(
+        request,
+        output_dir,
+        "sampo",
+        {
+            "policy": _model(request.policy),
+            "reference": _model(request.reference) if request.reference is not None else None,
+            "algorithm": sampo_algorithm_payload(settings),
+            "rollout": _inference(request.inference),
+            "environment": _environment(request, output_dir),
+        },
     )
+
+
+def sampo_algorithm_payload(settings: SAMPOSettings) -> dict[str, Any]:
+    """Map SAMPOSettings to the veRL algorithm contract (TRL SAMPO semantics)."""
+
+    level, cap = _rollout_importance_sampling(settings)
+    payload: dict[str, Any] = {
+        "advantage_estimator": "sampo",
+        "online_rl_algorithm": "sampo",
+        "beta": settings.beta,
+        "num_prompts_per_step": settings.num_prompts_per_step,
+        "num_generations": settings.num_generations,
+        "max_prompt_length": settings.max_prompt_length,
+        "max_completion_length": settings.max_completion_length,
+        "shuffle_prompts": settings.shuffle_prompts,
+        "clip_epsilon_low": settings.clip_epsilon_low,
+        "clip_epsilon_high": settings.clip_epsilon_high,
+        "dynamic_sampling": False,
+        "mask_truncated_completions": False,
+        "overlong_penalty_factor": 1.0,
+        "truncation_penalty": settings.truncation_penalty,
+        "discount_gamma": settings.discount_gamma,
+        "step_advantage_weight": settings.step_advantage_weight,
+        "advantage_normalization": settings.advantage_normalization,
+        "rollout_importance_sampling": level,
+        "rollout_importance_sampling_cap": cap,
+        "active_sampling": True,
+        "active_sampling_max_candidate_batches": settings.active_sampling.max_candidate_batches,
+        "active_sampling_oversample": settings.active_sampling.oversample,
+        "active_sampling_oversample_refill": settings.active_sampling.oversample_refill,
+    }
+    if settings.adaptive_curriculum is not None:
+        payload["adaptive_curriculum"] = {
+            item.name: getattr(settings.adaptive_curriculum, item.name)
+            for item in dataclass_fields(settings.adaptive_curriculum)
+        }
+    return payload
+
+
+def _rollout_importance_sampling(settings: SAMPOSettings) -> tuple[Literal["token", "sequence"], float]:
+    """The sampler correction veRL reproduces exactly: truncation at an upper cap only."""
+
+    if (
+        settings.importance_sampling_mode not in {"token_truncate", "sequence_truncate"}
+        or settings.importance_sampling_clip_min is not None
+        or settings.importance_sampling_clip_max is None
+    ):
+        raise ValueError(
+            f"SAMPO importance_sampling_mode={settings.importance_sampling_mode!r} with "
+            f"clip_min={settings.importance_sampling_clip_min!r} is currently supported by the TRL backend only; "
+            "veRL truncates token or sequence ratios at an upper cap"
+        )
+    level: Literal["token", "sequence"] = (
+        "token" if settings.importance_sampling_mode == "token_truncate" else "sequence"
+    )
+    return level, settings.importance_sampling_clip_max
 
 
 def build_structured_launch_plan(request: GDPORequest | CAPORequest, output_dir: Path) -> VerlLaunchPlan:
@@ -488,12 +564,12 @@ def _launch(
             context,
             read_verl_rollout_reward_records(output_dir / "verl-rollout-rewards.jsonl"),
         )
-    if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None:
+    if isinstance(request, GRPORequest | SAMPORequest) and request.settings.adaptive_curriculum is not None:
         _publish_curriculum_state(context, request, output_dir)
     return backend
 
 
-def _publish_curriculum_state(context: RunContext, request: GRPORequest, output_dir: Path) -> None:
+def _publish_curriculum_state(context: RunContext, request: GRPORequest | SAMPORequest, output_dir: Path) -> None:
     """Replay the selector's curriculum events and publish its state like the TRL path."""
 
     from ...adaptive_curriculum import CURRICULUM_SNAPSHOT_NAME, digest_curriculum_state
@@ -507,7 +583,7 @@ def _publish_curriculum_state(context: RunContext, request: GRPORequest, output_
     snapshot = state_dir / CURRICULUM_SNAPSHOT_NAME
     if not snapshot.is_file():
         raise RuntimeError(f"veRL completed without its adaptive curriculum state: {snapshot}")
-    technique = request.settings.algorithm
+    technique = "sampo" if isinstance(request, SAMPORequest) else request.settings.algorithm
     for step, view in checkpoint_views(output_dir / CURRICULUM_CHECKPOINT_VIEWS_DIR):
         # The same per-checkpoint view the TRL path publishes, so a later run can
         # warm-start with --curriculum-checkpoint-step from this veRL run.
@@ -1036,6 +1112,7 @@ __all__ = [
     "build_grpo_launch_plan",
     "build_sampo_launch_plan",
     "grpo_algorithm_payload",
+    "sampo_algorithm_payload",
     "run_distillation",
     "run_grpo",
     "run_sampo",

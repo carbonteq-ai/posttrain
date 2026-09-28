@@ -940,9 +940,86 @@ def test_pinned_verl_fork_registers_every_native_name_posttrain_requests(monkeyp
     assert requested <= fork_native_names(revision), f"pinned veRL {revision} lacks {sorted(requested)}"
 
 
-def test_verl_rejects_sampo_without_active_sampling(tmp_path):
-    with pytest.raises(ValueError, match="VORTEX active sampling"):
-        build_sampo_launch_plan(_sampo_request(), tmp_path)
+SAMPO_REVISION = "4d37a18bc492f0f4f9c224285603740ef4a2ba54"
+
+
+def _verl_sampo_request(revision: str = SAMPO_REVISION, **changes):
+    request = _with_revision(_sampo_request(), revision)
+    loop = replace(request.settings.loop, lr_scheduler_type="constant")
+    return replace(request, settings=replace(request.settings, loop=loop, **changes))
+
+
+def test_verl_maps_sampo_to_trl_semantics(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    request = _verl_sampo_request(beta=0.005, truncation_penalty=0.2)
+    plan = build_sampo_launch_plan(request, tmp_path)
+    overrides = build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+
+    for expected in (
+        "algorithm.adv_estimator=sampo",
+        "actor_rollout_ref.actor.policy_loss.loss_mode=sequence_clip",
+        "actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean",
+        "actor_rollout_ref.actor.clip_ratio_low=0.003",
+        "actor_rollout_ref.actor.clip_ratio_high=0.004",
+        "actor_rollout_ref.actor.kl_loss_type=k3_unclipped",
+        "actor_rollout_ref.actor.kl_loss_coef=0.005",
+        "algorithm.sampo.discount_gamma=0.95",
+        "algorithm.sampo.step_advantage_weight=1.0",
+        "algorithm.sampo.advantage_normalization=mean",
+        "algorithm.rollout_correction.rollout_is=token",
+        "algorithm.rollout_correction.rollout_is_threshold=2.0",
+        "algorithm.rollout_correction.bypass_mode=false",
+        "algorithm.active_sampling.enable=true",
+        "algorithm.active_sampling.max_candidate_batches=3",
+    ):
+        assert expected in overrides
+    assert not any(value.startswith("algorithm.norm_adv_by_std_in_grpo") for value in overrides)
+
+    _write_agent_config(plan.payload, tmp_path / "agent.json")
+    config = json.loads((tmp_path / "agent.json").read_text())[0]
+    assert config["emit_sampo_metadata"] is True and config["truncation_penalty"] == 0.2
+
+
+def test_verl_sampo_maps_the_curriculum_and_sequence_correction(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    request = _verl_sampo_request(
+        importance_sampling_mode="sequence_truncate",
+        importance_sampling_clip_max=3.0,
+        adaptive_curriculum=AdaptiveCurriculum(class_field="category"),
+    )
+    plan = build_sampo_launch_plan(request, tmp_path)
+    overrides = build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+    assert "algorithm.rollout_correction.rollout_is=sequence" in overrides
+    assert "algorithm.rollout_correction.rollout_is_threshold=3.0" in overrides
+    assert any(value.startswith("data.prompt_selector.class_path=") for value in overrides)
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"mask_truncated_completions": True}, "mask_truncated_completions is currently supported by the TRL"),
+        ({"max_admission_attempts": 2}, "max_admission_attempts other than 1"),
+        ({"importance_sampling_mode": "token_mask", "importance_sampling_clip_min": 0.5}, "token_mask"),
+        ({"importance_sampling_clip_min": 0.5}, "clip_min=0.5"),
+    ],
+)
+def test_verl_rejects_sampo_settings_it_cannot_reproduce(tmp_path: Path, changes, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        build_sampo_launch_plan(_verl_sampo_request(**changes), tmp_path)
+
+
+def test_verl_sampo_requires_a_fork_with_its_objective(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    with pytest.raises(ValueError, match="has no round-based active sampling"):
+        build_sampo_launch_plan(_verl_sampo_request(POST5_REVISION), tmp_path)
+    plan = build_sampo_launch_plan(_verl_sampo_request(), tmp_path)
+    older = VerlLaunchManifest.model_validate(
+        {**plan.model_dump(), "backend_source_revision": ACTIVE_SAMPLING_REVISION}
+    )
+    with pytest.raises(ValueError, match="does not register sequence_clip"):
+        build_hydra_overrides(older, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
 
 
 def test_verl_dapo_uses_core_trainer_and_maps_all_dynamic_sampling_controls(

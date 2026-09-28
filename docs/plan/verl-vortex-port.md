@@ -152,8 +152,22 @@ adds backend support that meets those contracts; no product meaning changes.
   publishes views from a veRL selector, selects step 1, checks it holds the
   step-1 controller, and warm-starts a new selector from it.
 - [ ] Phase 3 GPU check with the other phases (post6 image).
-- [ ] Phase 4: LFM2.5 on veRL.
-- [ ] Phase 5: SAMPO on veRL.
+- [ ] Phase 4: LFM2.5 on veRL (CPU parts next; GPU runs wait for the local
+  GPU to be free of the 0.4.12 qualification queue).
+- [x] (2026-09-28) Phase 5 fork: `sequence_clip` policy loss (TRL's
+  sequence-level ratio) and SAMPO hierarchy evidence metrics; commits
+  `d344b545` and `4d37a18bc492f0f4f9c224285603740ef4a2ba54` (not pushed); PPO
+  CPU suites 308 passed, 2 skipped.
+- [x] (2026-09-28) Phase 5 Posttrain: `build_sampo_launch_plan` maps SAMPO
+  (`sampo_algorithm_payload`): the fork SAMPO estimator, `sequence_clip`,
+  `seq-mean-token-mean`, clip 0.003/0.004, `k3_unclipped` KL, token or sequence
+  sampler correction truncated at the selected cap, round-based active
+  sampling with oversampling, optional curriculum, truncation penalty. Rejects
+  settings veRL cannot reproduce (`mask_truncated_completions`,
+  `max_admission_attempts` other than 1, a lower correction bound or mask
+  modes). SAMPO groups are keyed by the native prompt occurrence (`uid`).
+  Job plan checks SAMPO oversampling capacity on veRL. SAMPO metric names map
+  to the TRL path's hierarchy evidence. Parity test passes (see Artifacts).
 - [ ] Phase 6: end-to-end TRL/veRL parity runs on the 8 GB GPU.
 - [ ] Fork release (next post version, ledger, wheel/sdist hashes) and
   Posttrain pin as separate commits; report before publishing.
@@ -161,6 +175,19 @@ adds backend support that meets those contracts; no product meaning changes.
   is final.
 
 ## Surprises & Discoveries
+
+- Observation: veRL's `gspo` loss is not TRL's sequence-level objective when
+  advantages vary inside a row. GSPO's stop-gradient token form gives token t
+  the gradient `A_t * w_t * s_i / |y|`; TRL's `importance_sampling_level=
+  "sequence"` differentiates through the mean log ratio, giving every token
+  `s_i * mean_t(A_t * w_t) / |y|`. SAMPO's per-turn advantages differ within a
+  row, so the port adds the fork loss `sequence_clip`. Evidence: the SAMPO
+  parity test fails with `gspo` or `vanilla` substituted and passes with
+  `sequence_clip`.
+- Observation: the Phase 2 active-sampling parity test was not re-run after
+  Phase 3 changed the dispatcher signature (`dispatch(count, round_index=...)`)
+  and failed with a TypeError until its fake dispatcher was updated during
+  Phase 5. All five parity files now run together (24 passed).
 
 - Observation: the veRL GRPO path silently ignores several GRPO settings.
   `advantage_scaling`, `importance_sampling_mode` and its bounds are never
@@ -217,6 +244,14 @@ adds backend support that meets those contracts; no product meaning changes.
   image is rebuilt first.
 
 ## Decision Log
+
+- Decision: SAMPO on veRL uses the new `sequence_clip` loss, not `gspo`.
+  Rationale: the recipe is defined by the TRL path (sequence-level ratio with
+  gradient through its mean); GSPO's token form optimizes a different
+  gradient when per-turn advantages vary. No veRL SAMPO selection was
+  runnable before this phase (the launcher rejected SAMPO), so no recorded run
+  changes meaning.
+  Date/Author: 2026-09-28, Claude.
 
 - Decision: the curriculum on veRL reuses the TRL path's
   `AdaptiveCurriculumRuntime` inside a fork prompt selector, instead of
@@ -585,6 +620,18 @@ and veRL's buffer plus selector emit identical decision and observation
 events (6 decisions, 2 of them refill rounds), keep the same tasks per update,
 and end with byte-identical controller state. Making veRL observe only kept
 groups (a plausible bug) fails the test.
+
+Phase 5 (`packages/train/tests/test_verl_sampo_parity.py`, both advantage
+normalizations): two prompt groups of three multi-turn trajectories with tool
+gaps, shared and singleton anchor states, explicit and sparse step rewards and
+truncated rollouts. Token advantages agree to 1e-12, the hierarchy evidence
+(episode/turn advantage magnitudes, informative fraction, singleton-anchor
+fraction, turn credit share, anchor group size) is equal, correction weights
+agree to 1e-12, and loss and gradient agree to 1e-8 relative (veRL's
+seq-mean-token-mean divides by tokens + 1e-8; TRL clamps at 1). Sequence
+ratios fall both inside and outside the 0.003/0.004 clip range.
+
+    all parity files: 24 passed in 14.55s
 
 ## Interfaces and Dependencies
 
