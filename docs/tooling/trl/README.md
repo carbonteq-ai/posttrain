@@ -28,7 +28,13 @@ resume checkpoint 1 to matching uninterrupted weights, and generate from the
 export. This is deterministic full-parameter fixture evidence, not live Verifiers,
 judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
 
-Prepared candidate (not yet published): `1.12.0.post11`, fork branch
+Selected candidate: `1.12.0.post11`, tag `carbonteq-v1.12.0.post11` (GitHub
+prerelease https://github.com/carbonteq-ai/trl/releases/tag/carbonteq-v1.12.0.post11,
+asset digests verified against the hashes below). Posttrain retained-asset
+workflow run https://github.com/carbonteq-ai/posttrain/actions/runs/36434036656
+published the same bytes to `carbonteq/dev`, which serves both exact hashes; the
+lock resolves them from there. Stable promotion and GPU qualification remain
+open. Fork branch
 `codex/active-sampling-oversample`, release commit
 `3135b502d69956200d1c030a514470c351d2ee9f` (feature commits `0b428cd6` and
 `2393648d`), on top of post10. It adds active-sampling oversampling:
@@ -42,8 +48,7 @@ the release commit (`SOURCE_DATE_EPOCH=1790604110 uv build --python 3.13` on a
 not): wheel SHA-256
 `7fcea40a21239ae57d22333aa612af939cf8e44a72443681ad4900a697e5a5b2`; sdist
 `bb3cdec95d3562054b4ad599a8ce8975232f466c7a593171f8798372c40c7785`. Publish
-those exact files, or record the new hashes if the release is rebuilt. The
-Posttrain pin stays at post10 until publication.
+those exact files. The previous pin was post10.
 
 Post11 also adds `peft_reference` to `GRPOConfig` and `RLOOConfig`. Upstream
 gives a run that continues a trained adapter a frozen copy of that adapter as
@@ -91,7 +96,7 @@ With an adaptive curriculum it does change which tasks later rounds select,
 because extra groups add evidence before a refill is chosen; that is a sampling
 choice recorded in the run attributes, not a learning-semantics change.
 
-Latest candidate: `1.12.0.post10`, release commit
+Previous candidate: `1.12.0.post10`, release commit
 `4950b99d457faacbec856cbd5305732e7b3cf7b0`, tag `carbonteq-v1.12.0.post10`.
 It makes the single-process GRPO actor update cheaper for long agentic
 episodes: micro-batches are scored at their own real extent instead of the

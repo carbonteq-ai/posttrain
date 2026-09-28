@@ -55,8 +55,24 @@ settings and does not change what a job, run, or update means.
   branch `codex/active-sampling-oversample` from `c3ae803d`: settings, schema,
   TRL argument translation, adaptive-curriculum sampler, job-plan and
   trainer-start concurrency guards, metrics, records, tests, docs.
-- [ ] Maintainers: push the TRL branch, create the GitHub release, publish to
-  `carbonteq/dev`, apply the pin change (see "Publication and pin change").
+- [x] (2026-09-28) Lead published post11: tag `carbonteq-v1.12.0.post11` at
+  `3135b502`, GitHub prerelease
+  https://github.com/carbonteq-ai/trl/releases/tag/carbonteq-v1.12.0.post11
+  (wheel `7fcea40a...e5a5b2`, sdist `bb3cdec9...7c7785` verified), retained-asset
+  run https://github.com/carbonteq-ai/posttrain/actions/runs/36434036656 to
+  `carbonteq/dev` (both hashes served).
+- [x] (2026-09-28) Pin branch `codex/active-sampling-oversample-post11-pin`
+  relocked: `uv lock --upgrade-package trl`, `posttrain-release
+  lock-dependencies` (catalog lock `6c347c4d...`), `sync-runtime-profile-pins`,
+  and the lab bindings' `source_revision` and `dependency_lock_sha256`.
+  `lock-runtime-dependencies` was run and its output checked, but the OCI
+  runtime locks stay at the published post10 state as `docs/publishing.md`
+  requires: the protected release candidate regenerates them and republishes
+  the job-kind images. `posttrain-release check --allow-pending-runtime-lock`
+  passes ("runtime dependency lock: pending candidate materialization"); the
+  strict check passes only after that candidate. Ladder with `--extra trl
+  --extra verifiers`: ruff, pyright, lint-imports clean; pytest 2079 passed,
+  24 skipped (after rebasing onto the veRL continuation work).
 - [x] (2026-09-28) veRL adapter continuation (user: fix, do not reject):
   foundation as model path plus the fork's `lora_adapter_path`, base-model KL
   reference, `kl_reference: start` rejected for a continued adapter, rank check.
