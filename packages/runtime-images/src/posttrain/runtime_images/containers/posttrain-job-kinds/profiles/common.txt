@@ -1,4 +1,4 @@
-carbonteq-trackio==0.31.5.post14.dev31
+carbonteq-trackio==0.31.5.post14.dev32
 # Trackio's GPU monitor reads NVML; images without vLLM have no other source of it.
 nvidia-ml-py==13.610.43
 pydantic==2.13.4
