@@ -70,6 +70,7 @@ from .policy_telemetry import (
 from .precision_runtime import (
     LossScaleMonitor,
     apply_initial_loss_scale,
+    float32_logprob_trainer_type,
     loss_scale_callback_type,
     require_float32_trainable_parameters,
     upcast_logits_to_float32,
@@ -178,6 +179,8 @@ def _run_online_rl(
     loss_scale = LossScaleMonitor(context)
     rollout_totals = RolloutUpdateTotals(context)
     trainer_type = _actor_update_trainer_type(GRPOTrainer, actor_update)
+    if precision.training == "fp16":
+        trainer_type = float32_logprob_trainer_type(trainer_type)
     curriculum = None
     if isinstance(request, GRPORequest | SAMPORequest) and request.settings.adaptive_curriculum is not None:
         # SAMPO requests carry no curriculum warm start; the controller starts cold.

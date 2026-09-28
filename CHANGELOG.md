@@ -170,6 +170,13 @@ oversampled active sampling, and a KL penalty measured against the base model.
   gone still completes cleanup.
 - `posttrain controller run` logs why a run needs attention (exception type
   and first line, bounded), and `posttrain controller status` lists those runs.
+- FP16 TRL training computes its loss in float32. TRL computed the KL term,
+  importance ratios and masked sums in float16 from float16 log-probabilities,
+  so `exp` of a log-ratio above about 11 overflowed; on the masked tool tokens
+  of multi-turn SAMPO completions that made the loss NaN and the LFM2.5-2.6B
+  fp16 canary skipped every update. FP16 training now always takes
+  log-probabilities from float32 logits and casts them, and the entropies, to
+  float32 before the loss; `logits_float32: false` is rejected with fp16.
 - FP16 training starts its dynamic loss scaler at 1024 instead of PyTorch's
   65536 (`backend_options.fp16_initial_loss_scale` on a training binding, TRL
   and veRL): starting high, the Qwen3.5-0.8B fp16 arm skipped six of its first

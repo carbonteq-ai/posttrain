@@ -152,6 +152,36 @@ def upcast_logits_to_float32(model: Any) -> Any:
     return head.register_forward_hook(to_float32)
 
 
+def float32_logprob_trainer_type(parent: type[Any]) -> type[Any]:
+    """A TRL trainer whose per-token log-probabilities and entropies are float32.
+
+    TRL computes every log-probability-derived loss term (the k3 KL
+    ``exp(ref - logp) - (ref - logp) - 1``, the token or sequence importance
+    ratio ``exp(logp - old)``, the vLLM importance weights, the clipped policy
+    term and their masked sums) in the dtype of these tensors. Its chunked-logits
+    path calls the backbone and LM head directly, outside Accelerate's autocast
+    wrapper, so under float16 training they are float16: ``exp`` overflows to
+    infinity once a log-ratio exceeds about 11 (float16's maximum is 65504),
+    and the masked positions of multi-turn completions (tool and environment
+    tokens the policy did not sample, whose log-ratios are unbounded) turn that
+    infinity into NaN through ``inf * 0``. bfloat16 and float32 share float32's
+    exponent range, so casting here reproduces the bfloat16 run's loss
+    arithmetic exactly, without float16's range. The reference and old-policy
+    log-probabilities come from the same method, so every operand is float32.
+    """
+
+    class Float32LogprobTrainer(parent):
+        def _get_per_token_logps_and_entropies(self, *args: Any, **kwargs: Any) -> Any:
+            logps, entropies, aux_loss = super()._get_per_token_logps_and_entropies(*args, **kwargs)
+            return (
+                logps.float(),
+                entropies.float() if entropies is not None else None,
+                aux_loss,
+            )
+
+    return Float32LogprobTrainer
+
+
 def require_float32_trainable_parameters(model: Any) -> None:
     """Fail before training when a float16 run would step non-float32 parameters.
 
@@ -182,6 +212,7 @@ def require_default_precision(backend_options: Mapping[str, JsonValue], techniqu
 
 __all__ = [
     "LossScaleMonitor",
+    "float32_logprob_trainer_type",
     "apply_initial_loss_scale",
     "loss_scale_callback_type",
     "require_default_precision",

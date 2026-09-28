@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections import defaultdict
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -15,12 +16,13 @@ from posttrain.train.backends.trl.policy_telemetry import SamplerGapAccumulator
 from posttrain.train.backends.trl.precision_runtime import (
     LossScaleMonitor,
     apply_initial_loss_scale,
+    float32_logprob_trainer_type,
     require_default_precision,
     require_float32_trainable_parameters,
     upcast_logits_to_float32,
 )
 from posttrain.train.bindings import _validate_precision
-from posttrain.train.precision import resolve_precision, rollout_dtype
+from posttrain.train.precision import effective_logits_float32, resolve_precision, rollout_dtype
 
 
 def test_defaults_resolve_to_the_existing_bf16_behaviour() -> None:
@@ -45,9 +47,10 @@ def test_unified_fp16_resolves_trainer_scaling_and_rollout_dtype() -> None:
     resolved = resolve_precision({"training_precision": "fp16"}, {"dtype": "float16"}, "bf16")
     assert resolved.model_load_dtype == "float16"
     assert resolved.loss_scaling == "dynamic"
+    assert resolved.logits_float32
     assert (resolved.rollout_dtype, resolved.rollout_dtype_source) == ("float16", "binding")
     assert resolved.summary() == (
-        "trainer fp16 (base weights float16, dynamic loss scaling from 1024; log-probs from float16 logits); "
+        "trainer fp16 (base weights float16, dynamic loss scaling from 1024; log-probs from float32 logits); "
         "rollout vLLM float16 (binding)"
     )
     arguments = trainer_arguments(TrainingLoop(max_steps=2), Path("out"), precision="fp16")
@@ -92,6 +95,8 @@ def test_training_binding_rejects_precision_no_backend_implements() -> None:
         _validate_precision("trl@1.12.0.post10", LoRAUpdate(), {"training_precision": "float16"})
     with pytest.raises(ValueError, match="must be a boolean"):
         _validate_precision("trl@1.12.0.post10", LoRAUpdate(), {"logits_float32": "yes"})
+    with pytest.raises(ValueError, match="remove logits_float32: false"):
+        _validate_precision("trl@1.12.0.post10", LoRAUpdate(), {"training_precision": "fp16", "logits_float32": False})
     with pytest.raises(ValueError, match="online RL only, not SFT"):
         require_default_precision({"training_precision": "fp16"}, "SFT")
     require_default_precision({"training_precision": "bf16"}, "SFT")
@@ -355,3 +360,149 @@ def test_configured_initial_loss_scale_reaches_the_trainer_gradient_scaler() -> 
     apply_initial_loss_scale(SimpleNamespace(), None)  # bf16: nothing to configure
     with pytest.raises(RuntimeError, match="no gradient scaler"):
         apply_initial_loss_scale(SimpleNamespace(accelerator=SimpleNamespace(scaler=None)), 1024.0)
+
+
+def test_float16_training_always_takes_log_probs_from_float32_logits() -> None:
+    assert effective_logits_float32({"training_precision": "fp16"})
+    assert effective_logits_float32({"training_precision": "fp16", "logits_float32": True})
+    assert not effective_logits_float32({})
+    assert effective_logits_float32({"logits_float32": True})
+    with pytest.raises(ValueError, match="remove logits_float32: false"):
+        effective_logits_float32({"training_precision": "fp16", "logits_float32": False})
+    # veRL computes its log-softmax and loss under autocast (float32) and has no such option.
+    assert not resolve_precision({"training_precision": "fp16"}, {}, "bf16", backend="verl").logits_float32
+
+
+class _SingleProcessAccelerator:
+    num_processes = 1
+    sync_gradients = True
+
+    def gather(self, tensor: Any) -> Any:
+        return tensor
+
+    def gather_for_metrics(self, tensor: Any) -> Any:
+        return tensor
+
+    def reduce(self, tensor: Any, reduction: str = "sum") -> Any:
+        return tensor
+
+
+def _grpo_loss(*, float32_log_probs: bool, importance_sampling_level: str, loss_type: str) -> Any:
+    """TRL's real GRPO loss over float16 log-probabilities of one multi-turn completion.
+
+    The completion has two policy tokens and one masked tool-output token. The
+    policy assigns the tool token a log-probability 12 nats below the reference
+    (the policy never sampled it), so the k3 KL term's exp(ref - logp) exceeds
+    float16's maximum of 65504 there even though the token is masked out. The
+    old and reference log-probs are scored through the same trainer method, as
+    TRL scores them before the update.
+    """
+
+    torch = pytest.importorskip("torch")
+    grpo = pytest.importorskip("trl.trainer.grpo_trainer")
+    policy = torch.tensor([[-0.5, -1.0, -14.0]], dtype=torch.float16)
+    reference = torch.tensor([[-0.6, -0.9, -2.0]], dtype=torch.float16)
+
+    class _Float16Scores(grpo.GRPOTrainer):
+        """Stands in for the model forward: float16 log-probs, as TRL's chunked path returns them."""
+
+        def __init__(self) -> None:  # the loss reads only the attributes set below
+            pass
+
+        def _get_per_token_logps_and_entropies(self, model: Any, *args: Any, **kwargs: Any) -> Any:
+            logps = reference if model == "reference" else policy
+            return logps.clone().requires_grad_(model == "policy"), torch.full_like(logps, 1.5), None
+
+    trainer_type = float32_logprob_trainer_type(_Float16Scores) if float32_log_probs else _Float16Scores
+    trainer = trainer_type()
+    trainer.__dict__.update(
+        top_entropy_quantile=1.0,
+        aux_loss_enabled=False,
+        use_vllm=False,
+        vllm_importance_sampling_correction=False,
+        off_policy_mask_threshold=None,
+        importance_sampling_level=importance_sampling_level,
+        beta=0.04,
+        loss_type=loss_type,
+        epsilon_low=0.2,
+        epsilon_high=0.28,
+        _entropy_bonus_enabled=False,
+        accelerator=_SingleProcessAccelerator(),
+        _metrics={"train": defaultdict(list)},
+        model=SimpleNamespace(training=True),
+        current_gradient_accumulation_steps=1,
+        max_completion_length=3,
+        args=SimpleNamespace(use_bias_correction_kl=False, delta=None, steps_per_generation=1),
+    )
+    with torch.no_grad():
+        old_logps = trainer._get_per_token_logps_and_entropies("old")[0]
+        ref_logps = trainer._get_per_token_logps_and_entropies("reference")[0]
+    inputs = {
+        "prompt_ids": torch.zeros((1, 2), dtype=torch.long),
+        "prompt_mask": torch.ones((1, 2), dtype=torch.long),
+        "completion_ids": torch.zeros((1, 3), dtype=torch.long),
+        "completion_mask": torch.ones((1, 3), dtype=torch.long),
+        "tool_mask": torch.tensor([[1, 1, 0]]),
+        "advantages": torch.tensor([0.7]),
+        "old_per_token_logps": old_logps,
+        "ref_per_token_logps": ref_logps,
+        "num_items_in_batch": torch.tensor(2.0),
+    }
+    return trainer._compute_loss("policy", inputs)
+
+
+@pytest.mark.parametrize(
+    ("importance_sampling_level", "loss_type"),
+    [("sequence", "grpo"), ("token", "dapo")],  # SAMPO's sequence ratio, OLMo 3 GRPO's token ratio
+)
+def test_float16_log_probs_make_the_trl_loss_arithmetic_float32(importance_sampling_level: str, loss_type: str) -> None:
+    torch = pytest.importorskip("torch")
+    # Float16 log-probabilities overflow the masked token's KL term: inf * mask 0 is NaN.
+    plain = _grpo_loss(
+        float32_log_probs=False, importance_sampling_level=importance_sampling_level, loss_type=loss_type
+    )
+    assert torch.isnan(plain)
+    fixed = _grpo_loss(float32_log_probs=True, importance_sampling_level=importance_sampling_level, loss_type=loss_type)
+    assert fixed.dtype == torch.float32 and torch.isfinite(fixed)
+    fixed.backward()
+
+
+def test_trl_chunked_log_probs_follow_the_head_dtype_outside_autocast(tmp_path: Path) -> None:
+    """TRL's chunked-logits path calls the backbone and LM head directly, not the
+    autocast-wrapped forward, so a float16 base scores float16 log-probs unless
+    the head's output is cast to float32."""
+
+    torch, _fresh, model = _tiny_float16_lora(tmp_path)
+    grpo = pytest.importorskip("trl.trainer.grpo_trainer")
+
+    class _Scorer(grpo.GRPOTrainer):
+        def __init__(self) -> None:
+            pass
+
+    scorer = _Scorer()
+    scorer.__dict__.update(
+        temperature=1.0,
+        logits_chunk_size=2,
+        model_kwarg_keys={"input_ids", "attention_mask", "logits_to_keep"},
+        _is_vlm=False,
+        _entropy_bonus_enabled=False,
+        accelerator=SimpleNamespace(unwrap_model=lambda wrapped: wrapped, is_main_process=True),
+        args=SimpleNamespace(gradient_checkpointing=False, report_to=[]),
+    )
+    ids = torch.randint(0, 64, (2, 8))
+    mask = torch.ones_like(ids)
+
+    def score(trainer_type: type[Any]) -> tuple[Any, Any]:
+        trainer = trainer_type()
+        trainer.__dict__.update(scorer.__dict__)
+        logps, entropies, _aux = trainer._get_per_token_logps_and_entropies(model, ids, mask, 4, compute_entropy=True)
+        return logps, entropies
+
+    logps, entropies = score(_Scorer)
+    assert (logps.dtype, entropies.dtype) == (torch.float16, torch.float16)
+    handle = upcast_logits_to_float32(model)
+    try:
+        logps, entropies = score(float32_logprob_trainer_type(_Scorer))
+    finally:
+        handle.remove()
+    assert (logps.dtype, entropies.dtype) == (torch.float32, torch.float32)
