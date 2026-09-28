@@ -33,6 +33,7 @@ from posttrain.data import DatasetDescriptor
 from posttrain.environment import EnvironmentBinding
 from posttrain.eval import EvaluationPlan
 from posttrain.train import (
+    ActiveGroupSampling,
     CAPOSettings,
     DPOSettings,
     GDPOSettings,
@@ -922,6 +923,16 @@ def _model_facts(model: ModelVariant) -> dict[str, JsonValue]:
     }
 
 
+def _active_sampling_details(sampling: ActiveGroupSampling) -> dict[str, JsonValue]:
+    details: dict[str, JsonValue] = {"max_candidate_batches": sampling.max_candidate_batches}
+    # Oversampling is recorded only when selected, so earlier records keep their shape.
+    if sampling.oversample:
+        details["oversample"] = sampling.oversample
+    if sampling.oversample_refill:
+        details["oversample_refill"] = sampling.oversample_refill
+    return details
+
+
 def _selection_details(value: Selection) -> dict[str, JsonValue]:
     if isinstance(value, ModelVariant):
         artifact: dict[str, JsonValue]
@@ -1074,9 +1085,7 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
                         else None
                     ),
                     "active_sampling": (
-                        {"max_candidate_batches": value.active_sampling.max_candidate_batches}
-                        if value.active_sampling is not None
-                        else None
+                        _active_sampling_details(value.active_sampling) if value.active_sampling is not None else None
                     ),
                     "adaptive_curriculum": (
                         {
@@ -1109,6 +1118,8 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
                     "shuffle_prompts": value.shuffle_prompts,
                 }
             )
+        if isinstance(value, SAMPOSettings):
+            details["active_sampling"] = _active_sampling_details(value.active_sampling)
         if isinstance(value, OnPolicyDistillationSettings):
             details.update(
                 {

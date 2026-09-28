@@ -109,6 +109,7 @@ from .results import TeacherScoringSummary, TrainingResult, TrainingSummary
 from .reward_advantages import RewardAdvantages, compute_capo_advantages, compute_gdpo_advantages
 from .reward_evidence import InvalidRewardEvidence, ProcessCredit, RewardEvidence, RewardValue
 from .reward_projection import RewardComponentProjection, RewardProjection
+from .rollout_execution import oversampled_round_capacity_error
 from .sampo_advantages import SAMPOAdvantages, compute_sampo_advantages
 from .transform import (
     TransformContext,
@@ -241,6 +242,7 @@ __all__ = [
     "build_verifiers_grpo_request",
     "build_verifiers_sampo_request",
     "validate_verifiers_policy_sampling",
+    "oversampled_round_capacity_error",
     "compute_sampo_advantages",
     "normalize_grpo_metrics",
     "render_preferences",

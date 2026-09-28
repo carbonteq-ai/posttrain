@@ -28,6 +28,44 @@ resume checkpoint 1 to matching uninterrupted weights, and generate from the
 export. This is deterministic full-parameter fixture evidence, not live Verifiers,
 judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
 
+Prepared candidate (not yet published): `1.12.0.post11`, fork branch
+`codex/active-sampling-oversample`, release commit
+`c7321c4db9cd3b022c7edc759a735fc0f5e332c2` (feature commit `0b428cd6`), on top
+of post10. It adds active-sampling oversampling:
+`GRPOConfig.active_sampling_oversample` adds that many prompt groups to the
+first round and `active_sampling_oversample_refill` adds that many to each
+refill round, never exceeding the first round. The update still keeps the first
+target groups with reward spread in candidate order and discards the surplus.
+Both default to `0`, which is byte-for-byte post10 behavior. Local build from
+the release commit (`SOURCE_DATE_EPOCH=1790592157 uv build --python 3.13` on a
+`git archive` export; the wheel rebuilds to identical bytes, the sdist does
+not): wheel SHA-256
+`854b7f00356d23cd5b2e11e2e2c4b6836b940031d9aff5cb0d536135f042ee3f`; sdist
+`b2ef1e33115b691042703a4477a1f2b8b51fe55722c3f22bce7300346c1d7b33`. Publish
+those exact files, or record the new hashes if the release is rebuilt. The
+Posttrain pin stays at post10 until publication.
+
+Posttrain exposes it as GRPO (OLMo 3) and SAMPO settings
+`active_sampling: {max_candidate_batches: N, oversample: K1, oversample_refill:
+K2}`, counted in prompt groups. `oversample` and `oversample_refill` are passed
+to TRL only when non-zero, so exact refill keeps working on post10; a non-zero
+value with an earlier TRL fails before training with the required version. The
+adaptive-curriculum sampler in `policy_curriculum.py` applies the same round
+sizes. The first round, `(num_prompts_per_step + oversample) *
+num_generations` episodes, is the largest round and must fit every rollout
+concurrency limit: the rollout engine's `max_num_seqs` (TRL's default is one
+generation batch), the environment's `max_concurrent` and, with native workers,
+`env_workers * episodes_per_worker`. `posttrain job plan` and trainer start
+reject an oversampled first round that exceeds any of them, naming each limit.
+The candidate reservation (`num_prompts_per_step * max_candidate_batches`) must
+hold `num_prompts_per_step + oversample` and still fit the environment's tasks.
+Oversampling is excluded from the SAMPO reward-contract digest: it changes
+rollout cost and wall time, not rewards, credit or how an update is assembled,
+so existing checkpoints keep their digest and a resumed run may turn it on.
+With an adaptive curriculum it does change which tasks later rounds select,
+because extra groups add evidence before a refill is chosen; that is a sampling
+choice recorded in the run attributes, not a learning-semantics change.
+
 Latest candidate: `1.12.0.post10`, release commit
 `4950b99d457faacbec856cbd5305732e7b3cf7b0`, tag `carbonteq-v1.12.0.post10`.
 It makes the single-process GRPO actor update cheaper for long agentic

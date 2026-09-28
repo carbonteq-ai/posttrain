@@ -77,6 +77,7 @@ from posttrain.train import (
     dpo,
     gdpo,
     grpo,
+    oversampled_round_capacity_error,
     run_llm_compressor,
     sampo,
     sft,
@@ -1015,6 +1016,7 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
         )
 
     _validate_task_supply(settings, seats.get("environment"), seats.get("training"))
+    _validate_oversampled_round_capacity(settings, training, inference, seats.get("environment"))
 
 
 def _validate_task_supply(
@@ -1045,6 +1047,53 @@ def _validate_task_supply(
                 f"adaptive curriculum class field {curriculum.class_field!r} must be an observation facet "
                 "of the environment, so every task row carries it"
             )
+
+
+def _validate_oversampled_round_capacity(
+    settings: GRPOSettings | SAMPOSettings,
+    training: TrainingBinding,
+    inference: InferenceBinding,
+    environment: object | None,
+) -> None:
+    """Reject an oversampled first active-sampling round that the rollout topology cannot run at once."""
+
+    active = settings.active_sampling
+    if active is None or (active.oversample == 0 and active.oversample_refill == 0):
+        return
+    if not training.backend.startswith("trl@"):
+        raise ContractError(
+            f"active_sampling oversample and oversample_refill are implemented by the TRL backend, not {training.backend}"
+        )
+    vllm_limit = None
+    if inference.backend.split("@", 1)[0] == "vllm":
+        declared = inference.engine.get("max_num_seqs")
+        # TRL's colocated default admits one generation batch per process: the
+        # per-device batch times tensor parallelism times steps per generation.
+        tensor_parallel = inference.engine.get("tensor_parallel_size", 1)
+        default = settings.loop.per_device_batch_size * settings.loop.gradient_accumulation_steps
+        vllm_limit = (
+            declared
+            if isinstance(declared, int)
+            else default * (tensor_parallel if isinstance(tensor_parallel, int) else 1)
+        )
+    execution = training.backend_options.get("rollout_execution")
+    worker_slots = None
+    if isinstance(execution, Mapping):
+        workers, episodes = execution.get("env_workers"), execution.get("episodes_per_worker")
+        if isinstance(workers, int) and isinstance(episodes, int):
+            worker_slots = (workers, episodes)
+    error = oversampled_round_capacity_error(
+        num_prompts_per_step=settings.num_prompts_per_step,
+        num_generations=settings.num_generations,
+        oversample=active.oversample,
+        vllm_max_num_seqs=vllm_limit,
+        environment_max_concurrent=(
+            environment.max_concurrent if isinstance(environment, EnvironmentBinding) else None
+        ),
+        worker_slots=worker_slots,
+    )
+    if error is not None:
+        raise ContractError(error)
 
 
 def _recovery_checkpoint(context: RunContext) -> LocalArtifactRef | None:

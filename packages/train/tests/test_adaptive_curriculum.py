@@ -1077,3 +1077,93 @@ def test_runtime_warm_starts_from_a_published_curriculum_state_directory(tmp_pat
             state_name="missing",
             warm_start_state_dir=tmp_path / "empty",
         )
+
+
+@pytest.mark.parametrize(
+    ("oversample", "oversample_refill", "zero_spread_rounds", "selected_counts", "oversampled", "discarded"),
+    [
+        # Round 1 selects 2 + 1 groups; all three have spread, the third is discarded.
+        (1, 0, set(), [3], 1, 1),
+        # Round 1 retains nothing; the refill asks for 2 missing + 3 but no round exceeds the first (3 groups).
+        (1, 3, {1}, [3, 3], 2, 1),
+        # Without oversampling the curriculum refill still asks for exactly the missing groups.
+        (0, 0, {1}, [2, 2], None, None),
+    ],
+)
+def test_adaptive_active_sampling_oversamples_rounds_from_the_curriculum(
+    tmp_path: Path,
+    oversample: int,
+    oversample_refill: int,
+    zero_spread_rounds: set[int],
+    selected_counts: list[int],
+    oversampled: int | None,
+    discarded: int | None,
+) -> None:
+    import torch
+    from trl.trainer.grpo_trainer import GRPOTrainer
+
+    context = EventContext()
+    runtime = _runtime(tmp_path, context, policy="yield_first")
+
+    class Accelerator:
+        num_processes = 1
+        device = torch.device("cpu")
+
+        @staticmethod
+        def gather(value: object) -> object:
+            value_tensor = cast(Any, value)
+            if isinstance(value, torch.Tensor) and value_tensor.ndim == 0:
+                return value_tensor.reshape(1)
+            return value
+
+    class Parent:
+        _select_dynamic_sampling_rows = staticmethod(GRPOTrainer._select_dynamic_sampling_rows)
+        _concatenate_dynamic_sampling_batches = GRPOTrainer._concatenate_dynamic_sampling_batches
+
+        def __init__(self) -> None:
+            self.model = SimpleNamespace(training=True)
+            self.accelerator = Accelerator()
+            self._tokenizer = SimpleNamespace(pad_token_id=0)
+            self.active_sampling = True
+            self.active_sampling_max_batches = 3
+            self.active_sampling_reward_std_epsilon = 0.0
+            # Set by TRL 1.12.0.post11 from the Posttrain settings.
+            self.active_sampling_oversample = oversample
+            self.active_sampling_oversample_refill = oversample_refill
+            self.num_generations = 2
+            self.state = SimpleNamespace(global_step=0)
+            self._metrics = {"train": defaultdict(list)}
+            self.rounds = 0
+
+        def _generate_and_score_completions(self, inputs: list[dict[str, object]]) -> dict[str, object]:
+            self.rounds += 1
+            spread = 0.0 if self.rounds in zero_spread_rounds else 1.0
+            return {
+                "prompt_ids": torch.ones((len(inputs), 1), dtype=torch.long),
+                "prompt_mask": torch.ones((len(inputs), 1), dtype=torch.long),
+                "completion_ids": torch.arange(len(inputs)).reshape(-1, 1),
+                "completion_mask": torch.ones((len(inputs), 1), dtype=torch.long),
+                "advantages": torch.ones(len(inputs)),
+                "group_reward_std": torch.full((len(inputs),), spread),
+            }
+
+    try:
+        trainer = adaptive_curriculum_trainer_type(Parent, runtime)()
+        # Two target groups from a three-batch reservation of six groups.
+        retained = trainer._prepare_active_sampling_inputs([{"example_id": "ignored"}] * 12)
+
+        assert len(cast(Any, retained["completion_ids"])) == 4
+        decisions = [event[1] for event in context.events if event[0] == "adaptive_curriculum_allocation_selected"]
+        assert [len(cast(Any, decision["task_ids"])) for decision in decisions] == selected_counts
+        metrics = trainer._metrics["train"]
+        assert metrics["active_sampling/generation_rounds"] == [len(selected_counts)]
+        if oversampled is None:
+            assert "active_sampling/oversampled_groups" not in metrics
+            assert not [point for point in context.metric_points if point[0].endswith("round_missing_rows")]
+        else:
+            assert metrics["active_sampling/oversampled_groups"] == [oversampled]
+            assert metrics["active_sampling/discarded_groups"] == [discarded]
+            missing = [point[1] for point in context.metric_points if point[0].endswith("round_missing_rows")]
+            assert missing[-1] == 4
+    finally:
+        runtime.close()

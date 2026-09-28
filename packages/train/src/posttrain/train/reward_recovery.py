@@ -22,6 +22,14 @@ def reward_contract_digest(request: GDPORequest | CAPORequest | SAMPORequest) ->
     settings = asdict(request.settings)
     # Extending a run's step budget is allowed; changing learning/credit semantics is not.
     settings["loop"].pop("max_steps", None)
+    # Oversampling changes how many prompt groups each round generates, not rewards,
+    # credit, or how an update is assembled (the first target groups with reward
+    # spread, in candidate order). Leaving it out keeps digests of checkpoints written
+    # before the setting existed and lets a resumed run turn it on or off.
+    active_sampling = settings.get("active_sampling")
+    if isinstance(active_sampling, dict):
+        active_sampling.pop("oversample", None)
+        active_sampling.pop("oversample_refill", None)
     payload = {
         "schema": "posttrain.reward-contract.v1",
         "settings": settings,

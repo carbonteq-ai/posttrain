@@ -161,6 +161,23 @@ class DynamicGroupSamplingSchema(TrainCatalogSchema):
 
 class ActiveGroupSamplingSchema(TrainCatalogSchema):
     max_candidate_batches: int = Field(default=10, gt=0)
+    oversample: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Extra prompt groups (not rows or episodes) generated in the first active-sampling round beyond "
+            "num_prompts_per_step. Surplus groups with reward spread are discarded. The first round, "
+            "(num_prompts_per_step + oversample) x num_generations episodes, must fit the rollout concurrency."
+        ),
+    )
+    oversample_refill: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Extra prompt groups (not rows or episodes) generated in each refill round beyond the missing groups; "
+            "a refill round never exceeds the first round."
+        ),
+    )
 
 
 class AdaptiveCurriculumSchema(TrainCatalogSchema):
