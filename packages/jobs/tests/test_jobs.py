@@ -722,8 +722,12 @@ def test_static_grpo_preparation_rejects_sampling_policy_mismatch() -> None:
     ("changes", "message"),
     [
         (
-            {"adaptive_curriculum": AdaptiveCurriculum(class_field="category")},
-            "adaptive_curriculum is currently supported by the TRL backend only",
+            {
+                "algorithm": "dapo",
+                "clip_epsilon_high": 0.28,
+                "adaptive_curriculum": AdaptiveCurriculum(class_field="category"),
+            },
+            "adaptive_curriculum with DAPO is currently supported by the TRL backend only",
         ),
         ({"advantage_scaling": "batch"}, "advantage_scaling='batch' is currently supported by the TRL backend only"),
         ({"importance_sampling_clip_max": 2.0}, "importance_sampling_clip_max=2.0"),

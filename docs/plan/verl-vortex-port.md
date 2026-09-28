@@ -122,7 +122,26 @@ adds backend support that meets those contracts; no product meaning changes.
 - [ ] Phase 2 GPU check (short 8 GB Qwen3.5-0.8B OLMo 3 run with a refill
   round). Blocked: needs a veRL build that contains `6c7295cd` (a post6
   candidate and a kind image built from it); the 0.4.12 kind image is post5.
-- [ ] Phase 3: adaptive curriculum on veRL.
+- [x] (2026-09-28) Coordinator: the VORTEX port ships in release 0.4.13; no
+  post6 until phases 2-5 are code-complete with CPU parity tests, then one
+  post6 candidate collects them.
+- [x] (2026-09-28) Phase 3 fork: `data.prompt_selector` extension point
+  (`verl/trainer/ppo/v1/prompt_selector.py`, trainer dispatch/observe/
+  checkpoint hooks, round numbers passed to the dispatcher); commit
+  `24920b395f8571f8f5be6b9d8469737f2355dcc9` (not pushed). V1 suite 137
+  passed, 2 skipped.
+- [x] (2026-09-28) Phase 3 Posttrain: `AdaptiveCurriculumRuntime` moved to the
+  backend-neutral `packages/train/src/posttrain/train/adaptive_curriculum_runtime.py`
+  (re-exported by the TRL module); `backends/verl/curriculum.py`
+  (`PosttrainCurriculumSelector`, JSONL event journal replayed by the parent,
+  final snapshot copied from the last checkpoint); worker, contract and
+  launcher mapping (selector config file, warm start, state artifact
+  `adaptive-curriculum-state` with the TRL path's metadata); fork-revision
+  gate for `prompt_selector`; veRL accepts the curriculum with GRPO and OLMo 3
+  (DAPO stays TRL-only). Decision-level parity test against the TRL path
+  passes (see Artifacts). Ladder: pyright 0, lint-imports 9 kept, pytest
+  2200 passed.
+- [ ] Phase 3 GPU check with the other phases (post6 image).
 - [ ] Phase 4: LFM2.5 on veRL.
 - [ ] Phase 5: SAMPO on veRL.
 - [ ] Phase 6: end-to-end TRL/veRL parity runs on the 8 GB GPU.
@@ -188,6 +207,22 @@ adds backend support that meets those contracts; no product meaning changes.
   image is rebuilt first.
 
 ## Decision Log
+
+- Decision: the curriculum on veRL reuses the TRL path's
+  `AdaptiveCurriculumRuntime` inside a fork prompt selector, instead of
+  re-implementing decisions in the fork or in the parent process.
+  Rationale: the canonical contract requires every refill round to be a
+  decision informed by earlier rounds at fixed weights, which only the process
+  that dispatches rounds can do; reusing the runtime makes decisions, events
+  and snapshots identical by construction. The veRL trainer process has no
+  `RunContext`, so the runtime writes events and metrics to
+  `verl-curriculum-events.jsonl`, which the parent replays after the worker
+  exits (as it already does for rollout rewards).
+  Date/Author: 2026-09-28, Claude.
+- Decision: keep DAPO plus curriculum TRL-only on veRL.
+  Rationale: veRL's DAPO refill streams from the dataloader without decision
+  boundaries; OLMo 3 active sampling is the recipe that needs the curriculum.
+  Date/Author: 2026-09-28, Claude.
 
 - Decision: base the Phase 2 Posttrain branch on `codex/release-0.4.12`
   (`d93c5f78`) instead of `54671c33`.
@@ -532,6 +567,14 @@ same round sizes, keep the same candidate groups, fail for the same cause, and
 report identical `active_sampling/...` metrics.
 
     19 passed in 9.68s
+
+Phase 3 (`packages/train/tests/test_verl_curriculum_parity.py`): four updates
+of yield-first curriculum with oversample 1 / refill 1, 24 tasks in three
+classes, deterministic rewards per task and occurrence. TRL's curriculum loop
+and veRL's buffer plus selector emit identical decision and observation
+events (6 decisions, 2 of them refill rounds), keep the same tasks per update,
+and end with byte-identical controller state. Making veRL observe only kept
+groups (a plausible bug) fails the test.
 
 ## Interfaces and Dependencies
 

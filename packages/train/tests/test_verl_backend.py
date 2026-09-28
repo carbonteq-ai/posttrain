@@ -50,11 +50,20 @@ from posttrain.train import (
     verl_grpo_settings_problem,
     verl_training_loop_problem,
 )
+from posttrain.train.adaptive_curriculum import CURRICULUM_SNAPSHOT_NAME
 from posttrain.train.api import _distillation_backend, _grpo_backend, _sampo_backend
 from posttrain.train.backends.verl.contracts import VerlLaunchManifest, VerlWorkerResult
+from posttrain.train.backends.verl.curriculum import (
+    CURRICULUM_JOURNAL_NAME,
+    PosttrainCurriculumSelector,
+    SelectorConfig,
+    final_snapshot_from_checkpoint,
+    replay_curriculum_journal,
+)
 from posttrain.train.backends.verl.launcher import (
     _backend_result,
     _isolated_environment,
+    _publish_curriculum_state,
     _record_failure_artifacts,
     _record_failure_artifacts_best_effort,
     _record_trace_sync_receipt,
@@ -79,9 +88,11 @@ from posttrain.train.backends.verl.reward_fields import (
     training_response_mask,
 )
 from posttrain.train.backends.verl.worker import (
+    CURRICULUM_SELECTOR_CONFIG,
     _last_metrics,
     _uses_turboquant,
     _write_agent_config,
+    _write_curriculum_selector_config,
     _write_dataset,
     build_hydra_overrides,
 )
@@ -1191,8 +1202,12 @@ def test_verl_reward_shaping_is_the_trl_rule(algorithm: str, reward: float, toke
     ("changes", "message"),
     [
         (
-            {"adaptive_curriculum": AdaptiveCurriculum(class_field="category")},
-            "adaptive_curriculum is currently supported by the TRL backend only",
+            {
+                "algorithm": "dapo",
+                "clip_epsilon_high": 0.28,
+                "adaptive_curriculum": AdaptiveCurriculum(class_field="category"),
+            },
+            "adaptive_curriculum with DAPO is currently supported by the TRL backend only",
         ),
         ({"advantage_scaling": "batch"}, "advantage_scaling='batch' is currently supported by the TRL backend only"),
         ({"advantage_scaling": "none"}, "advantage_scaling='none' is currently supported by the TRL backend only"),
@@ -2152,3 +2167,167 @@ def test_verl_launcher_rejects_olmo3_on_a_fork_without_active_sampling(tmp_path:
         build_grpo_launch_plan(request, tmp_path)
     # A dirty candidate checkout is identified by its content digest and not gated here.
     build_grpo_launch_plan(_with_revision(_olmo3_request(), POST5_REVISION, source_dirty=True), tmp_path)
+
+
+SELECTOR_REVISION = "24920b395f8571f8f5be6b9d8469737f2355dcc9"
+ACTIVE_ONLY_REVISION = "6c7295cd411c4d3973ddc206e43816560c842336"
+CURRICULUM = AdaptiveCurriculum(class_field="domain", policy="yield_first", seed=7)
+
+
+class _CurriculumBridge(FakeBridge):
+    dataset = RolloutDataset(
+        "curriculum-rollouts-v1",
+        "a" * 40,
+        tuple(
+            RolloutExample(f"task/{index:02d}", f"Task {index}.", {"domain": "mail" if index % 2 else "crm"})
+            for index in range(8)
+        ),
+    )
+
+
+def _curriculum_request(revision: str = SELECTOR_REVISION, **changes):
+    request = _with_revision(_grpo_request(), revision)
+    settings = _olmo3_settings(
+        request.settings, adaptive_curriculum=CURRICULUM, active_sampling=ActiveGroupSampling(3), **changes
+    )
+    return replace(request, bridge=_CurriculumBridge(), settings=settings)
+
+
+def _curriculum_manifest(tmp_path: Path, revision: str = SELECTOR_REVISION) -> VerlLaunchManifest:
+    return build_grpo_launch_plan(_curriculum_request(revision), tmp_path)
+
+
+def test_curriculum_runs_as_the_fork_prompt_selector(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    manifest = _curriculum_manifest(tmp_path)
+    assert manifest.payload.algorithm.adaptive_curriculum is not None
+    assert manifest.payload.algorithm.adaptive_curriculum["policy"] == "yield_first"
+
+    overrides = build_hydra_overrides(manifest, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+    assert (
+        "data.prompt_selector.class_path=posttrain.train.backends.verl.curriculum.PosttrainCurriculumSelector"
+        in overrides
+    )
+    assert f'+data.prompt_selector.kwargs.config_path="{manifest.output_directory / CURRICULUM_SELECTOR_CONFIG}"' in (
+        overrides
+    )
+    assert "data.prompt_selector.metric=seq_reward" in overrides
+
+    _write_curriculum_selector_config(manifest)
+    config = SelectorConfig.read(manifest.output_directory / CURRICULUM_SELECTOR_CONFIG)
+    assert AdaptiveCurriculum(**config.settings) == CURRICULUM
+    assert config.num_generations == 2 and config.warm_start_state_dir is None
+
+
+def test_curriculum_requires_a_fork_revision_with_the_prompt_selector(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    manifest = VerlLaunchManifest.model_validate(
+        {**_curriculum_manifest(tmp_path).model_dump(), "backend_source_revision": ACTIVE_ONLY_REVISION}
+    )
+    with pytest.raises(ValueError, match="does not register prompt_selector"):
+        build_hydra_overrides(manifest, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+
+
+def test_backend_options_cannot_replace_the_prompt_selector(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    data = _curriculum_manifest(tmp_path).model_dump()
+    data["payload"]["training"]["backend_options"]["hydra_overrides"] = ["data.prompt_selector.class_path=null"]
+    with pytest.raises(ValueError, match="cannot replace selected"):
+        build_hydra_overrides(
+            VerlLaunchManifest.model_validate(data), tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c"
+        )
+
+
+def test_curriculum_dataset_is_never_cycled(tmp_path: Path) -> None:
+    pytest.importorskip("datasets")
+    payload = _curriculum_manifest(tmp_path).payload
+    small = payload.model_copy(
+        update={
+            "algorithm": payload.algorithm.model_copy(update={"num_prompts_per_step": 9}),
+        }
+    )
+    with pytest.raises(ValueError, match="at least one distinct task per prompt group"):
+        _write_dataset(small, tmp_path / "rollouts.parquet")
+
+
+def _curriculum_rows() -> list[dict[str, object]]:
+    return [{"example_id": f"task/{index:02d}", "domain": "mail" if index % 2 else "crm"} for index in range(8)]
+
+
+def _curriculum_selector(tmp_path: Path, name: str = "run") -> PosttrainCurriculumSelector:
+    config = SelectorConfig(
+        settings={"class_field": "domain", "policy": "yield_first", "seed": 7},
+        num_generations=2,
+        state_dir=tmp_path / name / "state",
+        journal_path=tmp_path / name / "journal.jsonl",
+    )
+    (tmp_path / name).mkdir(parents=True, exist_ok=True)
+    config.write(tmp_path / name / "selector.json")
+    return PosttrainCurriculumSelector(_curriculum_rows(), config_path=str(tmp_path / name / "selector.json"))
+
+
+def test_selector_returns_dataset_indices_and_checkpoints_the_controller(tmp_path: Path) -> None:
+    selector = _curriculum_selector(tmp_path)
+    first = selector.select(3, global_steps=1, stage="active_sampling_refill", round_index=1)
+    assert len(set(first)) == 3 and all(0 <= index < 8 for index in first)
+    selector.observe([(first[0], [0.0, 1.0]), (first[1], [1.0, 1.0])], global_steps=1)
+    second = selector.select(1, global_steps=1, stage="active_sampling_refill", round_index=2)
+    assert not set(second) & set(first)  # never repeats a task within one update
+
+    checkpoint = tmp_path / "global_step_1"
+    checkpoint.mkdir()
+    selector.save_checkpoint(str(checkpoint))
+    state = json.loads((checkpoint / CURRICULUM_SNAPSHOT_NAME).read_text())
+    assert state["decision_index"] == 2
+
+    resumed = _curriculum_selector(tmp_path, "resumed")
+    resumed.load_checkpoint(str(checkpoint))
+    assert resumed.runtime is not None and resumed.runtime.controller.decision_index == 2
+    selector.close()
+    resumed.close()
+
+
+def test_selector_ignores_groups_that_lost_trajectories(tmp_path: Path) -> None:
+    selector = _curriculum_selector(tmp_path)
+    chosen = selector.select(2, global_steps=1, stage="initial_batch", round_index=None)
+    selector.observe([(chosen[0], [1.0])], global_steps=1)
+    assert (
+        selector.runtime is not None
+        and selector.runtime.controller.task_reward(str(_curriculum_rows()[chosen[0]]["example_id"])) is None
+    )
+    selector.close()
+
+
+def test_journal_replays_events_and_metrics_and_state_is_published(tmp_path: Path) -> None:
+    observer = CaptureObserver()
+    context: RunContext = _context(tmp_path / "ctx", observer)
+    request = _curriculum_request()
+    output = tmp_path / "trainer"
+    output.mkdir()
+    config = SelectorConfig(
+        settings={"class_field": "domain", "policy": "yield_first", "seed": 7},
+        num_generations=2,
+        state_dir=output / "adaptive-curriculum",
+        journal_path=output / CURRICULUM_JOURNAL_NAME,
+    )
+    config.write(output / "selector.json")
+    selector = PosttrainCurriculumSelector(_curriculum_rows(), config_path=str(output / "selector.json"))
+    selector.select(2, global_steps=1, stage="active_sampling_refill", round_index=1)
+    checkpoint = output / "checkpoints" / "global_step_1"
+    checkpoint.mkdir(parents=True)
+    selector.save_checkpoint(str(checkpoint))
+    selector.close()
+    final_snapshot_from_checkpoint(checkpoint, output / "adaptive-curriculum")
+
+    assert replay_curriculum_journal(context, output / CURRICULUM_JOURNAL_NAME) >= 3
+    names = {name for batch in observer.metrics_seen for name in batch.values}
+    assert "train/rl/curriculum/candidate_groups" in names
+
+    observer.artifacts_seen.clear()
+    (output / CURRICULUM_JOURNAL_NAME).unlink()
+    _publish_curriculum_state(context, request, output)
+    (artifact,) = [item for item in observer.artifacts_seen if item.kind == "adaptive-curriculum-state"]
+    assert artifact.metadata["decision_count"] == 1
+    assert artifact.metadata["training_backend"] == "verl"

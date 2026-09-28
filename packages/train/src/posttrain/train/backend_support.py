@@ -29,8 +29,10 @@ def verl_grpo_settings_problem(settings: GRPOSettings) -> str | None:
 
     # OLMo 3 and its active sampling are mapped natively (docs/plan/verl-vortex-port.md,
     # phases 1-2); the worker also requires a fork revision that registers them.
-    if settings.adaptive_curriculum is not None:
-        return "adaptive_curriculum is currently supported by the TRL backend only"
+    if settings.adaptive_curriculum is not None and settings.algorithm == "dapo":
+        # veRL's DAPO refills stream from the dataloader; the curriculum chooses
+        # initial batches (GRPO) and every active-sampling round (OLMo 3).
+        return "adaptive_curriculum with DAPO is currently supported by the TRL backend only"
     if settings.algorithm == "olmo3":
         # GRPOSettings fixes the OLMo 3 advantage scaling and sampler correction,
         # and the veRL worker maps both; group admission retries are not used.

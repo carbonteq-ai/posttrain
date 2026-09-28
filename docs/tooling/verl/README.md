@@ -125,6 +125,21 @@ checkout), so the selected post5 still rejects it. A side-by-side test against
 TRL's real `_prepare_active_sampling_inputs` agrees on 19 scenarios. The 8 GB
 GPU check needs a release candidate and kind image containing this commit.
 
+## Adaptive curriculum through the prompt selector (unreleased candidate)
+
+Fork commit `24920b395f8571f8f5be6b9d8469737f2355dcc9` adds
+`data.prompt_selector`: a selector chooses the dataset rows of every dispatch
+(`initial_batch`, or each numbered `active_sampling_refill` round), observes
+finished groups' `seq_reward` values in dispatch order, and saves/loads its
+state in each `global_step_*` folder. Posttrain's
+`PosttrainCurriculumSelector` (`backends/verl/curriculum.py`) runs the same
+`AdaptiveCurriculumRuntime` as the TRL path; its events and metrics are
+journaled to `verl-curriculum-events.jsonl` and replayed by the parent, and
+the final state is published as `adaptive-curriculum-state`. The snapshot
+`adaptive-curriculum-state.json` sits in each veRL checkpoint folder. The
+adapter accepts the curriculum with GRPO and OLMo 3 (not DAPO) on revisions
+recorded with `prompt_selector`.
+
 ## FP16 metrics (0.9.0.post4, contained in post5)
 
 Branch `codex/precision-fp16` tags `carbonteq-v0.9.0.post4` at immutable

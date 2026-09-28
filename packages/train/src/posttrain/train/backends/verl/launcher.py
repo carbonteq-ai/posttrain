@@ -9,6 +9,7 @@ import signal
 import subprocess
 import time
 from dataclasses import asdict
+from dataclasses import fields as dataclass_fields
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -84,6 +85,7 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
             "algorithm": grpo_algorithm_payload(request.settings),
             "rollout": _inference(request.inference),
             "environment": _environment(request, output_dir),
+            "curriculum_from": request.curriculum_from.path if request.curriculum_from is not None else None,
         },
     )
 
@@ -157,6 +159,11 @@ def grpo_algorithm_payload(settings: GRPOSettings) -> dict[str, Any]:
         "overlong_penalty_factor": settings.overlong_penalty_factor,
         "truncation_penalty": settings.truncation_penalty,
     }
+    if settings.adaptive_curriculum is not None:
+        payload["adaptive_curriculum"] = {
+            item.name: getattr(settings.adaptive_curriculum, item.name)
+            for item in dataclass_fields(settings.adaptive_curriculum)
+        }
     if settings.active_sampling is not None:
         payload.update(
             active_sampling=True,
@@ -481,7 +488,41 @@ def _launch(
             context,
             read_verl_rollout_reward_records(output_dir / "verl-rollout-rewards.jsonl"),
         )
+    if isinstance(request, GRPORequest) and request.settings.adaptive_curriculum is not None:
+        _publish_curriculum_state(context, request, output_dir)
     return backend
+
+
+def _publish_curriculum_state(context: RunContext, request: GRPORequest, output_dir: Path) -> None:
+    """Replay the selector's curriculum events and publish its state like the TRL path."""
+
+    from ...adaptive_curriculum import CURRICULUM_SNAPSHOT_NAME, digest_curriculum_state
+    from .curriculum import CURRICULUM_JOURNAL_NAME, replay_curriculum_journal
+    from .worker import CURRICULUM_STATE_DIR
+
+    curriculum = request.settings.adaptive_curriculum
+    assert curriculum is not None
+    replay_curriculum_journal(context, output_dir / CURRICULUM_JOURNAL_NAME)
+    state_dir = (output_dir / CURRICULUM_STATE_DIR).resolve()
+    snapshot = state_dir / CURRICULUM_SNAPSHOT_NAME
+    if not snapshot.is_file():
+        raise RuntimeError(f"veRL completed without its adaptive curriculum state: {snapshot}")
+    decision_index = json.loads(snapshot.read_text(encoding="utf-8")).get("decision_index")
+    context.artifact(
+        ProducedArtifact(
+            name=f"training/{request.policy.id}/{request.settings.algorithm}/adaptive-curriculum-state",
+            kind="adaptive-curriculum-state",
+            reference=LocalArtifactRef(state_dir, digest_curriculum_state(state_dir)),
+            metadata={
+                "class_field": curriculum.class_field,
+                "decision_count": decision_index if isinstance(decision_index, int) else None,
+                "format": "queued-jsonl-with-snapshot",
+                "snapshot": CURRICULUM_SNAPSHOT_NAME,
+                "training_backend": "verl",
+            },
+            role="controller-state",
+        )
+    )
 
 
 def _verifiers_trace_tailer(
@@ -852,6 +893,14 @@ def _grpo_runtime_attributes(
         attributes["truncation_penalty"] = request.settings.truncation_penalty
         active = request.settings.active_sampling
         attributes["active_sampling"] = active is not None
+        curriculum = request.settings.adaptive_curriculum
+        attributes["adaptive_curriculum"] = curriculum is not None
+        if curriculum is not None:
+            attributes["adaptive_curriculum_policy"] = curriculum.policy
+            attributes["adaptive_curriculum_class_field"] = curriculum.class_field
+            attributes["adaptive_curriculum_sampling_mode"] = (
+                "active_sampling_refill" if active is not None else "initial_batch"
+            )
         if active is not None:
             attributes["active_sampling_max_candidate_batches"] = active.max_candidate_batches
             attributes["active_sampling_oversample"] = active.oversample

@@ -158,6 +158,8 @@ class VerlAlgorithm(VerlContract):
     active_sampling_max_candidate_batches: int | None = Field(default=None, gt=0)
     active_sampling_oversample: int | None = Field(default=None, ge=0)
     active_sampling_oversample_refill: int | None = Field(default=None, ge=0)
+    # AdaptiveCurriculum fields; the fork's prompt selector runs Posttrain's controller.
+    adaptive_curriculum: dict[str, JsonValue] | None = None
     mask_truncated_completions: bool | None = None
     overlong_buffer_tokens: int | None = Field(default=None, gt=0)
     overlong_penalty_factor: float | None = Field(default=None, gt=0, allow_inf_nan=False)
@@ -192,6 +194,8 @@ class VerlPayload(VerlContract):
     environment: VerlEnvironment
     training: VerlTraining
     resume_from: Path | None = None
+    # Another run's adaptive-curriculum-state directory for a curriculum warm start.
+    curriculum_from: Path | None = None
 
 
 class VerlLaunchManifest(VerlContract):

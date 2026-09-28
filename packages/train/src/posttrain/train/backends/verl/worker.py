@@ -35,9 +35,10 @@ _ROLLOUT_EXECUTION_FORK_REVISIONS = frozenset({"5dbf667c99b29db613d1dfcded1ed904
 # version at that commit. A clean checkout at any other revision is rejected
 # before veRL starts instead of failing at its first actor update.
 # ``active_sampling`` names the fork's ``algorithm.active_sampling`` config block
-# (round-based refill with TRL's semantics).
+# (round-based refill with TRL's semantics); ``prompt_selector`` its
+# ``data.prompt_selector`` extension point (used by the adaptive curriculum).
 _OLMO3_OBJECTIVE_NAMES = frozenset({"token_clip", "k3_unclipped"})
-_FORK_ONLY_NATIVE_NAMES = _OLMO3_OBJECTIVE_NAMES | {"active_sampling"}
+_FORK_ONLY_NATIVE_NAMES = _OLMO3_OBJECTIVE_NAMES | {"active_sampling", "prompt_selector"}
 # The version is recorded for release commits only; a development commit shares
 # its parent release's version string without its content.
 _FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str | None, frozenset[str]]] = {
@@ -47,7 +48,9 @@ _FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str | None, frozenset[str]]] = {
     "9fd6e7a31396ba33a29233cc869ab05b0a9e5a80": ("0.9.0.post5", _OLMO3_OBJECTIVE_NAMES),
     "9c10bd1a5931e7f73dfa4b570eb2c8e767d225ca": ("0.9.0.post5", _OLMO3_OBJECTIVE_NAMES),
     # codex/vortex-active-sampling development commit (post5 + active sampling).
-    "6c7295cd411c4d3973ddc206e43816560c842336": (None, _FORK_ONLY_NATIVE_NAMES),
+    "6c7295cd411c4d3973ddc206e43816560c842336": (None, _OLMO3_OBJECTIVE_NAMES | {"active_sampling"}),
+    # codex/vortex-active-sampling: plus the data.prompt_selector extension point.
+    "24920b395f8571f8f5be6b9d8469737f2355dcc9": (None, _FORK_ONLY_NATIVE_NAMES),
 }
 _TOKEN_CLIP_FORK_REVISIONS = frozenset(
     revision for revision, (_, names) in _FORK_NATIVE_NAME_REVISIONS.items() if "token_clip" in names
@@ -69,6 +72,7 @@ def main() -> None:
     metrics_file = output_dir / "verl-metrics.jsonl"
     _write_dataset(payload, dataset_path)
     _write_agent_config(payload, agent_config_path)
+    _write_curriculum_selector_config(manifest)
     overrides = build_hydra_overrides(manifest, dataset_path, agent_config_path, checkpoint_dir)
     os.environ["VERL_FILE_LOGGER_PATH"] = str(metrics_file.resolve())
     if _uses_turboquant(payload):
@@ -87,6 +91,10 @@ def main() -> None:
     if completed != 0:
         raise SystemExit(completed)
     latest = _latest_checkpoint(checkpoint_dir)
+    if payload.algorithm.adaptive_curriculum is not None:
+        from .curriculum import final_snapshot_from_checkpoint
+
+        final_snapshot_from_checkpoint(latest, output_dir / CURRICULUM_STATE_DIR)
     model_dir = output_dir / "model"
     subprocess.run(
         [
@@ -288,6 +296,8 @@ def build_hydra_overrides(
             overrides.extend(_olmo3_hydra_overrides(manifest))
         if algorithm.active_sampling:
             overrides.extend(_active_sampling_hydra_overrides(manifest))
+        if algorithm.adaptive_curriculum is not None:
+            overrides.extend(_curriculum_hydra_overrides(manifest))
         if manifest.operation in {"gdpo", "capo"}:
             structured = {
                 "reward_contract_digest": algorithm.reward_contract_digest,
@@ -469,6 +479,8 @@ def requested_fork_native_names(overrides: list[str]) -> frozenset[str]:
     selected = {value.split("=", 1)[1] for value in plain if value.startswith(keys)}
     if "algorithm.active_sampling.enable=true" in plain:
         selected.add("active_sampling")
+    if any(value.startswith("data.prompt_selector.class_path=") and not value.endswith("=null") for value in plain):
+        selected.add("prompt_selector")
     return frozenset(selected & _FORK_ONLY_NATIVE_NAMES)
 
 
@@ -529,6 +541,38 @@ def _olmo3_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
         "algorithm.rollout_correction.rollout_rs=null",
         "algorithm.rollout_correction.bypass_mode=false",
     ]
+
+
+CURRICULUM_SELECTOR_CONFIG = "curriculum-selector.json"
+CURRICULUM_STATE_DIR = "adaptive-curriculum"
+
+
+def _curriculum_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
+    """Run Posttrain's adaptive curriculum as the fork's prompt selector."""
+
+    config_path = manifest.output_directory / CURRICULUM_SELECTOR_CONFIG
+    return [
+        "data.prompt_selector.class_path=posttrain.train.backends.verl.curriculum.PosttrainCurriculumSelector",
+        f"+data.prompt_selector.kwargs.config_path={json.dumps(str(config_path))}",
+        "data.prompt_selector.metric=seq_reward",
+    ]
+
+
+def _write_curriculum_selector_config(manifest: VerlLaunchManifest) -> None:
+    from .curriculum import CURRICULUM_JOURNAL_NAME, SelectorConfig
+
+    payload = manifest.payload
+    settings = payload.algorithm.adaptive_curriculum
+    if settings is None:
+        return
+    output = manifest.output_directory
+    SelectorConfig(
+        settings=dict(settings),
+        num_generations=payload.algorithm.num_generations,
+        state_dir=output / CURRICULUM_STATE_DIR,
+        journal_path=output / CURRICULUM_JOURNAL_NAME,
+        warm_start_state_dir=payload.curriculum_from,
+    ).write(output / CURRICULUM_SELECTOR_CONFIG)
 
 
 def _active_sampling_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
@@ -636,6 +680,7 @@ def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
         "data.gen_batch_size=",
         "algorithm.filter_groups.",
         "algorithm.active_sampling",
+        "data.prompt_selector",
         "actor_rollout_ref.rollout.agent.agent_loop_config_path=",
         "actor_rollout_ref.rollout.agent.num_workers=",
         "actor_rollout_ref.rollout.agent.num_cpus_per_worker=",
@@ -679,6 +724,8 @@ def _write_dataset(payload: VerlPayload, path: Path) -> None:
     # total_training_steps is supplied. Small qualification datasets may
     # intentionally contain one reusable task, so cycle them deterministically
     # to make at least one complete prompt batch.
+    if len(rows) < payload.algorithm.num_prompts_per_step and payload.algorithm.adaptive_curriculum is not None:
+        raise ValueError("adaptive curriculum needs at least one distinct task per prompt group of an update")
     if len(rows) < payload.algorithm.num_prompts_per_step:
         rows = [dict(rows[index % len(rows)]) for index in range(payload.algorithm.num_prompts_per_step)]
     Dataset.from_list(rows).to_parquet(str(path))
