@@ -50,6 +50,8 @@ _HYBRID_FAMILIES = frozenset({"lfm2.5", "qwen3.5", "gemma4"})
 # Families with Gated-DeltaNet linear-attention layers: vLLM's chunked kernel
 # rejects float32 inputs ("ChunkGatedDeltaRuleFunction does not support float32").
 _GATED_DELTANET_FAMILIES = frozenset({"qwen3.5"})
+# Attention backends whose kernels take float16/bfloat16 only (no float32).
+_HALF_ONLY_ATTENTION = frozenset({"FLASH_ATTN", "FLASHINFER", "SM120_FA4"})
 _ONLINE_RL = frozenset({"train.grpo", "train.sampo", "train.gdpo", "train.capo"})
 _INVARIANCE_UNSUPPORTED = frozenset({"olmo-hybrid", "bailing"})
 _PINNED_DSPARK_BACKEND = "vllm@62f6de733d7ae63b759329993bc209e67afdf431"
@@ -162,6 +164,47 @@ def _binding_findings(snapshot: Snapshot, seat: Seat) -> Iterator[ConfigurationI
             "rejects float32 (it asserts at the first prefill on vllm 0.29.1.dev4, docs/plan/fp16-training-precision.md)",
             "Use dtype bfloat16 or float16 for this model.",
         )
+
+    dtype = engine.get("dtype")
+    if dtype in {"float32", "float"}:
+        unsupported = []
+        if flash is not None or any(backend in _HALF_ONLY_ATTENTION for backend in priority):
+            unsupported.append(
+                "the selected FlashAttention/FlashInfer/SM120_FA4 attention accepts float16 and bfloat16 only"
+            )
+        if engine.get("weight_sync_mode") == "lora":
+            unsupported.append("the Punica LoRA shrink kernel accepts float16 and bfloat16 inputs only")
+        if unsupported:
+            yield _issue(
+                seat,
+                "VLLM_FLOAT32_KERNEL_UNSUPPORTED",
+                "error",
+                f"{role}.engine.dtype",
+                "float32 cannot run on this engine: " + "; ".join(unsupported) + " (vLLM fork f09e4479)",
+                "Use dtype bfloat16 or float16, or a Triton attention backend without LoRA for a float32 reference.",
+            )
+    if dtype in {"float16", "half"}:
+        fallbacks = []
+        if invariant and accelerator in _SM120:
+            fallbacks.append(
+                "the SM120 batch-invariant GEMM shape table and generic rule are tuned for bfloat16 only, so float16 "
+                "GEMMs use the untuned default persistent configuration"
+            )
+        if family in _GATED_DELTANET_FAMILIES:
+            fallbacks.append(
+                "the fused CUDA Gated-DeltaNet decode kernel requires bfloat16, so decode uses the Triton kernel "
+                "(no throughput loss measured for Qwen3.5-0.8B at 64 requests on an RTX 3070 Ti)"
+            )
+        if fallbacks:
+            yield _issue(
+                seat,
+                "VLLM_FLOAT16_BF16_ONLY_KERNEL",
+                "warning",
+                f"{role}.engine.dtype",
+                "float16 leaves a bfloat16-only kernel: " + "; ".join(fallbacks) + " (vLLM fork f09e4479, "
+                "docs/plan/fp16-training-precision.md)",
+                "Measure rollout throughput at float16 against bfloat16 with the same engine before a long run.",
+            )
 
     # Attention backends.
     if accelerator in _SM120 and flash == 4:

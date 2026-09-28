@@ -190,3 +190,40 @@ def test_trl_training_precision_rules(snap) -> None:
     assert codes_for({}, {"kind": "train.dpo"})["TRL_PRECISION_UNQUALIFIED_FOR_JOB"] == "error"
     training["resolved"]["backend_options"] = {}
     assert "TRL_PRECISION_UNQUALIFIED_FOR_JOB" not in codes_for({}, {"kind": "train.sft"})
+
+
+def test_float32_rejects_half_only_attention_and_lora_kernels(snap) -> None:
+    lfm = _served("lfm2.5", "LiquidAI/LFM2.5-2.6B")
+
+    def codes(engine: dict[str, Any]) -> dict[str, str]:
+        return _codes({"rollout_inference": _seat(snap, {**snap.TUNED, **engine}, purpose=("rollout",), model=lfm)})
+
+    assert codes({"dtype": "float32", "flash_attn_version": 2})["VLLM_FLOAT32_KERNEL_UNSUPPORTED"] == "error"
+    assert (
+        codes({"dtype": "float32", "attention_backend_priority": ["SM120_FA4"]})["VLLM_FLOAT32_KERNEL_UNSUPPORTED"]
+        == "error"
+    )
+    assert codes({"dtype": "float32", "weight_sync_mode": "lora"})["VLLM_FLOAT32_KERNEL_UNSUPPORTED"] == "error"
+    # A Triton-attention engine without LoRA can compute a float32 reference.
+    assert "VLLM_FLOAT32_KERNEL_UNSUPPORTED" not in codes({"dtype": "float32"})
+    assert "VLLM_FLOAT32_KERNEL_UNSUPPORTED" not in codes({"dtype": "bfloat16", "flash_attn_version": 2})
+
+
+def test_float16_reports_bf16_only_kernels(snap) -> None:
+    lfm = _served("lfm2.5", "LiquidAI/LFM2.5-2.6B")
+    qwen = _served("qwen3.5", "Qwen/Qwen3.5-0.8B")
+    invariant = {**snap.TUNED, "dtype": "float16", "batch_invariant": True, "max_num_seqs": 16}
+    seat = _seat(snap, invariant, purpose=("rollout",), model=lfm)
+    on_sm120 = _codes({"execution_targets": snap.targets(), "rollout_inference": seat})
+    assert on_sm120["VLLM_FLOAT16_BF16_ONLY_KERNEL"] == "warning"
+    # Without batch invariance LFM2.5 keeps every kernel it uses in bfloat16 or float16.
+    plain = _seat(snap, {**snap.TUNED, "dtype": "float16"}, purpose=("rollout",), model=lfm)
+    assert "VLLM_FLOAT16_BF16_ONLY_KERNEL" not in _codes(
+        {"execution_targets": snap.targets(), "rollout_inference": plain}
+    )
+    gdn = _seat(snap, {**snap.TUNED, "dtype": "float16"}, purpose=("rollout",), model=qwen)
+    assert _codes({"rollout_inference": gdn})["VLLM_FLOAT16_BF16_ONLY_KERNEL"] == "warning"
+    bf16 = _seat(snap, {**invariant, "dtype": "bfloat16"}, purpose=("rollout",), model=qwen)
+    assert "VLLM_FLOAT16_BF16_ONLY_KERNEL" not in _codes(
+        {"execution_targets": snap.targets(), "rollout_inference": bf16}
+    )
