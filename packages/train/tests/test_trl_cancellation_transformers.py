@@ -198,7 +198,7 @@ def test_transformers_trainer_cancel_checkpoint_resumes(tmp_path: Path, phase: s
     ]
     state = json.loads((checkpoint / "trainer_state.json").read_text(encoding="utf-8"))
     assert state["global_step"] == expected_step
-    saved = peft.utils.load_peft_weights(str(checkpoint))
+    saved = peft.utils.load_peft_weights(str(checkpoint), device="cpu")
     current = _adapter(trainer.model)
     # No optimizer step ran after the saved update, so the live adapter is that update.
     assert saved.keys() == current.keys()
