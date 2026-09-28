@@ -542,10 +542,15 @@ class DstackExecutionProvider:
         reclaimed = response.get("reclaimed_bytes")
         if isinstance(reclaimed, bool) or not isinstance(reclaimed, int) or reclaimed < 0:
             raise RuntimeError("dstack cleanup task returned invalid reclaimed bytes")
+        detail = (
+            "; its log with the reclaimed byte count is unavailable"
+            if response.get("reclaimed_bytes_evidence") == "unavailable"
+            else ""
+        )
         return ProviderCleanupResult(
             handle,
             "provider-managed",
-            (f"dstack retained run history and emptied the exact run workspace on {hostname}"),
+            (f"dstack retained run history and emptied the exact run workspace on {hostname}{detail}"),
             workspace_disposition="removed",
             workspace_reclaimed_bytes=reclaimed,
         )
