@@ -26,7 +26,7 @@ After this change a job can select the trainer precision (`backend_options.train
 - [x] (2026-09-28 15:40Z) The sampler-gap p99 and sequence statistics are now pooled over the whole update (they were averaged per call, which is per micro-batch when the importance ratio comes from the training forward, as in the 2.6B runs).
 - [x] (2026-09-28 15:40Z) LFM2.5-2.6B canary work packages (fp16 and its bf16 twin, five updates from the fixed-tools continuation) plan cleanly; runbook below.
 - [x] (2026-09-28 17:10Z) Reproduced the Qwen3.5-0.8B cells with the rewritten `gen_vllm.py`/`score_hf.py` on the kernel image `posttrain-kind-online-rl-trl-py312:qwen-kernels-local-cc1d` (fla-core 0.5.2, causal-conv1d 1.7.0; branch codex/qwen-fast-kernels). vLLM samples are bit-identical to the committed ones (64/64 completions, log-probabilities equal); with the fast trainer kernels bf16/bf16 is 0.0134/0.124 and fp16/fp16 0.0020/0.016 (mean/p99), against 0.0137/0.124 and 0.0019/0.015 with the torch fallback: a 6.7x cut instead of 7.2x, same conclusion. No "fast path is not available" warning.
-- [ ] Training arms on the kernel image: blocked. `posttrain job run` builds the actual-job image only on a registry-hosted, digest-pinned kind image whose lock matches the published manifest (see Surprises); the kernel image exists only in the local Docker daemon.
+- [ ] Training arms on the kernel image: waiting for the published kind images with fla-core and causal-conv1d (see Decision Log, 2026-09-28, lead); then launch from a clean worktree merging both branches. `posttrain job run` builds the actual-job image only on a registry-hosted, digest-pinned kind image whose lock matches the published manifest (see Surprises); the kernel image exists only in the local Docker daemon.
 - [ ] Workstation session: preflight, throughput, canaries (runbook below), when the 100-update continuation has finished.
 
 ## Surprises & Discoveries
@@ -113,6 +113,10 @@ After this change a job can select the trainer precision (`backend_options.train
 - Decision: Pool the gap statistics per logged update instead of appending one value per call.
   Rationale: with `importance_sampling_from_training_logps` (the 2.6B bindings) TRL computes the importance ratio per micro-batch of one episode, so the per-call p99 was an average of per-episode percentiles.
   Date/Author: 2026-09-28, Claude.
+
+- Decision: Do not run the training arms on the kernel image through any of the four local workarounds considered: (1) push the local kernel image to a scratch registry.lan repository and select it with a project `[registry]` override; (2) pull `registry:2` for a throwaway loopback registry and do the same; (3) pack on the published kind image and overlay the fast-kernel packages onto the `posttrain-local:<tag>` job image before `job run` (the image labels would misstate the software and the tag could be reused by later packs); (4) run both arms now on the published image with the torch fallback kernels. Instead the kernels agent publishes causal-conv1d and the kernel job-kind images properly (user-authorized); once the published images exist and codex/qwen-fast-kernels has adopted causal-conv1d, run arms 1 and 4 on the published image from a clean worktree merging both branches. No GPU work until then.
+  Rationale: provenance stays exact (the run records the published kind digest it actually ran on), and nothing is pushed or downloaded outside the release path.
+  Date/Author: 2026-09-28, lead.
 
 ## Outcomes & Retrospective
 
