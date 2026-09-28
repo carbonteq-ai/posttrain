@@ -852,6 +852,13 @@ def test_trace_evidence_keeps_the_reward_of_an_episode_that_ran_out_of_context()
     assert verifiers_trace_has_error(earlier)
     assert not verifiers_trace_is_truncated(earlier)
 
+    # Evaluation traces carry the same ending label as training traces.
+    from posttrain.eval.backends.verifiers.adapter import _emit_batch
+
+    observer = RecordingObserver()
+    _emit_batch(context(Path.cwd(), observer), request(), [record, {**earlier, "id": "earlier-overflow"}])
+    assert [trace.attributes["episode_ending"] for trace in observer.traces] == ["context_rejected", "error"]
+
 
 def test_verifiers_eval_emits_shared_trace_facts() -> None:
     from posttrain.eval.backends.verifiers.adapter import _emit_batch
