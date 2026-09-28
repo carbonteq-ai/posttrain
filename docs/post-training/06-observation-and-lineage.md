@@ -247,7 +247,10 @@ reply was cut because prompt plus reply reached the context length),
 `context_rejected` (the next request's prompt exceeded the context), or
 `error`. The integration that understands the native trace derives it from the
 record; every ending other than `completed` and `error` is a truncation, so
-the truncation flag keeps its meaning. Training writes each update's count and
+the truncation flag keeps its meaning. From fact calculator
+`verifiers-trace-facts.v9` the ending is also the trace-fact dimension
+`episode_ending`, so tracking providers group and filter by it without reading
+trace metadata; readers fall back to the attribute for older projections. Training writes each update's count and
 share of every ending (`train/rl/rollouts_ending_<ending>`,
 `train/rl/ending_<ending>_rate`) alongside `train/rl/rollouts_truncated`.
 
