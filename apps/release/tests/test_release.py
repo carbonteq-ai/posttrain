@@ -11,6 +11,7 @@ import tomllib
 import zipfile
 from pathlib import Path
 from shutil import which
+from typing import Any
 
 import posttrain_release.versioning as versioning
 import pytest
@@ -1800,3 +1801,42 @@ def test_verl_declares_verifiers_provided_in_both_environments() -> None:
     assert _provided_packages("online-rl-verl-py313", root) == ("verifiers", "carbonteq-renderers")
     assert _backend_provided_packages("online-rl-verl-py313", root) == ("verifiers", "carbonteq-renderers")
     assert _backend_provided_packages("online-rl-trl-py312", root) == ()
+
+
+def _locked_verifiers_script() -> Any:
+    import importlib.util
+
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    spec = importlib.util.spec_from_file_location("locked_verifiers", root / "scripts/ci/locked_verifiers.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_ci_installs_environments_against_and_requires_the_locked_verifiers(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    script = _locked_verifiers_script()
+    version, repository, commit = script.locked_verifiers()
+    assert repository == "https://github.com/carbonteq-ai/verifiers.git" and len(commit) == 40
+    assert script.constraint() == f"verifiers @ git+{repository}@{commit}"
+
+    workflow = (root / ".github/workflows/quality.yml").read_text(encoding="utf-8")
+    assert ".venv/bin/python scripts/ci/locked_verifiers.py constraint > /tmp/locked-verifiers.txt" in workflow
+    assert "--constraint /tmp/locked-verifiers.txt" in workflow
+    assert ".venv/bin/python scripts/ci/locked_verifiers.py check" in workflow
+    # Every environment package CI installs pins the framework's Verifiers.
+    assert "verifiers-environments.git@5264ec153a543c62688efaa1ffe28aedb247d5bb" in workflow
+    assert "d994073b9632e73c96a57865683133d7a6ebc4bf" not in workflow
+
+    try:
+        from importlib.metadata import distribution
+
+        distribution("verifiers")
+    except Exception:
+        pytest.skip("the verifiers extra is not installed")
+    assert script.check() == f"verifiers {version} {repository}@{commit}"
+    other = tmp_path / "uv.lock"
+    other.write_text((root / "uv.lock").read_text(encoding="utf-8").replace(commit, "0" * 40), encoding="utf-8")
+    with pytest.raises(SystemExit, match="installed verifiers is not the locked build"):
+        script.check(other)
