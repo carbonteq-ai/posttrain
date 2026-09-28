@@ -5,7 +5,7 @@ commit `d71cf2a5cbcc561bd72e3932d8032200a791d79c` on fork branch
 `codex/next-release` (dev31 plus f3be77d7 and the episode-ending change), tag
 `carbonteq-v0.31.5.post14.dev32` (GitHub prerelease), published unchanged to
 `carbonteq/dev` by Posttrain workflow `36432505907` on 2026-09-28. The shared
-server has **not** been migrated or upgraded. A clean clone of that commit built with
+server was migrated and upgraded on 2026-09-28 (see below). A clean clone of that commit built with
 `uv build` gives wheel
 `78e3ecf207c074c43281edff75343086bf379a22cc281308cc12436e5a5260a3` and sdist
 `94d3f3bb7084346f441ce39b8e9d4cd775d1197d07ca6e5fba87726dfbddddc0` (the same
@@ -25,6 +25,20 @@ dimension locally and a dev30/dev31 server rejects it on import. Deploy order:
 publish dev32, back up Doris, migrate to v5 and switch the server to dev32 in
 one step (a dev32 server refuses a v4 database and an older server refuses v5),
 then release job images, then backfill.
+
+The shared server runs dev32 since 2026-09-28 15:32 UTC (production `:7860` and
+the candidate service `:7862`, ai-infra branch `deploy/trackio-dev32`, commit
+`c35ad96`, `scripts/deploy-trackio`). Before it, both Doris databases were
+backed up with a restore check and exact row counts, keeping the snapshots
+(`trackio_production_pre_v5_20260928`, 2,107,556 rows;
+`trackio_candidate_pre_v5_20260928`, 29,238 rows; receipts
+`ai-infra/.state/artifacts/trackio-doris-{production,candidate}/pre-v5-backup-receipt.json`),
+and migrated to schema version 5 with `trackio storage migrate-doris --to 5`.
+ai-infra's write/read qualification (`scripts/qualify_trackio.py`), a run-note
+add/delete, and the Observatory qualification passed afterwards. The
+episode-ending backfill filled `fact_episode_ending` for all 36,897 traces of
+the four LFM2.5 training runs of 2026-09-26 to 09-28 and the 22 held-out v3/v4
+evaluation runs (see `docs/plan/episode-ending-labels.md`).
 
 Before dev32, the Posttrain pin was `0.31.5.post14.dev31` (fork commit
 `6f292fe247eed46e6c8d0a5507205b6b9d830d97`, tag
