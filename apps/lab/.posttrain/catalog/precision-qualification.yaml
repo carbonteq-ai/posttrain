@@ -62,7 +62,7 @@ training:
   training/qwen3.5-0.8b-trl-grpo-precision-bf16@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.12.0.post10
+    backend: trl@1.12.0.post11
     renderer:
       id: qwen3.5-off-v1
       model_family: qwen3.5
@@ -77,12 +77,12 @@ training:
       logits_chunk_size: 64
       training_precision: bf16
       dependency_lock: trl-fork@current
-      source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 2efbd557a5cfea4786ceefcdbfee63c46221ee823bd2763514aa9bfaf125f3d2
+      source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
+      dependency_lock_sha256: 7a28a659a58a7e2fcdb7c58bf12520d58a35778f96e770b6147af91571a2bbd5
   training/qwen3.5-0.8b-trl-grpo-precision-fp16@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.12.0.post10
+    backend: trl@1.12.0.post11
     renderer:
       id: qwen3.5-off-v1
       model_family: qwen3.5
@@ -97,8 +97,8 @@ training:
       logits_chunk_size: 64
       training_precision: fp16
       dependency_lock: trl-fork@current
-      source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 2efbd557a5cfea4786ceefcdbfee63c46221ee823bd2763514aa9bfaf125f3d2
+      source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
+      dependency_lock_sha256: 7a28a659a58a7e2fcdb7c58bf12520d58a35778f96e770b6147af91571a2bbd5
 
   # LFM2.5-2.6B SAMPO precision canaries on the RTX PRO 6000
   # (docs/plan/fp16-training-precision.md, "Workstation runbook"): the
@@ -150,7 +150,7 @@ training:
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g144-w12-fp16@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.12.0.post10
+    backend: trl@1.12.0.post11
     renderer:
       id: lfm2.5-tools-thinking@2
       model_family: lfm2.5
@@ -169,8 +169,8 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       training_precision: fp16
       dependency_lock: trl-fork@current
-      source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 2efbd557a5cfea4786ceefcdbfee63c46221ee823bd2763514aa9bfaf125f3d2
+      source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
+      dependency_lock_sha256: 7a28a659a58a7e2fcdb7c58bf12520d58a35778f96e770b6147af91571a2bbd5
 
   # veRL precision qualification on the local 8 GB GPU with the veRL runtime
   # (fork 0.9.0.post4, 54124edf, which reports the loss scale, skipped steps and
