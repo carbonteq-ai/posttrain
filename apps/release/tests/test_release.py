@@ -722,7 +722,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
 
     assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev32"
     assert entries["trl"].revision == "3135b502d69956200d1c030a514470c351d2ee9f"
-    assert entries["verl"].release_tag == "carbonteq-v0.9.0.post4"
+    assert entries["verl"].release_tag == "carbonteq-v0.9.0.post5"
     assert entries["causal-conv1d"].revision == "b7bec200ce1391f69fac132bf7f8ae007446d46d"
     assert entries["causal-conv1d"].artifacts == {
         "wheel_sha256": "b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a",
@@ -1283,8 +1283,8 @@ def test_required_fork_index_check_uses_every_python_fork_hash(monkeypatch: pyte
         "carbonteq_renderers-0.1.12.post1.dev2.tar.gz",
         # Wheel-only fork release: the retained platform wheel, no sdist.
         "causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl",
-        "verl-0.9.0.post4-py3-none-any.whl",
-        "verl-0.9.0.post4.tar.gz",
+        "verl-0.9.0.post5-py3-none-any.whl",
+        "verl-0.9.0.post5.tar.gz",
     }
 
 

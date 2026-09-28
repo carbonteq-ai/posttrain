@@ -1,6 +1,6 @@
 # veRL continuation of a trained LoRA adapter (--model-from-run) on the local
-# RTX 3070 Ti 8 GB, against the veRL 0.9.0.post4 kind image (source 54124edf)
-# rebuilt with the 0.4.12 release candidate; the branch was prepared against
+# RTX 3070 Ti 8 GB, against the veRL 0.9.0.post5 kind image (source 9fd6e7a3)
+# rebuilt for the 0.4.12 release; the branch was prepared against
 # the post3 kind (18338a0e). Qualifies that the adapter is attached to the
 # foundation weights, reaches the rollout, and is trained with the base model
 # as the KL reference. See docs/plan/active-sampling-oversample.md.
@@ -30,7 +30,7 @@ training:
   training/qwen3.5-0.8b-verl-grpo-local-lora@1:
     selection_type: training-binding
     revision: "1"
-    backend: verl@54124edfb8d0b73694696400cf07a76a14d9be65
+    backend: verl@9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
     renderer:
       id: qwen3.5-off-v1
       model_family: qwen3.5
@@ -53,8 +53,8 @@ training:
     backend_options:
       python_executable: /opt/posttrain-verl/bin/python
       working_directory: /opt/posttrain-verl/workdir
-      source_revision: 54124edfb8d0b73694696400cf07a76a14d9be65
-      dependency_lock_sha256: d33bdfa77c23649a4eaa4fde34224f16d145421f66919232d2c52cf69394e845
+      source_revision: 9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
+      dependency_lock_sha256: 96d02bccf37e0ebeb9cdd3811412ded07a28875f82057b096692da4c0256d409
       source_dirty: false
       attention_implementation: sdpa
       hydra_overrides:

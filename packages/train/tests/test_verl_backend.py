@@ -805,14 +805,6 @@ def _pinned_verl_revision() -> str:
     return tomllib.loads(profile.read_text(encoding="utf-8"))["fork_revision"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "the veRL job kind still pins 0.9.0.post3 (18338a0e), which registers neither token_clip nor "
-        "k3_unclipped; remove this marker in the commit that pins 0.9.0.post5"
-    ),
-)
 @pytest.mark.parametrize("operation", ["gdpo", "capo", "olmo3"])
 def test_pinned_verl_fork_registers_every_native_name_posttrain_requests(monkeypatch, tmp_path, operation):
     from posttrain.train.backends.verl.worker import fork_native_names, requested_fork_native_names

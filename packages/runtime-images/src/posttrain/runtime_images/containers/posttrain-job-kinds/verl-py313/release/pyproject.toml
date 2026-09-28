@@ -63,7 +63,7 @@ torch = { index = "pytorch-cu130" }
 torchaudio = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
 verifiers = { git = "https://github.com/carbonteq-ai/verifiers.git", rev = "cdd2ec7614131545df66484f9de11250daf16065" }
-verl = { git = "https://github.com/carbonteq-ai/verl.git", rev = "54124edfb8d0b73694696400cf07a76a14d9be65" }
+verl = { git = "https://github.com/carbonteq-ai/verl.git", rev = "9fd6e7a31396ba33a29233cc869ab05b0a9e5a80" }
 vllm = { git = "https://github.com/carbonteq-ai/vllm.git", rev = "f09e4479123d348cee87d217c695a22f9b2daacc" }
 
 [[tool.uv.index]]
