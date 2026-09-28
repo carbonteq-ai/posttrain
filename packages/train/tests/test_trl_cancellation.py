@@ -49,6 +49,10 @@ class CaptureContext:
         self.events.append((name, attributes))
 
     def metric(self, name: str, value: float, *, step: int | None = None) -> None:
+        # The tracker rejects a logical step below one already logged.
+        logged = [logged_step for _, _, logged_step in self.metrics if logged_step is not None]
+        if step is not None and logged and step < max(logged):
+            raise ValueError("logical metric steps must be nondecreasing")
         self.metrics.append((name, value, step))
 
     def artifact(self, artifact: ProducedArtifact) -> None:
@@ -269,6 +273,8 @@ def _run(
         if phase == "rollout":
             # The controller selects tasks for the next update during its rollout.
             controller["decisions"] += 1
+            # A finished rollout batch logs its metrics at the update it feeds.
+            context.metric("train/rl/rollout_batch_seconds", 1.0, step=update)
         if (phase, update) == cancel_at:
             boundary_rng.append(boundary.snapshot.rng["python"] if boundary.snapshot is not None else None)
             signal.raise_signal(signal.SIGTERM)
@@ -353,7 +359,10 @@ def test_cancel_between_updates_saves_the_last_completed_update(tmp_path: Path, 
     assert record["global_step"] == 43
     assert record["previous_checkpoint_step"] == 40
     assert record["deferred_by"] is None
-    assert ("train/cancel_checkpoint_step", 43, 43) in outcome.context.metrics
+    # Recorded at the cancelled update, which already logged its rollout metrics.
+    assert ("train/cancel_checkpoint_step", 43, 44) in outcome.context.metrics
+    assert record["cancelled_update"] == 44
+    assert "metric_error" not in record
     assert not (outcome.output_dir / CANCEL_CHECKPOINT_STAGING).exists()
     cancel_views = [artifact for artifact in outcome.context.artifacts if artifact.metadata["global_step"] == 43]
     assert [artifact.kind for artifact in cancel_views] == ["training-checkpoint", "model-adapter"]
@@ -496,3 +505,22 @@ def test_fallback_republication_keeps_the_saved_controller_snapshot(tmp_path: Pa
     assert [write for write in outcome.controller_writes if write[0] == "checkpoint-40"] == [
         ("checkpoint-40", {"decisions": 40})
     ]
+
+
+def test_a_rejected_cancel_checkpoint_metric_is_named_in_the_saved_event(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    record_metric = CaptureContext.metric
+
+    def reject_cancel_metric(self: CaptureContext, name: str, value: float, *, step: int | None = None) -> None:
+        if name == "train/cancel_checkpoint_step":
+            raise RuntimeError("tracking rejected the metric")
+        record_metric(self, name, value, step=step)
+
+    monkeypatch.setattr(CaptureContext, "metric", reject_cancel_metric)
+    outcome = _run(tmp_path, cancel_at=("rollout", 44))
+
+    record = outcome.context.cancel_outcome()
+    assert record["outcome"] == "saved"
+    assert "tracking rejected the metric" in record["metric_error"]
+    assert any("cancellation checkpoint metric" in note for note in outcome.exit.__notes__)

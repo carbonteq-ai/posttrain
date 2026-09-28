@@ -61,6 +61,18 @@ sets rather than closed lists.
 
 ## Surprises & Discoveries
 
+- Observation (qualification, 2026-09-29): local run
+  `q0412f-lfm12-cancel-rollout-r1` saved and published its cancel checkpoint
+  (step 2) and its `cancel_checkpoint` event, but not
+  `train/cancel_checkpoint_step`; dstack run `q0412f-ws-cancel-trl-r1` had it
+  (3). The TRL rollout logs its batch metrics at the update it feeds
+  (`global_step + 1`), and the Trackio run rejects a metric step below one
+  already logged, so a cancel that landed after a rollout batch of update 3 had
+  finished made the step-2 metric fail; the failure was only a note on the
+  exit. The metric is now recorded at the interrupted update's step (event
+  field `cancelled_update`), and a still-rejected metric is named in the event
+  (`metric_error`). The provider was incidental: the dstack cancel landed
+  before the next rollout logged.
 - Observation: the existing cancel path already republishes the newest periodic
   checkpoint with `interrupted: true`, and the checkpoint resolvers already
   prefer the periodic view when a step is published twice.

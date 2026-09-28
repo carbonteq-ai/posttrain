@@ -45,6 +45,8 @@ oversampled active sampling, and a KL penalty measured against the base model.
   cancellation that arrives during an optimizer step waits for that update to
   finish (at most 60 seconds). The `cancel_checkpoint` event records the
   saved step or why nothing was saved, and the run finishes as cancelled.
+  `train/cancel_checkpoint_step` (value: the saved update) is recorded at the
+  step of the update the cancel interrupted, the event's `cancelled_update`.
 - Oversampling for active sampling. `active_sampling: {oversample: N,
   oversample_refill: M}` starts N extra prompt groups in the first round and M
   in each refill round, so an update fills in fewer rounds; the surplus is
@@ -126,6 +128,13 @@ oversampled active sampling, and a KL penalty measured against the base model.
 
 ### Fixed
 
+- A cancellation checkpoint saved after the next update's rollout had started
+  lost its `train/cancel_checkpoint_step` metric: it was recorded at the saved
+  update's step, below the rollout metrics already logged at the next step,
+  and the tracker rejects decreasing steps (seen on the local provider; the
+  dstack run was cancelled before the next rollout logged). The metric is now
+  recorded at the interrupted update's step, and a metric the tracker still
+  rejects is named in the `cancel_checkpoint` event (`metric_error`).
 - veRL LoRA training on models with fused layers: veRL `0.9.0.post5` named the
   synced LoRA tensors with vLLM's stacking weight mapper, which merges
   `q_proj`/`k_proj`/`v_proj` into `qkv_proj` and LFM2's `w1`/`w3` into `w13`,

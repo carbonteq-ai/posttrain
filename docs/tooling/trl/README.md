@@ -447,7 +447,10 @@ completed optimizer update if it is newer than the last periodic one; a
 cancellation that arrives during an optimizer step is delivered after that
 update completes (bounded at 60 seconds), and the run's `cancel_checkpoint`
 event records the saved step or why nothing was saved
-(`docs/plan/cancel-checkpoint.md`). A new
+(`docs/plan/cancel-checkpoint.md`). `train/cancel_checkpoint_step` carries the
+saved step as its value and is recorded at the step of the interrupted update
+(the event's `cancelled_update`), because that update's rollout may already
+have logged metrics at that step and logical steps never decrease. A new
 `posttrain job run --resume-from-run RUN_ID` invocation uses a fresh run
 identity and requires exactly one checkpoint output from the source run. SFT,
 DPO, and distillation recovery may still lose work after the last configured

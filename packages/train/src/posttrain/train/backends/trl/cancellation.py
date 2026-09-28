@@ -262,9 +262,11 @@ def save_cancellation_checkpoint(
     output_dir = Path(str(trainer.args.output_dir)).resolve()
     latest = imports["get_last_checkpoint"](str(output_dir)) if output_dir.is_dir() else None
     latest_step = _checkpoint_step(latest)
+    cancelled_update = step + 1
     attributes: dict[str, JsonValue] = {
         "technique": publisher.technique,
         "global_step": step,
+        "cancelled_update": cancelled_update,
         "previous_checkpoint_step": latest_step,
         "signal": request.signal_number,
         "deferred_by": request.deferred_by,
@@ -350,10 +352,16 @@ def save_cancellation_checkpoint(
     except Exception as failure:
         error.add_note(f"cancellation checkpoint {target.name} was saved but not published: {failure!r}")
         return outcome("failed", "publication_failed", error_type=type(failure).__name__)
+    # A run's logical metric steps never decrease, and the update the cancel
+    # interrupted (step + 1) may already have logged rollout metrics at its
+    # step, so the metric is recorded at that update; its value is the saved
+    # update. Recording it at ``step`` was rejected by the tracker whenever the
+    # cancel landed after a rollout batch of the next update had finished.
     try:
-        context.metric("train/cancel_checkpoint_step", step, step=step)
+        context.metric("train/cancel_checkpoint_step", step, step=cancelled_update)
     except Exception as metric_error:
         error.add_note(f"failed to record the cancellation checkpoint metric: {metric_error!r}")
+        return outcome("saved", metric_error=repr(metric_error))
     return outcome("saved")
 
 
