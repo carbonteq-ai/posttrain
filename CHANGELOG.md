@@ -88,7 +88,13 @@ oversampled active sampling, and a KL penalty measured against the base model.
   `importance_sampling_mode`, `importance_sampling_clip_min` or
   `importance_sampling_clip_max` other than their defaults
   (`sequence_truncate`, 0.1, 3.0), `max_admission_attempts` other than 3, and
-  `active_sampling`, in addition to the OLMo 3 recipe and `truncation_penalty`.
+  `active_sampling` with the OLMo 3 recipe (until veRL has active sampling).
+- veRL applies `truncation_penalty` for GRPO and DAPO with the same reward
+  shaping as TRL, maps the OLMo 3 objective natively (ready for when active
+  sampling lands), and rejects a veRL revision that lacks the loss or KL names
+  GDPO, CAPO or OLMo 3 select. veRL `0.9.0.post5` adds the `token_clip` policy
+  loss and the `k3_unclipped` KL that GDPO and CAPO use; with post3 and post4
+  those runs failed at the first actor update.
 - veRL runs the training loop as selected, or rejects it: `lr_scheduler_type`
   `constant` and `constant_with_warmup` map to veRL's constant schedule with
   zero or `ceil(max_steps * warmup_ratio)` warmup steps, and `linear` is
@@ -111,8 +117,8 @@ oversampled active sampling, and a KL penalty measured against the base model.
   version 5). Migrate the shared server to schema version 5 and run dev32
   before job images from this release write to it.
 - Maintained forks: TRL `1.12.0.post11` (oversampling and `peft_reference`),
-  veRL `0.9.0.post4` (loss scale, skipped steps and log-probability gap
-  metrics), Trackio `0.31.5.post14.dev32`, and the `causal-conv1d`
+  veRL `0.9.0.post5` (loss scale, skipped steps and log-probability gap
+  metrics from post4; `token_clip` and `k3_unclipped`), Trackio `0.31.5.post14.dev32`, and the `causal-conv1d`
   `1.7.0+cu130torch2.13` rebuild, which is promoted to the stable index as a
   wheel-only fork release.
 
