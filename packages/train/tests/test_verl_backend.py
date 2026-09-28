@@ -6,6 +6,7 @@ import asyncio
 import importlib
 import json
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -1925,3 +1926,72 @@ def test_verl_adapter_continuation_rejects_what_it_cannot_honor(tmp_path: Path) 
     request = _adapter_request(tmp_path)
     with pytest.raises(ValueError, match="full-parameter updates cannot continue from an unmerged PEFT adapter"):
         build_grpo_launch_plan(replace(request, training=_training()), tmp_path / "out")
+
+
+def _validated_manifest(tmp_path: Path, worktree: Path, revision: str, **options: object) -> VerlLaunchManifest:
+    request = _grpo_request()
+    training = replace(
+        request.training,
+        backend_options={
+            **request.training.backend_options,
+            "working_directory": str(worktree),
+            "source_revision": revision,
+            **options,
+        },
+    )
+    return build_grpo_launch_plan(replace(request, training=training), tmp_path / "out")
+
+
+def test_verl_worker_accepts_the_kind_images_source_snapshot_marker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The 0.4.12 veRL kind removes .git and records the revision; the worker must not run git."""
+
+    from posttrain.train.backends.verl import worker as verl_worker
+
+    revision = "9fd6e7a31396ba33a29233cc869ab05b0a9e5a80"
+    snapshot = tmp_path / "workdir"
+    snapshot.mkdir()
+    (snapshot / ".posttrain-source-revision").write_text(revision + "\n")
+    monkeypatch.setattr("importlib.metadata.version", lambda name: "0.9.0.post5")
+
+    def no_git(*args: object, **kwargs: object) -> object:
+        raise AssertionError(f"git must not run for an immutable snapshot: {args}")
+
+    monkeypatch.setattr(verl_worker.subprocess, "run", no_git)
+    verl_worker._validate_runtime(_validated_manifest(tmp_path, snapshot, revision, source_dirty=False))
+
+    with pytest.raises(RuntimeError, match=f"is at {revision}, expected immutable revision 0{{40}}"):
+        verl_worker._validate_runtime(_validated_manifest(tmp_path, snapshot, "0" * 40))
+    # A snapshot is clean by construction, so a dirty selection cannot match it.
+    with pytest.raises(RuntimeError, match="dirty state is False, expected True"):
+        verl_worker._validate_runtime(_validated_manifest(tmp_path, snapshot, revision, source_dirty=True))
+    (snapshot / ".git").mkdir()
+    with pytest.raises(RuntimeError, match="unexpectedly retains Git metadata"):
+        verl_worker._validate_runtime(_validated_manifest(tmp_path, snapshot, revision))
+
+
+def test_verl_worker_reads_a_development_checkout_with_git(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from posttrain.train.backends.verl import worker as verl_worker
+
+    checkout = tmp_path / "verl"
+    checkout.mkdir()
+    environment = {
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.com",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.com",
+        "HOME": str(tmp_path),
+        "PATH": "/usr/bin:/bin",
+    }
+    for command in (["git", "init", "-q"], ["git", "commit", "-q", "--allow-empty", "-m", "base"]):
+        subprocess.run(command, cwd=checkout, check=True, env=environment)
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=checkout, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    monkeypatch.setattr("importlib.metadata.version", lambda name: "0.9.0.post5")
+
+    verl_worker._validate_runtime(_validated_manifest(tmp_path, checkout, revision, source_dirty=False))
+    (checkout / "patch.py").write_text("changed = True\n")
+    with pytest.raises(RuntimeError, match="dirty state is True, expected False"):
+        verl_worker._validate_runtime(_validated_manifest(tmp_path, checkout, revision, source_dirty=False))

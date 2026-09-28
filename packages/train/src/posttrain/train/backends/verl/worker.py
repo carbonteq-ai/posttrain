@@ -725,13 +725,7 @@ def _validate_runtime(manifest: VerlLaunchManifest) -> None:
     if not installed:
         raise RuntimeError("could not resolve the installed veRL version")
     worktree = manifest.working_directory
-    head = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=worktree,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
+    head, dirty, dirty_digest = _worktree_source_state(worktree)
     if head != manifest.backend_source_revision:
         raise RuntimeError(
             f"veRL worktree is at {head}, expected immutable revision {manifest.backend_source_revision}"
@@ -740,11 +734,38 @@ def _validate_runtime(manifest: VerlLaunchManifest) -> None:
     expected_dirty = backend_options.get("source_dirty")
     expected_digest = backend_options.get("source_dirty_digest")
     if expected_dirty is not None:
-        dirty, dirty_digest = _git_source_state(worktree)
         if dirty is not expected_dirty:
             raise RuntimeError(f"veRL worktree dirty state is {dirty}, expected {expected_dirty}")
         if expected_digest is not None and dirty_digest != expected_digest:
             raise RuntimeError("veRL worktree content changed after the training selection was resolved")
+
+
+_SOURCE_REVISION_MARKER = ".posttrain-source-revision"
+
+
+def _worktree_source_state(worktree: Path) -> tuple[str, bool, str | None]:
+    """The veRL source revision, whether it differs from that revision, and a digest of the difference.
+
+    The veRL job kind ships an immutable source snapshot: it removes the Git
+    metadata and records the revision in ``.posttrain-source-revision``, exactly
+    as ``posttrain-runtime`` verifies it before starting the worker; that
+    snapshot is clean by construction. A development checkout is read with Git.
+    """
+
+    marker = worktree / _SOURCE_REVISION_MARKER
+    if marker.is_file():
+        if (worktree / ".git").exists():
+            raise RuntimeError("veRL immutable source snapshot unexpectedly retains Git metadata")
+        return marker.read_text(encoding="utf-8").strip(), False, None
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=worktree,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    dirty, digest = _git_source_state(worktree)
+    return head, dirty, digest
 
 
 def _git_source_state(worktree: Path) -> tuple[bool, str | None]:
