@@ -31,7 +31,8 @@ After this change a job can select the trainer precision (`backend_options.train
 - [x] (2026-09-28 19:40Z) veRL backend (branch codex/precision-fp16-verl): `training_precision: fp16` maps to veRL's FSDP mixed precision for the actor and the reference policy, `engine.dtype` is validated and forwarded, skipped steps are recorded, and the plan line and advisor findings cover veRL. Tests and ladder pass.
 - [x] (2026-09-28 22:30Z) Workstation session on release 0.4.12 code (0342de45): LFM2.5-2.6B preflight passed (no inf or NaN; fp16/fp16 gap 0.0037 mean, 0.047 p99, against bf16/bf16 0.0098 and 0.187; 8.3x lower net of the top-p offset); c144 rollout throughput bf16 4,032 and fp16 3,725 tok/s. The fp16 canary, started from the SAMPO r2 adapter at step 120 with `kl_reference: base`, skipped all five updates (loss scale 32,768 to 2,048, logged losses 1e24 to 1e27) with a finite sampler gap (0.0067 to 0.0072 mean); the bf16 twin was cancelled while queued at the lead's request. Release blocker for 0.4.12's FP16 support.
 - [x] (2026-09-29 09:30Z) Root cause and fix of the canary failure (branch codex/fp16-loss-fp32 from release head 987da481): TRL computed the loss in float16 (see Surprises); float16 training now computes log-probabilities from float32 logits and casts them and the entropies to float32 before the loss (`precision.effective_logits_float32`, `precision_runtime.float32_logprob_trainer_type`). Tests run TRL's real `_compute_loss` and chunked scoring path. veRL audited: unaffected.
-- [ ] Qualification of the fix on the setup that failed (lead, 2026-09-29): rerun the LFM2.5-2.6B canary pair on the workstation from a clean detached checkout of 861389d7, bf16 twin first, then fp16, five updates each from SAMPO r2 update 120 with `kl_reference: base` (run ids `prec-lfm26-canary-{bf16,fp16}-20260929-r2`). The Qwen3.5-0.8B AutomationBench pair (`qwen08b_automationbench_sampo_turns_precision_{bf16,fp16}_local.yaml`) is prepared and runs only if the 2.6B pair leaves a question.
+- [ ] Qualification of the fix on the setup that failed (lead, 2026-09-29): rerun the LFM2.5-2.6B canary pair on the workstation from a clean detached checkout of 861389d7, bf16 twin first, then fp16, five updates each from SAMPO r2 update 120 with `kl_reference: base` (run ids `prec-lfm26-canary-{bf16,fp16}-20260929-r2`). The Qwen3.5-0.8B AutomationBench pair (`qwen08b_automationbench_sampo_turns_precision_{bf16,fp16}_local.yaml`) is prepared and runs only if the 2.6B pair leaves a question. bf16 r2 succeeded (2026-09-29; table in Artifacts). The lead cancelled fp16 r2 before its first update to free the workstation for the 0.4.12 veRL checks; it is to be resubmitted fresh as `prec-lfm26-canary-fp16-20260929-r3` when the lead says.
+- [x] (2026-09-29) TRL fork 1.12.0.post12 candidate for 0.4.13: GRPO and RLOO score float16 logits in float32, and GRPO's loss takes float16 log-probs and entropies to float32 (branch `codex/fp16-loss-fp32` of carbonteq-ai/trl, feature commit `9aa833ae`, release commit `c4d0db051a7839fe1b1d587185fac33ba88c784f`, tag `carbonteq-v1.12.0.post12`, pushed). Wheel SHA-256 `7fb9b9c3805e65cb064a1789060d40f4ebe3b31833840f1f439c51241de0029d` (byte-reproducible); sdist `81d60f035864a36d4c65b429504c58bce47beed3f9a530abec0c2dd08b4142ce` (the retained file in `/home/hammad/precision-release/trl-post12/dist1/` is the authority). The lead creates the GitHub release and runs the publisher. Once the Posttrain pin moves to post12, `float32_logprob_trainer_type` is a no-op and can be removed.
 - [ ] veRL local qualification (four GRPO updates, bf16 then fp16, `qwen08b_gsm8k_verl_grpo_precision_{bf16,fp16}_local.yaml`, published runtime post3): blocked before any GPU use by the published `online-rl-verl-py313` kind image, which cannot package a Verifiers environment (see Surprises; the veRL adapter-continuation qualification on branch codex/active-sampling-oversample hit the same blocker). Needs the veRL kind rebuild whose backend selects the framework's Verifiers revision and declares Verifiers as provided in both roles; then run the pair from a clean worktree of this branch.
 
 ## Surprises & Discoveries
@@ -310,6 +311,18 @@ Float16, bfloat16 and float32 support of the vLLM fork's kernels (carbonteq-v0.2
     DSpark NVFP4 gathered Markov bias (Triton)     no       yes    no     only if NVFP4  dequantize-and-scatter
     Punica LoRA shrink/expand (Triton)             yes      yes    no     yes           - (fp32 inputs rejected)
     LM head with hf_overrides head_dtype=float32   yes      yes    -      no            -
+
+bf16 twin `prec-lfm26-canary-bf16-20260929-r2` (861389d7, LFM2.5-2.6B SAMPO from r2 update 120, `kl_reference: base`, beta 0.01, 24 x 6, top_p 0.95), all five updates applied:
+
+| update | gap mean | gap p99 | gap max | reward | entropy | KL | grad norm | rollout tok/s | actor s |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 0.01316 | 0.195 | 12.88 | 0.349 | 0.162 | 0.871 | 46.78 | 3359 | 278 |
+| 2 | 0.01384 | 0.199 | 3.84 | 0.442 | 0.159 | 0.058 | 0.0192 | 5190 | 228 |
+| 3 | 0.01211 | 0.190 | 1.25 | 0.452 | 0.146 | 0.049 | 0.0076 | 5970 | 243 |
+| 4 | 0.01321 | 0.198 | 2.74 | 0.544 | 0.150 | 0.054 | 0.0062 | 6077 | 217 |
+| 5 | 0.01436 | 0.201 | 3.53 | 0.510 | 0.168 | 0.060 | 0.0061 | 5219 | 241 |
+
+Trainer peak memory 14.4 GiB, GPU peak 61.0 GiB. For comparison, the failed fp16 r1 (release code without the fix) logged gap mean 0.0067 to 0.0073. Its KL of 0.06 to 0.10 averaged only the micro-batches whose loss stayed finite.
 
 ## Interfaces and Dependencies
 
