@@ -22,7 +22,7 @@ from posttrain.train.backends.trl.policy_curriculum import (
     adaptive_curriculum_trainer_type,
 )
 from posttrain.train.catalog_schema import decode_training_selection
-from posttrain.train.profiles import GRPOSettings
+from posttrain.train.profiles import ActiveGroupSampling, GRPOSettings
 
 
 class RecordingBackend:
@@ -1100,10 +1100,16 @@ def test_adaptive_active_sampling_oversamples_rounds_from_the_curriculum(
     discarded: int | None,
 ) -> None:
     import torch
+    from posttrain.train.backends.trl.policy_rollouts import _validate_group_relative_examples
     from trl.trainer.grpo_trainer import GRPOTrainer
 
     context = EventContext()
     runtime = _runtime(tmp_path, context, policy="yield_first")
+    settings = SimpleNamespace(
+        num_prompts_per_step=2,
+        num_generations=2,
+        active_sampling=ActiveGroupSampling(3, oversample=oversample, oversample_refill=oversample_refill),
+    )
 
     class Accelerator:
         num_processes = 1
@@ -1136,6 +1142,8 @@ def test_adaptive_active_sampling_oversamples_rounds_from_the_curriculum(
             self.rounds = 0
 
         def _generate_and_score_completions(self, inputs: list[dict[str, object]]) -> dict[str, object]:
+            # Every round the curriculum generates reaches the rollout function's validator.
+            _validate_group_relative_examples(settings, [str(row["example_id"]) for row in inputs])
             self.rounds += 1
             spread = 0.0 if self.rounds in zero_spread_rounds else 1.0
             return {

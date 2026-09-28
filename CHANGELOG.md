@@ -147,6 +147,10 @@ oversampled active sampling, and a KL penalty measured against the base model.
   `<state>/retained-checkpoints/<run id>` instead of deleting it. The search
   runs inside the cleanup container, which can read the worker's root-owned
   scratch directories, and an unreadable directory stops cleanup.
+- Oversampled active sampling runs again: the rollout function accepted at
+  most prompt groups x generations rows per round, so the oversampled first
+  round ((prompts + oversample) x generations) failed every OLMo 3 GRPO and
+  SAMPO run, including adaptive-curriculum rounds, at its first rollout.
 - FP16 training starts its dynamic loss scaler at 1024 instead of PyTorch's
   65536 (`backend_options.fp16_initial_loss_scale` on a training binding, TRL
   and veRL): starting high, the Qwen3.5-0.8B fp16 arm skipped six of its first

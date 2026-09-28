@@ -135,6 +135,15 @@ class ActiveGroupSampling:
         if self.oversample < 0 or self.oversample_refill < 0:
             raise ValueError("active sampling oversample and oversample_refill must be non-negative prompt groups")
 
+    def largest_round_groups(self, num_prompts_per_step: int) -> int:
+        """Prompt groups in the largest generation round: the first, with ``oversample`` extra.
+
+        Refill rounds are capped at the first round's size, so ``oversample_refill``
+        never makes a round larger.
+        """
+
+        return num_prompts_per_step + self.oversample
+
     def validate_reservation(self, num_prompts_per_step: int) -> None:
         """Require the candidate reservation to hold the oversampled first round."""
 
