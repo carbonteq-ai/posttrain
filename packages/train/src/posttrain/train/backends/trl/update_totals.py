@@ -15,6 +15,8 @@ from typing import Any
 
 from posttrain.common import RunContext
 
+from ...grpo_observations import EPISODE_ENDING_COUNT_METRICS, episode_ending_rates
+
 ROLLOUT_BATCH_SECONDS = "train/rl/rollout_batch_seconds"
 
 
@@ -78,6 +80,8 @@ class RolloutUpdateTotals:
             if selected is not None and completion is not None:
                 values["train/rl/rollout_selected_token_fraction"] = selected / completion if completion else 0.0
             values.pop("train/rl/rollout_completion_tokens", None)
+            if any(name in update.sums for name in EPISODE_ENDING_COUNT_METRICS.values()):
+                values.update(episode_ending_rates(update.sums))
             if values:
                 self._context.metrics(
                     values,

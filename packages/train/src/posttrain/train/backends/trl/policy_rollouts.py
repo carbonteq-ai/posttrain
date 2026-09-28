@@ -9,8 +9,15 @@ from collections.abc import Sequence
 from dataclasses import replace
 from typing import Any, Literal, cast
 
-from posttrain.common import RunContext, TraceFactSet, TraceFactUpdateObservation, TraceObservation
+from posttrain.common import (
+    EPISODE_ENDING_ATTRIBUTE,
+    RunContext,
+    TraceFactSet,
+    TraceFactUpdateObservation,
+    TraceObservation,
+)
 
+from ...grpo_observations import episode_ending_counts
 from ...online_rl import EnvironmentRollout, RolloutBatch, run_observed_rollouts
 from ...profiles import shape_online_reward
 from ...requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
@@ -80,7 +87,12 @@ def rollout_function(
             "rollout_batch_ordinal": rollout_batch_ordinal,
         }
 
+        endings: list[object] = []
+
         def observe_trace(trace: TraceObservation) -> None:
+            # Every attempted rollout is observed once, including failed and
+            # replaced ones, so endings count the attempted population.
+            endings.append(trace.attributes.get(EPISODE_ENDING_ATTRIBUTE))
             context.trace(
                 TraceObservation(
                     trace_type=trace.trace_type,
@@ -214,6 +226,7 @@ def rollout_function(
                 "train/rl/time/rollout_seconds": elapsed,
                 "train/rl/rollout_completion_tokens": completion_tokens,
                 "train/rl/rollout_selected_tokens": selected_tokens,
+                **episode_ending_counts(endings),
             },
             batch_seconds=elapsed,
         )
