@@ -210,6 +210,15 @@ distro==1.9.0 \
     --hash=sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2
     # via openai
 
+einops==0.8.2 \
+    --hash=sha256:54058201ac7087911181bfec4af6091bb59380360f069276601256a76af08193 \
+    --hash=sha256:609da665570e5e265e27283aab09e7f279ade90c4f01bcfca111f3d3e13f2827
+    # via
+    #   fla-core
+    #   flashinfer-python
+    #   quack-kernels
+    #   vllm
+
 filelock==3.31.0 \
     --hash=sha256:739b73e580fe88bb78d830aeddbc492519ece3d97ac8368de13a2032c61010c1 \
     --hash=sha256:c188cbc4307c18894c5424fa73f97ea7fa127ddf62192487546da3a214d0a381
@@ -218,6 +227,11 @@ filelock==3.31.0 \
     #   huggingface-hub
     #   torch
     #   vllm
+
+fla-core==0.5.2 \
+    --hash=sha256:5e830c85bad3d0d34677f98ac7074d08687a3756f0f0499d95ceb96eb6920761 \
+    --hash=sha256:9360fc412f784c1c8f05c320ec2902d5d968764178c9b8a92efc919e17a39680
+    # via posttrain-train
 
 frozenlist==1.8.0 \
     --hash=sha256:032efa2674356903cd0261c4317a561a6850f3ac864a63fc1583147fb05a79b0 \

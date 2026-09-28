@@ -33,6 +33,10 @@ trl = [
     "huggingface-hub>=1.31,<1.32",
     # AsyncGRPO uses Transformers' Hub-hosted FlashAttention kernel directly.
     "kernels>=0.15.2,<0.16",
+    # Triton gated-delta-rule and gated-RMSNorm kernels (import `fla`) for
+    # Qwen3.5-style Gated DeltaNet layers; without them Transformers falls
+    # back to its slow torch implementation. vLLM vendors the same kernels.
+    "fla-core>=0.5.2,<0.6",
 ]
 trl-vllm = [
     "aiohttp>=3.13,<4",

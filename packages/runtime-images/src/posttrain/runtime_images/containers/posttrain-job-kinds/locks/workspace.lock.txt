@@ -367,6 +367,7 @@ einops==0.8.2 \
     --hash=sha256:54058201ac7087911181bfec4af6091bb59380360f069276601256a76af08193 \
     --hash=sha256:609da665570e5e265e27283aab09e7f279ade90c4f01bcfca111f3d3e13f2827
     # via
+    #   fla-core
     #   flashinfer-python
     #   quack-kernels
     #   vllm
@@ -427,6 +428,10 @@ filelock==3.31.0 \
     #   huggingface-hub
     #   torch
     #   vllm
+fla-core==0.5.2 \
+    --hash=sha256:5e830c85bad3d0d34677f98ac7074d08687a3756f0f0499d95ceb96eb6920761 \
+    --hash=sha256:9360fc412f784c1c8f05c320ec2902d5d968764178c9b8a92efc919e17a39680
+    # via posttrain-train
 flashinfer-python==0.6.18.post1 \
     --hash=sha256:1ebfb8ff3fa3a896e5abbd0dec123a5f3e3734029871349dad6968b252b82097 \
     --hash=sha256:adb6d2952b47131138e108bd2999b1fe18b71f1a4c0b2684f168753db9563991

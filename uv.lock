@@ -910,6 +910,18 @@ wheels = [
 ]
 
 [[package]]
+name = "fla-core"
+version = "0.5.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "einops" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/94/85/20bdc0fbbbaeec27b5b198e0dbbbc51161a267066a4aebd9e4b413637c6c/fla_core-0.5.2.tar.gz", hash = "sha256:9360fc412f784c1c8f05c320ec2902d5d968764178c9b8a92efc919e17a39680", size = 587835, upload-time = "2026-07-27T18:26:19.424Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2d/ed/dfe19c4da779957eb6a42a26812f9b4e2280bf757a17a71933ff59ffcb98/fla_core-0.5.2-py3-none-any.whl", hash = "sha256:5e830c85bad3d0d34677f98ac7074d08687a3756f0f0499d95ceb96eb6920761", size = 819225, upload-time = "2026-07-27T18:26:16.147Z" },
+]
+
+[[package]]
 name = "flashinfer-python"
 version = "0.6.18.post1"
 source = { registry = "https://pypi.org/simple" }
@@ -3258,6 +3270,7 @@ trl = [
     { name = "bitsandbytes" },
     { name = "carbonteq-renderers" },
     { name = "datasets" },
+    { name = "fla-core" },
     { name = "huggingface-hub" },
     { name = "kernels" },
     { name = "liger-kernel" },
@@ -3289,6 +3302,7 @@ requires-dist = [
     { name = "bitsandbytes", marker = "extra == 'trl'", specifier = ">=0.49,<0.50" },
     { name = "carbonteq-renderers", marker = "extra == 'trl'", specifier = "==0.1.12.post1.dev2", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "datasets", marker = "extra == 'trl'", specifier = ">=4.6.1,<4.7" },
+    { name = "fla-core", marker = "extra == 'trl'", specifier = ">=0.5.2,<0.6" },
     { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "huggingface-hub", marker = "extra == 'trl'", specifier = ">=1.31,<1.32" },
     { name = "kernels", marker = "extra == 'trl'", specifier = ">=0.15.2,<0.16" },
