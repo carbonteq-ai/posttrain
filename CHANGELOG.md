@@ -137,6 +137,21 @@ oversampled active sampling, and a KL penalty measured against the base model.
 - Lab Verifiers environments state the harness, stage timeouts and turn and
   token limits on the agent seat, which Verifiers `cdd2ec76` requires; a test
   validates every catalog environment against the pinned Verifiers.
+- FP16 TRL training no longer fails at the first gradient overflow with a
+  fused optimizer (Transformers' default `adamw_torch_fused`): a skipped step
+  is detected from the loss scale falling, recorded in
+  `train/optimizer_step_skipped`, and its non-finite gradient norm dropped.
+- Cancelling a job on the local provider gives it 300 s (was 10 s) to save,
+  publish and finalize its cancellation checkpoint, and cleanup moves any
+  checkpoint a stopped worker did not finalize to
+  `<state>/retained-checkpoints/<run id>` instead of deleting it.
+- veRL workers start on the veRL job kind again: the worker reads the source
+  revision from the kind's `.posttrain-source-revision` snapshot marker instead
+  of running `git`, as `posttrain-runtime` does.
+- Training rollouts run the Verifiers harness scripts from the job's locked
+  environment instead of installing `uv` and the harness dependencies from
+  PyPI at the first rollout; `posttrain-runtime` enables this for every
+  packed job, as the evaluation kind already did.
 
 ## 0.4.11 - 2026-09-28
 
