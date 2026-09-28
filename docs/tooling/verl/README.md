@@ -1,5 +1,22 @@
 # veRL training backend
 
+## FP16 evidence candidate (0.9.0.post4)
+
+Branch `codex/precision-fp16` tags `carbonteq-v0.9.0.post4` at immutable
+release commit `54124edfb8d0b73694696400cf07a76a14d9be65`: post3 plus
+`actor/loss_scale` and `actor/optimizer_step_skipped` from the FSDP engine's
+fp16 `ShardedGradScaler` and the rollout-versus-actor log-probability gap
+(`training/rollout_logp_diff_{mean,p99,max}`,
+`training/rollout_seq_logp_diff_abs_mean`); no training or dependency change.
+Wheel SHA-256
+`1e5e5a50c14ec486019421ca06de03fbbc24010f850f5e66f2d731469a8f8eb0`;
+sdist SHA-256
+`8620646c250e85a0dee984d360a4c102e97a4776d5711accea8eb66a743445e5`.
+This pin (backend lock `2bad1957...`, constraints `787f7a9e...`) takes effect
+after the GitHub release, the `publish-verl-internal.yml` development
+publication and the `online-rl-verl-py313` kind rebuild; until then the
+published kind stays on post3.
+
 ## Rollout-execution development candidate
 
 Branch `codex/verl-rollout-execution` publishes `0.9.0.post3` from immutable
