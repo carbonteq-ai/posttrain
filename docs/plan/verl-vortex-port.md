@@ -290,13 +290,22 @@ adds backend support that meets those contracts; no product meaning changes.
   branch's post7 and post8 entries with the full post6 name set; post8's
   development commit `bbe090b8` is not recorded because no binding or image
   selects it. The Phase 4 and Phase 6 veRL bindings pin post8 (`ef1c3771`,
-  backend lock `a8391c4e`). The Phase 6 environment is AutomationBench
+  backend lock `a8391c4e`, later `cdd614f2`). The Phase 6 environment is AutomationBench
   (`partial_credit`), not a math-verify scorer, so the Verifiers
   off-main-thread `signal.alarm` bug found by the 0.4.12 checks does not
   affect these runs; none of this plan's veRL GPU runs trained (all failed at
   start or the first sync). Validated on post8: full ladder, and the seven
   parity files (49 passed) and the fork CPU suite (348 passed, 2 skipped)
   against the post8 release commit.
+- [x] (2026-09-29) Rebased onto `codex/release-0.4.12` at `602725cf`
+  (Verifiers `e6a3d9bb`, which scores boxed math off the main thread; veRL kind
+  lock `cdd614f2...`, catalog dependency lock `3806d424...`). The Phase 4/6
+  bindings record the new locks, and the 8 GB veRL bindings take the 0.4.12
+  host right-sizing (`00f91a9a` on `codex/verl-8gb-ray-workers`):
+  `reward.num_workers=2` and
+  `transfer_queue.backend.SimpleStorage.num_data_storage_units=2`, because
+  veRL's default 8 reward workers plus 8 TransferQueue storage units took about
+  7.4 GB and Ray killed a run at 95% of the 62 GB host's RAM.
 - [ ] GPU, when the coordinator releases the local card: Phase 4 check
   `-r5`, Qwen veRL VORTEX `-r2` and SAMPO `-r1`, then the four LFM2.5 Phase 6
   runs (only if the check succeeds); all on post8 from a clean detached
