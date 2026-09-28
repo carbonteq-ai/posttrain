@@ -1,6 +1,5 @@
 """Tests for standard definitions and default runtime composition."""
 
-import re
 from dataclasses import replace
 from pathlib import Path
 from typing import cast
@@ -61,7 +60,6 @@ from posttrain.jobs.definitions import (
     structured_rl_definition,
 )
 from posttrain.train import (
-    AdaptiveCurriculum,
     DynamicGroupSampling,
     GRPOSettings,
     SAMPOSettings,
@@ -720,28 +718,18 @@ def test_static_grpo_preparation_rejects_sampling_policy_mismatch() -> None:
 
 
 @pytest.mark.parametrize(
-    ("changes", "message"),
+    "changes",
     [
-        (
-            {
-                "algorithm": "dapo",
-                "clip_epsilon_high": 0.28,
-                "adaptive_curriculum": AdaptiveCurriculum(class_field="category"),
-            },
-            "adaptive_curriculum with DAPO is currently supported by the TRL backend only",
-        ),
-        (
-            {
-                "algorithm": "dapo",
-                "clip_epsilon_high": 0.28,
-                "dynamic_sampling": DynamicGroupSampling(max_candidate_batches=2),
-                "advantage_scaling": "batch",
-            },
-            "advantage_scaling='batch' with DAPO dynamic sampling is currently supported by the TRL backend only",
-        ),
+        {
+            "algorithm": "dapo",
+            "clip_epsilon_high": 0.28,
+            "dynamic_sampling": DynamicGroupSampling(max_candidate_batches=2),
+            "advantage_scaling": "batch",
+        },
+        {"advantage_scaling": "none", "importance_sampling_mode": "token_mask", "max_admission_attempts": 1},
     ],
 )
-def test_static_grpo_preparation_rejects_settings_verl_would_ignore(changes: dict[str, object], message: str) -> None:
+def test_static_grpo_preparation_accepts_trl_settings_on_verl(changes: dict[str, object]) -> None:
     catalog = open_catalog(scope="jobs-test")
     model = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))
     settings = GRPOSettings(
@@ -780,8 +768,7 @@ def test_static_grpo_preparation_rejects_settings_verl_would_ignore(changes: dic
         "rollout_inference": inference,
     }
 
-    with pytest.raises(ContractError, match=re.escape(message)):
-        grpo_definition().static_validator(seats)  # type: ignore[misc,arg-type]
+    grpo_definition().static_validator(seats)  # type: ignore[misc,arg-type]
 
 
 def test_static_preparation_rejects_a_training_loop_verl_cannot_run() -> None:

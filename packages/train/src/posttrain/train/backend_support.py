@@ -13,28 +13,17 @@ from .profiles import GRPOSettings, TrainingLoop
 
 
 def verl_grpo_settings_problem(settings: GRPOSettings) -> str | None:
-    """Explain the first GRPO setting veRL cannot reproduce exactly as TRL runs it, or None.
+    """Explain a GRPO setting veRL cannot reproduce exactly as TRL runs it, or None.
 
     The CarbonTeq veRL fork reproduces TRL's objective, sampler correction (every
     mode and bound), advantage scaling, truncated-completion masking, group
-    admission and learning-rate schedules; the worker also requires a fork
-    revision that provides them. What remains are two DAPO combinations.
+    admission, candidate-batch DAPO dynamic sampling (including the curriculum's
+    pool decision and batch-std scaling per candidate batch) and learning-rate
+    schedules; the worker requires a fork revision that provides them. No GRPO
+    setting is rejected.
     """
 
-    if settings.adaptive_curriculum is not None and settings.algorithm == "dapo":
-        # veRL's DAPO refill streams prompts from the dataloader with no per-round
-        # decision point; the curriculum chooses initial batches (GRPO) and every
-        # active-sampling round (OLMo 3).
-        return "adaptive_curriculum with DAPO is currently supported by the TRL backend only"
-    if settings.advantage_scaling == "batch" and settings.dynamic_sampling is not None:
-        # TRL divides by the std of each candidate batch it generates, before filtering;
-        # veRL's DAPO refill streams single prompts, so no candidate batch exists to
-        # reproduce that population.
-        return (
-            "advantage_scaling='batch' with DAPO dynamic sampling is currently supported by the TRL backend only: "
-            "TRL divides by the reward std of each candidate batch before filtering, and veRL's streaming DAPO "
-            "refill has no candidate batch with that population"
-        )
+    del settings
     return None
 
 

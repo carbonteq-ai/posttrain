@@ -41,8 +41,12 @@ _OLMO3_OBJECTIVE_NAMES = frozenset({"token_clip", "k3_unclipped"})
 _TRL_SETTING_NAMES = frozenset(
     {"trl_sampler_correction", "grpo_scaling", "row_exclusion", "admission_retries", "linear_lr"}
 )
+_TRL_DAPO_NAMES = frozenset({"candidate_batches"})
 _FORK_ONLY_NATIVE_NAMES = (
-    _OLMO3_OBJECTIVE_NAMES | {"active_sampling", "prompt_selector", "sequence_clip"} | _TRL_SETTING_NAMES
+    _OLMO3_OBJECTIVE_NAMES
+    | {"active_sampling", "prompt_selector", "sequence_clip"}
+    | _TRL_SETTING_NAMES
+    | _TRL_DAPO_NAMES
 )
 # The version is recorded for release commits only; a development commit shares
 # its parent release's version string without its content.
@@ -64,9 +68,12 @@ _FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str | None, frozenset[str]]] = {
     "4d37a18bc492f0f4f9c224285603740ef4a2ba54": (None, _FORK_ONLY_NATIVE_NAMES - _TRL_SETTING_NAMES),
     # codex/vortex-active-sampling: plus TRL's correction bounds, GRPO scaling, row exclusion,
     # group admission retries and the linear LR schedule.
-    "c55867dcfa6ca0716bccf57b492e2f4b6f7b0717": (None, _FORK_ONLY_NATIVE_NAMES),
+    "c55867dcfa6ca0716bccf57b492e2f4b6f7b0717": (None, _FORK_ONLY_NATIVE_NAMES - _TRL_DAPO_NAMES),
     # codex/vortex-active-sampling: TRL-mode GRPO statistics bitwise equal to TRL's nanstd.
-    "2607b91d3cccc9d73aae924734b5104bf8cfb590": (None, _FORK_ONLY_NATIVE_NAMES),
+    "2607b91d3cccc9d73aae924734b5104bf8cfb590": (None, _FORK_ONLY_NATIVE_NAMES - _TRL_DAPO_NAMES),
+    # codex/vortex-active-sampling: plus TRL's candidate-batch DAPO dynamic sampling.
+    "ce8e0430018204b03c009b72bfba3b58968696c7": (None, _FORK_ONLY_NATIVE_NAMES),
+    "94606019cadacb656f6e9245f4c793023df6ba12": (None, _FORK_ONLY_NATIVE_NAMES),
 }
 # Every recorded fork commit descends from post2, which added bounded rollout execution.
 _ROLLOUT_EXECUTION_FORK_REVISIONS = _ROLLOUT_EXECUTION_FORK_REVISIONS_BASE | frozenset(_FORK_NATIVE_NAME_REVISIONS)
@@ -366,6 +373,8 @@ def build_hydra_overrides(
                     "algorithm.filter_groups.enable=true",
                     # NaN marks a trajectory TRL excludes from group statistics.
                     "algorithm.filter_groups.metric=group_reward",
+                    # TRL's DAPO: whole candidate batches, one decision point per round.
+                    "algorithm.filter_groups.candidate_batches=true",
                     f"algorithm.filter_groups.max_num_gen_batches={algorithm.dynamic_sampling_max_candidate_batches}",
                 ]
             )
@@ -515,6 +524,8 @@ def requested_fork_native_names(overrides: list[str]) -> frozenset[str]:
         selected.add("admission_retries")
     if "actor_rollout_ref.actor.optim.lr_scheduler_type=linear" in plain:
         selected.add("linear_lr")
+    if "algorithm.filter_groups.candidate_batches=true" in plain:
+        selected.add("candidate_batches")
     return frozenset(selected & _FORK_ONLY_NATIVE_NAMES)
 
 

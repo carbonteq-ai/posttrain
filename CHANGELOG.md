@@ -6,6 +6,45 @@ version across first-party distributions.
 
 ## Unreleased
 
+Targets 0.4.13, which pins CarbonTeq veRL 0.9.0.post6.
+
+### Changed
+
+- **Behaviour change for veRL GRPO and DAPO runs.** veRL now reproduces the
+  semantics the selected GRPO settings always declared (TRL's), instead of
+  silently running different ones. Compared with earlier veRL runs:
+  - Policy loss: plain asymmetric token clipping (`token_clip`); veRL's
+    default loss capped negative-advantage tokens with dual clipping.
+  - KL penalty: the unclamped k3 estimator; veRL clamped it to [-10, 10].
+  - Sampler correction: the selected `importance_sampling_mode` and bounds are
+    applied (the GRPO default truncates sequence ratios to [0.1, 3.0]); veRL
+    applied no correction.
+  - Advantage scaling: the group (or batch) standard deviation plus 1e-4 with
+    TRL's statistics; veRL added 1e-6.
+  - Failed rollout groups: retried with the same prompt up to
+    `max_admission_attempts`, then dropped with the loss averaged over the
+    remaining rows; veRL either trained the incomplete group or, with
+    `rollout_execution`, replaced it with a new prompt.
+  - DAPO dynamic sampling: whole candidate batches from a reserved pool, with
+    batch-scaled advantages using each candidate batch's standard deviation;
+    veRL streamed replacement prompts.
+
+  Runs are therefore not numerically comparable with earlier veRL GRPO runs.
+  New veRL GRPO, DAPO, OLMo 3 and SAMPO runs record
+  `verl_semantics: trl-parity-v1` in `grpo_runtime_resolved`, so Observatory
+  can tell them apart.
+
+### Added
+
+- The VORTEX recipe and SAMPO on veRL: OLMo 3 loss, active sampling with
+  oversampling, the adaptive curriculum (including per-checkpoint curriculum
+  views for `--curriculum-checkpoint-step`), the truncation penalty, SAMPO's
+  turn-level advantages, and every GRPO setting previously rejected on veRL
+  (`advantage_scaling`, all importance-sampling modes and bounds,
+  `mask_truncated_completions`, `max_admission_attempts`, `lr_scheduler_type:
+  linear`, curriculum with DAPO). Each is checked against TRL's real code by
+  CPU parity tests; see `docs/plan/verl-vortex-port.md`.
+
 ## 0.4.12 - unreleased
 
 Training-harness fixes found by auditing the LFM2.5-2.6B SAMPO continuation:

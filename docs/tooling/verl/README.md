@@ -155,10 +155,14 @@ linear LR schedule. GRPO and DAPO on veRL now use `token_clip` and
 `k3_unclipped`, so their loss matches TRL's too. This changes veRL GRPO runs:
 their settings always declared these semantics, but earlier veRL runs used
 dual clipping, a clamped KL, no sampler correction, veRL's 1e-6 std epsilon
-and refill-with-new-prompts on failures. Two DAPO combinations stay TRL-only
-with the reason in the error: curriculum with DAPO, and batch advantage
-scaling with DAPO dynamic sampling. CPU parity: 48 tests against TRL post11's
-real code (plan Artifacts).
+and refill-with-new-prompts on failures. Two DAPO combinations
+were first kept TRL-only (curriculum with DAPO, and batch advantage scaling
+with DAPO dynamic sampling); fork commit
+`ce8e0430018204b03c009b72bfba3b58968696c7` then added TRL's candidate-batch DAPO
+dynamic sampling (`algorithm.filter_groups.candidate_batches`), so no GRPO
+setting is rejected on veRL. Runs record `verl_semantics: trl-parity-v1`;
+`CHANGELOG.md` lists every difference from earlier veRL runs. CPU parity: 49
+tests against TRL post11's real code (plan Artifacts).
 
 ## SAMPO on veRL (unreleased candidate)
 

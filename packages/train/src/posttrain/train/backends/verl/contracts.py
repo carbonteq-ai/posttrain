@@ -306,8 +306,6 @@ class VerlLaunchManifest(VerlContract):
                 raise ValueError("veRL maps GRPO advantage scaling only for GRPO, DAPO and OLMo 3")
             if algorithm.normalize_advantage_by_std is False and algorithm.advantage_std_scope is not None:
                 raise ValueError("an unscaled GRPO advantage has no std scope")
-            if algorithm.advantage_std_scope == "batch" and algorithm.dynamic_sampling:
-                raise ValueError("batch advantage scaling with DAPO dynamic sampling is TRL-only")
             if algorithm.online_rl_algorithm == "sampo" and (
                 algorithm.rollout_importance_sampling is None or not algorithm.active_sampling
             ):

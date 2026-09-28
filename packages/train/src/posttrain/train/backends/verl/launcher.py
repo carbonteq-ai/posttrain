@@ -58,6 +58,8 @@ _RESULT_FILE = "posttrain-result.json"
 
 
 VerlLaunchPlan = VerlLaunchManifest
+# Identifies veRL online-RL runs that reproduce TRL's GRPO/DAPO/OLMo 3/SAMPO semantics.
+VERL_SEMANTICS = "trl-parity-v1"
 
 
 def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunchPlan:
@@ -974,6 +976,10 @@ def _grpo_runtime_attributes(
         "mask_truncated_completions": request.settings.mask_truncated_completions,
         "shuffle_prompts": request.settings.shuffle_prompts,
     }
+    if isinstance(request, GRPORequest | SAMPORequest):
+        # Runs from this version on reproduce TRL's objective, correction, scaling, admission
+        # and sampling (docs/plan/verl-vortex-port.md); earlier veRL runs did not.
+        attributes["verl_semantics"] = VERL_SEMANTICS
     if isinstance(request, GRPORequest):
         attributes["kl_reference"] = resolved_kl_reference(
             request.settings.beta, request.settings.kl_reference, request.policy.form

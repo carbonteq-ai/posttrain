@@ -166,6 +166,17 @@ adds backend support that meets those contracts; no product meaning changes.
   plus curriculum and DAPO plus batch advantage scaling. Parity: 48 CPU parity
   tests pass (see Artifacts). Ladder: pyright 0, lint-imports 9 kept, pytest
   2205 passed.
+- [x] (2026-09-28) Coordinator decisions: keep TRL semantics (no option for
+  the old veRL behaviour), record the behaviour change in `CHANGELOG.md`
+  (Unreleased, targeting 0.4.13 / post6) and mark runs with
+  `verl_semantics: trl-parity-v1` in `grpo_runtime_resolved`; port TRL's
+  candidate-batch DAPO so no rejection remains. Fork commits
+  `ce8e0430018204b03c009b72bfba3b58968696c7` (`CandidateBatchReplayBuffer`,
+  `algorithm.filter_groups.candidate_batches`, per-candidate-batch std for
+  batch scaling, one prompt-selector decision per step's candidate pool) and
+  `94606019` (retry test). Posttrain maps DAPO to candidate batches and
+  `verl_grpo_settings_problem` rejects nothing. DAPO parity test passes (see
+  Artifacts).
 - [ ] Phase 4: LFM2.5 on veRL (CPU parts next; GPU runs wait for the local
   GPU to be free of the 0.4.12 qualification queue).
 - [x] (2026-09-28) Phase 5 fork: `sequence_clip` policy loss (TRL's
@@ -277,6 +288,15 @@ adds backend support that meets those contracts; no product meaning changes.
 
 ## Decision Log
 
+- Decision: DAPO on veRL uses TRL's candidate-batch dynamic sampling, and the
+  curriculum makes one `initial_batch` decision for the whole candidate pool
+  per update, not one per candidate batch.
+  Rationale: that is what the TRL backend does (`AdaptiveCurriculumTrainer`
+  selects the dynamic-sampling generation batch once; only active sampling
+  consults the controller per round), and parity is the requirement. The
+  streaming veRL refill remains available in the fork when the flag is off.
+  Date/Author: 2026-09-28, Claude.
+
 - Decision: veRL GRPO and DAPO now run TRL's objective in full: `token_clip`
   (no dual clip), `k3_unclipped`, the selected sampler correction (the GRPO
   default is sequence-truncated to [0.1, 3.0], which veRL previously did not
@@ -288,7 +308,8 @@ adds backend support that meets those contracts; no product meaning changes.
   settings, and new runs will differ numerically from them. Every mapping has
   a parity test against TRL's real code.
   Date/Author: 2026-09-28, Claude.
-- Decision: keep exactly two rejections. (1) `adaptive_curriculum` with DAPO:
+- Decision (superseded 2026-09-28 by the coordinator's request to remove every
+  rejection; both are gone after the candidate-batch DAPO port): keep exactly two rejections. (1) `adaptive_curriculum` with DAPO:
   veRL's DAPO refill streams single prompts with no per-round decision point,
   while the curriculum contract requires decisions per refill round. (2)
   `advantage_scaling: batch` with DAPO dynamic sampling: TRL divides by the std
@@ -704,6 +725,16 @@ loss matches TRL's padded, rescaled loss (float32-limited); the linear schedule
 gives TRL's learning rate at every step for three warmup/length settings.
 
     all parity files together: 48 passed in 29.53s
+
+DAPO parity (`packages/train/tests/test_verl_dapo_parity.py`): three updates
+of DAPO with the yield-first curriculum and batch advantage scaling. TRL's real
+`_prepare_dynamic_sampling_inputs` (fed by one curriculum decision per step, as
+the TRL backend's `AdaptiveCurriculumTrainer` does) and the fork's
+`CandidateBatchReplayBuffer` with Posttrain's selector use 3, 2 and 1 candidate
+batches, make identical curriculum decisions and observations, keep the same
+tasks, report identical `dynamic_sampling/*` metrics, give bitwise-equal
+advantages and end with identical controller state. Using the kept batch's std
+instead of each candidate batch's std makes the test fail.
 
 ## Interfaces and Dependencies
 

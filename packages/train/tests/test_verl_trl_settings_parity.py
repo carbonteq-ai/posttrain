@@ -45,7 +45,7 @@ from posttrain.train.backends.trl.policy_config import _online_rl_arguments  # n
 from posttrain.train.backends.verl.launcher import build_grpo_launch_plan  # noqa: E402
 from posttrain.train.backends.verl.worker import build_hydra_overrides  # noqa: E402
 
-REVISION = "2607b91d3cccc9d73aae924734b5104bf8cfb590"
+REVISION = "ce8e0430018204b03c009b72bfba3b58968696c7"
 GROUPS = 2
 GENERATIONS = 4
 ROWS = GROUPS * GENERATIONS

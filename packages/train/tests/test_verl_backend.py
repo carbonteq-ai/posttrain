@@ -182,7 +182,7 @@ def _training(*, family: str = "qwen3.5", update=None) -> TrainingBinding:
         backend_options={
             "python_executable": "/opt/posttrain-verl/bin/python",
             "working_directory": "/opt/src/verl",
-            "source_revision": "2607b91d3cccc9d73aae924734b5104bf8cfb590",
+            "source_revision": "ce8e0430018204b03c009b72bfba3b58968696c7",
             "attention_implementation": "sdpa",
         },
     )
@@ -794,7 +794,7 @@ POST4_REVISION = "54124edfb8d0b73694696400cf07a76a14d9be65"
 # codex/vortex-active-sampling: post5 plus round-based active sampling (unreleased).
 ACTIVE_SAMPLING_REVISION = "6c7295cd411c4d3973ddc206e43816560c842336"
 # codex/vortex-active-sampling with every TRL-equivalence delta (unreleased).
-FULL_REVISION = "2607b91d3cccc9d73aae924734b5104bf8cfb590"
+FULL_REVISION = "ce8e0430018204b03c009b72bfba3b58968696c7"
 
 
 def _with_revision(request, revision: str, **options: object):
@@ -1262,7 +1262,10 @@ def test_verl_grpo_maps_every_trl_setting(
         assert value in overrides
 
 
-def test_verl_rejects_batch_scaling_with_dapo_dynamic_sampling(tmp_path: Path) -> None:
+def test_verl_dapo_runs_trl_candidate_batches_with_batch_scaling_and_curriculum(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
     request = _grpo_request()
     settings = replace(
         request.settings,
@@ -1270,9 +1273,31 @@ def test_verl_rejects_batch_scaling_with_dapo_dynamic_sampling(tmp_path: Path) -
         clip_epsilon_high=0.28,
         dynamic_sampling=DynamicGroupSampling(max_candidate_batches=3),
         advantage_scaling="batch",
+        adaptive_curriculum=AdaptiveCurriculum(class_field="category"),
     )
-    with pytest.raises(ValueError, match="std of each candidate batch before filtering"):
-        build_grpo_launch_plan(replace(request, settings=settings), tmp_path)
+    plan = build_grpo_launch_plan(replace(request, settings=settings), tmp_path)
+    overrides = build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+    for expected in (
+        "algorithm.filter_groups.enable=true",
+        "algorithm.filter_groups.candidate_batches=true",
+        "algorithm.filter_groups.metric=group_reward",
+        "algorithm.filter_groups.max_num_gen_batches=3",
+        "algorithm.grpo_std_scope=batch",
+        "actor_rollout_ref.actor.loss_agg_mode=token-mean",
+    ):
+        assert expected in overrides
+    assert any(value.startswith("data.prompt_selector.class_path=") for value in overrides)
+
+
+def test_verl_dapo_requires_a_fork_with_candidate_batches(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    request = _with_revision(_grpo_request(), "2607b91d3cccc9d73aae924734b5104bf8cfb590")
+    settings = replace(
+        request.settings, algorithm="dapo", clip_epsilon_high=0.28, dynamic_sampling=DynamicGroupSampling(3)
+    )
+    plan = build_grpo_launch_plan(replace(request, settings=settings), tmp_path)
+    with pytest.raises(ValueError, match="does not register candidate_batches"):
+        build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
 
 
 @pytest.mark.parametrize(
@@ -1343,29 +1368,6 @@ def test_verl_reward_shaping_is_the_trl_rule(algorithm: str, reward: float, toke
     assert shaped == shape_online_reward(settings, reward, tokens, is_truncated=truncated)
     if truncated and algorithm != "dapo":
         assert shaped == pytest.approx(reward - 0.2)
-
-
-@pytest.mark.parametrize(
-    ("changes", "message"),
-    [
-        (
-            {
-                "algorithm": "dapo",
-                "clip_epsilon_high": 0.28,
-                "adaptive_curriculum": AdaptiveCurriculum(class_field="category"),
-            },
-            "adaptive_curriculum with DAPO is currently supported by the TRL backend only",
-        ),
-    ],
-)
-def test_verl_rejects_grpo_settings_it_would_silently_ignore(
-    tmp_path: Path, changes: dict[str, object], message: str
-) -> None:
-    request = _grpo_request()
-    settings = replace(request.settings, **changes)  # type: ignore[arg-type]
-
-    with pytest.raises(ValueError, match=re.escape(message)):
-        build_grpo_launch_plan(replace(request, settings=settings), tmp_path)
 
 
 def test_verl_grpo_settings_problem_accepts_the_defaults() -> None:
@@ -2457,3 +2459,15 @@ def test_journal_replays_events_and_metrics_and_state_is_published(tmp_path: Pat
     (artifact,) = [item for item in observer.artifacts_seen if item.kind == "adaptive-curriculum-state"]
     assert artifact.metadata["decision_count"] == 1
     assert artifact.metadata["training_backend"] == "verl"
+
+
+def test_verl_online_rl_runs_record_their_trl_parity_semantics(tmp_path: Path) -> None:
+    from posttrain.train.backends.verl.launcher import _grpo_runtime_attributes
+
+    request = _grpo_request()
+    plan = build_grpo_launch_plan(request, tmp_path)
+    assert _grpo_runtime_attributes(request, plan)["verl_semantics"] == "trl-parity-v1"
+    sampo = _verl_sampo_request()
+    assert _grpo_runtime_attributes(sampo, build_sampo_launch_plan(sampo, tmp_path))["verl_semantics"] == (
+        "trl-parity-v1"
+    )
