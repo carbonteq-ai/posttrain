@@ -85,6 +85,26 @@ def fp16_initial_loss_scale(backend_options: Mapping[str, JsonValue]) -> float |
     return float(value)
 
 
+def effective_logits_float32(backend_options: Mapping[str, JsonValue]) -> bool:
+    """Whether the trainer takes log-probabilities from float32 logits.
+
+    Always under ``training_precision: fp16``: float16 log-probabilities make
+    TRL's loss arithmetic overflow (``exp`` of a log-ratio above about 11 is
+    infinite in float16), so float16 training computes logits, log-softmax and
+    every loss term in float32. ``logits_float32: false`` is rejected there.
+    Otherwise the explicit option (default false).
+    """
+
+    explicit = backend_options.get("logits_float32")
+    if training_precision(backend_options) == "fp16":
+        if explicit is False:
+            raise ValueError(
+                "training_precision fp16 computes log-probabilities from float32 logits; remove logits_float32: false"
+            )
+        return True
+    return logits_float32(backend_options)
+
+
 def model_load_dtype(precision: TrainingPrecision) -> str:
     """The dtype the frozen base weights are loaded in for one trainer precision."""
 
@@ -207,7 +227,12 @@ def resolve_precision(
         training=training,
         model_load_dtype="float32" if backend == "verl" else model_load_dtype(training),
         loss_scaling="dynamic" if training == "fp16" else "none",
-        logits_float32=logits_float32(backend_options),
+        # TRL float16 training always takes log-probabilities from float32 logits
+        # (see effective_logits_float32). veRL runs its forward and loss under
+        # autocast, whose log-softmax and exp are float32 already.
+        logits_float32=(
+            effective_logits_float32(backend_options) if backend == "trl" else logits_float32(backend_options)
+        ),
         rollout_dtype=resolved_rollout,
         rollout_dtype_source=source,
         backend=backend,
@@ -249,6 +274,7 @@ __all__ = [
     "RolloutDtype",
     "TrainingPrecision",
     "fp16_initial_loss_scale",
+    "effective_logits_float32",
     "logits_float32",
     "model_load_dtype",
     "resolve_precision",

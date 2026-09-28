@@ -543,7 +543,7 @@ its `Precision:` line):
     training binding backend_options:
       training_precision: fp16   # default bf16
       fp16_initial_loss_scale: 1024  # fp16 only; default 1024 (PyTorch's own default is 65536)
-      logits_float32: true       # default false
+      logits_float32: true       # default false; always on (and false rejected) with fp16
     rollout inference binding engine:
       dtype: float16             # bfloat16 | float16 | float32; default: checkpoint
 
@@ -563,6 +563,18 @@ rollout batch; the framework therefore starts at 1024. Growth (doubling after
 `logits_float32` casts the language-model head's output to float32 before the
 log-softmax (the logits are still produced in the model dtype, as vLLM's
 sampler also receives them); it cannot be combined with the fused Liger loss.
+Float16 training always does this, and its trainer also casts the per-token
+log-probabilities and entropies to float32, so every loss term (the k3 KL
+`exp(ref - logp)`, token and sequence importance ratios, vLLM importance
+weights, clipped policy term and masked sums) is computed in float32. TRL
+1.12.0.post11 computes those terms in the dtype of its log-probabilities, and
+its chunked-logits path calls the LM head outside Accelerate's autocast, so
+under float16 they were float16: `exp` of a log-ratio above about 11 is
+infinite in float16, and on the masked tool and environment tokens of
+multi-turn completions (log-ratios the policy never bounded) infinity times the
+zero mask made the loss NaN. The LFM2.5-2.6B SAMPO fp16 canary skipped every
+update that way. `logits_float32: false` is rejected with fp16. The fused Liger
+loss computes its logits and loss in float32 itself.
 Both options are online-RL only (GRPO, SAMPO, GDPO, CAPO); SFT, DPO and
 distillation reject them.
 

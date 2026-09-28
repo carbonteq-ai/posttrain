@@ -14,7 +14,7 @@ from typing import Literal
 from posttrain.common import ExecutionTarget, JsonValue, ModelVariant
 from posttrain.common.selections import validate_revision, validate_selection_id
 
-from .precision import fp16_initial_loss_scale, logits_float32, training_precision
+from .precision import effective_logits_float32, fp16_initial_loss_scale, logits_float32, training_precision
 from .profiles import TrainingRenderer
 
 
@@ -146,6 +146,8 @@ def _validate_precision(backend: str, update: ParameterUpdatePlan, options: Mapp
         raise ValueError("training_precision and logits_float32 are implemented by the TRL and veRL backends only")
     if float32_logits and product != "trl":
         raise ValueError("logits_float32 is implemented by the TRL backend only")
+    if product == "trl":
+        effective_logits_float32(options)  # float16 training rejects logits_float32: false
     if precision == "fp16" and product == "trl" and update.kind != "lora":
         raise ValueError(
             "training_precision fp16 requires a LoRA update: the adapter holds the float32 master weights "
