@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import time
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
@@ -148,6 +149,10 @@ def actor_update_trainer_type(parent: type[Any], telemetry: ActorUpdateTelemetry
     class ActorUpdateTrainer(parent):
         _microstep_started_at: float | None = None
 
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            self._posttrain_sampler_gap = SamplerGapAccumulator()
+            super().__init__(*args, **kwargs)
+
         def _prepare_inputs(self, generation_batch: dict[str, Any]) -> dict[str, Any]:
             prepared = super()._prepare_inputs(generation_batch)
             if self.model.training:
@@ -169,9 +174,16 @@ def actor_update_trainer_type(parent: type[Any], telemetry: ActorUpdateTelemetry
         def _vllm_importance_sampling_ratio(self, actor_logps: Any, sampling_logps: Any, mask: Any) -> Any:
             result = super()._vllm_importance_sampling_ratio(actor_logps, sampling_logps, mask)
             if self.model.training:
-                for name, value in sampler_gap_statistics(actor_logps, sampling_logps, mask).items():
-                    self._metrics["train"][name].append(value)
+                # Called once per generation batch, or once per micro-batch when the
+                # ratio comes from the training forward; pooled until the update logs.
+                self._posttrain_sampler_gap.add(actor_logps, sampling_logps, mask)
             return result
+
+        def log(self, logs: dict[str, float], start_time: float | None = None) -> None:
+            if self.model.training:
+                for name, value in self._posttrain_sampler_gap.flush().items():
+                    self._metrics["train"][name].append(value)
+            super().log(logs, start_time)
 
         def training_step(self, *args: Any, **kwargs: Any) -> Any:
             loss = super().training_step(*args, **kwargs)
@@ -184,28 +196,45 @@ def actor_update_trainer_type(parent: type[Any], telemetry: ActorUpdateTelemetry
     return ActorUpdateTrainer
 
 
-def sampler_gap_statistics(actor_logps: Any, sampling_logps: Any, mask: Any) -> dict[str, float]:
-    """Tail and sequence-level size of the trainer-sampler log-probability gap.
+class SamplerGapAccumulator:
+    """Pool the trainer-sampler log-probability gap over one logged update.
 
     TRL reports the mean and maximum per-token gap; the 99th percentile shows
     whether the tail that the importance-sampling cap truncates moved, and the
     mean absolute per-sequence sum is the sequence-level log-ratio that
-    sequence importance sampling (SAMPO) uses.  Tokens whose sampler
-    log-probability is unavailable (NaN) are excluded, as in TRL.
+    sequence importance sampling (SAMPO) uses.  Both are computed over every
+    token and sequence of the update, however TRL splits it into calls.
+    Tokens whose sampler log-probability is unavailable (NaN) are excluded, as
+    in TRL.  Statistics are per process.
     """
 
-    import torch
+    def __init__(self) -> None:
+        self._tokens: list[Any] = []
+        self._sequences: list[Any] = []
 
-    difference = (actor_logps.detach().float() - sampling_logps.detach().float()) * mask
-    valid = mask.bool() & ~torch.isnan(difference)
-    tokens = difference[valid].abs()
-    if tokens.numel() == 0:
-        return {}
-    per_sequence = torch.nan_to_num(difference, nan=0.0).sum(dim=-1)[valid.any(dim=-1)]
-    return {
-        "sampling/sampling_logp_difference/p99": float(torch.quantile(tokens, 0.99)),
-        "sampling/sequence_logp_difference/abs_mean": float(per_sequence.abs().mean()),
-    }
+    def add(self, actor_logps: Any, sampling_logps: Any, mask: Any) -> None:
+        import torch
+
+        difference = (actor_logps.detach().float() - sampling_logps.detach().float()) * mask
+        valid = mask.bool() & ~torch.isnan(difference)
+        if not bool(valid.any()):
+            return
+        self._tokens.append(difference[valid].abs().cpu())
+        self._sequences.append(torch.nan_to_num(difference, nan=0.0).sum(dim=-1)[valid.any(dim=-1)].cpu())
+
+    def flush(self) -> dict[str, float]:
+        import torch
+
+        if not self._tokens:
+            return {}
+        tokens, sequences = torch.cat(self._tokens), torch.cat(self._sequences)
+        self._tokens, self._sequences = [], []
+        # Nearest-rank percentile: torch.quantile rejects inputs above 16M elements.
+        rank = max(1, math.ceil(0.99 * tokens.numel()))
+        return {
+            "sampling/sampling_logp_difference/p99": float(tokens.kthvalue(rank).values),
+            "sampling/sequence_logp_difference/abs_mean": float(sequences.abs().mean()),
+        }
 
 
 def _synchronize_cuda() -> None:
@@ -233,5 +262,5 @@ __all__ = [
     "actor_update_callback_type",
     "actor_update_trainer_type",
     "normalize_live_metrics",
-    "sampler_gap_statistics",
+    "SamplerGapAccumulator",
 ]

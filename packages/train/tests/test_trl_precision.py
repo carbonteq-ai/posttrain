@@ -11,7 +11,7 @@ import pytest
 from posttrain.common.variants import QWEN_35_2B
 from posttrain.train import FullParameterUpdate, LoRAUpdate, QLoRAUpdate, TrainingLoop
 from posttrain.train.backends.trl.common import load_trainable_model, trainer_arguments, vllm_rollout_options
-from posttrain.train.backends.trl.policy_telemetry import sampler_gap_statistics
+from posttrain.train.backends.trl.policy_telemetry import SamplerGapAccumulator
 from posttrain.train.backends.trl.precision_runtime import (
     LossScaleMonitor,
     require_default_precision,
@@ -169,18 +169,23 @@ def test_infinite_grad_norm_is_dropped_only_for_a_skipped_step() -> None:
     assert seen == [{"loss": 0.5}, {"grad_norm": math.inf, "loss": 0.5}, {"grad_norm": 1.5}]
 
 
-def test_sampler_gap_statistics_measure_the_tail_and_sequence_sums() -> None:
+def test_sampler_gap_is_pooled_over_the_whole_update() -> None:
     torch = pytest.importorskip("torch")
-    actor = torch.tensor([[-0.1, -0.2, -0.3, 0.0], [-1.0, -1.0, 0.0, 0.0]])
-    sampler = torch.tensor([[-0.1, -0.1, float("nan"), 0.0], [-1.5, -1.0, 0.0, 0.0]])
-    mask = torch.tensor([[1.0, 1.0, 1.0, 0.0], [1.0, 1.0, 0.0, 0.0]])
-    stats = sampler_gap_statistics(actor, sampler, mask)
-    assert stats["sampling/sampling_logp_difference/p99"] == pytest.approx(
-        float(torch.quantile(torch.tensor([0.0, 0.1, 0.5, 0.0]), 0.99))
+    gap = SamplerGapAccumulator()
+    # Two calls, as when the ratio is computed per micro-batch from the training forward.
+    gap.add(
+        torch.tensor([[-0.1, -0.2, -0.3, 0.0]]),
+        torch.tensor([[-0.1, -0.1, float("nan"), 0.0]]),
+        torch.tensor([[1.0, 1.0, 1.0, 0.0]]),
     )
+    gap.add(torch.tensor([[-1.0, -1.0, 0.0]]), torch.tensor([[-1.5, -1.0, 0.0]]), torch.tensor([[1.0, 1.0, 0.0]]))
+    gap.add(torch.zeros(1, 2), torch.zeros(1, 2), torch.zeros(1, 2))  # no scored tokens: ignored
+    stats = gap.flush()
+    # Pooled tokens |gap| = 0.0, 0.1, 0.5, 0.0; the nearest-rank 99th percentile is the largest.
+    assert stats["sampling/sampling_logp_difference/p99"] == pytest.approx(0.5)
     # Per-sequence sums of (trainer - sampler): -0.1 (the NaN token counts as zero) and +0.5.
     assert stats["sampling/sequence_logp_difference/abs_mean"] == pytest.approx(0.3)
-    assert sampler_gap_statistics(actor, sampler, torch.zeros_like(mask)) == {}
+    assert gap.flush() == {}
 
 
 def _tiny_float16_lora(tmp_path: Path) -> tuple[Any, Any, Any]:
