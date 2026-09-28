@@ -49,7 +49,14 @@ step-140 checkpoint, with mistakes per episode falling.
   training binding `g144-w12@1` (12 workers x 12 episodes), rollout binding
   `c144-4k-t05@1` (`max_num_seqs` 144, 41 GiB KV cache), environment
   `max_concurrent` 144. `posttrain job plan` passes.
-- [ ] Launch and monitor.
+- [x] (2026-09-27 22:57 UTC) Launched `lfm26-sampo-cont120-g24x6-lr5e5-kl1e2-t05-20260928-r1`
+  from `decfaab0` (clean `rl-perf-guard` checkout).
+- [x] (2026-09-28 06:25 UTC) Cancelled during update 44 (user): the model
+  drifted without improving, and an environment bug ends ~8% of episodes at
+  the context limit. Update 40 is the last saved checkpoint (verified).
+  Run notes `cont120-why-this-run` and `cont120-why-stopped` hold the details.
+- [ ] Fix the environment and harness issues, choose a stronger drift brake,
+  restart from update 40.
 
 ## Surprises & Discoveries
 
@@ -104,7 +111,24 @@ step-140 checkpoint, with mistakes per episode falling.
 
 ## Outcomes & Retrospective
 
-Not yet run.
+Run r1 (2026-09-28), updates 1-43 of 100, cancelled:
+
+- Reward 0.42 (updates 1-10) -> ~0.37 (31-43); entropy 0.18 -> 0.30; KL to
+  the update-120 start 0.001 -> 0.048, about 16x SAMPO's first 40 updates.
+  Transcripts stayed coherent; output length and tool use were steady.
+- Clip fraction was 0 on every update. With one optimizer step per batch,
+  TRL sets old log-probs to the current forward (`grpo_trainer.py`
+  3823-3829 at `4950b99d`), so the ratio is 1 and clipping never engages.
+  Only the KL penalty resists drift, and at beta 0.01 it is ~200x weaker than
+  the episode advantages.
+- `google_sheets_find_many_rows` ignores its lookup and returns the first 10
+  rows. Parallel lookups overflow the 24,576-token context; vLLM returns
+  HTTP 400 and the episode is recorded as an ordinary truncation with no
+  error. About 7.8% of episodes (9.0% in the SAMPO run) ended this way,
+  82 of 90 in `support.gorgias_refund_processing`.
+- About 10 minutes per update (4.9 s per rollout, as before): 100 updates
+  would have taken 17-19 h, not 10-13 h. The actor step grows with the batch
+  and refill rounds still run one after another.
 
 ## Context and Orientation
 
