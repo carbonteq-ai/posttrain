@@ -1,0 +1,34 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-sampo-turns-precision-fp16-canary-v1
+stage: train
+description: Five SAMPO updates of LFM2.5-2.6B from the fixed-tools continuation's adapter with its bindings and settings (sampo-turns-v3, 24 x 6, g144-w12, c144 DSpark rollout, temperature 0.5) and trainer fp16 (dynamic loss scaling, float32 LoRA master weights) and the c144 DSpark rollout engine in float16; measures the sampler-trainer log-prob gap, importance-sampling truncation, loss scale and skipped steps, reward, rollout speed and memory (docs/plan/fp16-training-precision.md).
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-sampo-turns-precision-fp16-canary-v1@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    reward_projection: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: sampo
+      kind: train.sampo
+      definition: train/sampo-turns@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, per-turn environment reward evidence, adaptive curriculum state, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-sampo-turns-v3}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-sampo-turns-5-g24x6-lr5e-5-kl1e-2-t05-precision-canary-v1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-turn-progress@2}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-local-g144-w12-fp16@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c144-4k-t05-fp16@1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-automationbench-precision-canary-v1
+  arm: sampo-turns-precision-fp16-canary
+  question: On the production LFM2.5-2.6B SAMPO setup, does fp16 on both the trainer and the rollout engine change the sampler-trainer log-prob gap, truncation, stability and rollout speed (Qi et al. 2025, Section 4.4)?
+  labels: [experiment, precision, fp16, canary, sampo, turn-rewards, automationbench, lfm2.5, local-rtx-pro-6000]
