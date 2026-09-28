@@ -258,8 +258,32 @@ adds backend support that meets those contracts; no product meaning changes.
   (byte-identical across two clean builds), sdist
   `3b0259523476d67aff9282b2b3c775c081bd866c04d369ad7a5eda8af6607088`; assets in
   `/home/hammad/verl-release/verl-post7/dist1/`.
-- [ ] Publish post7, pin it (release project, profile, bindings), publish the
-  veRL kind image, then rerun the Phase 4 check and the Phase 6 runs.
+- [x] (2026-09-29) The coordinator published post7 (GitHub release
+  `carbonteq-v0.9.0.post7`, Posttrain publish run 36483660287; the index
+  serves both hashes). Post7 pin commit on this branch: the kind's release
+  project selects `6069abe1`, `uv lock --python 3.13.12` changes only veRL
+  (lock `a9562cb1...`, constraints `8562363a...`), `profile.toml`,
+  `release/forks.toml`, the release tests and every veRL binding (precision,
+  adapter continuation, Phase 4 check, Phase 6) follow.
+- [x] (2026-09-29) The coordinator published the 0.4.13.dev2 veRL kind image
+  (post7) and committed `published.toml` as `b8f39356`; the remaining runs use
+  a clean detached worktree of it (`../rl-verl-vortex-run2`).
+- [x] (2026-09-29) Qwen Phase 6 TRL twins succeeded:
+  `verl-vortex-p6-qwen08b-trl-vortex-r1` and
+  `verl-vortex-p6-qwen08b-trl-sampo-r1` (worktree `ab929f9d`).
+  `verl-vortex-p6-qwen08b-verl-vortex-r1` failed at vLLM start: it was queued
+  and started by the long-running `posttrain controller` of another checkout
+  (`/home/hammad/projects/rl-controller`), which lacks the `/dev/shm` fix.
+  `verl-vortex-lfm12-check-20260929-r4` landed in the queue the same way and
+  was cancelled before start. Runs are now submitted by a serial driver
+  (session scratchpad `verl-vortex/runs/serial_driver.sh`) only when the card
+  and the local admission queue are idle, so this checkout starts each
+  container itself; a submission that still lands in the queue is cancelled
+  and retried under the next attempt id.
+- [ ] Paused at the coordinator's request so the release-0.4.12 veRL check
+  (`q0412g-verl-qwen08b-bf16-r1`) runs first. On resume, in order: Phase 4
+  check `-r5`, Qwen veRL VORTEX `-r2` and SAMPO `-r1`, then the four LFM2.5
+  Phase 6 runs (only if the check succeeds).
 - [x] (2026-09-29) `codex/verl-vortex-active-sampling` rebased onto
   `origin/codex/release-0.4.12` at `36932821` (one test-file conflict, both
   sides kept); full ladder and the seven parity files pass after the rebase.
