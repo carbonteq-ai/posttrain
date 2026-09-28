@@ -10,6 +10,7 @@ from posttrain.common import ExecutionTarget
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
     BundleRef,
+    ExecutionHandle,
     ExecutionMount,
     ExecutionPolicy,
     ExecutionRequest,
@@ -17,6 +18,7 @@ from posttrain.execution import (
 )
 from posttrain.tracking import RunSpec
 from posttrain_execution_local import DockerCli, LocalDockerExecutionProvider
+from posttrain_execution_local.adapter import LOCAL_STOP_GRACE_SECONDS
 
 
 class FakeDocker:
@@ -350,3 +352,92 @@ def test_docker_cli_active_by_run_filters_on_the_run_label(monkeypatch: pytest.M
 
     assert response == {"containers": [{"name": "pt-live", "state": "running"}]}
     assert captured[0][:6] == ["docker", "container", "ls", "--all", "--filter", "label=posttrain.run_id=orphan-run"]
+
+
+def test_docker_cli_stop_grace_covers_the_cancel_checkpoint_and_finalization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def run(arguments, **kwargs):
+        del kwargs
+        calls.append(list(arguments))
+        return subprocess.CompletedProcess(arguments, 0, "", "")
+
+    monkeypatch.setattr("posttrain_execution_local.adapter.subprocess.run", run)
+    DockerCli(environment={}).invoke("cancel", {"name": "pt-test"})
+
+    # 60 s for the in-flight update, then the checkpoint save, publication and
+    # tracking finalization; ten seconds killed a run mid-publication (exit 137).
+    assert calls == [["docker", "stop", "--time", "300", "pt-test"]]
+    assert LOCAL_STOP_GRACE_SECONDS >= 180
+
+
+def _checkpoint(workspace: Path, relative: str) -> None:
+    directory = workspace / relative
+    directory.mkdir(parents=True)
+    (directory / "adapter_model.safetensors").write_bytes(b"weights")
+
+
+def test_cleanup_retains_checkpoints_a_stopped_worker_did_not_finalize(tmp_path: Path) -> None:
+    gateway = FakeDocker()
+    gateway.exists = True
+    gateway.status, gateway.exit_code = "exited", 137
+    state_root = (tmp_path / "state").resolve()
+    provider = LocalDockerExecutionProvider(gateway, state_root=state_root)
+    handle = ExecutionHandle("local-docker", "pt-run", "key")
+    workspace = tmp_path / "test-run"
+    _checkpoint(workspace, "outputs/trainer/checkpoint-40")
+    _checkpoint(workspace, "outputs/trainer/checkpoint-45")
+    (workspace / "outputs/trainer/checkpoint-45/nested/checkpoint-1").mkdir(parents=True)
+    (workspace / "outputs/trainer/checkpoint-empty").mkdir()
+    image = RuntimeImageRef(f"registry.lan/posttrain@sha256:{'b' * 64}")
+
+    result = provider.cleanup(handle, run_id="test-run", run_workspace=workspace, runtime_image=image)
+
+    retained = state_root / "retained-checkpoints" / "test-run"
+    assert (
+        "cleanup_workspace",
+        {
+            "workspace": str(workspace),
+            "image": image.value,
+            "retain": ["outputs/trainer/checkpoint-40", "outputs/trainer/checkpoint-45"],
+            "retain_to": str(retained),
+        },
+    ) in gateway.calls
+    assert retained.is_dir()
+    assert "did not finalize" in result.message and str(retained) in result.message
+
+    # A worker that finalized tracking wrote the terminal marker: its outputs are committed.
+    gateway.calls.clear()
+    (workspace / ".posttrain-terminal.json").write_text("{}")
+    provider.cleanup(handle, run_id="test-run", run_workspace=workspace, runtime_image=image)
+    assert ("cleanup_workspace", {"workspace": str(workspace), "image": image.value}) in gateway.calls
+
+
+def test_docker_cli_moves_retained_checkpoints_before_emptying_the_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def run(arguments, **kwargs):
+        del kwargs
+        calls.append(list(arguments))
+        return subprocess.CompletedProcess(arguments, 0, "", "")
+
+    monkeypatch.setattr("posttrain_execution_local.adapter.subprocess.run", run)
+    DockerCli(environment={}).invoke(
+        "cleanup_workspace",
+        {
+            "workspace": "/state/runs/r",
+            "image": "img",
+            "retain": ["out/checkpoint-45"],
+            "retain_to": "/state/retained-checkpoints/r",
+        },
+    )
+
+    [arguments] = calls
+    assert arguments[:4] == ["docker", "run", "--rm", "--entrypoint"]
+    assert "/state/retained-checkpoints/r:/opt/posttrain/retained" in arguments
+    script = arguments[-1]
+    assert script.index("mv -- /opt/posttrain/cleanup/out/checkpoint-45") < script.index("find /opt/posttrain/cleanup")
