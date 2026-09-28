@@ -1345,7 +1345,7 @@ environment:
 
   # sampo-turns-v2 on automationbench-v1 0.5.0 (tool fixes, list arguments,
   # Sheets row updates kept); same tasks, penalties and sampling.
-  automationbench-lfm26-sampo-turns-v3:
+  automationbench-lfm26-sampo-turns-v3: &automationbench_sampo_turns_v3
     <<: *automationbench_train_mix_v3
     source:
       package: automationbench-v1
@@ -1373,6 +1373,14 @@ environment:
           max_output_tokens: 12288
     sampling: *policy_sampling_4k_t05
     max_concurrent: 144
+
+  # sampo-turns-v3 with room for 180 concurrent episodes, so an update's
+  # oversampled first round of active sampling ((24 + 4) x 6 = 168 episodes)
+  # and every refill round run in one wave. Same tasks, adapter, penalties and
+  # sampling.
+  automationbench-lfm26-sampo-turns-v3-c180:
+    <<: *automationbench_sampo_turns_v3
+    max_concurrent: 180
   automationbench-lfm26-train-mix-episode-judged-v2: &automationbench_train_mix_episode_judged_v2
     category: agentic-tool-use
     source:
