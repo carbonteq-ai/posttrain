@@ -2612,9 +2612,14 @@ export interface components {
          * @description Where values come from: a field, a settings path, a metric name, a trace fact.
          *
          *     A ``trace_attribute`` is a key the producer recorded in the trace's metadata
-         *     (its attributes); it serves labels Trackio has no fact column for yet.
+         *     (its attributes); it serves labels Trackio has no fact column for yet. A
+         *     ``trace_fact`` may name a ``fallback_attribute``: the metadata key read when
+         *     the fact column is empty, for traces whose facts were projected before the
+         *     fact existed.
          */
         Source: {
+            /** Fallback Attribute */
+            fallback_attribute?: string | null;
             kind: components["schemas"]["SourceKind"];
             /** Name */
             name: string;

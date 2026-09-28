@@ -5669,8 +5669,20 @@
       },
       "Source": {
         "additionalProperties": false,
-        "description": "Where values come from: a field, a settings path, a metric name, a trace fact.\n\nA ``trace_attribute`` is a key the producer recorded in the trace's metadata\n(its attributes); it serves labels Trackio has no fact column for yet.",
+        "description": "Where values come from: a field, a settings path, a metric name, a trace fact.\n\nA ``trace_attribute`` is a key the producer recorded in the trace's metadata\n(its attributes); it serves labels Trackio has no fact column for yet. A\n``trace_fact`` may name a ``fallback_attribute``: the metadata key read when\nthe fact column is empty, for traces whose facts were projected before the\nfact existed.",
         "properties": {
+          "fallback_attribute": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Attribute"
+          },
           "kind": {
             "$ref": "#/components/schemas/SourceKind"
           },

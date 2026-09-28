@@ -67,14 +67,24 @@ def _trace(index: int, *, step: int, task: str, reward: float, truncated: bool) 
         "stop_condition": "max_turns" if truncated else "agent_completed",
         "is_completed": not truncated,
     }
+    ending = "turn_limit" if truncated else "completed"
+    dimensions: dict[str, str | int | bool] = {
+        "task_id": task,
+        "rollout_step": step,
+        "is_truncated": truncated,
+        "has_error": False,
+    }
+    # rollout-0 and rollout-1 have the ending as a fact (rollout-1 only there), rollout-3 only as a
+    # trace attribute (facts projected before the fact existed), and rollout-2 predates the label.
+    if index in (0, 1):
+        dimensions["episode_ending"] = ending
     facts = TraceFactSet(
         namespace="verifiers.trace",
         calculator_version="test.v1",
-        dimensions={"task_id": task, "rollout_step": step, "is_truncated": truncated, "has_error": False},
+        dimensions=dimensions,
         measures={"task_reward": reward, "model_output_tokens": 100.0 * (index + 1)},
     )
-    # The producer records the ending as a trace attribute; rollout-2 predates the label.
-    attributes = {} if index == 2 else {"episode_ending": "turn_limit" if truncated else "completed"}
+    attributes = {"episode_ending": ending} if index in (0, 3) else {}
     return TraceObservation("verifiers", f"rollout-{index}", payload, attributes=attributes, facts=(facts,))
 
 

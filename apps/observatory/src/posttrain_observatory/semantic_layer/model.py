@@ -42,14 +42,24 @@ class Source(ObservatoryModel):
     """Where values come from: a field, a settings path, a metric name, a trace fact.
 
     A ``trace_attribute`` is a key the producer recorded in the trace's metadata
-    (its attributes); it serves labels Trackio has no fact column for yet.
+    (its attributes); it serves labels Trackio has no fact column for yet. A
+    ``trace_fact`` may name a ``fallback_attribute``: the metadata key read when
+    the fact column is empty, for traces whose facts were projected before the
+    fact existed.
     """
 
     kind: SourceKind
     name: str = Field(min_length=1)
+    fallback_attribute: str | None = Field(default=None, min_length=1)
     # `one_minus` turns a fraction into its complement (for example the share of
     # rollouts that did not fall back to sparse rewards).
     transform: Literal["identity", "one_minus"] = "identity"
+
+    @model_validator(mode="after")
+    def validate_fallback(self) -> Source:
+        if self.fallback_attribute is not None and self.kind != "trace_fact":
+            raise ValueError("only a trace_fact source can fall back to a trace attribute")
+        return self
 
 
 class Entity(ObservatoryModel):

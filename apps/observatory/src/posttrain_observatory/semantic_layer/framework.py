@@ -315,7 +315,7 @@ DIMENSIONS = (
             + "; ".join(f"{name} ({meaning})" for name, meaning in EPISODE_ENDING_DESCRIPTIONS.items())
             + ". Every ending but completed and error is truncated; empty for traces recorded before the label."
         ),
-        source=Source(kind="trace_attribute", name=EPISODE_ENDING_ATTRIBUTE),
+        source=Source(kind="trace_fact", name="episode_ending", fallback_attribute=EPISODE_ENDING_ATTRIBUTE),
     ),
     Dimension(
         name="rollout.failed",

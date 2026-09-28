@@ -138,6 +138,7 @@ def test_rollouts_group_by_the_recorded_episode_ending(trackio_project: TrackioD
     assert set(by_ending) == {"completed", "turn_limit", None}
     assert by_ending["turn_limit"]["rollouts"] == 1 and by_ending["turn_limit"]["rollout.truncated"] is True
     assert by_ending["completed"]["rollouts"] == 2 and by_ending["completed"]["rollout.truncated"] is False
+    # rollout-1's ending is only a fact and rollout-3's only a trace attribute; both count.
     # A trace recorded before the label has no ending, and keeps its truncation fact.
     assert by_ending[None]["rollouts"] == 1 and by_ending[None]["rollout_reward"] == 0.5
 
