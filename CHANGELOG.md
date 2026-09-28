@@ -150,6 +150,11 @@ oversampled active sampling, and a KL penalty measured against the base model.
   run, correct replies included). Verifiers `e6a3d9bb` (`0.3.2.dev94`) scores
   such calls in a worker process that keeps the timeout. TRL scored on the
   main thread and was unaffected.
+  Every environment package pins the same Verifiers, so the lab and base
+  catalogs move to pin-only verifiers-environments commits: `11f4d712` (on
+  `5264ec15`), `e9eacc3c` (on `3a486b0a`), `a344d127` (on `0afb73d7`) and
+  `0bad6187` (on `61448b5d`, AutomationBench 0.5.0). Environment code is
+  unchanged at each revision.
 - veRL runs failed after their last update while recording rewards: the
   launcher attached a `rollout_step` dimension to each trace's
   `algorithm_reward` enrichment, which Trackio rejects (`a trace-fact

@@ -28,7 +28,7 @@ runtime uv-script and MCP-install locks are kept per event loop (a scoring call
 abandoned in an earlier collection's loop poisoned later calls). GSM8K scores in-process
 from environments 0.3.0.
 The environment packages select this commit from
-`verifiers-environments@5264ec153a543c62688efaa1ffe28aedb247d5bb`, released as
+`verifiers-environments@11f4d712806d292c6c6a752af046f4e16c4f037e`, released as
 [`carbonteq-2026.09.25.2`](https://github.com/carbonteq-ai/verifiers-environments/releases/tag/carbonteq-2026.09.25.2)
 and on that repository's `main`. The dormant veRL runtime kind deliberately
 keeps its previously qualified `b71ade0a` backend closure until veRL is

@@ -254,7 +254,7 @@ def _vllm_entry(declared: dict[str, Any], dependencies: dict[str, Any]) -> ForkL
 def _automationbench_entry(declared: dict[str, Any], root: Path) -> ForkLedgerEntry:
     text = (root / _AUTOMATIONBENCH).read_text(encoding="utf-8")
     environment_revision = _python_constant(text, "AUTOMATIONBENCH_REVISION")
-    if environment_revision != "5264ec153a543c62688efaa1ffe28aedb247d5bb":
+    if environment_revision != "11f4d712806d292c6c6a752af046f4e16c4f037e":
         raise ValueError("AutomationBench environment source changed; update the release ledger deliberately")
     return _entry(
         declared,
