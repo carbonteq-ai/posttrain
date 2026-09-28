@@ -15,6 +15,12 @@ precision on both sides:
   trainer casts the language-model head's output to float32 before the
   log-softmax, so its log-probabilities are not rounded to the model dtype.
   The default (false) keeps the existing behaviour.
+* ``backend_options.fp16_initial_loss_scale`` on a training binding: the
+  dynamic loss scaler's starting scale in fp16 (default 1024, only with
+  ``training_precision: fp16``). PyTorch starts at 65536 and halves the scale on
+  every overflow; in online RL each overflow skips a whole rollout batch, so a
+  scale that starts near the working range saves the first updates. Growth
+  (doubling after a run of finite steps) keeps its default.
 * ``engine.dtype`` on a rollout inference binding: the vLLM compute dtype
   (``bfloat16``, ``float16`` or ``float32``).  Without it vLLM follows the
   checkpoint, except that a TurboQuant KV cache requires float16.
@@ -25,6 +31,7 @@ and display the selected precision without the training runtime.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Literal
@@ -38,6 +45,9 @@ TRAINING_PRECISIONS: tuple[TrainingPrecision, ...] = ("bf16", "fp16")
 ROLLOUT_DTYPES: tuple[RolloutDtype, ...] = ("bfloat16", "float16", "float32")
 _MODEL_LOAD_DTYPE: dict[TrainingPrecision, str] = {"bf16": "bfloat16", "fp16": "float16"}
 _CHECKPOINT_DTYPE: dict[str, RolloutDtype] = {"bf16": "bfloat16", "fp16": "float16", "fp32": "float32"}
+DEFAULT_FP16_INITIAL_LOSS_SCALE = 1024.0
+FP16_INITIAL_LOSS_SCALE_ENV = "POSTTRAIN_FP16_INITIAL_LOSS_SCALE"
+VERL_LOSS_SCALE_HOOK = "posttrain.train.backends.verl.loss_scale_hook.configure_initial_loss_scale"
 
 
 def training_precision(backend_options: Mapping[str, JsonValue]) -> TrainingPrecision:
@@ -58,6 +68,21 @@ def logits_float32(backend_options: Mapping[str, JsonValue]) -> bool:
     if not isinstance(value, bool):
         raise ValueError("training backend_options.logits_float32 must be a boolean")
     return value
+
+
+def fp16_initial_loss_scale(backend_options: Mapping[str, JsonValue]) -> float | None:
+    """The fp16 dynamic loss scaler's starting scale (default 1024), or None without fp16."""
+
+    value = backend_options.get("fp16_initial_loss_scale")
+    if training_precision(backend_options) != "fp16":
+        if value is not None:
+            raise ValueError("training backend_options.fp16_initial_loss_scale requires training_precision: fp16")
+        return None
+    if value is None:
+        return DEFAULT_FP16_INITIAL_LOSS_SCALE
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value) or value <= 0:
+        raise ValueError("training backend_options.fp16_initial_loss_scale must be a finite positive number")
+    return float(value)
 
 
 def model_load_dtype(precision: TrainingPrecision) -> str:
@@ -118,6 +143,7 @@ class ResolvedPrecision:
     rollout_dtype: str | None
     rollout_dtype_source: Literal["binding", "turboquant", "checkpoint", "backend-default"] | None
     backend: Literal["trl", "verl"] = "trl"
+    initial_loss_scale: float | None = None
 
     def as_dict(self) -> dict[str, JsonValue]:
         return {
@@ -128,6 +154,7 @@ class ResolvedPrecision:
             "rollout_dtype": self.rollout_dtype,
             "rollout_dtype_source": self.rollout_dtype_source,
             "backend": self.backend,
+            "initial_loss_scale": self.initial_loss_scale,
         }
 
     def without_rollout(self) -> ResolvedPrecision:
@@ -136,7 +163,10 @@ class ResolvedPrecision:
         return replace(self, rollout_dtype=None, rollout_dtype_source=None)
 
     def summary(self) -> str:
-        scaling = ", dynamic loss scaling" if self.loss_scaling == "dynamic" else ""
+        scaling = ""
+        if self.loss_scaling == "dynamic":
+            start = f" from {self.initial_loss_scale:g}" if self.initial_loss_scale is not None else ""
+            scaling = f", dynamic loss scaling{start}"
         if self.backend == "verl":
             compute = "float16" if self.training == "fp16" else "bfloat16"
             trainer = f"trainer {self.training} (FSDP {compute} compute over float32 master weights{scaling})"
@@ -181,6 +211,7 @@ def resolve_precision(
         rollout_dtype=resolved_rollout,
         rollout_dtype_source=source,
         backend=backend,
+        initial_loss_scale=fp16_initial_loss_scale(backend_options),
     )
 
 
@@ -194,21 +225,30 @@ def verl_mixed_precision_overrides(backend_options: Mapping[str, JsonValue]) -> 
     precision so the KL term compares like with like.
     """
 
-    if training_precision(backend_options) != "fp16":
+    initial_scale = fp16_initial_loss_scale(backend_options)
+    if initial_scale is None:
         return []
     policy = "{param_dtype:fp16,reduce_dtype:fp32,buffer_dtype:fp32}"
     return [
         f"+actor_rollout_ref.actor.fsdp_config.mixed_precision={policy}",
         f"+actor_rollout_ref.ref.fsdp_config.mixed_precision={policy}",
+        # veRL creates its ShardedGradScaler in the Ray actor processes with a fixed
+        # constructor; the worker setup hook gives it the selected starting scale.
+        f"++ray_kwargs.ray_init.runtime_env.env_vars.{FP16_INITIAL_LOSS_SCALE_ENV}='{initial_scale:g}'",
+        f"++ray_kwargs.ray_init.runtime_env.worker_process_setup_hook={VERL_LOSS_SCALE_HOOK}",
     ]
 
 
 __all__ = [
+    "DEFAULT_FP16_INITIAL_LOSS_SCALE",
+    "FP16_INITIAL_LOSS_SCALE_ENV",
     "ROLLOUT_DTYPES",
+    "VERL_LOSS_SCALE_HOOK",
     "TRAINING_PRECISIONS",
     "ResolvedPrecision",
     "RolloutDtype",
     "TrainingPrecision",
+    "fp16_initial_loss_scale",
     "logits_float32",
     "model_load_dtype",
     "resolve_precision",

@@ -14,7 +14,7 @@ from typing import Literal
 from posttrain.common import ExecutionTarget, JsonValue, ModelVariant
 from posttrain.common.selections import validate_revision, validate_selection_id
 
-from .precision import logits_float32, training_precision
+from .precision import fp16_initial_loss_scale, logits_float32, training_precision
 from .profiles import TrainingRenderer
 
 
@@ -138,6 +138,7 @@ def _validate_precision(backend: str, update: ParameterUpdatePlan, options: Mapp
 
     precision = training_precision(options)
     float32_logits = logits_float32(options)
+    fp16_initial_loss_scale(options)  # only with fp16, and a finite positive number
     if precision == "bf16" and not float32_logits:
         return
     product = backend.split("@", 1)[0]

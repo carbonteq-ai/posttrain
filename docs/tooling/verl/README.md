@@ -173,7 +173,13 @@ published fork 18338a0e): the worker adds
 `+actor_rollout_ref.{actor,ref}.fsdp_config.mixed_precision={param_dtype:fp16,reduce_dtype:fp32,buffer_dtype:fp32}`,
 and the V1 trainer's `FSDPEngine` then computes in float16 over float32 master
 weights with a `ShardedGradScaler(growth_interval=400)` that skips overflowing
-steps. The bf16 default adds no override. The rollout `engine.dtype` becomes
+steps. veRL builds that scaler in its Ray actors without a configurable start,
+so for `fp16_initial_loss_scale` (default 1024) the worker also passes
+`++ray_kwargs.ray_init.runtime_env.env_vars.POSTTRAIN_FP16_INITIAL_LOSS_SCALE`
+and the Ray `worker_process_setup_hook`
+`posttrain.train.backends.verl.loss_scale_hook.configure_initial_loss_scale`,
+which makes the value the constructor's default `init_scale` in every Ray
+worker. The bf16 default adds no override. The rollout `engine.dtype` becomes
 `actor_rollout_ref.rollout.dtype` (default `bfloat16`; float16 for a TurboQuant
 KV cache). veRL logs neither the loss scale nor skipped steps; Posttrain records
 a step whose gradient norm is infinite under fp16 as

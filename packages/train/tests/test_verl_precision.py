@@ -71,7 +71,7 @@ def test_backend_overrides_cannot_replace_the_selected_precision() -> None:
 def test_resolved_verl_precision_describes_fsdp_master_weights() -> None:
     resolved = resolve_precision({"training_precision": "fp16"}, {"dtype": "float16"}, "bf16", backend="verl")
     assert resolved.summary() == (
-        "trainer fp16 (FSDP float16 compute over float32 master weights, dynamic loss scaling); "
+        "trainer fp16 (FSDP float16 compute over float32 master weights, dynamic loss scaling from 1024); "
         "rollout vLLM float16 (binding)"
     )
     default = resolve_precision({}, {}, "bf16", backend="verl")
@@ -161,3 +161,36 @@ def test_post4_loss_scale_and_log_prob_gap_metrics_normalize(tmp_path: Path) -> 
     assert last["train/rl/sampling_logp_delta_max"] == 0.1
     assert last["train/rl/sampling_sequence_logp_delta_abs_mean"] == 0.05
     assert last["train/rl/sampling_prob_delta_mean"] == 0.001
+
+
+def test_fp16_initial_loss_scale_reaches_verls_sharded_grad_scaler(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """veRL builds ShardedGradScaler(growth_interval=400) in its Ray actors; the setup hook starts it at 1024."""
+
+    overrides = _overrides(tmp_path, monkeypatch, options={"training_precision": "fp16"}, engine={"dtype": "float16"})
+    assert "++ray_kwargs.ray_init.runtime_env.env_vars.POSTTRAIN_FP16_INITIAL_LOSS_SCALE='1024'" in overrides
+    assert (
+        "++ray_kwargs.ray_init.runtime_env.worker_process_setup_hook="
+        "posttrain.train.backends.verl.loss_scale_hook.configure_initial_loss_scale"
+    ) in overrides
+    selected = _overrides(
+        tmp_path,
+        monkeypatch,
+        options={"training_precision": "fp16", "fp16_initial_loss_scale": 256},
+        engine={"dtype": "float16"},
+    )
+    assert "++ray_kwargs.ray_init.runtime_env.env_vars.POSTTRAIN_FP16_INITIAL_LOSS_SCALE='256'" in selected
+    assert not any("ray_kwargs" in value for value in _overrides(tmp_path, monkeypatch))
+
+    # What the hook does in a Ray worker process, with veRL's own constructor call.
+    sharded = pytest.importorskip("torch.distributed.fsdp.sharded_grad_scaler")
+    from posttrain.train.backends.verl.loss_scale_hook import configure_initial_loss_scale
+
+    monkeypatch.setattr(sharded.ShardedGradScaler, "__init__", sharded.ShardedGradScaler.__init__)
+    monkeypatch.setenv("POSTTRAIN_FP16_INITIAL_LOSS_SCALE", "256")
+    configure_initial_loss_scale()
+    configure_initial_loss_scale()  # idempotent: wraps the original constructor once
+    scaler = sharded.ShardedGradScaler(device="cpu", growth_interval=400)
+    assert scaler.get_scale() == 256.0 and scaler._growth_interval == 400
+    assert sharded.ShardedGradScaler(device="cpu", init_scale=8.0).get_scale() == 8.0

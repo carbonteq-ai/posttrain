@@ -539,6 +539,7 @@ its `Precision:` line):
 
     training binding backend_options:
       training_precision: fp16   # default bf16
+      fp16_initial_loss_scale: 1024  # fp16 only; default 1024 (PyTorch's own default is 65536)
       logits_float32: true       # default false
     rollout inference binding engine:
       dtype: float16             # bfloat16 | float16 | float32; default: checkpoint
@@ -551,6 +552,11 @@ checks that before training and records `train/loss_scale`,
 `train/optimizer_step_skipped` and `train/optimizer_steps_skipped` after every
 optimizer step; one skipped step discards one rollout batch. The gradient norm
 of a skipped step is infinite by construction and is not treated as a failure.
+`fp16_initial_loss_scale` is the scaler's starting scale. Starting at
+PyTorch's 65536, the Qwen3.5-0.8B fp16 arm overflowed and skipped updates 1-5
+and 7 while the scale backed off to 1024, and every skipped step discards a
+rollout batch; the framework therefore starts at 1024. Growth (doubling after
+2000 finite steps) is unchanged.
 `logits_float32` casts the language-model head's output to float32 before the
 log-softmax (the logits are still produced in the model dtype, as vLLM's
 sampler also receives them); it cannot be combined with the fused Liger loss.

@@ -14,6 +14,7 @@ from posttrain.train.backends.trl.common import load_trainable_model, trainer_ar
 from posttrain.train.backends.trl.policy_telemetry import SamplerGapAccumulator
 from posttrain.train.backends.trl.precision_runtime import (
     LossScaleMonitor,
+    apply_initial_loss_scale,
     require_default_precision,
     require_float32_trainable_parameters,
     upcast_logits_to_float32,
@@ -32,6 +33,7 @@ def test_defaults_resolve_to_the_existing_bf16_behaviour() -> None:
         "rollout_dtype": "bfloat16",
         "rollout_dtype_source": "checkpoint",
         "backend": "trl",
+        "initial_loss_scale": None,
     }
     arguments = trainer_arguments(TrainingLoop(max_steps=2), Path("out"))
     assert (arguments["bf16"], arguments["fp16"]) == (True, False)
@@ -45,7 +47,7 @@ def test_unified_fp16_resolves_trainer_scaling_and_rollout_dtype() -> None:
     assert resolved.loss_scaling == "dynamic"
     assert (resolved.rollout_dtype, resolved.rollout_dtype_source) == ("float16", "binding")
     assert resolved.summary() == (
-        "trainer fp16 (base weights float16, dynamic loss scaling; log-probs from float16 logits); "
+        "trainer fp16 (base weights float16, dynamic loss scaling from 1024; log-probs from float16 logits); "
         "rollout vLLM float16 (binding)"
     )
     arguments = trainer_arguments(TrainingLoop(max_steps=2), Path("out"), precision="fp16")
@@ -321,3 +323,35 @@ def test_a_non_finite_grad_norm_without_a_scaler_skip_still_fails_the_run() -> N
     normalize(1, {"grad_norm": math.nan})
     assert math.isnan(cast(float, seen[0]["grad_norm"]))  # kept, so the normalizer fails the run
     assert context.metrics_seen[0][0]["train/optimizer_step_skipped"] == 0.0
+
+
+def test_fp16_initial_loss_scale_defaults_to_1024_and_is_validated() -> None:
+    from posttrain.train.precision import fp16_initial_loss_scale
+
+    assert fp16_initial_loss_scale({"training_precision": "fp16"}) == 1024.0
+    assert fp16_initial_loss_scale({"training_precision": "fp16", "fp16_initial_loss_scale": 256}) == 256.0
+    assert fp16_initial_loss_scale({}) is None
+    with pytest.raises(ValueError, match="requires training_precision: fp16"):
+        fp16_initial_loss_scale({"fp16_initial_loss_scale": 256})
+    for bad in (0, -1, math.inf, True, "1024"):
+        with pytest.raises(ValueError, match="finite positive number"):
+            fp16_initial_loss_scale({"training_precision": "fp16", "fp16_initial_loss_scale": bad})
+    resolved = resolve_precision({"training_precision": "fp16", "fp16_initial_loss_scale": 512}, None, "bf16")
+    assert resolved.as_dict()["initial_loss_scale"] == 512.0
+    assert "dynamic loss scaling from 512" in resolved.summary()
+
+
+def test_configured_initial_loss_scale_reaches_the_trainer_gradient_scaler() -> None:
+    torch = pytest.importorskip("torch")
+    scaler = torch.amp.GradScaler("cpu")
+    trainer = SimpleNamespace(accelerator=SimpleNamespace(scaler=scaler))
+
+    apply_initial_loss_scale(trainer, 1024.0)
+
+    assert scaler.get_scale() == 1024.0
+    parameter = torch.nn.Parameter(torch.ones(2))
+    scaler.scale(parameter.sum()).backward()  # the scale tensor is created from the configured start
+    assert scaler.get_scale() == 1024.0 and scaler._growth_interval == 2000  # growth keeps its default
+    apply_initial_loss_scale(SimpleNamespace(), None)  # bf16: nothing to configure
+    with pytest.raises(RuntimeError, match="no gradient scaler"):
+        apply_initial_loss_scale(SimpleNamespace(accelerator=SimpleNamespace(scaler=None)), 1024.0)

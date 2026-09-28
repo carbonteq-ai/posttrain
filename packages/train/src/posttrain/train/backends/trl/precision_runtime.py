@@ -94,6 +94,24 @@ class LossScaleMonitor:
         return normalize
 
 
+def apply_initial_loss_scale(trainer: Any, initial_scale: float | None) -> None:
+    """Start the trainer's fp16 GradScaler at ``initial_scale`` (a no-op without fp16).
+
+    Accelerate creates the scaler with PyTorch's default 65536 when the trainer
+    is built; the scale tensor is created lazily at the first scaled backward
+    pass from ``_init_scale``, which is set here. A scaler that already has a
+    scale (restored from a checkpoint) keeps it.
+    """
+
+    if initial_scale is None:
+        return
+    scaler = getattr(getattr(trainer, "accelerator", None), "scaler", None)
+    if scaler is None:
+        raise RuntimeError("fp16 training has no gradient scaler to start at the selected loss scale")
+    if getattr(scaler, "_scale", None) is None:
+        scaler._init_scale = float(initial_scale)
+
+
 def loss_scale_callback_type(imports: Mapping[str, Any], monitor: LossScaleMonitor) -> type[Any]:
     parent = imports["TrainerCallback"]
 
@@ -164,6 +182,7 @@ def require_default_precision(backend_options: Mapping[str, JsonValue], techniqu
 
 __all__ = [
     "LossScaleMonitor",
+    "apply_initial_loss_scale",
     "loss_scale_callback_type",
     "require_default_precision",
     "require_float32_trainable_parameters",

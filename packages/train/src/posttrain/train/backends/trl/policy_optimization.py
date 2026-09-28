@@ -69,6 +69,7 @@ from .policy_telemetry import (
 )
 from .precision_runtime import (
     LossScaleMonitor,
+    apply_initial_loss_scale,
     loss_scale_callback_type,
     require_float32_trainable_parameters,
     upcast_logits_to_float32,
@@ -249,6 +250,7 @@ def _run_online_rl(
                 callbacks=callbacks,
             )
             _configure_liger_loss(trainer, request)
+            apply_initial_loss_scale(trainer, precision.initial_loss_scale)
             # Re-check with the engine's resolved limit before the first rollout.
             validate_oversampled_round_capacity(
                 request,
