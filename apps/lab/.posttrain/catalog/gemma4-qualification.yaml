@@ -16,22 +16,13 @@ environment:
           runtime:
             type: subprocess
           timeout:
-            setup: 120
-            rollout: 180
-            finalize: 60
+            setup: 600
+            rollout: 300
+            finalize: 120
             scoring: 120
         taskset:
           id: gsm8k-v1
           split: train
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 600
-          rollout: 300
-          finalize: 120
-          scoring: 120
     sampling:
       max_tokens: 512
       temperature: 1.0
