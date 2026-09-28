@@ -50,6 +50,7 @@ from posttrain.execution import (
     DatasetPackageLock,
     JobPackageManifest,
     RuntimeImageRef,
+    execution_shared_memory_gb,
     resolved_inputs_digest,
 )
 from posttrain.jobs import build_job_runtime
@@ -103,6 +104,7 @@ _LAUNCH_RUN_FIELDS = {
     "job_definition_id",
 }
 _TERMINAL_MARKER = ".posttrain-terminal.json"
+_SHARED_MEMORY_PATH = Path("/dev/shm")
 _TERMINAL_SCHEMA = "posttrain.worker-terminal.v1"
 
 
@@ -202,6 +204,7 @@ def _execute_manifest(path: Path) -> WorkerExecutionResult:
     package = _verify_package(path)
     launch = _load_launch()
     _verify_launch_identity(package.manifest, launch)
+    _require_shared_memory(launch)
     # A packed job image carries every Verifiers harness dependency in its locked
     # environments; rollouts and evaluations must not install them from PyPI.
     os.environ.setdefault(PREINSTALLED_ENV, "1")
@@ -659,6 +662,52 @@ def _load_launch() -> _ExecutionLaunch:
         artifacts=artifacts,
         resolved_inputs=cast(Mapping[str, JsonValue], raw_inputs),
     )
+
+
+def _shared_memory_bytes(path: Path = _SHARED_MEMORY_PATH) -> int | None:
+    """The size of the container's shared-memory tmpfs, or None when it is absent."""
+
+    try:
+        stats = os.statvfs(path)
+    except OSError:
+        return None
+    return stats.f_blocks * stats.f_frsize
+
+
+def _require_shared_memory(launch: _ExecutionLaunch) -> None:
+    """Fail at job start when the provider did not give /dev/shm the declared size.
+
+    The providers apply the target's shared-memory requirement (``docker run
+    --shm-size``, dstack ``resources.shm_size``), but a provider can ignore it:
+    dstack's RunPod backend creates pods whose /dev/shm RunPod sizes. Without
+    this check such a job fails minutes later inside vLLM, NCCL or a dataloader
+    worker (vLLM's engine start needs a 160 MiB segment) instead of here, with
+    the sizes and the target named.
+    """
+
+    try:
+        target = ExecutionTarget(
+            id=_required_string(launch.target.get("id"), "launch target id"),
+            revision=_required_string(launch.target.get("revision"), "launch target revision"),
+            device_class=_required_string(launch.target.get("device_class"), "launch target device class"),
+            placement=cast(Mapping[str, JsonValue], launch.target.get("placement") or {}),
+        )
+    except (TypeError, ValueError) as error:
+        raise ContractError("execution launch target is invalid") from error
+    required_gb = execution_shared_memory_gb(target)
+    actual = _shared_memory_bytes()
+    where = f"target {target.id} on provider {launch.provider}"
+    if actual is None:
+        raise ContractError(
+            f"the job container has no {_SHARED_MEMORY_PATH} ({where}); it requires {required_gb} GiB of shared memory"
+        )
+    if actual < required_gb * 2**30:
+        raise ContractError(
+            f"the job container's {_SHARED_MEMORY_PATH} is {actual / 2**30:.2f} GiB but {where} requires "
+            f"{required_gb} GiB, so the provider did not apply the shared-memory size; vLLM, NCCL and dataloader "
+            "workers would fail later. Run on a provider or fleet that sets the container's shared-memory size, "
+            "or declare the size this provider gives as placement shm_size_gb on the target"
+        )
 
 
 def _verify_launch_identity(
@@ -1374,6 +1423,7 @@ def _worker_context() -> dict[str, JsonValue]:
     context: dict[str, JsonValue] = {
         "hostname": socket.gethostname(),
         "python": sys.version.split()[0],
+        "shared_memory_bytes": _shared_memory_bytes(),
     }
     try:
         result = subprocess.run(

@@ -153,9 +153,14 @@ oversampled active sampling, and a KL penalty measured against the base model.
   provider passes `docker run --shm-size` (a private tmpfs, not `--ipc=host`);
   dstack receives `resources.shm_size` and a matching `resources.memory`
   minimum so the offer can hold it. dstack applies the size on VM and SSH
-  fleets; its RunPod backend creates pods whose shared memory RunPod sets.
-  `posttrain job plan` prints `Container shared memory:`, and the job run
-  plan, provider plan and submission receipt record `shared_memory_gb`.
+  fleets; its RunPod backend creates pods whose shared memory RunPod sets, so
+  the job runtime now checks `/dev/shm` at start and fails at once, naming the
+  required and actual size, the target and the provider, when it is smaller
+  than required (declare `shm_size_gb` on a target whose provider sets a
+  smaller fixed size). Runs record the size in the worker context
+  (`shared_memory_bytes`). `posttrain job plan` prints `Container shared
+  memory:`, and the job run plan, provider plan and submission receipt record
+  `shared_memory_gb`.
 - veRL multi-turn episodes reported the prompt message spans of a bridged turn
   with one entry per new message instead of one per message of the
   conversation, so Verifiers attributed tool-result tokens to the wrong
