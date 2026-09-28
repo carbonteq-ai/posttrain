@@ -7,6 +7,7 @@ files:
   - gemma4-qualification.yaml
   - iwopd-sampling-qualification.yaml
   - lfm26-automationbench-comparison.yaml
+  - precision-qualification.yaml
   - serving-capacity.yaml
   - starter-qualification.yaml
   - transform-qualification.yaml
