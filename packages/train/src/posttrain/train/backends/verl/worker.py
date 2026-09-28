@@ -545,6 +545,7 @@ def _olmo3_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
 
 CURRICULUM_SELECTOR_CONFIG = "curriculum-selector.json"
 CURRICULUM_STATE_DIR = "adaptive-curriculum"
+CURRICULUM_CHECKPOINT_VIEWS_DIR = "curriculum-checkpoints"
 
 
 def _curriculum_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
@@ -572,6 +573,7 @@ def _write_curriculum_selector_config(manifest: VerlLaunchManifest) -> None:
         state_dir=output / CURRICULUM_STATE_DIR,
         journal_path=output / CURRICULUM_JOURNAL_NAME,
         warm_start_state_dir=payload.curriculum_from,
+        checkpoint_views_dir=output / CURRICULUM_CHECKPOINT_VIEWS_DIR,
     ).write(output / CURRICULUM_SELECTOR_CONFIG)
 
 

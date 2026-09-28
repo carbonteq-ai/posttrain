@@ -497,8 +497,8 @@ def _publish_curriculum_state(context: RunContext, request: GRPORequest, output_
     """Replay the selector's curriculum events and publish its state like the TRL path."""
 
     from ...adaptive_curriculum import CURRICULUM_SNAPSHOT_NAME, digest_curriculum_state
-    from .curriculum import CURRICULUM_JOURNAL_NAME, replay_curriculum_journal
-    from .worker import CURRICULUM_STATE_DIR
+    from .curriculum import CURRICULUM_JOURNAL_NAME, checkpoint_views, replay_curriculum_journal
+    from .worker import CURRICULUM_CHECKPOINT_VIEWS_DIR, CURRICULUM_STATE_DIR
 
     curriculum = request.settings.adaptive_curriculum
     assert curriculum is not None
@@ -507,10 +507,36 @@ def _publish_curriculum_state(context: RunContext, request: GRPORequest, output_
     snapshot = state_dir / CURRICULUM_SNAPSHOT_NAME
     if not snapshot.is_file():
         raise RuntimeError(f"veRL completed without its adaptive curriculum state: {snapshot}")
+    technique = request.settings.algorithm
+    for step, view in checkpoint_views(output_dir / CURRICULUM_CHECKPOINT_VIEWS_DIR):
+        # The same per-checkpoint view the TRL path publishes, so a later run can
+        # warm-start with --curriculum-checkpoint-step from this veRL run.
+        view = view.resolve()
+        context.artifact(
+            ProducedArtifact(
+                name=f"training/{request.policy.id}/{technique}/checkpoint-{step:08d}/curriculum",
+                kind="adaptive-curriculum-state",
+                reference=LocalArtifactRef(view, digest_curriculum_state(view)),
+                metadata={
+                    "technique": technique,
+                    "model_variant_id": request.policy.id,
+                    "training_settings_id": request.settings.id,
+                    "training_settings_revision": request.settings.revision,
+                    "parameter_update_kind": request.training.update.kind,
+                    "global_step": step,
+                    "checkpoint_step": step,
+                    "checkpoint_snapshot_id": f"{context.run_id}/step-{step:08d}",
+                    "checkpoint_view": "curriculum",
+                    "interrupted": False,
+                    "training_backend": "verl",
+                },
+                role="checkpoint-curriculum",
+            )
+        )
     decision_index = json.loads(snapshot.read_text(encoding="utf-8")).get("decision_index")
     context.artifact(
         ProducedArtifact(
-            name=f"training/{request.policy.id}/{request.settings.algorithm}/adaptive-curriculum-state",
+            name=f"training/{request.policy.id}/{technique}/adaptive-curriculum-state",
             kind="adaptive-curriculum-state",
             reference=LocalArtifactRef(state_dir, digest_curriculum_state(state_dir)),
             metadata={

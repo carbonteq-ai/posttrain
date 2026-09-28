@@ -136,7 +136,10 @@ state in each `global_step_*` folder. Posttrain's
 `AdaptiveCurriculumRuntime` as the TRL path; its events and metrics are
 journaled to `verl-curriculum-events.jsonl` and replayed by the parent, and
 the final state is published as `adaptive-curriculum-state`. The snapshot
-`adaptive-curriculum-state.json` sits in each veRL checkpoint folder. The
+`adaptive-curriculum-state.json` sits in each veRL checkpoint folder and is also
+copied to `curriculum-checkpoints/step-<N>/`, which the launcher publishes as the
+TRL path's per-checkpoint view (`checkpoint-<N>/curriculum`), so
+`--curriculum-checkpoint-step` warm starts work from veRL runs. The
 adapter accepts the curriculum with GRPO and OLMo 3 (not DAPO) on revisions
 recorded with `prompt_selector`.
 

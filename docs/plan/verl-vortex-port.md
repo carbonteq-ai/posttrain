@@ -141,6 +141,16 @@ adds backend support that meets those contracts; no product meaning changes.
   (DAPO stays TRL-only). Decision-level parity test against the TRL path
   passes (see Artifacts). Ladder: pyright 0, lint-imports 9 kept, pytest
   2200 passed.
+- [x] (2026-09-28) Phase 3 addendum (coordinator: no deferral): per-checkpoint
+  curriculum views on veRL. The selector copies each checkpoint's snapshot to
+  `curriculum-checkpoints/step-<N>/`; the launcher publishes every view as
+  `training/<model>/<technique>/checkpoint-<N>/curriculum`
+  (`adaptive-curriculum-state`, role `checkpoint-curriculum`, metadata
+  `checkpoint_step`), exactly like the TRL path, so
+  `--curriculum-checkpoint-step N` selects it. CLI test
+  `test_a_verl_run_checkpoint_curriculum_view_is_selectable_and_warm_starts`
+  publishes views from a veRL selector, selects step 1, checks it holds the
+  step-1 controller, and warm-starts a new selector from it.
 - [ ] Phase 3 GPU check with the other phases (post6 image).
 - [ ] Phase 4: LFM2.5 on veRL.
 - [ ] Phase 5: SAMPO on veRL.

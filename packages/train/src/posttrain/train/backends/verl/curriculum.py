@@ -42,6 +42,9 @@ class SelectorConfig:
     state_dir: Path
     journal_path: Path
     warm_start_state_dir: Path | None = None
+    # Per-checkpoint views (``step-<N>/adaptive-curriculum-state.json``) that the
+    # parent publishes like the TRL path's ``checkpoint-<N>/curriculum`` outputs.
+    checkpoint_views_dir: Path | None = None
 
     def write(self, path: Path) -> None:
         payload = {
@@ -50,6 +53,7 @@ class SelectorConfig:
             "state_dir": str(self.state_dir),
             "journal_path": str(self.journal_path),
             "warm_start_state_dir": str(self.warm_start_state_dir) if self.warm_start_state_dir else None,
+            "checkpoint_views_dir": str(self.checkpoint_views_dir) if self.checkpoint_views_dir else None,
         }
         path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -57,12 +61,14 @@ class SelectorConfig:
     def read(cls, path: Path) -> SelectorConfig:
         payload = json.loads(path.read_text(encoding="utf-8"))
         warm = payload.get("warm_start_state_dir")
+        views = payload.get("checkpoint_views_dir")
         return cls(
             settings=dict(payload["settings"]),
             num_generations=int(payload["num_generations"]),
             state_dir=Path(payload["state_dir"]),
             journal_path=Path(payload["journal_path"]),
             warm_start_state_dir=Path(warm) if warm else None,
+            checkpoint_views_dir=Path(views) if views else None,
         )
 
 
@@ -113,6 +119,7 @@ class PosttrainCurriculumSelector:
         self.num_generations = config.num_generations
         self.state_dir = config.state_dir
         self.warm_start_state_dir = config.warm_start_state_dir
+        self.checkpoint_views_dir = config.checkpoint_views_dir
         self.context = _JournalContext(config.journal_path)
         self.rows = _dataset_rows(dataset, self.settings.class_field)
         self.index_by_task: dict[str, int] = {}
@@ -158,7 +165,13 @@ class PosttrainCurriculumSelector:
             self._runtime().observe_rewards(inputs, rewards, [1.0], step=global_steps)
 
     def save_checkpoint(self, local_dir: str) -> None:
-        self._runtime().checkpoint(Path(local_dir))
+        checkpoint = Path(local_dir)
+        self._runtime().checkpoint(checkpoint)
+        if self.checkpoint_views_dir is not None:
+            step = checkpoint_step(checkpoint)
+            view = self.checkpoint_views_dir / f"step-{step:08d}"
+            view.mkdir(parents=True, exist_ok=True)
+            (view / CURRICULUM_SNAPSHOT_NAME).write_bytes((checkpoint / CURRICULUM_SNAPSHOT_NAME).read_bytes())
 
     def load_checkpoint(self, local_dir: str) -> None:
         self._runtime(resume_checkpoint=Path(local_dir))
@@ -169,6 +182,28 @@ class PosttrainCurriculumSelector:
     def close(self) -> None:
         if self.runtime is not None:
             self.runtime.close()
+
+
+def checkpoint_step(checkpoint: Path) -> int:
+    """The optimizer step of a veRL ``global_step_<N>`` checkpoint folder."""
+
+    prefix = "global_step_"
+    if not checkpoint.name.startswith(prefix) or not checkpoint.name[len(prefix) :].isdigit():
+        raise ValueError(f"not a veRL global_step checkpoint folder: {checkpoint}")
+    return int(checkpoint.name[len(prefix) :])
+
+
+def checkpoint_views(views_dir: Path) -> list[tuple[int, Path]]:
+    """``(step, view directory)`` of every per-checkpoint curriculum view, in step order."""
+
+    if not views_dir.is_dir():
+        return []
+    views = []
+    for child in views_dir.iterdir():
+        name = child.name
+        if name.startswith("step-") and name[5:].isdigit() and (child / CURRICULUM_SNAPSHOT_NAME).is_file():
+            views.append((int(name[5:]), child))
+    return sorted(views)
 
 
 def replay_curriculum_journal(context: RunContext, path: Path) -> int:
@@ -211,6 +246,8 @@ __all__ = [
     "CURRICULUM_JOURNAL_NAME",
     "PosttrainCurriculumSelector",
     "SelectorConfig",
+    "checkpoint_step",
+    "checkpoint_views",
     "final_snapshot_from_checkpoint",
     "replay_curriculum_journal",
 ]
