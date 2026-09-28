@@ -35,6 +35,7 @@ from .hosted import (
     ProviderEndpointProfile,
     validate_secret_free_http_url,
 )
+from .interruption import CancellationRequest, CriticalSection, HostCancellation, host_cancellation
 from .jsonl_journal import AppendOnlyJsonlTailer, JsonlJournalStats
 from .models import (
     ChatTemplate,
@@ -52,6 +53,7 @@ from .validation import CheckOutcome, ConfigurationIssue, SettingOrigin
 __all__ = [
     "ArtifactRef",
     "AppendOnlyJsonlTailer",
+    "CancellationRequest",
     "CancellationToken",
     "Catalog",
     "CatalogLayer",
@@ -60,10 +62,12 @@ __all__ = [
     "CheckOutcome",
     "ConfigurationIssue",
     "ContractError",
+    "CriticalSection",
     "EventObservation",
     "ExternalInferenceService",
     "ExecutionTarget",
     "HubModelRef",
+    "HostCancellation",
     "HostedModel",
     "HostedInferenceBinding",
     "JudgeInferenceBinding",
@@ -100,5 +104,6 @@ __all__ = [
     "TraceRewardComponent",
     "TrackioArtifactRef",
     "Workload",
+    "host_cancellation",
     "validate_secret_free_http_url",
 ]

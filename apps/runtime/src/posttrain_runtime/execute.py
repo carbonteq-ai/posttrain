@@ -29,6 +29,7 @@ from posttrain.common import (
     ExecutionTarget,
     JsonValue,
     OperationCancelled,
+    host_cancellation,
 )
 from posttrain.data import (
     DatasetLoadPlan,
@@ -371,32 +372,34 @@ def _graceful_cancellation() -> Iterator[None]:
 
     Raising ``SystemExit`` transfers control through the tracked-run cancellation
     path while preserving the conventional ``128 + signal`` process exit code.
-    A repeated signal is ignored during unwinding so it cannot interrupt the
-    bounded tracking finalizer; the provider may still enforce its hard-kill
-    timeout with SIGKILL.
+    Each signal goes through the process-wide ``posttrain.common`` cancellation
+    gate: a reusable package that is inside an atomic update, such as a training
+    optimizer step, receives the exit when that update completes, and the gate
+    forces it after a bounded deferral. A repeated signal is ignored during
+    unwinding so it cannot interrupt the bounded cancellation checkpoint or
+    tracking finalizer; the provider may still enforce its hard-kill timeout with
+    SIGKILL.
     """
 
     previous = {number: signal.getsignal(number) for number in _CANCELLATION_SIGNALS}
-    terminating = False
+    gate = host_cancellation()
 
     def request_termination(
         signum: int,
         frame: FrameType | None,
     ) -> None:
         del frame
-        nonlocal terminating
-        if terminating:
-            return
-        terminating = True
-        raise SystemExit(128 + signum)
+        gate.request(signum)
 
-    for number in _CANCELLATION_SIGNALS:
-        signal.signal(number, request_termination)
+    gate.arm()
     try:
+        for number in _CANCELLATION_SIGNALS:
+            signal.signal(number, request_termination)
         yield
     finally:
         for number, handler in previous.items():
             signal.signal(number, handler)
+        gate.disarm()
 
 
 @contextmanager

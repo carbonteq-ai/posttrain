@@ -21,6 +21,7 @@ from posttrain.common import (
     ExecutionTarget,
     JsonValue,
     LocalArtifactRef,
+    host_cancellation,
 )
 from posttrain.data import (
     DatasetLoadPlan,
@@ -295,6 +296,7 @@ def _runtime(
     with_dataset: bool = False,
     terminate: bool = False,
     terminate_signal: int = signal.SIGTERM,
+    terminate_inside_update: bool = False,
     fail: bool = False,
 ) -> WorkPackageContext:
     def execute(context, seats):
@@ -307,6 +309,12 @@ def _runtime(
             source_metadata.append(dict(context.source_metadata))
         if terminate:
             signal.raise_signal(terminate_signal)
+        if terminate_inside_update:
+            with host_cancellation().critical("optimizer_update"):
+                signal.raise_signal(terminate_signal)
+                # An atomic update finishes before the deferred exit is delivered.
+                seen.append("update completed")
+            seen.append("unreachable after the update")
         if fail:
             raise RuntimeError("expected worker failure")
         return {"checked": True}
@@ -653,6 +661,50 @@ def test_worker_cancel_signal_durably_cancels_tracking_before_exit(
     assert [outcome.status for outcome in backend.tracked.outcomes] == ["cancelled"]
     marker = json.loads((tmp_path / "runs" / "run-runtime-1" / ".posttrain-terminal.json").read_text(encoding="utf-8"))
     assert marker["status"] == "cancelled"
+
+
+def test_worker_cancel_signal_waits_for_an_atomic_update_before_exit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cancel that lands inside a declared atomic update is delivered when it ends."""
+
+    manifest_path, manifest = _actual_job(tmp_path / "job")
+    backend = _TrackingBackend(repeat_signal=signal.SIGINT)
+    seen: list[str] = []
+    monkeypatch.setenv("POSTTRAIN_EXECUTION", _launch(manifest))
+    monkeypatch.setattr(
+        "posttrain_runtime.execute._RUN_ROOT",
+        (tmp_path / "runs").resolve(),
+    )
+
+    def build(request, tracking):
+        del tracking
+        runtime = _runtime(
+            request.catalog,
+            seen,
+            terminate_inside_update=True,
+            terminate_signal=signal.SIGINT,
+        )
+        return replace(
+            runtime,
+            executor=partial(
+                execute_run_tracked_finalized,
+                backend=backend,
+                scratch_root=request.state_dir / "scratch",
+            ),
+        )
+
+    monkeypatch.setattr("posttrain_runtime.execute.build_job_runtime", build)
+
+    with pytest.raises(SystemExit) as captured:
+        execute_manifest(manifest_path)
+
+    assert captured.value.code == 128 + signal.SIGINT
+    assert seen[-1] == "update completed"
+    assert backend.tracked is not None
+    assert [outcome.status for outcome in backend.tracked.outcomes] == ["cancelled"]
+    assert not host_cancellation().armed
 
 
 def test_worker_failure_writes_terminal_marker_after_unwind(
