@@ -9,7 +9,7 @@ training:
   training/qwen3.5-0.8b-verl-grpo-precision-bf16-ws@1:
     selection_type: training-binding
     revision: '1'
-    backend: verl@9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
+    backend: verl@6069abe14e2b3d27c89815a6502b849f15124e12
     renderer:
       id: qwen3.5-off-v1
       model_family: qwen3.5
@@ -32,8 +32,8 @@ training:
     backend_options:
       python_executable: /opt/posttrain-verl/bin/python
       working_directory: /opt/posttrain-verl/workdir
-      source_revision: 9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
-      dependency_lock_sha256: 96d02bccf37e0ebeb9cdd3811412ded07a28875f82057b096692da4c0256d409
+      source_revision: 6069abe14e2b3d27c89815a6502b849f15124e12
+      dependency_lock_sha256: a9562cb1d9e44a8b5835ed00bc47ff57202d79123f40ba6c927a957b8fcfcc87
       source_dirty: false
       attention_implementation: sdpa
       training_precision: bf16
@@ -49,7 +49,7 @@ training:
   training/qwen3.5-0.8b-verl-grpo-precision-fp16-ws@1:
     selection_type: training-binding
     revision: '1'
-    backend: verl@9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
+    backend: verl@6069abe14e2b3d27c89815a6502b849f15124e12
     renderer:
       id: qwen3.5-off-v1
       model_family: qwen3.5
@@ -72,8 +72,8 @@ training:
     backend_options:
       python_executable: /opt/posttrain-verl/bin/python
       working_directory: /opt/posttrain-verl/workdir
-      source_revision: 9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
-      dependency_lock_sha256: 96d02bccf37e0ebeb9cdd3811412ded07a28875f82057b096692da4c0256d409
+      source_revision: 6069abe14e2b3d27c89815a6502b849f15124e12
+      dependency_lock_sha256: a9562cb1d9e44a8b5835ed00bc47ff57202d79123f40ba6c927a957b8fcfcc87
       source_dirty: false
       attention_implementation: sdpa
       training_precision: fp16
@@ -89,7 +89,7 @@ training:
   training/qwen3.5-0.8b-verl-grpo-lora-ws@1:
     selection_type: training-binding
     revision: '1'
-    backend: verl@9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
+    backend: verl@6069abe14e2b3d27c89815a6502b849f15124e12
     renderer:
       id: qwen3.5-off-v1
       model_family: qwen3.5
@@ -112,8 +112,8 @@ training:
     backend_options:
       python_executable: /opt/posttrain-verl/bin/python
       working_directory: /opt/posttrain-verl/workdir
-      source_revision: 9fd6e7a31396ba33a29233cc869ab05b0a9e5a80
-      dependency_lock_sha256: 96d02bccf37e0ebeb9cdd3811412ded07a28875f82057b096692da4c0256d409
+      source_revision: 6069abe14e2b3d27c89815a6502b849f15124e12
+      dependency_lock_sha256: a9562cb1d9e44a8b5835ed00bc47ff57202d79123f40ba6c927a957b8fcfcc87
       source_dirty: false
       attention_implementation: sdpa
       hydra_overrides:
