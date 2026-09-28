@@ -122,10 +122,14 @@ Run r1 (2026-09-28), updates 1-43 of 100, cancelled:
   Only the KL penalty resists drift, and at beta 0.01 it is ~200x weaker than
   the episode advantages.
 - `google_sheets_find_many_rows` ignores its lookup and returns the first 10
-  rows. Parallel lookups overflow the 24,576-token context; vLLM returns
-  HTTP 400 and the episode is recorded as an ordinary truncation with no
-  error. About 7.8% of episodes (9.0% in the SAMPO run) ended this way,
-  82 of 90 in `support.gorgias_refund_processing`.
+  rows; parallel lookups can overflow the 24,576-token context (vLLM
+  HTTP 400). About 7.8% of episodes (9.0% in the SAMPO run) were truncated
+  before the turn limit; a 210-trace audit found most of those were replies
+  cut at the 4,096-token per-call limit (which end the episode), with ~1.7%
+  HTTP 400 overflows and ~1.7% replies shortened at the context limit. None
+  is recorded as an error. Reasoning stays in the prompt all episode (single
+  user message), which fills the context. `google_drive_find_multiple_files`
+  appends 9 placeholder files to every result.
 - About 10 minutes per update (4.9 s per rollout, as before): 100 updates
   would have taken 17-19 h, not 10-13 h. The actor step grows with the batch
   and refill rounds still run one after another.
