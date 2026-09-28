@@ -71,6 +71,7 @@ settings of running experiments.
 - [x] (2026-09-29) Cancel checkpoint metric (`a61b31c1`): `train/cancel_checkpoint_step` was rejected by the tracker when the cancel landed after a rollout batch of the next update had logged at `global_step + 1` (local `q0412f-lfm12-cancel-rollout-r1`); now recorded at the interrupted update's step, event field `cancelled_update`, rejection named as `metric_error`.
 - [x] (2026-09-29) Merged `861389d7` (`codex/fp16-loss-fp32`, `b1562b3e`): FP16 TRL loss in float32 (log-probabilities from float32 logits, cast before the loss). GPU canary pair runs separately; the branch's lab commit `a944a518` is not merged.
 - [x] (2026-09-29) Job runtime checks `/dev/shm` against the target's shared-memory requirement at start and fails with the required and actual size, target and provider (closes the dstack RunPod gap, where `resources.shm_size` is ignored). Cherry-picked the fp16 plan record `749fcc94`.
+- [x] (2026-09-29) veRL 0.9.0.post8 pinned (`ef1c3771`, receipt `be582879`; publish run 36489415680): post7's agent loop read `num_cpus_per_worker` and the two episode-ceiling keys that `rollout.yaml` never declared, so `q0412h-verl-qwen08b-bf16-r1` (no `rollout_execution`) failed before rollout. Relock changed only veRL; kind image republished; release candidate rebuilt as rc2.
 - [ ] GPU gates on the new images: #1 kernels in the kind image, #2/#9 precision arms, #6 cancel on the 8 GB card, #8 veRL continuation (fresh then `--model-from-run`), #5 oversampling canary.
 - [ ] Release candidate per `docs/release-engineering.md`; final.
 - [ ] Deploy the 0.4.12 Observatory from ai-infra branch `deploy/observatory-0.4.12` (`9d3c7e3`, sets `POSTTRAIN_OBSERVATORY_DEFAULT_SOURCE=posttrain-lab`), then run the post-deploy check below.
@@ -162,6 +163,13 @@ followed by the touched packages' tests (run with `CUDA_VISIBLE_DEVICES=""`).
   provider set a shared-memory size. dstack applies `resources.shm_size` on
   VM and SSH fleets (through its shim); its RunPod backend creates pods and
   ignores it, so RunPod pods keep the shared memory RunPod gives them.
+
+- veRL fork post2 added three agent-loop keys to `AgentLoopConfig` and read
+  them from the struct Hydra config without declaring them in `rollout.yaml`.
+  Every Posttrain veRL job before this release set them through
+  `rollout_execution` or a dev fork, so no run hit it until the 0.4.12
+  precision bindings (no `rollout_execution`). Fixed in the fork (post8), not
+  by having Posttrain emit fork defaults.
 
 ## Decision Log
 

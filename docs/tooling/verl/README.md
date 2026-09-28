@@ -1,6 +1,29 @@
 # veRL training backend
 
-## 0.9.0.post7 (selected)
+## 0.9.0.post8 (selected)
+
+Tag `carbonteq-v0.9.0.post8` (release commit
+`ef1c37715fa75de5973ae5b3c398383cd7e0093d`, branch
+`codex/agent-loop-config-defaults`, asset receipt `be582879`) is post7 plus one
+config fix. Since post2 the agent-loop manager read
+`rollout.agent.num_cpus_per_worker`, `max_concurrent_episodes` and
+`max_concurrent_episodes_per_worker` from the struct trainer config, but
+`rollout.yaml` never declared them; Posttrain passes them only with
+`rollout_execution` (accepted on no published fork revision), so every veRL
+job failed before its first rollout with `ConfigAttributeError`. Found by the
+0.4.12 qualification `q0412h-verl-qwen08b-bf16-r1`. Post8 declares them with
+the dataclass defaults (1.0, null, null: one reserved Ray CPU per worker and
+unbounded fan-out); the fork test
+`test_default_trainer_config_declares_every_agent_loop_field` fails on post7.
+Wheel SHA-256 `9da6fb77815d66aa424ab71adfed4862be5291dd12f7a15df4da81d8ffcc0d08`,
+sdist SHA-256 `ea34395aea7121f45e43045161830245e4239b0dd08495c9bf2a8f3438725cb1`.
+Published: GitHub release
+<https://github.com/carbonteq-ai/verl/releases/tag/carbonteq-v0.9.0.post8> and
+Posttrain run <https://github.com/carbonteq-ai/posttrain/actions/runs/36489415680>.
+`_FORK_NATIVE_NAME_REVISIONS` records post8 and its receipt. Relocking the
+`online-rl-verl-py313` kind changed only veRL.
+
+## 0.9.0.post7
 
 Tag `carbonteq-v0.9.0.post7` (release commit
 `6069abe14e2b3d27c89815a6502b849f15124e12`, branch `codex/vortex-lora-sync`,
@@ -35,8 +58,7 @@ the new keys at their defaults (`algorithm.active_sampling.enable=false`,
 `trainer.v1.sampler.failed_group_attempts=0`); with those defaults the trainer
 takes the post5 code paths. The one runtime change is the LoRA-sync mapper.
 `_FORK_NATIVE_NAME_REVISIONS` records post7 and its receipt, so GDPO and CAPO
-(`token_clip`, `k3_unclipped`) are accepted on it. `codex/release-0.4.12` pins
-post7 for the `online-rl-verl-py313` kind; relocking changed only veRL.
+(`token_clip`, `k3_unclipped`) are accepted on it. Post8 supersedes it in 0.4.12.
 
 ## 0.9.0.post5 and the VORTEX port (in progress)
 
@@ -93,7 +115,7 @@ Wheel SHA-256
 `1e5e5a50c14ec486019421ca06de03fbbc24010f850f5e66f2d731469a8f8eb0`;
 sdist SHA-256
 `8620646c250e85a0dee984d360a4c102e97a4776d5711accea8eb66a743445e5`.
-Post4 is published; post5 and post7 contain it; post7 is the 0.4.12 selection.
+Post4 is published; post5, post7 and post8 contain it; post8 is the 0.4.12 selection.
 
 ## Rollout-execution development candidate
 

@@ -119,10 +119,10 @@ oversampled active sampling, and a KL penalty measured against the base model.
   version 5). Migrate the shared server to schema version 5 and run dev32
   before job images from this release write to it.
 - Maintained forks: TRL `1.12.0.post11` (oversampling and `peft_reference`),
-  veRL `0.9.0.post7` (loss scale, skipped steps and log-probability gap
+  veRL `0.9.0.post8` (loss scale, skipped steps and log-probability gap
   metrics from post4; `token_clip` and `k3_unclipped` from post5; post6's
   opt-in trainer features, which this release does not select; the LoRA
-  weight-sync fix), Trackio `0.31.5.post14.dev32`, and the `causal-conv1d`
+  weight-sync fix from post7; the agent-loop config defaults from post8), Trackio `0.31.5.post14.dev32`, and the `causal-conv1d`
   `1.7.0+cu130torch2.13` rebuild, which is promoted to the stable index as a
   wheel-only fork release.
 
@@ -141,8 +141,14 @@ oversampled active sampling, and a KL penalty measured against the base model.
   so the constituents collapsed onto one name and the rollout engine crashed
   or silently loaded the wrong adapter weights. The veRL kind now pins
   `0.9.0.post7`, which uses vLLM's rename-only mapper as vLLM's own adapter
-  loader does. Every other veRL setting the release generates resolves as on
-  post5.
+  loader does (post8 carries the same fix). Every other veRL setting the
+  release generates resolves as on post5.
+- veRL jobs without `rollout_execution` settings failed before their first
+  rollout (`ConfigAttributeError: Key 'num_cpus_per_worker' is not in
+  struct`): since fork post2 veRL's agent loop read three episode-capacity
+  keys that its trainer config never declared, and Posttrain passes them only
+  with `rollout_execution`. veRL `0.9.0.post8` declares them with their
+  defaults (one reserved CPU per agent-loop worker, no episode ceiling).
 - Every job container now gets an explicit `/dev/shm` size. Docker and dstack
   left the 64 MiB default, and veRL's rollout server failed at start
   (`Insufficient space in /dev/shm ... 160 MiB required, 64 MiB free`) on both

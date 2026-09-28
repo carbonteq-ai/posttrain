@@ -179,7 +179,7 @@ training:
       dependency_lock_sha256: 7a28a659a58a7e2fcdb7c58bf12520d58a35778f96e770b6147af91571a2bbd5
 
   # veRL precision qualification on the local 8 GB GPU with the veRL runtime
-  # (fork 0.9.0.post7, 6069abe1; post4 added the loss scale, skipped steps and
+  # (fork 0.9.0.post8, ef1c3771; post4 added the loss scale, skipped steps and
   # the log-prob gap): four GRPO updates, bf16 against fp16 (FSDP fp16 compute
   # over fp32 master weights with dynamic loss scaling).
   qwen3.5-0.8b/verl-gsm8k-grpo-precision-v1:
@@ -205,7 +205,7 @@ training:
   training/qwen3.5-0.8b-verl-grpo-precision-bf16-local@1: &verl_precision_training
     selection_type: training-binding
     revision: "1"
-    backend: verl@6069abe14e2b3d27c89815a6502b849f15124e12
+    backend: verl@ef1c37715fa75de5973ae5b3c398383cd7e0093d
     renderer:
       id: qwen3.5-off-v1
       model_family: qwen3.5
@@ -228,8 +228,8 @@ training:
     backend_options: &verl_precision_options
       python_executable: /opt/posttrain-verl/bin/python
       working_directory: /opt/posttrain-verl/workdir
-      source_revision: 6069abe14e2b3d27c89815a6502b849f15124e12
-      dependency_lock_sha256: a9562cb1d9e44a8b5835ed00bc47ff57202d79123f40ba6c927a957b8fcfcc87
+      source_revision: ef1c37715fa75de5973ae5b3c398383cd7e0093d
+      dependency_lock_sha256: a8391c4e989053e75c76dae38d6e34184e56efc80f5df8cd8550248320c00df8
       source_dirty: false
       attention_implementation: sdpa
       training_precision: bf16
