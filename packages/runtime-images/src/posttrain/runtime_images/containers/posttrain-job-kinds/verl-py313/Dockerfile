@@ -227,7 +227,7 @@ RUN test -x "${CUDA_HOME}/bin/nvcc" && \
     command -v g++ >/dev/null && \
     PYTHONNOUSERSITE=1 PYTHONSAFEPATH=1 \
     /opt/posttrain-verl/bin/python -I -c \
-    "import importlib.metadata, sys; import ray, torch, transformers, tensordict, verl, verifiers, vllm; assert sys.version_info[:3] == (3, 13, 12); assert importlib.metadata.version('vllm') == '0.29.1.dev4+precompiled'" && \
+    "import importlib.metadata, sys; import fla.modules, fla.ops.gated_delta_rule, ray, torch, transformers, tensordict, verl, verifiers, vllm; assert sys.version_info[:3] == (3, 13, 12); assert importlib.metadata.version('vllm') == '0.29.1.dev4+precompiled'; assert importlib.metadata.version('fla-core') == '0.5.2'" && \
     PYTHONNOUSERSITE=1 PYTHONSAFEPATH=1 \
     "${VIRTUAL_ENV}/bin/python" -c \
     "import sys, hatchling, pydantic, yaml, verifiers; assert sys.version_info[:3] == (3, 13, 12)"

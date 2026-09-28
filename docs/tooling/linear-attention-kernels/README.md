@@ -31,7 +31,13 @@ fla-core needs only `einops` (plus the image's torch and Triton 3.7.1). The
 Transformers dependency that Posttrain does not use, so only fla-core is
 selected. `posttrain-train[trl]` depends on `fla-core>=0.5.2,<0.6`, and
 `profiles/supervised.txt` pins it, so the `supervised` and
-`online-rl-trl-py312` kind images carry it.
+`online-rl-trl-py312` kind images carry it. The veRL kind installs it in its
+isolated `/opt/posttrain-verl` backend (`verl-py313/release/pyproject.toml`,
+`uv.lock`, `backend-constraints.txt`, digests in `verl-py313/profile.toml`),
+where the HF FSDP actor runs, and the transform kind installs it for
+llm-compressor calibration (`tools/quantization/pyproject.toml` and `uv.lock`,
+`profiles/transform.txt`, `locks/transform.lock.txt`). Every one of these
+images' smoke stages imports `fla.modules` and `fla.ops.gated_delta_rule`.
 
 causal-conv1d publishes source only on PyPI, and its GitHub release has no
 wheel for PyTorch 2.13 (the newest is 2.10). The extension uses the PyTorch
@@ -79,17 +85,21 @@ Status: **not yet published.** The mirror repository, its release
 `carbonteq-v1.7.0+cu130torch2.13`, and the publisher workflow on `main` do not
 exist yet. Until then causal-conv1d is not in `uv.lock` or any runtime lock,
 and it was qualified only from a local wheelhouse. Once it is on
-`carbonteq/dev`:
+`carbonteq/dev`, one command adopts it everywhere fla-core is:
 
-1. add `"causal-conv1d==1.7.0+cu130torch2.13; sys_platform == 'linux' and
-   platform_machine == 'x86_64'"` (the only wheel is CPython 3.13 x86_64) to the
-   `trl` extra in `packages/train/pyproject.toml` with
-   `causal-conv1d = { index = "carbonteq-dev" }` under `[tool.uv.sources]`,
-   and `causal-conv1d==1.7.0+cu130torch2.13` to
-   `profiles/supervised.txt`;
-2. run `uv lock` and `uv run posttrain-release lock-runtime-dependencies`;
-3. extend the supervised and online-RL smoke stages to import `causal_conv1d`;
-4. rebuild and publish the kind images and regenerate `published.toml`.
+    uv run python tools/kernel-wheels/causal-conv1d/adopt.py
+
+It first downloads the wheel from `carbonteq/dev` and refuses to continue
+unless the bytes match the retained SHA-256. It then adds
+`causal-conv1d==1.7.0+cu130torch2.13` (marker: Linux x86_64; the only wheel is
+CPython 3.13) with the `carbonteq-dev` index source to the `trl` extra, the
+quantization tool and the veRL backend project, pins it in
+`profiles/supervised.txt` and `profiles/transform.txt`, adds `causal_conv1d`
+to every smoke import, and regenerates `uv.lock`, the quantization lock and
+`transform.lock.txt`, the veRL lock, constraints and profile digests, the
+runtime locks and the catalog lock digests. Locks only ever reference the
+index URL, never a local path. Afterwards run the validation ladder, rebuild
+and publish the kind images, and regenerate `published.toml`.
 
 ## Qualification evidence
 
@@ -133,10 +143,18 @@ image built from this change's locks plus the causal-conv1d wheel.
 The scripts and raw results are recorded in
 [the plan](../../plan/qwen35-fast-gdn-kernels.md).
 
+- veRL and transform kinds, built locally from their new locks plus the
+  causal-conv1d wheel, Qwen3.5-0.8B forward+backward on 2,048 tokens (decoder
+  parameters trained, tied embedding frozen, loss on the last 256 tokens,
+  gradient checkpointing): the warning is gone, `is_fast_path_available` is
+  true, gradients are finite in bf16 and fp16, and a step takes 0.38 s against
+  1.72 s (veRL backend Python) and 1.70 s (transform) in the published images.
+  The veRL release gate (`release_gate.py --release --source-checkout
+  <clean carbonteq-verl at 18338a0e> --verify-remote`, which runs the real
+  Bake smoke) passes.
+
 ## Remaining gates
 
-causal-conv1d publication (above). The veRL kind (`verl-py313`, separate
-backend lock) and the transform kind (llm-compressor calibration, separate
-`tools/quantization` lock) also run HF Qwen3.5 forward passes and would
-benefit, but have their own release gates and are not changed here. Eval and
-serve images run Qwen3.5 only through vLLM.
+causal-conv1d publication (above), then `adopt.py`, the kind image publish and
+`published.toml`. Eval and serve images run Qwen3.5 only through vLLM, which
+vendors its own copy of the kernels.

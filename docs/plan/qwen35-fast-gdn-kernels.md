@@ -13,8 +13,10 @@ runtime images had neither, so every Qwen3.5 SFT, DPO and TRL GRPO actor step ra
 chunks and logged "The fast path is not available ... Falling back to torch implementation". vLLM vendors its
 own copy of the fla kernels, so the sampler and the trainer also ran different implementations.
 
-After this change the `supervised` and `online-rl-trl-py312` kind images carry fla-core, and a CarbonTeq-built
-causal-conv1d wheel for PyTorch 2.13.0+cu130 is ready for the internal index. On the local RTX 3070 Ti a LoRA
+After this change every kind image that runs Qwen3.5 through Transformers carries fla-core (`supervised`,
+`online-rl-trl-py312`, the veRL backend environment of `online-rl-verl-py313`, and `transform`), and a
+CarbonTeq-built causal-conv1d wheel for PyTorch 2.13.0+cu130 is ready for the internal index, with a one-command
+adoption script for when it is published. On the local RTX 3070 Ti a LoRA
 actor step on Qwen3.5-0.8B is 3.1-3.7x faster, and fp16 training no longer produces NaN gradients. To see it,
 run the qualification commands under Concrete Steps: the warning disappears and the actor timings drop.
 
@@ -39,10 +41,17 @@ runtime images and does not change any public API or product meaning.
 - [x] (12:10Z) Actor timing, fp16/bf16 gradient finiteness, fast-path warning, and vLLM/HF log-prob gap,
   before versus after; fla-only intermediate state measured too.
 - [x] (12:20Z) Smoke stages import fla; retained-asset publisher workflow for causal-conv1d; docs.
+- [x] (13:00Z) Scope widened on request: fla-core added to the veRL backend project
+  (`verl-py313/release/pyproject.toml`, `uv lock --python 3.13.12`, `backend-constraints.txt`, digests in
+  `verl-py313/profile.toml`) and the transform kind (`tools/quantization`, `profiles/transform.txt`,
+  `locks/transform.lock.txt`, catalog `quantization.yaml` digest); smoke imports extended.
+- [x] (13:30Z) Built both kinds locally; transform smoke and the veRL release gate
+  (`--release --source-checkout --verify-remote`, real Bake smoke) pass; GPU forward+backward in each image with
+  the causal-conv1d wheel: warning gone, finite bf16/fp16 gradients, 0.36-0.38 s versus 1.70-1.72 s.
+- [x] (13:40Z) `tools/kernel-wheels/causal-conv1d/adopt.py`: after publication, one command adds causal-conv1d
+  wherever fla-core is and regenerates every derived lock (separate commit).
 - [ ] Publish causal-conv1d to `carbonteq/dev` (blocked on credentials and GitHub release; see Outcomes).
-- [ ] Add causal-conv1d to the lock and profile, rebuild and publish kind images, regenerate
-  `published.toml`.
-- [ ] Decide separately whether the veRL and transform kinds adopt the kernels.
+- [ ] Run `adopt.py`, the ladder, rebuild and publish the kind images, regenerate `published.toml`.
 
 ## Surprises & Discoveries
 
@@ -101,10 +110,20 @@ runtime images and does not change any public API or product meaning.
   packages, avoids an intermediate registry state. Local builds prove the locks install and the smoke checks
   pass.
   Date/Author: 2026-09-28, Claude.
-- Decision: leave the veRL and transform kinds unchanged.
-  Rationale: both run HF Qwen3.5 forward passes and would benefit, but each has a separate lock
-  (`verl-py313/release/`, `tools/quantization/uv.lock`) and release gate. Eval and serve run Qwen3.5 only
-  through vLLM, which vendors the kernels.
+- Decision (superseded): leave the veRL and transform kinds unchanged.
+  Superseded the same day at the user's request: both now carry fla-core through their own locks and gates.
+  Eval and serve still run Qwen3.5 only through vLLM, which vendors the kernels, so they are unchanged.
+  Date/Author: 2026-09-28, Claude.
+- Decision: in the veRL image, install fla-core in the backend project, not the control environment.
+  Rationale: the HF FSDP actor runs in `/opt/posttrain-verl`; the control environment only preflights
+  environments. The backend shares torch and Triton with the control environment through the
+  `shared-heavy.toml` fallback, so fla-core's Triton kernels use the same Triton 3.7.1.
+  Date/Author: 2026-09-28, Claude.
+- Decision: stage causal-conv1d adoption as a script (`adopt.py`) rather than a commit of manifest edits.
+  Rationale: `uv lock` cannot resolve causal-conv1d until the index serves it, so a commit editing the
+  manifests now would leave `uv sync --locked` and Quality broken on the branch. The script refuses to run
+  until `carbonteq/dev` serves the retained bytes, then makes all manifest edits and regenerates every lock
+  from the index (never a local path).
   Date/Author: 2026-09-28, Claude.
 
 ## Outcomes & Retrospective
@@ -119,6 +138,11 @@ builder script, the retained-asset publisher workflow, the consumer page
     3,072   3.38 s       1.08 s         1.00 s     3.37 s, NaN grads  1.04 s
     4,096   5.00 s       1.47 s         1.37 s     4.83 s, NaN grads  1.41 s
 
+The veRL backend and transform images, with the causal-conv1d wheel, run a Qwen3.5-0.8B decoder
+forward+backward on 2,048 tokens (tied embedding frozen, loss on the last 256 tokens) in 0.38 s bf16 / 0.38 s
+fp16 (veRL) and 0.38 s / 0.36 s (transform), against 1.72 s and 1.70 s bf16 in the published images, with the
+warning gone and finite gradients.
+
 Blocked: causal-conv1d publication. The repository's route for CarbonTeq-built artifacts is: attach the wheel
 to an immutable GitHub Release of a CarbonTeq repository, then dispatch the repository-owned publisher on the
 `lan-release` runner, which holds `UV_PUBLISH_USERNAME`/`UV_PUBLISH_PASSWORD` for `https://pypi.lan/carbonteq/dev/`.
@@ -132,6 +156,8 @@ None of those credentials or GitHub rights were available to this work. A mainta
 3. merge this branch so `.github/workflows/publish-causal-conv1d-internal.yml` is on `main`, then run
    `gh workflow run publish-causal-conv1d-internal.yml -f release_tag='carbonteq-v1.7.0+cu130torch2.13'
    -f wheel_sha256=b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a`.
+
+Then run `uv run python tools/kernel-wheels/causal-conv1d/adopt.py`, the ladder, and the image publish.
 
 A maintainer who already holds devpi credentials could instead upload the same file directly with
 `UV_PUBLISH_USERNAME=... UV_PUBLISH_PASSWORD=... uv publish --publish-url https://pypi.lan/carbonteq/dev/
@@ -174,11 +200,18 @@ Milestone 2 (done) builds causal-conv1d reproducibly with `tools/kernel-wheels/c
 
 Milestone 3 (done) qualifies both packages on the local GPU with `scripts/qualification/qwen35_gdn_kernels.py`.
 
-Milestone 4 (blocked) publishes causal-conv1d, then adds
+Milestone 3b (done) repeats Milestone 1 for the veRL backend (`verl-py313/release/pyproject.toml`; regenerate
+with `uv lock --python 3.13.12` and the `uv export ... --output-file backend-constraints.txt` command in
+`verl-py313/release/README.md`, then update both digests in `verl-py313/profile.toml`) and for the transform
+kind (`tools/quantization/pyproject.toml`, `uv lock --project tools/quantization`, the `uv export --project
+tools/quantization ... --output-file .../locks/transform.lock.txt` command from `.github/workflows/quality.yml`,
+and `uv run posttrain-release lock-dependencies`, which refreshes the catalog `quantization.yaml` digest).
+
+Milestone 4 (blocked) publishes causal-conv1d, then `tools/kernel-wheels/causal-conv1d/adopt.py` adds
 `"causal-conv1d==1.7.0+cu130torch2.13; sys_platform == 'linux' and platform_machine == 'x86_64'"` to the `trl`
 extra with `causal-conv1d = { index = "carbonteq-dev" }` in `[tool.uv.sources]`, adds
 `causal-conv1d==1.7.0+cu130torch2.13` to `profiles/supervised.txt`, adds `causal_conv1d` to both smoke imports,
-reruns the lock commands, rebuilds and publishes the kind images (`docs/publishing.md` step 7), and commits the
+also covers the veRL backend and transform projects, reruns the lock commands; then rebuild and publish the kind images (`docs/publishing.md` step 7), and commits the
 regenerated `published.toml`.
 
 ## Concrete Steps
@@ -220,7 +253,9 @@ per-token sampler log-probs of the 64-prompt set):
       --entrypoint /opt/posttrain/venv/bin/python <image> qwen35_gdn_kernels.py kernels
     # ... gated delta rule bfloat16: ... rel err 5.6e-03 ...; causal conv1d ...; PASS
 
-Replace the last arguments with `actor bfloat16 after`, `score bfloat16 after` (and `float16`, and `before`
+For the veRL image use `--user 0:0 --entrypoint /opt/posttrain-verl/bin/python` (the backend interpreter lives
+in root's uv Python store) and `train-step bfloat16`; the transform image uses the default entrypoint and
+`train-step`. Replace the last arguments with `actor bfloat16 after`, `score bfloat16 after` (and `float16`, and `before`
 with the published image) and finally `gap`.
 
 ## Validation and Acceptance
@@ -261,6 +296,14 @@ To back out fla-core, revert the `trl` extra and profile lines and rerun the two
       posttrain-kind-online-rl-trl-py312:qwen-kernels-local       sha256:b7d0d4124a9eccc88303fb78e411ddc1c00da11988892f65a16bcd2df443103c
       posttrain-kind-online-rl-trl-py312:qwen-kernels-local-cc1d  sha256:09db9e0d7cd353e430e5aa7be23a2aa78ce5be0f346668317264b9356e30deae
       posttrain-kind-supervised:qwen-kernels-local                sha256:7a5b486f942a042ac193b504d819380731028ed89312f3288998dd5b17dff872
+      posttrain-kind-online-rl-verl-py313:qwen-kernels-local      sha256:f7c0bae53fc03bd483b16629b22078deb42f1f0d1d5da65fac40fddcecaef235
+      posttrain-kind-online-rl-verl-py313:qwen-kernels-local-cc1d sha256:5ac36c3c049903fb99e114d595c1f46c0485e54d2d01c4784d46b0cfbf2cb0b5
+      posttrain-kind-transform:qwen-kernels-local                 sha256:b6e198ba484ca15928591abfa99fba6208996963951b201cbe1bc7a8c7c947dd
+      posttrain-kind-transform:qwen-kernels-local-cc1d            sha256:d7716153786fe4ff08209343ef064c915b920d17fb57e2a1dc1d4900cc55cf8e
+
+    veRL backend (root; its uv-managed Python is in root's store) and transform, train-step bfloat16:
+      after:  fast path True warning False T=2048 bfloat16 grads 319 finite True step 0.361s peak 2.53GiB  PASS
+      before: fast path False warning True ... finite True step 1.721s (veRL) / 1.700s (transform) peak 2.99GiB
 
     kernels (after image, sm86): gated delta rule rel err bf16 5.6e-3, fp16 7.1e-4, fp32 1.5e-3;
       causal conv1d bf16 3.1e-3, fp16 3.7e-4, fp32 5.3e-8; gated RMSNorm 2.8e-3; PASS
@@ -268,8 +311,12 @@ To back out fla-core, revert the `trl` extra and profile lines and rerun the two
 
 ## Interfaces and Dependencies
 
-`posttrain-train[trl]` requires `fla-core>=0.5.2,<0.6` (Triton kernels imported by Transformers as
+`posttrain-train[trl]`, `tools/quantization` (`posttrain-awq-runtime`) and the veRL backend project
+(`posttrain-kind-online-rl-verl-py313`) require `fla-core>=0.5.2,<0.6` (Triton kernels imported by Transformers as
 `fla.modules.FusedRMSNormGated` and `fla.ops.gated_delta_rule.{chunk,fused_recurrent}_gated_delta_rule`).
 After Milestone 4 it will also require `causal-conv1d==1.7.0+cu130torch2.13` from `carbonteq-dev`
 (`causal_conv1d.causal_conv1d_fn`, `causal_conv1d_update`). No Posttrain code imports either package; they
 are runtime accelerators discovered by Transformers.
+
+Revision note (2026-09-28): widened to the veRL and transform kinds and added `adopt.py` at the user's
+request; the earlier decision to defer them is marked superseded.

@@ -1,4 +1,5 @@
 datasets==4.8.5
+fla-core==0.5.2
 llmcompressor @ git+https://github.com/vllm-project/llm-compressor.git@655b83d1240c37920a603b747bbfb6c218f66383
 torch==2.13.0+cu130
 transformers==5.14.1

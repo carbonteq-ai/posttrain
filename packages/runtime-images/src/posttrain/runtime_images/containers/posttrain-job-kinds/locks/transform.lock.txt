@@ -154,6 +154,10 @@ dill==0.4.1 \
     # via
     #   datasets
     #   multiprocess
+einops==0.8.2 \
+    --hash=sha256:54058201ac7087911181bfec4af6091bb59380360f069276601256a76af08193 \
+    --hash=sha256:609da665570e5e265e27283aab09e7f279ade90c4f01bcfca111f3d3e13f2827
+    # via fla-core
 filelock==3.32.0 \
     --hash=sha256:7be2ad23a14607ccc71808e68fe30848aeace7058ace17852f68e2a68e310402 \
     --hash=sha256:d396bea984af47333ef05e50eae7eff88c84256de6112aea0ec48a233c064fe3
@@ -161,6 +165,10 @@ filelock==3.32.0 \
     #   datasets
     #   huggingface-hub
     #   torch
+fla-core==0.5.2 \
+    --hash=sha256:5e830c85bad3d0d34677f98ac7074d08687a3756f0f0499d95ceb96eb6920761 \
+    --hash=sha256:9360fc412f784c1c8f05c320ec2902d5d968764178c9b8a92efc919e17a39680
+    # via posttrain-awq-runtime
 frozenlist==1.8.0 \
     --hash=sha256:032efa2674356903cd0261c4317a561a6850f3ac864a63fc1583147fb05a79b0 \
     --hash=sha256:03ae967b4e297f58f8c774c7eabcce57fe3c2434817d4385c50661845a058121 \

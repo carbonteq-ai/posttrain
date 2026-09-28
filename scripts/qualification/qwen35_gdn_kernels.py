@@ -7,6 +7,7 @@ working directory mounted at /work (see docs/plan/qwen35-fast-gdn-kernels.md for
     python qwen35_gdn_kernels.py actor bfloat16 TAG      # LoRA actor forward+backward at 2K/3K/4K tokens
     python qwen35_gdn_kernels.py score bfloat16 TAG      # trainer log-probs for retained vLLM samples
     python qwen35_gdn_kernels.py gap                     # |logp_vLLM - logp_HF| per token, before vs after
+    python qwen35_gdn_kernels.py train-step bfloat16     # no-PEFT fwd+bwd (veRL backend / transform images)
 
 `actor` and `score` write `<command>_<TAG>_<dtype>.json`; `score` and `gap` read `samples_<dtype>.json`
 (records with prompt_ids, completion_ids and the vLLM sampler_logps of every completion token).
@@ -231,6 +232,49 @@ def gap(tags: tuple[str, ...] = ("before", "after")) -> None:
                 )
 
 
+def train_step(dtype_name: str) -> bool:
+    """Decoder-parameter forward+backward that needs only torch and Transformers (fits an 8 GB GPU)."""
+
+    import io
+    import logging
+
+    import torch
+    import transformers.models.qwen3_5.modeling_qwen3_5 as qm
+    from transformers.utils import logging as hf_logging
+
+    captured = io.StringIO()
+    hf_logging.get_logger("transformers").addHandler(logging.StreamHandler(captured))
+    model = _load_model(dtype_name)
+    model.config.use_cache = False
+    model.train()
+    model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+    model.get_input_embeddings().weight.requires_grad_(False)  # tied 248K-vocab embedding and head
+    model.enable_input_require_grads()
+    warned = "fast path is not available" in captured.getvalue()
+    records = json.loads(Path("samples_bfloat16.json").read_text())["records"]
+    stream = [token for record in records for token in record["prompt_ids"] + record["completion_ids"]]
+    ids = torch.tensor([stream[2048:4096]], device="cuda")
+    seconds = []
+    for _ in range(4):
+        model.zero_grad(set_to_none=True)
+        torch.cuda.synchronize()
+        start = time.perf_counter()
+        hidden = model.model(input_ids=ids).last_hidden_state[0, -257:-1]
+        loss = torch.nn.functional.cross_entropy(model.lm_head(hidden).float(), ids[0, -256:])
+        loss.backward()
+        torch.cuda.synchronize()
+        seconds.append(time.perf_counter() - start)
+    grads = [p.grad for p in model.parameters() if p.grad is not None]
+    finite = all(bool(torch.isfinite(g).all()) for g in grads)
+    print(
+        f"fast path {qm.is_fast_path_available} warning {warned} T=2048 {dtype_name} grads {len(grads)} "
+        f"finite {finite} step {sorted(seconds[1:])[1]:.3f}s peak {torch.cuda.max_memory_allocated() / 2**30:.2f}GiB"
+    )
+    ok = qm.is_fast_path_available and not warned and finite
+    print("PASS" if ok else "FAIL")
+    return ok
+
+
 def main(argv: list[str]) -> int:
     command = argv[1] if len(argv) > 1 else ""
     if command == "kernels":
@@ -238,6 +282,8 @@ def main(argv: list[str]) -> int:
     if command in {"actor", "score"} and len(argv) == 4 and argv[2] in DTYPES:
         (actor if command == "actor" else score)(argv[2], argv[3])
         return 0
+    if command == "train-step" and len(argv) == 3 and argv[2] in DTYPES:
+        return 0 if train_step(argv[2]) else 1
     if command == "gap":
         gap()
         return 0

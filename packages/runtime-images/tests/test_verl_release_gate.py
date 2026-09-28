@@ -42,7 +42,11 @@ def test_candidate_image_smokes_both_python_313_environments() -> None:
     dockerfile = (PROFILE_ROOT / "Dockerfile").read_text(encoding="utf-8")
     bake = (PROFILE_ROOT / "docker-bake.hcl").read_text(encoding="utf-8")
 
-    assert "import ray, torch, transformers, tensordict, verl, verifiers, vllm" in dockerfile
+    assert (
+        "import fla.modules, fla.ops.gated_delta_rule, ray, torch, transformers, tensordict, verl, verifiers, vllm"
+        in dockerfile
+    )
+    assert "version('fla-core') == '0.5.2'" in dockerfile
     assert "0.29.1.dev4+precompiled" in dockerfile
     assert 'VLLM_VERSION_OVERRIDE="${VLLM_RUNTIME_VERSION}"' in dockerfile
     assert 'variable "SOURCE_DATE_EPOCH"' in bake

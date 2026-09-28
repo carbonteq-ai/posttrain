@@ -5,6 +5,8 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/498/0ee67e56788c3/carbonteq_trackio-0.31.5.post14.dev31-py3-none-any.whl#sha256=4980ee67e56788c3a0755df2fe2eaacce8a95884b46a82403b0161990fa082d1",
     "datasets>=4.8.4,<5",
+    # Qwen3.5 calibration forward passes use these Triton Gated DeltaNet kernels.
+    "fla-core>=0.5.2,<0.6",
     "llmcompressor @ git+https://github.com/vllm-project/llm-compressor.git@655b83d1240c37920a603b747bbfb6c218f66383",
     "pydantic==2.13.4",
     "pyyaml==6.0.3",

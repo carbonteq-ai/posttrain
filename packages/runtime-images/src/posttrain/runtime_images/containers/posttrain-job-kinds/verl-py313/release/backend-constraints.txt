@@ -50,6 +50,7 @@ fastapi-cloud-cli==0.22.2 ; platform_machine == 'x86_64' and sys_platform == 'li
 fastar==0.11.0 ; platform_machine == 'x86_64' and sys_platform == 'linux'
 fastsafetensors==0.3.3 ; platform_machine == 'x86_64' and sys_platform == 'linux'
 filelock==3.32.0 ; platform_machine == 'x86_64' and sys_platform == 'linux'
+fla-core==0.5.2 ; platform_machine == 'x86_64' and sys_platform == 'linux'
 flashinfer-python==0.6.18.post1 ; platform_machine == 'x86_64' and sys_platform == 'linux'
 frozenlist==1.8.0 ; platform_machine == 'x86_64' and sys_platform == 'linux'
 fsspec==2026.2.0 ; platform_machine == 'x86_64' and sys_platform == 'linux'

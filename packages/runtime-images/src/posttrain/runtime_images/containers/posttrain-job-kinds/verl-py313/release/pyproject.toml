@@ -8,6 +8,10 @@ dependencies = [
     "codetiming>=1.4,<1.5",
     "datasets>=4.5,<5",
     "dill>=0.4,<0.5",
+    # Triton Gated DeltaNet kernels (import `fla`): the HF FSDP actor runs
+    # Qwen3.5 linear-attention layers through Transformers' torch fallback
+    # without them.
+    "fla-core>=0.5.2,<0.6",
     "fastapi>=0.135,<0.136",
     "hydra-core>=1.3,<1.4",
     "latex2sympy2-extended>=1.10,<2",
