@@ -125,7 +125,7 @@ def test_trainable_model_loader_honors_requested_dtype() -> None:
         }
     ]
     with pytest.raises(ValueError, match="bfloat16.*float32"):
-        load_trainable_model(QWEN_35_2B, LoRAUpdate(), cast(TrainingLoop, loop), imports, model_dtype="float16")
+        load_trainable_model(QWEN_35_2B, LoRAUpdate(), cast(TrainingLoop, loop), imports, model_dtype="float64")
 
 
 def test_trainable_model_loader_expands_explicit_lora_target_module_csv() -> None:

@@ -26,6 +26,7 @@ from .common import (
     trainer_arguments,
     trainer_lifecycle,
 )
+from .precision_runtime import require_default_precision
 
 
 def run_sft(
@@ -35,6 +36,7 @@ def run_sft(
     validation_snapshot: SupervisedDataset | None,
     output_dir: Path,
 ) -> BackendTrainingResult:
+    require_default_precision(request.training.backend_options, "SFT")
     try:
         from trl.trainer.sft_config import SFTConfig  # pyright: ignore[reportMissingImports]
         from trl.trainer.sft_trainer import SFTTrainer  # pyright: ignore[reportMissingImports]

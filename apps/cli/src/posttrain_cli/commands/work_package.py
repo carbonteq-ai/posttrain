@@ -7,12 +7,14 @@ import sys
 from collections.abc import Mapping
 from contextlib import nullcontext, redirect_stdout
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, cast
 
 import typer
-from posttrain.common import ConfigurationIssue, ContractError, HostedInferenceBinding
+from posttrain.common import ConfigurationIssue, ContractError, HostedInferenceBinding, InferenceBinding
 from posttrain.execution import ProjectControlLocator, compare_job_packages, unchanged_fields
 from posttrain.project import JobIntent, Project
+from posttrain.train import TrainingBinding
+from posttrain.train.precision import ResolvedPrecision, resolve_precision
 from posttrain.work import resolve_work_package, run_work_package_job, work_package_findings
 
 from ..context import CliState
@@ -268,6 +270,10 @@ def plan_work_package_cmd(
     if credential_status:
         payload["runtime_credentials"] = credential_status
         lines.extend(f"Runtime credential {name}: {status}" for name, status in credential_status.items())
+    precision = _training_precision(intent.prepared.seats)
+    if precision is not None:
+        payload["precision"] = precision.as_dict()
+        lines.append(f"Precision: {precision.summary()}")
     paid_judge_limits = _paid_judge_limits(intent.prepared.seats)
     if paid_judge_limits:
         payload["paid_judge_cost_limits"] = paid_judge_limits
@@ -772,6 +778,28 @@ def _execution_plan_payload(planned: PlannedJobExecution) -> dict[str, object]:
         }
     )
     return payload
+
+
+def _training_precision(seats: Mapping[str, object]) -> ResolvedPrecision | None:
+    """The trainer and rollout precision a TRL or veRL training job resolves to, for display."""
+
+    trainings = [cast(TrainingBinding, item) for item in seats.values() if isinstance(item, TrainingBinding)]
+    if not trainings or trainings[0].backend.split("@", 1)[0] not in {"trl", "verl"}:
+        return None
+    training = trainings[0]
+    backend = "verl" if training.backend.startswith("verl@") else "trl"
+    inferences = [cast(InferenceBinding, item) for item in seats.values() if isinstance(item, InferenceBinding)]
+    rollout = next(
+        (
+            selection
+            for selection in inferences
+            if "rollout" in selection.purpose and selection.backend.split("@", 1)[0] == "vllm"
+        ),
+        None,
+    )
+    if rollout is None:
+        return resolve_precision(training.backend_options, None, "bf16", backend=backend).without_rollout()
+    return resolve_precision(training.backend_options, rollout.engine, rollout.model.weight_precision, backend=backend)
 
 
 def _paid_judge_limits(seats: Mapping[str, object]) -> dict[str, dict[str, object]]:

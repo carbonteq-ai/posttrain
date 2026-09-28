@@ -37,6 +37,7 @@ from .policy_config import (
     _configure_torch_compile,
     _online_rl_arguments,
     _online_rl_runtime_attributes,
+    _resolved_precision,
 )
 from .policy_curriculum import (
     AdaptiveCurriculumRuntime as _AdaptiveCurriculumRuntime,
@@ -64,6 +65,12 @@ from .policy_telemetry import (
 )
 from .policy_telemetry import (
     normalize_live_metrics as _normalize_live_grpo_metrics,
+)
+from .precision_runtime import (
+    LossScaleMonitor,
+    loss_scale_callback_type,
+    require_float32_trainable_parameters,
+    upcast_logits_to_float32,
 )
 from .update_totals import RolloutUpdateTotals, update_totals_callback_type
 
@@ -123,9 +130,20 @@ def _run_online_rl(
 
     imports = framework_imports()
     emit_runtime_versions(context, imports)
+    precision = _resolved_precision(request)
     with context.phase("model_loading", {"backend": "trl"}):
         tokenizer = load_tokenizer(request.policy, imports)
-        model = load_trainable_model(request.policy, request.training.update, request.settings.loop, imports)
+        model = load_trainable_model(
+            request.policy,
+            request.training.update,
+            request.settings.loop,
+            imports,
+            model_dtype=precision.model_load_dtype,
+        )
+        if precision.training == "fp16":
+            require_float32_trainable_parameters(model)
+        if precision.logits_float32:
+            upcast_logits_to_float32(model)
     rows = []
     template_kwargs = request.policy.conversation.reasoning_mode(request.training.renderer.reasoning_mode).kwargs()
     for example in request.bridge.dataset.examples:
@@ -155,6 +173,7 @@ def _run_online_rl(
     )
     context.event("grpo_runtime_resolved", _online_rl_runtime_attributes(request))
     actor_update = _ActorUpdateTelemetry(context)
+    loss_scale = LossScaleMonitor(context)
     rollout_totals = RolloutUpdateTotals(context)
     trainer_type = _actor_update_trainer_type(GRPOTrainer, actor_update)
     curriculum = None
@@ -196,14 +215,19 @@ def _run_online_rl(
         publisher=checkpoint_publisher,
     )()
     callbacks = [
+        # Opens the atomic update span at on_pre_optimizer_step (cancel checkpoint).
         update_boundary_callback_type(imports, update_boundary)(),
+        # Before the metrics callback, so the scaler state of a step is known before its metrics are logged.
+        loss_scale_callback_type(imports, loss_scale)(),
         callback_type(
             context,
             imports,
-            metric_normalizer=lambda step, native: _normalize_live_grpo_metrics(
-                step,
-                native,
-                observation_features,
+            metric_normalizer=loss_scale.finite_grad_norm(
+                lambda step, native: _normalize_live_grpo_metrics(
+                    step,
+                    native,
+                    observation_features,
+                )
             ),
         )(),
         _actor_update_callback_type(imports, actor_update)(),

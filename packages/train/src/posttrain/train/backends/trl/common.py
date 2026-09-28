@@ -20,6 +20,7 @@ from posttrain.common import JsonValue, LocalArtifactRef, ModelVariant, Produced
 
 from ...adaptive_curriculum import CURRICULUM_SNAPSHOT_NAME
 from ...bindings import FullParameterUpdate, LoRAUpdate, ParameterUpdatePlan, QLoRAUpdate, QuantizationAwareUpdate
+from ...precision import TrainingPrecision, rollout_dtype
 from ...profiles import TrainingLoop
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
@@ -159,8 +160,11 @@ def vllm_rollout_options(
         if not isinstance(kv_cache_dtype, str) or not kv_cache_dtype:
             raise ValueError("TRL rollout kv_cache_dtype must be a non-empty string")
         values["kv_cache_dtype"] = kv_cache_dtype
-        if kv_cache_dtype.startswith("turboquant_"):
-            values["dtype"] = "float16"
+    # vLLM follows the checkpoint dtype unless the binding selects one; a
+    # TurboQuant KV cache implies (and only accepts) float16.
+    dtype, _source = rollout_dtype(engine)
+    if dtype is not None:
+        values["dtype"] = dtype
     if speculative is not None:
         values["disable_log_stats"] = False
     return dict(speculative) if isinstance(speculative, Mapping) else None, values or None
@@ -302,16 +306,15 @@ def load_trainable_model(
     torch = imports["torch"]
     if isinstance(update, QuantizationAwareUpdate):
         raise ValueError("the TRL adapter does not yet implement quantization-aware updates")
-    dtype_by_name = {
-        "bfloat16": torch.bfloat16,
-        "float32": torch.float32,
-    }
-    try:
-        dtype = dtype_by_name[model_dtype]
-    except KeyError as error:
-        raise ValueError("TRL trainable model dtype must be 'bfloat16' or 'float32'") from error
+    if model_dtype not in {"bfloat16", "float16", "float32"}:
+        raise ValueError("TRL trainable model dtype must be 'bfloat16', 'float16' or 'float32'")
+    dtype = getattr(torch, model_dtype)
     if isinstance(update, QLoRAUpdate) and model_dtype != "bfloat16":
         raise ValueError("QLoRA training requires bfloat16 compute dtype")
+    if model_dtype == "float16" and not isinstance(update, LoRAUpdate):
+        # Loss scaling steps float32 master weights; only PEFT LoRA adapters are
+        # float32 over a float16 base.
+        raise ValueError("float16 training requires a LoRA update")
     load_options: dict[str, Any] = {
         "revision": model.base.revision,
         "device_map": {"": 0},
@@ -602,7 +605,16 @@ def checkpoint_callback_type(
     return CheckpointPublicationCallback
 
 
-def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
+def trainer_arguments(
+    loop: TrainingLoop,
+    output_dir: Path,
+    *,
+    precision: TrainingPrecision = "bf16",
+) -> dict[str, Any]:
+    """Transformers trainer arguments; ``fp16`` selects float16 autocast with dynamic loss scaling."""
+
+    if precision not in {"bf16", "fp16"}:
+        raise ValueError("TRL training precision must be 'bf16' or 'fp16'")
     arguments: dict[str, Any] = {
         "output_dir": str(output_dir),
         "max_steps": loop.max_steps,
@@ -621,8 +633,8 @@ def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
         "data_seed": loop.seed,
         "gradient_checkpointing": loop.gradient_checkpointing,
         "gradient_checkpointing_kwargs": {"use_reentrant": False},
-        "bf16": True,
-        "fp16": False,
+        "bf16": precision == "bf16",
+        "fp16": precision == "fp16",
         "use_cache": False,
         "report_to": "none",
         "disable_tqdm": True,
