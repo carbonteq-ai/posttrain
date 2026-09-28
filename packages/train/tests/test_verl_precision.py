@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 
@@ -81,7 +82,7 @@ def test_resolved_verl_precision_describes_fsdp_master_weights() -> None:
     )
 
 
-def _sidecar(path: Path, rows: list[dict[str, object]]) -> Path:
+def _sidecar(path: Path, rows: Sequence[Mapping[str, object]]) -> Path:
     path.write_text("".join(json.dumps({"step": i + 1, "data": row}) + "\n" for i, row in enumerate(rows)))
     return path
 
