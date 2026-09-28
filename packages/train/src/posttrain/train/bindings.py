@@ -14,6 +14,7 @@ from typing import Literal
 from posttrain.common import ExecutionTarget, JsonValue, ModelVariant
 from posttrain.common.selections import validate_revision, validate_selection_id
 
+from .precision import logits_float32, training_precision
 from .profiles import TrainingRenderer
 
 
@@ -122,7 +123,29 @@ class TrainingBinding:
             raise ValueError("training backend must include a product and version")
         if not isinstance(self.runtime, TrainingRuntime):
             raise TypeError("training binding runtime must be a TrainingRuntime")
+        _validate_precision(self.backend, self.update, self.backend_options)
         object.__setattr__(self, "backend_options", MappingProxyType(dict(self.backend_options)))
+
+
+def _validate_precision(backend: str, update: ParameterUpdatePlan, options: Mapping[str, JsonValue]) -> None:
+    """Reject precision selections no backend implements, when the catalog loads.
+
+    Float16 training scales the loss and steps float32 master weights; with the
+    TRL backend only LoRA adapters are float32 (PEFT keeps them so while the
+    base is float16), so full-parameter and QLoRA updates stay bfloat16.
+    """
+
+    precision = training_precision(options)
+    float32_logits = logits_float32(options)
+    if precision == "bf16" and not float32_logits:
+        return
+    if backend.split("@", 1)[0] != "trl":
+        raise ValueError("training_precision and logits_float32 are implemented by the TRL backend only")
+    if precision == "fp16" and update.kind != "lora":
+        raise ValueError(
+            "training_precision fp16 requires a LoRA update: the adapter holds the float32 master weights "
+            f"that dynamic loss scaling steps, and a {update.kind} update has none"
+        )
 
 
 @dataclass(frozen=True, slots=True)

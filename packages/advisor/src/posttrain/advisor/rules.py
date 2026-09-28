@@ -30,6 +30,7 @@ from .snapshot import (
     backend_name,
     inference_seats,
     integer,
+    mapping,
     number,
     served_model,
     settings_seat,
@@ -167,7 +168,15 @@ def _binding_findings(
     turboquant = isinstance(kv_cache_dtype, str) and kv_cache_dtype.startswith("turboquant_")
     variant = seat.resolved.get("model_variant_id")
     bf16 = served_model(snapshot, seat).get("weight_precision") == "bf16"
-    if engine.get("dtype") in {"float16", "half"} and bf16 and not turboquant:
+    # float16 on both sides is the unified-FP16 recipe (training_precision fp16), not a mismatch.
+    training = training_seat(snapshot)
+    unified_fp16 = (
+        rollout
+        and trl_training
+        and training is not None
+        and mapping(training.resolved.get("backend_options")).get("training_precision") == "fp16"
+    )
+    if engine.get("dtype") in {"float16", "half"} and bf16 and not turboquant and not unified_fp16:
         yield _performance_issue(
             seat,
             "VLLM_FLOAT16_ON_BF16_CHECKPOINT",

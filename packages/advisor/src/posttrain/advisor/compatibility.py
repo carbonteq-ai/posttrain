@@ -47,6 +47,10 @@ _SM120 = frozenset({"RTXPRO4500", "RTXPRO6000"})
 # and carries the SM120 batch-invariance kernels.
 _CONTINUATION_FIX = (0, 29, 1, 3)
 _HYBRID_FAMILIES = frozenset({"lfm2.5", "qwen3.5", "gemma4"})
+# Families with Gated-DeltaNet linear-attention layers: vLLM's chunked kernel
+# rejects float32 inputs ("ChunkGatedDeltaRuleFunction does not support float32").
+_GATED_DELTANET_FAMILIES = frozenset({"qwen3.5"})
+_ONLINE_RL = frozenset({"train.grpo", "train.sampo", "train.gdpo", "train.capo"})
 _INVARIANCE_UNSUPPORTED = frozenset({"olmo-hybrid", "bailing"})
 _PINNED_DSPARK_BACKEND = "vllm@62f6de733d7ae63b759329993bc209e67afdf431"
 _PARITY_LIMIT = 0.05
@@ -147,6 +151,17 @@ def _binding_findings(snapshot: Snapshot, seat: Seat) -> Iterator[ConfigurationI
     max_num_seqs = integer(engine.get("max_num_seqs"))
     max_model_len = integer(engine.get("max_model_len"))
     invariant = engine.get("batch_invariant") is True
+
+    if family in _GATED_DELTANET_FAMILIES and engine.get("dtype") in {"float32", "float"}:
+        yield _issue(
+            seat,
+            "VLLM_FLOAT32_UNSUPPORTED_FOR_GATED_DELTANET",
+            "error",
+            f"{role}.engine.dtype",
+            f"{family} has Gated-DeltaNet linear-attention layers, and vLLM's chunked Gated-DeltaNet prefill kernel "
+            "rejects float32 (it asserts at the first prefill on vllm 0.29.1.dev4, docs/plan/fp16-training-precision.md)",
+            "Use dtype bfloat16 or float16 for this model.",
+        )
 
     # Attention backends.
     if accelerator in _SM120 and flash == 4:
@@ -412,15 +427,30 @@ def _training_findings(snapshot: Snapshot) -> Iterator[ConfigurationIssue]:
     def issue(code: str, severity: ConfigurationSeverity, path: str, message: str, hint: str) -> ConfigurationIssue:
         return _issue(rollout or training, code, severity, path, message, hint)
 
+    precision = options.get("training_precision", "bf16")
+    job = mapping(snapshot.get("job_definition")).get("kind")
+    if backend == "trl" and (precision != "bf16" or options.get("logits_float32") is True) and job not in _ONLINE_RL:
+        yield _issue(
+            training,
+            "TRL_PRECISION_UNQUALIFIED_FOR_JOB",
+            "error",
+            f"{training.role}.backend_options.training_precision",
+            f"training_precision {precision} and logits_float32 are implemented for TRL online RL only, not {job}; "
+            "the job fails when training starts",
+            "Remove training_precision and logits_float32 from this training binding.",
+        )
     if backend == "trl" and rollout is not None:
-        if colocated and "dtype" in engine and not str(engine.get("kv_cache_dtype", "")).startswith("turboquant_"):
+        rollout_dtype = engine.get("dtype")
+        if precision == "fp16" and rollout_dtype != "float16":
             yield issue(
-                "TRL_ROLLOUT_DTYPE_NOT_APPLIED",
+                "TRL_FP16_TRAINER_WITH_NON_FP16_ROLLOUT",
                 "warning",
                 f"{role}.engine.dtype",
-                "the colocated TRL rollout engine does not forward dtype (it follows the checkpoint precision); the "
-                "value is only reported as the rollout precision, so the record can misstate what ran",
-                "Remove dtype from colocated TRL rollout bindings.",
+                f"the trainer computes in float16 but the rollout samples in {rollout_dtype or 'the checkpoint dtype'}; "
+                "the sampler side then keeps its own rounding (Qwen3.5-0.8B offline: mean per-token log-prob gap "
+                "0.0112 with a bf16 sampler against 0.0019 with float16 on both sides, "
+                "docs/plan/fp16-training-precision.md)",
+                "Set the rollout engine dtype to float16 to match training_precision fp16.",
             )
         if colocated and engine.get("sleep_during_optimization") is not True:
             yield issue(

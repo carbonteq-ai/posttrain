@@ -11,6 +11,7 @@ from typing import Any, cast
 from posttrain.common import JsonValue
 
 from ...online_rl import policy_sampling_from_binding
+from ...precision import ResolvedPrecision, logits_float32, resolve_precision, training_precision
 from ...profiles import CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings
 from ...requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
 from ...rollout_execution import RolloutExecutionConfig, validate_execution_config
@@ -40,13 +41,26 @@ def _configure_batch_invariance(engine: Mapping[str, object]) -> None:
         os.environ["VLLM_BATCH_INVARIANT"] = "1"
 
 
+def _resolved_precision(request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest) -> ResolvedPrecision:
+    """Trainer and rollout precision; only a vLLM rollout engine carries a dtype."""
+
+    vllm = request.inference.backend.split("@", 1)[0] == "vllm"
+    return resolve_precision(
+        request.training.backend_options,
+        request.inference.engine if vllm else None,
+        request.policy.weight_precision,
+    )
+
+
 def _online_rl_arguments(
     request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
     output_dir: Path,
     template_kwargs: dict[str, Any],
 ) -> dict[str, Any]:
     _rollout_execution_config(request)
-    arguments = trainer_arguments(request.settings.loop, output_dir)
+    arguments = trainer_arguments(
+        request.settings.loop, output_dir, precision=training_precision(request.training.backend_options)
+    )
     arguments["trust_remote_code"] = request.policy.provenance.get("trust_remote_code") is True
     arguments.pop("max_length")
     settings = request.settings
@@ -88,6 +102,9 @@ def _online_rl_arguments(
         raise ValueError("TRL GRPO use_liger_kernel must be a boolean")
     if use_liger_kernel and isinstance(settings, GDPOSettings | CAPOSettings):
         raise ValueError("GDPO/CAPO Liger loss is not qualified")
+    if use_liger_kernel and logits_float32(request.training.backend_options):
+        # The fused Liger loss never materializes the head's logits.
+        raise ValueError("TRL logits_float32 cannot be combined with use_liger_kernel")
     liger_loss_compiled = request.training.backend_options.get("liger_loss_compiled", True)
     if not isinstance(liger_loss_compiled, bool):
         raise ValueError("TRL GRPO liger_loss_compiled must be a boolean")
@@ -328,6 +345,7 @@ def _online_rl_runtime_attributes(
     """Describe selected GRPO runtime features without claiming observed performance."""
 
     engine = request.inference.engine
+    precision = _resolved_precision(request)
     sampling = policy_sampling_from_binding(request.inference, request.settings.max_completion_length)
     dynamic_sampling = None if isinstance(request, SAMPORequest) else request.settings.dynamic_sampling
     active_sampling = request.settings.active_sampling if isinstance(request, GRPORequest | SAMPORequest) else None
@@ -346,7 +364,12 @@ def _online_rl_runtime_attributes(
         "rollout_gpu_memory_utilization": engine.get("gpu_memory_utilization"),
         "update_kind": request.training.update.kind,
         "world_size": request.training.target.placement.get("world_size", 1),
-        "rollout_precision": engine.get("dtype", request.policy.weight_precision),
+        "rollout_precision": precision.rollout_dtype,
+        "rollout_precision_source": precision.rollout_dtype_source,
+        "training_precision": precision.training,
+        "training_model_load_dtype": precision.model_load_dtype,
+        "training_loss_scaling": precision.loss_scaling,
+        "logits_float32": precision.logits_float32,
         "rollout_reasoning_mode": request.training.renderer.reasoning_mode,
         "rollout_temperature": sampling.temperature,
         "rollout_top_p": sampling.top_p,
@@ -430,6 +453,7 @@ def _grpo_runtime_attributes(request: GRPORequest) -> dict[str, JsonValue]:
 
 
 __all__ = [
+    "_resolved_precision",
     "_configure_liger_loss",
     "_configure_torch_compile",
     "_grpo_arguments",

@@ -121,7 +121,8 @@ def test_trl_rollout_rules(snap) -> None:
         {"training": training, "environment": snap.environment(max_concurrent=32), "rollout_inference": rollout}
     )
     assert codes["TRL_ROLLOUT_EXECUTION_INVALID"] == "error"
-    assert codes["TRL_ROLLOUT_DTYPE_NOT_APPLIED"] == "warning"
+    # The colocated TRL rollout forwards dtype to vLLM, so an explicit dtype is no longer ignored.
+    assert "TRL_ROLLOUT_DTYPE_NOT_APPLIED" not in codes
     assert codes["WEIGHT_NAME_PREFIX_FAMILY_MISMATCH"] == "error"
     assert codes["POLICY_PARITY_LIMIT_RELAXED"] == "warning"
 
@@ -145,3 +146,47 @@ def test_acknowledged_compatibility_findings_become_information(snap) -> None:
         "BATCH_INVARIANCE_OFF_FOR_EVALUATION": "scores are compared only within one run"
     }
     assert _codes({"evaluation_inference": seat})["BATCH_INVARIANCE_OFF_FOR_EVALUATION"] == "info"
+
+
+def test_float32_is_rejected_for_gated_deltanet_models(snap) -> None:
+    qwen = _served("qwen3.5", "Qwen/Qwen3.5-0.8B")
+    for dtype in ("float32", "float"):
+        codes = _codes(
+            {"rollout_inference": _seat(snap, {**snap.TUNED, "dtype": dtype}, purpose=("rollout",), model=qwen)}
+        )
+        assert codes["VLLM_FLOAT32_UNSUPPORTED_FOR_GATED_DELTANET"] == "error"
+    # Float16 and bfloat16 run, and LFM2.5 (short convolutions, no Gated-DeltaNet) accepts float32.
+    for dtype in ("float16", "bfloat16"):
+        codes = _codes(
+            {"rollout_inference": _seat(snap, {**snap.TUNED, "dtype": dtype}, purpose=("rollout",), model=qwen)}
+        )
+        assert "VLLM_FLOAT32_UNSUPPORTED_FOR_GATED_DELTANET" not in codes
+    lfm = _served("lfm2.5", "LiquidAI/LFM2.5-1.2B-Thinking")
+    codes = _codes(
+        {"rollout_inference": _seat(snap, {**snap.TUNED, "dtype": "float32"}, purpose=("rollout",), model=lfm)}
+    )
+    assert "VLLM_FLOAT32_UNSUPPORTED_FOR_GATED_DELTANET" not in codes
+
+
+def test_trl_training_precision_rules(snap) -> None:
+    lfm = _served("lfm2.5", "LiquidAI/LFM2.5-1.2B-Thinking")
+    training = snap.training()
+    training["resolved"]["backend_options"] = {"training_precision": "fp16"}
+    grpo = {"kind": "train.grpo"}
+
+    def codes_for(engine: dict[str, Any], job: dict[str, str]) -> dict[str, str]:
+        rollout = _seat(snap, {**snap.TUNED, **engine}, purpose=("rollout",), model=lfm)
+        return _codes({"job_definition": job, "training": training, "rollout_inference": rollout})
+
+    # An fp16 trainer with a bf16 (or checkpoint-dtype) sampler keeps the sampler's rounding.
+    assert codes_for({}, grpo)["TRL_FP16_TRAINER_WITH_NON_FP16_ROLLOUT"] == "warning"
+    assert codes_for({"dtype": "bfloat16"}, grpo)["TRL_FP16_TRAINER_WITH_NON_FP16_ROLLOUT"] == "warning"
+    unified = codes_for({"dtype": "float16"}, grpo)
+    assert "TRL_FP16_TRAINER_WITH_NON_FP16_ROLLOUT" not in unified
+    assert "TRL_PRECISION_UNQUALIFIED_FOR_JOB" not in unified
+    # Only online RL implements the precision options.
+    assert codes_for({"dtype": "float16"}, {"kind": "train.sft"})["TRL_PRECISION_UNQUALIFIED_FOR_JOB"] == "error"
+    training["resolved"]["backend_options"] = {"logits_float32": True}
+    assert codes_for({}, {"kind": "train.dpo"})["TRL_PRECISION_UNQUALIFIED_FOR_JOB"] == "error"
+    training["resolved"]["backend_options"] = {}
+    assert "TRL_PRECISION_UNQUALIFIED_FOR_JOB" not in codes_for({}, {"kind": "train.sft"})

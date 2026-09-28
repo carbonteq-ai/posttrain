@@ -451,6 +451,46 @@ a 0.5B Qwen smoke through engine creation, CUDA graph capture, weight sync,
 generation, and token-logprob extraction. That compatibility smoke does not
 replace SFT, DPO, or GRPO acceptance for the two foundation profiles.
 
+## Trainer and rollout precision
+
+The trainer and the colocated vLLM sampler compute the same policy's token
+log-probabilities with different kernels, and rounding in their compute dtype
+makes the two disagree; the truncated importance-sampling (IS) correction then
+absorbs the difference. Three selections choose the precision on each side
+(resolved by `posttrain.train.precision` and shown by `posttrain job plan` on
+its `Precision:` line):
+
+    training binding backend_options:
+      training_precision: fp16   # default bf16
+      logits_float32: true       # default false
+    rollout inference binding engine:
+      dtype: float16             # bfloat16 | float16 | float32; default: checkpoint
+
+`training_precision: fp16` loads the frozen base in float16, sets the
+Transformers `fp16` flag (float16 autocast with a dynamic loss scaler), and
+requires a LoRA update: PEFT keeps the adapter in float32 over a float16 base,
+fresh or resumed, so the scaler steps float32 master weights. The backend
+checks that before training and records `train/loss_scale`,
+`train/optimizer_step_skipped` and `train/optimizer_steps_skipped` after every
+optimizer step; one skipped step discards one rollout batch. The gradient norm
+of a skipped step is infinite by construction and is not treated as a failure.
+`logits_float32` casts the language-model head's output to float32 before the
+log-softmax (the logits are still produced in the model dtype, as vLLM's
+sampler also receives them); it cannot be combined with the fused Liger loss.
+Both options are online-RL only (GRPO, SAMPO, GDPO, CAPO); SFT, DPO and
+distillation reject them.
+
+`engine.dtype` is forwarded to vLLM. A TurboQuant KV cache still implies
+float16 and rejects any other explicit dtype. vLLM's chunked Gated-DeltaNet
+kernel rejects float32, so the advisor fails a Qwen3.5 binding with
+`dtype: float32` at plan time (`VLLM_FLOAT32_UNSUPPORTED_FOR_GATED_DELTANET`).
+A float16 trainer with a non-float16 sampler is a warning
+(`TRL_FP16_TRAINER_WITH_NON_FP16_ROLLOUT`), and a float16 sampler on a bf16
+checkpoint is only reported (`VLLM_FLOAT16_ON_BF16_CHECKPOINT`) when the trainer
+is not also float16. The fork itself is unchanged; see
+`docs/plan/fp16-training-precision.md` for the offline mismatch matrix and the
+training-arm evidence.
+
 ## Native MTP and TurboQuant rollouts
 
 The release standardizes both controls through the same

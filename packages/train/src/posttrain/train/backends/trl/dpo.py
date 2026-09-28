@@ -25,6 +25,7 @@ from .common import (
     trainer_arguments,
     trainer_lifecycle,
 )
+from .precision_runtime import require_default_precision
 
 
 def run_dpo(
@@ -33,6 +34,7 @@ def run_dpo(
     dataset_snapshot: PreferenceDataset,
     output_dir: Path,
 ) -> BackendTrainingResult:
+    require_default_precision(request.training.backend_options, "DPO")
     try:
         from trl.trainer.dpo_config import DPOConfig  # pyright: ignore[reportMissingImports]
         from trl.trainer.dpo_trainer import DPOTrainer  # pyright: ignore[reportMissingImports]

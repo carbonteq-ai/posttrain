@@ -109,6 +109,8 @@ _TRL_METRICS: Mapping[str, str] = MappingProxyType(
         "tools/failure_frequency": "train/rl/tool_failure_frequency",
         "sampling/sampling_logp_difference/mean": "train/rl/sampling_logp_delta_mean",
         "sampling/sampling_logp_difference/max": "train/rl/sampling_logp_delta_max",
+        "sampling/sampling_logp_difference/p99": "train/rl/sampling_logp_delta_p99",
+        "sampling/sequence_logp_difference/abs_mean": "train/rl/sampling_sequence_logp_delta_abs_mean",
         "sampling/policy_parity_logp_difference/mean": "train/rl/policy_parity_logp_delta_mean",
         "sampling/policy_parity_logp_difference/max": "train/rl/policy_parity_logp_delta_max",
         "sampling/policy_parity_logp_difference/token_count": "train/rl/policy_parity_token_count",
@@ -209,6 +211,8 @@ _CANONICAL_PASSTHROUGH = frozenset(
         "train/rl/tool_failure_frequency",
         "train/rl/sampling_logp_delta_mean",
         "train/rl/sampling_logp_delta_max",
+        "train/rl/sampling_logp_delta_p99",
+        "train/rl/sampling_sequence_logp_delta_abs_mean",
         "train/rl/policy_parity_logp_delta_mean",
         "train/rl/policy_parity_logp_delta_max",
         "train/rl/policy_parity_token_count",
@@ -286,6 +290,8 @@ _RATIO_METRICS = frozenset(
 
 _NON_NEGATIVE_METRICS = frozenset(
     {
+        "train/rl/sampling_logp_delta_p99",
+        "train/rl/sampling_sequence_logp_delta_abs_mean",
         "train/rl/reward_std",
         "train/grad_norm",
         "train/learning_rate",

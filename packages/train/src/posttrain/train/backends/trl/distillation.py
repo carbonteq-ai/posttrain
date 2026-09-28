@@ -34,6 +34,7 @@ from .common import (
     trainer_lifecycle,
     vllm_rollout_options,
 )
+from .precision_runtime import require_default_precision
 
 
 def run_distillation(
@@ -41,6 +42,7 @@ def run_distillation(
     request: OnPolicyDistillationRequest,
     output_dir: Path,
 ) -> BackendTrainingResult:
+    require_default_precision(request.training.backend_options, "on-policy distillation")
     if request.rollout_inference.backend.split("@", 1)[0] != "vllm":
         raise ValueError("the first TRL distillation adapter requires a vLLM student rollout binding")
     teacher_product = request.teacher_inference.backend.split("@", 1)[0]

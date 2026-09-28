@@ -166,6 +166,13 @@ def actor_update_trainer_type(parent: type[Any], telemetry: ActorUpdateTelemetry
                     error.add_note(f"rollout admission rejected groups: {sorted(rejections)}")
                 raise
 
+        def _vllm_importance_sampling_ratio(self, actor_logps: Any, sampling_logps: Any, mask: Any) -> Any:
+            result = super()._vllm_importance_sampling_ratio(actor_logps, sampling_logps, mask)
+            if self.model.training:
+                for name, value in sampler_gap_statistics(actor_logps, sampling_logps, mask).items():
+                    self._metrics["train"][name].append(value)
+            return result
+
         def training_step(self, *args: Any, **kwargs: Any) -> Any:
             loss = super().training_step(*args, **kwargs)
             if self._microstep_started_at is not None:
@@ -175,6 +182,30 @@ def actor_update_trainer_type(parent: type[Any], telemetry: ActorUpdateTelemetry
             return loss
 
     return ActorUpdateTrainer
+
+
+def sampler_gap_statistics(actor_logps: Any, sampling_logps: Any, mask: Any) -> dict[str, float]:
+    """Tail and sequence-level size of the trainer-sampler log-probability gap.
+
+    TRL reports the mean and maximum per-token gap; the 99th percentile shows
+    whether the tail that the importance-sampling cap truncates moved, and the
+    mean absolute per-sequence sum is the sequence-level log-ratio that
+    sequence importance sampling (SAMPO) uses.  Tokens whose sampler
+    log-probability is unavailable (NaN) are excluded, as in TRL.
+    """
+
+    import torch
+
+    difference = (actor_logps.detach().float() - sampling_logps.detach().float()) * mask
+    valid = mask.bool() & ~torch.isnan(difference)
+    tokens = difference[valid].abs()
+    if tokens.numel() == 0:
+        return {}
+    per_sequence = torch.nan_to_num(difference, nan=0.0).sum(dim=-1)[valid.any(dim=-1)]
+    return {
+        "sampling/sampling_logp_difference/p99": float(torch.quantile(tokens, 0.99)),
+        "sampling/sequence_logp_difference/abs_mean": float(per_sequence.abs().mean()),
+    }
 
 
 def _synchronize_cuda() -> None:
@@ -202,4 +233,5 @@ __all__ = [
     "actor_update_callback_type",
     "actor_update_trainer_type",
     "normalize_live_metrics",
+    "sampler_gap_statistics",
 ]
