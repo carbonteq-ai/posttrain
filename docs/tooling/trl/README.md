@@ -63,11 +63,12 @@ field existed, so older checkpoints resume with `kl_reference: start`, and a
 resume that would switch the reference is refused. `posttrain job plan` prints
 the reference and runs record `kl_reference` (resolved: `off`, `base` or
 `start`) and `kl_reference_setting`. GDPO and CAPO have no setting and keep TRL's
-default. The veRL backend computes a LoRA reference with the adapter disabled
-and otherwise loads the reference from the starting checkpoint, and Posttrain
-passes it no adapter path; job planning and the veRL launcher therefore reject
-a PEFT-adapter starting model on veRL and `kl_reference: base` with a
-non-foundation starting model.
+default. The veRL backend continues an adapter on its foundation weights and
+computes the LoRA reference with the adapter disabled (the base model), and
+otherwise loads the reference from the starting checkpoint; job planning and
+the veRL launcher reject `kl_reference: start` for a continued adapter and
+`kl_reference: base` for any other non-foundation starting model (see
+`docs/tooling/verl/README.md`).
 
 Posttrain exposes it as GRPO (OLMo 3) and SAMPO settings
 `active_sampling: {max_candidate_batches: N, oversample: K1, oversample_refill:

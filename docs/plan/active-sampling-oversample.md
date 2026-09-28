@@ -57,6 +57,14 @@ settings and does not change what a job, run, or update means.
   trainer-start concurrency guards, metrics, records, tests, docs.
 - [ ] Maintainers: push the TRL branch, create the GitHub release, publish to
   `carbonteq/dev`, apply the pin change (see "Publication and pin change").
+- [x] (2026-09-28) veRL adapter continuation (user: fix, do not reject):
+  foundation as model path plus the fork's `lora_adapter_path`, base-model KL
+  reference, `kl_reference: start` rejected for a continued adapter, rank check.
+  No fork change needed (post3 carries `lora_adapter_path`). CPU tests pass.
+- [ ] veRL GPU qualification (`qwen08b_verl_grpo_2_adapter_continuation.yaml`,
+  fresh then `--model-from-run`): blocked before GPU use by the published veRL
+  kind's environment packaging (see `docs/tooling/verl/README.md`); two local
+  launch attempts failed at packing, no GPU work started.
 - [ ] Qualify on the workstation once it is free: one SAMPO update with
   `oversample: 4, oversample_refill: 2` and the concurrency in the worked
   example, comparing rollout seconds and `active_sampling_generation_rounds`
