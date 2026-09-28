@@ -18,7 +18,7 @@ from posttrain.execution import (
 )
 from posttrain.tracking import RunSpec
 from posttrain_execution_local import DockerCli, LocalDockerExecutionProvider
-from posttrain_execution_local.adapter import LOCAL_STOP_GRACE_SECONDS
+from posttrain_execution_local.adapter import LOCAL_STOP_GRACE_SECONDS, retained_paths, workspace_cleanup_script
 
 
 class FakeDocker:
@@ -187,8 +187,11 @@ def test_local_docker_lifecycle_and_cancel_are_durable(
         {
             "workspace": str(workspace),
             "image": plan.request.image.value,
+            "retain_to": str((tmp_path / "state" / "retained-checkpoints" / "test-run").resolve()),
         },
     ) in gateway.calls
+    # Nothing was retained, so the retention directory is not left behind.
+    assert not (tmp_path / "state" / "retained-checkpoints" / "test-run").exists()
 
 
 def test_local_docker_uses_daemon_image_without_pull_and_cleans_exact_tag(
@@ -379,65 +382,120 @@ def _checkpoint(workspace: Path, relative: str) -> None:
     (directory / "adapter_model.safetensors").write_bytes(b"weights")
 
 
-def test_cleanup_retains_checkpoints_a_stopped_worker_did_not_finalize(tmp_path: Path) -> None:
-    gateway = FakeDocker()
-    gateway.exists = True
-    gateway.status, gateway.exit_code = "exited", 137
+def _run_cleanup_program(workspace: Path, retained: Path) -> subprocess.CompletedProcess[str]:
+    """Run the real cleanup program with the container's paths mapped onto test directories."""
+
+    return subprocess.run(
+        ["/bin/sh", "-c", workspace_cleanup_script(str(workspace), str(retained))],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+class RootContainerDocker(FakeDocker):
+    """A cleanup container that, like root in the real one, can read the worker's mode-700 scratch."""
+
+    def __init__(self, scratch: Path) -> None:
+        super().__init__()
+        self.scratch = scratch
+
+    def invoke(self, action: str, payload):
+        if action != "cleanup_workspace":
+            return super().invoke(action, payload)
+        self.calls.append((action, dict(payload)))
+        self.scratch.chmod(0o700)  # root reads it; the host user above could not
+        result = _run_cleanup_program(Path(payload["workspace"]), Path(payload["retain_to"]))
+        assert result.returncode == 0, result.stderr
+        return {"emptied": True, "retained": retained_paths(result.stdout)}
+
+
+def test_cleanup_keeps_checkpoints_in_root_owned_scratch_the_host_cannot_list(tmp_path: Path) -> None:
+    """q0412c-trl-qwen08b-fp16-r1: the host scan found nothing under root-owned 700 scratch and deleted checkpoint-45."""
+
+    workspace = tmp_path / "test-run"
+    scratch = workspace / "scratch" / "posttrain-abc"
+    _checkpoint(scratch, "trainer/checkpoint-40")
+    _checkpoint(scratch, "trainer/checkpoint-45")
+    _checkpoint(workspace, "outputs/global_step_2")
+    (scratch / "trainer" / "checkpoint-45" / "nested" / "checkpoint-1").mkdir(parents=True)
+    (scratch / "trainer" / "checkpoint-46").mkdir()  # empty: an interrupted save, nothing to keep
+    _checkpoint(scratch, "trainer/checkpoint-final")  # not a step checkpoint
+    scratch.chmod(0o000)  # the host user cannot list it, as with the container's root-owned mode 700
+    gateway = RootContainerDocker(scratch)
+    gateway.exists, gateway.status, gateway.exit_code = True, "exited", 137
     state_root = (tmp_path / "state").resolve()
     provider = LocalDockerExecutionProvider(gateway, state_root=state_root)
-    handle = ExecutionHandle("local-docker", "pt-run", "key")
-    workspace = tmp_path / "test-run"
-    _checkpoint(workspace, "outputs/trainer/checkpoint-40")
-    _checkpoint(workspace, "outputs/trainer/checkpoint-45")
-    (workspace / "outputs/trainer/checkpoint-45/nested/checkpoint-1").mkdir(parents=True)
-    (workspace / "outputs/trainer/checkpoint-empty").mkdir()
     image = RuntimeImageRef(f"registry.lan/posttrain@sha256:{'b' * 64}")
-
-    result = provider.cleanup(handle, run_id="test-run", run_workspace=workspace, runtime_image=image)
+    try:
+        result = provider.cleanup(
+            ExecutionHandle("local-docker", "pt-run", "key"),
+            run_id="test-run",
+            run_workspace=workspace,
+            runtime_image=image,
+        )
+    finally:
+        if scratch.exists():
+            scratch.chmod(0o700)
 
     retained = state_root / "retained-checkpoints" / "test-run"
-    assert (
-        "cleanup_workspace",
-        {
-            "workspace": str(workspace),
-            "image": image.value,
-            "retain": ["outputs/trainer/checkpoint-40", "outputs/trainer/checkpoint-45"],
-            "retain_to": str(retained),
-        },
-    ) in gateway.calls
-    assert retained.is_dir()
+    assert sorted(str(path.relative_to(retained)) for path in retained.rglob("adapter_model.safetensors")) == [
+        "outputs/global_step_2/adapter_model.safetensors",
+        "scratch/posttrain-abc/trainer/checkpoint-40/adapter_model.safetensors",
+        "scratch/posttrain-abc/trainer/checkpoint-45/adapter_model.safetensors",
+    ]
+    assert (retained / "scratch/posttrain-abc/trainer/checkpoint-45/nested/checkpoint-1").is_dir()
+    assert list(workspace.iterdir()) == []
     assert "did not finalize" in result.message and str(retained) in result.message
+    assert "checkpoint-45" in result.message
 
-    # A worker that finalized tracking wrote the terminal marker: its outputs are committed.
-    gateway.calls.clear()
+
+def test_cleanup_program_keeps_nothing_once_the_worker_finalized(tmp_path: Path) -> None:
+    workspace, retained = tmp_path / "run", tmp_path / "retained"
+    retained.mkdir()
+    _checkpoint(workspace, "outputs/checkpoint-45")
     (workspace / ".posttrain-terminal.json").write_text("{}")
-    provider.cleanup(handle, run_id="test-run", run_workspace=workspace, runtime_image=image)
-    assert ("cleanup_workspace", {"workspace": str(workspace), "image": image.value}) in gateway.calls
+
+    result = _run_cleanup_program(workspace, retained)
+
+    assert result.returncode == 0, result.stderr
+    assert retained_paths(result.stdout) == []
+    assert list(workspace.iterdir()) == [] and list(retained.iterdir()) == []
 
 
-def test_docker_cli_moves_retained_checkpoints_before_emptying_the_workspace(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_cleanup_program_stops_before_removing_anything_when_a_directory_is_unreadable(tmp_path: Path) -> None:
+    workspace, retained = tmp_path / "run", tmp_path / "retained"
+    retained.mkdir()
+    _checkpoint(workspace, "outputs/checkpoint-45")
+    locked = workspace / "scratch"
+    locked.mkdir()
+    locked.chmod(0o000)
+    try:
+        result = _run_cleanup_program(workspace, retained)
+    finally:
+        locked.chmod(0o700)
+
+    if result.returncode == 0:  # running as root, which reads everything
+        pytest.skip("the unreadable-directory case needs a non-root test user")
+    assert (workspace / "outputs/checkpoint-45/adapter_model.safetensors").is_file()
+    assert locked.is_dir()
+
+
+def test_docker_cli_runs_the_cleanup_program_with_the_retention_mount(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[list[str]] = []
 
     def run(arguments, **kwargs):
         del kwargs
         calls.append(list(arguments))
-        return subprocess.CompletedProcess(arguments, 0, "", "")
+        return subprocess.CompletedProcess(arguments, 0, "noise\nposttrain-retained out/checkpoint-45\n", "")
 
     monkeypatch.setattr("posttrain_execution_local.adapter.subprocess.run", run)
-    DockerCli(environment={}).invoke(
-        "cleanup_workspace",
-        {
-            "workspace": "/state/runs/r",
-            "image": "img",
-            "retain": ["out/checkpoint-45"],
-            "retain_to": "/state/retained-checkpoints/r",
-        },
+    response = DockerCli(environment={}).invoke(
+        "cleanup_workspace", {"workspace": "/state/runs/r", "image": "img", "retain_to": "/state/retained/r"}
     )
 
     [arguments] = calls
-    assert arguments[:4] == ["docker", "run", "--rm", "--entrypoint"]
-    assert "/state/retained-checkpoints/r:/opt/posttrain/retained" in arguments
-    script = arguments[-1]
-    assert script.index("mv -- /opt/posttrain/cleanup/out/checkpoint-45") < script.index("find /opt/posttrain/cleanup")
+    assert "/state/runs/r:/opt/posttrain/cleanup" in arguments
+    assert "/state/retained/r:/opt/posttrain/retained" in arguments
+    assert arguments[-1] == workspace_cleanup_script()
+    assert response == {"emptied": True, "retained": ["out/checkpoint-45"]}

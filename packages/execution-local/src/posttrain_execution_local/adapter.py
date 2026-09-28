@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
-import re
 import shlex
 import subprocess
 from collections.abc import Mapping, Sequence
@@ -39,12 +39,43 @@ _EXTRA_TRUST_VARIABLE = "POSTTRAIN_EXTRA_CA_BUNDLE"
 # the grace the same job images get on the remote provider.
 LOCAL_STOP_GRACE_SECONDS = 300
 
-# The worker writes this only after tracking finalization unwinds; a workspace
-# without it was stopped before its outputs were committed.
-_TERMINAL_MARKER = ".posttrain-terminal.json"
-# Trainer checkpoints: Transformers/TRL ``checkpoint-<step>``, veRL ``global_step_<step>``.
-_CHECKPOINT_DIRECTORY = re.compile(r"^(checkpoint-\d+|global_step_\d+)$")
+_CLEANUP_CONTAINER_PATH = "/opt/posttrain/cleanup"
 _RETAINED_CONTAINER_PATH = "/opt/posttrain/retained"
+_RETAINED_LINE = "posttrain-retained "
+
+
+def workspace_cleanup_script(root: str = _CLEANUP_CONTAINER_PATH, retained: str = _RETAINED_CONTAINER_PATH) -> str:
+    """The shell program the cleanup container runs as the workspace's owner.
+
+    The worker writes ``.posttrain-terminal.json`` only after tracking
+    finalization unwinds; without it a saved checkpoint may never have been
+    published (a cancel killed the worker mid-publication). Every non-empty
+    trainer checkpoint directory (Transformers/TRL ``checkpoint-<step>``, veRL
+    ``global_step_<step>``, not nested in another) is then moved to ``retained``
+    and reported on stdout, and only after that is the workspace emptied. The
+    scan runs here, not on the host: the container creates root-owned, mode 700
+    scratch directories the host user cannot list. Any error, including an
+    unreadable directory, stops the program before anything is removed.
+    """
+
+    r, d = shlex.quote(root), shlex.quote(retained)
+    return f"""set -eu
+if [ ! -f {r}/.posttrain-terminal.json ]; then
+  candidates=$(mktemp)
+  find {r} -mindepth 1 -type d \\( -name 'checkpoint-[0-9]*' -o -name 'global_step_[0-9]*' \\) -prune -print > "$candidates"
+  while IFS= read -r directory; do
+    case "${{directory##*/}}" in checkpoint-*[!0-9]*|global_step_*[!0-9]*) continue ;; esac
+    files=$(find "$directory" -type f -print)
+    [ -n "$files" ] || continue
+    relative=${{directory#{root}/}}
+    mkdir -p "$(dirname {d}/"$relative")"
+    mv -- "$directory" {d}/"$relative"
+    printf '{_RETAINED_LINE}%s\\n' "$relative"
+  done < "$candidates"
+  rm -f -- "$candidates"
+fi
+find {r} -mindepth 1 -maxdepth 1 -exec rm -rf -- {{}} +
+"""
 
 
 class DockerGateway(Protocol):
@@ -184,29 +215,22 @@ class DockerCli:
             self._run("container", "rm", name)
             return {"removed": True}
         if action == "cleanup_workspace":
-            # Files are owned by the container user, so a container empties the
-            # workspace. Checkpoints named in ``retain`` are moved out first.
-            retain = [str(path) for path in cast_sequence(payload.get("retain"))]
-            volumes = ["--volume", f"{payload['workspace']}:/opt/posttrain/cleanup"]
-            script = []
-            if retain:
-                volumes += ["--volume", f"{payload['retain_to']}:{_RETAINED_CONTAINER_PATH}"]
-                for relative in retain:
-                    source = shlex.quote(f"/opt/posttrain/cleanup/{relative}")
-                    target = shlex.quote(f"{_RETAINED_CONTAINER_PATH}/{relative}")
-                    script.append(f'mkdir -p "$(dirname {target})" && mv -- {source} {target}')
-            script.append("find /opt/posttrain/cleanup -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +")
-            self._run(
+            # Files are owned by the container user, so a container scans the
+            # workspace, keeps unfinalized checkpoints and empties the rest.
+            result = self._run(
                 "run",
                 "--rm",
                 "--entrypoint",
                 "/bin/sh",
-                *volumes,
+                "--volume",
+                f"{payload['workspace']}:{_CLEANUP_CONTAINER_PATH}",
+                "--volume",
+                f"{payload['retain_to']}:{_RETAINED_CONTAINER_PATH}",
                 str(payload["image"]),
                 "-c",
-                " && ".join(script),
+                workspace_cleanup_script(),
             )
-            return {"emptied": True, "retained": retain}
+            return {"emptied": True, "retained": retained_paths(result.stdout)}
         raise ValueError(f"unsupported Docker gateway action: {action}")
 
 
@@ -218,29 +242,10 @@ def cast_mapping(value: object) -> Mapping[str, object]:
     return value if isinstance(value, Mapping) else {}
 
 
-def uncommitted_checkpoints(workspace: Path) -> tuple[str, ...]:
-    """Checkpoint directories of a worker stopped before it finalized tracking.
+def retained_paths(stdout: str) -> list[str]:
+    """Checkpoint paths the cleanup program reported moving, in order."""
 
-    A worker that finished its finalization wrote the terminal marker after
-    committing its outputs; without the marker a saved checkpoint may never have
-    been published (a cancel killed it mid-publication), so cleanup must not
-    delete it. Paths are relative to ``workspace``; nested checkpoints of an
-    already-listed directory are not repeated.
-    """
-
-    if not workspace.is_dir() or (workspace / _TERMINAL_MARKER).is_file():
-        return ()
-    found: list[Path] = []
-    for path in sorted(workspace.rglob("*")):
-        if (
-            path.is_dir()
-            and not path.is_symlink()
-            and _CHECKPOINT_DIRECTORY.match(path.name)
-            and not any(parent in found for parent in path.parents)
-            and any(child.is_file() for child in path.rglob("*"))
-        ):
-            found.append(path)
-    return tuple(path.relative_to(workspace).as_posix() for path in found)
+    return [line[len(_RETAINED_LINE) :] for line in stdout.splitlines() if line.startswith(_RETAINED_LINE)]
 
 
 def _container_name(idempotency_key: str) -> str:
@@ -457,20 +462,25 @@ class LocalDockerExecutionProvider:
                 or not run_workspace.is_dir()
             ):
                 raise RuntimeError("local Docker cleanup workspace is not an exact run directory")
-            workspace_payload: dict[str, Any] = {
-                "workspace": str(run_workspace),
-                "image": local_image or runtime_image.value,
-            }
-            retained = uncommitted_checkpoints(run_workspace)
+            destination = self._state_root / "retained-checkpoints" / run_id
+            destination.mkdir(parents=True, exist_ok=True)
+            response = self._gateway.invoke(
+                "cleanup_workspace",
+                {
+                    "workspace": str(run_workspace),
+                    "image": local_image or runtime_image.value,
+                    "retain_to": str(destination),
+                },
+            )
+            retained = [str(path) for path in cast_sequence(response.get("retained"))]
             if retained:
-                destination = self._state_root / "retained-checkpoints" / run_id
-                destination.mkdir(parents=True, exist_ok=True)
-                workspace_payload.update({"retain": list(retained), "retain_to": str(destination)})
                 retained_disposition = (
                     f" after moving {len(retained)} checkpoint(s) the worker saved but did not finalize "
                     f"({', '.join(retained)}) to {destination}"
                 )
-            self._gateway.invoke("cleanup_workspace", workspace_payload)
+            else:
+                with contextlib.suppress(OSError):
+                    destination.rmdir()
         image_disposition = ""
         if retained_disposition:
             image_disposition += retained_disposition

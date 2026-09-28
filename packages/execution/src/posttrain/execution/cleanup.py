@@ -242,11 +242,20 @@ def _is_safe_terminal_disagreement(reconciliation: Any, workspace: Path) -> bool
 
 
 def _workspace_has_no_outputs(workspace: Path) -> bool:
+    """Whether the workspace provably holds nothing but the terminal marker.
+
+    A directory the host cannot read (a container creates root-owned, mode 700
+    scratch directories) may hold outputs, so it is never treated as empty.
+    """
+
     if not workspace.is_dir():
         return False
-    return all(
-        path.name == _TERMINAL_MARKER and path.parent == workspace for path in workspace.rglob("*") if not path.is_dir()
-    )
+    unreadable: list[OSError] = []
+    for directory, _subdirectories, files in os.walk(workspace, onerror=unreadable.append):
+        for name in files:
+            if not (name == _TERMINAL_MARKER and Path(directory) == workspace):
+                return False
+    return not unreadable
 
 
 def _cleanup_workspace(
