@@ -8,8 +8,12 @@
 environment:
   # gsm8k-grpo-qualification with enough tasks for 100 shuffled updates of four
   # prompts, and rollouts in parallel (that selection runs 2 tasks, one at a time).
+  # Deferred like the other lab GSM8K environments: the taskset downloads the
+  # pinned openai/gsm8k revision from the Hugging Face Hub at run time, so a
+  # launch needs --allow-deferred-qualification.
   gsm8k-grpo-precision:
     category: math-reasoning
+    qualification: deferred
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
@@ -18,15 +22,17 @@ environment:
     activation:
       kind: verifiers-config
       config:
+        # Verifiers cdd2ec76 accepts the harness and timeouts only under agent.
         agent:
           harness: {id: "null"}
           runtime: {type: subprocess}
           timeout: {setup: 120, rollout: 180, finalize: 60, scoring: 120}
-        taskset: {id: gsm8k-v1, split: train}
-        harness:
-          id: "null"
-          runtime: {type: subprocess}
-        timeout: {setup: 120, rollout: 180, finalize: 60, scoring: 120}
+        taskset:
+          id: gsm8k-v1
+          dataset_repo: openai/gsm8k
+          dataset_revision: 740312add88f781978c0658806c59bc2815b9866
+          dataset_config: main
+          split: train
     sampling: {max_tokens: 384, temperature: 1.0, top_p: 1.0}
     num_tasks: 512
     num_rollouts: 8

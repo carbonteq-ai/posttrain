@@ -1,3 +1,9 @@
+# Retired (gate verl-sampo, 2026-09-26): SAMPO refills prompt groups with VORTEX
+# active sampling, which the veRL backend does not provide, so veRL rejects SAMPO
+# until the separate VORTEX port lands. Kept as history and not maintained: its
+# binding still pins veRL c3f49b91 with an old backend lock, and the
+# multi-turn-alphabet-sort sampling (max_tokens 2048) disagrees with the
+# rollout inference binding (384), so job plan rejects it.
 project_id: posttrain-lab
 work_package_id: train/qwen3.5-0.8b/verl-sampo-2-capsule-qualification
 stage: train

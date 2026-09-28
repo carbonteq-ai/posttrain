@@ -92,5 +92,5 @@ inference:
         An 8 GB functional qualification of adapter continuation; decode speed is
         not measured, and eager decode avoids CUDA-graph capture memory.
       VLLM_HYBRID_CONTINUATION_REUSE_MISSING: >-
-        The veRL kind image's CarbonTeq vLLM lacks hybrid continuation reuse;
-        GSM8K episodes are single-turn, so continuation reuse does not apply.
+        GSM8K episodes are single-turn, so multi-turn continuation reuse does
+        not apply to this qualification.
