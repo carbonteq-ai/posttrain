@@ -205,8 +205,23 @@ adds backend support that meets those contracts; no product meaning changes.
   Job plan checks SAMPO oversampling capacity on veRL. SAMPO metric names map
   to the TRL path's hierarchy evidence. Parity test passes (see Artifacts).
 - [ ] Phase 6: end-to-end TRL/veRL parity runs on the 8 GB GPU.
-- [ ] Fork release (next post version, ledger, wheel/sdist hashes) and
-  Posttrain pin as separate commits; report before publishing.
+- [x] (2026-09-29) Fork release candidate `0.9.0.post6` prepared, not
+  pushed: release commit `1badbebd22aee7af5b85185760275f697af3a073` (version
+  and ledger), local annotated tag `carbonteq-v0.9.0.post6` (tag object
+  `3a7eb765060cf2d691114cb8cfefd2c5a84da180`), receipt commit
+  `1cd7702f6b2f6aadfa149ec261e277552178eb5a`. Two clean-clone builds with
+  `SOURCE_DATE_EPOCH=1790624464`: byte-identical wheel
+  `63efd613e15f0011e840fadbb67e7d053353aa7b31437c84555e0261331faee5`, sdist
+  `c7a00ceb1858011799ec22f8d82d66f07632e1eb4ecb26e95bb207c4e1abeb1a` (second
+  build's sdist differs in archive bytes only; identical members); `twine
+  check` passes; assets in `/home/hammad/verl-release/verl-post6/dist1/`.
+  Fork CPU suite: 348 passed, 2 skipped. Posttrain records the three post6
+  commits in `_FORK_NATIVE_NAME_REVISIONS`; the fork-native-name test now
+  checks every post6 name against the installed fork.
+- [ ] Push the fork branch and tag, publish post6 (coordinator), then the
+  Posttrain pin commit: `packages/train/pyproject.toml` and `uv.lock` to
+  post6, the veRL kind profile and locks, and drop the olmo3 strict-xfail in
+  `test_pinned_verl_fork_registers_every_native_name_posttrain_requests`.
 - [ ] Rebase `codex/verl-vortex` onto `codex/release-0.4.12` once that branch
   is final.
 

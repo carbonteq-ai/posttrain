@@ -74,6 +74,10 @@ _FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str | None, frozenset[str]]] = {
     # codex/vortex-active-sampling: plus TRL's candidate-batch DAPO dynamic sampling.
     "ce8e0430018204b03c009b72bfba3b58968696c7": (None, _FORK_ONLY_NATIVE_NAMES),
     "94606019cadacb656f6e9245f4c793023df6ba12": (None, _FORK_ONLY_NATIVE_NAMES),
+    "7d850ef5ad39920446690345af052d781325fc79": (None, _FORK_ONLY_NATIVE_NAMES),
+    # carbonteq-v0.9.0.post6 release commit and its asset receipt.
+    "1badbebd22aee7af5b85185760275f697af3a073": ("0.9.0.post6", _FORK_ONLY_NATIVE_NAMES),
+    "1cd7702f6b2f6aadfa149ec261e277552178eb5a": ("0.9.0.post6", _FORK_ONLY_NATIVE_NAMES),
 }
 # Every recorded fork commit descends from post2, which added bounded rollout execution.
 _ROLLOUT_EXECUTION_FORK_REVISIONS = _ROLLOUT_EXECUTION_FORK_REVISIONS_BASE | frozenset(_FORK_NATIVE_NAME_REVISIONS)
