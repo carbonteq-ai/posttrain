@@ -1,17 +1,18 @@
 # Trackio fork and maintenance
 
-The framework pin on branch `codex/trackio-next` is `0.31.5.post14.dev32`, which
-is built but **not yet released or published**. It is fork commit
-`d71cf2a5cbcc561bd72e3932d8032200a791d79c` on fork branch `codex/next-release`
-(dev31 plus f3be77d7 and the episode-ending change); the release tag will be
-`carbonteq-v0.31.5.post14.dev32`. A clean clone of that commit built with
+The framework pin on branch `codex/trackio-next` is `0.31.5.post14.dev32`, fork
+commit `d71cf2a5cbcc561bd72e3932d8032200a791d79c` on fork branch
+`codex/next-release` (dev31 plus f3be77d7 and the episode-ending change), tag
+`carbonteq-v0.31.5.post14.dev32` (GitHub prerelease), published unchanged to
+`carbonteq/dev` by Posttrain workflow `36432505907` on 2026-09-28. The shared
+server has **not** been migrated or upgraded. A clean clone of that commit built with
 `uv build` gives wheel
 `78e3ecf207c074c43281edff75343086bf379a22cc281308cc12436e5a5260a3` and sdist
 `94d3f3bb7084346f441ce39b8e9d4cd775d1197d07ca6e5fba87726dfbddddc0` (the same
 procedure rebuilt dev31's published bytes exactly; build from a fresh clone,
 because a second build in the same tree changes the sdist). The pin commit
-writes the lock entries from those hashes; after publication rerun `uv lock`
-and the release lock commands (see `docs/plan/episode-ending-labels.md`).
+wrote the lock entries from those hashes; relocking after publication changed
+nothing.
 dev32 adds the trace-fact dimension `episode_ending` (column
 `fact_episode_ending`, Doris schema version 5, migration
 `trackio storage migrate-doris --to 5`: one
