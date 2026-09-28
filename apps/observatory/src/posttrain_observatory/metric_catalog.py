@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from posttrain.common import EPISODE_ENDING_DESCRIPTIONS
 from pydantic import Field
 
 from .models import MetricHelp, ObservatoryModel
@@ -1334,6 +1335,20 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         entity="run",
         aggregation="sum",
         job_kinds=("eval.domain", "eval.general"),
+    ),
+    # One rate per episode ending (`posttrain.common.EpisodeEnding`); the
+    # per-rollout label is the `rollout.ending` dimension.
+    *(
+        _entry(
+            f"train/rl/ending_{ending}_rate",
+            f"ending_{ending}_rate",
+            f"Ending: {ending.replace('_', ' ')}",
+            f"Share of the update's attempted rollouts that ended {ending}. {meaning}",
+            unit="ratio",
+            entity="update",
+            job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
+        )
+        for ending, meaning in EPISODE_ENDING_DESCRIPTIONS.items()
     ),
 )
 CATALOG_BY_METRIC: dict[str, MetricEntry] = {entry.metric: entry for entry in METRIC_CATALOG}

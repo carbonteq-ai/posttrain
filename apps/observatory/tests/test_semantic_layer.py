@@ -147,3 +147,16 @@ def test_describe_lists_the_tables_and_narrows_by_job_kind() -> None:
     sampo = describe_semantics(FRAMEWORK_MODEL, job_kinds=("train.sampo",))
     names = {measure.name for measure in sampo.measures}
     assert "step_reward_share" in names and "preference_accuracy" not in names
+
+
+def test_episode_endings_are_a_rollout_dimension_and_update_rates() -> None:
+    from posttrain.common import EPISODE_ENDINGS
+
+    ending = FRAMEWORK_MODEL.dimension("rollout.ending")
+    assert ending.source == Source(kind="trace_attribute", name="episode_ending")
+    for name in EPISODE_ENDINGS:
+        assert name in ending.description
+        measure = FRAMEWORK_MODEL.measure(f"ending_{name}_rate")
+        assert measure.entity == "update" and measure.source.name == f"train/rl/ending_{name}_rate"
+    sql = assemble(FRAMEWORK_MODEL, "select ending, count(*) from rollouts group by ending", None)
+    assert """JSON_EXTRACT_STRING(t.metadata, '$."episode_ending"') AS `ending`""" in sql

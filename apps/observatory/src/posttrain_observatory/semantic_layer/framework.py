@@ -8,6 +8,8 @@ resolved inputs; several paths separated by `|` are tried in order.
 
 from __future__ import annotations
 
+from posttrain.common import EPISODE_ENDING_ATTRIBUTE, EPISODE_ENDING_DESCRIPTIONS
+
 from ..metric_catalog import METRIC_CATALOG, MetricEntry
 from .model import AGGREGATIONS, Dimension, Entity, Measure, Metric, SemanticModel, Source
 
@@ -303,6 +305,17 @@ DIMENSIONS = (
         type="boolean",
         description="The rollout hit a turn, output or context budget.",
         source=Source(kind="trace_fact", name="is_truncated"),
+    ),
+    Dimension(
+        name="rollout.ending",
+        entity="rollout",
+        type="string",
+        description=(
+            "How the rollout ended: "
+            + "; ".join(f"{name} ({meaning})" for name, meaning in EPISODE_ENDING_DESCRIPTIONS.items())
+            + ". Every ending but completed and error is truncated; empty for traces recorded before the label."
+        ),
+        source=Source(kind="trace_attribute", name=EPISODE_ENDING_ATTRIBUTE),
     ),
     Dimension(
         name="rollout.failed",

@@ -18,7 +18,7 @@ import {
 } from '@phosphor-icons/react';
 
 import type { DistillationPairing, TraceSummary } from '../lib/api';
-import type { TracePresentation } from '../lib/trace-presentation';
+import { episodeEndingPresentation, type TracePresentation } from '../lib/trace-presentation';
 import { Pager, usePaging } from './TableControls';
 
 const TRACES_PER_PAGE = 25;
@@ -60,6 +60,7 @@ export function TraceTable({
   distillation,
 }: TraceTableProps) {
   const hasReward = traces.some((trace) => trace.reward != null);
+  const hasEnding = traces.some((trace) => trace.ending != null);
   const columns = useMemo(
     () => [
       column.accessor('external_id', {
@@ -115,8 +116,14 @@ export function TraceTable({
       column.accessor('outcome', {
         header: 'Outcome',
         size: 56,
-        cell: (info) => <TraceOutcome outcome={info.row.original.outcome} presentation={presentation} />,
+        cell: (info) => <TraceOutcome outcome={info.row.original.outcome} presentation={presentation} ending={info.row.original.ending} />,
       }),
+      ...(hasEnding ? [column.accessor((trace) => trace.ending ?? null, {
+        id: 'ending',
+        header: 'Ending',
+        size: 96,
+        cell: (info) => <EpisodeEndingLabel ending={info.getValue()} />,
+      })] : []),
       column.accessor('tool_calls', { header: 'Tools', size: 44, cell: (info) => info.getValue() ?? '—' }),
       column.accessor('latency_ms', {
         header: 'Latency',
@@ -129,7 +136,7 @@ export function TraceTable({
         cell: (info) => info.getValue()?.toLocaleString() ?? '—',
       }),
     ],
-    [hasReward, metricColumns, onSelect, presentation],
+    [hasEnding, hasReward, metricColumns, onSelect, presentation],
   );
   const table = useReactTable({
     data: traces,
@@ -226,14 +233,25 @@ export function TraceTable({
   );
 }
 
+export function EpisodeEndingLabel({ ending }: { ending: TraceSummary['ending'] }) {
+  if (ending == null) return <span className="text-[10px] text-muted" title="Not recorded for this trace">—</span>;
+  const { label, description } = episodeEndingPresentation(ending);
+  return <span className="block truncate text-[10px] text-secondary" title={description}>{label}</span>;
+}
+
 export function TraceOutcome({
   outcome,
   presentation,
+  ending,
 }: {
   outcome: TraceSummary['outcome'];
   presentation: TracePresentation;
+  ending?: TraceSummary['ending'];
 }) {
-  const label = presentation.outcomeLabel(outcome);
+  const outcomeLabel = presentation.outcomeLabel(outcome);
+  const label = ending != null && ending !== 'completed' && ending !== 'error'
+    ? `${outcomeLabel}: ${episodeEndingPresentation(ending).label}`
+    : outcomeLabel;
   const appearance = outcome === 'pass'
     ? { className: 'bg-emerald-50 text-emerald-700 ring-emerald-200', icon: Check }
     : outcome === 'review' || outcome === 'error'

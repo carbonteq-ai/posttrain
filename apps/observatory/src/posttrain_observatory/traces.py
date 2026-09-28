@@ -11,7 +11,7 @@ from itertools import product
 from statistics import fmean
 from typing import Any, Literal, cast
 
-from posttrain.common import JsonValue
+from posttrain.common import EPISODE_ENDING_ATTRIBUTE, JsonValue, episode_ending
 from posttrain.tracking import (
     RunDataSource,
     TraceAggregateResult,
@@ -280,7 +280,29 @@ def _wire_success(payload: Mapping[str, JsonValue]) -> bool | None:
     return None
 
 
-def _wire_error(payload: Mapping[str, JsonValue]) -> str | None:
+def _wire_error(
+    payload: Mapping[str, JsonValue],
+    attributes: Mapping[str, JsonValue] | None = None,
+) -> str | None:
+    """The trace's execution error, or None.
+
+    The producer's shared trace evidence decides whether an episode failed and
+    records it as ``has_error``; list pages (whose payload has no model calls)
+    and the detail page (full payload) both follow it, so they agree. A final
+    model request refused for exceeding the context is a truncation
+    (``context_rejected``), not an error.
+    """
+
+    recorded = (attributes or {}).get("has_error")
+    if recorded is False:
+        return None
+    derived = _wire_payload_error(payload)
+    if derived is None and recorded is True:
+        return "trace reported an error"
+    return derived
+
+
+def _wire_payload_error(payload: Mapping[str, JsonValue]) -> str | None:
     error = payload.get("error")
     if error not in (None, False, ""):
         return str(error)
@@ -293,11 +315,13 @@ def _wire_error(payload: Mapping[str, JsonValue]) -> str | None:
         return "trace reported an error"
     calls = payload.get("calls")
     if isinstance(calls, list):
-        for call in reversed(calls):
+        for index, call in enumerate(reversed(calls)):
             if not isinstance(call, Mapping):
                 continue
             call_error = call.get("error")
             if call_error in (None, False, ""):
+                continue
+            if index == 0 and _context_overflow(call_error):
                 continue
             if isinstance(call_error, Mapping):
                 error_type = call_error.get("type")
@@ -306,6 +330,12 @@ def _wire_error(payload: Mapping[str, JsonValue]) -> str | None:
                 return f"{label} (HTTP {status})" if isinstance(status, int) else label
             return "model call failed"
     return None
+
+
+def _context_overflow(error: object) -> bool:
+    # The same signature `posttrain.environment.is_context_overflow_error` matches.
+    message = error.get("message") if isinstance(error, Mapping) else None
+    return isinstance(message, str) and "maximum context length" in message.lower()
 
 
 def _wire_truncated(
@@ -324,6 +354,8 @@ def _wire_truncated(
     calls = payload.get("calls")
     if not isinstance(calls, list):
         return False
+    if calls and isinstance(calls[-1], Mapping) and _context_overflow(calls[-1].get("error")):
+        return True
     for call in reversed(calls):
         if not isinstance(call, Mapping) or call.get("error") not in (None, False, ""):
             continue
@@ -945,7 +977,7 @@ def _summary(record: TraceRecord, evaluation_metadata: EvaluationMetadata | None
     metadata = metadata if isinstance(metadata, Mapping) else {}
     info = payload.get("info")
     info = info if isinstance(info, Mapping) else {}
-    error = _wire_error(payload)
+    error = _wire_error(payload, record.attributes)
     reward = None if error is not None else _wire_reward(payload)
     success = None if error is not None else _wire_success(payload)
     truncated = _wire_truncated(payload, record.attributes)
@@ -981,6 +1013,7 @@ def _summary(record: TraceRecord, evaluation_metadata: EvaluationMetadata | None
         success=success,
         outcome=_wire_outcome(success=success, reward=reward, truncated=truncated, error=error),
         truncated=truncated,
+        ending=episode_ending(record.attributes.get(EPISODE_ENDING_ATTRIBUTE)),
         error=error,
         tool_calls=_wire_tool_calls(payload),
         model_calls=_wire_model_calls(payload),

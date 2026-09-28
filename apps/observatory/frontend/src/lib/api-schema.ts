@@ -854,6 +854,8 @@ export interface components {
         };
         /** @enum {string} */
         EntityName: "run" | "update" | "rollout";
+        /** @enum {string} */
+        EpisodeEnding: "completed" | "turn_limit" | "token_budget" | "time_limit" | "reply_token_limit" | "context_limit_reply_cut" | "context_rejected" | "error";
         /**
          * EvaluationBreakdown
          * @description One declared compound report with structured groups.
@@ -2608,6 +2610,9 @@ export interface components {
         /**
          * Source
          * @description Where values come from: a field, a settings path, a metric name, a trace fact.
+         *
+         *     A ``trace_attribute`` is a key the producer recorded in the trace's metadata
+         *     (its attributes); it serves labels Trackio has no fact column for yet.
          */
         Source: {
             kind: components["schemas"]["SourceKind"];
@@ -2621,7 +2626,7 @@ export interface components {
             transform: "identity" | "one_minus";
         };
         /** @enum {string} */
-        SourceKind: "run_field" | "setting" | "event" | "metric_series" | "trace_fact" | "derived";
+        SourceKind: "run_field" | "setting" | "event" | "metric_series" | "trace_fact" | "trace_attribute" | "derived";
         /** SourceRefreshStatus */
         SourceRefreshStatus: {
             /** @default [] */
@@ -2931,6 +2936,7 @@ export interface components {
         TraceSummary: {
             /** Completion Tokens */
             completion_tokens?: number | null;
+            ending?: components["schemas"]["EpisodeEnding"] | null;
             /** Error */
             error?: string | null;
             /** External Id */

@@ -215,6 +215,8 @@ export type Artifact = {
   };
 };
 
+export type EpisodeEnding = components['schemas']['EpisodeEnding'];
+
 export type TraceSummary = {
   external_id: string;
   trace_type: string;
@@ -247,6 +249,8 @@ export type TraceSummary = {
   success: boolean | null;
   outcome: 'pass' | 'review' | 'scored' | 'error' | 'truncated' | 'unknown';
   truncated: boolean;
+  /** How the episode ended, as recorded with the trace; absent before the label existed. */
+  ending?: EpisodeEnding | null;
   error: string | null;
   tool_calls: number | null;
   model_calls: number | null;

@@ -73,7 +73,9 @@ def _trace(index: int, *, step: int, task: str, reward: float, truncated: bool) 
         dimensions={"task_id": task, "rollout_step": step, "is_truncated": truncated, "has_error": False},
         measures={"task_reward": reward, "model_output_tokens": 100.0 * (index + 1)},
     )
-    return TraceObservation("verifiers", f"rollout-{index}", payload, facts=(facts,))
+    # The producer records the ending as a trace attribute; rollout-2 predates the label.
+    attributes = {} if index == 2 else {"episode_ending": "turn_limit" if truncated else "completed"}
+    return TraceObservation("verifiers", f"rollout-{index}", payload, attributes=attributes, facts=(facts,))
 
 
 @pytest.fixture(scope="session")
