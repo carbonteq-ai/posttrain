@@ -38,12 +38,18 @@ and lab catalog entries.
 - [x] (2026-09-28) Adapter list-argument fix, commit `fcd06f9` on
   `codex/automationbench-tool-fidelity` of `verifiers-environments`, with
   `tests/test_limited_tool_arguments.py`.
-- [ ] AutomationBench fork: tool fixes on `codex/tool-fidelity-fixes` with
-  `tests/test_tool_fidelity.py`, ledger updated.
-- [ ] Push the fork branch; re-vendor it into the adapter
-  (`environments/automationbench_v1/src/automationbench/`), bump the adapter
-  to 0.5.0, lock, push.
-- [ ] Posttrain lab catalog: held-out suites `automationbench-lfm26-heldout-mix-v4`
+- [x] (2026-09-28) AutomationBench fork: tool fixes at `e193bce` on
+  `codex/tool-fidelity-fixes` (pushed), 75 regression tests in
+  `tests/test_tool_fidelity.py`; full non-generated suite 836 passed with the
+  2 known Gmail route failures; ledger updated. Graders unchanged; positive
+  Sheets/Gmail assertions of 489 tasks remain satisfiable; replaying 801
+  training calls changed grades in one rollout (2 assertions now pass) and
+  cut tool output 870K -> 532K characters.
+- [x] (2026-09-28) Adapter 0.5.0 at `61448b5d` on
+  `codex/automationbench-tool-fidelity` (pushed): vendors `e193bce`, keeps
+  Sheets' updated-row record across the JSON round trip (`world_codec.py`,
+  `tests/test_world_codec.py`), 53 tests pass.
+- [x] (2026-09-28) Posttrain lab catalog: held-out suites `automationbench-lfm26-heldout-mix-v4`
   and `...-v4-t05` on the fixed adapter, same tasks and budgets as v3, both
   sampling with Liquid's top-k 50 / repetition penalty 1.1 / top-p 1.0 at
   temperature 0.1 and 0.5, with their evaluation plans, work packages and
@@ -52,6 +58,13 @@ and lab catalog entries.
   both suites; record score, tool mistakes per episode and truncation.
 
 ## Surprises & Discoveries
+
+- The adapter rebuilt the world from JSON for every tool call and for
+  scoring, dropping Google Sheets' private `_updated_row_keys`: 26
+  `google_sheets_row_not_updated` assertions always passed and
+  `google_sheets_row_updated` checks without cell text never could.
+- `google_sheets_get_spreadsheet_by_id` now defaults `includeGridData` to
+  false (the real API's default); Slack `find_message` returns a list.
 
 - The fork's ledger said it "does not change ... tools"; every tool bug found
   is identical in upstream Zapier AutomationBench, so all earlier runs and

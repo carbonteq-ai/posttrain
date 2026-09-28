@@ -1,0 +1,35 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-sampo-turns-continue40-fixed-tools-local-v1
+stage: train
+description: Continue the SAMPO continuation (lfm26-sampo-cont120-g24x6-lr5e5-kl1e2-t05-20260928-r1) from its update-40 adapter as a new run on automationbench-v1 0.5.0, whose tools honour their parameters and return no template data, with lists passed intact and Sheets row updates kept for scoring. Settings are r1's - 24 prompt groups x 6 attempts, learning rate 5e-5 after a 5-update warmup, KL 0.01 to the starting adapter, truncation penalty 0.1, mistake penalty 0.02 each (at most 0.1), temperature 0.5.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-sampo-turns-continue40-fixed-tools-local-v1@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    reward_projection: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: sampo
+      kind: train.sampo
+      definition: train/sampo-turns@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, per-turn environment reward evidence, adaptive curriculum state, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-sampo-turns-v3}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-sampo-turns-100-g24x6-lr5e-5-kl1e-2-t05-local-v1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-turn-progress@2}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-local-g144-w12@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c144-4k-t05@1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-automationbench-vortex-20-local-v1
+  arm: sampo-turns-continue40-g24x6-lora5e5-kl1e2-t05-mistake-penalty-fixed-tools-dspark
+  task_mix: lfm26-automationbench-mix-v2
+  question: With tools that behave as documented, does continuing from update 40 raise held-out score on the fixed-tool suites while keeping tool mistakes low?
+  labels: [experiment, sampo, turn-rewards, automationbench, lfm2.5, yield-first, adaptive-curriculum, active-sampling, truncation-penalty, mistake-penalty, continuation, local-rtx-pro-6000]
