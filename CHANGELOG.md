@@ -143,6 +143,13 @@ oversampled active sampling, and a KL penalty measured against the base model.
   `0.9.0.post7`, which uses vLLM's rename-only mapper as vLLM's own adapter
   loader does (post8 carries the same fix). Every other veRL setting the
   release generates resolves as on post5.
+- veRL runs failed after their last update while recording rewards: the
+  launcher attached a `rollout_step` dimension to each trace's
+  `algorithm_reward` enrichment, which Trackio rejects (`a trace-fact
+  enrichment may only supply algorithm_reward`). The rollout step belongs to
+  the Verifiers source projection; the enrichment now carries only the
+  algorithm reward, and the shared observation contract rejects any later
+  trace-fact update that supplies more, so every observer catches it.
 - veRL jobs without `rollout_execution` settings failed before their first
   rollout (`ConfigAttributeError: Key 'num_cpus_per_worker' is not in
   struct`): since fork post2 veRL's agent loop read three episode-capacity

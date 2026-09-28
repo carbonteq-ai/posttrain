@@ -299,6 +299,21 @@ class RunContextTests(unittest.TestCase):
                     reward_components=(TraceRewardComponent("reward", 1.0),),
                 ),
             )
+        for extra in (
+            {"dimensions": {"rollout_step": 4}, "measures": {"algorithm_reward": 0.8}},
+            {"measures": {"algorithm_reward": 0.8, "model_output_tokens": 12}},
+            {"measures": {}},
+        ):
+            with self.assertRaisesRegex(ContractError, "only the algorithm_reward measure"):
+                TraceFactUpdateObservation(
+                    "verifiers",
+                    "trace-1",
+                    TraceFactSet(
+                        namespace="posttrain.train.reward",
+                        calculator_version="verl-algorithm-reward.v1",
+                        **cast(Any, extra),
+                    ),
+                )
 
     def test_null_observer_supports_the_same_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

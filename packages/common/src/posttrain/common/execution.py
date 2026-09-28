@@ -222,6 +222,10 @@ class TraceFactUpdateObservation:
         _bounded_text(self.external_id, "trace fact update external id", maximum=768)
         if self.facts.reward_components:
             raise ContractError("trace fact updates cannot replace reward components")
+        # A later update enriches the trace's source projection, which owns the
+        # dimensions; it may supply only the learner's algorithm reward.
+        if self.facts.dimensions or set(self.facts.measures) != {"algorithm_reward"}:
+            raise ContractError("trace fact updates may supply only the algorithm_reward measure")
 
 
 class Observer(Protocol):

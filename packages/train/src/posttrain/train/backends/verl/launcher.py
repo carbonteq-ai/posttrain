@@ -675,7 +675,12 @@ def _replay_trace_fact_updates(
     context: RunContext,
     records: tuple[VerlRolloutRewardRecord, ...],
 ) -> None:
-    """Emit worker-side shaped rewards from the trusted parent process only."""
+    """Emit worker-side shaped rewards from the trusted parent process only.
+
+    An enrichment carries only ``algorithm_reward``: the rollout step and the
+    reward components belong to the Verifiers source projection, and tracking
+    backends reject an enrichment that supplies them.
+    """
 
     for record in records:
         context.trace_fact_update(
@@ -685,7 +690,6 @@ def _replay_trace_fact_updates(
                 TraceFactSet(
                     namespace="posttrain.train.reward",
                     calculator_version="verl-algorithm-reward.v1",
-                    dimensions={"rollout_step": record.step},
                     measures={"algorithm_reward": record.algorithm_reward},
                     provenance={"algorithm_reward": "verl_agent_loop_reward_shaping"},
                 ),

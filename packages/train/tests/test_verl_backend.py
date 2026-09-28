@@ -1559,6 +1559,9 @@ def test_verl_replays_trace_keyed_algorithm_rewards_from_the_parent_process(tmp_
     update = observer.trace_fact_updates[0]
     assert update.external_id == "trace-1"
     assert update.facts.measures == {"algorithm_reward": 0.6}
+    # Trackio accepts an enrichment only when it supplies algorithm_reward alone.
+    assert update.facts.dimensions == {}
+    assert update.facts.reward_components == ()
     assert update.attributes["optimizer_step"] == 4
 
 
