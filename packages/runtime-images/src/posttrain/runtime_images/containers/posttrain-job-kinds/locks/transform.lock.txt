@@ -89,6 +89,9 @@ brotli==1.2.0 \
 carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/78e/3ecf207c074c4/carbonteq_trackio-0.31.5.post14.dev32-py3-none-any.whl \
     --hash=sha256:78e3ecf207c074c43281edff75343086bf379a22cc281308cc12436e5a5260a3
     # via posttrain-awq-runtime
+causal-conv1d @ https://pypi.lan/carbonteq/dev/+f/b69/f39142ac88cac/causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl ; platform_machine == 'x86_64' and sys_platform == 'linux' \
+    --hash=sha256:b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a
+    # via posttrain-awq-runtime
 certifi==2026.6.17 \
     --hash=sha256:024c88eeec92ca068db80f02b8b07c9cef7b9fe261d1d535abfd5abd6f6af432 \
     --hash=sha256:2227dcbaafe0d2f59279d1762ddddc37783ed4354594f194ffc31d20f41fc3db
@@ -154,6 +157,10 @@ dill==0.4.1 \
     # via
     #   datasets
     #   multiprocess
+einops==0.8.2 \
+    --hash=sha256:54058201ac7087911181bfec4af6091bb59380360f069276601256a76af08193 \
+    --hash=sha256:609da665570e5e265e27283aab09e7f279ade90c4f01bcfca111f3d3e13f2827
+    # via fla-core
 filelock==3.32.0 \
     --hash=sha256:7be2ad23a14607ccc71808e68fe30848aeace7058ace17852f68e2a68e310402 \
     --hash=sha256:d396bea984af47333ef05e50eae7eff88c84256de6112aea0ec48a233c064fe3
@@ -161,6 +168,10 @@ filelock==3.32.0 \
     #   datasets
     #   huggingface-hub
     #   torch
+fla-core==0.5.2 \
+    --hash=sha256:5e830c85bad3d0d34677f98ac7074d08687a3756f0f0499d95ceb96eb6920761 \
+    --hash=sha256:9360fc412f784c1c8f05c320ec2902d5d968764178c9b8a92efc919e17a39680
+    # via posttrain-awq-runtime
 frozenlist==1.8.0 \
     --hash=sha256:032efa2674356903cd0261c4317a561a6850f3ac864a63fc1583147fb05a79b0 \
     --hash=sha256:03ae967b4e297f58f8c774c7eabcce57fe3c2434817d4385c50661845a058121 \
@@ -376,6 +387,11 @@ networkx==3.6.1 \
     --hash=sha256:26b7c357accc0c8cde558ad486283728b65b6a95d85ee1cd66bafab4c8168509 \
     --hash=sha256:d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762
     # via torch
+ninja==1.13.2 ; platform_machine == 'x86_64' and sys_platform == 'linux' \
+    --hash=sha256:525bfa3fc88aa30a4467df270fd5be6f9fcae8061d54d4df74ea1dc5abd5a975 \
+    --hash=sha256:65a24341b5ac09fcadcc37082660be40a94174e51a937fabf6e2cae26225fa2c \
+    --hash=sha256:915bd482c4be41c75120fd67a22e0bb3f0fbb3bbc5f95b89787deadd59e27ef2
+    # via causal-conv1d
 numpy==2.5.1 \
     --hash=sha256:0bfebd8695f9863592fe744be833a258120b14a9f39da255e8aa8fade2c0ddd1 \
     --hash=sha256:1c6759f538fb912fc46de0a6b1758ccf7b57bc7c7ebebc23974fdac3de8db0cd \
@@ -491,6 +507,7 @@ packaging==26.2 \
     --hash=sha256:ff452ff5a3e828ce110190feff1178bb1f2ea2281fa2075aadb987c2fb221661
     # via
     #   accelerate
+    #   causal-conv1d
     #   datasets
     #   gradio-client
     #   huggingface-hub
@@ -794,6 +811,7 @@ torch @ https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp3
     # via
     #   accelerate
     #   auto-round
+    #   causal-conv1d
     #   compressed-tensors
     #   llmcompressor
     #   posttrain-awq-runtime

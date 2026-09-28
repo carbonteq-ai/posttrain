@@ -569,3 +569,14 @@ replacement = "tests for the maintained judge prompt calibration API"
 tests = []
 parity = ["verify model-native candidate construction and selection", "reject candidates that violate frozen labels or output constraints"]
 deletion_condition = "Equivalent tests live beside the promoted public calibration API."
+
+[[surfaces]]
+id = "qwen35-gdn-kernels"
+path = "scripts/qualification/qwen35_gdn_kernels.py"
+kind = "evidence-validator"
+owner = "lab"
+transition = "retire"
+replacement = "the TRL kind image GPU release gate with fla-core and causal-conv1d locked"
+tests = []
+parity = ["check fla-core and causal-conv1d against the Transformers torch reference", "time the Qwen3.5 LoRA actor step and compare vLLM and HF log-probs"]
+deletion_condition = "causal-conv1d is published and locked and the kind image qualification exercises both kernels."

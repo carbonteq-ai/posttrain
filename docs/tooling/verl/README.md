@@ -12,10 +12,13 @@ Wheel SHA-256
 `1e5e5a50c14ec486019421ca06de03fbbc24010f850f5e66f2d731469a8f8eb0`;
 sdist SHA-256
 `8620646c250e85a0dee984d360a4c102e97a4776d5711accea8eb66a743445e5`.
-This pin (backend lock `2bad1957...`, constraints `787f7a9e...`) takes effect
-after the GitHub release, the `publish-verl-internal.yml` development
-publication and the `online-rl-verl-py313` kind rebuild; until then the
-published kind stays on post3.
+The release is published. On `codex/release-0.4.12` the backend project
+combines this pin with the framework's Verifiers `cdd2ec76` and the Qwen3.5
+fast-path kernels (`fla-core`, `causal-conv1d`) from `codex/qwen-fast-kernels`;
+the regenerated backend lock is `d33bdfa7...` and the constraints
+`2c185aa1...` (the post4-only pin commit recorded `2bad1957...` and
+`787f7a9e...`). The `online-rl-verl-py313` kind image is rebuilt with the
+0.4.12 release candidate; until then the published kind stays on post3.
 
 ## Rollout-execution development candidate
 

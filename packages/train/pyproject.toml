@@ -33,6 +33,11 @@ trl = [
     "huggingface-hub>=1.31,<1.32",
     # AsyncGRPO uses Transformers' Hub-hosted FlashAttention kernel directly.
     "kernels>=0.15.2,<0.16",
+    # Triton gated-delta-rule and gated-RMSNorm kernels (import `fla`) for
+    # Qwen3.5-style Gated DeltaNet layers; without them Transformers falls
+    # back to its slow torch implementation. vLLM vendors the same kernels.
+    "fla-core>=0.5.2,<0.6",
+    "causal-conv1d==1.7.0+cu130torch2.13; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 trl-vllm = [
     "aiohttp>=3.13,<4",
@@ -47,6 +52,7 @@ trl-vllm = [
 package = true
 
 [tool.uv.sources]
+causal-conv1d = { index = "carbonteq-dev" }
 posttrain-common = { workspace = true }
 posttrain-data = { workspace = true }
 posttrain-environment = { workspace = true }

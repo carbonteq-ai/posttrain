@@ -5,6 +5,10 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/78e/3ecf207c074c4/carbonteq_trackio-0.31.5.post14.dev32-py3-none-any.whl#sha256=78e3ecf207c074c43281edff75343086bf379a22cc281308cc12436e5a5260a3",
     "datasets>=4.8.4,<5",
+    # Qwen3.5 calibration forward passes use these Triton Gated DeltaNet kernels.
+    "fla-core>=0.5.2,<0.6",
+    # Exported to transform.lock.txt without index URLs, so internal wheels use immutable direct references.
+    "causal-conv1d @ https://pypi.lan/carbonteq/dev/+f/b69/f39142ac88cac/causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl#sha256=b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a ; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "llmcompressor @ git+https://github.com/vllm-project/llm-compressor.git@655b83d1240c37920a603b747bbfb6c218f66383",
     "pydantic==2.13.4",
     "pyyaml==6.0.3",

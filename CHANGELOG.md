@@ -6,6 +6,16 @@ version across first-party distributions.
 
 ## Unreleased
 
+### Changed
+
+- The `supervised`, `online-rl-trl-py312`, `online-rl-verl-py313` (backend
+  environment) and `transform` job-kind images install `fla-core` 0.5.2, so Transformers trains Qwen3.5 Gated DeltaNet layers with
+  Triton kernels instead of its torch fallback: a Qwen3.5-0.8B LoRA actor step
+  on 4,096 tokens drops from 5.0 s to 1.5 s on an RTX 3070 Ti, and fp16 steps
+  no longer produce NaN gradients. `tools/kernel-wheels/causal-conv1d/build.sh`
+  builds the matching causal-conv1d CUDA wheel for PyTorch 2.13.0+cu130; it
+  joins the images once published to the internal index.
+
 ## 0.4.11 - unreleased
 
 Runs can be queried in SQL and carry notes; metrics and trace facts are correct

@@ -6,10 +6,10 @@ the dormant `online-rl-verl-py313` kind image.
 Current inputs:
 
 1. `pyproject.toml` selects CarbonTeq veRL
-   `54124edfb8d0b73694696400cf07a76a14d9be65` (`0.9.0.post4` candidate), CarbonTeq vLLM
-   `f09e4479123d348cee87d217c695a22f9b2daacc`, and Verifiers core
-   `b71ade0a7ac712cdee9e1a4c0e53030d70768aff` with no concrete environment
-   packages and no editable or path sources.
+   `54124edfb8d0b73694696400cf07a76a14d9be65` (`0.9.0.post4`), CarbonTeq vLLM
+   `f09e4479123d348cee87d217c695a22f9b2daacc`, and the framework's Verifiers
+   core `cdd2ec7614131545df66484f9de11250daf16065` with no concrete
+   environment packages and no editable or path sources.
 2. `uv.lock` is generated for exact Python `3.13.12`.
 3. `backend-constraints.txt` is the exact, hash-bound export of that lock used
    while packaging veRL environment wheels. It prevents workspace dependency

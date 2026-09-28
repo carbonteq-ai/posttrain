@@ -78,7 +78,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
+      dependency_lock_sha256: 2efbd557a5cfea4786ceefcdbfee63c46221ee823bd2763514aa9bfaf125f3d2
   training/qwen3.5-0.8b-trl-grpo-precision-fp16@1:
     selection_type: training-binding
     revision: "1"
@@ -98,7 +98,7 @@ training:
       training_precision: fp16
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
+      dependency_lock_sha256: 2efbd557a5cfea4786ceefcdbfee63c46221ee823bd2763514aa9bfaf125f3d2
 
   # LFM2.5-2.6B SAMPO precision canaries on the RTX PRO 6000
   # (docs/plan/fp16-training-precision.md, "Workstation runbook"): the
@@ -170,7 +170,7 @@ training:
       training_precision: fp16
       dependency_lock: trl-fork@current
       source_revision: 4950b99d457faacbec856cbd5305732e7b3cf7b0
-      dependency_lock_sha256: 3dbb4dd3a53ed85070b1b2b38d5e88ea8fb00d92fe453af37bd635f74a018568
+      dependency_lock_sha256: 2efbd557a5cfea4786ceefcdbfee63c46221ee823bd2763514aa9bfaf125f3d2
 
   # veRL precision qualification on the local 8 GB GPU with the veRL runtime
   # (fork 0.9.0.post4, 54124edf, which reports the loss scale, skipped steps and
@@ -223,7 +223,7 @@ training:
       python_executable: /opt/posttrain-verl/bin/python
       working_directory: /opt/posttrain-verl/workdir
       source_revision: 54124edfb8d0b73694696400cf07a76a14d9be65
-      dependency_lock_sha256: 2bad19574d08523f3935c7a5117ef14bbc34b0f6ed982559028e6d2e91d23fbc
+      dependency_lock_sha256: d33bdfa77c23649a4eaa4fde34224f16d145421f66919232d2c52cf69394e845
       source_dirty: false
       attention_implementation: sdpa
       training_precision: bf16

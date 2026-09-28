@@ -8,6 +8,7 @@ Runtime lives in the **uv workspace** (`packages/common`, `packages/train`, `pac
 | [verl](./verl/) | `packages/train` | Isolated Qwen 3.5 GRPO / distillation backend |
 | [vllm](./vllm/) | `packages/train`, `packages/serve` | Optional colocate + serve |
 | [sglang](./sglang/) | planned inference adapter | Backend-specific runtime, shared evaluation data |
+| [linear-attention-kernels](./linear-attention-kernels/) | `packages/train`, TRL kind images | fla-core + causal-conv1d for Qwen3.5 Gated DeltaNet |
 | [triton](./triton/) | planned server/kernel work | Clarifies server versus kernel implementations |
 | [verifiers](./verifiers/) | `packages/eval` extra `envs` | Environments Hub / `prime` |
 | [trackio](./trackio/) | lab observation context and reports | CarbonTeq fork, immutable pin, Verifiers trace copy |
