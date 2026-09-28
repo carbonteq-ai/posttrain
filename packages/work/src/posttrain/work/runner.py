@@ -1103,6 +1103,7 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
                     "overlong_buffer_tokens": value.overlong_buffer_tokens,
                     "overlong_penalty_factor": value.overlong_penalty_factor,
                     "truncation_penalty": value.truncation_penalty,
+                    "kl_reference": value.kl_reference,
                 }
             )
         if isinstance(value, (SAMPOSettings, GDPOSettings, CAPOSettings)):
@@ -1120,6 +1121,7 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
             )
         if isinstance(value, SAMPOSettings):
             details["active_sampling"] = _active_sampling_details(value.active_sampling)
+            details["kl_reference"] = value.kl_reference
         if isinstance(value, OnPolicyDistillationSettings):
             details.update(
                 {

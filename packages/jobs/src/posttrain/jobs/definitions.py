@@ -77,6 +77,7 @@ from posttrain.train import (
     dpo,
     gdpo,
     grpo,
+    kl_reference_problem,
     oversampled_round_capacity_error,
     run_llm_compressor,
     sampo,
@@ -1017,6 +1018,13 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
 
     _validate_task_supply(settings, seats.get("environment"), seats.get("training"))
     _validate_oversampled_round_capacity(settings, training, inference, seats.get("environment"))
+    model = seats.get("model")
+    if isinstance(model, ModelVariant):
+        # A run-selected starting model (--model-from-run) is checked again when the
+        # backend builds its request.
+        problem = kl_reference_problem(training.backend, settings.beta, settings.kl_reference, model.form)
+        if problem is not None:
+            raise ContractError(problem)
 
 
 def _validate_task_supply(

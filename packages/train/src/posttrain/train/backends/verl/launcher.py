@@ -27,6 +27,7 @@ from posttrain.common import (
 
 from ...bindings import FullParameterUpdate, LoRAUpdate
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
+from ...kl_reference import kl_reference_problem, resolved_kl_reference
 from ...requests import CAPORequest, GDPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
@@ -63,6 +64,11 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
         raise ValueError("the OLMo 3 GRPO recipe is currently supported by the TRL backend only")
     if request.settings.truncation_penalty is not None:
         raise ValueError("GRPO truncation_penalty is currently supported by the TRL backend only")
+    problem = kl_reference_problem(
+        request.training.backend, request.settings.beta, request.settings.kl_reference, request.policy.form
+    )
+    if problem is not None:
+        raise ValueError(problem)
     return _plan(
         request,
         output_dir,
@@ -738,6 +744,10 @@ def _grpo_runtime_attributes(
         "shuffle_prompts": request.settings.shuffle_prompts,
     }
     if isinstance(request, GRPORequest):
+        attributes["kl_reference"] = resolved_kl_reference(
+            request.settings.beta, request.settings.kl_reference, request.policy.form
+        )
+        attributes["kl_reference_setting"] = request.settings.kl_reference
         attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
         attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
     elif isinstance(request, SAMPORequest):

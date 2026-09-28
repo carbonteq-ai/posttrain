@@ -22,6 +22,12 @@ def reward_contract_digest(request: GDPORequest | CAPORequest | SAMPORequest) ->
     settings = asdict(request.settings)
     # Extending a run's step budget is allowed; changing learning/credit semantics is not.
     settings["loop"].pop("max_steps", None)
+    # The KL reference changes what is learned, so it is part of the contract. "start"
+    # is what TRL did before the setting existed (a frozen copy of the starting
+    # adapter), so it keeps the digest of checkpoints written before; "base" does not,
+    # and a resume that would silently switch the reference is refused.
+    if settings.get("kl_reference") == "start":
+        settings.pop("kl_reference")
     # Oversampling changes how many prompt groups each round generates, not rewards,
     # credit, or how an update is assembled (the first target groups with reward
     # spread, in candidate order). Leaving it out keeps digests of checkpoints written

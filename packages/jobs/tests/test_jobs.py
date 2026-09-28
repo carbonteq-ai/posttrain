@@ -641,6 +641,31 @@ def test_static_preparation_bounds_concurrency_by_first_round_oversampling_only(
     validator(_oversampled_sampo_seats(oversample=0, oversample_refill=5, **exact))  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize(
+    ("form", "kl_reference", "message"),
+    [
+        ("full-finetuned", "base", "veRL uses the starting checkpoint as the KL reference"),
+        ("adapter", "start", "cannot continue a PEFT adapter"),
+    ],
+)
+def test_static_preparation_rejects_a_kl_reference_verl_cannot_provide(form, kl_reference, message) -> None:
+    validator = sampo_definition().static_validator
+    assert validator is not None
+    seats = _oversampled_sampo_seats(oversample=0)
+    settings = cast(SAMPOSettings, seats["settings"])
+    training = cast(TrainingBinding, seats["training"])
+    inference = cast(InferenceBinding, seats["rollout_inference"])
+    seats["settings"] = replace(settings, beta=0.01, kl_reference=kl_reference)
+    seats["model"] = inference.model
+    validator(seats)  # type: ignore[arg-type]
+    seats["model"] = replace(inference.model, form=form)
+    validator(seats)  # type: ignore[arg-type]  # TRL provides either reference
+
+    seats["training"] = replace(training, backend="verl@candidate")
+    with pytest.raises(ContractError, match=message):
+        validator(seats)  # type: ignore[arg-type]
+
+
 def test_static_grpo_preparation_rejects_sampling_policy_mismatch() -> None:
     catalog = open_catalog(scope="jobs-test")
     model = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))

@@ -761,6 +761,7 @@ def _seat_attributes(
         attributes["clip_epsilon_high"] = request.settings.resolved_clip_epsilon_high
         attributes["mask_truncated_completions"] = request.settings.mask_truncated_completions
         attributes["shuffle_prompts"] = request.settings.shuffle_prompts
+        attributes["kl_reference"] = request.settings.kl_reference
         attributes["active_sampling"] = request.settings.active_sampling is not None
         if request.settings.active_sampling is not None:
             attributes["active_sampling_max_candidate_batches"] = request.settings.active_sampling.max_candidate_batches
@@ -795,6 +796,7 @@ def _seat_attributes(
                 "advantage_normalization": request.settings.advantage_normalization,
                 "mask_truncated_completions": request.settings.mask_truncated_completions,
                 "shuffle_prompts": request.settings.shuffle_prompts,
+                "kl_reference": request.settings.kl_reference,
                 "active_sampling": True,
                 "active_sampling_max_candidate_batches": request.settings.active_sampling.max_candidate_batches,
                 "active_sampling_oversample": request.settings.active_sampling.oversample,

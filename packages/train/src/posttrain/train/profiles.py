@@ -234,6 +234,11 @@ class GRPOSettings:
     # scored rollout that finished. None keeps truncated rollouts at task reward.
     truncation_penalty: float | None = None
     max_admission_attempts: int = 3
+    # KL reference when beta > 0: "base" measures distance from the foundation model,
+    # "start" from the checkpoint the run started from. They differ only when the run
+    # continues a trained adapter (for example `--model-from-run`); a fresh LoRA
+    # adapter starts at zero, so both are the base model.
+    kl_reference: Literal["base", "start"] = "base"
 
     def __post_init__(self) -> None:
         _validate_settings(self.id, self.revision)
@@ -304,6 +309,8 @@ class GRPOSettings:
                 raise ValueError("GRPO truncation penalty has no effect when truncated completions are masked")
         if self.max_admission_attempts < 1:
             raise ValueError("GRPO group admission attempts must be positive")
+        if self.kl_reference not in {"base", "start"}:
+            raise ValueError("KL reference must be 'base' or 'start'")
 
     @property
     def resolved_clip_epsilon_high(self) -> float:
@@ -358,6 +365,11 @@ class SAMPOSettings:
     shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
     max_admission_attempts: int = 1
+    # KL reference when beta > 0: "base" measures distance from the foundation model,
+    # "start" from the checkpoint the run started from. They differ only when the run
+    # continues a trained adapter (for example `--model-from-run`); a fresh LoRA
+    # adapter starts at zero, so both are the base model.
+    kl_reference: Literal["base", "start"] = "base"
     revision: str = "1"
 
     def __post_init__(self) -> None:
@@ -388,6 +400,8 @@ class SAMPOSettings:
             raise ValueError("SAMPO clip epsilons must be positive")
         if self.max_admission_attempts < 1:
             raise ValueError("SAMPO group admission attempts must be positive")
+        if self.kl_reference not in {"base", "start"}:
+            raise ValueError("KL reference must be 'base' or 'start'")
         self.active_sampling.validate_reservation(self.num_prompts_per_step)
         bounds = (self.importance_sampling_clip_min, self.importance_sampling_clip_max)
         if any(value is not None and (not math.isfinite(value) or value <= 0) for value in bounds):

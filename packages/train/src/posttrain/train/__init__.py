@@ -53,6 +53,7 @@ from .grpo_observations import (
     normalize_grpo_metrics,
     required_grpo_metrics,
 )
+from .kl_reference import describe_kl_reference, kl_reference_problem, resolved_kl_reference
 from .model_configuration import ResolvedTrainingModelConfiguration, resolve_training_model_configuration
 from .online_rl import (
     AgenticTurn,
@@ -243,6 +244,9 @@ __all__ = [
     "build_verifiers_sampo_request",
     "validate_verifiers_policy_sampling",
     "oversampled_round_capacity_error",
+    "describe_kl_reference",
+    "kl_reference_problem",
+    "resolved_kl_reference",
     "compute_sampo_advantages",
     "normalize_grpo_metrics",
     "render_preferences",

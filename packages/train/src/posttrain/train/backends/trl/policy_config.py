@@ -10,6 +10,7 @@ from typing import Any, cast
 
 from posttrain.common import JsonValue
 
+from ...kl_reference import resolved_kl_reference
 from ...online_rl import policy_sampling_from_binding
 from ...profiles import ActiveGroupSampling, CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings
 from ...requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
@@ -206,6 +207,11 @@ def _online_rl_arguments(
         assert olmo3_settings.active_sampling is not None
         arguments["active_sampling_max_batches"] = olmo3_settings.active_sampling.max_candidate_batches
         arguments.update(_oversample_arguments(olmo3_settings.active_sampling))
+    if kl_reference(request) == "base" and request.policy.form in {"adapter", "peft-adapter"}:
+        # TRL's default reference for a continued adapter is a frozen copy of it;
+        # "base" scores the reference with adapters disabled. Fresh adapters and
+        # full-parameter foundation runs already use the base model.
+        arguments["peft_reference"] = "base"
     if request.inference.backend.split("@", 1)[0] == "vllm":
         rollout = request.inference.engine
         speculative = rollout.get("speculative_config")
@@ -256,6 +262,12 @@ def _online_rl_arguments(
             ):
                 arguments.pop(name)
     return arguments
+
+
+def kl_reference(request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest) -> str:
+    return resolved_kl_reference(
+        request.settings.beta, getattr(request.settings, "kl_reference", None), request.policy.form
+    )
 
 
 def _oversample_arguments(active_sampling: ActiveGroupSampling) -> dict[str, int]:
@@ -449,6 +461,8 @@ def _online_rl_runtime_attributes(
         "active_sampling_max_candidate_batches": (
             active_sampling.max_candidate_batches if active_sampling is not None else None
         ),
+        "kl_reference": kl_reference(request),
+        "kl_reference_setting": getattr(request.settings, "kl_reference", None),
         "active_sampling_oversample": active_sampling.oversample if active_sampling is not None else None,
         "active_sampling_oversample_refill": (
             active_sampling.oversample_refill if active_sampling is not None else None

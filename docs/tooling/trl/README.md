@@ -30,20 +30,44 @@ judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
 
 Prepared candidate (not yet published): `1.12.0.post11`, fork branch
 `codex/active-sampling-oversample`, release commit
-`c7321c4db9cd3b022c7edc759a735fc0f5e332c2` (feature commit `0b428cd6`), on top
-of post10. It adds active-sampling oversampling:
+`3135b502d69956200d1c030a514470c351d2ee9f` (feature commits `0b428cd6` and
+`2393648d`), on top of post10. It adds active-sampling oversampling:
 `GRPOConfig.active_sampling_oversample` adds that many prompt groups to the
 first round and `active_sampling_oversample_refill` adds that many to each
 refill round, never exceeding the first round. The update still keeps the first
 target groups with reward spread in candidate order and discards the surplus.
 Both default to `0`, which is byte-for-byte post10 behavior. Local build from
-the release commit (`SOURCE_DATE_EPOCH=1790592157 uv build --python 3.13` on a
+the release commit (`SOURCE_DATE_EPOCH=1790604110 uv build --python 3.13` on a
 `git archive` export; the wheel rebuilds to identical bytes, the sdist does
 not): wheel SHA-256
-`854b7f00356d23cd5b2e11e2e2c4b6836b940031d9aff5cb0d536135f042ee3f`; sdist
-`b2ef1e33115b691042703a4477a1f2b8b51fe55722c3f22bce7300346c1d7b33`. Publish
+`7fcea40a21239ae57d22333aa612af939cf8e44a72443681ad4900a697e5a5b2`; sdist
+`bb3cdec95d3562054b4ad599a8ce8975232f466c7a593171f8798372c40c7785`. Publish
 those exact files, or record the new hashes if the release is rebuilt. The
 Posttrain pin stays at post10 until publication.
+
+Post11 also adds `peft_reference` to `GRPOConfig` and `RLOOConfig`. Upstream
+gives a run that continues a trained adapter a frozen copy of that adapter as
+its KL reference, so every `--model-from-run` restart re-anchored the penalty
+to an already drifted policy. `peft_reference="base"` creates no copy and
+scores the reference with adapters disabled, the base model. Posttrain's GRPO
+and SAMPO settings take `kl_reference: base | start`, default `base`. The TRL
+backend passes `peft_reference="base"` only for a continued adapter with
+`beta > 0` and `kl_reference: base`; everywhere else TRL's default already gives
+the intended reference (a fresh LoRA adapter starts at zero, so disabling it is
+the base model, and a full-parameter run from the foundation loads the
+foundation as `ref_model`). The TRL backend loads no other starting form for
+training: a full-parameter update from an adapter or a `full-finetuned`
+checkpoint is rejected when the model loads. `kl_reference` is part of the
+SAMPO reward-contract digest; `start` hashes like settings written before the
+field existed, so older checkpoints resume with `kl_reference: start`, and a
+resume that would switch the reference is refused. `posttrain job plan` prints
+the reference and runs record `kl_reference` (resolved: `off`, `base` or
+`start`) and `kl_reference_setting`. GDPO and CAPO have no setting and keep TRL's
+default. The veRL backend computes a LoRA reference with the adapter disabled
+and otherwise loads the reference from the starting checkpoint, and Posttrain
+passes it no adapter path; job planning and the veRL launcher therefore reject
+a PEFT-adapter starting model on veRL and `kl_reference: base` with a
+non-foundation starting model.
 
 Posttrain exposes it as GRPO (OLMo 3) and SAMPO settings
 `active_sampling: {max_candidate_batches: N, oversample: K1, oversample_refill:

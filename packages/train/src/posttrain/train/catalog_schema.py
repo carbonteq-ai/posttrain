@@ -222,6 +222,13 @@ class GRPOSettingsSchema(TrainCatalogSchema):
     overlong_penalty_factor: float = Field(default=1.0, gt=0, allow_inf_nan=False)
     truncation_penalty: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     max_admission_attempts: int = Field(default=3, gt=0)
+    kl_reference: Literal["base", "start"] = Field(
+        default="base",
+        description=(
+            "KL reference when beta > 0: 'base' is the foundation model, 'start' the checkpoint the run started "
+            "from. They differ only when a run continues a trained adapter; a fresh LoRA adapter starts at zero."
+        ),
+    )
 
 
 class OnPolicyDistillationSettingsSchema(TrainCatalogSchema):
@@ -264,6 +271,13 @@ class SAMPOSettingsSchema(TrainCatalogSchema):
     shuffle_prompts: bool = False
     mask_truncated_completions: bool = False
     max_admission_attempts: int = Field(default=1, gt=0)
+    kl_reference: Literal["base", "start"] = Field(
+        default="base",
+        description=(
+            "KL reference when beta > 0: 'base' is the foundation model, 'start' the checkpoint the run started "
+            "from. They differ only when a run continues a trained adapter; a fresh LoRA adapter starts at zero."
+        ),
+    )
 
 
 class StructuredRLSettingsSchema(TrainCatalogSchema):

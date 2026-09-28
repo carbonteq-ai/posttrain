@@ -13,6 +13,7 @@ import typer
 from posttrain.common import ConfigurationIssue, ContractError, HostedInferenceBinding
 from posttrain.execution import ProjectControlLocator, compare_job_packages, unchanged_fields
 from posttrain.project import JobIntent, Project
+from posttrain.train import GRPOSettings, SAMPOSettings, describe_kl_reference
 from posttrain.work import resolve_work_package, run_work_package_job, work_package_findings
 
 from ..context import CliState
@@ -268,6 +269,10 @@ def plan_work_package_cmd(
     if credential_status:
         payload["runtime_credentials"] = credential_status
         lines.extend(f"Runtime credential {name}: {status}" for name, status in credential_status.items())
+    kl_line = _kl_reference_line(intent.prepared.seats)
+    if kl_line is not None:
+        payload["kl_reference"] = kl_line
+        lines.append(kl_line)
     paid_judge_limits = _paid_judge_limits(intent.prepared.seats)
     if paid_judge_limits:
         payload["paid_judge_cost_limits"] = paid_judge_limits
@@ -772,6 +777,13 @@ def _execution_plan_payload(planned: PlannedJobExecution) -> dict[str, object]:
         }
     )
     return payload
+
+
+def _kl_reference_line(seats: Mapping[str, object]) -> str | None:
+    settings = seats.get("settings")
+    if not isinstance(settings, GRPOSettings | SAMPOSettings):
+        return None
+    return describe_kl_reference(settings.beta, settings.kl_reference)
 
 
 def _paid_judge_limits(seats: Mapping[str, object]) -> dict[str, dict[str, object]]:

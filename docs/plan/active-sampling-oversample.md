@@ -45,6 +45,12 @@ settings and does not change what a job, run, or update means.
   `GRPOTrainer._prepare_active_sampling_inputs`, docs, 11 new regression tests.
 - [x] (2026-09-28) TRL release-preparation commit `c7321c4d`
   (`VERSION` 1.12.0.post11, `CARBONTEQ_FORK.md`); local wheel and sdist built.
+- [x] (2026-09-28) Requirement added before publication: KL against the base
+  model for continued adapters. TRL commit `2393648d` adds `peft_reference`
+  (GRPO and RLOO); release commit `3135b502` updates the ledger; wheel and sdist
+  rebuilt. Posttrain adds `kl_reference: base | start` (default `base`) to GRPO
+  and SAMPO settings, the reward digest, plan output, run records and veRL
+  rejections.
 - [x] (2026-09-28) Posttrain worktree `/home/hammad/projects/rl-oversample`,
   branch `codex/active-sampling-oversample` from `c3ae803d`: settings, schema,
   TRL argument translation, adaptive-curriculum sampler, job-plan and
@@ -109,6 +115,17 @@ settings and does not change what a job, run, or update means.
   the older `candidate_groups_*` counters count rows and are unchanged.
   Date: 2026-09-28.
 
+- Decision (user): the KL reference defaults to the base model. Upstream TRL
+  gave a continued adapter a frozen copy of itself as the reference, so each
+  `--model-from-run` restart reset the anchor to a drifted policy. Settings
+  take `kl_reference: base | start`; it is part of the reward digest, with
+  `start` hashing like pre-existing settings so old checkpoints resume under
+  `start`. TRL receives `peft_reference="base"` only for a continued adapter
+  with `beta > 0`, where it differs from TRL's default. veRL takes the reference
+  from the starting checkpoint (or the base model for LoRA) and cannot continue
+  an adapter, so those combinations are rejected at planning and launch.
+  Date: 2026-09-28.
+
 ## Outcomes & Retrospective
 
 Implementation and local validation are complete in both repositories. What
@@ -171,9 +188,9 @@ TRL, from `/home/hammad/projects/trl-oversample` (a `.venv` created with
 
 Build, from a `git archive` export of the release commit:
 
-    SOURCE_DATE_EPOCH=1790592157 uv build --python 3.13 --out-dir /home/hammad/projects/trl-oversample/dist
-    854b7f00356d23cd5b2e11e2e2c4b6836b940031d9aff5cb0d536135f042ee3f  trl-1.12.0.post11-py3-none-any.whl
-    b2ef1e33115b691042703a4477a1f2b8b51fe55722c3f22bce7300346c1d7b33  trl-1.12.0.post11.tar.gz
+    SOURCE_DATE_EPOCH=1790604110 uv build --python 3.13 --out-dir /home/hammad/projects/trl-oversample/dist
+    7fcea40a21239ae57d22333aa612af939cf8e44a72443681ad4900a697e5a5b2  trl-1.12.0.post11-py3-none-any.whl
+    bb3cdec95d3562054b4ad599a8ce8975232f466c7a593171f8798372c40c7785  trl-1.12.0.post11.tar.gz
 
 A clean virtual environment with only that wheel imports `trl 1.12.0.post11`
 and passes `tests/test_dapo_dynamic_sampling.py` (21 passed).
@@ -238,8 +255,8 @@ longer 168-episode first round; with a refill wave of 60-90 s that is roughly
 
 The fork follows `docs/tooling/forks.md`. Maintainers, in order:
 
-1. Push `codex/active-sampling-oversample` (head `c7321c4d`) to
-   `carbonteq-ai/trl` and tag `carbonteq-v1.12.0.post11` at `c7321c4d`.
+1. Push `codex/active-sampling-oversample` (head `3135b502`) to
+   `carbonteq-ai/trl` and tag `carbonteq-v1.12.0.post11` at `3135b502`.
 2. Create the GitHub release for that tag with the two files in
    `/home/hammad/projects/trl-oversample/dist/`, and confirm GitHub's asset
    digests equal the hashes above.

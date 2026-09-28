@@ -50,7 +50,7 @@ def _request(
         }
     return SimpleNamespace(
         settings=settings,
-        policy=SimpleNamespace(provenance={}),
+        policy=SimpleNamespace(provenance={}, form="foundation"),
         training=SimpleNamespace(
             backend="trl@1.12.0.post11",
             backend_options=options,
