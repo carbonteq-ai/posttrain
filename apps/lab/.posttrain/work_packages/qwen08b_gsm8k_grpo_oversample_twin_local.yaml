@@ -1,0 +1,30 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/gsm8k-grpo-oversample-twin-local
+stage: train
+description: Five Qwen3.5-0.8B GRPO updates on GSM8K on the local 8 GB GPU with the oversampling canary's settings and bindings but no oversampling, the twin that counts generation rounds per update without it (release 0.4.12 oversampling canary).
+recipe:
+  type: inline
+  id: recipes/qwen3.5-0.8b-gsm8k-grpo-oversample-twin-local@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: grpo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/qwen3.5-0.8b@bf16}
+  environment: {type: ref, family: environment, id: gsm8k-grpo-oversample}
+  settings: {type: ref, family: training, id: qwen3.5-0.8b/gsm8k-grpo-oversample-twin-v1}
+  training: {type: ref, family: training, id: training/qwen3.5-0.8b-trl-grpo-precision-bf16@1}
+  rollout_inference: {type: ref, family: inference, id: inference/qwen3.5-0.8b-vllm-oversample-rollout-bf16@1}
+enabled_optional_jobs: []
+metadata:
+  question: How many active-sampling generation rounds does each update need without oversampling, for comparison with the oversampling canary?
+  labels: [qualification, active-sampling, oversampling, grpo, gsm8k, qwen3.5, local, 8gb]

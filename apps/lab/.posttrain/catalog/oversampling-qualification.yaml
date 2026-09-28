@@ -1,0 +1,105 @@
+# Active-sampling oversampling canary on the local RTX 3070 Ti 8 GB
+# (release 0.4.12, docs/plan/release-0.4.12.md scope row 5). Five Qwen3.5-0.8B
+# OLMo 3 GRPO updates on GSM8K with the precision pair's bf16 trainer binding. Two
+# settings differ only in oversampling:
+#   oversample canary: active_sampling oversample 1, oversample_refill 1
+#   twin:              the same active sampling without oversampling
+# Both use a rollout engine and environment raised to 40 concurrent episodes,
+# the oversampled first round ((4 prompts + 1) x 8 generations). The precision
+# pair's own bindings (vLLM max_num_seqs 32, environment max_concurrent 8)
+# are what job plan's concurrency guard rejects for the canary settings.
+environment:
+  # gsm8k-grpo-precision (precision-qualification.yaml) with max_concurrent 40.
+  gsm8k-grpo-oversample:
+    category: math-reasoning
+    qualification: deferred
+    source:
+      package: gsm8k-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      subdirectory: environments/gsm8k_v1
+    activation:
+      kind: verifiers-config
+      config:
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 180, finalize: 60, scoring: 120}
+        taskset:
+          id: gsm8k-v1
+          dataset_repo: openai/gsm8k
+          dataset_revision: 740312add88f781978c0658806c59bc2815b9866
+          dataset_config: main
+          split: train
+    sampling: {max_tokens: 384, temperature: 1.0, top_p: 1.0}
+    num_tasks: 512
+    num_rollouts: 8
+    max_concurrent: 40
+
+training:
+  qwen3.5-0.8b/gsm8k-grpo-oversample-canary-v1: &oversample_settings
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 5
+      max_length: 640
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 32
+      learning_rate: 0.00004
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 5
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 1729
+    num_prompts_per_step: 4
+    num_generations: 8
+    max_prompt_length: 256
+    max_completion_length: 384
+    # OLMo 3 GRPO (the TRL algorithm that carries active sampling): fixed
+    # clipping, no advantage scaling, token-level truncated IS at cap 2.
+    algorithm: olmo3
+    beta: 0.005
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    shuffle_prompts: true
+    active_sampling:
+      max_candidate_batches: 6
+      oversample: 1
+      oversample_refill: 1
+  qwen3.5-0.8b/gsm8k-grpo-oversample-twin-v1:
+    <<: *oversample_settings
+    active_sampling:
+      max_candidate_batches: 6
+
+inference:
+  # inference/qwen3.5-0.8b-vllm-precision-rollout-bf16@1 with max_num_seqs 40.
+  inference/qwen3.5-0.8b-vllm-oversample-rollout-bf16@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.37
+      tensor_parallel_size: 1
+      max_model_len: 768
+      max_num_seqs: 40
+      max_num_batched_tokens: 8192
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 268435456
+      weight_sync_mode: lora
+      weight_name_prefix: language_model.
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 384, temperature: 1.0, top_p: 1.0}
+    target: targets/local-cuda-rollout-8gb
+    purpose: [rollout]
