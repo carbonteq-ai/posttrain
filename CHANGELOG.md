@@ -124,6 +124,12 @@ oversampled active sampling, and a KL penalty measured against the base model.
 
 ### Fixed
 
+- veRL multi-turn episodes reported the prompt message spans of a bridged turn
+  with one entry per new message instead of one per message of the
+  conversation, so Verifiers attributed tool-result tokens to the wrong
+  messages in the trace (the token sequence and loss mask were unaffected).
+  They now use the TRL backend's `bridged_message_spans`.
+
 - Observatory semantic SQL (`/api/v1/semantic/query`, MCP `query_semantics`,
   evaluations and bare run ids) read whichever source sorted first when no
   source was named; with discovered Trackio projects that was an unrelated

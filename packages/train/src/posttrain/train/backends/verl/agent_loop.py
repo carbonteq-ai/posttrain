@@ -22,6 +22,7 @@ from ...online_rl import (
     RolloutBatch,
 )
 from ...policy_messages import parsed_policy_message
+from ...rendering import bridged_message_spans
 from .reward_fields import (
     shaped_rollout_reward,
     streaming_reward_extra_info,
@@ -186,6 +187,9 @@ class VerlPolicyGenerator:
             )
         if rendered is None:
             rendered = self._renderer.render(renderer_messages, tools=renderer_tools, add_generation_prompt=True)
+            spans = tuple(rendered.message_token_spans())
+        else:
+            spans = bridged_message_spans(rendered, request.tail_start, len(request.previous_token_ids))
         sampling = _effective_sampling(request.sampling, self._sampling_overrides)
         output = await self._server_manager.generate(
             request_id=request.session_id or uuid4().hex,
@@ -230,7 +234,7 @@ class VerlPolicyGenerator:
             completion_ids=token_ids,
             completion_logprobs=logprobs,
             finish_reason=finish_reason,
-            prompt_message_spans=tuple(rendered.message_token_spans()),
+            prompt_message_spans=spans,
             prompt_is_content=tuple(bool(value) for value in rendered.is_content),
             raw_response={
                 "id": "posttrain-verl-policy-turn",

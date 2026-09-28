@@ -389,6 +389,80 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
     sys.modules.pop(module_name, None)
 
 
+def test_verl_policy_generator_reports_bridged_spans_over_the_full_message_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bridged turn's spans index the full message list, as the TRL generator's do."""
+
+    real_renderers = pytest.importorskip("renderers")
+    module_name = "posttrain.train.backends.verl.agent_loop"
+    monkeypatch.delitem(sys.modules, module_name, raising=False)
+    for package in ("verl", "verl.experimental", "verl.experimental.agent_loop"):
+        module = ModuleType(package)
+        module.__path__ = []  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, package, module)
+    verl_agent_loop = ModuleType("verl.experimental.agent_loop.agent_loop")
+    for name in ("AgentLoopBase", "AgentLoopMetrics", "AgentLoopOutput"):
+        verl_agent_loop.__dict__[name] = object
+    monkeypatch.setitem(sys.modules, "verl.experimental.agent_loop.agent_loop", verl_agent_loop)
+
+    class FakeRenderer:
+        def render(self, messages, *, tools, add_generation_prompt):
+            raise AssertionError("a bridged turn must not re-render the conversation")
+
+        def bridge_to_next_turn(self, prompt_ids, completion_ids, new_messages, *, tools):
+            # Prefix (1, 2, 3, 4) retained; two tool results and the generation prompt follow.
+            assert (prompt_ids, completion_ids) == ([1, 2], [3, 4])
+            assert [message["role"] for message in new_messages] == ["tool", "tool"]
+            return real_renderers.RenderedTokens(
+                token_ids=[1, 2, 3, 4, 7, 8, 9, 10, 11],
+                message_indices=[-1, -1, -1, -1, 0, 0, 1, 1, -1],
+                message_roles=["tool", "tool"],
+            )
+
+        def parse_response(self, token_ids, *, tools):
+            return SimpleNamespace(content="done", reasoning_content=None, tool_calls=())
+
+        def get_stop_token_ids(self):
+            return (6,)
+
+    renderers = ModuleType("renderers")
+    renderers.__dict__["Qwen35RendererConfig"] = lambda **kwargs: kwargs
+    renderers.__dict__["DefaultRendererConfig"] = lambda **kwargs: kwargs
+    renderers.__dict__["create_renderer"] = lambda tokenizer, config: FakeRenderer()
+    renderers.__dict__["RenderedTokens"] = real_renderers.RenderedTokens
+    monkeypatch.setitem(sys.modules, "renderers", renderers)
+
+    class ServerManager:
+        async def generate(self, **kwargs):
+            return SimpleNamespace(token_ids=(5, 6), log_probs=(-0.1, -0.2), extra_fields={})
+
+    agent_loop = importlib.import_module(module_name)
+    generator = agent_loop.VerlPolicyGenerator(ServerManager(), object(), enable_thinking=False)
+    messages = (
+        {"role": "user", "content": "find"},
+        {"role": "assistant", "content": "calling"},
+        {"role": "tool", "content": "first"},
+        {"role": "tool", "content": "second"},
+    )
+    result = asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=messages,
+                sampling=PolicySampling(max_tokens=32, temperature=1.0, top_p=1.0),
+                previous_prompt_ids=(1, 2),
+                previous_completion_ids=(3, 4),
+                tail_start=2,
+            )
+        )
+    )
+
+    # Before the fix veRL reported ((4, 6), (6, 8)): one span per new message,
+    # which Verifiers reads as the spans of messages 0 and 1.
+    assert result.prompt_message_spans == (None, None, (4, 6), (6, 8))
+    sys.modules.pop(module_name, None)
+
+
 def test_qwen35_grpo_translation_is_deterministic_and_backend_neutral(tmp_path: Path) -> None:
     request = _grpo_request(update=LoRAUpdate(rank=16, alpha=32))
     output_dir = tmp_path / "trainer"

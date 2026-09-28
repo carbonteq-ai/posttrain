@@ -12,7 +12,7 @@ from ...bindings import TrainingBinding
 from ...online_rl import PolicySampling, PolicyTurnRequest, PolicyTurnResult
 from ...policy_messages import parsed_policy_message
 from ...profiles import CAPOSettings, GDPOSettings, GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings
-from ...rendering import create_renderer
+from ...rendering import bridged_message_spans, create_renderer
 
 
 class TrlPolicyGenerator:
@@ -72,7 +72,7 @@ class TrlPolicyGenerator:
             rendered = self._renderer.render(messages, tools=tools or None, add_generation_prompt=True)
             spans = tuple(rendered.message_token_spans())
         else:
-            spans = _bridged_message_spans(rendered, request.tail_start, len(request.previous_token_ids))
+            spans = bridged_message_spans(rendered, request.tail_start, len(request.previous_token_ids))
 
         completion_ids, logprobs = await self._generate_tokens(rendered.token_ids)
         token_ids = tuple(int(value) for value in completion_ids)
@@ -173,22 +173,6 @@ class TrlPolicyGenerator:
             self._flush_task = None
             if self._pending:
                 self._flush_task = asyncio.create_task(self._flush_pending())
-
-
-def _bridged_message_spans(rendered: Any, tail_start: int, prefix_tokens: int) -> tuple[tuple[int, int] | None, ...]:
-    from renderers import RenderedTokens  # pyright: ignore[reportMissingImports]
-
-    tail = RenderedTokens(
-        message_indices=rendered.message_indices[prefix_tokens:],
-        message_roles=rendered.message_roles,
-    )
-    return tuple(
-        [None] * tail_start
-        + [
-            None if span is None else (span[0] + prefix_tokens, span[1] + prefix_tokens)
-            for span in tail.message_token_spans()
-        ]
-    )
 
 
 def _finish_reason(
