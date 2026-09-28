@@ -153,6 +153,11 @@ class VerlAlgorithm(VerlContract):
     clip_epsilon_high: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     dynamic_sampling: bool | None = None
     dynamic_sampling_max_candidate_batches: int | None = Field(default=None, gt=0)
+    # Round-based refill of reward-constant prompt groups (TRL GRPO active sampling).
+    active_sampling: bool | None = None
+    active_sampling_max_candidate_batches: int | None = Field(default=None, gt=0)
+    active_sampling_oversample: int | None = Field(default=None, ge=0)
+    active_sampling_oversample_refill: int | None = Field(default=None, ge=0)
     mask_truncated_completions: bool | None = None
     overlong_buffer_tokens: int | None = Field(default=None, gt=0)
     overlong_penalty_factor: float | None = Field(default=None, gt=0, allow_inf_nan=False)
@@ -270,8 +275,13 @@ class VerlLaunchManifest(VerlContract):
                 or algorithm.clip_epsilon_low != 0.2
                 or algorithm.clip_epsilon_high != 0.272
                 or algorithm.dynamic_sampling
+                or not algorithm.active_sampling
             ):
                 raise ValueError("the OLMo 3 manifest requires its fixed objective settings")
+            if algorithm.active_sampling and (
+                algorithm.dynamic_sampling or algorithm.active_sampling_max_candidate_batches is None
+            ):
+                raise ValueError("veRL active sampling requires a bounded candidate pool and excludes dynamic sampling")
             if algorithm.online_rl_algorithm != "olmo3" and (
                 algorithm.rollout_importance_sampling is not None
                 or algorithm.rollout_importance_sampling_cap is not None

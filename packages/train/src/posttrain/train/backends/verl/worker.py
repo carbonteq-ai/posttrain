@@ -34,21 +34,20 @@ _ROLLOUT_EXECUTION_FORK_REVISIONS = frozenset({"5dbf667c99b29db613d1dfcded1ed904
 # Each maps to the CarbonTeq fork commits that do register it, with the fork
 # version at that commit. A clean checkout at any other revision is rejected
 # before veRL starts instead of failing at its first actor update.
-_FORK_ONLY_NATIVE_NAMES = frozenset({"token_clip", "k3_unclipped"})
-_FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str, frozenset[str]]] = {
+# ``active_sampling`` names the fork's ``algorithm.active_sampling`` config block
+# (round-based refill with TRL's semantics).
+_OLMO3_OBJECTIVE_NAMES = frozenset({"token_clip", "k3_unclipped"})
+_FORK_ONLY_NATIVE_NAMES = _OLMO3_OBJECTIVE_NAMES | {"active_sampling"}
+# The version is recorded for release commits only; a development commit shares
+# its parent release's version string without its content.
+_FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str | None, frozenset[str]]] = {
     # codex/vortex development commit for the OLMo 3 objective.
-    "a4d84ad30b94c11c4de41b3d915eca6399ad2b6a": ("0.9.0.post4", _FORK_ONLY_NATIVE_NAMES),
+    "a4d84ad30b94c11c4de41b3d915eca6399ad2b6a": (None, _OLMO3_OBJECTIVE_NAMES),
     # carbonteq-v0.9.0.post5 release commit and its asset receipt.
-    "9fd6e7a31396ba33a29233cc869ab05b0a9e5a80": ("0.9.0.post5", _FORK_ONLY_NATIVE_NAMES),
-    "9c10bd1a5931e7f73dfa4b570eb2c8e767d225ca": ("0.9.0.post5", _FORK_ONLY_NATIVE_NAMES),
-    # carbonteq-v0.9.0.post7 release commit (post6 plus the LoRA-sync rename
-    # mapper) and its asset receipt.
-    "6069abe14e2b3d27c89815a6502b849f15124e12": ("0.9.0.post7", _FORK_ONLY_NATIVE_NAMES),
-    "07ecac23596d7fd6babdfb88e9dc0442dfc65a72": ("0.9.0.post7", _FORK_ONLY_NATIVE_NAMES),
-    # carbonteq-v0.9.0.post8 release commit (post7 plus the agent-loop config
-    # defaults) and its asset receipt.
-    "ef1c37715fa75de5973ae5b3c398383cd7e0093d": ("0.9.0.post8", _FORK_ONLY_NATIVE_NAMES),
-    "be582879e2efd45a7206be49010ab6e6fcd868e9": ("0.9.0.post8", _FORK_ONLY_NATIVE_NAMES),
+    "9fd6e7a31396ba33a29233cc869ab05b0a9e5a80": ("0.9.0.post5", _OLMO3_OBJECTIVE_NAMES),
+    "9c10bd1a5931e7f73dfa4b570eb2c8e767d225ca": ("0.9.0.post5", _OLMO3_OBJECTIVE_NAMES),
+    # codex/vortex-active-sampling development commit (post5 + active sampling).
+    "6c7295cd411c4d3973ddc206e43816560c842336": (None, _FORK_ONLY_NATIVE_NAMES),
 }
 _TOKEN_CLIP_FORK_REVISIONS = frozenset(
     revision for revision, (_, names) in _FORK_NATIVE_NAME_REVISIONS.items() if "token_clip" in names
@@ -287,6 +286,8 @@ def build_hydra_overrides(
         )
         if algorithm.online_rl_algorithm == "olmo3":
             overrides.extend(_olmo3_hydra_overrides(manifest))
+        if algorithm.active_sampling:
+            overrides.extend(_active_sampling_hydra_overrides(manifest))
         if manifest.operation in {"gdpo", "capo"}:
             structured = {
                 "reward_contract_digest": algorithm.reward_contract_digest,
@@ -464,7 +465,10 @@ def requested_fork_native_names(overrides: list[str]) -> frozenset[str]:
     """Fork-only policy-loss and KL names a Hydra override list asks veRL to use."""
 
     keys = ("actor_rollout_ref.actor.policy_loss.loss_mode=", "actor_rollout_ref.actor.kl_loss_type=")
-    selected = {value.lstrip("+").split("=", 1)[1] for value in overrides if value.lstrip("+").startswith(keys)}
+    plain = [value.lstrip("+") for value in overrides]
+    selected = {value.split("=", 1)[1] for value in plain if value.startswith(keys)}
+    if "algorithm.active_sampling.enable=true" in plain:
+        selected.add("active_sampling")
     return frozenset(selected & _FORK_ONLY_NATIVE_NAMES)
 
 
@@ -485,8 +489,9 @@ def _validate_fork_native_names(manifest: VerlLaunchManifest, overrides: list[st
         return
     raise ValueError(
         f"selected veRL source revision {manifest.backend_source_revision} does not register "
-        f"{', '.join(sorted(missing))}, which the {manifest.operation} objective requires; select CarbonTeq "
-        "veRL 0.9.0.post8 (ef1c37715fa75de5973ae5b3c398383cd7e0093d) or a later qualified revision"
+        f"{', '.join(sorted(missing))}, which the {manifest.operation} objective requires; select a CarbonTeq "
+        "veRL revision that registers them (0.9.0.post5 for token_clip and k3_unclipped; active sampling is "
+        "not released yet)"
     )
 
 
@@ -523,6 +528,25 @@ def _olmo3_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
         "algorithm.rollout_correction.rollout_is_batch_normalize=false",
         "algorithm.rollout_correction.rollout_rs=null",
         "algorithm.rollout_correction.bypass_mode=false",
+    ]
+
+
+def _active_sampling_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
+    """Round-based active sampling with TRL post11's semantics (fork ``algorithm.active_sampling``).
+
+    The groups' spread is measured on ``seq_reward``, the shaped reward the agent
+    loop reports (truncation penalty included), with TRL's zero epsilon.
+    """
+
+    algorithm = manifest.payload.algorithm
+    assert algorithm.active_sampling_max_candidate_batches is not None
+    return [
+        "algorithm.active_sampling.enable=true",
+        f"algorithm.active_sampling.max_candidate_batches={algorithm.active_sampling_max_candidate_batches}",
+        f"algorithm.active_sampling.oversample={algorithm.active_sampling_oversample or 0}",
+        f"algorithm.active_sampling.oversample_refill={algorithm.active_sampling_oversample_refill or 0}",
+        "algorithm.active_sampling.reward_std_epsilon=0.0",
+        "algorithm.active_sampling.metric=seq_reward",
     ]
 
 
@@ -611,6 +635,7 @@ def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
         "algorithm.structured_rewards.",
         "data.gen_batch_size=",
         "algorithm.filter_groups.",
+        "algorithm.active_sampling",
         "actor_rollout_ref.rollout.agent.agent_loop_config_path=",
         "actor_rollout_ref.rollout.agent.num_workers=",
         "actor_rollout_ref.rollout.agent.num_cpus_per_worker=",

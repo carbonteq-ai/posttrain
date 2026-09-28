@@ -102,8 +102,26 @@ adds backend support that meets those contracts; no product meaning changes.
   (`_FORK_NATIVE_NAME_REVISIONS`, `requested_fork_native_names`,
   `fork_native_names`), GDPO/CAPO regression test on post4, strict-xfail test
   against the pinned job-kind revision, installed-veRL record check.
-- [ ] Phase 2: active sampling with bounded refill, oversampling and the
-  concurrency guard in the veRL fork.
+- [x] (2026-09-28) Phase 2 fork: `algorithm.active_sampling` config block,
+  `ActiveSamplingRounds` (TRL round arithmetic and metric names),
+  `ActiveSamplingReplayBuffer` (round barrier, keep by sample std of
+  `seq_reward`, evict the rest including failed groups, keep the first target
+  groups in dispatch order), startup capacity guard, trainer wiring; commit
+  `6c7295cd411c4d3973ddc206e43816560c842336` on `codex/vortex-active-sampling`
+  (not pushed). 11 new CPU tests; fork V1/core suites 162 passed, 2 skipped.
+- [x] (2026-09-28) Phase 2 Posttrain (branch `codex/verl-vortex-active-sampling`,
+  based on `codex/release-0.4.12` at `d93c5f78`, which already contains Phase 1
+  and the post5 pin): active sampling in the veRL contract, launcher and
+  worker; OLMo 3 accepted by `backend_support` and gated on a fork revision
+  that registers `active_sampling` (launcher and worker); plan-time capacity
+  guard on veRL (launcher and `posttrain job plan`); veRL metric mapping for
+  the `active_sampling/...` names. Side-by-side test against TRL post11's real
+  `_prepare_active_sampling_inputs`: 19 cases pass (see Artifacts). Ladder:
+  ruff, pyright 0, lint-imports 9 kept, pytest 2192 passed / 27 skipped /
+  1 xfailed.
+- [ ] Phase 2 GPU check (short 8 GB Qwen3.5-0.8B OLMo 3 run with a refill
+  round). Blocked: needs a veRL build that contains `6c7295cd` (a post6
+  candidate and a kind image built from it); the 0.4.12 kind image is post5.
 - [ ] Phase 3: adaptive curriculum on veRL.
 - [ ] Phase 4: LFM2.5 on veRL.
 - [ ] Phase 5: SAMPO on veRL.
@@ -170,6 +188,25 @@ adds backend support that meets those contracts; no product meaning changes.
   image is rebuilt first.
 
 ## Decision Log
+
+- Decision: base the Phase 2 Posttrain branch on `codex/release-0.4.12`
+  (`d93c5f78`) instead of `54671c33`.
+  Rationale: release 0.4.12 already merged Phase 1 and pinned post5, and it
+  carries the TRL post11 `oversample`/`oversample_refill` settings, the
+  concurrency guard and the veRL rejection module this phase edits; basing on
+  the older commit would re-implement them.
+  Date/Author: 2026-09-28, Claude.
+- Decision: failed prompt groups count as generated but not retained in veRL
+  active sampling, and a group is kept when the sample standard deviation
+  (ddof 1) of `seq_reward` exceeds the epsilon (0 for OLMo 3).
+  Rationale: TRL drops groups the environment could not admit and filters on
+  `nanstd` of the shaped rewards; with epsilon 0 the two spread measures agree.
+  Date/Author: 2026-09-28, Claude.
+- Decision: record fork versions only for release commits in
+  `_FORK_NATIVE_NAME_REVISIONS`; development commits carry `None`.
+  Rationale: a development commit shares its parent release's version string
+  without its content, so a version lookup would claim names the release lacks.
+  Date/Author: 2026-09-28, Claude.
 
 - Decision: gate fork-only native names (`token_clip`, `k3_unclipped`) by an
   explicit per-commit record in the worker and reject clean checkouts at other
@@ -485,6 +522,16 @@ Phase 1 (float64, 2 groups x 4 rollouts x 16 tokens, 2 micro-batches, beta
     advantages [0.675, -0.325, 0.175, -0.525, -0.4625, -0.0125, 0.7375, -0.2625]
 
 Advantages are bitwise equal; correction weights agree to 1e-12.
+
+Phase 2 (`packages/train/tests/test_verl_active_sampling_parity.py`, parity
+environment with the fork at `6c7295cd`): 7 named scenarios (first round
+full, refill only missing, oversampled surplus discarded, refill capped at the
+first round, extra groups cut to the pool, pool exhausted, rounds exhausted)
+and 12 random reward patterns. For every case TRL post11 and veRL dispatch the
+same round sizes, keep the same candidate groups, fail for the same cause, and
+report identical `active_sampling/...` metrics.
+
+    19 passed in 9.68s
 
 ## Interfaces and Dependencies
 

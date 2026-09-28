@@ -79,7 +79,6 @@ from posttrain.train.backends.verl.reward_fields import (
     training_response_mask,
 )
 from posttrain.train.backends.verl.worker import (
-    _TOKEN_CLIP_FORK_REVISIONS,
     _last_metrics,
     _uses_turboquant,
     _write_agent_config,
@@ -779,6 +778,8 @@ def test_verl_checkpoint_steps_zero_keeps_only_terminal_model_save(
 
 POST5_REVISION = "9fd6e7a31396ba33a29233cc869ab05b0a9e5a80"
 POST4_REVISION = "54124edfb8d0b73694696400cf07a76a14d9be65"
+# codex/vortex-active-sampling: post5 plus round-based active sampling (unreleased).
+ACTIVE_SAMPLING_REVISION = "6c7295cd411c4d3973ddc206e43816560c842336"
 
 
 def _with_revision(request, revision: str, **options: object):
@@ -882,7 +883,24 @@ def _pinned_verl_revision() -> str:
     return tomllib.loads(profile.read_text(encoding="utf-8"))["fork_revision"]
 
 
-@pytest.mark.parametrize("operation", ["gdpo", "capo", "olmo3"])
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "gdpo",
+        "capo",
+        pytest.param(
+            "olmo3",
+            marks=pytest.mark.xfail(
+                strict=True,
+                raises=AssertionError,
+                reason=(
+                    "the veRL job kind pins 0.9.0.post5, which has the OLMo 3 loss but not active sampling; "
+                    "remove this marker in the commit that pins the active-sampling release"
+                ),
+            ),
+        ),
+    ],
+)
 def test_pinned_verl_fork_registers_every_native_name_posttrain_requests(monkeypatch, tmp_path, operation):
     from posttrain.train.backends.verl.worker import fork_native_names, requested_fork_native_names
 
@@ -898,13 +916,16 @@ def test_pinned_verl_fork_registers_every_native_name_posttrain_requests(monkeyp
     # Ask for the names with the gate lifted, then require the pinned fork to register them.
     requested = requested_fork_native_names(
         build_hydra_overrides(
-            VerlLaunchManifest.model_validate({**manifest.model_dump(), "backend_source_revision": POST5_REVISION}),
+            VerlLaunchManifest.model_validate(
+                {**manifest.model_dump(), "backend_source_revision": ACTIVE_SAMPLING_REVISION}
+            ),
             tmp_path / "data",
             tmp_path / "agent",
             tmp_path / "checkpoints",
         )
     )
-    assert requested == {"token_clip", "k3_unclipped"}
+    expected = {"token_clip", "k3_unclipped"} | ({"active_sampling"} if operation == "olmo3" else set())
+    assert requested == expected
     assert requested <= fork_native_names(revision), f"pinned veRL {revision} lacks {sorted(requested)}"
 
 
@@ -944,41 +965,89 @@ def test_verl_dapo_uses_core_trainer_and_maps_all_dynamic_sampling_controls(
 
 
 def _olmo3_settings(settings: GRPOSettings, **changes: object) -> GRPOSettings:
-    return replace(
-        settings,
-        algorithm="olmo3",
-        advantage_scaling="none",
-        importance_sampling_mode="token_truncate",
-        importance_sampling_clip_min=None,
-        importance_sampling_clip_max=2.0,
-        active_sampling=ActiveGroupSampling(max_candidate_batches=4),
-        **changes,
+    values: dict[str, object] = {
+        "algorithm": "olmo3",
+        "advantage_scaling": "none",
+        "importance_sampling_mode": "token_truncate",
+        "importance_sampling_clip_min": None,
+        "importance_sampling_clip_max": 2.0,
+        "active_sampling": ActiveGroupSampling(max_candidate_batches=4),
+    }
+    values.update(changes)
+    return replace(settings, **values)
+
+
+def _olmo3_request(*, max_num_seqs: int | None = None, **changes: object) -> GRPORequest:
+    request = _with_revision(_grpo_request(), ACTIVE_SAMPLING_REVISION)
+    if max_num_seqs is not None:
+        engine = {**request.inference.engine, "max_num_seqs": max_num_seqs}
+        request = replace(request, inference=replace(request.inference, engine=engine))
+    return replace(request, settings=_olmo3_settings(request.settings, **changes))
+
+
+def _olmo3_manifest(tmp_path: Path, *, max_num_seqs: int | None = None, **changes: object) -> VerlLaunchManifest:
+    return build_grpo_launch_plan(_olmo3_request(max_num_seqs=max_num_seqs, **changes), tmp_path)
+
+
+def test_verl_accepts_olmo3_and_maps_its_active_sampling(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    oversampled = ActiveGroupSampling(max_candidate_batches=6, oversample=1, oversample_refill=2)
+    with pytest.raises(ValueError, match="needs 4 concurrent episodes for the first round"):
+        _olmo3_manifest(tmp_path, active_sampling=oversampled)
+    manifest = _olmo3_manifest(tmp_path, max_num_seqs=4, active_sampling=oversampled)
+    algorithm = manifest.payload.algorithm
+    assert (algorithm.active_sampling, algorithm.active_sampling_max_candidate_batches) == (True, 6)
+    assert (algorithm.active_sampling_oversample, algorithm.active_sampling_oversample_refill) == (1, 2)
+
+    overrides = build_hydra_overrides(manifest, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+
+    for expected in (
+        "algorithm.active_sampling.enable=true",
+        "algorithm.active_sampling.max_candidate_batches=6",
+        "algorithm.active_sampling.oversample=1",
+        "algorithm.active_sampling.oversample_refill=2",
+        "algorithm.active_sampling.reward_std_epsilon=0.0",
+        "algorithm.active_sampling.metric=seq_reward",
+    ):
+        assert expected in overrides
+    assert not any(value.startswith("algorithm.filter_groups.") for value in overrides)
+
+
+def test_verl_olmo3_requires_a_fork_revision_with_active_sampling(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    post5 = VerlLaunchManifest.model_validate(
+        {**_olmo3_manifest(tmp_path).model_dump(), "backend_source_revision": POST5_REVISION}
     )
 
-
-def _olmo3_manifest(tmp_path: Path, **changes: object) -> VerlLaunchManifest:
-    """An OLMo 3 manifest built from the launcher's own objective mapping.
-
-    The launcher still rejects OLMo 3 because veRL lacks active sampling (Phase 2 of
-    docs/plan/verl-vortex-port.md); the objective mapping is exercised directly.
-    """
-
-    request = _grpo_request()
-    revision = next(iter(_TOKEN_CLIP_FORK_REVISIONS))
-    training = replace(
-        request.training, backend_options={**request.training.backend_options, "source_revision": revision}
-    )
-    plan = build_grpo_launch_plan(replace(request, training=training), tmp_path)
-    data = plan.model_dump()
-    data["payload"]["algorithm"] = grpo_algorithm_payload(_olmo3_settings(request.settings, **changes))
-    return VerlLaunchManifest.model_validate(data)
+    with pytest.raises(ValueError, match=f"{POST5_REVISION} does not register active_sampling"):
+        build_hydra_overrides(post5, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
 
 
-def test_verl_rejects_olmo3_until_active_sampling_exists(tmp_path: Path) -> None:
-    request = _grpo_request()
+@pytest.mark.parametrize(
+    "override",
+    ["algorithm.active_sampling.enable=false", "+algorithm.active_sampling.oversample=9"],
+)
+def test_verl_backend_options_cannot_replace_active_sampling(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, override: str
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    data = _olmo3_manifest(tmp_path).model_dump()
+    data["payload"]["training"]["backend_options"]["hydra_overrides"] = [override]
 
-    with pytest.raises(ValueError, match="active sampling, which the veRL backend does not provide yet"):
-        build_grpo_launch_plan(replace(request, settings=_olmo3_settings(request.settings)), tmp_path)
+    with pytest.raises(ValueError, match="cannot replace selected"):
+        build_hydra_overrides(
+            VerlLaunchManifest.model_validate(data), tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c"
+        )
+
+
+def test_verl_olmo3_manifest_requires_active_sampling(tmp_path: Path) -> None:
+    data = _olmo3_manifest(tmp_path).model_dump()
+    data["payload"]["algorithm"]["active_sampling"] = None
+
+    with pytest.raises(ValidationError, match="fixed objective settings"):
+        VerlLaunchManifest.model_validate(data)
 
 
 def test_verl_maps_the_olmo3_objective_to_native_token_clip_and_rollout_correction(
@@ -1017,7 +1086,9 @@ def test_verl_olmo3_requires_a_fork_revision_with_token_clip(monkeypatch: pytest
     manifest = _olmo3_manifest(tmp_path)
     legacy = VerlLaunchManifest.model_validate({**manifest.model_dump(), "backend_source_revision": "a" * 40})
 
-    with pytest.raises(ValueError, match="does not register k3_unclipped, token_clip, which the grpo objective"):
+    with pytest.raises(
+        ValueError, match="does not register active_sampling, k3_unclipped, token_clip, which the grpo objective"
+    ):
         build_hydra_overrides(legacy, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
 
 
@@ -2072,3 +2143,12 @@ def test_verl_worker_reads_a_development_checkout_with_git(monkeypatch: pytest.M
     (checkout / "patch.py").write_text("changed = True\n")
     with pytest.raises(RuntimeError, match="dirty state is True, expected False"):
         verl_worker._validate_runtime(_validated_manifest(tmp_path, checkout, revision, source_dirty=False))
+
+
+def test_verl_launcher_rejects_olmo3_on_a_fork_without_active_sampling(tmp_path: Path) -> None:
+    request = _with_revision(_olmo3_request(), POST5_REVISION)
+
+    with pytest.raises(ValueError, match=f"{POST5_REVISION} has no round-based active sampling"):
+        build_grpo_launch_plan(request, tmp_path)
+    # A dirty candidate checkout is identified by its content digest and not gated here.
+    build_grpo_launch_plan(_with_revision(_olmo3_request(), POST5_REVISION, source_dirty=True), tmp_path)

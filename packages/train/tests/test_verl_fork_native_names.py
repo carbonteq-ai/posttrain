@@ -16,6 +16,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 core_algos = pytest.importorskip("verl.trainer.ppo.core_algos", reason="requires the CarbonTeq veRL fork")
+replay_buffer = pytest.importorskip("verl.trainer.ppo.v1.replay_buffer")
 
 from posttrain.train.backends.verl.worker import _FORK_NATIVE_NAME_REVISIONS  # noqa: E402
 
@@ -30,7 +31,9 @@ def test_installed_verl_registers_every_name_recorded_for_its_version() -> None:
     logprob = torch.tensor([-0.5, -1.0])
     reference = torch.tensor([-0.4, -2.0])
     for name in frozenset().union(*entries):
-        if name in KL_NAMES:
+        if name == "active_sampling":
+            assert hasattr(replay_buffer, "ActiveSamplingReplayBuffer")
+        elif name in KL_NAMES:
             assert torch.isfinite(core_algos.kl_penalty(logprob, reference, name)).all()
         else:
             assert callable(core_algos.get_policy_loss_fn(name))

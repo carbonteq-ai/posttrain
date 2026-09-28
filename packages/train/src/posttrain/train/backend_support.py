@@ -27,16 +27,14 @@ _VERL_GRPO_FIXED_DEFAULTS: tuple[str, ...] = (
 def verl_grpo_settings_problem(settings: GRPOSettings) -> str | None:
     """Explain the first GRPO setting the veRL backend would silently ignore, or None."""
 
-    # GRPOSettings requires active sampling for OLMo 3, and active sampling only
-    # with OLMo 3; the veRL worker already maps the OLMo 3 objective, but veRL has
-    # no active sampling until the VORTEX port (docs/plan/verl-vortex-port.md).
-    if settings.algorithm == "olmo3" or settings.active_sampling is not None:
-        return (
-            "the OLMo 3 GRPO recipe refills prompt groups with active sampling, which the veRL backend does "
-            "not provide yet; select the TRL backend"
-        )
+    # OLMo 3 and its active sampling are mapped natively (docs/plan/verl-vortex-port.md,
+    # phases 1-2); the worker also requires a fork revision that registers them.
     if settings.adaptive_curriculum is not None:
         return "adaptive_curriculum is currently supported by the TRL backend only"
+    if settings.algorithm == "olmo3":
+        # GRPOSettings fixes the OLMo 3 advantage scaling and sampler correction,
+        # and the veRL worker maps both; group admission retries are not used.
+        return None
     defaults = {item.name: item.default for item in fields(GRPOSettings) if item.name in _VERL_GRPO_FIXED_DEFAULTS}
     changed = [name for name in _VERL_GRPO_FIXED_DEFAULTS if getattr(settings, name) != defaults[name]]
     if changed:

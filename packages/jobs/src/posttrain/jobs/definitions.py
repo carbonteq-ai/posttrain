@@ -1105,22 +1105,27 @@ def _validate_oversampled_round_capacity(
     active = settings.active_sampling
     if active is None or (active.oversample == 0 and active.oversample_refill == 0):
         return
-    if not training.backend.startswith("trl@"):
+    backend = training.backend.split("@", 1)[0]
+    if backend not in {"trl", "verl"}:
         raise ContractError(
-            f"active_sampling oversample and oversample_refill are implemented by the TRL backend, not {training.backend}"
+            "active_sampling oversample and oversample_refill are implemented by the TRL and veRL backends, "
+            f"not {training.backend}"
         )
+    if backend == "verl" and isinstance(settings, SAMPOSettings):
+        raise ContractError("SAMPO active sampling is not available on the veRL backend yet")
     vllm_limit = None
     if inference.backend.split("@", 1)[0] == "vllm":
         declared = inference.engine.get("max_num_seqs")
-        # TRL's colocated default admits one generation batch per process: the
-        # per-device batch times tensor parallelism times steps per generation.
         tensor_parallel = inference.engine.get("tensor_parallel_size", 1)
-        default = settings.loop.per_device_batch_size * settings.loop.gradient_accumulation_steps
-        vllm_limit = (
-            declared
-            if isinstance(declared, int)
-            else default * (tensor_parallel if isinstance(tensor_parallel, int) else 1)
-        )
+        if backend == "verl":
+            # The veRL worker defaults each engine to one prompt group of sequences.
+            default = settings.num_generations
+        else:
+            # TRL's colocated default admits one generation batch per process: the
+            # per-device batch times tensor parallelism times steps per generation.
+            default = settings.loop.per_device_batch_size * settings.loop.gradient_accumulation_steps
+            default *= tensor_parallel if isinstance(tensor_parallel, int) else 1
+        vllm_limit = declared if isinstance(declared, int) else default
     execution = training.backend_options.get("rollout_execution")
     worker_slots = None
     if isinstance(execution, Mapping):

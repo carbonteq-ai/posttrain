@@ -62,8 +62,8 @@ VerlLaunchPlan = VerlLaunchManifest
 def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunchPlan:
     _validate_backend(request.training.backend)
     _validate_model(request.policy, "policy")
-    # OLMo 3 (it needs active sampling), adaptive_curriculum and every other GRPO
-    # setting veRL does not receive are rejected instead of silently ignored.
+    # adaptive_curriculum and every other GRPO setting veRL does not receive are
+    # rejected instead of silently ignored.
     unsupported = verl_grpo_settings_problem(request.settings)
     if unsupported is not None:
         raise ValueError(unsupported)
@@ -73,6 +73,7 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
     if problem is not None:
         raise ValueError(problem)
     _validate_adapter_continuation(request.policy, request.training.update)
+    _validate_active_sampling_capacity(request)
     return _plan(
         request,
         output_dir,
@@ -85,6 +86,47 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
             "environment": _environment(request, output_dir),
         },
     )
+
+
+def _validate_active_sampling_capacity(request: GRPORequest) -> None:
+    """The oversampled first round must fit rollout concurrency, as on TRL (the fork checks it again)."""
+
+    from ...rollout_execution import oversampled_round_capacity_error
+
+    active = request.settings.active_sampling
+    if active is None:
+        return
+    from .worker import fork_native_names
+
+    options = request.training.backend_options
+    revision = options.get("source_revision")
+    if (
+        isinstance(revision, str)
+        and "active_sampling" not in fork_native_names(revision)
+        and options.get("source_dirty") is not True
+    ):
+        raise ValueError(
+            f"veRL source revision {revision} has no round-based active sampling, which OLMo 3 requires; "
+            "select a CarbonTeq veRL revision that provides it (none is released yet)"
+        )
+    engine = request.inference.engine
+    declared = engine.get("max_num_seqs")
+    execution = request.training.backend_options.get("rollout_execution")
+    worker_slots = None
+    if isinstance(execution, dict):
+        workers, episodes = execution.get("env_workers"), execution.get("episodes_per_worker")
+        if isinstance(workers, int) and isinstance(episodes, int):
+            worker_slots = (workers, episodes)
+    error = oversampled_round_capacity_error(
+        num_prompts_per_step=request.settings.num_prompts_per_step,
+        num_generations=request.settings.num_generations,
+        oversample=active.oversample,
+        vllm_max_num_seqs=declared if isinstance(declared, int) else request.settings.num_generations,
+        environment_max_concurrent=getattr(request.bridge, "max_concurrent", None),
+        worker_slots=worker_slots,
+    )
+    if error is not None:
+        raise ValueError(error)
 
 
 def grpo_algorithm_payload(settings: GRPOSettings) -> dict[str, Any]:
@@ -115,6 +157,13 @@ def grpo_algorithm_payload(settings: GRPOSettings) -> dict[str, Any]:
         "overlong_penalty_factor": settings.overlong_penalty_factor,
         "truncation_penalty": settings.truncation_penalty,
     }
+    if settings.active_sampling is not None:
+        payload.update(
+            active_sampling=True,
+            active_sampling_max_candidate_batches=settings.active_sampling.max_candidate_batches,
+            active_sampling_oversample=settings.active_sampling.oversample,
+            active_sampling_oversample_refill=settings.active_sampling.oversample_refill,
+        )
     if settings.algorithm == "olmo3":
         payload.update(
             normalize_advantage_by_std=False,
@@ -801,6 +850,12 @@ def _grpo_runtime_attributes(
         attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
         attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
         attributes["truncation_penalty"] = request.settings.truncation_penalty
+        active = request.settings.active_sampling
+        attributes["active_sampling"] = active is not None
+        if active is not None:
+            attributes["active_sampling_max_candidate_batches"] = active.max_candidate_batches
+            attributes["active_sampling_oversample"] = active.oversample
+            attributes["active_sampling_oversample_refill"] = active.oversample_refill
         attributes["advantage_scaling"] = "none" if request.settings.algorithm == "olmo3" else "group"
     elif isinstance(request, SAMPORequest):
         attributes["discount_gamma"] = request.settings.discount_gamma

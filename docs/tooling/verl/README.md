@@ -103,6 +103,28 @@ is accepted for GRPO and DAPO. OLMo 3 itself stays rejected on veRL until
 active sampling is ported (plan [verl-vortex-port.md](../../plan/verl-vortex-port.md),
 Phase 2).
 
+## Round-based active sampling (unreleased candidate)
+
+Fork branch `codex/vortex-active-sampling` commit
+`6c7295cd411c4d3973ddc206e43816560c842336` (post5 plus this delta, not
+pushed) adds `algorithm.active_sampling` to the synchronous V1 trainer with
+TRL post11's round semantics: round one dispatches the batch plus
+`oversample` prompt groups; each later round dispatches only the missing
+groups plus `oversample_refill`, capped at round one and at the remaining
+pool of `max_candidate_batches * train_batch_size`; a round completes before
+its groups are judged (reward spread of `seq_reward`, the shaped reward);
+failed groups are rejected; the first target groups in dispatch order form
+the batch. Metrics use TRL's `active_sampling/...` names and values, mapped to
+the same `train/rl/active_sampling_*` names. The trainer rejects an oversampled
+first round larger than the engines' `max_num_seqs`, the agent episode limit
+or worker slots; the launcher and `posttrain job plan` apply the same guard.
+
+The adapter maps `ActiveGroupSampling` for OLMo 3 and accepts OLMo 3 only on
+a fork revision recorded with `active_sampling` (or a dirty candidate
+checkout), so the selected post5 still rejects it. A side-by-side test against
+TRL's real `_prepare_active_sampling_inputs` agrees on 19 scenarios. The 8 GB
+GPU check needs a release candidate and kind image containing this commit.
+
 ## FP16 metrics (0.9.0.post4, contained in post5)
 
 Branch `codex/precision-fp16` tags `carbonteq-v0.9.0.post4` at immutable
