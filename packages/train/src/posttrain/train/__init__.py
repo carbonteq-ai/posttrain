@@ -15,6 +15,7 @@ from .api import (
     sampo,
     sft,
 )
+from .backend_support import verl_grpo_settings_problem
 from .backends.quantization import run_llm_compressor
 from .bindings import (
     CalibrationSelection,
@@ -247,6 +248,7 @@ __all__ = [
     "describe_kl_reference",
     "kl_reference_problem",
     "resolved_kl_reference",
+    "verl_grpo_settings_problem",
     "compute_sampo_advantages",
     "normalize_grpo_metrics",
     "render_preferences",

@@ -25,6 +25,7 @@ from posttrain.common import (
     TraceObservation,
 )
 
+from ...backend_support import verl_grpo_settings_problem
 from ...bindings import FullParameterUpdate, LoRAUpdate
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
 from ...kl_reference import kl_reference_problem, resolved_kl_reference
@@ -61,10 +62,11 @@ VerlLaunchPlan = VerlLaunchManifest
 def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunchPlan:
     _validate_backend(request.training.backend)
     _validate_model(request.policy, "policy")
-    if request.settings.algorithm == "olmo3":
-        raise ValueError("the OLMo 3 GRPO recipe is currently supported by the TRL backend only")
-    if request.settings.truncation_penalty is not None:
-        raise ValueError("GRPO truncation_penalty is currently supported by the TRL backend only")
+    # OLMo 3, truncation_penalty, adaptive_curriculum and every other GRPO setting
+    # veRL does not receive are rejected instead of silently ignored.
+    unsupported = verl_grpo_settings_problem(request.settings)
+    if unsupported is not None:
+        raise ValueError(unsupported)
     problem = kl_reference_problem(
         request.training.backend, request.settings.beta, request.settings.kl_reference, request.policy.form
     )

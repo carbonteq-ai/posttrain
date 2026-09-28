@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
+import re
 import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -30,6 +31,7 @@ from posttrain.train import (
     LFM25_RENDERER,
     QWEN35_RENDERER,
     ActiveGroupSampling,
+    AdaptiveCurriculum,
     DynamicGroupSampling,
     FullParameterUpdate,
     GRPORequest,
@@ -44,6 +46,7 @@ from posttrain.train import (
     TrainingBinding,
     TrainingLoop,
     TrainingRuntime,
+    verl_grpo_settings_problem,
 )
 from posttrain.train.api import _distillation_backend, _grpo_backend, _sampo_backend
 from posttrain.train.backends.verl.contracts import VerlLaunchManifest, VerlWorkerResult
@@ -690,6 +693,36 @@ def test_verl_rejects_trl_only_olmo3_recipe(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="currently supported by the TRL backend only"):
         build_grpo_launch_plan(replace(request, settings=settings), tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"truncation_penalty": 0.5}, "GRPO truncation_penalty is currently supported by the TRL backend only"),
+        (
+            {"adaptive_curriculum": AdaptiveCurriculum(class_field="category")},
+            "adaptive_curriculum is currently supported by the TRL backend only",
+        ),
+        ({"advantage_scaling": "batch"}, "advantage_scaling='batch' is currently supported by the TRL backend only"),
+        ({"advantage_scaling": "none"}, "advantage_scaling='none' is currently supported by the TRL backend only"),
+        ({"importance_sampling_mode": "token_mask"}, "importance_sampling_mode='token_mask'"),
+        ({"importance_sampling_clip_min": None}, "importance_sampling_clip_min=None"),
+        ({"importance_sampling_clip_max": 2.0}, "importance_sampling_clip_max=2.0"),
+        ({"max_admission_attempts": 1}, "max_admission_attempts=1 is currently supported by the TRL backend only"),
+    ],
+)
+def test_verl_rejects_grpo_settings_it_would_silently_ignore(
+    tmp_path: Path, changes: dict[str, object], message: str
+) -> None:
+    request = _grpo_request()
+    settings = replace(request.settings, **changes)  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match=re.escape(message)):
+        build_grpo_launch_plan(replace(request, settings=settings), tmp_path)
+
+
+def test_verl_grpo_settings_problem_accepts_the_defaults() -> None:
+    assert verl_grpo_settings_problem(_grpo_request().settings) is None
 
 
 def test_verl_maps_shared_checkpoint_retention_and_explicit_resume(

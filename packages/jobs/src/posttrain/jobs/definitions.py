@@ -84,6 +84,7 @@ from posttrain.train import (
     sft,
     transform,
     validate_verifiers_policy_sampling,
+    verl_grpo_settings_problem,
 )
 from posttrain.work import JobDefinition, ResolvedSeats
 
@@ -990,6 +991,10 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
     if not isinstance(settings, GRPOSettings | SAMPOSettings):
         raise TypeError("resolved seat 'settings' has the wrong type")
     training = _seat(seats, "training", TrainingBinding)
+    if isinstance(settings, GRPOSettings) and training.backend.split("@", 1)[0] == "verl":
+        unsupported = verl_grpo_settings_problem(settings)
+        if unsupported is not None:
+            raise ContractError(unsupported)
     expected_batch = settings.num_prompts_per_step * settings.num_generations
     global_batch = training.runtime.global_batch_size
     if isinstance(global_batch, int) and global_batch != expected_batch:

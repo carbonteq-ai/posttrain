@@ -1,5 +1,6 @@
 """Tests for standard definitions and default runtime composition."""
 
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import cast
@@ -57,6 +58,7 @@ from posttrain.jobs.definitions import (
     sampo_definition,
 )
 from posttrain.train import (
+    AdaptiveCurriculum,
     GRPOSettings,
     SAMPOSettings,
     SFTRequest,
@@ -708,6 +710,61 @@ def test_static_grpo_preparation_rejects_sampling_policy_mismatch() -> None:
                 "rollout_inference": inference,
             }
         )
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        (
+            {"adaptive_curriculum": AdaptiveCurriculum(class_field="category")},
+            "adaptive_curriculum is currently supported by the TRL backend only",
+        ),
+        ({"advantage_scaling": "batch"}, "advantage_scaling='batch' is currently supported by the TRL backend only"),
+        ({"importance_sampling_clip_max": 2.0}, "importance_sampling_clip_max=2.0"),
+        ({"max_admission_attempts": 1}, "max_admission_attempts=1"),
+    ],
+)
+def test_static_grpo_preparation_rejects_settings_verl_would_ignore(changes: dict[str, object], message: str) -> None:
+    catalog = open_catalog(scope="jobs-test")
+    model = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))
+    settings = GRPOSettings(
+        id="grpo-static-verl-unsupported",
+        loop=TrainingLoop(max_steps=1, per_device_batch_size=1, gradient_accumulation_steps=8),
+        num_prompts_per_step=2,
+        num_generations=4,
+        max_completion_length=128,
+    )
+    base_training = _selection(catalog, "training", "training/qwen3.5-0.8b-trl-distill-lora@1")
+    assert isinstance(base_training, TrainingBinding)
+    training = replace(base_training, runtime=replace(base_training.runtime, global_batch_size=8))
+    environment = EnvironmentBinding(
+        "environments/static-verl-unsupported",
+        "tool-use",
+        EnvironmentSource("static", "https://example.test/static", "b" * 40),
+        PythonFactoryActivation("builtins:object"),
+        SamplingPolicy(max_tokens=128, temperature=1.0),
+        num_tasks=1,
+    )
+    inference = InferenceBinding(
+        "inference/static-verl-unsupported@1",
+        "1",
+        model,
+        "vllm@0.25.1",
+        model.renderer_contract,
+        {"max_model_len": 4096},
+        {"max_tokens": 128, "temperature": 1.0, "top_p": 1.0},
+        ExecutionTarget("targets/static", "1", "nvidia-cuda"),
+        ("rollout",),
+    )
+    seats = {
+        "settings": replace(settings, **changes),  # type: ignore[arg-type]
+        "training": replace(training, backend="verl@candidate"),
+        "environment": environment,
+        "rollout_inference": inference,
+    }
+
+    with pytest.raises(ContractError, match=re.escape(message)):
+        grpo_definition().static_validator(seats)  # type: ignore[misc,arg-type]
 
 
 def test_static_grpo_preparation_rejects_inference_completion_length_mismatch() -> None:
