@@ -105,9 +105,13 @@ step-140 checkpoint, with mistakes per episode falling.
   3e-5. `job plan` flagged 3e-5 at LoRA alpha 8 as 1.3x below the lowest
   Tinker RL recipe, and the continuation should not learn slower than the run
   it extends. Date: 2026-09-28.
-- Decision (user, after r1): restart from r1's update-40 checkpoint (exact
-  resume with its optimizer and curriculum), with fixed tools, the adapter
-  list-argument fix and a stronger drift brake; the mistake penalty stays.
+- Decision (user, after r1): a new run started from r1's update-40 adapter
+  (`--model-from-run lfm26-sampo-cont120-g24x6-lr5e5-kl1e2-t05-20260928-r1
+  --model-checkpoint-step 40`: weights only, fresh optimizer and warmup,
+  because settings change), with fixed tools, the adapter list-argument fix
+  and a stronger drift brake; the mistake penalty stays. The KL reference
+  becomes the update-40 adapter, so KL restarts near 0; r1 had already moved
+  KL 0.046 from SAMPO update 120.
   Held-out at update 40: 0.557 vs 0.590 at temperature 0.1 and 0.624 vs 0.647
   at 0.5 against SAMPO update 120, with tool mistakes per episode roughly
   halved. Date: 2026-09-28.
