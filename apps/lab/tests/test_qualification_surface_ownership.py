@@ -92,6 +92,7 @@ def test_every_temporary_script_and_lab_dependent_fixture_has_one_owner_and_exit
         "test-compare-episode-judges",
         "test-optimize-episode-judge-prompt",
         "validate-context-preflight",
+        "qwen35-gdn-kernels",
     }
     assert len({surface["path"] for surface in surfaces}) == len(surfaces)
 

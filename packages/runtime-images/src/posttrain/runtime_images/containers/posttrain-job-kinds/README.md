@@ -29,6 +29,15 @@ present in the Bake publication graph while the CarbonTeq veRL fork is dirty
 and unpublished. The current research lock is also ineligible because it uses
 an editable checkout and includes concrete GSM8K and AutomationBench packages.
 
+The `supervised` and `online-rl-trl-py312` kinds install `fla-core` (Triton
+Gated DeltaNet kernels) through `profiles/supervised.txt`, so Transformers can
+train Qwen3.5-style hybrid linear-attention models without its slow torch
+fallback; both smoke stages import it. Its CUDA partner `causal-conv1d` has no
+upstream wheel for this PyTorch and is built with
+`tools/kernel-wheels/causal-conv1d/build.sh`; it joins the profile once the
+retained wheel is on `carbonteq/dev`. See
+`docs/tooling/linear-attention-kernels/README.md`.
+
 The large dependency layers are shared across actual jobs. A framework or
 project source change therefore invalidates only the actual-job code layer,
 while a kind lock change deliberately invalidates the shared dependency layer.

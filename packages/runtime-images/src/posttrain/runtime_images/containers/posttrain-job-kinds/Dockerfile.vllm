@@ -131,7 +131,7 @@ LABEL org.opencontainers.image.created="${CREATED}" \
 WORKDIR /opt/posttrain/job
 
 FROM online-rl-trl-py312 AS online-rl-trl-py312-smoke
-RUN python -c "from importlib.metadata import distributions, version; from shutil import which; import torch, trl, verifiers, vllm; direct_urls=[dist.read_text('direct_url.json') or '' for dist in distributions()]; assert which('c++'); assert not any('subdirectory' in value and 'environments/' in value for value in direct_urls); print(torch.__version__, version('verifiers'), vllm.__version__)"
+RUN python -c "from importlib.metadata import distributions, version; from shutil import which; import fla.modules, fla.ops.gated_delta_rule, torch, trl, verifiers, vllm; direct_urls=[dist.read_text('direct_url.json') or '' for dist in distributions()]; assert which('c++'); assert not any('subdirectory' in value and 'environments/' in value for value in direct_urls); print(torch.__version__, version('verifiers'), vllm.__version__, version('fla-core'))"
 
 FROM eval AS eval-smoke
 RUN python -c "from importlib.metadata import version; from shutil import which; import verifiers, vllm; assert which('c++'); print(version('verifiers'), vllm.__version__)"

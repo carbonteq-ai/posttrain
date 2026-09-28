@@ -1137,6 +1137,7 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
         ("publish-verl-internal.yml", "verl"),
         ("publish-trackio-internal.yml", "carbonteq-trackio"),
         ("publish-renderers-internal.yml", "carbonteq-renderers"),
+        ("publish-causal-conv1d-internal.yml", "causal-conv1d"),
     ):
         workflow = (root / ".github/workflows" / filename).read_text(encoding="utf-8")
         assert "https://pypi.lan/carbonteq/dev/" in workflow

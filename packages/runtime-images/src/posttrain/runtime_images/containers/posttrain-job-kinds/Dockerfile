@@ -66,7 +66,7 @@ LABEL org.opencontainers.image.created="${CREATED}" \
 WORKDIR /opt/posttrain/job
 
 FROM supervised AS supervised-smoke
-RUN python -c "import peft, torch, transformers, trl; print(torch.__version__, transformers.__version__)"
+RUN python -c "import fla.modules, fla.ops.gated_delta_rule, peft, torch, transformers, trl; from importlib.metadata import version; print(torch.__version__, transformers.__version__, version('fla-core'))"
 
 FROM transform AS transform-smoke
 RUN python -c "import os; from importlib.metadata import version; import compressed_tensors, llmcompressor, pydantic, trackio, yaml; assert os.environ['POSTTRAIN_QUANTIZATION_PYTHON'] == '/opt/posttrain/venv/bin/python'; print(version('llmcompressor'), version('carbonteq-trackio'))"
