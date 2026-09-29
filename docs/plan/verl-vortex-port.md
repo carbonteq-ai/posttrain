@@ -204,7 +204,16 @@ adds backend support that meets those contracts; no product meaning changes.
   modes). SAMPO groups are keyed by the native prompt occurrence (`uid`).
   Job plan checks SAMPO oversampling capacity on veRL. SAMPO metric names map
   to the TRL path's hierarchy evidence. Parity test passes (see Artifacts).
-- [ ] Phase 6: end-to-end TRL/veRL parity runs on the 8 GB GPU.
+- [x] (2026-09-29) Phase 6: end-to-end TRL/veRL parity runs. They ran on the RTX
+  PRO 6000 workstation, not the 8 GB card: veRL's padding ran the 8 GB actor
+  update out of memory. Both halves of each pair ran on the same machine.
+  Valid pairs: veRL on `5197a400` (`verl-vortex-p6-qwen08b-verl-vortex-ws-r4`,
+  `-qwen08b-verl-sampo-ws-r4`, `-lfm12-verl-vortex-ws-r8`,
+  `-lfm12-verl-sampo-ws-r7`). Their TRL twins ran on `8bdaead1` (TRL post12:
+  `-qwen08b-trl-vortex-ws-r1`, `-qwen08b-trl-sampo-ws-r1`,
+  `-lfm12-trl-vortex-ws-r1`, `-lfm12-trl-sampo-ws-r1`). The TRL path is
+  unchanged since then. All eight succeeded. The comparison is in Artifacts;
+  earlier veRL halves are superseded and carry run notes.
 - [x] (2026-09-29) Fork release candidate `0.9.0.post6` prepared, not
   pushed: release commit `1badbebd22aee7af5b85185760275f697af3a073` (version
   and ledger), local annotated tag `carbonteq-v0.9.0.post6` (tag object
@@ -751,7 +760,26 @@ adds backend support that meets those contracts; no product meaning changes.
 
 ## Outcomes & Retrospective
 
-Not yet reached.
+(2026-09-29) All six phases are done. veRL runs the VORTEX recipe (OLMo 3 loss,
+active sampling, adaptive curriculum, truncation penalty) and SAMPO for
+Qwen3.5-0.8B and LFM2.5-1.2B with TRL's semantics. The CPU parity tests
+check each piece against TRL's code, and on GPU both backends give the same
+prompts and statistically equal rewards. Most of the value came from the GPU
+comparison, not the unit parity tests: it found six integration differences that
+no CPU test covered:
+- the response budget;
+- the curriculum journal order;
+- the context refusal and its wording;
+- behavior-policy sampling;
+- the tool wire shape;
+- tool-call admission.
+
+Each needed a trace-level comparison with TRL to find. Open items:
+- On Qwen3.5 the veRL gradient norm differs from TRL's by up to 5x in both
+  directions from update to update (VORTEX), and is about half of TRL's
+  (SAMPO). LFM2.5 matches.
+- The entropy and group zero-variance metrics are defined differently on the
+  two backends (see Artifacts).
 
 ## Context and Orientation
 
@@ -1096,6 +1124,97 @@ batches, make identical curriculum decisions and observations, keep the same
 tasks, report identical `dynamic_sampling/*` metrics, give bitwise-equal
 advantages and end with identical controller state. Using the kept batch's std
 instead of each candidate batch's std makes the test fail.
+
+Phase 6 GPU comparison (2026-09-29; workstation; per-update metrics from
+Observatory, per-episode statistics from the traces). Qwen is
+`qwen3.5-0.8b/automationbench-{vortex,sampo}-parity-v1`, 24 tasks, 6 turns.
+LFM is the `lfm2.5-1.2b` v4 settings, 57 tasks, 12 turns. Both use 4 prompts x
+4 generations, seed 1729 and four updates. Scripts are in the session
+scratchpad (`runs/compare.py`, `traces.py`, `firstprompt.py`, `shared.py`).
+
+1. Identical inputs. For every task both runs drew at update 1, the first-turn
+   prompt has the same token count on veRL and TRL. Before `5197a400` veRL
+   prompts were 10 to 150 tokens shorter. Qwen:
+   - `operations.monday_email_update`: 4812 on both (was 4662);
+   - `simple.hs_create_contact`: 863 on both (was 853).
+
+   LFM2.5:
+   - `finance.vendor_spend_analysis`: 2520 on both (was 2471).
+
+   The first curriculum round drew the same tasks on both backends, since both
+   use the same seed.
+2. Deterministic invariants agree. Learning rate 4e-5 at every update, four
+   updates, 64-group pool, clip fraction 0 at update 1 on both.
+3. Update-1 reward on the tasks both runs drew (a pooled mean over those
+   tasks). Mean ± standard error; the Difference column is the gap as a
+   multiple of the combined standard error.
+
+   | Pair         | veRL        | TRL         | Difference |
+   |--------------|-------------|-------------|------------|
+   | Qwen VORTEX  | 0.472±0.083 | 0.417±0.082 | +0.48      |
+   | Qwen SAMPO   | 0.357±0.091 | 0.357±0.091 | 0.00       |
+   | LFM VORTEX   | 0.500±0.098 | 0.290±0.087 | +1.60      |
+   | LFM SAMPO    | 0.370±0.099 | 0.375±0.090 | -0.04      |
+
+   All four pairs are within two standard errors. The all-episode means also
+   include the extra tasks drawn by later refill rounds, so the two backends
+   average over different task mixes.
+4. Episodes at update 1, veRL vs TRL, in model calls per episode and sampled
+   tokens per episode:
+
+   | Pair         | Model calls  | Sampled tokens |
+   |--------------|--------------|----------------|
+   | Qwen VORTEX  | 3.86 vs 4.14 | 292 vs 365     |
+   | Qwen SAMPO   | 4.32 vs 4.22 | 326 vs 376     |
+   | LFM VORTEX   | 2.39 vs 2.10 | 3196 vs 2827   |
+   | LFM SAMPO    | 2.46 vs 2.40 | 3054 vs 3212   |
+
+   Before `5197a400`, Qwen VORTEX was 3.07 calls vs 4.14. Qwen VORTEX sampled
+   tokens differ by 20% (outside the 15% target) over different task mixes. The
+   other pairs are within 15%.
+5. Entropy at update 1, veRL vs TRL:
+
+   | Pair         | Entropy        |
+   |--------------|----------------|
+   | Qwen VORTEX  | 0.260 vs 0.158 |
+   | Qwen SAMPO   | 0.223 vs 0.149 |
+   | LFM VORTEX   | 0.457 vs 0.441 |
+   | LFM SAMPO    | 0.429 vs 0.431 |
+
+   The metric is defined differently on each backend:
+   - veRL takes the loss aggregation over the batch, weighted by token.
+   - TRL averages one-sequence micro-batch means, weighted by sequence.
+
+   Qwen's reply lengths vary widely, so the weighting shifts its value. From
+   update 2 on, neither backend is consistently higher. The sampler/trainer
+   log-probability gap is the same on both, 0.007 to 0.056 per token.
+6. Training, SAMPO. KL is 0 at update 1 on both backends, then:
+   - Qwen: 3.1e-4 to 6.7e-4 on both.
+   - LFM2.5: 4.2e-4 to 7.1e-4 on both.
+
+   Policy loss is of the same order.
+7. Gradient norm at updates 1 to 4, veRL vs TRL:
+
+   | Pair         | Update 1      | Update 2      | Update 3      | Update 4      |
+   |--------------|---------------|---------------|---------------|---------------|
+   | LFM VORTEX   | 0.019 / 0.022 | 0.023 / 0.022 | 0.028 / 0.023 | 0.024 / 0.023 |
+   | LFM SAMPO    | 0.038 / 0.043 | 0.058 / 0.057 | 0.040 / 0.055 | 0.055 / 0.035 |
+   | Qwen VORTEX  | 0.048 / 0.018 | 0.008 / 0.021 | 0.057 / 0.012 | 0.027 / 0.022 |
+   | Qwen SAMPO   | 0.066 / 0.136 | 0.040 / 0.093 | 0.051 / 0.145 | 0.291 / 0.507 |
+
+   LFM2.5 agrees. The Qwen gap is open: VORTEX goes both ways, SAMPO is about
+   half on veRL. Adam normalizes the update, so it does not change the step
+   size by the same factor.
+8. Active sampling and curriculum. Each run's rounds and retained groups are
+   consistent with its own rewards. The arithmetic is checked exactly by the
+   Phase 2/3 CPU tests. At update 1 the two LFM2.5 veRL runs used 2 rounds,
+   the TRL runs 1: one first-round veRL group had no spread and was refilled.
+   `train/rl/group_zero_variance_fraction` is defined differently:
+   - On veRL, Posttrain computes it from the traces over every generated
+     episode, grouped by task and using the unshaped reward.
+   - TRL reports its native `frac_reward_zero_std`.
+
+   It is not comparable across backends.
 
 ## Interfaces and Dependencies
 

@@ -205,8 +205,27 @@ launcher now resolves the renderer with the TRL backend's own function
 (`renderer_config_spec`: family config, reasoning-mode template arguments,
 package chat template, tool-call protocol) and the agent loop rebuilds it.
 Bindings for LFM2.5 on veRL use no fused-kernel or Qwen-specific Hydra
-overrides; `attention_implementation: sdpa` is fine. The GPU qualification
-(two updates of LFM2.5-1.2B on the 8 GB card) waits for the local card (post8 image).
+overrides; `attention_implementation: sdpa` is fine. The GPU check passed on
+post8 (`verl-vortex-lfm12-check-20260929-r6`, two updates of LFM2.5-1.2B on
+the 8 GB card).
+
+The Phase 6 parity runs (`docs/plan/verl-vortex-port.md`, Artifacts) ran
+VORTEX and SAMPO on the RTX PRO 6000 workstation. Each veRL run had a TRL
+twin, for Qwen3.5-0.8B and for LFM2.5-1.2B. Before these runs, the in-process
+Verifiers client passed flat tool records, which rendered shorter prompts. It
+also turned calls with non-conforming arguments into plain text. Both
+differences were fixed in `5197a400`. The veRL generator now matches
+Verifiers' train client, which serves TRL's turns:
+- it sends the wire shapes;
+- it runs the same tool calls;
+- it reports the same finish reasons;
+- it stops on the same stop tokens.
+
+After the fix, first-turn prompts have identical token counts on both
+backends. Update-1 rewards on the shared tasks are within two standard
+errors for all four pairs. SAMPO KL and LFM2.5 gradient norms agree. The
+Qwen3.5 gradient norm differs from TRL's by up to 5x in both directions.
+This gap is still open.
 
 ## FP16 metrics (0.9.0.post4, contained in post5)
 
@@ -384,8 +403,8 @@ sampling; `truncation_penalty` is applied for GRPO and DAPO.
 
 ## Current support and qualification boundary
 
-The current adapter accepts the **Qwen 3.5** and, pending its GPU
-qualification on veRL post8, **LFM2.5** model families, for:
+The current adapter accepts the **Qwen 3.5** and **LFM2.5** model families
+(LFM2.5 GPU-checked on veRL post8), for:
 
 - GRPO with fresh trajectories owned and scored by a Verifiers environment.
 - On-policy distillation in which a Qwen 3.5 teacher scores the exact token ids
@@ -438,7 +457,7 @@ Verifiers as provided in both roles; then run the package fresh and again with
 | --- | --- | --- |
 | GRPO | Qwen 3.5 | Qwen 3.5 0.8B ordinary BF16 LoRA qualified locally on GPU |
 | On-policy distillation | Qwen 3.5 student and teacher | Two-step GPU execution and retained artifacts qualified; required telemetry gate open |
-| GRPO, SAMPO | LFM2.5 | CPU renderer and export tests; two-update 8 GB GPU run pending on post8 (r1-r3 failed on /dev/shm and the LoRA-sync bug fixed in post7) |
+| GRPO, SAMPO | LFM2.5 | CPU renderer and export tests; two-update 8 GB GPU check passed on post8 (`verl-vortex-lfm12-check-20260929-r6`); VORTEX and SAMPO four-update TRL/veRL parity pairs on the workstation (Phase 6) |
 
 The complete backend release is therefore not yet production-qualified.
 
