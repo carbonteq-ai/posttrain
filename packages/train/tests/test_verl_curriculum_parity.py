@@ -2,7 +2,7 @@
 
 TRL side: Posttrain's ``_prepare_adaptive_active_sampling_inputs`` (the TRL
 backend's curriculum-driven OLMo 3 refill loop) on a stub trainer that uses
-TRL post11's real row selection and concatenation. veRL side: the CarbonTeq
+TRL post12's real row selection and concatenation. veRL side: the CarbonTeq
 fork's ``ActiveSamplingReplayBuffer`` over a real TransferQueue, dispatching
 through ``PosttrainCurriculumSelector``. Both see the same deterministic
 rewards per task and occurrence over several updates; the curriculum's
@@ -22,7 +22,7 @@ from typing import Any, cast
 import pytest
 
 torch = pytest.importorskip("torch")
-pytest.importorskip("trl.trainer.grpo_trainer", reason="requires CarbonTeq TRL 1.12.0.post11")
+pytest.importorskip("trl.trainer.grpo_trainer", reason="requires CarbonTeq TRL 1.12.0.post12")
 replay = pytest.importorskip("verl.trainer.ppo.v1.replay_buffer", reason="requires the CarbonTeq veRL fork")
 if not hasattr(replay, "ActiveSamplingReplayBuffer"):
     pytest.skip("installed veRL has no active sampling", allow_module_level=True)

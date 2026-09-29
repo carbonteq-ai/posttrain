@@ -1,13 +1,13 @@
 """TRL's and veRL's active sampling make the same round decisions for the same rewards.
 
-TRL side: CarbonTeq TRL 1.12.0.post11 ``GRPOTrainer._prepare_active_sampling_inputs``
+TRL side: CarbonTeq TRL 1.12.0.post12 ``GRPOTrainer._prepare_active_sampling_inputs``
 on a stub trainer whose generation step returns scripted group reward spreads.
 veRL side: the CarbonTeq fork's ``ActiveSamplingReplayBuffer`` over a real
 TransferQueue, with a dispatcher that completes each round with the same
 scripted rewards. Both must dispatch the same round sizes, keep the same
 candidate groups in the same order, fail in the same cases, and report the same
 ``active_sampling/...`` metrics. Needs the parity environment described in
-``docs/plan/verl-vortex-port.md`` (TRL post11 and a veRL fork with active
+``docs/plan/verl-vortex-port.md`` (TRL post12 and a veRL fork with active
 sampling); skips elsewhere.
 """
 
@@ -21,7 +21,7 @@ from typing import Any, cast
 import pytest
 
 torch = pytest.importorskip("torch")
-pytest.importorskip("trl.trainer.grpo_trainer", reason="requires CarbonTeq TRL 1.12.0.post11")
+pytest.importorskip("trl.trainer.grpo_trainer", reason="requires CarbonTeq TRL 1.12.0.post12")
 replay = pytest.importorskip("verl.trainer.ppo.v1.replay_buffer", reason="requires the CarbonTeq veRL fork")
 if not hasattr(replay, "ActiveSamplingReplayBuffer"):
     pytest.skip("installed veRL has no active sampling", allow_module_level=True)

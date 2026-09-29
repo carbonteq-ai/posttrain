@@ -336,7 +336,7 @@ training:
   training/qwen3.5-0.8b-trl-lora-parity-local-g16@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.12.0.post11
+    backend: trl@1.12.0.post12
     renderer: {id: qwen3.5-off-v1, model_family: qwen3.5, implementation: qwen3.5, reasoning_mode: "off"}
     update: {kind: lora, rank: 8, alpha: 16, target_modules: ".*[.](o_proj|down_proj)$"}
     target: targets/local-cuda-8gb
@@ -348,8 +348,8 @@ training:
       logits_chunk_size: 64
       training_precision: bf16
       dependency_lock: trl-fork@current
-      source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
-      dependency_lock_sha256: 3806d4249cde3a1541b9529a662a9434cfb1da1cecf2cb5e5499f97193f13d95
+      source_revision: c4d0db051a7839fe1b1d587185fac33ba88c784f
+      dependency_lock_sha256: f18308d1af3fbfe72c9be17344762ae83dbbeaeb23a6d736767f166c763aed80
 
   training/qwen3.5-0.8b-verl-lora-parity-local-g16@1:
     selection_type: training-binding
@@ -373,7 +373,7 @@ training:
   training/lfm2.5-1.2b-trl-lora-parity-local-g16@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.12.0.post11
+    backend: trl@1.12.0.post12
     renderer: {id: lfm2.5-tools@1, model_family: lfm2.5, implementation: default, reasoning_mode: native}
     update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
     target: targets/local-cuda-8gb
@@ -385,8 +385,8 @@ training:
       logits_chunk_size: 64
       training_precision: bf16
       dependency_lock: trl-fork@current
-      source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
-      dependency_lock_sha256: 3806d4249cde3a1541b9529a662a9434cfb1da1cecf2cb5e5499f97193f13d95
+      source_revision: c4d0db051a7839fe1b1d587185fac33ba88c784f
+      dependency_lock_sha256: f18308d1af3fbfe72c9be17344762ae83dbbeaeb23a6d736767f166c763aed80
 
   training/lfm2.5-1.2b-verl-lora-parity-local-g16@1:
     selection_type: training-binding

@@ -4,7 +4,7 @@ Both sides are configured from one ``GRPOSettings`` by Posttrain's own adapters:
 TRL through ``_online_rl_arguments``/``_trainer_arguments`` into
 ``Olmo3GRPOConfig``, veRL through ``grpo_algorithm_payload`` and the worker's
 Hydra overrides composed onto veRL's ``ppo_trainer.yaml``. The test needs an
-environment with CarbonTeq TRL 1.12.0.post11 and a CarbonTeq veRL revision that
+environment with CarbonTeq TRL 1.12.0.post12 and a CarbonTeq veRL revision that
 registers ``token_clip``; it skips elsewhere. See Concrete Steps in
 ``docs/plan/verl-vortex-port.md`` for that environment.
 """
@@ -185,14 +185,14 @@ def _environment_rollout(reward: float, length: int, truncated: bool) -> Environ
 def _trl_config(tmp_path: Path) -> Any:
     from trl.trainer.olmo3_grpo_config import Olmo3GRPOConfig
 
-    request = _request("trl@1.12.0.post11")
+    request = _request("trl@1.12.0.post12")
     arguments = _online_rl_arguments(request, tmp_path / "trl", {"enable_thinking": False})
     arguments.update(bf16=False, fp16=False, use_cpu=True, report_to=[])
     return _trainer_arguments(Olmo3GRPOConfig, arguments, request)
 
 
 def _trl_advantages(rewards: Any) -> Any:
-    # Transcribed from TRL 1.12.0.post11 GRPOTrainer._generate_and_score_completions,
+    # Transcribed from TRL 1.12.0.post12 GRPOTrainer._generate_and_score_completions,
     # multi_objective_aggregation="sum_then_normalize" with one reward function of
     # weight 1 and scale_rewards="none" (Olmo3GRPOConfig): the group mean is
     # subtracted and nothing is divided.

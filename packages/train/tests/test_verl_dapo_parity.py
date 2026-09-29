@@ -1,6 +1,6 @@
 """TRL's DAPO dynamic sampling and the veRL fork's candidate-batch buffer make the same update.
 
-TRL side: TRL post11's real ``GRPOTrainer._prepare_dynamic_sampling_inputs`` on a
+TRL side: TRL post12's real ``GRPOTrainer._prepare_dynamic_sampling_inputs`` on a
 stub trainer, fed by Posttrain's adaptive curriculum the way the TRL backend's
 ``AdaptiveCurriculumTrainer`` does (one ``initial_batch`` decision for the whole
 candidate pool, rewards observed per scored candidate batch). Its generation
@@ -26,7 +26,7 @@ from typing import Any, cast
 import pytest
 
 torch = pytest.importorskip("torch")
-pytest.importorskip("trl.trainer.grpo_trainer", reason="requires CarbonTeq TRL 1.12.0.post11")
+pytest.importorskip("trl.trainer.grpo_trainer", reason="requires CarbonTeq TRL 1.12.0.post12")
 replay = pytest.importorskip("verl.trainer.ppo.v1.replay_buffer", reason="requires the CarbonTeq veRL fork")
 if not hasattr(replay, "CandidateBatchReplayBuffer"):
     pytest.skip("installed veRL has no candidate-batch dynamic sampling", allow_module_level=True)
@@ -104,7 +104,7 @@ def _trl_run(tmp_path: Path):
         runtime.observe_rewards(candidate_batch, [[value] for value in rewards], [1.0], step=step_holder["step"])
         values = torch.tensor(rewards, dtype=torch.float64)
         grouped = values.view(-1, GENERATIONS)
-        # TRL post11 _generate_and_score_completions, sum_then_normalize, scale_rewards="batch".
+        # TRL post12 _generate_and_score_completions, sum_then_normalize, scale_rewards="batch".
         mean = torch.nanmean(grouped, dim=1).repeat_interleave(GENERATIONS)
         batch_std = nanstd(values).expand_as(values)
         advantages = torch.nan_to_num((values - mean) / (batch_std + 1e-4), nan=0.0)

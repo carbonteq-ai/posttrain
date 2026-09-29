@@ -457,20 +457,24 @@ def _grpo_loss(*, float32_log_probs: bool, importance_sampling_level: str, loss_
 )
 def test_float16_log_probs_make_the_trl_loss_arithmetic_float32(importance_sampling_level: str, loss_type: str) -> None:
     torch = pytest.importorskip("torch")
-    # Float16 log-probabilities overflow the masked token's KL term: inf * mask 0 is NaN.
+    # Float16 log-probabilities overflowed the masked token's KL term (inf * mask 0 is
+    # NaN) up to TRL 1.12.0.post11; post12 computes the loss in float32 itself, so
+    # Posttrain's float32 subclass is a no-op that must leave the loss unchanged.
     plain = _grpo_loss(
         float32_log_probs=False, importance_sampling_level=importance_sampling_level, loss_type=loss_type
     )
-    assert torch.isnan(plain)
+    assert plain.dtype == torch.float32 and torch.isfinite(plain)
     fixed = _grpo_loss(float32_log_probs=True, importance_sampling_level=importance_sampling_level, loss_type=loss_type)
     assert fixed.dtype == torch.float32 and torch.isfinite(fixed)
+    torch.testing.assert_close(fixed, plain)
     fixed.backward()
 
 
 def test_trl_chunked_log_probs_follow_the_head_dtype_outside_autocast(tmp_path: Path) -> None:
     """TRL's chunked-logits path calls the backbone and LM head directly, not the
-    autocast-wrapped forward, so a float16 base scores float16 log-probs unless
-    the head's output is cast to float32."""
+    autocast-wrapped forward, so up to TRL 1.12.0.post11 a float16 base scored
+    float16 log-probs unless the head's output was cast to float32. Post12 scores
+    float16 logits in float32 itself; Posttrain's upcast stays harmless."""
 
     torch, _fresh, model = _tiny_float16_lora(tmp_path)
     grpo = pytest.importorskip("trl.trainer.grpo_trainer")
@@ -499,7 +503,7 @@ def test_trl_chunked_log_probs_follow_the_head_dtype_outside_autocast(tmp_path: 
         return logps, entropies
 
     logps, entropies = score(_Scorer)
-    assert (logps.dtype, entropies.dtype) == (torch.float16, torch.float16)
+    assert (logps.dtype, entropies.dtype) == (torch.float32, torch.float32)
     handle = upcast_logits_to_float32(model)
     try:
         logps, entropies = score(float32_logprob_trainer_type(_Scorer))

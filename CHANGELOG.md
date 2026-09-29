@@ -11,6 +11,11 @@ selects the post6 additions that 0.4.12 leaves off.
 
 ### Changed
 
+- TRL is CarbonTeq 1.12.0.post12 (post11 plus float32 scoring and loss for
+  float16 GRPO and RLOO training). Posttrain's own float32 subclass and LM-head
+  upcast are kept and are no-ops on post12; bfloat16 runs are unchanged. The
+  catalog lock `trl-fork@current` and the TRL bindings record the new lock.
+
 - **Behaviour change for veRL GRPO and DAPO runs.** veRL now reproduces the
   semantics the selected GRPO settings always declared (TRL's), instead of
   silently running different ones. Compared with earlier veRL runs:

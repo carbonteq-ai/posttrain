@@ -7,7 +7,7 @@ launcher payload, the worker's Hydra overrides and veRL's composed
 advantage scaling (group, batch, none) with and without masked truncated
 completions, the resulting GRPO loss and gradient, group admission retries, and
 the linear learning-rate schedule. Needs the parity environment described in
-``docs/plan/verl-vortex-port.md`` (CarbonTeq TRL 1.12.0.post11 and the veRL fork
+``docs/plan/verl-vortex-port.md`` (CarbonTeq TRL 1.12.0.post12 and the veRL fork
 at a revision with every TRL-equivalence delta); skips elsewhere.
 """
 
@@ -24,7 +24,7 @@ from typing import Any, cast
 import pytest
 
 torch = pytest.importorskip("torch")
-pytest.importorskip("trl.trainer.grpo_trainer", reason="requires CarbonTeq TRL 1.12.0.post11")
+pytest.importorskip("trl.trainer.grpo_trainer", reason="requires CarbonTeq TRL 1.12.0.post12")
 rollout_corr = pytest.importorskip("verl.trainer.ppo.rollout_corr_helper", reason="requires the CarbonTeq veRL fork")
 if "rollout_is_clip_min" not in rollout_corr.compute_rollout_correction_weights.__code__.co_varnames:
     pytest.skip("installed veRL lacks the TRL-equivalence deltas", allow_module_level=True)
@@ -128,7 +128,7 @@ def _request(settings: GRPOSettings, backend: str) -> GRPORequest:
 def _trl_config(settings: GRPOSettings, tmp_path: Path) -> Any:
     from trl.trainer.grpo_config import GRPOConfig
 
-    arguments = _online_rl_arguments(_request(settings, "trl@1.12.0.post11"), tmp_path / "trl", {})
+    arguments = _online_rl_arguments(_request(settings, "trl@1.12.0.post12"), tmp_path / "trl", {})
     arguments.update(bf16=False, fp16=False, use_cpu=True, report_to=[])
     return GRPOConfig(**arguments)
 
@@ -264,7 +264,7 @@ def test_sampler_correction_weights_match_trl(tmp_path: Path, mode: str, minimum
 
 
 def _trl_advantages(settings: GRPOSettings, rewards: Any, truncated: list[bool]) -> Any:
-    # Transcribed from TRL 1.12.0.post11 GRPOTrainer._generate_and_score_completions
+    # Transcribed from TRL 1.12.0.post12 GRPOTrainer._generate_and_score_completions
     # (multi_objective_aggregation="sum_then_normalize", one reward function of weight 1):
     # masked truncated completions get NaN rewards, the group mean and std ignore NaN,
     # advantages divide by std + 1e-4 unless scale_rewards="none", NaN advantages become 0.
