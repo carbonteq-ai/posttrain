@@ -1,7 +1,7 @@
 project_id: posttrain-lab
 work_package_id: train/lfm2.5-1.2b/verl-automationbench-vortex-parity-ws
 stage: train
-description: Phase 6 of docs/plan/verl-vortex-port.md - four lfm2.5-1.2b VORTEX (OLMo 3 objective, oversampled active sampling, curriculum, truncation penalty) updates on veRL on the RTX PRO 6000 workstation over the 24-task AutomationBench comparison set; its TRL twin uses the same seed, data and settings.
+description: Phase 6 of docs/plan/verl-vortex-port.md - four lfm2.5-1.2b VORTEX (OLMo 3 objective, oversampled active sampling, curriculum, truncation penalty) updates on veRL on the RTX PRO 6000 workstation over the 57-task LFM2.5 AutomationBench comparison set; its TRL twin uses the same seed, data and settings.
 recipe:
   type: inline
   id: recipes/lfm2.5-1.2b-verl-automationbench-vortex-parity-ws@1
@@ -20,8 +20,8 @@ recipe:
   expected_artifacts: [trained adapter, native Verifiers trajectories, training summary]
 bindings:
   model: {type: ref, family: model, id: models/lfm2.5-1.2b-thinking@bf16}
-  environment: {type: ref, family: environment, id: automationbench-verl-parity-v1}
-  settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-vortex-parity-v2}
+  environment: {type: ref, family: environment, id: automationbench-verl-parity-lfm-v1}
+  settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-vortex-parity-v3}
   training: {type: ref, family: training, id: training/lfm2.5-1.2b-verl-lora-parity-ws-g16@1}
   rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-verl-parity-ws@1}
 enabled_optional_jobs: []
