@@ -227,6 +227,49 @@ training:
     shuffle_prompts: true
     mask_truncated_completions: false
     max_admission_attempts: 1
+  # Learning-rate step-up of the fp16 SAMPO base run (lfm26-sampo-fp16-base-r4-lr6e5-kl1e2-t08-20260929-r1):
+  # identical settings, seed and curriculum from the base model, learning rate 1e-4 instead of 6e-5
+  # (alpha x LR 8e-4, 1.67x the control's 4.8e-4 at rank 4 / alpha 8), 60 updates, checkpoint every 20.
+  lfm2.5-2.6b/automationbench-sampo-turns-60-g24x6-r4-lr1e-4-kl1e-2-t08-os4r5-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 60
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 144
+      learning_rate: 0.0001
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 20
+      checkpoint_limit: 3
+      gradient_checkpointing: true
+    num_prompts_per_step: 24
+    num_generations: 6
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    beta: 0.01
+    kl_reference: base
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 6, oversample: 4, oversample_refill: 5}
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    truncation_penalty: 0.1
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
   # training/lfm2.5-2.6b-trl-lora-automationbench-local-g144-w12-fp16@1 on TRL
   # 1.12.0.post12 with SAMPO r2's rank-4, alpha-8 LoRA adapter, float32 logits stated explicitly, the
   # 1024 starting loss scale stated explicitly, 180 environment worker slots
