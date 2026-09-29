@@ -139,3 +139,113 @@ def test_curriculum_selection_without_a_final_state_names_the_available_steps() 
 def test_curriculum_checkpoint_step_requires_a_curriculum_source(capsys) -> None:
     assert main(["job", "run", "missing.yaml", "--curriculum-checkpoint-step", "20"]) != 0
     assert "--curriculum-checkpoint-step requires --curriculum-from-run" in capsys.readouterr().err
+
+
+def test_a_verl_run_checkpoint_curriculum_view_is_selectable_and_warm_starts(tmp_path) -> None:
+    """A veRL run publishes the same per-checkpoint views as TRL; step N warm-starts a new run."""
+
+    from dataclasses import dataclass, field
+
+    from posttrain.train.adaptive_curriculum import CURRICULUM_SNAPSHOT_NAME
+    from posttrain.train.backends.verl.curriculum import CURRICULUM_JOURNAL_NAME, PosttrainCurriculumSelector
+    from posttrain.train.backends.verl.curriculum import SelectorConfig as VerlSelectorConfig
+    from posttrain.train.backends.verl.launcher import _publish_curriculum_state
+    from posttrain.train.backends.verl.worker import CURRICULUM_CHECKPOINT_VIEWS_DIR, CURRICULUM_STATE_DIR
+
+    rows = [{"example_id": f"task/{index}", "domain": "mail" if index % 2 else "crm"} for index in range(6)]
+    settings: dict[str, JsonValue] = {"class_field": "domain", "policy": "yield_first", "seed": 3}
+    output = tmp_path / "trainer"
+    output.mkdir()
+    VerlSelectorConfig(
+        settings=settings,
+        num_generations=2,
+        state_dir=output / CURRICULUM_STATE_DIR,
+        journal_path=output / CURRICULUM_JOURNAL_NAME,
+        checkpoint_views_dir=output / CURRICULUM_CHECKPOINT_VIEWS_DIR,
+    ).write(output / "selector.json")
+    selector = PosttrainCurriculumSelector(rows, config_path=str(output / "selector.json"))
+    for step in (1, 2):
+        chosen = selector.select(2, global_steps=step, stage="active_sampling_refill", round_index=1)
+        selector.observe([(chosen[0], [0.0, 1.0])], global_steps=step)
+        checkpoint = output / "checkpoints" / f"global_step_{step}"
+        checkpoint.mkdir(parents=True)
+        selector.save_checkpoint(str(checkpoint))
+    (output / CURRICULUM_STATE_DIR / CURRICULUM_SNAPSHOT_NAME).write_bytes(
+        (checkpoint / CURRICULUM_SNAPSHOT_NAME).read_bytes()
+    )
+    selector.close()
+
+    @dataclass
+    class _Context:
+        run_id: str = "verl-run"
+        produced: list = field(default_factory=list)
+
+        def artifact(self, artifact) -> None:
+            self.produced.append(artifact)
+
+        def event(self, name, attributes=None) -> None:
+            pass
+
+        def metrics(self, values, *, step, attributes=None) -> None:
+            pass
+
+        def metric(self, name, value, *, step, attributes=None) -> None:
+            pass
+
+    request = SimpleNamespace(
+        policy=SimpleNamespace(id="lfm2.5-1.2b"),
+        settings=SimpleNamespace(
+            algorithm="olmo3",
+            id="settings/vortex@1",
+            revision="1",
+            adaptive_curriculum=SimpleNamespace(class_field="domain"),
+        ),
+        training=SimpleNamespace(update=SimpleNamespace(kind="lora")),
+    )
+    context = _Context()
+    _publish_curriculum_state(cast(object, context), cast(object, request), output)  # type: ignore[arg-type]
+
+    links = tuple(
+        ArtifactLink(
+            direction="output",
+            logical_name=artifact.name,
+            kind=artifact.kind,
+            artifact=StoredArtifact(
+                provider="trackio",
+                namespace="example",
+                name=artifact.name.replace("/", "-"),
+                version="v1",
+                digest=artifact.reference.digest,
+                provider_metadata=dict(artifact.metadata),
+            ),
+        )
+        for artifact in context.produced
+    )
+    final = cast(ArtifactLink, _select_curriculum_output(links, source_run_id="verl-run", step=None))
+    assert final.logical_name.endswith("adaptive-curriculum-state")
+    chosen = cast(ArtifactLink, _select_curriculum_output(links, source_run_id="verl-run", step=1))
+    assert chosen.logical_name == "training/lfm2.5-1.2b/olmo3/checkpoint-00000001/curriculum"
+    (view,) = [item for item in context.produced if item.name == chosen.logical_name]
+    import json
+
+    # The step-1 view holds the controller as it was at step 1, not the final state.
+    assert json.loads((view.reference.path / CURRICULUM_SNAPSHOT_NAME).read_text())["decision_index"] == 1
+    assert view.metadata["checkpoint_view"] == "curriculum" and view.role == "checkpoint-curriculum"
+
+    # The view is a directory holding the controller snapshot: a new veRL run warm-starts from it.
+    warm = tmp_path / "warm"
+    warm.mkdir()
+    VerlSelectorConfig(
+        settings=settings,
+        num_generations=2,
+        state_dir=warm / "state",
+        journal_path=warm / "journal.jsonl",
+        warm_start_state_dir=view.reference.path,
+    ).write(warm / "selector.json")
+    warmed = PosttrainCurriculumSelector(rows, config_path=str(warm / "selector.json"))
+    warmed.select(2, global_steps=1, stage="active_sampling_refill", round_index=1)
+    events = [
+        line for line in (warm / "journal.jsonl").read_text().splitlines() if "adaptive_curriculum_started" in line
+    ]
+    assert '"warm_started":true' in events[0]
+    warmed.close()

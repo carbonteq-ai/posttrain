@@ -102,18 +102,275 @@ adds backend support that meets those contracts; no product meaning changes.
   (`_FORK_NATIVE_NAME_REVISIONS`, `requested_fork_native_names`,
   `fork_native_names`), GDPO/CAPO regression test on post4, strict-xfail test
   against the pinned job-kind revision, installed-veRL record check.
-- [ ] Phase 2: active sampling with bounded refill, oversampling and the
-  concurrency guard in the veRL fork.
-- [ ] Phase 3: adaptive curriculum on veRL.
-- [ ] Phase 4: LFM2.5 on veRL.
-- [ ] Phase 5: SAMPO on veRL.
+- [x] (2026-09-28) Phase 2 fork: `algorithm.active_sampling` config block,
+  `ActiveSamplingRounds` (TRL round arithmetic and metric names),
+  `ActiveSamplingReplayBuffer` (round barrier, keep by sample std of
+  `seq_reward`, evict the rest including failed groups, keep the first target
+  groups in dispatch order), startup capacity guard, trainer wiring; commit
+  `6c7295cd411c4d3973ddc206e43816560c842336` on `codex/vortex-active-sampling`
+  (not pushed). 11 new CPU tests; fork V1/core suites 162 passed, 2 skipped.
+- [x] (2026-09-28) Phase 2 Posttrain (branch `codex/verl-vortex-active-sampling`,
+  based on `codex/release-0.4.12` at `d93c5f78`, which already contains Phase 1
+  and the post5 pin): active sampling in the veRL contract, launcher and
+  worker; OLMo 3 accepted by `backend_support` and gated on a fork revision
+  that registers `active_sampling` (launcher and worker); plan-time capacity
+  guard on veRL (launcher and `posttrain job plan`); veRL metric mapping for
+  the `active_sampling/...` names. Side-by-side test against TRL post11's real
+  `_prepare_active_sampling_inputs`: 19 cases pass (see Artifacts). Ladder:
+  ruff, pyright 0, lint-imports 9 kept, pytest 2192 passed / 27 skipped /
+  1 xfailed.
+- [ ] Phase 2 GPU check (short 8 GB Qwen3.5-0.8B OLMo 3 run with a refill
+  round). Blocked: needs a veRL build that contains `6c7295cd` (a post6
+  candidate and a kind image built from it); the 0.4.12 kind image is post5.
+- [x] (2026-09-28) Coordinator: the VORTEX port ships in release 0.4.13; no
+  post6 until phases 2-5 are code-complete with CPU parity tests, then one
+  post6 candidate collects them.
+- [x] (2026-09-28) Phase 3 fork: `data.prompt_selector` extension point
+  (`verl/trainer/ppo/v1/prompt_selector.py`, trainer dispatch/observe/
+  checkpoint hooks, round numbers passed to the dispatcher); commit
+  `24920b395f8571f8f5be6b9d8469737f2355dcc9` (not pushed). V1 suite 137
+  passed, 2 skipped.
+- [x] (2026-09-28) Phase 3 Posttrain: `AdaptiveCurriculumRuntime` moved to the
+  backend-neutral `packages/train/src/posttrain/train/adaptive_curriculum_runtime.py`
+  (re-exported by the TRL module); `backends/verl/curriculum.py`
+  (`PosttrainCurriculumSelector`, JSONL event journal replayed by the parent,
+  final snapshot copied from the last checkpoint); worker, contract and
+  launcher mapping (selector config file, warm start, state artifact
+  `adaptive-curriculum-state` with the TRL path's metadata); fork-revision
+  gate for `prompt_selector`; veRL accepts the curriculum with GRPO and OLMo 3
+  (DAPO stays TRL-only). Decision-level parity test against the TRL path
+  passes (see Artifacts). Ladder: pyright 0, lint-imports 9 kept, pytest
+  2200 passed.
+- [x] (2026-09-28) Phase 3 addendum (coordinator: no deferral): per-checkpoint
+  curriculum views on veRL. The selector copies each checkpoint's snapshot to
+  `curriculum-checkpoints/step-<N>/`; the launcher publishes every view as
+  `training/<model>/<technique>/checkpoint-<N>/curriculum`
+  (`adaptive-curriculum-state`, role `checkpoint-curriculum`, metadata
+  `checkpoint_step`), exactly like the TRL path, so
+  `--curriculum-checkpoint-step N` selects it. CLI test
+  `test_a_verl_run_checkpoint_curriculum_view_is_selectable_and_warm_starts`
+  publishes views from a veRL selector, selects step 1, checks it holds the
+  step-1 controller, and warm-starts a new selector from it.
+- [ ] Phase 3 GPU check with the other phases (post6 image).
+- [x] (2026-09-28) Coordinator: replace rejections with support. Fork commits
+  `c55867dcfa6ca0716bccf57b492e2f4b6f7b0717` and
+  `2607b91d3cccc9d73aae924734b5104bf8cfb590`: sampler-correction lower clamp and
+  exact log ratios, TRL GRPO scaling (epsilon 1e-4, batch std, NaN-excluded rows
+  with TRL's own `nanstd` arithmetic), row exclusion after advantages
+  (`algorithm.exclude_flagged_rows`), NaN-aware DAPO/active filters, group
+  admission retries with real-row loss normalization
+  (`trainer.v1.sampler.failed_group_attempts`), linear LR schedule. Fork suites
+  328 passed, 2 skipped. Posttrain maps all of them for GRPO, DAPO, OLMo 3 and
+  SAMPO; GRPO and DAPO now also use `token_clip` and `k3_unclipped` (TRL's
+  loss and KL). Remaining rejections, each with its reason in the error: DAPO
+  plus curriculum and DAPO plus batch advantage scaling. Parity: 48 CPU parity
+  tests pass (see Artifacts). Ladder: pyright 0, lint-imports 9 kept, pytest
+  2205 passed.
+- [x] (2026-09-28) Coordinator decisions: keep TRL semantics (no option for
+  the old veRL behaviour), record the behaviour change in `CHANGELOG.md`
+  (Unreleased, targeting 0.4.13 / post6) and mark runs with
+  `verl_semantics: trl-parity-v1` in `grpo_runtime_resolved`; port TRL's
+  candidate-batch DAPO so no rejection remains. Fork commits
+  `ce8e0430018204b03c009b72bfba3b58968696c7` (`CandidateBatchReplayBuffer`,
+  `algorithm.filter_groups.candidate_batches`, per-candidate-batch std for
+  batch scaling, one prompt-selector decision per step's candidate pool) and
+  `94606019` (retry test). Posttrain maps DAPO to candidate batches and
+  `verl_grpo_settings_problem` rejects nothing. DAPO parity test passes (see
+  Artifacts).
+- [x] (2026-09-29) Phase 4 CPU parts. Fork commit `7d850ef5` (not pushed):
+  CPU test exporting a PEFT `all-linear` adapter of a tiny `Lfm2ForCausalLM`
+  through `verl.model_merger` (eight projection targets, tied `lm_head`
+  dropped, identical logits on reload); no fork source change is needed.
+  Posttrain: the launcher resolves the policy renderer with the TRL backend's
+  `renderer_config_spec` (family config, template arguments, package chat
+  template, tool-call protocol) into `VerlRenderer`; the veRL agent loop
+  rebuilds it with `renderer_config_from_spec`, recovers LFM2.5 Python call
+  lists through the protocol and reports bridged-turn message spans with the
+  TRL backend's `bridged_message_spans`; `lfm2.5` joins the veRL launcher's
+  families (see Decision Log).
+- [ ] Phase 4 GPU: two LFM2.5-1.2B updates on veRL on the 8 GB card, with
+  the post6 image.
+- [x] (2026-09-28) Phase 5 fork: `sequence_clip` policy loss (TRL's
+  sequence-level ratio) and SAMPO hierarchy evidence metrics; commits
+  `d344b545` and `4d37a18bc492f0f4f9c224285603740ef4a2ba54` (not pushed); PPO
+  CPU suites 308 passed, 2 skipped.
+- [x] (2026-09-28) Phase 5 Posttrain: `build_sampo_launch_plan` maps SAMPO
+  (`sampo_algorithm_payload`): the fork SAMPO estimator, `sequence_clip`,
+  `seq-mean-token-mean`, clip 0.003/0.004, `k3_unclipped` KL, token or sequence
+  sampler correction truncated at the selected cap, round-based active
+  sampling with oversampling, optional curriculum, truncation penalty. Rejects
+  settings veRL cannot reproduce (`mask_truncated_completions`,
+  `max_admission_attempts` other than 1, a lower correction bound or mask
+  modes). SAMPO groups are keyed by the native prompt occurrence (`uid`).
+  Job plan checks SAMPO oversampling capacity on veRL. SAMPO metric names map
+  to the TRL path's hierarchy evidence. Parity test passes (see Artifacts).
 - [ ] Phase 6: end-to-end TRL/veRL parity runs on the 8 GB GPU.
-- [ ] Fork release (next post version, ledger, wheel/sdist hashes) and
-  Posttrain pin as separate commits; report before publishing.
-- [ ] Rebase `codex/verl-vortex` onto `codex/release-0.4.12` once that branch
-  is final.
+- [x] (2026-09-29) Fork release candidate `0.9.0.post6` prepared, not
+  pushed: release commit `1badbebd22aee7af5b85185760275f697af3a073` (version
+  and ledger), local annotated tag `carbonteq-v0.9.0.post6` (tag object
+  `3a7eb765060cf2d691114cb8cfefd2c5a84da180`), receipt commit
+  `1cd7702f6b2f6aadfa149ec261e277552178eb5a`. Two clean-clone builds with
+  `SOURCE_DATE_EPOCH=1790624464`: byte-identical wheel
+  `63efd613e15f0011e840fadbb67e7d053353aa7b31437c84555e0261331faee5`, sdist
+  `c7a00ceb1858011799ec22f8d82d66f07632e1eb4ecb26e95bb207c4e1abeb1a` (second
+  build's sdist differs in archive bytes only; identical members); `twine
+  check` passes; assets in `/home/hammad/verl-release/verl-post6/dist1/`.
+  Fork CPU suite: 348 passed, 2 skipped. Posttrain records the three post6
+  commits in `_FORK_NATIVE_NAME_REVISIONS`; the fork-native-name test now
+  checks every post6 name against the installed fork.
+- [x] (2026-09-29) The coordinator pushed the fork branch and tag and
+  published post6 (GitHub release `carbonteq-v0.9.0.post6`, Posttrain publish
+  run 36474625071; `carbonteq/dev` serves both hashes).
+- [x] (2026-09-29) Posttrain post6 pin commit. veRL is not a dependency of
+  `packages/train` or the root `uv.lock` (it lives only in the isolated veRL
+  kind), so the pin is the kind's release project, as for post5:
+  `verl-py313/release/pyproject.toml` selects `1badbebd`, `uv lock --python
+  3.13.12` changes only veRL (lock `680342f0...`, constraints `760fe709...`),
+  `profile.toml`, `release/forks.toml`, the release tests, the veRL precision
+  and adapter-continuation bindings follow, and the olmo3 strict xfail is
+  removed. `posttrain-release images plan --registry registry.lan/carbonteq`
+  (LAN trust bundle): base and every other kind reused remotely, only
+  `kinds.online-rl-verl-py313` rebuilds; not blocked. Plan output saved in the
+  session scratchpad (`images-plan-0.4.13-dev.json`); not published.
+- [x] (2026-09-29) The coordinator published the 0.4.13.dev1 veRL kind
+  image (`sha256:37d284be...f994`, post6) and committed `published.toml`
+  (strict `posttrain-release check` passes). The span fix `b5b30cc3` merged
+  into 0.4.12; this branch is rebased onto it.
+- [x] (2026-09-29) Phase 4 and Phase 6 packages committed
+  (`lfm12_verl_automationbench_check_local.yaml` and the eight
+  `*_automationbench_*_parity_local.yaml`, catalog `verl-vortex-parity.yaml`,
+  qualification gates registered); all plan cleanly.
+- [x] (2026-09-29) Phase 4 GPU attempts on the local card, from a clean
+  detached worktree (`../rl-verl-vortex-run`):
+  `verl-vortex-lfm12-check-20260929-r1` and `-r2` failed at vLLM start
+  (`/dev/shm` 64 MiB, see Surprises; fixed by execution-local `520131a9`,
+  branch `codex/local-docker-shm`, cherry-picked here as `40491337`);
+  `-r3` passed vLLM start and failed at the first LoRA sync to vLLM (stacked
+  LoRA names, see Surprises; cancelled at 20:53 UTC when the Ray driver hung).
+  Each run carries notes.
+- [x] (2026-09-29) Fork fix `f74e84e4` on `codex/vortex-lora-sync`
+  (`lora_weights_mapper`: vLLM's rename-only mapper for synced LoRA tensors)
+  with a CPU regression test run in the kind image and a GPU check (below).
+  Release candidate `0.9.0.post7` prepared, not pushed: release commit
+  `6069abe14e2b3d27c89815a6502b849f15124e12`, local tag
+  `carbonteq-v0.9.0.post7` (tag object `b60890dc...`), receipt `07ecac23`;
+  wheel `9786ec44fbdba367791d8e9a4c58a895955639c79c4b9dd0e3a403a05b5e29c5`
+  (byte-identical across two clean builds), sdist
+  `3b0259523476d67aff9282b2b3c775c081bd866c04d369ad7a5eda8af6607088`; assets in
+  `/home/hammad/verl-release/verl-post7/dist1/`.
+- [x] (2026-09-29) The coordinator published post7 (GitHub release
+  `carbonteq-v0.9.0.post7`, Posttrain publish run 36483660287; the index
+  serves both hashes). Post7 pin commit on this branch: the kind's release
+  project selects `6069abe1`, `uv lock --python 3.13.12` changes only veRL
+  (lock `a9562cb1...`, constraints `8562363a...`), `profile.toml`,
+  `release/forks.toml`, the release tests and every veRL binding (precision,
+  adapter continuation, Phase 4 check, Phase 6) follow.
+- [x] (2026-09-29) The coordinator published the 0.4.13.dev2 veRL kind image
+  (post7) and committed `published.toml` as `b8f39356`; the remaining runs use
+  a clean detached worktree of it (`../rl-verl-vortex-run2`).
+- [x] (2026-09-29) Qwen Phase 6 TRL twins succeeded:
+  `verl-vortex-p6-qwen08b-trl-vortex-r1` and
+  `verl-vortex-p6-qwen08b-trl-sampo-r1` (worktree `ab929f9d`).
+  `verl-vortex-p6-qwen08b-verl-vortex-r1` failed at vLLM start: it was queued
+  and started by the long-running `posttrain controller` of another checkout
+  (`/home/hammad/projects/rl-controller`), which lacks the `/dev/shm` fix.
+  `verl-vortex-lfm12-check-20260929-r4` landed in the queue the same way and
+  was cancelled before start. Runs are now submitted by a serial driver
+  (session scratchpad `verl-vortex/runs/serial_driver.sh`) only when the card
+  and the local admission queue are idle, so this checkout starts each
+  container itself; a submission that still lands in the queue is cancelled
+  and retried under the next attempt id.
+- [x] (2026-09-29) Paused at the coordinator's request for the release-0.4.12
+  veRL checks; no run of this plan was active.
+- [x] (2026-09-29) Rebased onto `origin/codex/release-0.4.12` at `82e20d81`,
+  which pins veRL 0.9.0.post8 (`ef1c3771` = post7 plus agent-loop config
+  defaults). Dropped this branch's post6 and post7 pin and image commits (the
+  release branch pins post8 and ships its image); kept every port, lab and
+  documentation commit. `_FORK_NATIVE_NAME_REVISIONS` keeps the release
+  branch's post7 and post8 entries with the full post6 name set; post8's
+  development commit `bbe090b8` is not recorded because no binding or image
+  selects it. The Phase 4 and Phase 6 veRL bindings pin post8 (`ef1c3771`,
+  backend lock `a8391c4e`, later `cdd614f2`). The Phase 6 environment is AutomationBench
+  (`partial_credit`), not a math-verify scorer, so the Verifiers
+  off-main-thread `signal.alarm` bug found by the 0.4.12 checks does not
+  affect these runs; none of this plan's veRL GPU runs trained (all failed at
+  start or the first sync). Validated on post8: full ladder, and the seven
+  parity files (49 passed) and the fork CPU suite (348 passed, 2 skipped)
+  against the post8 release commit.
+- [x] (2026-09-29) Rebased onto `codex/release-0.4.12` at `602725cf`
+  (Verifiers `e6a3d9bb`, which scores boxed math off the main thread; veRL kind
+  lock `cdd614f2...`, catalog dependency lock `3806d424...`). The Phase 4/6
+  bindings record the new locks, and the 8 GB veRL bindings take the 0.4.12
+  host right-sizing (`00f91a9a` on `codex/verl-8gb-ray-workers`):
+  `reward.num_workers=2` and
+  `transfer_queue.backend.SimpleStorage.num_data_storage_units=2`, because
+  veRL's default 8 reward workers plus 8 TransferQueue storage units took about
+  7.4 GB and Ray killed a run at 95% of the 62 GB host's RAM.
+- [ ] GPU, when the coordinator releases the local card: Phase 4 check
+  `-r5`, Qwen veRL VORTEX `-r2` and SAMPO `-r1`, then the four LFM2.5 Phase 6
+  runs (only if the check succeeds); all on post8 from a clean detached
+  worktree of the branch head.
+- [x] (2026-09-29) `codex/verl-vortex-active-sampling` rebased onto
+  `origin/codex/release-0.4.12` at `36932821` (one test-file conflict, both
+  sides kept); full ladder and the seven parity files pass after the rebase.
+  Rebase again onto the final 0.4.12 before merging for 0.4.13.
 
 ## Surprises & Discoveries
+
+- Observation: every veRL run on the local Docker provider failed at vLLM
+  engine start: `Insufficient space in /dev/shm for shared-memory allocation:
+  160 MiB required, 64 MiB free`. The provider ran containers with Docker's
+  default 64 MiB `/dev/shm`; vLLM 0.29.1.dev4's multiprocess executor allocates
+  a 160 MiB broadcast queue (10 chunks of `VLLM_MQ_MAX_CHUNK_BYTES_MB=16`) and
+  checks the free space. It also stopped the 0.4.12 veRL qualification
+  (`q0412d-verl-qwen08b-bf16-r1`). A queued run is dispatched by whichever
+  checkout's `posttrain` process drains the local queue, so `-r2` still ran
+  without the fix.
+  Evidence: runs `verl-vortex-lfm12-check-20260929-r1`, `-r2` (notes).
+- Observation: veRL's in-memory LoRA sync (`VLLMHijack._load_adapter`) named
+  LoRA modules with the full `hf_to_vllm_mapper`; its stacked maps rename
+  `w1`/`w3` to `w13` and `q_proj`/`k_proj`/`v_proj` to `qkv_proj`, so the
+  constituents collapsed and vLLM's merged column layer raised `IndexError:
+  tuple index out of range` in `set_lora`. vLLM's own loader uses
+  `get_rename_mapper()`. Qwen3.5 veRL runs never hit it: their LoRA targets
+  only `o_proj`/`down_proj`. TRL was unaffected because it reloads the adapter
+  from a PEFT directory through vLLM's own loader.
+  Evidence: run `verl-vortex-lfm12-check-20260929-r3`; GPU check with the fix
+  (RTX 3070 Ti, post6 kind image with the fork source mounted): an
+  LFM2.5-1.2B all-linear adapter synced as tensors scores a 29-token text
+  within 0.055 nats/token (max 0.30) of PEFT, against vLLM's base-model gap of
+  0.040 and an adapter effect of 1.03 nats/token.
+
+- Observation: veRL's DAPO dynamic sampling (streaming refill, two credits per
+  filtered group, bounded by candidate prompts) is not TRL's DAPO dynamic
+  sampling (whole candidate batches of the target size until filled). This
+  predates the port and is the reason for the two remaining DAPO rejections;
+  DAPO itself stays accepted on veRL as before.
+- Observation: TRL's `nanstd` computes Bessel's factor as `count / (count - 1)`
+  on integer tensors, which rounds it to float32 even for float64 rewards, so
+  veRL's exact `torch.std` differed from TRL by about 1.5e-8 relative. The
+  fork's TRL-mode statistics repeat TRL's operations; advantages now match
+  bitwise.
+- Observation: TRL rejects `*_truncate` correction with neither bound set
+  (`GRPOConfig` raises), although `GRPOSettings` allows it; the veRL mapping
+  accepts it as uncorrected weights. Not tested as parity because TRL cannot
+  run it.
+- Observation: TRL stores `admission_loss_scale` as a float32 tensor, so a
+  partial admitted batch's loss agrees with veRL's real-row normalization to
+  float32 precision (checked at 1e-7 relative).
+
+- Observation: veRL's `gspo` loss is not TRL's sequence-level objective when
+  advantages vary inside a row. GSPO's stop-gradient token form gives token t
+  the gradient `A_t * w_t * s_i / |y|`; TRL's `importance_sampling_level=
+  "sequence"` differentiates through the mean log ratio, giving every token
+  `s_i * mean_t(A_t * w_t) / |y|`. SAMPO's per-turn advantages differ within a
+  row, so the port adds the fork loss `sequence_clip`. Evidence: the SAMPO
+  parity test fails with `gspo` or `vanilla` substituted and passes with
+  `sequence_clip`.
+- Observation: the Phase 2 active-sampling parity test was not re-run after
+  Phase 3 changed the dispatcher signature (`dispatch(count, round_index=...)`)
+  and failed with a TypeError until its fake dispatcher was updated during
+  Phase 5. All five parity files now run together (24 passed).
 
 - Observation: the veRL GRPO path silently ignores several GRPO settings.
   `advantage_scaling`, `importance_sampling_mode` and its bounds are never
@@ -168,8 +425,124 @@ adds backend support that meets those contracts; no product meaning changes.
   `codex/precision-fp16-verl`). Phases 4 and 6 will run the isolated worker
   directly from a locally built veRL environment (see Phase 4) unless that
   image is rebuilt first.
+  Update (2026-09-29): release 0.4.12 rebuilt the veRL kind image (post5,
+  digest `sha256:523b5525...`) and its qualification runs veRL packages with
+  `posttrain job run --provider local`. A kind image must be in a registry
+  for packing, so the Phase 4 and Phase 6 GPU runs wait for the post6 image
+  the coordinator builds, instead of a local-only image.
+
+- Observation: the veRL agent loop did not render LFM2.5 as TRL does. It
+  chose `DefaultRendererConfig` for every non-Qwen family (TRL chooses
+  `LFM25RendererConfig`), kept the tokenizer's chat template (TRL installs the
+  model's package template `lfm25_tool_chat.jinja`), passed no tool-call
+  protocol to `parsed_policy_message` (TRL recovers LFM2.5's
+  `<|tool_call_start|>[call(...)]<|tool_call_end|>` lists through it), and
+  reported a bridged turn's message spans relative to the new messages only
+  (TRL offsets them and pads the earlier messages with `None`). The last one
+  also affected Qwen 3.5 multi-turn runs.
+  Evidence: `packages/train/src/posttrain/train/backends/verl/agent_loop.py`
+  before this phase; tests
+  `test_verl_policy_generator_recovers_lfm25_python_calls_like_trl` and
+  `test_verl_resolves_the_lfm25_renderer_exactly_as_trl`.
+- Observation: the local image `posttrain-kind-online-rl-verl-py313:qwen-kernels-local-cc1d`
+  (post3) has upstream `renderers` 0.1.12.dev3 installed over the CarbonTeq
+  fork, so `LFM25RendererConfig` is missing there. The 0.4.12 veRL kind lock
+  selects only `carbonteq-renderers`; do not use that local image for LFM2.5.
 
 ## Decision Log
+
+- Decision: `lfm2.5` joins the veRL launcher's qualified families in the
+  Phase 4 code change, before its GPU run.
+  Rationale: the GPU qualification runs through the launcher, which rejects
+  unlisted families, and the branch ships only in 0.4.13 after the Phase 4
+  and Phase 6 GPU runs; the README table marks LFM2.5 as pending until then.
+  Date/Author: 2026-09-29, Claude.
+- Decision: resolve the renderer on the launcher and pass it to the agent
+  loop as data, rather than duplicating TRL's family table in the agent loop.
+  Rationale: one function (`renderer_config_spec`) now decides the renderer
+  for both backends, so they cannot drift again; the control environment does
+  not need `renderers` installed because the spec is plain data.
+  Date/Author: 2026-09-29, Claude.
+
+- Decision: DAPO on veRL uses TRL's candidate-batch dynamic sampling, and the
+  curriculum makes one `initial_batch` decision for the whole candidate pool
+  per update, not one per candidate batch.
+  Rationale: that is what the TRL backend does (`AdaptiveCurriculumTrainer`
+  selects the dynamic-sampling generation batch once; only active sampling
+  consults the controller per round), and parity is the requirement. The
+  streaming veRL refill remains available in the fork when the flag is off.
+  Date/Author: 2026-09-28, Claude.
+
+- Decision: veRL GRPO and DAPO now run TRL's objective in full: `token_clip`
+  (no dual clip), `k3_unclipped`, the selected sampler correction (the GRPO
+  default is sequence-truncated to [0.1, 3.0], which veRL previously did not
+  apply at all), TRL's advantage scaling (std + 1e-4, not veRL's 1e-6), TRL's
+  group admission (retry the same prompt, then drop) instead of refilling
+  failed groups with new prompts.
+  Rationale: the settings always declared these semantics; veRL runs silently
+  used different ones. Recorded veRL GRPO runs therefore do not match their
+  settings, and new runs will differ numerically from them. Every mapping has
+  a parity test against TRL's real code.
+  Date/Author: 2026-09-28, Claude.
+- Decision (superseded 2026-09-28 by the coordinator's request to remove every
+  rejection; both are gone after the candidate-batch DAPO port): keep exactly two rejections. (1) `adaptive_curriculum` with DAPO:
+  veRL's DAPO refill streams single prompts with no per-round decision point,
+  while the curriculum contract requires decisions per refill round. (2)
+  `advantage_scaling: batch` with DAPO dynamic sampling: TRL divides by the std
+  of each candidate batch before filtering; veRL's streaming refill has no
+  candidate batch with that population. Both reasons are in the error
+  messages (`packages/train/src/posttrain/train/backend_support.py`). Porting
+  TRL's candidate-batch DAPO refill to veRL would remove both and is noted
+  under Surprises as a pre-existing difference.
+  Date/Author: 2026-09-28, Claude.
+- Decision: under active sampling (OLMo 3, SAMPO) `max_admission_attempts` is
+  accepted and behaves as one attempt, because TRL forces one admission attempt
+  when active sampling refills groups (`max_attempts=1 if active_sampling` in
+  `backends/trl/policy_rollouts.py`).
+  Date/Author: 2026-09-28, Claude.
+
+- Decision: SAMPO on veRL uses the new `sequence_clip` loss, not `gspo`.
+  Rationale: the recipe is defined by the TRL path (sequence-level ratio with
+  gradient through its mean); GSPO's token form optimizes a different
+  gradient when per-turn advantages vary. No veRL SAMPO selection was
+  runnable before this phase (the launcher rejected SAMPO), so no recorded run
+  changes meaning.
+  Date/Author: 2026-09-28, Claude.
+
+- Decision: the curriculum on veRL reuses the TRL path's
+  `AdaptiveCurriculumRuntime` inside a fork prompt selector, instead of
+  re-implementing decisions in the fork or in the parent process.
+  Rationale: the canonical contract requires every refill round to be a
+  decision informed by earlier rounds at fixed weights, which only the process
+  that dispatches rounds can do; reusing the runtime makes decisions, events
+  and snapshots identical by construction. The veRL trainer process has no
+  `RunContext`, so the runtime writes events and metrics to
+  `verl-curriculum-events.jsonl`, which the parent replays after the worker
+  exits (as it already does for rollout rewards).
+  Date/Author: 2026-09-28, Claude.
+- Decision: keep DAPO plus curriculum TRL-only on veRL.
+  Rationale: veRL's DAPO refill streams from the dataloader without decision
+  boundaries; OLMo 3 active sampling is the recipe that needs the curriculum.
+  Date/Author: 2026-09-28, Claude.
+
+- Decision: base the Phase 2 Posttrain branch on `codex/release-0.4.12`
+  (`d93c5f78`) instead of `54671c33`.
+  Rationale: release 0.4.12 already merged Phase 1 and pinned post5, and it
+  carries the TRL post11 `oversample`/`oversample_refill` settings, the
+  concurrency guard and the veRL rejection module this phase edits; basing on
+  the older commit would re-implement them.
+  Date/Author: 2026-09-28, Claude.
+- Decision: failed prompt groups count as generated but not retained in veRL
+  active sampling, and a group is kept when the sample standard deviation
+  (ddof 1) of `seq_reward` exceeds the epsilon (0 for OLMo 3).
+  Rationale: TRL drops groups the environment could not admit and filters on
+  `nanstd` of the shaped rewards; with epsilon 0 the two spread measures agree.
+  Date/Author: 2026-09-28, Claude.
+- Decision: record fork versions only for release commits in
+  `_FORK_NATIVE_NAME_REVISIONS`; development commits carry `None`.
+  Rationale: a development commit shares its parent release's version string
+  without its content, so a version lookup would claim names the release lacks.
+  Date/Author: 2026-09-28, Claude.
 
 - Decision: gate fork-only native names (`token_clip`, `k3_unclipped`) by an
   explicit per-commit record in the worker and reject clean checkouts at other
@@ -420,6 +793,45 @@ with the same seed and data on the 8 GB card, first Qwen3.5-0.8B then
 LFM2.5-1.2B; compare per-update reward, KL, entropy, advantage distribution,
 active-sampling counts and loss; document tolerances.
 
+Packages (`apps/lab/.posttrain/work_packages/`, catalog
+`apps/lab/.posttrain/catalog/verl-vortex-parity.yaml`): for each model
+(`qwen08b`, `lfm12`) and technique (`vortex`, `sampo`) a TRL and a veRL twin,
+`<model>_<trl|verl>_automationbench_<vortex|sampo>_parity_local.yaml`. Twins
+share the 24-task environment `automationbench-verl-parity-v1` (20 `simple`,
+two `finance`, two `operations` tasks: three curriculum classes; six turns of
+up to 1,024 tokens), the settings
+(`<model>/automationbench-vortex-parity-v1`: OLMo 3 objective, 4 prompts x 4
+generations, active sampling with `max_candidate_batches: 4, oversample: 1,
+oversample_refill: 1`, the yield-first curriculum, truncation penalty 0.1,
+token-truncated correction at 2.0, seed 1729, four updates;
+`<model>/automationbench-sampo-parity-v1`: the same sampling with SAMPO,
+beta 0.005, truncation penalty 0.2), the LoRA update (Qwen: r8/a16 on
+`o_proj`/`down_proj`, the module set veRL's Qwen3.5 bindings qualify; LFM:
+r4/a8 `all-linear`), and the rollout sampling (T 0.8, top-p 0.95). They
+differ only in the backend and in engine placement options that do not change
+sampling semantics. One known numeric difference remains: TRL trains LoRA over
+a bfloat16 base in bfloat16, veRL's FSDP computes in bfloat16 over float32
+master weights.
+
+What must agree. Rollouts are stochastic and the two stacks use different
+random streams, so no rollout-dependent value can be bitwise equal. The
+checks are:
+1. Deterministic invariants, exactly: the learning rate, the number of
+   updates, the first round's oversampled group count (1), the pool size, and
+   for OLMo 3 a zero per-group mean advantage.
+2. Rollout statistics of update 1 (both policies are the base model): mean
+   reward within two standard errors of the group-mean difference; completion
+   length and sampler entropy within 15% relative.
+3. Training statistics per update: KL (SAMPO) of the same order and zero at
+   update 1; advantage absolute mean, positive and negative fractions and the
+   informative fraction within two standard errors given the observed reward
+   spread; clip and correction fractions of the same order.
+4. Active-sampling and curriculum evidence: rounds, retained and discarded
+   group counts consistent with each run's own rewards (the arithmetic is
+   checked exactly against TRL by the CPU parity tests); curriculum class
+   shares of the same order. The runs record the observed differences in
+   Artifacts.
+
 ## Concrete Steps
 
 Parity environment (scratch, not committed). From any directory:
@@ -485,6 +897,59 @@ Phase 1 (float64, 2 groups x 4 rollouts x 16 tokens, 2 micro-batches, beta
     advantages [0.675, -0.325, 0.175, -0.525, -0.4625, -0.0125, 0.7375, -0.2625]
 
 Advantages are bitwise equal; correction weights agree to 1e-12.
+
+Phase 2 (`packages/train/tests/test_verl_active_sampling_parity.py`, parity
+environment with the fork at `6c7295cd`): 7 named scenarios (first round
+full, refill only missing, oversampled surplus discarded, refill capped at the
+first round, extra groups cut to the pool, pool exhausted, rounds exhausted)
+and 12 random reward patterns. For every case TRL post11 and veRL dispatch the
+same round sizes, keep the same candidate groups, fail for the same cause, and
+report identical `active_sampling/...` metrics.
+
+    19 passed in 9.68s
+
+Phase 3 (`packages/train/tests/test_verl_curriculum_parity.py`): four updates
+of yield-first curriculum with oversample 1 / refill 1, 24 tasks in three
+classes, deterministic rewards per task and occurrence. TRL's curriculum loop
+and veRL's buffer plus selector emit identical decision and observation
+events (6 decisions, 2 of them refill rounds), keep the same tasks per update,
+and end with byte-identical controller state. Making veRL observe only kept
+groups (a plausible bug) fails the test.
+
+Phase 5 (`packages/train/tests/test_verl_sampo_parity.py`, both advantage
+normalizations): two prompt groups of three multi-turn trajectories with tool
+gaps, shared and singleton anchor states, explicit and sparse step rewards and
+truncated rollouts. Token advantages agree to 1e-12, the hierarchy evidence
+(episode/turn advantage magnitudes, informative fraction, singleton-anchor
+fraction, turn credit share, anchor group size) is equal, correction weights
+agree to 1e-12, and loss and gradient agree to 1e-8 relative (veRL's
+seq-mean-token-mean divides by tokens + 1e-8; TRL clamps at 1). Sequence
+ratios fall both inside and outside the 0.003/0.004 clip range.
+
+    all parity files: 24 passed in 14.55s
+
+TRL-settings parity (`packages/train/tests/test_verl_trl_settings_parity.py`,
+24 cases): sampler-correction weights for token/sequence truncate and mask
+with and without lower and upper bounds, including log ratios of +24 and -26
+nats, agree to 1e-12 relative; GRPO advantages for group, batch and no scaling,
+with and without masked truncated completions, are bitwise equal, and loss and
+gradient agree to 1e-8 relative; four admission scripts (retry then succeed,
+drop after attempts, single attempt, mixed) give identical retained groups and
+per-group attempt counts to Posttrain's TRL admission loop; a partial batch's
+loss matches TRL's padded, rescaled loss (float32-limited); the linear schedule
+gives TRL's learning rate at every step for three warmup/length settings.
+
+    all parity files together: 48 passed in 29.53s
+
+DAPO parity (`packages/train/tests/test_verl_dapo_parity.py`): three updates
+of DAPO with the yield-first curriculum and batch advantage scaling. TRL's real
+`_prepare_dynamic_sampling_inputs` (fed by one curriculum decision per step, as
+the TRL backend's `AdaptiveCurriculumTrainer` does) and the fork's
+`CandidateBatchReplayBuffer` with Posttrain's selector use 3, 2 and 1 candidate
+batches, make identical curriculum decisions and observations, keep the same
+tasks, report identical `dynamic_sampling/*` metrics, give bitwise-equal
+advantages and end with identical controller state. Using the kept batch's std
+instead of each candidate batch's std makes the test fail.
 
 ## Interfaces and Dependencies
 

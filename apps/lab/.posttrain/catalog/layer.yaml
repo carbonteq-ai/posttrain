@@ -13,3 +13,4 @@ files:
   - transform-qualification.yaml
   - verl-capsule-qualification.yaml
   - verl-adapter-continuation.yaml
+  - verl-vortex-parity.yaml

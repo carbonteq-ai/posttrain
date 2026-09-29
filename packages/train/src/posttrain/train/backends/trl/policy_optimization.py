@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import fields, replace
 from pathlib import Path
 from typing import Any, cast
@@ -10,6 +9,7 @@ from typing import Any, cast
 from posttrain.common import LocalArtifactRef, ProducedArtifact, RunContext
 from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
 
+from ...adaptive_curriculum import digest_curriculum_state
 from ...grpo_observations import GRPOObservationFeatures
 from ...requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
 from .cancellation import (
@@ -368,14 +368,7 @@ def _trainer_arguments(
 
 
 def _digest_curriculum_state(path: Path) -> str:
-    digest = hashlib.sha256()
-    for child in sorted(item for item in path.rglob("*") if item.is_file()):
-        digest.update(child.relative_to(path).as_posix().encode())
-        digest.update(b"\0")
-        with child.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(chunk)
-    return digest.hexdigest()
+    return digest_curriculum_state(path)
 
 
 __all__ = ["run_grpo", "run_sampo"]

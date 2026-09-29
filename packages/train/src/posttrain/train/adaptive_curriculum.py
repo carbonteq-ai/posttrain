@@ -1024,3 +1024,18 @@ __all__ = [
     "CurriculumStateBackend",
     "QueuedJsonlCurriculumStateBackend",
 ]
+
+
+def digest_curriculum_state(path: Path) -> str:
+    """SHA-256 over a curriculum state directory's relative file names and bytes."""
+
+    import hashlib
+
+    digest = hashlib.sha256()
+    for child in sorted(item for item in path.rglob("*") if item.is_file()):
+        digest.update(child.relative_to(path).as_posix().encode())
+        digest.update(b"\0")
+        with child.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()

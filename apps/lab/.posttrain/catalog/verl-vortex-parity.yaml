@@ -1,0 +1,542 @@
+# veRL VORTEX port qualification (docs/plan/verl-vortex-port.md): the LFM2.5
+# model-family check on veRL (Phase 4) and the TRL-vs-veRL comparison runs
+# (Phase 6). Every veRL binding pins the 0.4.12/0.4.13 kind image's veRL
+# 0.9.0.post8 (release commit ef1c3771, backend lock cdd614f2): post6's VORTEX
+# and SAMPO deltas, post7's LoRA tensor-sync fix that LFM2.5 needs, and post8's
+# agent-loop config defaults.
+
+environment:
+  # Phase 6 comparison set: 20 single-app tasks and four finance/operations
+  # tasks (three curriculum classes), six turns of up to 1,024 tokens, so both
+  # backends and both models fit the 8 GB card.
+  automationbench-verl-parity-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, finance, operations]
+          task_names:
+            - simple.email_sf_contact_phone_update
+            - simple.sf_opp_closed_won
+            - simple.sf_create_case
+            - simple.hs_create_contact
+            - simple.email_hs_create_contact
+            - simple.buffer_twitter_product_launch
+            - simple.buffer_job_opening
+            - simple.buffer_company_award
+            - simple.gmail_weekly_status
+            - simple.gmail_reply_pricing_inquiry
+            - simple.gmail_invoice_email
+            - simple.slack_marketing_campaign
+            - simple.slack_dm_project_status
+            - simple.mailchimp_email_request
+            - simple.sheets_add_lead
+            - simple.sheets_update_status
+            - simple.asana_sprint_section_task
+            - simple.gcal_weekly_standup
+            - simple.gcal_client_discovery_call
+            - simple.zendesk_urgent_reply
+            - finance.xero_bill_entry
+            - finance.invoice_email_extract
+            - operations.monday_email_update
+            - operations.sheets_asana_approved_request
+          task: {toolset: limited_zapier, search_top_k: 20, turn_budget: 6}
+        retries: {max_retries: 1}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 900, finalize: 60, scoring: 300}
+          max_turns: 6
+          max_output_tokens: 4096
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    num_tasks: 24
+    num_rollouts: 4
+    max_concurrent: 20
+    parameters:
+      task_names:
+        - simple.email_sf_contact_phone_update
+        - simple.sf_opp_closed_won
+        - simple.sf_create_case
+        - simple.hs_create_contact
+        - simple.email_hs_create_contact
+        - simple.buffer_twitter_product_launch
+        - simple.buffer_job_opening
+        - simple.buffer_company_award
+        - simple.gmail_weekly_status
+        - simple.gmail_reply_pricing_inquiry
+        - simple.gmail_invoice_email
+        - simple.slack_marketing_campaign
+        - simple.slack_dm_project_status
+        - simple.mailchimp_email_request
+        - simple.sheets_add_lead
+        - simple.sheets_update_status
+        - simple.asana_sprint_section_task
+        - simple.gcal_weekly_standup
+        - simple.gcal_client_discovery_call
+        - simple.zendesk_urgent_reply
+        - finance.xero_bill_entry
+        - finance.invoice_email_extract
+        - operations.monday_email_update
+        - operations.sheets_asana_approved_request
+      toolset: limited_zapier
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
+training:
+  # Phase 4: two LFM2.5-1.2B GRPO updates on veRL over the five-task local
+  # AutomationBench set (the TRL changed-weight gate's settings, two updates).
+  lfm2.5-1.2b/verl-automationbench-check-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 3072
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 4
+      learning_rate: 0.00004
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 1
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 1729
+    num_prompts_per_step: 1
+    num_generations: 4
+    max_prompt_length: 2048
+    max_completion_length: 1024
+    shuffle_prompts: false
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+
+  training/lfm2.5-1.2b-verl-lora-local-g4@1: &verl_lfm_training
+    selection_type: training-binding
+    revision: "1"
+    backend: verl@ef1c37715fa75de5973ae5b3c398383cd7e0093d
+    renderer:
+      id: lfm2.5-tools@1
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/local-cuda-8gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 4
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: true
+      optimizer_offload: true
+    backend_options: &verl_lfm_options
+      python_executable: /opt/posttrain-verl/bin/python
+      working_directory: /opt/posttrain-verl/workdir
+      source_revision: ef1c37715fa75de5973ae5b3c398383cd7e0093d
+      dependency_lock_sha256: cdd614f2ab442c655ee211ab433030dcddf6367c2b27eaae801a89495807dbdd
+      source_dirty: false
+      attention_implementation: sdpa
+      training_precision: bf16
+      # No Qwen fused kernels: LFM2.5 trains on the unfused head with chunked entropy.
+      hydra_overrides:
+        - actor_rollout_ref.model.use_remove_padding=false
+        - actor_rollout_ref.model.enable_gradient_checkpointing=true
+        - actor_rollout_ref.actor.strategy=fsdp2
+        - actor_rollout_ref.actor.entropy_from_logits_with_chunking=true
+        - actor_rollout_ref.actor.entropy_from_logits_chunk_size=256
+        - actor_rollout_ref.actor.fsdp_config.use_torch_compile=false
+        # The 62 GB local host with a desktop hit Ray's 95% RAM threshold: veRL's
+        # default 8 reward workers plus 8 TransferQueue storage units took about 7.4 GB.
+        - reward.num_workers=2
+        - transfer_queue.backend.SimpleStorage.num_data_storage_units=2
+
+  # Phase 6: the VORTEX recipe (OLMo 3 objective, oversampled active sampling,
+  # yield-first curriculum, truncation penalty), shared by the TRL and veRL runs.
+  qwen3.5-0.8b/automationbench-vortex-parity-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 4
+      max_length: 5120
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 16
+      learning_rate: 0.00004
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 4
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 1729
+    num_prompts_per_step: 4
+    num_generations: 4
+    max_prompt_length: 4096
+    max_completion_length: 1024
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 4, oversample: 1, oversample_refill: 1}
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    truncation_penalty: 0.1
+
+  # Phase 6: SAMPO with the same sampling, curriculum and correction.
+  qwen3.5-0.8b/automationbench-sampo-parity-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 4
+      max_length: 5120
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 16
+      learning_rate: 0.00004
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 4
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 1729
+    num_prompts_per_step: 4
+    num_generations: 4
+    max_prompt_length: 4096
+    max_completion_length: 1024
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 4, oversample: 1, oversample_refill: 1}
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    beta: 0.005
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    truncation_penalty: 0.2
+
+  # Phase 6: the VORTEX recipe (OLMo 3 objective, oversampled active sampling,
+  # yield-first curriculum, truncation penalty), shared by the TRL and veRL runs.
+  lfm2.5-1.2b/automationbench-vortex-parity-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 4
+      max_length: 5120
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 16
+      learning_rate: 0.00004
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 4
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 1729
+    num_prompts_per_step: 4
+    num_generations: 4
+    max_prompt_length: 4096
+    max_completion_length: 1024
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 4, oversample: 1, oversample_refill: 1}
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    truncation_penalty: 0.1
+
+  # Phase 6: SAMPO with the same sampling, curriculum and correction.
+  lfm2.5-1.2b/automationbench-sampo-parity-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 4
+      max_length: 5120
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 16
+      learning_rate: 0.00004
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 4
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 1729
+    num_prompts_per_step: 4
+    num_generations: 4
+    max_prompt_length: 4096
+    max_completion_length: 1024
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 4, oversample: 1, oversample_refill: 1}
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    beta: 0.005
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    truncation_penalty: 0.2
+
+    # The same LoRA targets as the veRL binding: veRL's Qwen3.5 bindings train
+    # the language model's o_proj and down_proj only.
+  training/qwen3.5-0.8b-trl-lora-parity-local-g16@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post11
+    renderer: {id: qwen3.5-off-v1, model_family: qwen3.5, implementation: qwen3.5, reasoning_mode: "off"}
+    update: {kind: lora, rank: 8, alpha: 16, target_modules: ".*[.](o_proj|down_proj)$"}
+    target: targets/local-cuda-8gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 16, devices_per_node: 1, timeout_seconds: 7200}
+    backend_options:
+      rollout_execution: {env_workers: 2, episodes_per_worker: 10, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      training_precision: bf16
+      dependency_lock: trl-fork@current
+      source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
+      dependency_lock_sha256: 3806d4249cde3a1541b9529a662a9434cfb1da1cecf2cb5e5499f97193f13d95
+
+  training/qwen3.5-0.8b-verl-lora-parity-local-g16@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: verl@ef1c37715fa75de5973ae5b3c398383cd7e0093d
+    renderer: {id: qwen3.5-off-v1, model_family: qwen3.5, implementation: qwen3.5, reasoning_mode: "off"}
+    update: {kind: lora, rank: 8, alpha: 16, target_modules: ".*[.](o_proj|down_proj)$"}
+    target: targets/local-cuda-8gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 16
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: true
+      optimizer_offload: true
+      timeout_seconds: 7200
+    backend_options:
+      <<: *verl_lfm_options
+      rollout_execution: {env_workers: 2, episodes_per_worker: 10, worker_native_threads: 1}
+
+  training/lfm2.5-1.2b-trl-lora-parity-local-g16@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post11
+    renderer: {id: lfm2.5-tools@1, model_family: lfm2.5, implementation: default, reasoning_mode: native}
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/local-cuda-8gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 16, devices_per_node: 1, timeout_seconds: 7200}
+    backend_options:
+      rollout_execution: {env_workers: 2, episodes_per_worker: 10, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      training_precision: bf16
+      dependency_lock: trl-fork@current
+      source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
+      dependency_lock_sha256: 3806d4249cde3a1541b9529a662a9434cfb1da1cecf2cb5e5499f97193f13d95
+
+  training/lfm2.5-1.2b-verl-lora-parity-local-g16@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: verl@ef1c37715fa75de5973ae5b3c398383cd7e0093d
+    renderer: {id: lfm2.5-tools@1, model_family: lfm2.5, implementation: default, reasoning_mode: native}
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/local-cuda-8gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 16
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: true
+      optimizer_offload: true
+      timeout_seconds: 7200
+    backend_options:
+      <<: *verl_lfm_options
+      rollout_execution: {env_workers: 2, episodes_per_worker: 10, worker_native_threads: 1}
+
+inference:
+  inference/lfm2.5-1.2b-vllm-verl-check-local@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 3072
+      max_num_seqs: 4
+      max_num_batched_tokens: 3072
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 268435456
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    target: targets/local-cuda-rollout-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/qwen3.5-0.8b-vllm-trl-parity-local@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 5120
+      max_num_seqs: 20
+      max_num_batched_tokens: 4096
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 536870912
+      weight_sync_mode: lora
+      weight_name_prefix: language_model.
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    target: targets/local-cuda-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/qwen3.5-0.8b-vllm-verl-parity-local@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 5120
+      max_num_seqs: 20
+      max_num_batched_tokens: 4096
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 536870912
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    target: targets/local-cuda-rollout-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-1.2b-vllm-trl-parity-local@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 5120
+      max_num_seqs: 20
+      max_num_batched_tokens: 4096
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 536870912
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    target: targets/local-cuda-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-1.2b-vllm-verl-parity-local@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 5120
+      max_num_seqs: 20
+      max_num_batched_tokens: 4096
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 536870912
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    target: targets/local-cuda-rollout-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]

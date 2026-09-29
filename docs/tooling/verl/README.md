@@ -23,6 +23,13 @@ Posttrain run <https://github.com/carbonteq-ai/posttrain/actions/runs/3648941568
 `_FORK_NATIVE_NAME_REVISIONS` records post8 and its receipt. Relocking the
 `online-rl-verl-py313` kind changed only veRL.
 
+The 0.4.13 branch (`codex/verl-vortex-active-sampling`) keeps the post8 pin
+and turns on post6's additions through the VORTEX port: its adapter maps
+active sampling, the adaptive curriculum, SAMPO, every TRL GRPO setting and
+candidate-batch DAPO to the fork's native keys, and accepts LFM2.5 (which
+needs post7's LoRA-sync fix). The Phase 4 and Phase 6 bindings in
+`apps/lab/.posttrain/catalog/verl-vortex-parity.yaml` pin post8.
+
 ## 0.9.0.post7
 
 Tag `carbonteq-v0.9.0.post7` (release commit
@@ -102,6 +109,104 @@ applied in the veRL agent loop by the same shaping function as the TRL path and
 is accepted for GRPO and DAPO. OLMo 3 itself stays rejected on veRL until
 active sampling is ported (plan [verl-vortex-port.md](../../plan/verl-vortex-port.md),
 Phase 2).
+
+## Round-based active sampling (post6; selected on the 0.4.13 branch)
+
+Fork branch `codex/vortex-active-sampling` commit
+`6c7295cd411c4d3973ddc206e43816560c842336` (post5 plus this delta, not
+pushed) adds `algorithm.active_sampling` to the synchronous V1 trainer with
+TRL post11's round semantics: round one dispatches the batch plus
+`oversample` prompt groups; each later round dispatches only the missing
+groups plus `oversample_refill`, capped at round one and at the remaining
+pool of `max_candidate_batches * train_batch_size`; a round completes before
+its groups are judged (reward spread of `seq_reward`, the shaped reward);
+failed groups are rejected; the first target groups in dispatch order form
+the batch. Metrics use TRL's `active_sampling/...` names and values, mapped to
+the same `train/rl/active_sampling_*` names. The trainer rejects an oversampled
+first round larger than the engines' `max_num_seqs`, the agent episode limit
+or worker slots; the launcher and `posttrain job plan` apply the same guard.
+
+The adapter maps `ActiveGroupSampling` for OLMo 3 and accepts OLMo 3 only on
+a fork revision recorded with `active_sampling` (or a dirty candidate
+checkout), so the selected post5 still rejects it. A side-by-side test against
+TRL's real `_prepare_active_sampling_inputs` agrees on 19 scenarios. The 8 GB
+GPU check needs a release candidate and kind image containing this commit.
+
+## Adaptive curriculum through the prompt selector (post6; selected on the 0.4.13 branch)
+
+Fork commit `24920b395f8571f8f5be6b9d8469737f2355dcc9` adds
+`data.prompt_selector`: a selector chooses the dataset rows of every dispatch
+(`initial_batch`, or each numbered `active_sampling_refill` round), observes
+finished groups' `seq_reward` values in dispatch order, and saves/loads its
+state in each `global_step_*` folder. Posttrain's
+`PosttrainCurriculumSelector` (`backends/verl/curriculum.py`) runs the same
+`AdaptiveCurriculumRuntime` as the TRL path; its events and metrics are
+journaled to `verl-curriculum-events.jsonl` and replayed by the parent, and
+the final state is published as `adaptive-curriculum-state`. The snapshot
+`adaptive-curriculum-state.json` sits in each veRL checkpoint folder and is also
+copied to `curriculum-checkpoints/step-<N>/`, which the launcher publishes as the
+TRL path's per-checkpoint view (`checkpoint-<N>/curriculum`), so
+`--curriculum-checkpoint-step` warm starts work from veRL runs. The
+adapter accepts the curriculum with GRPO and OLMo 3 (not DAPO) on revisions
+recorded with `prompt_selector`.
+
+## TRL-equivalent GRPO settings (post6; selected on the 0.4.13 branch)
+
+Fork commit `2607b91d3cccc9d73aae924734b5104bf8cfb590` lets veRL reproduce every
+GRPO setting Posttrain selects: sampler correction in all four TRL modes with
+lower and upper bounds and exact log ratios; TRL's advantage scaling (group or
+batch std + 1e-4, or none) with masked truncated completions excluded as TRL's
+NaN rewards are; row exclusion after advantages; TRL's group admission (retry
+with the same prompt, then drop, loss normalized over real rows); and the
+linear LR schedule. GRPO and DAPO on veRL now use `token_clip` and
+`k3_unclipped`, so their loss matches TRL's too. This changes veRL GRPO runs:
+their settings always declared these semantics, but earlier veRL runs used
+dual clipping, a clamped KL, no sampler correction, veRL's 1e-6 std epsilon
+and refill-with-new-prompts on failures. Two DAPO combinations
+were first kept TRL-only (curriculum with DAPO, and batch advantage scaling
+with DAPO dynamic sampling); fork commit
+`ce8e0430018204b03c009b72bfba3b58968696c7` then added TRL's candidate-batch DAPO
+dynamic sampling (`algorithm.filter_groups.candidate_batches`), so no GRPO
+setting is rejected on veRL. Runs record `verl_semantics: trl-parity-v1`;
+`CHANGELOG.md` lists every difference from earlier veRL runs. CPU parity: 49
+tests against TRL post11's real code (plan Artifacts).
+
+## SAMPO on veRL (post6; selected on the 0.4.13 branch)
+
+Fork commit `4d37a18bc492f0f4f9c224285603740ef4a2ba54` adds `sequence_clip`
+(TRL's `importance_sampling_level="sequence"` objective: one ratio per row with
+gradient through the mean log ratio) and SAMPO hierarchy evidence metrics. The
+adapter now accepts SAMPO: fork SAMPO estimator, `sequence_clip`,
+`seq-mean-token-mean`, clip 0.003/0.004, `k3_unclipped` KL, token or sequence
+sampler correction truncated at the selected cap, round-based active sampling,
+optional curriculum and truncation penalty; the TRL-equivalent settings
+above (masked truncated completions, admission retries, every correction mode
+and bound) apply to SAMPO too. This replaces the historical GSPO mapping
+described under "SAMPO operating configuration" below, whose runs predate the
+rejection that preceded this port.
+
+## LFM2.5 on veRL (post7; selected on the 0.4.13 branch)
+
+LFM2.5 (hybrid short-convolution and attention blocks, tied input and output
+embeddings) needs no fork source change: Transformers' `Lfm2ForCausalLM`
+trains under FSDP2 with `use_remove_padding=false`, PEFT `all-linear` selects
+the attention `q_proj`/`k_proj`/`v_proj`/`out_proj`, short-convolution
+`in_proj`/`out_proj` and feed-forward `w1`/`w2`/`w3` projections (never the
+tied `lm_head`), and the CarbonTeq vLLM's `Lfm2ForCausalLM` accepts those
+LoRA names through its packed-module mapping. Fork commit `7d850ef5` adds a
+CPU regression test that exports such an adapter through `verl.model_merger`
+and reloads it with identical logits.
+
+The Posttrain side was the renderer. The veRL agent loop used the default
+renderer for every non-Qwen family, ignored the model's package chat template
+and never recovered LFM2.5's Python call lists (`<|tool_call_start|>[...]`),
+so LFM2.5 would have seen different prompts and tool calls than on TRL. The
+launcher now resolves the renderer with the TRL backend's own function
+(`renderer_config_spec`: family config, reasoning-mode template arguments,
+package chat template, tool-call protocol) and the agent loop rebuilds it.
+Bindings for LFM2.5 on veRL use no fused-kernel or Qwen-specific Hydra
+overrides; `attention_implementation: sdpa` is fine. The GPU qualification
+(two updates of LFM2.5-1.2B on the 8 GB card) waits for the local card (post8 image).
 
 ## FP16 metrics (0.9.0.post4, contained in post5)
 
@@ -279,7 +384,8 @@ sampling; `truncation_penalty` is applied for GRPO and DAPO.
 
 ## Current support and qualification boundary
 
-The current adapter accepts only the **Qwen 3.5 model family**, for:
+The current adapter accepts the **Qwen 3.5** and, pending its GPU
+qualification on veRL post8, **LFM2.5** model families, for:
 
 - GRPO with fresh trajectories owned and scored by a Verifiers environment.
 - On-policy distillation in which a Qwen 3.5 teacher scores the exact token ids
@@ -332,6 +438,7 @@ Verifiers as provided in both roles; then run the package fresh and again with
 | --- | --- | --- |
 | GRPO | Qwen 3.5 | Qwen 3.5 0.8B ordinary BF16 LoRA qualified locally on GPU |
 | On-policy distillation | Qwen 3.5 student and teacher | Two-step GPU execution and retained artifacts qualified; required telemetry gate open |
+| GRPO, SAMPO | LFM2.5 | CPU renderer and export tests; two-update 8 GB GPU run pending on post8 (r1-r3 failed on /dev/shm and the LoRA-sync bug fixed in post7) |
 
 The complete backend release is therefore not yet production-qualified.
 

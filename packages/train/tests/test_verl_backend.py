@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
+import math
 import re
 import subprocess
 import sys
@@ -26,11 +27,12 @@ from posttrain.common import (
     TraceFactUpdateObservation,
     TraceObservation,
 )
-from posttrain.common.variants import LFM_25_12B_THINKING, QWEN_35_2B
+from posttrain.common.variants import LFM_25_12B_THINKING, NANBEIGE_42_3B, QWEN_35_2B
 from posttrain.data import RolloutDataset, RolloutExample
 from posttrain.train import (
     LFM25_RENDERER,
     QWEN35_RENDERER,
+    QWEN35_THINKING_RENDERER,
     ActiveGroupSampling,
     AdaptiveCurriculum,
     DynamicGroupSampling,
@@ -46,15 +48,25 @@ from posttrain.train import (
     SAMPOSettings,
     TrainingBinding,
     TrainingLoop,
+    TrainingRenderer,
     TrainingRuntime,
     verl_grpo_settings_problem,
     verl_training_loop_problem,
 )
+from posttrain.train.adaptive_curriculum import CURRICULUM_SNAPSHOT_NAME
 from posttrain.train.api import _distillation_backend, _grpo_backend, _sampo_backend
 from posttrain.train.backends.verl.contracts import VerlLaunchManifest, VerlWorkerResult
+from posttrain.train.backends.verl.curriculum import (
+    CURRICULUM_JOURNAL_NAME,
+    PosttrainCurriculumSelector,
+    SelectorConfig,
+    final_snapshot_from_checkpoint,
+    replay_curriculum_journal,
+)
 from posttrain.train.backends.verl.launcher import (
     _backend_result,
     _isolated_environment,
+    _publish_curriculum_state,
     _record_failure_artifacts,
     _record_failure_artifacts_best_effort,
     _record_trace_sync_receipt,
@@ -76,18 +88,20 @@ from posttrain.train.backends.verl.metrics import (
 from posttrain.train.backends.verl.reward_fields import (
     shaped_rollout_reward,
     streaming_reward_extra_info,
-    training_response_mask,
 )
 from posttrain.train.backends.verl.worker import (
-    _TOKEN_CLIP_FORK_REVISIONS,
+    CURRICULUM_SELECTOR_CONFIG,
     _last_metrics,
     _uses_turboquant,
     _write_agent_config,
+    _write_curriculum_selector_config,
     _write_dataset,
     build_hydra_overrides,
 )
 from posttrain.train.online_rl import BehaviorPolicySpan, EnvironmentRollout
+from posttrain.train.policy_messages import parsed_policy_message
 from posttrain.train.profiles import shape_online_reward
+from posttrain.train.rendering import create_renderer_config, renderer_config_from_spec, renderer_config_spec
 from pydantic import ValidationError
 
 
@@ -154,7 +168,11 @@ def _target(identifier: str) -> ExecutionTarget:
 
 
 def _training(*, family: str = "qwen3.5", update=None) -> TrainingBinding:
-    renderer = QWEN35_RENDERER if family == "qwen3.5" else LFM25_RENDERER
+    renderer = {
+        "qwen3.5": QWEN35_RENDERER,
+        "lfm2.5": LFM25_RENDERER,
+        "nanbeige4.2": TrainingRenderer("nanbeige4.2-off-v1", "nanbeige4.2", "default", "off"),
+    }[family]
     return TrainingBinding(
         "training/verl-test@1",
         "1",
@@ -172,7 +190,7 @@ def _training(*, family: str = "qwen3.5", update=None) -> TrainingBinding:
         backend_options={
             "python_executable": "/opt/posttrain-verl/bin/python",
             "working_directory": "/opt/src/verl",
-            "source_revision": "a35908ca3c9632859c58d6a2855d858918ae21dc",
+            "source_revision": "ce8e0430018204b03c009b72bfba3b58968696c7",
             "attention_implementation": "sdpa",
         },
     )
@@ -284,8 +302,16 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
 
     renderers = ModuleType("renderers")
     renderer_configs: list[object] = []
-    renderers.__dict__["Qwen35RendererConfig"] = lambda *, enable_thinking: {"enable_thinking": enable_thinking}
-    renderers.__dict__["DefaultRendererConfig"] = lambda: {"default": True}
+    for name in (
+        "Qwen35RendererConfig",
+        "DefaultRendererConfig",
+        "LFM25RendererConfig",
+        "K2HorizonRendererConfig",
+        "Nanbeige42RendererConfig",
+        "Spark25RendererConfig",
+        "Gemma4RendererConfig",
+    ):
+        renderers.__dict__[name] = lambda *, _name=name, **kwargs: {_name: kwargs}
     renderers.__dict__["create_renderer"] = lambda tokenizer, config: (renderer_configs.append(config), FakeRenderer())[
         1
     ]
@@ -307,14 +333,32 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
 
     agent_loop = importlib.import_module(module_name)
     server = ServerManager()
-    generator = agent_loop.VerlPolicyGenerator(server, object(), enable_thinking=False)
-    agent_loop.VerlPolicyGenerator(
+    generator = agent_loop.VerlPolicyGenerator(
         server,
         object(),
-        enable_thinking=False,
-        renderer_implementation="default",
+        renderer={
+            "config": "qwen3.5",
+            "config_kwargs": {"enable_thinking": False},
+            "chat_template": None,
+            "tool_call_protocol": None,
+        },
     )
-    assert renderer_configs == [{"enable_thinking": False}, {"default": True}]
+    tokenizer = SimpleNamespace(chat_template="tokenizer template")
+    agent_loop.VerlPolicyGenerator(
+        server,
+        tokenizer,
+        renderer={
+            "config": "lfm2.5",
+            "config_kwargs": {},
+            "chat_template": "package template",
+            "tool_call_protocol": {"id": "lfm2_pythonic", "start_token": "<a>", "end_token": "</a>"},
+        },
+    )
+    assert renderer_configs == [
+        {"Qwen35RendererConfig": {"enable_thinking": False}},
+        {"LFM25RendererConfig": {}},
+    ]
+    assert tokenizer.chat_template == "package template"
     sampling = PolicySampling(
         max_tokens=32,
         temperature=0.7,
@@ -389,6 +433,120 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
     sys.modules.pop(module_name, None)
 
 
+def test_verl_policy_generator_recovers_lfm25_python_calls_like_trl(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LFM2.5 emits a Python call list; both backends recover it through the model's protocol."""
+
+    module_name = "posttrain.train.backends.verl.agent_loop"
+    monkeypatch.delitem(sys.modules, module_name, raising=False)
+    for package in ("verl", "verl.experimental", "verl.experimental.agent_loop"):
+        module = ModuleType(package)
+        module.__path__ = []  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, package, module)
+    verl_agent_loop = ModuleType("verl.experimental.agent_loop.agent_loop")
+    for name in ("AgentLoopBase", "AgentLoopMetrics", "AgentLoopOutput"):
+        verl_agent_loop.__dict__[name] = object
+    monkeypatch.setitem(sys.modules, "verl.experimental.agent_loop.agent_loop", verl_agent_loop)
+    content = '<|tool_call_start|>[lookup(query="rl", limit=2)]<|tool_call_end|>'
+    real_renderers = pytest.importorskip("renderers")
+
+    class FakeRenderer:
+        def render(self, messages, *, tools, add_generation_prompt):
+            return SimpleNamespace(token_ids=(1, 2), message_token_spans=lambda: ((0, 2),), is_content=(True, True))
+
+        def bridge_to_next_turn(self, prompt_ids, completion_ids, new_messages, *, tools):
+            # Prefix (1, 2, 3, 4) retained; the tool result and generation prompt follow.
+            assert (prompt_ids, completion_ids) == ([1, 2], [3, 4])
+            assert [message["role"] for message in new_messages] == ["tool"]
+            return SimpleNamespace(
+                token_ids=(1, 2, 3, 4, 7, 8, 9),
+                message_indices=[-1, -1, -1, -1, 0, 0, -1],
+                message_roles=["tool"],
+                is_content=(True,) * 7,
+            )
+
+        def parse_response(self, token_ids, *, tools):
+            return SimpleNamespace(content=content, reasoning_content="think", tool_calls=())
+
+        def get_stop_token_ids(self):
+            return (4,)
+
+    renderers = ModuleType("renderers")
+    for name in (
+        "Qwen35RendererConfig",
+        "DefaultRendererConfig",
+        "LFM25RendererConfig",
+        "K2HorizonRendererConfig",
+        "Nanbeige42RendererConfig",
+        "Spark25RendererConfig",
+        "Gemma4RendererConfig",
+    ):
+        renderers.__dict__[name] = lambda **kwargs: kwargs
+    renderers.__dict__["create_renderer"] = lambda tokenizer, config: FakeRenderer()
+    renderers.__dict__["RenderedTokens"] = real_renderers.RenderedTokens
+    monkeypatch.setitem(sys.modules, "renderers", renderers)
+
+    class ServerManager:
+        async def generate(self, **kwargs):
+            return SimpleNamespace(token_ids=(3, 4), log_probs=(-0.1, -0.2), extra_fields={})
+
+    protocol = LFM_25_12B_THINKING.conversation.tool_calls
+    assert protocol is not None
+    agent_loop = importlib.import_module(module_name)
+    generator = agent_loop.VerlPolicyGenerator(
+        ServerManager(),
+        SimpleNamespace(chat_template=None),
+        renderer={
+            "config": "lfm2.5",
+            "config_kwargs": {},
+            "chat_template": None,
+            "tool_call_protocol": {
+                "id": protocol.id,
+                "start_token": protocol.start_token,
+                "end_token": protocol.end_token,
+            },
+        },
+    )
+    tools = ({"type": "function", "function": {"name": "lookup", "parameters": {"type": "object"}}},)
+    sampling = PolicySampling(max_tokens=32, temperature=1.0, top_p=1.0, top_k=0)
+    result = asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(messages=({"role": "user", "content": "find"},), tools=tools, sampling=sampling)
+        )
+    )
+
+    expected = parsed_policy_message(
+        SimpleNamespace(content=content, reasoning_content="think", tool_calls=()),
+        (3, 4),
+        None,
+        tool_call_protocol=protocol,
+        tools=[dict(tool) for tool in tools],
+    )
+    assert result.message == expected
+    assert result.message["tool_calls"] == [{"id": "call_0", "name": "lookup", "arguments": '{"query":"rl","limit":2}'}]
+    assert result.finish_reason == "tool_calls"
+
+    # A bridged turn reports spans over the full message list, as on TRL.
+    messages = (
+        {"role": "user", "content": "find"},
+        {"role": "assistant", "content": content},
+        {"role": "tool", "content": "result"},
+    )
+    bridged = asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=messages,
+                tools=tools,
+                sampling=sampling,
+                previous_prompt_ids=(1, 2),
+                previous_completion_ids=(3, 4),
+                tail_start=2,
+            )
+        )
+    )
+    assert bridged.prompt_message_spans == (None, None, (4, 6))
+    sys.modules.pop(module_name, None)
+
+
 def test_verl_policy_generator_reports_bridged_spans_over_the_full_message_list(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -427,8 +585,16 @@ def test_verl_policy_generator_reports_bridged_spans_over_the_full_message_list(
             return (6,)
 
     renderers = ModuleType("renderers")
-    renderers.__dict__["Qwen35RendererConfig"] = lambda **kwargs: kwargs
-    renderers.__dict__["DefaultRendererConfig"] = lambda **kwargs: kwargs
+    for name in (
+        "Qwen35RendererConfig",
+        "DefaultRendererConfig",
+        "LFM25RendererConfig",
+        "K2HorizonRendererConfig",
+        "Nanbeige42RendererConfig",
+        "Spark25RendererConfig",
+        "Gemma4RendererConfig",
+    ):
+        renderers.__dict__[name] = lambda **kwargs: kwargs
     renderers.__dict__["create_renderer"] = lambda tokenizer, config: FakeRenderer()
     renderers.__dict__["RenderedTokens"] = real_renderers.RenderedTokens
     monkeypatch.setitem(sys.modules, "renderers", renderers)
@@ -438,7 +604,16 @@ def test_verl_policy_generator_reports_bridged_spans_over_the_full_message_list(
             return SimpleNamespace(token_ids=(5, 6), log_probs=(-0.1, -0.2), extra_fields={})
 
     agent_loop = importlib.import_module(module_name)
-    generator = agent_loop.VerlPolicyGenerator(ServerManager(), object(), enable_thinking=False)
+    generator = agent_loop.VerlPolicyGenerator(
+        ServerManager(),
+        object(),
+        renderer={
+            "config": "qwen3.5",
+            "config_kwargs": {"enable_thinking": False},
+            "chat_template": None,
+            "tool_call_protocol": None,
+        },
+    )
     messages = (
         {"role": "user", "content": "find"},
         {"role": "assistant", "content": "calling"},
@@ -487,6 +662,11 @@ def test_qwen35_grpo_translation_is_deterministic_and_backend_neutral(tmp_path: 
         "id": "qwen3.5-off-v1",
         "implementation": "qwen3.5",
         "reasoning_mode": "off",
+        "model_family": "qwen3.5",
+        "config": "qwen3.5",
+        "config_kwargs": {"enable_thinking": False},
+        "chat_template": None,
+        "tool_call_protocol": {"id": "qwen3_xml", "start_token": "<tool_call>", "end_token": "</tool_call>"},
     }
     assert first.payload.environment.examples[0].id == "train/000000"
     assert first.command[0] == "/opt/posttrain-verl/bin/python"
@@ -612,7 +792,6 @@ def test_verl_worker_uses_the_per_device_batch_as_its_micro_batch(
 @pytest.mark.parametrize(
     ("changes", "message"),
     [
-        ({"lr_scheduler_type": "linear"}, "lr_scheduler_type 'linear' is not available on the veRL backend"),
         ({"logging_steps": 2}, "logging_steps 2 is not available on the veRL backend"),
         (
             {"per_device_batch_size": 2, "gradient_accumulation_steps": 1},
@@ -651,7 +830,6 @@ def test_grpo_worker_maps_bounded_rollout_execution_to_native_verl(
         request.training,
         backend_options={
             **request.training.backend_options,
-            "source_revision": "5dbf667c99b29db613d1dfcded1ed90440ef6311",
             "rollout_execution": {
                 "env_workers": 4,
                 "episodes_per_worker": 8,
@@ -673,7 +851,9 @@ def test_grpo_worker_maps_bounded_rollout_execution_to_native_verl(
     assert "actor_rollout_ref.rollout.agent.num_cpus_per_worker=1" in overrides
     assert "actor_rollout_ref.rollout.agent.max_concurrent_episodes=32" in overrides
     assert "actor_rollout_ref.rollout.agent.max_concurrent_episodes_per_worker=8" in overrides
-    assert "trainer.v1.sampler.refill_all_failed_groups=True" in overrides
+    # GRPO follows TRL's group admission (retry, then drop) instead of refilling failed groups.
+    assert "trainer.v1.sampler.refill_all_failed_groups=True" not in overrides
+    assert "trainer.v1.sampler.failed_group_attempts=3" in overrides
 
 
 def test_grpo_worker_rejects_rollout_capacity_above_environment_limit(
@@ -714,6 +894,8 @@ def test_grpo_worker_rejects_bounded_execution_on_legacy_verl_revision(
         request.training,
         backend_options={
             **request.training.backend_options,
+            "source_revision": "a35908ca3c9632859c58d6a2855d858918ae21dc",
+            "source_dirty": True,
             "rollout_execution": {
                 "env_workers": 4,
                 "episodes_per_worker": 8,
@@ -779,6 +961,10 @@ def test_verl_checkpoint_steps_zero_keeps_only_terminal_model_save(
 
 POST5_REVISION = "9fd6e7a31396ba33a29233cc869ab05b0a9e5a80"
 POST4_REVISION = "54124edfb8d0b73694696400cf07a76a14d9be65"
+# codex/vortex-active-sampling: post5 plus round-based active sampling (unreleased).
+ACTIVE_SAMPLING_REVISION = "6c7295cd411c4d3973ddc206e43816560c842336"
+# codex/vortex-active-sampling with every TRL-equivalence delta (unreleased).
+FULL_REVISION = "ce8e0430018204b03c009b72bfba3b58968696c7"
 
 
 def _with_revision(request, revision: str, **options: object):
@@ -882,7 +1068,14 @@ def _pinned_verl_revision() -> str:
     return tomllib.loads(profile.read_text(encoding="utf-8"))["fork_revision"]
 
 
-@pytest.mark.parametrize("operation", ["gdpo", "capo", "olmo3"])
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "gdpo",
+        "capo",
+        "olmo3",
+    ],
+)
 def test_pinned_verl_fork_registers_every_native_name_posttrain_requests(monkeypatch, tmp_path, operation):
     from posttrain.train.backends.verl.worker import fork_native_names, requested_fork_native_names
 
@@ -898,19 +1091,109 @@ def test_pinned_verl_fork_registers_every_native_name_posttrain_requests(monkeyp
     # Ask for the names with the gate lifted, then require the pinned fork to register them.
     requested = requested_fork_native_names(
         build_hydra_overrides(
-            VerlLaunchManifest.model_validate({**manifest.model_dump(), "backend_source_revision": POST5_REVISION}),
+            VerlLaunchManifest.model_validate({**manifest.model_dump(), "backend_source_revision": FULL_REVISION}),
             tmp_path / "data",
             tmp_path / "agent",
             tmp_path / "checkpoints",
         )
     )
-    assert requested == {"token_clip", "k3_unclipped"}
+    expected = {"token_clip", "k3_unclipped"} | (
+        {"active_sampling", "trl_sampler_correction"} if operation == "olmo3" else set()
+    )
+    assert requested == expected
     assert requested <= fork_native_names(revision), f"pinned veRL {revision} lacks {sorted(requested)}"
 
 
-def test_verl_rejects_sampo_without_active_sampling(tmp_path):
-    with pytest.raises(ValueError, match="VORTEX active sampling"):
-        build_sampo_launch_plan(_sampo_request(), tmp_path)
+SAMPO_REVISION = FULL_REVISION
+
+
+def _verl_sampo_request(revision: str = SAMPO_REVISION, **changes: object):
+    request = _with_revision(_sampo_request(), revision)
+    loop = replace(request.settings.loop, lr_scheduler_type="constant")
+    return replace(request, settings=replace(request.settings, loop=loop, **changes))
+
+
+def test_verl_maps_sampo_to_trl_semantics(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    request = _verl_sampo_request(beta=0.005, truncation_penalty=0.2)
+    plan = build_sampo_launch_plan(request, tmp_path)
+    overrides = build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+
+    for expected in (
+        "algorithm.adv_estimator=sampo",
+        "actor_rollout_ref.actor.policy_loss.loss_mode=sequence_clip",
+        "actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean",
+        "actor_rollout_ref.actor.clip_ratio_low=0.003",
+        "actor_rollout_ref.actor.clip_ratio_high=0.004",
+        "actor_rollout_ref.actor.kl_loss_type=k3_unclipped",
+        "actor_rollout_ref.actor.kl_loss_coef=0.005",
+        "algorithm.sampo.discount_gamma=0.95",
+        "algorithm.sampo.step_advantage_weight=1.0",
+        "algorithm.sampo.advantage_normalization=mean",
+        "algorithm.rollout_correction.rollout_is=token",
+        "algorithm.rollout_correction.rollout_is_threshold=2.0",
+        "algorithm.rollout_correction.bypass_mode=false",
+        "algorithm.active_sampling.enable=true",
+        "algorithm.active_sampling.max_candidate_batches=3",
+    ):
+        assert expected in overrides
+    assert not any(value.startswith("algorithm.norm_adv_by_std_in_grpo") for value in overrides)
+
+    _write_agent_config(plan.payload, tmp_path / "agent.json")
+    config = json.loads((tmp_path / "agent.json").read_text())[0]
+    assert config["emit_sampo_metadata"] is True and config["truncation_penalty"] == 0.2
+
+
+def test_verl_sampo_maps_the_curriculum_and_sequence_correction(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    request = _verl_sampo_request(
+        importance_sampling_mode="sequence_truncate",
+        importance_sampling_clip_max=3.0,
+        adaptive_curriculum=AdaptiveCurriculum(class_field="category"),
+    )
+    plan = build_sampo_launch_plan(request, tmp_path)
+    overrides = build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+    assert "algorithm.rollout_correction.rollout_is=sequence" in overrides
+    assert "algorithm.rollout_correction.rollout_is_threshold=3.0" in overrides
+    assert any(value.startswith("data.prompt_selector.class_path=") for value in overrides)
+
+
+@pytest.mark.parametrize(
+    ("changes", "expected"),
+    [
+        ({"mask_truncated_completions": True}, ["algorithm.exclude_flagged_rows=true"]),
+        # TRL makes one admission attempt under active sampling and refills the group instead.
+        ({"max_admission_attempts": 2}, ["algorithm.active_sampling.enable=true"]),
+        (
+            {"importance_sampling_mode": "token_mask", "importance_sampling_clip_min": 0.5},
+            ["algorithm.rollout_correction.rollout_is_threshold='0.5_2.0'"],
+        ),
+        ({"importance_sampling_clip_min": 0.5}, ["algorithm.rollout_correction.rollout_is_clip_min=0.5"]),
+    ],
+)
+def test_verl_maps_every_sampo_setting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, changes: dict[str, object], expected: list[str]
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    plan = build_sampo_launch_plan(_verl_sampo_request(SAMPO_REVISION, **changes), tmp_path)
+    overrides = build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+    for value in expected:
+        assert value in overrides
+    assert not any("failed_group_attempts" in value for value in overrides)
+
+
+def test_verl_sampo_requires_a_fork_with_its_objective(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    with pytest.raises(ValueError, match="has no round-based active sampling"):
+        build_sampo_launch_plan(_verl_sampo_request(POST5_REVISION), tmp_path)
+    plan = build_sampo_launch_plan(_verl_sampo_request(), tmp_path)
+    older = VerlLaunchManifest.model_validate(
+        {**plan.model_dump(), "backend_source_revision": ACTIVE_SAMPLING_REVISION}
+    )
+    with pytest.raises(ValueError, match="does not register sequence_clip"):
+        build_hydra_overrides(older, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
 
 
 def test_verl_dapo_uses_core_trainer_and_maps_all_dynamic_sampling_controls(
@@ -939,46 +1222,94 @@ def test_verl_dapo_uses_core_trainer_and_maps_all_dynamic_sampling_controls(
     assert "actor_rollout_ref.actor.clip_ratio_high=0.28" in overrides
     assert "data.gen_batch_size=1" in overrides
     assert "algorithm.filter_groups.enable=true" in overrides
-    assert "algorithm.filter_groups.metric=seq_reward" in overrides
+    assert "algorithm.filter_groups.metric=group_reward" in overrides
     assert "algorithm.filter_groups.max_num_gen_batches=7" in overrides
 
 
 def _olmo3_settings(settings: GRPOSettings, **changes: object) -> GRPOSettings:
-    return replace(
-        settings,
-        algorithm="olmo3",
-        advantage_scaling="none",
-        importance_sampling_mode="token_truncate",
-        importance_sampling_clip_min=None,
-        importance_sampling_clip_max=2.0,
-        active_sampling=ActiveGroupSampling(max_candidate_batches=4),
-        **changes,
+    values: dict[str, object] = {
+        "algorithm": "olmo3",
+        "advantage_scaling": "none",
+        "importance_sampling_mode": "token_truncate",
+        "importance_sampling_clip_min": None,
+        "importance_sampling_clip_max": 2.0,
+        "active_sampling": ActiveGroupSampling(max_candidate_batches=4),
+    }
+    values.update(changes)
+    return replace(settings, **values)
+
+
+def _olmo3_request(*, max_num_seqs: int | None = None, **changes: object) -> GRPORequest:
+    request = _with_revision(_grpo_request(), FULL_REVISION)
+    if max_num_seqs is not None:
+        engine = {**request.inference.engine, "max_num_seqs": max_num_seqs}
+        request = replace(request, inference=replace(request.inference, engine=engine))
+    return replace(request, settings=_olmo3_settings(request.settings, **changes))
+
+
+def _olmo3_manifest(tmp_path: Path, *, max_num_seqs: int | None = None, **changes: object) -> VerlLaunchManifest:
+    return build_grpo_launch_plan(_olmo3_request(max_num_seqs=max_num_seqs, **changes), tmp_path)
+
+
+def test_verl_accepts_olmo3_and_maps_its_active_sampling(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    oversampled = ActiveGroupSampling(max_candidate_batches=6, oversample=1, oversample_refill=2)
+    with pytest.raises(ValueError, match="needs 4 concurrent episodes for the first round"):
+        _olmo3_manifest(tmp_path, active_sampling=oversampled)
+    manifest = _olmo3_manifest(tmp_path, max_num_seqs=4, active_sampling=oversampled)
+    algorithm = manifest.payload.algorithm
+    assert (algorithm.active_sampling, algorithm.active_sampling_max_candidate_batches) == (True, 6)
+    assert (algorithm.active_sampling_oversample, algorithm.active_sampling_oversample_refill) == (1, 2)
+
+    overrides = build_hydra_overrides(manifest, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+
+    for expected in (
+        "algorithm.active_sampling.enable=true",
+        "algorithm.active_sampling.max_candidate_batches=6",
+        "algorithm.active_sampling.oversample=1",
+        "algorithm.active_sampling.oversample_refill=2",
+        "algorithm.active_sampling.reward_std_epsilon=0.0",
+        "algorithm.active_sampling.metric=group_reward",
+    ):
+        assert expected in overrides
+    assert not any(value.startswith("algorithm.filter_groups.") for value in overrides)
+
+
+def test_verl_olmo3_requires_a_fork_revision_with_active_sampling(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    post5 = VerlLaunchManifest.model_validate(
+        {**_olmo3_manifest(tmp_path).model_dump(), "backend_source_revision": POST5_REVISION}
     )
 
-
-def _olmo3_manifest(tmp_path: Path, **changes: object) -> VerlLaunchManifest:
-    """An OLMo 3 manifest built from the launcher's own objective mapping.
-
-    The launcher still rejects OLMo 3 because veRL lacks active sampling (Phase 2 of
-    docs/plan/verl-vortex-port.md); the objective mapping is exercised directly.
-    """
-
-    request = _grpo_request()
-    revision = next(iter(_TOKEN_CLIP_FORK_REVISIONS))
-    training = replace(
-        request.training, backend_options={**request.training.backend_options, "source_revision": revision}
-    )
-    plan = build_grpo_launch_plan(replace(request, training=training), tmp_path)
-    data = plan.model_dump()
-    data["payload"]["algorithm"] = grpo_algorithm_payload(_olmo3_settings(request.settings, **changes))
-    return VerlLaunchManifest.model_validate(data)
+    with pytest.raises(ValueError, match=f"{POST5_REVISION} does not register active_sampling"):
+        build_hydra_overrides(post5, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
 
 
-def test_verl_rejects_olmo3_until_active_sampling_exists(tmp_path: Path) -> None:
-    request = _grpo_request()
+@pytest.mark.parametrize(
+    "override",
+    ["algorithm.active_sampling.enable=false", "+algorithm.active_sampling.oversample=9"],
+)
+def test_verl_backend_options_cannot_replace_active_sampling(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, override: str
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    data = _olmo3_manifest(tmp_path).model_dump()
+    data["payload"]["training"]["backend_options"]["hydra_overrides"] = [override]
 
-    with pytest.raises(ValueError, match="active sampling, which the veRL backend does not provide yet"):
-        build_grpo_launch_plan(replace(request, settings=_olmo3_settings(request.settings)), tmp_path)
+    with pytest.raises(ValueError, match="cannot replace selected"):
+        build_hydra_overrides(
+            VerlLaunchManifest.model_validate(data), tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c"
+        )
+
+
+def test_verl_olmo3_manifest_requires_active_sampling(tmp_path: Path) -> None:
+    data = _olmo3_manifest(tmp_path).model_dump()
+    data["payload"]["algorithm"]["active_sampling"] = None
+
+    with pytest.raises(ValidationError, match="fixed objective settings"):
+        VerlLaunchManifest.model_validate(data)
 
 
 def test_verl_maps_the_olmo3_objective_to_native_token_clip_and_rollout_correction(
@@ -1017,7 +1348,10 @@ def test_verl_olmo3_requires_a_fork_revision_with_token_clip(monkeypatch: pytest
     manifest = _olmo3_manifest(tmp_path)
     legacy = VerlLaunchManifest.model_validate({**manifest.model_dump(), "backend_source_revision": "a" * 40})
 
-    with pytest.raises(ValueError, match="does not register k3_unclipped, token_clip, which the grpo objective"):
+    with pytest.raises(
+        ValueError,
+        match="does not register active_sampling, k3_unclipped, token_clip, trl_sampler_correction, which the grpo",
+    ):
         build_hydra_overrides(legacy, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
 
 
@@ -1029,21 +1363,101 @@ def test_verl_olmo3_manifest_rejects_a_changed_recipe(tmp_path: Path) -> None:
         VerlLaunchManifest.model_validate(data)
 
 
-def test_verl_grpo_keeps_its_historical_advantage_and_correction_mapping(
+def test_verl_grpo_maps_trl_grpo_semantics(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """GRPO defaults on veRL are TRL's: sequence-truncated correction [0.1, 3], group std + 1e-4."""
+
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    plan = build_grpo_launch_plan(_grpo_request(), tmp_path)
+    overrides = build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+
+    for expected in (
+        "actor_rollout_ref.actor.policy_loss.loss_mode=token_clip",
+        "actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean",
+        "actor_rollout_ref.actor.kl_loss_type=k3_unclipped",
+        "algorithm.norm_adv_by_std_in_grpo=true",
+        "algorithm.grpo_std_epsilon=0.0001",
+        "algorithm.grpo_std_scope=group",
+        "algorithm.rollout_correction.rollout_is=sequence",
+        "algorithm.rollout_correction.rollout_is_threshold=3.0",
+        "algorithm.rollout_correction.rollout_is_clip_min=0.1",
+        "algorithm.rollout_correction.rollout_is_log_ratio_bound=null",
+        "trainer.v1.sampler.failed_group_attempts=3",
+    ):
+        assert expected in overrides
+    assert "algorithm.exclude_flagged_rows=true" not in overrides
+
+
+@pytest.mark.parametrize(
+    ("changes", "expected"),
+    [
+        ({"advantage_scaling": "batch"}, ["algorithm.grpo_std_scope=batch"]),
+        ({"advantage_scaling": "none"}, ["algorithm.norm_adv_by_std_in_grpo=false"]),
+        (
+            {"importance_sampling_mode": "token_mask", "importance_sampling_clip_min": 0.5},
+            [
+                "algorithm.rollout_correction.rollout_is=token",
+                "algorithm.rollout_correction.rollout_is_threshold='0.5_3.0'",
+            ],
+        ),
+        (
+            {"importance_sampling_mode": "sequence_mask", "importance_sampling_clip_min": None},
+            ["algorithm.rollout_correction.rollout_is_threshold='1e-300_3.0'"],
+        ),
+        (
+            {"importance_sampling_mode": "token_truncate", "importance_sampling_clip_max": None},
+            ["algorithm.rollout_correction.rollout_is_threshold=inf"],
+        ),
+        ({"mask_truncated_completions": True}, ["algorithm.exclude_flagged_rows=true"]),
+        ({"max_admission_attempts": 1}, ["trainer.v1.sampler.failed_group_attempts=1"]),
+    ],
+)
+def test_verl_grpo_maps_every_trl_setting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, changes: dict[str, object], expected: list[str]
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    request = _grpo_request()
+    plan = build_grpo_launch_plan(replace(request, settings=replace(request.settings, **changes)), tmp_path)
+    overrides = build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+    for value in expected:
+        assert value in overrides
+
+
+def test_verl_dapo_runs_trl_candidate_batches_with_batch_scaling_and_curriculum(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
-    plan = build_grpo_launch_plan(_grpo_request(), tmp_path)
-    data = plan.model_dump()
-    data["payload"]["algorithm"]["rollout_importance_sampling"] = "token"
-    with pytest.raises(ValidationError, match="only for OLMo 3"):
-        VerlLaunchManifest.model_validate(data)
-
+    request = _grpo_request()
+    settings = replace(
+        request.settings,
+        algorithm="dapo",
+        clip_epsilon_high=0.28,
+        dynamic_sampling=DynamicGroupSampling(max_candidate_batches=3),
+        advantage_scaling="batch",
+        adaptive_curriculum=AdaptiveCurriculum(class_field="category"),
+    )
+    plan = build_grpo_launch_plan(replace(request, settings=settings), tmp_path)
     overrides = build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
-    assert "actor_rollout_ref.actor.kl_loss_type=low_var_kl" in overrides
-    assert "actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean" in overrides
-    assert not any(value.startswith("algorithm.rollout_correction") for value in overrides)
-    assert not any(value.startswith("algorithm.norm_adv_by_std_in_grpo") for value in overrides)
+    for expected in (
+        "algorithm.filter_groups.enable=true",
+        "algorithm.filter_groups.candidate_batches=true",
+        "algorithm.filter_groups.metric=group_reward",
+        "algorithm.filter_groups.max_num_gen_batches=3",
+        "algorithm.grpo_std_scope=batch",
+        "actor_rollout_ref.actor.loss_agg_mode=token-mean",
+    ):
+        assert expected in overrides
+    assert any(value.startswith("data.prompt_selector.class_path=") for value in overrides)
+
+
+def test_verl_dapo_requires_a_fork_with_candidate_batches(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    request = _with_revision(_grpo_request(), "2607b91d3cccc9d73aae924734b5104bf8cfb590")
+    settings = replace(
+        request.settings, algorithm="dapo", clip_epsilon_high=0.28, dynamic_sampling=DynamicGroupSampling(3)
+    )
+    plan = build_grpo_launch_plan(replace(request, settings=settings), tmp_path)
+    with pytest.raises(ValueError, match="does not register candidate_batches"):
+        build_hydra_overrides(plan, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
 
 
 @pytest.mark.parametrize(
@@ -1114,31 +1528,6 @@ def test_verl_reward_shaping_is_the_trl_rule(algorithm: str, reward: float, toke
     assert shaped == shape_online_reward(settings, reward, tokens, is_truncated=truncated)
     if truncated and algorithm != "dapo":
         assert shaped == pytest.approx(reward - 0.2)
-
-
-@pytest.mark.parametrize(
-    ("changes", "message"),
-    [
-        (
-            {"adaptive_curriculum": AdaptiveCurriculum(class_field="category")},
-            "adaptive_curriculum is currently supported by the TRL backend only",
-        ),
-        ({"advantage_scaling": "batch"}, "advantage_scaling='batch' is currently supported by the TRL backend only"),
-        ({"advantage_scaling": "none"}, "advantage_scaling='none' is currently supported by the TRL backend only"),
-        ({"importance_sampling_mode": "token_mask"}, "importance_sampling_mode='token_mask'"),
-        ({"importance_sampling_clip_min": None}, "importance_sampling_clip_min=None"),
-        ({"importance_sampling_clip_max": 2.0}, "importance_sampling_clip_max=2.0"),
-        ({"max_admission_attempts": 1}, "max_admission_attempts=1 is currently supported by the TRL backend only"),
-    ],
-)
-def test_verl_rejects_grpo_settings_it_would_silently_ignore(
-    tmp_path: Path, changes: dict[str, object], message: str
-) -> None:
-    request = _grpo_request()
-    settings = replace(request.settings, **changes)  # type: ignore[arg-type]
-
-    with pytest.raises(ValueError, match=re.escape(message)):
-        build_grpo_launch_plan(replace(request, settings=settings), tmp_path)
 
 
 def test_verl_grpo_settings_problem_accepts_the_defaults() -> None:
@@ -1741,43 +2130,98 @@ def test_verl_agent_loop_honors_selected_reasoning_mode(tmp_path: Path) -> None:
     _write_agent_config(payload, path)
 
     config = json.loads(path.read_text(encoding="utf-8"))
-    assert config[0]["enable_thinking"] is True
-    assert config[0]["renderer_implementation"] == "qwen3.5"
+    assert config[0]["renderer"]["config"] == "qwen3.5"
+    assert config[0]["renderer"]["config_kwargs"] == {"enable_thinking": True}
+    assert config[0]["renderer"]["chat_template"] is None
+    assert "enable_thinking" not in config[0]
 
 
 def test_verl_streaming_reward_exposes_dynamic_filter_metric() -> None:
-    assert streaming_reward_extra_info(
-        task_reward=0.75,
-        algorithm_reward=0.5,
-    ) == {
+    assert streaming_reward_extra_info(task_reward=0.75, algorithm_reward=0.5) == {
         "seq_reward": 0.5,
         "task_reward": 0.75,
+        "group_reward": 0.5,
     }
 
 
-def test_sampo_rejects_masked_truncation_for_bounded_replacement() -> None:
-    with pytest.raises(RuntimeError, match="SAMPO requires replacement"):
-        training_response_mask(
-            (True, True, False),
-            is_truncated=True,
-            mask_truncated_completions=True,
-            requires_complete_group=True,
-        )
+def test_masked_truncated_rows_carry_nan_group_reward_like_trl() -> None:
+    fields = streaming_reward_extra_info(task_reward=0.75, algorithm_reward=0.5, excluded=True)
+    assert math.isnan(fields["group_reward"])
+    assert fields["seq_reward"] == 0.5  # the curriculum still observes the reward, as TRL's hook does
 
 
-def test_non_sampo_truncation_remains_fully_masked() -> None:
-    assert training_response_mask(
-        (True, True, False),
-        is_truncated=True,
-        mask_truncated_completions=True,
-        requires_complete_group=False,
-    ) == [0, 0, 0]
-
-
-def test_verl_preflight_rejects_models_outside_current_qwen35_qualification(tmp_path: Path) -> None:
-    request = _grpo_request(model=LFM_25_12B_THINKING, family="lfm2.5")
-    with pytest.raises(ValueError, match="currently qualifies only qwen3.5"):
+def test_verl_preflight_rejects_models_outside_qualified_families(tmp_path: Path) -> None:
+    request = _grpo_request(model=NANBEIGE_42_3B, family="nanbeige4.2")
+    with pytest.raises(ValueError, match="currently qualifies only lfm2.5, qwen3.5"):
         build_grpo_launch_plan(request, tmp_path)
+
+
+def test_verl_resolves_the_lfm25_renderer_exactly_as_trl(tmp_path: Path) -> None:
+    request = _grpo_request(model=LFM_25_12B_THINKING, family="lfm2.5", update=LoRAUpdate(rank=4, alpha=8))
+    payload = build_grpo_launch_plan(request, tmp_path).payload
+    renderer = payload.training.renderer
+
+    assert payload.policy is not None and payload.policy.family == "lfm2.5"
+    assert renderer.model_family == "lfm2.5"
+    assert renderer.config == "lfm2.5"
+    assert renderer.config_kwargs == {}
+    # The package template replaces the tokenizer's, as TrlPolicyGenerator does.
+    assert renderer.chat_template == LFM_25_12B_THINKING.conversation.chat_template.text()
+    assert renderer.chat_template is not None and "<|tool_call_start|>" in renderer.chat_template
+    assert renderer.tool_call_protocol is not None
+    assert renderer.tool_call_protocol.model_dump() == {
+        "id": "lfm2_pythonic",
+        "start_token": "<|tool_call_start|>",
+        "end_token": "<|tool_call_end|>",
+    }
+    pytest.importorskip("renderers")
+    # The veRL agent loop rebuilds the very config the TRL backend builds.
+    trl_config = create_renderer_config(LFM_25_12B_THINKING, request.training.renderer)
+    assert renderer_config_from_spec(renderer.config, renderer.config_kwargs) == trl_config
+    assert type(trl_config).__name__ == "LFM25RendererConfig"
+
+    agent_config = tmp_path / "agent-loop.json"
+    _write_agent_config(payload, agent_config)
+    written = json.loads(agent_config.read_text(encoding="utf-8"))[0]["renderer"]
+    assert written["config"] == "lfm2.5"
+    assert written["chat_template"] == renderer.chat_template
+    assert written["tool_call_protocol"]["id"] == "lfm2_pythonic"
+
+
+@pytest.mark.parametrize(
+    ("model", "renderer"),
+    [
+        (QWEN_35_2B, QWEN35_RENDERER),
+        (QWEN_35_2B, QWEN35_THINKING_RENDERER),
+        (LFM_25_12B_THINKING, LFM25_RENDERER),
+    ],
+)
+def test_renderer_spec_rebuilds_the_trl_renderer_config(model, renderer) -> None:
+    pytest.importorskip("renderers")
+    assert renderer_config_from_spec(*renderer_config_spec(model, renderer)) == create_renderer_config(model, renderer)
+
+
+def test_verl_lfm25_lora_translation_targets_every_linear_projection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    request = _grpo_request(model=LFM_25_12B_THINKING, family="lfm2.5", update=LoRAUpdate(rank=4, alpha=8))
+    plan = build_grpo_launch_plan(request, tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/lfm25")
+
+    overrides = build_hydra_overrides(
+        plan,
+        tmp_path / "rollouts.parquet",
+        tmp_path / "agent-loop.json",
+        tmp_path / "checkpoints",
+    )
+    # PEFT "all-linear" on Lfm2ForCausalLM: attention q/k/v/out_proj, short
+    # convolution in_proj/out_proj and feed-forward w1/w2/w3, never the tied
+    # lm_head; the same selection the TRL backend adapts.
+    assert 'actor_rollout_ref.model.target_modules="all-linear"' in overrides
+    assert "actor_rollout_ref.model.lora_rank=4" in overrides
+    assert "actor_rollout_ref.model.use_remove_padding=False" in overrides
+    assert not any("use_fused_kernels" in item for item in overrides)
 
 
 def test_qwen35_distillation_translation_uses_native_exact_token_k1_loss(
@@ -2072,3 +2516,188 @@ def test_verl_worker_reads_a_development_checkout_with_git(monkeypatch: pytest.M
     (checkout / "patch.py").write_text("changed = True\n")
     with pytest.raises(RuntimeError, match="dirty state is True, expected False"):
         verl_worker._validate_runtime(_validated_manifest(tmp_path, checkout, revision, source_dirty=False))
+
+
+def test_verl_launcher_rejects_olmo3_on_a_fork_without_active_sampling(tmp_path: Path) -> None:
+    request = _with_revision(_olmo3_request(), POST5_REVISION)
+
+    with pytest.raises(ValueError, match=f"{POST5_REVISION} has no round-based active sampling"):
+        build_grpo_launch_plan(request, tmp_path)
+    # A dirty candidate checkout is identified by its content digest and not gated here.
+    build_grpo_launch_plan(_with_revision(_olmo3_request(), POST5_REVISION, source_dirty=True), tmp_path)
+
+
+SELECTOR_REVISION = FULL_REVISION
+ACTIVE_ONLY_REVISION = "6c7295cd411c4d3973ddc206e43816560c842336"
+CURRICULUM = AdaptiveCurriculum(class_field="domain", policy="yield_first", seed=7)
+
+
+class _CurriculumBridge(FakeBridge):
+    dataset = RolloutDataset(
+        "curriculum-rollouts-v1",
+        "a" * 40,
+        tuple(
+            RolloutExample(f"task/{index:02d}", f"Task {index}.", {"domain": "mail" if index % 2 else "crm"})
+            for index in range(8)
+        ),
+    )
+
+
+def _curriculum_request(revision: str = SELECTOR_REVISION, **changes):
+    request = _with_revision(_grpo_request(), revision)
+    settings = _olmo3_settings(
+        request.settings, adaptive_curriculum=CURRICULUM, active_sampling=ActiveGroupSampling(3), **changes
+    )
+    return replace(request, bridge=_CurriculumBridge(), settings=settings)
+
+
+def _curriculum_manifest(tmp_path: Path, revision: str = SELECTOR_REVISION) -> VerlLaunchManifest:
+    return build_grpo_launch_plan(_curriculum_request(revision), tmp_path)
+
+
+def test_curriculum_runs_as_the_fork_prompt_selector(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    manifest = _curriculum_manifest(tmp_path)
+    assert manifest.payload.algorithm.adaptive_curriculum is not None
+    assert manifest.payload.algorithm.adaptive_curriculum["policy"] == "yield_first"
+
+    overrides = build_hydra_overrides(manifest, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+    assert (
+        "data.prompt_selector.class_path=posttrain.train.backends.verl.curriculum.PosttrainCurriculumSelector"
+        in overrides
+    )
+    assert f'+data.prompt_selector.kwargs.config_path="{manifest.output_directory / CURRICULUM_SELECTOR_CONFIG}"' in (
+        overrides
+    )
+    assert "data.prompt_selector.metric=seq_reward" in overrides
+
+    _write_curriculum_selector_config(manifest)
+    config = SelectorConfig.read(manifest.output_directory / CURRICULUM_SELECTOR_CONFIG)
+    assert AdaptiveCurriculum(**config.settings) == CURRICULUM
+    assert config.num_generations == 2 and config.warm_start_state_dir is None
+
+
+def test_curriculum_requires_a_fork_revision_with_the_prompt_selector(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    manifest = VerlLaunchManifest.model_validate(
+        {**_curriculum_manifest(tmp_path).model_dump(), "backend_source_revision": ACTIVE_ONLY_REVISION}
+    )
+    with pytest.raises(ValueError, match="does not register prompt_selector"):
+        build_hydra_overrides(manifest, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+
+
+def test_backend_options_cannot_replace_the_prompt_selector(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    data = _curriculum_manifest(tmp_path).model_dump()
+    data["payload"]["training"]["backend_options"]["hydra_overrides"] = ["data.prompt_selector.class_path=null"]
+    with pytest.raises(ValueError, match="cannot replace selected"):
+        build_hydra_overrides(
+            VerlLaunchManifest.model_validate(data), tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c"
+        )
+
+
+def test_curriculum_dataset_is_never_cycled(tmp_path: Path) -> None:
+    pytest.importorskip("datasets")
+    payload = _curriculum_manifest(tmp_path).payload
+    small = payload.model_copy(
+        update={
+            "algorithm": payload.algorithm.model_copy(update={"num_prompts_per_step": 9}),
+        }
+    )
+    with pytest.raises(ValueError, match="at least one distinct task per prompt group"):
+        _write_dataset(small, tmp_path / "rollouts.parquet")
+
+
+def _curriculum_rows() -> list[dict[str, object]]:
+    return [{"example_id": f"task/{index:02d}", "domain": "mail" if index % 2 else "crm"} for index in range(8)]
+
+
+def _curriculum_selector(tmp_path: Path, name: str = "run") -> PosttrainCurriculumSelector:
+    config = SelectorConfig(
+        settings={"class_field": "domain", "policy": "yield_first", "seed": 7},
+        num_generations=2,
+        state_dir=tmp_path / name / "state",
+        journal_path=tmp_path / name / "journal.jsonl",
+    )
+    (tmp_path / name).mkdir(parents=True, exist_ok=True)
+    config.write(tmp_path / name / "selector.json")
+    return PosttrainCurriculumSelector(_curriculum_rows(), config_path=str(tmp_path / name / "selector.json"))
+
+
+def test_selector_returns_dataset_indices_and_checkpoints_the_controller(tmp_path: Path) -> None:
+    selector = _curriculum_selector(tmp_path)
+    first = selector.select(3, global_steps=1, stage="active_sampling_refill", round_index=1)
+    assert len(set(first)) == 3 and all(0 <= index < 8 for index in first)
+    selector.observe([(first[0], [0.0, 1.0]), (first[1], [1.0, 1.0])], global_steps=1)
+    second = selector.select(1, global_steps=1, stage="active_sampling_refill", round_index=2)
+    assert not set(second) & set(first)  # never repeats a task within one update
+
+    checkpoint = tmp_path / "global_step_1"
+    checkpoint.mkdir()
+    selector.save_checkpoint(str(checkpoint))
+    state = json.loads((checkpoint / CURRICULUM_SNAPSHOT_NAME).read_text())
+    assert state["decision_index"] == 2
+
+    resumed = _curriculum_selector(tmp_path, "resumed")
+    resumed.load_checkpoint(str(checkpoint))
+    assert resumed.runtime is not None and resumed.runtime.controller.decision_index == 2
+    selector.close()
+    resumed.close()
+
+
+def test_selector_ignores_groups_that_lost_trajectories(tmp_path: Path) -> None:
+    selector = _curriculum_selector(tmp_path)
+    chosen = selector.select(2, global_steps=1, stage="initial_batch", round_index=None)
+    selector.observe([(chosen[0], [1.0])], global_steps=1)
+    assert (
+        selector.runtime is not None
+        and selector.runtime.controller.task_reward(str(_curriculum_rows()[chosen[0]]["example_id"])) is None
+    )
+    selector.close()
+
+
+def test_journal_replays_events_and_metrics_and_state_is_published(tmp_path: Path) -> None:
+    observer = CaptureObserver()
+    context: RunContext = _context(tmp_path / "ctx", observer)
+    request = _curriculum_request()
+    output = tmp_path / "trainer"
+    output.mkdir()
+    config = SelectorConfig(
+        settings={"class_field": "domain", "policy": "yield_first", "seed": 7},
+        num_generations=2,
+        state_dir=output / "adaptive-curriculum",
+        journal_path=output / CURRICULUM_JOURNAL_NAME,
+    )
+    config.write(output / "selector.json")
+    selector = PosttrainCurriculumSelector(_curriculum_rows(), config_path=str(output / "selector.json"))
+    selector.select(2, global_steps=1, stage="active_sampling_refill", round_index=1)
+    checkpoint = output / "checkpoints" / "global_step_1"
+    checkpoint.mkdir(parents=True)
+    selector.save_checkpoint(str(checkpoint))
+    selector.close()
+    final_snapshot_from_checkpoint(checkpoint, output / "adaptive-curriculum")
+
+    assert replay_curriculum_journal(context, output / CURRICULUM_JOURNAL_NAME) >= 3
+    names = {name for batch in observer.metrics_seen for name in batch.values}
+    assert "train/rl/curriculum/candidate_groups" in names
+
+    observer.artifacts_seen.clear()
+    (output / CURRICULUM_JOURNAL_NAME).unlink()
+    _publish_curriculum_state(context, request, output)
+    (artifact,) = [item for item in observer.artifacts_seen if item.kind == "adaptive-curriculum-state"]
+    assert artifact.metadata["decision_count"] == 1
+    assert artifact.metadata["training_backend"] == "verl"
+
+
+def test_verl_online_rl_runs_record_their_trl_parity_semantics(tmp_path: Path) -> None:
+    from posttrain.train.backends.verl.launcher import _grpo_runtime_attributes
+
+    request = _grpo_request()
+    plan = build_grpo_launch_plan(request, tmp_path)
+    assert _grpo_runtime_attributes(request, plan)["verl_semantics"] == "trl-parity-v1"
+    sampo = _verl_sampo_request()
+    assert _grpo_runtime_attributes(sampo, build_sampo_launch_plan(sampo, tmp_path))["verl_semantics"] == (
+        "trl-parity-v1"
+    )
