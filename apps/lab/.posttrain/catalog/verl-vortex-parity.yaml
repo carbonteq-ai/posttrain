@@ -780,6 +780,47 @@ training:
       <<: *verl_lfm_options
       rollout_execution: {env_workers: 2, episodes_per_worker: 10, worker_native_threads: 1}
 
+  # Phase 6 Qwen3.5-0.8B pairs on the RTX PRO 6000: veRL pads every row to the
+  # prompt length plus the rollout context (4096 + 5120 tokens) without padding
+  # removal, which ran out of memory in the 8 GB actor update
+  # (verl-vortex-p6-qwen08b-verl-sampo-r1). Only the target changes.
+  training/qwen3.5-0.8b-trl-lora-parity-ws-g16@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post12
+    renderer: {id: qwen3.5-off-v1, model_family: qwen3.5, implementation: qwen3.5, reasoning_mode: "off"}
+    update: {kind: lora, rank: 8, alpha: 16, target_modules: ".*[.](o_proj|down_proj)$"}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 16, devices_per_node: 1, timeout_seconds: 7200}
+    backend_options:
+      rollout_execution: {env_workers: 2, episodes_per_worker: 10, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      training_precision: bf16
+      dependency_lock: trl-fork@current
+      source_revision: c4d0db051a7839fe1b1d587185fac33ba88c784f
+      dependency_lock_sha256: f18308d1af3fbfe72c9be17344762ae83dbbeaeb23a6d736767f166c763aed80
+
+  training/qwen3.5-0.8b-verl-lora-parity-ws-g16@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: verl@ef1c37715fa75de5973ae5b3c398383cd7e0093d
+    renderer: {id: qwen3.5-off-v1, model_family: qwen3.5, implementation: qwen3.5, reasoning_mode: "off"}
+    update: {kind: lora, rank: 8, alpha: 16, target_modules: ".*[.](o_proj|down_proj)$"}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 16
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: false
+      optimizer_offload: false
+      timeout_seconds: 7200
+    backend_options:
+      <<: *verl_lfm_options
+      rollout_execution: {env_workers: 2, episodes_per_worker: 10, worker_native_threads: 1}
+
 inference:
   inference/lfm2.5-1.2b-vllm-verl-check-local@1:
     revision: "1"
@@ -946,6 +987,60 @@ inference:
     model: models/lfm2.5-1.2b-thinking@bf16
     backend: vllm@0.29.1.dev4
     renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 5120
+      max_num_seqs: 20
+      max_num_batched_tokens: 4096
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 536870912
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/qwen3.5-0.8b-vllm-trl-parity-ws@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 5120
+      max_num_seqs: 20
+      max_num_batched_tokens: 4096
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 536870912
+      weight_sync_mode: lora
+      weight_name_prefix: language_model.
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/qwen3.5-0.8b-vllm-verl-parity-ws@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: qwen3.5-tools@1
     engine:
       mode: colocate
       sleep_during_optimization: true
