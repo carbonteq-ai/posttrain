@@ -206,28 +206,69 @@ def checkpoint_views(views_dir: Path) -> list[tuple[int, Path]]:
     return sorted(views)
 
 
-def replay_curriculum_journal(context: RunContext, path: Path) -> int:
-    """Emit journaled curriculum events and metrics through the parent's run context."""
+def read_curriculum_journal(path: Path) -> list[dict[str, Any]]:
+    """The selector's journaled curriculum events and metrics, in journal order."""
 
     if not path.is_file():
-        return 0
-    count = 0
+        return []
+    records = []
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         record = json.loads(line)
-        kind = record.get("kind")
-        attributes = record.get("attributes") or {}
-        if kind == "event":
-            context.event(str(record["name"]), attributes)
-        elif kind == "metrics":
-            context.metrics(dict(record["values"]), step=int(record["step"]), attributes=attributes)
-        elif kind == "metric":
-            context.metric(str(record["name"]), float(record["value"]), step=int(record["step"]), attributes=attributes)
-        else:
-            raise ValueError(f"unknown veRL curriculum journal record kind {kind!r}")
-        count += 1
-    return count
+        if record.get("kind") not in {"event", "metrics", "metric"}:
+            raise ValueError(f"unknown veRL curriculum journal record kind {record.get('kind')!r}")
+        records.append(record)
+    return records
+
+
+def emit_curriculum_record(context: RunContext, record: Mapping[str, Any]) -> None:
+    """Emit one journaled curriculum record through the parent's run context."""
+
+    kind = record["kind"]
+    attributes = record.get("attributes") or {}
+    if kind == "event":
+        context.event(str(record["name"]), attributes)
+    elif kind == "metrics":
+        context.metrics(dict(record["values"]), step=int(record["step"]), attributes=attributes)
+    else:
+        context.metric(str(record["name"]), float(record["value"]), step=int(record["step"]), attributes=attributes)
+
+
+class CurriculumJournalReplay:
+    """Interleave journaled curriculum records with the trainer's metric replay.
+
+    Tracking rejects a step lower than one already logged, so each record is
+    emitted just before the first trainer metric of a later step (events carry
+    no step and keep their journal position).
+    """
+
+    def __init__(self, context: RunContext, records: list[dict[str, Any]]) -> None:
+        self._context = context
+        self._records = records
+        self._next = 0
+
+    def through(self, step: int) -> None:
+        """Emit every pending record up to and including ``step``."""
+
+        while self._next < len(self._records):
+            record = self._records[self._next]
+            if record["kind"] != "event" and int(record["step"]) > step:
+                return
+            emit_curriculum_record(self._context, record)
+            self._next += 1
+
+    def rest(self) -> int:
+        """Emit the remaining records; returns the number of records emitted overall."""
+
+        self.through(2**62)
+        return self._next
+
+
+def replay_curriculum_journal(context: RunContext, path: Path) -> int:
+    """Emit journaled curriculum events and metrics through the parent's run context."""
+
+    return CurriculumJournalReplay(context, read_curriculum_journal(path)).rest()
 
 
 def final_snapshot_from_checkpoint(checkpoint: Path, state_dir: Path) -> Path:

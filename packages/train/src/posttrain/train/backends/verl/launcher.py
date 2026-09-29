@@ -11,7 +11,7 @@ import time
 from dataclasses import asdict
 from dataclasses import fields as dataclass_fields
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from posttrain.common import (
     AppendOnlyJsonlTailer,
@@ -57,6 +57,9 @@ from .metrics import (
 _SUPPORTED_MODEL_FAMILIES = frozenset({"lfm2.5", "qwen3.5"})
 _RESULT_FILE = "posttrain-result.json"
 
+
+if TYPE_CHECKING:
+    from .curriculum import CurriculumJournalReplay
 
 VerlLaunchPlan = VerlLaunchManifest
 # Identifies veRL online-RL runs that reproduce TRL's GRPO/DAPO/OLMo 3/SAMPO semantics.
@@ -570,13 +573,20 @@ def _launch(
     backend, records = _backend_result(
         result, output_dir, loss_scaling=training_precision(request.training.backend_options) == "fp16"
     )
+    curriculum = None
+    if isinstance(request, GRPORequest | SAMPORequest) and request.settings.adaptive_curriculum is not None:
+        from .curriculum import CURRICULUM_JOURNAL_NAME, CurriculumJournalReplay, read_curriculum_journal
+
+        curriculum = CurriculumJournalReplay(context, read_curriculum_journal(output_dir / CURRICULUM_JOURNAL_NAME))
     if isinstance(request, GRPORequest | SAMPORequest | GDPORequest | CAPORequest):
-        _replay_grpo_metrics(context, request, records)
+        _replay_grpo_metrics(context, request, records, curriculum)
         _replay_trace_fact_updates(
             context,
             read_verl_rollout_reward_records(output_dir / "verl-rollout-rewards.jsonl"),
         )
-    if isinstance(request, GRPORequest | SAMPORequest) and request.settings.adaptive_curriculum is not None:
+    if curriculum is not None:
+        assert isinstance(request, GRPORequest | SAMPORequest)
+        curriculum.rest()
         _publish_curriculum_state(context, request, output_dir)
     return backend
 
@@ -585,12 +595,11 @@ def _publish_curriculum_state(context: RunContext, request: GRPORequest | SAMPOR
     """Replay the selector's curriculum events and publish its state like the TRL path."""
 
     from ...adaptive_curriculum import CURRICULUM_SNAPSHOT_NAME, digest_curriculum_state
-    from .curriculum import CURRICULUM_JOURNAL_NAME, checkpoint_views, replay_curriculum_journal
+    from .curriculum import checkpoint_views
     from .worker import CURRICULUM_CHECKPOINT_VIEWS_DIR, CURRICULUM_STATE_DIR
 
     curriculum = request.settings.adaptive_curriculum
     assert curriculum is not None
-    replay_curriculum_journal(context, output_dir / CURRICULUM_JOURNAL_NAME)
     state_dir = (output_dir / CURRICULUM_STATE_DIR).resolve()
     snapshot = state_dir / CURRICULUM_SNAPSHOT_NAME
     if not snapshot.is_file():
@@ -854,6 +863,7 @@ def _replay_grpo_metrics(
     context: RunContext,
     request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
     records: tuple[VerlMetricRecord, ...],
+    curriculum: CurriculumJournalReplay | None = None,
 ) -> None:
     environment_category = getattr(request.environment, "category", "")
     features = GRPOObservationFeatures.from_request(
@@ -861,6 +871,9 @@ def _replay_grpo_metrics(
         tool_environment=isinstance(environment_category, str) and "tool" in environment_category.split("-"),
     )
     for record in records:
+        if curriculum is not None:
+            # Curriculum records of earlier and equal steps first: tracking steps never decrease.
+            curriculum.through(record.step)
         normalized = normalize_grpo_metrics(
             backend="verl",
             step=record.step,

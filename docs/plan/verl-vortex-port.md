@@ -473,6 +473,24 @@ adds backend support that meets those contracts; no product meaning changes.
   admission retained no complete groups`). The same run shows the LFM2.5
   renderer and tool-call recovery working on veRL.
 
+- Observation: with the adaptive curriculum, a veRL run failed after training:
+  the launcher replayed all trainer metrics (steps 1 to 4) and then the
+  curriculum journal from step 1, and Trackio rejects a decreasing step
+  (`logical metric steps must be nondecreasing`). The CPU tests used a context
+  without that rule. The launcher now interleaves the journal with the trainer
+  metrics by step (`CurriculumJournalReplay`).
+  Evidence: `verl-vortex-p6-lfm12-verl-vortex-ws-r3`;
+  `test_verl_curriculum_journal_interleaves_with_trainer_metrics_in_step_order`.
+- Observation: LFM2.5-1.2B ran out of groups with reward spread in a 16-task
+  pool (4 candidate batches) before filling an update, which TRL also treats as
+  an error (`active sampling exhausted ... generation rounds`). The LFM2.5
+  comparison settings v2 use all 24 tasks (6 candidate batches).
+  Evidence: `verl-vortex-p6-lfm12-verl-vortex-ws-r2`,
+  `verl-vortex-p6-lfm12-verl-sampo-ws-r1`.
+- Observation: Phase 4 passed. `verl-vortex-lfm12-check-20260929-r6` (veRL
+  post8, LFM2.5-1.2B, two updates, local 8 GB card) succeeded: rendering and
+  tool-call recovery, LoRA sync to vLLM after update 1, checkpoint and export.
+
 ## Decision Log
 
 - Decision: veRL's response budget is the rollout context (`max_model_len`,

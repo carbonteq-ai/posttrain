@@ -12,6 +12,7 @@ import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from posttrain.common import (
@@ -58,6 +59,7 @@ from posttrain.train.api import _distillation_backend, _grpo_backend, _sampo_bac
 from posttrain.train.backends.verl.contracts import VerlLaunchManifest, VerlWorkerResult
 from posttrain.train.backends.verl.curriculum import (
     CURRICULUM_JOURNAL_NAME,
+    CurriculumJournalReplay,
     PosttrainCurriculumSelector,
     SelectorConfig,
     final_snapshot_from_checkpoint,
@@ -673,6 +675,47 @@ def test_verl_response_budget_is_the_rollout_context_like_trl(
         )[1]
     )
     assert config[0]["max_completion_tokens"] == 128  # the per-reply cap is unchanged
+
+
+def test_verl_curriculum_journal_interleaves_with_trainer_metrics_in_step_order() -> None:
+    """Tracking rejects a decreasing step (verl-vortex-p6-lfm12-verl-vortex-ws-r3 failed after training)."""
+
+    from posttrain.train.backends.verl.metrics import VerlMetricRecord
+
+    class StepCheckingContext:
+        def __init__(self) -> None:
+            self.steps: list[int] = []
+            self.events: list[str] = []
+
+        def metrics(self, values, *, step, attributes=None):
+            if self.steps and step < self.steps[-1]:
+                raise AssertionError(f"step {step} after {self.steps[-1]}")
+            self.steps.append(step)
+
+        def metric(self, name, value, *, step, attributes=None):
+            self.metrics({name: value}, step=step)
+
+        def event(self, name, attributes=None):
+            self.events.append(name)
+
+    journal = [
+        {"kind": "event", "name": "curriculum_initialized"},
+        {"kind": "metrics", "values": {"curriculum/new_tasks": 4.0}, "step": 1},
+        {"kind": "metric", "name": "curriculum/refill_round", "value": 2.0, "step": 1},
+        {"kind": "metrics", "values": {"curriculum/new_tasks": 3.0}, "step": 2},
+        {"kind": "metrics", "values": {"curriculum/new_tasks": 1.0}, "step": 3},
+    ]
+    context = StepCheckingContext()
+    replay = CurriculumJournalReplay(cast(Any, context), journal)
+    records = tuple(
+        VerlMetricRecord(step=step, data={"actor/pg_loss": 0.5, "training/global_step": step}) for step in (1, 2, 3)
+    )
+    _replay_grpo_metrics(cast(Any, context), _grpo_request(), records, replay)
+    assert replay.rest() == len(journal)
+    assert context.steps == sorted(context.steps)
+    assert context.events == ["curriculum_initialized"]
+    # Four curriculum records and three trainer records, each curriculum record before a later trainer step.
+    assert context.steps == [1, 1, 1, 2, 2, 3, 3]
 
 
 def test_qwen35_grpo_translation_is_deterministic_and_backend_neutral(tmp_path: Path) -> None:

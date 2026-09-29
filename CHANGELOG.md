@@ -47,6 +47,9 @@ selects the post6 additions that 0.4.12 leaves off.
   their groups (a batch of them ended the run). The budget is now the rollout
   context (`max_model_len`), as TRL bounds trajectories;
   `max_completion_length` remains the per-reply cap.
+- veRL runs with the adaptive curriculum failed after training: the launcher
+  replayed the curriculum journal after every trainer metric, and tracking
+  rejects a decreasing step. The journal is now interleaved by step.
 
 ### Added
 
