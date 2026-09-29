@@ -243,4 +243,4 @@ def test_qualification_list_labels_candidates_as_non_active_experiments(capsys: 
 
     assert "automationbench-grpo\tcandidate\texperimental" in output
     assert "lfm26-automationbench-vortex-20-local\tcandidate\texperimental" in output
-    assert "summary\tactive=20\tcandidates=102\tretired_gates=6" in output
+    assert "summary\tactive=20\tcandidates=103\tretired_gates=6" in output

@@ -1294,15 +1294,15 @@ owner = "posttrain-platform"
 replacement_condition = "Promote to a longer fp16 continuation arm if the criteria hold; retire if fp16 overflows, skips repeatedly or slows rollouts."
 
 [[gates]]
-id = "lfm26-sampo-turns-100-r16-fp16-os4r5"
-work_package = ".posttrain/work_packages/lfm26_automationbench_sampo_turns_100_r16_fp16_os4r5_local_v1.yaml"
+id = "lfm26-sampo-turns-100-r4-fp16-os4r5"
+work_package = ".posttrain/work_packages/lfm26_automationbench_sampo_turns_100_r4_fp16_os4r5_local_v1.yaml"
 job_id = "sampo"
 tier = "experimental"
 state = "candidate"
 job_kind = "train.sampo"
 acceptance = "verifiers-trajectories"
 experiment_family = "lfm26-automationbench-vortex-20-local-v1"
-hypothesis = "SAMPO from the base model with a rank-16 LoRA adapter at learning rate 2e-5, KL 0.02 anchored to the base model, fp16 trainer and rollout, and oversampled active sampling reaches the continuations' held-out score on the fixed tools without their drift from the base model."
+hypothesis = "SAMPO from the base model with SAMPO r2's rank-4 LoRA adapter at learning rate 6e-5, KL 0.01 anchored to the base model, temperature 0.8 without top-p, fp16 trainer and rollout, and oversampled active sampling passes SAMPO r2's held-out score on the fixed tools without the continuations' drift from the base model."
 owner = "posttrain-platform"
 replacement_condition = "Compare held-out evaluations on the v4 suites every 20 updates with the fixed-tools continuation, SAMPO update 120 and base; keep the arm if held-out score matches or beats them at lower KL to the base, retire it otherwise."
 

@@ -179,14 +179,15 @@ training:
       dependency_lock_sha256: f18308d1af3fbfe72c9be17344762ae83dbbeaeb23a6d736767f166c763aed80
 
   # LFM2.5-2.6B SAMPO from the base model (fresh LoRA adapter) in fp16 on the
-  # trainer and the rollout engine (docs/plan/lfm26-sampo-fp16-r16.md). The
-  # g24x6 continuation's settings with: learning rate 2e-5 (LoRA at rank 16 and
-  # alpha 32; 5 warmup updates of 100 from warmup_ratio 0.05), KL 0.02 anchored
-  # to the base model (the continuations anchored to their moving start
-  # adapter), active sampling that oversamples 4 extra prompt groups in the
-  # first round and 5 in each refill, capped at the first round's (24 + 4) x 6 =
-  # 168 episodes, and a checkpoint every 20 updates.
-  lfm2.5-2.6b/automationbench-sampo-turns-100-g24x6-r16-lr2e-5-kl2e-2-t05-os4r5-v1:
+  # trainer and the rollout engine (docs/plan/lfm26-sampo-fp16-base.md; evidence in
+  # docs/techniques/grpo/lora-rl.md). The g24x6 lineage with: LoRA rank 4 / alpha 8
+  # (as SAMPO r2) at learning rate 6e-5 constant (alpha x LR 4.8e-4, 1.2x r2's
+  # stable 4e-4 and below v5's drifting 8e-4), KL 0.01 anchored to the base model
+  # (the continuations anchored to their moving start adapter), active sampling
+  # that oversamples 4 extra prompt groups in the first round and 5 in each refill,
+  # capped at the first round's (24 + 4) x 6 = 168 episodes, and a checkpoint every
+  # 20 updates.
+  lfm2.5-2.6b/automationbench-sampo-turns-100-g24x6-r4-lr6e-5-kl1e-2-t08-os4r5-v1:
     selection_type: sampo-settings
     revision: "1"
     loop:
@@ -194,9 +195,8 @@ training:
       max_length: 24576
       per_device_batch_size: 1
       gradient_accumulation_steps: 144
-      learning_rate: 0.00002
-      lr_scheduler_type: constant_with_warmup
-      warmup_ratio: 0.05
+      learning_rate: 0.00006
+      lr_scheduler_type: constant
       logging_steps: 1
       checkpoint_steps: 20
       checkpoint_limit: 5
@@ -205,7 +205,7 @@ training:
     num_generations: 6
     max_prompt_length: 20480
     max_completion_length: 4096
-    beta: 0.02
+    beta: 0.01
     kl_reference: base
     discount_gamma: 0.95
     step_advantage_weight: 1.0
@@ -227,20 +227,20 @@ training:
     shuffle_prompts: true
     mask_truncated_completions: false
     max_admission_attempts: 1
-  # training/lfm2.5-2.6b-trl-lora-automationbench-local-g144-w12-fp16@1 with a
-  # rank-16, alpha-32 LoRA adapter, float32 logits stated explicitly, the
+  # training/lfm2.5-2.6b-trl-lora-automationbench-local-g144-w12-fp16@1 on TRL
+  # 1.12.0.post12 with SAMPO r2's rank-4, alpha-8 LoRA adapter, float32 logits stated explicitly, the
   # 1024 starting loss scale stated explicitly, 180 environment worker slots
   # (12 x 15) for the oversampled rounds, and a 24-hour job limit.
-  training/lfm2.5-2.6b-trl-lora-automationbench-local-g144-w12-r16-fp16@1:
+  training/lfm2.5-2.6b-trl-lora-automationbench-local-g144-w12-r4-fp16@1:
     selection_type: training-binding
     revision: "1"
-    backend: trl@1.12.0.post11
+    backend: trl@1.12.0.post12
     renderer:
       id: lfm2.5-tools-thinking@2
       model_family: lfm2.5
       implementation: default
       reasoning_mode: native
-    update: {kind: lora, rank: 16, alpha: 32, target_modules: all-linear}
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
     target: targets/carbonteq-rtx-pro-6000-96gb
     parallelism: {sequence_length_divisor: 2}
     runtime: {global_batch_size: 144, devices_per_node: 1, timeout_seconds: 86400}
@@ -255,8 +255,8 @@ training:
       fp16_initial_loss_scale: 1024
       logits_float32: true
       dependency_lock: trl-fork@current
-      source_revision: 3135b502d69956200d1c030a514470c351d2ee9f
-      dependency_lock_sha256: 3806d4249cde3a1541b9529a662a9434cfb1da1cecf2cb5e5499f97193f13d95
+      source_revision: c4d0db051a7839fe1b1d587185fac33ba88c784f
+      dependency_lock_sha256: f18308d1af3fbfe72c9be17344762ae83dbbeaeb23a6d736767f166c763aed80
 
   # veRL precision qualification on the local 8 GB GPU with the veRL runtime
   # (fork 0.9.0.post8, ef1c3771; post4 added the loss scale, skipped steps and
@@ -413,7 +413,7 @@ inference:
   # for 168 episodes (the largest oversampled round) and about 10.4K at 180
   # (lineage episodes averaged about 8.4K). gpu_memory_utilization rises by the
   # extra 7 GiB (0.60 -> 0.68 of 96 GB). vLLM sleeps during the optimizer step.
-  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c180-4k-t05-fp16@1:
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c180-4k-t08-fp16@1:
     revision: "1"
     model: models/lfm2.5-2.6b@bf16
     backend: vllm@0.29.1.dev4
@@ -442,7 +442,7 @@ inference:
         revision: 458cedab07d0f7b2b05700c77e1aa463d43d6f04
         num_speculative_tokens: 9
       dtype: float16
-    sampling: {max_tokens: 4096, temperature: 0.5, top_p: 0.95}
+    sampling: {max_tokens: 4096, temperature: 0.8, top_p: 1.0}
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]

@@ -1378,8 +1378,12 @@ environment:
   # oversampled first round of active sampling ((24 + 4) x 6 = 168 episodes)
   # and every refill round run in one wave. Same tasks, adapter, penalties and
   # sampling.
-  automationbench-lfm26-sampo-turns-v3-c180:
+  automationbench-lfm26-sampo-turns-v3-c180-t08:
     <<: *automationbench_sampo_turns_v3
+    # Training rollouts at temperature 0.8 with no top-p cut: multi-turn RL sweeps
+    # put the optimum at 0.7-1.0 and top_p < 1 adds a fixed sampler/trainer
+    # log-prob gap (docs/techniques/grpo/lora-rl.md).
+    sampling: {max_tokens: 4096, temperature: 0.8, top_p: 1.0}
     max_concurrent: 180
   automationbench-lfm26-train-mix-episode-judged-v2: &automationbench_train_mix_episode_judged_v2
     category: agentic-tool-use
