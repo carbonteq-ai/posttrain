@@ -6,8 +6,15 @@ version across first-party distributions.
 
 ## Unreleased
 
-Targets 0.4.13, which keeps CarbonTeq veRL 0.9.0.post8 (pinned by 0.4.12); the VORTEX port
-selects the post6 additions that 0.4.12 leaves off.
+## 0.4.13 - unreleased
+
+VORTEX and SAMPO on veRL, checked against TRL on matched Qwen3.5-0.8B and
+LFM2.5-1.2B pairs (update-1 reward within 1.6 standard errors on every pair,
+identical first prompts); veRL fixes those comparisons found, including the
+rollout temperature veRL ignored; TRL 1.12.0.post12; and a LoRA-for-RL
+evidence page that corrects how our recipes compare learning rates. Keeps
+CarbonTeq veRL 0.9.0.post8 (pinned by 0.4.12); the VORTEX port selects the
+post6 additions that 0.4.12 leaves off.
 
 ### Changed
 
@@ -80,13 +87,26 @@ selects the post6 additions that 0.4.12 leaves off.
   `mask_truncated_completions`, `max_admission_attempts`, `lr_scheduler_type:
   linear`, curriculum with DAPO). Each is checked against TRL's real code by
   CPU parity tests; see `docs/plan/verl-vortex-port.md`.
+- `docs/techniques/grpo/lora-rl.md`: LoRA for RL, settings and evidence.
+  With the PEFT initialization and Adam a LoRA step is sized by alpha x
+  learning rate, independent of rank; each setting (rank, learning rate, KL,
+  temperature, batch, active sampling, precision) separates LoRA-RL,
+  full-fine-tuning RL and SFT-only evidence (the last does not transfer),
+  our run evidence and a confidence. The LFM2.5 VORTEX recipe is corrected
+  where it compared learning rates across alphas: the published ~1e-5 is at
+  alpha 32, about 4e-5 at our alpha 8.
+- Lab work package `lfm26_automationbench_sampo_turns_100_r4_fp16_os4r5_local_v1`:
+  LFM2.5-2.6B SAMPO from the base model in fp16 (TRL post12), rank 4 / alpha 8
+  at 6e-5, KL 0.01 to the base model, temperature 0.8 with top_p 1.0,
+  24 x 6 with oversampling 4 / 5 at 180 concurrent episodes
+  (`docs/plan/lfm26-sampo-fp16-base.md`).
 - LFM2.5 on veRL. The launcher resolves the policy's renderer exactly as the
   TRL backend does (the family's renderer config, the reasoning mode's
   template arguments, the package chat template and the tool-call protocol)
   and the veRL agent loop rebuilds that renderer, so LFM2.5's Python call
   lists are recovered as tool calls on veRL too.
 
-## 0.4.12 - unreleased
+## 0.4.12 - 2026-09-29
 
 Training-harness fixes found by auditing the LFM2.5-2.6B SAMPO continuation:
 tools that behave as documented, FP16 training, fast Qwen3.5 kernels, a label
