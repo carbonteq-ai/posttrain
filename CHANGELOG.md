@@ -58,6 +58,17 @@ selects the post6 additions that 0.4.12 leaves off.
   (1.0, 1.0, -1) instead of the rollout binding's, and replaced the binding's
   repetition penalty with 1.0. The worker now sets veRL's rollout sampling
   from the binding exactly as the TRL backend resolves it.
+- veRL policy turns saw a different prompt and acted on different tool calls
+  than TRL's. The in-process Verifiers client passed Verifiers' flat tool
+  records, which render each tool about 9 tokens shorter than the OpenAI
+  function shape Verifiers' train client sends; it now passes the wire shapes.
+  The veRL generator now also admits tool calls as the train client does (every
+  named call runs; a value that is not valid JSON stays text; an unknown tool
+  or a nameless call is dropped, with its sampled text kept as trace evidence),
+  reports vLLM's finish reason the same way, and stops on the renderer's stop
+  tokens. Before, veRL turned a Qwen3.5 call with a malformed argument into
+  plain text and ended the episode where TRL ran the call. The TRL batch path
+  keeps its strict admission.
 
 ### Added
 

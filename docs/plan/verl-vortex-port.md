@@ -544,6 +544,29 @@ adds backend support that meets those contracts; no product meaning changes.
   longer than the context gets the renderer's "Prompt length (N) exceeds
   maximum context length (M)."; a prompt exactly as long gets the TRL
   endpoint's non-overflow refusal.
+- Observation: the veRL Qwen VORTEX episodes were shorter than TRL's (3.07 vs
+  4.14 model calls at update 1) for two reasons in the in-process client, both
+  found by comparing traces with TRL's. (1) `_PolicyClient` handed the renderer
+  Verifiers' flat `Tool` records, while Verifiers' train client, which serves
+  TRL's policy turns, sends the OpenAI function shape (`tool_to_wire`); the
+  Qwen3.5 template renders a flat tool 9 tokens shorter (302 vs 293 tokens for
+  one tool; LFM2.5 111 vs 102), so every veRL prompt differed from TRL's by 10
+  to 49 tokens. (2) Posttrain's strict admission (the 2026-09-07 decision in
+  `docs/plan/gdpo-capo-dual-backend-support.md`) keeps a call whose renderer
+  status is not `ok` as plain text, which ends the episode; Verifiers'
+  `response_from_generate` runs every named call except `unknown_tool`, with
+  the renderer's best-effort arguments. Qwen3.5 often writes an array
+  parameter as a bare word (`projects=proj_eng`), which the renderer marks
+  `invalid_json`: in `verl-vortex-p6-qwen08b-verl-vortex-ws-r3` 8 of 28
+  update-1 episodes had such a call (14 calls) and ended on it, while TRL's
+  `ws-r1` ran the same kind of call (`"projects": "proj_eng"`) and continued.
+  veRL also promoted every turn with a call to `tool_calls` and did not send
+  the renderer's stop tokens; the train client keeps vLLM's `stop`/`length`,
+  promotes only a cleanly parsed call and sends the renderer's stop tokens.
+  Evidence: `test_policy_client_renders_the_wire_shapes_of_verifiers_train_client`,
+  `test_train_client_admission_acts_on_the_calls_verifiers_train_client_runs`
+  (compares with Verifiers' own `response_from_generate`); run notes on
+  `verl-vortex-p6-qwen08b-verl-vortex-ws-r3`.
 - Observation: Phase 4 passed. `verl-vortex-lfm12-check-20260929-r6` (veRL
   post8, LFM2.5-1.2B, two updates, local 8 GB card) succeeded: rendering and
   tool-call recovery, LoRA sync to vLLM after update 1, checkpoint and export.
@@ -709,6 +732,22 @@ adds backend support that meets those contracts; no product meaning changes.
   selection to both backends is Posttrain, so the equivalence claim belongs
   there.
   Date/Author: 2026-09-28, Claude.
+
+- Decision: the veRL generator admits tool calls as Verifiers' train client
+  does (`parsed_policy_message(..., admission="verifiers-train-client")`), and
+  the TRL batch path keeps strict admission.
+  Rationale: the parity target is TRL's policy path, and TRL's AutomationBench
+  runs (request mode `async` with `rollout_execution`) take their turns through
+  Verifiers' train client, which runs non-conforming named calls. Changing
+  what the environment executes is Verifiers' contract, not a veRL setting, so
+  veRL follows it rather than Posttrain's stricter helper. A call the train
+  client runs despite a non-`ok` status is recorded in `provider_state` as
+  `posttrain.nonconforming_tool_call`; a dropped one as
+  `posttrain.rejected_tool_call`, so the evidence the 2026-09-07 decision
+  protects is kept. Posttrain's LFM2.5 content recovery is not applied on this
+  path because the train client has none (the pinned renderer parses LFM2.5
+  Python calls itself).
+  Date/Author: 2026-09-29, Claude.
 
 ## Outcomes & Retrospective
 

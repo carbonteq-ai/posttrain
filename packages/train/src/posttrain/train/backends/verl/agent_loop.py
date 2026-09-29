@@ -235,6 +235,8 @@ class VerlPolicyGenerator:
                     "repetition_penalty": sampling["repetition_penalty"],
                     "presence_penalty": sampling["presence_penalty"],
                     "logprobs": True,
+                    # As Verifiers' train client: stop on the renderer's stop tokens.
+                    "stop_token_ids": list(self._renderer.get_stop_token_ids()),
                 }.items()
                 if value is not None
             },
@@ -257,11 +259,14 @@ class VerlPolicyGenerator:
             self._tokenizer,
             tool_call_protocol=self._tool_call_protocol,
             tools=tools,
+            # TRL's policy turns go through Verifiers' train client, which runs every
+            # named call (a value that is not valid JSON stays text); veRL acts alike.
+            admission="verifiers-train-client",
         )
         finish_reason = _finish_reason(
             token_ids,
             frozenset(self._renderer.get_stop_token_ids()),
-            bool(message.get("tool_calls")),
+            any(item.status.value == "ok" for item in parsed.tool_calls),
             int(sampling["max_tokens"]),
         )
         return PolicyTurnResult(
@@ -494,16 +499,17 @@ def _sampo_metadata(rollout: EnvironmentRollout, prompt_group_id: str) -> dict[s
 def _finish_reason(
     completion_ids: tuple[int, ...],
     stop_token_ids: frozenset[int],
-    has_tool_calls: bool,
+    has_ok_tool_calls: bool,
     max_completion_length: int,
 ) -> Literal["stop", "length", "tool_calls"]:
-    if has_tool_calls:
-        return "tool_calls"
-    if completion_ids[-1] in stop_token_ids:
-        return "stop"
-    if len(completion_ids) >= max_completion_length:
+    """vLLM's finish reason, promoted as Verifiers' train client does.
+
+    A turn that ran out of tokens stays ``length``; a stopped turn becomes
+    ``tool_calls`` only when the renderer parsed at least one call cleanly.
+    """
+    if completion_ids[-1] not in stop_token_ids and len(completion_ids) >= max_completion_length:
         return "length"
-    return "stop"
+    return "tool_calls" if has_ok_tool_calls else "stop"
 
 
 def _openai_message(message: dict[str, Any]) -> dict[str, Any]:

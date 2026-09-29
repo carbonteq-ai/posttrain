@@ -301,7 +301,7 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
             return SimpleNamespace(content="done", reasoning_content=None, tool_calls=())
 
         def get_stop_token_ids(self):
-            return ()
+            return (7,)
 
     renderers = ModuleType("renderers")
     renderer_configs: list[object] = []
@@ -389,6 +389,7 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
         "repetition_penalty": 1.1,
         "presence_penalty": 1.5,
         "logprobs": True,
+        "stop_token_ids": [7],
     }
     asyncio.run(
         generator.generate(
@@ -426,6 +427,7 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
         "repetition_penalty": 1.1,
         "presence_penalty": 1.5,
         "logprobs": True,
+        "stop_token_ids": [7],
     }
     assert generator.behavior_policy == BehaviorPolicySpan(3, 5)
     generator.set_sampling_overrides({"max_tokens": 33})
@@ -436,8 +438,10 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
     sys.modules.pop(module_name, None)
 
 
-def test_verl_policy_generator_recovers_lfm25_python_calls_like_trl(monkeypatch: pytest.MonkeyPatch) -> None:
-    """LFM2.5 emits a Python call list; both backends recover it through the model's protocol."""
+def test_verl_policy_generator_takes_lfm25_python_calls_from_the_renderer_like_trl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LFM2.5 emits a Python call list; the renderer parses it, as on TRL's train client."""
 
     module_name = "posttrain.train.backends.verl.agent_loop"
     monkeypatch.delitem(sys.modules, module_name, raising=False)
@@ -451,6 +455,15 @@ def test_verl_policy_generator_recovers_lfm25_python_calls_like_trl(monkeypatch:
     monkeypatch.setitem(sys.modules, "verl.experimental.agent_loop.agent_loop", verl_agent_loop)
     content = '<|tool_call_start|>[lookup(query="rl", limit=2)]<|tool_call_end|>'
     real_renderers = pytest.importorskip("renderers")
+    parsed = real_renderers.ParsedResponse(
+        content="",
+        reasoning_content="think",
+        tool_calls=[
+            real_renderers.ParsedToolCall(
+                raw=content, name="lookup", arguments={"query": "rl", "limit": 2}, token_span=(0, 2)
+            )
+        ],
+    )
 
     class FakeRenderer:
         def render(self, messages, *, tools, add_generation_prompt):
@@ -468,7 +481,7 @@ def test_verl_policy_generator_recovers_lfm25_python_calls_like_trl(monkeypatch:
             )
 
         def parse_response(self, token_ids, *, tools):
-            return SimpleNamespace(content=content, reasoning_content="think", tool_calls=())
+            return parsed
 
         def get_stop_token_ids(self):
             return (4,)
@@ -518,15 +531,22 @@ def test_verl_policy_generator_recovers_lfm25_python_calls_like_trl(monkeypatch:
     )
 
     expected = parsed_policy_message(
-        SimpleNamespace(content=content, reasoning_content="think", tool_calls=()),
+        parsed,
         (3, 4),
         None,
         tool_call_protocol=protocol,
         tools=[dict(tool) for tool in tools],
+        admission="verifiers-train-client",
     )
     assert result.message == expected
-    assert result.message["tool_calls"] == [{"id": "call_0", "name": "lookup", "arguments": '{"query":"rl","limit":2}'}]
+    assert result.message["tool_calls"] == [
+        {"id": "call_0", "name": "lookup", "arguments": '{"query": "rl", "limit": 2}'}
+    ]
     assert result.finish_reason == "tool_calls"
+    # vLLM's finish reason, promoted only for a cleanly parsed call (renderers' client).
+    assert agent_loop._finish_reason((3, 4), frozenset({4}), False, 32) == "stop"  # executed non-OK call
+    assert agent_loop._finish_reason((3, 5), frozenset({4}), True, 2) == "length"
+    assert agent_loop._finish_reason((3, 4), frozenset({4}), True, 2) == "tool_calls"
 
     # A bridged turn reports spans over the full message list, as on TRL.
     messages = (
