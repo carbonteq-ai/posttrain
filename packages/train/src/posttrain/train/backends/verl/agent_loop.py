@@ -325,7 +325,11 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         if len(rollout.prompt_ids) > self.rollout_config.prompt_length:
             raise ValueError("Verifiers trajectory prompt exceeds the selected veRL prompt length")
         if len(rollout.completion_ids) > self.rollout_config.response_length:
-            raise ValueError("Verifiers trajectory response exceeds the selected veRL response length")
+            raise ValueError(
+                "Verifiers trajectory response exceeds the veRL response budget "
+                f"({len(rollout.completion_ids)} > {self.rollout_config.response_length} tokens); the budget is the "
+                "rollout context (engine max_model_len), which the trajectory cannot exceed"
+            )
         reward = shaped_rollout_reward(
             rollout,
             max_completion_tokens=self._max_completion_tokens,

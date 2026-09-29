@@ -97,6 +97,7 @@ from posttrain.train.backends.verl.worker import (
     _write_curriculum_selector_config,
     _write_dataset,
     build_hydra_overrides,
+    verl_response_budget,
 )
 from posttrain.train.online_rl import BehaviorPolicySpan, EnvironmentRollout
 from posttrain.train.policy_messages import parsed_policy_message
@@ -636,6 +637,42 @@ def test_verl_policy_generator_reports_bridged_spans_over_the_full_message_list(
     # which Verifiers reads as the spans of messages 0 and 1.
     assert result.prompt_message_spans == (None, None, (4, 6), (6, 8))
     sys.modules.pop(module_name, None)
+
+
+def test_verl_response_budget_is_the_rollout_context_like_trl(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """max_completion_length caps each reply; a multi-turn response may fill the rollout context.
+
+    verl-vortex-lfm12-check-20260929-r5: two completed LFM2.5 AutomationBench
+    episodes sampled 1832 and 1420 tokens over two replies, which TRL trains but
+    a 1024-token veRL response length rejected.
+    """
+
+    assert verl_response_budget(1024, 5120) == 5120
+    assert verl_response_budget(1024, 512) == 1024
+    with pytest.raises(ValueError, match="max_model_len must be a positive integer"):
+        verl_response_budget(1024, True)
+    request = _grpo_request()
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    overrides = build_hydra_overrides(
+        build_grpo_launch_plan(request, tmp_path),
+        tmp_path / "rollouts.parquet",
+        tmp_path / "agent-loop.json",
+        tmp_path / "checkpoints",
+    )
+    # The helper's engine selects max_model_len 384 over 256 prompt + 128 reply tokens.
+    assert "data.max_response_length=384" in overrides
+    assert "actor_rollout_ref.rollout.response_length=384" in overrides
+    assert "actor_rollout_ref.rollout.max_model_len=384" in overrides
+    config = json.loads(
+        (
+            _write_agent_config(build_grpo_launch_plan(request, tmp_path).payload, tmp_path / "a.json"),
+            (tmp_path / "a.json").read_text(),
+        )[1]
+    )
+    assert config[0]["max_completion_tokens"] == 128  # the per-reply cap is unchanged
 
 
 def test_qwen35_grpo_translation_is_deterministic_and_backend_neutral(tmp_path: Path) -> None:

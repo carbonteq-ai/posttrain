@@ -198,6 +198,22 @@ def main() -> None:
     result.write(manifest.result_file)
 
 
+def verl_response_budget(max_completion_length: int, max_model_len: object) -> int:
+    """Tokens veRL reserves for everything after an episode's first prompt.
+
+    ``max_completion_length`` caps each assistant reply, as on TRL (it reaches
+    vLLM as the per-turn ``max_tokens``). A multi-turn Verifiers episode's
+    response is every turn after the first prompt (replies, tool results and
+    template tokens), and TRL trains all of it, bounded only by the rollout
+    context. veRL pads responses to a fixed length and rejects longer ones, so
+    its budget is the rollout context; a single reply never exceeds it.
+    """
+
+    if isinstance(max_model_len, bool) or not isinstance(max_model_len, int) or max_model_len < 1:
+        raise ValueError("veRL rollout max_model_len must be a positive integer")
+    return max(max_completion_length, max_model_len)
+
+
 def build_hydra_overrides(
     manifest: VerlLaunchManifest,
     dataset_path: Path,
@@ -237,6 +253,8 @@ def build_hydra_overrides(
     attention_implementation = backend_options.get("attention_implementation")
     parameter_offload = runtime_options.parameter_offload
     optimizer_offload = runtime_options.optimizer_offload
+    max_model_len = engine.get("max_model_len", algorithm.max_prompt_length + algorithm.max_completion_length)
+    response_budget = verl_response_budget(algorithm.max_completion_length, max_model_len)
     overrides = [
         f"algorithm.adv_estimator={algorithm.advantage_estimator}",
         "algorithm.use_kl_in_reward=False",
@@ -244,7 +262,7 @@ def build_hydra_overrides(
         f"data.val_files={dataset_path}",
         f"data.train_batch_size={algorithm.num_prompts_per_step}",
         f"data.max_prompt_length={algorithm.max_prompt_length}",
-        f"data.max_response_length={algorithm.max_completion_length}",
+        f"data.max_response_length={response_budget}",
         "data.filter_overlong_prompts=True",
         "data.truncation=error",
         f"data.shuffle={str(bool(algorithm.shuffle_prompts)).lower()}",
@@ -286,10 +304,10 @@ def build_hydra_overrides(
         f"actor_rollout_ref.rollout.dtype={rollout_dtype}",
         f"actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu={micro_batch}",
         f"actor_rollout_ref.rollout.prompt_length={algorithm.max_prompt_length}",
-        f"actor_rollout_ref.rollout.response_length={algorithm.max_completion_length}",
+        f"actor_rollout_ref.rollout.response_length={response_budget}",
         f"actor_rollout_ref.rollout.tensor_model_parallel_size={rollout_tp}",
         f"actor_rollout_ref.rollout.gpu_memory_utilization={engine.get('gpu_memory_utilization', 0.4)}",
-        f"actor_rollout_ref.rollout.max_model_len={engine.get('max_model_len', algorithm.max_prompt_length + algorithm.max_completion_length)}",
+        f"actor_rollout_ref.rollout.max_model_len={max_model_len}",
         f"actor_rollout_ref.rollout.max_num_batched_tokens={engine.get('max_num_batched_tokens', algorithm.max_prompt_length + algorithm.max_completion_length)}",
         f"actor_rollout_ref.rollout.max_num_seqs={engine.get('max_num_seqs', algorithm.num_generations)}",
         f"actor_rollout_ref.rollout.free_cache_engine={str(bool(engine.get('free_cache_engine', True))).lower()}",

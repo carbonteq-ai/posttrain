@@ -40,6 +40,14 @@ selects the post6 additions that 0.4.12 leaves off.
   `verl_semantics: trl-parity-v1` in `grpo_runtime_resolved`, so Observatory
   can tell them apart.
 
+### Fixed
+
+- veRL multi-turn runs sized the response budget as `max_completion_length`,
+  the per-reply cap, and rejected longer episodes; admission then dropped
+  their groups (a batch of them ended the run). The budget is now the rollout
+  context (`max_model_len`), as TRL bounds trajectories;
+  `max_completion_length` remains the per-reply cap.
+
 ### Added
 
 - The VORTEX recipe and SAMPO on veRL: OLMo 3 loss, active sampling with

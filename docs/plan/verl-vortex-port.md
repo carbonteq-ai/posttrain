@@ -461,7 +461,27 @@ adds backend support that meets those contracts; no product meaning changes.
   fork, so `LFM25RendererConfig` is missing there. The 0.4.12 veRL kind lock
   selects only `carbonteq-renderers`; do not use that local image for LFM2.5.
 
+- Observation: the port sized veRL's response budget (`data.max_response_length`,
+  `rollout.response_length`) as `max_completion_length`, the per-reply token
+  cap. A multi-turn Verifiers response is every turn after the first prompt,
+  and TRL trains all of it, bounded only by the rollout context. On veRL the
+  agent loop rejected longer responses, the session raised, the group was
+  marked failed and admission dropped it, so long successful episodes were
+  lost and a batch of them ended the run.
+  Evidence: `verl-vortex-lfm12-check-20260929-r5` (two completed LFM2.5
+  episodes, reward 1.0, 1832 and 1420 sampled tokens over two replies; `rollout
+  admission retained no complete groups`). The same run shows the LFM2.5
+  renderer and tool-call recovery working on veRL.
+
 ## Decision Log
+
+- Decision: veRL's response budget is the rollout context (`max_model_len`,
+  default prompt plus completion); `max_completion_length` stays the
+  per-reply cap (vLLM `max_tokens`) and the truncation boundary, as on TRL.
+  Rationale: veRL pads every response to a fixed length and cannot accept a
+  longer one, and any trajectory TRL trains fits within the context. The cost
+  is padding: single-turn runs now pad responses to the context length.
+  Date/Author: 2026-09-29, Claude.
 
 - Decision: `lfm2.5` joins the veRL launcher's qualified families in the
   Phase 4 code change, before its GPU run.
