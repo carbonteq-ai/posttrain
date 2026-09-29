@@ -1,0 +1,105 @@
+# veRL continuation of a trained LoRA adapter (--model-from-run) on the local
+# RTX 3070 Ti 8 GB, against the veRL 0.9.0.post8 kind image (source ef1c3771)
+# rebuilt for the 0.4.12 release; the branch was prepared against
+# the post3 kind (18338a0e). Qualifies that the adapter is attached to the
+# foundation weights, reaches the rollout, and is trained with the base model
+# as the KL reference. See docs/plan/active-sampling-oversample.md.
+
+training:
+  qwen3.5-0.8b/verl-grpo-2-step-kl-v1:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      # veRL runs a constant rate after warmup (it has no linear decay), and did
+      # before 0.4.12 made the schedule explicit.
+      lr_scheduler_type: constant
+      max_length: 640
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.0001
+      logging_steps: 1
+      checkpoint_steps: 0
+      checkpoint_limit: 1
+    num_prompts_per_step: 2
+    num_generations: 4
+    max_prompt_length: 256
+    max_completion_length: 384
+    beta: 0.01
+    kl_reference: base
+  training/qwen3.5-0.8b-verl-grpo-local-lora@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: verl@ef1c37715fa75de5973ae5b3c398383cd7e0093d
+    renderer:
+      id: qwen3.5-off-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: "off"
+    update:
+      kind: lora
+      rank: 8
+      alpha: 16
+      target_modules: ".*language_model.*[.](o_proj|down_proj)$"
+    target: targets/pop-os-rtx-3070ti-8gb
+    parallelism:
+      sequence_length_divisor: 2
+    runtime:
+      global_batch_size: 8
+      nodes: 1
+      devices_per_node: 1
+      # The FSDP actor stays resident while vLLM starts; on the 8 GB card it must
+      # offload (as the precision pair does) or vLLM cannot allocate its cache.
+      parameter_offload: true
+      optimizer_offload: true
+    backend_options:
+      python_executable: /opt/posttrain-verl/bin/python
+      working_directory: /opt/posttrain-verl/workdir
+      source_revision: ef1c37715fa75de5973ae5b3c398383cd7e0093d
+      dependency_lock_sha256: cdd614f2ab442c655ee211ab433030dcddf6367c2b27eaae801a89495807dbdd
+      source_dirty: false
+      attention_implementation: sdpa
+      hydra_overrides:
+        - actor_rollout_ref.model.use_remove_padding=false
+        - actor_rollout_ref.model.enable_gradient_checkpointing=true
+        - actor_rollout_ref.model.use_fused_kernels=true
+        - actor_rollout_ref.model.fused_kernel_options.impl_backend=torch
+        - actor_rollout_ref.actor.strategy=fsdp2
+        - actor_rollout_ref.actor.entropy_from_logits_with_chunking=true
+        - actor_rollout_ref.actor.entropy_from_logits_chunk_size=256
+        - actor_rollout_ref.actor.fsdp_config.use_torch_compile=false
+        # The 62 GB local host with a desktop hit Ray's 95% RAM threshold: veRL's
+        # default 8 reward workers plus 8 TransferQueue storage units took about 7.4 GB.
+        - reward.num_workers=2
+        - transfer_queue.backend.SimpleStorage.num_data_storage_units=2
+
+inference:
+  inference/qwen3.5-0.8b-vllm-verl-local-rollout@1:
+    revision: "1"
+    model: models/qwen3.5-0.8b@bf16
+    backend: vllm@0.26.1
+    renderer: qwen3.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.2
+      tensor_parallel_size: 1
+      max_model_len: 640
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 67108864
+      weight_sync_mode: lora
+      enforce_eager: true
+    sampling:
+      max_tokens: 384
+      temperature: 1.0
+      top_p: 1.0
+    target: targets/pop-os-rtx-3070ti-8gb
+    purpose: [rollout]
+    performance_acknowledgements:
+      VLLM_EAGER_DISABLES_CUDA_GRAPHS: >-
+        An 8 GB functional qualification of adapter continuation; decode speed is
+        not measured, and eager decode avoids CUDA-graph capture memory.
+      VLLM_HYBRID_CONTINUATION_REUSE_MISSING: >-
+        GSM8K episodes are single-turn, so multi-turn continuation reuse does
+        not apply to this qualification.

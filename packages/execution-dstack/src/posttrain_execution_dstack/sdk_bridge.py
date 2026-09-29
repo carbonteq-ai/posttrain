@@ -220,8 +220,9 @@ def _cleanup_command():
         (
             "set -eu",
             (
+                # printf, not print: awk prints large totals as 4.63293e+09.
                 "before=$(find " + cleanup_path + " -mindepth 1 -printf '%s\\n' "
-                "| awk '{total += $1} END {print total + 0}')"
+                "| awk '{total += $1} END {printf \"%.0f\\n\", total}')"
             ),
             ("find " + cleanup_path + " -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +"),
             ('test -z "$(find ' + cleanup_path + ' -mindepth 1 -print -quit)"'),
@@ -383,22 +384,53 @@ def cleanup_workspace(payload):
     if cleanup_status != "done":
         raise RuntimeError(f"exact-worker cleanup task did not succeed (status={cleanup_status})")
 
-    reclaimed = None
-    for value in cleanup_run.logs(replica_num=0, job_num=0):
-        for line in value.decode("utf-8", errors="replace").splitlines():
-            if line.startswith(_RECLAIMED_PREFIX):
-                raw = line.removeprefix(_RECLAIMED_PREFIX)
-                if raw.isdigit():
-                    reclaimed = int(raw)
-    if reclaimed is None:
-        raise RuntimeError("cleanup task did not return verification evidence")
+    # The task exits 0 only after verifying the workspace is empty, so "done" is
+    # the emptiness proof; its log line adds the reclaimed byte count. dstack can
+    # serve a finished job's logs a moment late, so read them a few times.
+    reclaimed = _reclaimed_bytes_from_logs(cleanup_run)
     return {
         "cleanup_run_name": cleanup_run.name,
         "hostname": expected_hostname,
         "workspace": workspace,
         "emptied": True,
-        "reclaimed_bytes": reclaimed,
+        "reclaimed_bytes": reclaimed if reclaimed is not None else 0,
+        **({} if reclaimed is not None else {"reclaimed_bytes_evidence": "unavailable"}),
     }
+
+
+_CLEANUP_LOG_ATTEMPTS = 6
+_CLEANUP_LOG_INTERVAL_SECONDS = 5.0
+_RECLAIMED_VALUE = re.compile(r"\d+(?:\.\d*)?(?:[eE][+-]?\d+)?")
+
+
+def parse_reclaimed_bytes(lines) -> int | None:
+    """The reclaimed byte count a cleanup task printed, if any.
+
+    Tasks before 0.4.12 printed awk's default number format, which is
+    scientific for totals above about two gigabytes (``4.63293e+09``); those
+    are accepted, rounded to whole bytes.
+    """
+
+    reclaimed = None
+    for line in lines:
+        if line.startswith(_RECLAIMED_PREFIX):
+            raw = line.removeprefix(_RECLAIMED_PREFIX).strip()
+            if _RECLAIMED_VALUE.fullmatch(raw):
+                reclaimed = int(round(float(raw)))
+    return reclaimed
+
+
+def _reclaimed_bytes_from_logs(cleanup_run, *, sleep=time.sleep):
+    for attempt in range(_CLEANUP_LOG_ATTEMPTS):
+        lines = []
+        for value in cleanup_run.logs(replica_num=0, job_num=0):
+            lines.extend(value.decode("utf-8", errors="replace").splitlines())
+        reclaimed = parse_reclaimed_bytes(lines)
+        if reclaimed is not None:
+            return reclaimed
+        if attempt + 1 < _CLEANUP_LOG_ATTEMPTS:
+            sleep(_CLEANUP_LOG_INTERVAL_SECONDS)
+    return None
 
 
 def main():

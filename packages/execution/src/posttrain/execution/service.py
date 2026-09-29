@@ -114,6 +114,9 @@ class ExecutionSubmission:
     legacy_bundle_digest: str | None = None
     local_image: str | None = None
     evidence_retention: str = "standard"
+    # The /dev/shm size, in GiB, the provider was asked to give the job
+    # container. Receipts written before the size was explicit have none.
+    shared_memory_gb: int | None = None
 
     def __post_init__(self) -> None:
         if not _RUN_ID.fullmatch(self.run_id):
@@ -132,6 +135,8 @@ class ExecutionSubmission:
             raise ContractError("execution submission local image tag is invalid")
         if self.evidence_retention not in {"standard", "pinned"}:
             raise ContractError("execution submission evidence retention is invalid")
+        if self.shared_memory_gb is not None and (isinstance(self.shared_memory_gb, bool) or self.shared_memory_gb < 1):
+            raise ContractError("execution submission shared-memory size must be positive")
         if self.legacy_bundle_digest is not None and not _SHA256.fullmatch(self.legacy_bundle_digest):
             raise ContractError("legacy execution submission bundle digest must be SHA-256")
         if self.submitted_at.tzinfo is None or self.submitted_at.utcoffset() is None:
@@ -477,6 +482,11 @@ class ExecutionSubmissionStore:
                     "job_image": submission.job_image,
                     "local_image": submission.local_image,
                     "evidence_retention": submission.evidence_retention,
+                    **(
+                        {"shared_memory_gb": submission.shared_memory_gb}
+                        if submission.shared_memory_gb is not None
+                        else {}
+                    ),
                     "submitted_at": submission.submitted_at.isoformat(),
                     "required_artifact_roles": submission.required_artifact_roles,
                     "run_workspace": (str(submission.run_workspace) if submission.run_workspace is not None else None),
@@ -591,6 +601,7 @@ class JobExecutionService:
             provider_source_recorded=True,
             local_image=plan.request.local_image,
             evidence_retention=plan.request.run_spec.evidence_retention,
+            shared_memory_gb=plan.request.shared_memory_gb,
         )
         return self._store.save(submission)
 
@@ -750,6 +761,9 @@ def _submission_from_payload(payload: dict[str, Any]) -> ExecutionSubmission:
             local_image=(str(payload["local_image"]) if payload.get("local_image") is not None else None),
             evidence_retention=(
                 str(payload.get("evidence_retention", "standard")) if schema == _SCHEMA else "standard"
+            ),
+            shared_memory_gb=(
+                int(payload["shared_memory_gb"]) if payload.get("shared_memory_gb") is not None else None
             ),
         )
     except (KeyError, TypeError, ValueError) as error:

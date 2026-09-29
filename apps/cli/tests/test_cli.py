@@ -942,12 +942,12 @@ def test_init_grpo_template_declares_environment_and_selected_extras(
     pyproject = (project / "pyproject.toml").read_text(encoding="utf-8")
     work_package = (project / ".posttrain" / "work_packages" / "grpo.yaml").read_text(encoding="utf-8")
     assert '"posttrain[observatory,trackio,trl,verifiers]' in pyproject
-    assert "carbonteq-ai/verifiers.git@cdd2ec76" in pyproject
-    assert "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@5264ec15" in pyproject
+    assert "carbonteq-ai/verifiers.git@e6a3d9bb" in pyproject
+    assert "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@11f4d712" in pyproject
     environment = (project / ".posttrain" / "catalog" / "environments.yaml").read_text(encoding="utf-8")
     assert "starter-gsm8k-train" in work_package
     assert "package: gsm8k-v1" in environment
-    assert "revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb" in environment
+    assert "revision: 11f4d712806d292c6c6a752af046f4e16c4f037e" in environment
     from posttrain.catalog import load_project_layout
     from posttrain.project import load_project_pack_config
 
@@ -2388,7 +2388,9 @@ bindings:
         )
         == 0
     )
-    assert "Job intent: screen/cpu-check/validate" in capsys.readouterr().out
+    plan_output = capsys.readouterr().out
+    assert "Job intent: screen/cpu-check/validate" in plan_output
+    assert "Container shared memory: 16 GiB (/dev/shm, target " in plan_output
 
     execution_config.write_text(local_execution_config, encoding="utf-8")
     execution_config.chmod(0o600)
@@ -2423,6 +2425,11 @@ bindings:
     assert second_launch.settings.timeout_seconds == 240
     assert first_launch.mounts[0].instance_path.name == "capsule-launch-a"
     assert second_launch.mounts[0].instance_path.name == "capsule-launch-b"
+    from posttrain_cli.commands.work_package import _execution_plan_payload
+    from posttrain_cli.execution_planning import PlannedJobExecution
+
+    launch_payload = _execution_plan_payload(PlannedJobExecution(reusable_package, first_launch))
+    assert cast(dict[str, object], launch_payload["target"])["shared_memory_gb"] == 16
 
     remote_training_package = replace(
         reusable_package,
@@ -3096,3 +3103,58 @@ def test_run_show_rejects_project_without_tracking(tmp_path: Path, capsys) -> No
 
     assert main(["--project-root", str(project), "run", "show", "run-1"]) == 1
     assert "was submitted with tracking disabled" in capsys.readouterr().err
+
+
+def test_controller_logs_and_records_why_a_run_needs_attention(
+    tmp_path: Path,
+    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "example"
+    assert main(["init", str(project)]) == 0
+    capsys.readouterr()
+    health = tmp_path / "controller-health"
+    failure = RuntimeError("cleanup task did not return verification evidence\nsecond line " + "x" * 800)
+
+    class Admission:
+        def pump_available(self):
+            return None
+
+        def list(self):
+            return [SimpleNamespace(run_id="run-1", state="terminal_pending_evidence", control_locator=object())]
+
+    def owner(_entry):
+        raise failure
+
+    monkeypatch.setattr("posttrain_cli.commands.controller.execution_admission_service", lambda _layout: Admission())
+    monkeypatch.setattr("posttrain_cli.commands.controller._owner", owner)
+
+    assert main(["--project-root", str(project), "controller", "run", "--once", "--health-file", str(health)]) == 0
+    output = capsys.readouterr().out
+    assert (
+        "run-1  action=reconcile  state=attention  "
+        "message=RuntimeError: cleanup task did not return verification evidence"
+    ) in output
+    assert "second line" not in output  # first line only
+
+    assert main(["--project-root", str(project), "controller", "status", "--health-file", str(health)]) == 0
+    status = capsys.readouterr().out
+    assert "attention: run-1  action=reconcile  message=RuntimeError: cleanup task did not return" in status
+    assert main(["--json", "--project-root", str(project), "controller", "status", "--health-file", str(health)]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["healthy"] is True
+    assert payload["attention"] == [
+        {
+            "run_id": "run-1",
+            "action": "reconcile",
+            "message": "RuntimeError: cleanup task did not return verification evidence",
+        }
+    ]
+
+
+def test_controller_attention_messages_are_bounded() -> None:
+    from posttrain_cli.commands.controller import _attention_message
+
+    message = _attention_message(ValueError("y" * 2000))
+    assert len(message) == 500 and message.startswith("ValueError: yyy") and message.endswith("…")
+    assert _attention_message(KeyError()) == "KeyError"

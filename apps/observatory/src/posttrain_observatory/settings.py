@@ -78,6 +78,19 @@ class ObservatorySettings(ObservatoryModel):
     model_config_source: Literal["hub", "disabled"] = "hub"
     """Where the settings calculator reads model configs; ``disabled`` keeps reviews to rule findings."""
     sources: tuple[ObservatorySourceSettings, ...] = ()
+    default_source_id: str | None = None
+    """The source a request without ``source_id`` reads (semantic queries, evaluations,
+    bare run ids). Unset: the configured Trackio project when projects are discovered,
+    the only source when there is one; with several sources a request must name one."""
+
+    def resolved_default_source_id(self) -> str | None:
+        if self.default_source_id:
+            return self.default_source_id
+        if self.discover_trackio_projects:
+            # Discovered sources are named by their Trackio project.
+            return self.trackio_project
+        configured = self.configured_sources()
+        return configured[0].source_id if len(configured) == 1 else None
 
     @model_validator(mode="after")
     def validate_runtime(self) -> ObservatorySettings:
@@ -161,6 +174,7 @@ class ObservatorySettings(ObservatoryModel):
             "note_writes": _environment_bool("POSTTRAIN_OBSERVATORY_NOTE_WRITES"),
             "note_templates_dir": os.getenv("POSTTRAIN_OBSERVATORY_NOTE_TEMPLATES"),
             "sources": sources,
+            "default_source_id": os.getenv("POSTTRAIN_OBSERVATORY_DEFAULT_SOURCE") or None,
         }
 
     @classmethod

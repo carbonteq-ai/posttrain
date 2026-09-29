@@ -7,8 +7,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from posttrain.common import ContractError, ExecutionTarget
+from posttrain.common import ContractError, ExecutionTarget, JsonValue
 from posttrain.execution import (
+    DEFAULT_SHARED_MEMORY_GB,
     JOB_PACKAGE_WORKER_COMMAND,
     BundleRef,
     ExecutionHandle,
@@ -17,6 +18,7 @@ from posttrain.execution import (
     ExecutionRecord,
     ExecutionRequest,
     RuntimeImageRef,
+    execution_shared_memory_gb,
 )
 from posttrain.tracking import RunSpec
 
@@ -88,3 +90,42 @@ def test_execution_journal_is_append_only_and_mode_600(tmp_path: Path) -> None:
     journal.append(record)
     assert len(path.read_text().splitlines()) == 2
     assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_every_job_container_gets_an_explicit_shared_memory_size() -> None:
+    def target(**placement: JsonValue) -> ExecutionTarget:
+        return ExecutionTarget("targets/gpu", "1", "cuda", 24, placement=placement)
+
+    # Docker and dstack default /dev/shm to 64 MiB; veRL's rollout server alone
+    # needs 160 MiB at start.
+    assert DEFAULT_SHARED_MEMORY_GB == 16
+    assert execution_shared_memory_gb(target()) == 16
+    assert execution_shared_memory_gb(target(shm_size_gb=48)) == 48
+    # A declared host bounds the default to half of its memory.
+    assert execution_shared_memory_gb(target(host_memory_gb=64)) == 16
+    assert execution_shared_memory_gb(target(host_memory_gb=12)) == 6
+    assert execution_shared_memory_gb(target(host_memory_gb=1.5)) == 1
+    assert execution_shared_memory_gb(target(host_memory_gb=12, shm_size_gb=10)) == 10
+
+    with pytest.raises(ContractError, match="exceeds its host_memory_gb 12"):
+        execution_shared_memory_gb(target(host_memory_gb=12, shm_size_gb=13))
+    for invalid in (0, -1, 1.5, "16", True):
+        with pytest.raises(ContractError, match="shm_size_gb must be a positive integer"):
+            execution_shared_memory_gb(target(shm_size_gb=invalid))
+    for invalid in (0, -4, "64", False):
+        with pytest.raises(ContractError, match="host_memory_gb must be a positive number"):
+            execution_shared_memory_gb(target(host_memory_gb=invalid))
+
+    request = ExecutionRequest(
+        run_spec=_run_spec(),
+        job_definition_id="train/sft@1",
+        image=RuntimeImageRef(f"registry.lan/posttrain@sha256:{'a' * 64}"),
+        target=target(shm_size_gb=24),
+        command=JOB_PACKAGE_WORKER_COMMAND,
+        idempotency_key="logical-run-attempt-1",
+        policy=ExecutionPolicy(300),
+    )
+    assert request.shared_memory_gb == 24
+    # A contradictory target cannot even become a request.
+    with pytest.raises(ContractError, match="exceeds its host_memory_gb"):
+        replace(request, target=target(host_memory_gb=8, shm_size_gb=16))

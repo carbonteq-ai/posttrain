@@ -84,6 +84,7 @@ def create_service(settings: ObservatorySettings | None = None) -> ObservatorySe
         note_store_factory=_note_stores(settings.trackio_write_token),
         note_templates=TemplateSet(settings.note_templates_dir),
         note_writes=settings.note_writes,
+        default_source_id=settings.resolved_default_source_id(),
     )
 
 

@@ -28,7 +28,75 @@ resume checkpoint 1 to matching uninterrupted weights, and generate from the
 export. This is deterministic full-parameter fixture evidence, not live Verifiers,
 judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
 
-Latest candidate: `1.12.0.post10`, release commit
+Selected candidate: `1.12.0.post11`, tag `carbonteq-v1.12.0.post11` (GitHub
+prerelease https://github.com/carbonteq-ai/trl/releases/tag/carbonteq-v1.12.0.post11,
+asset digests verified against the hashes below). Posttrain retained-asset
+workflow run https://github.com/carbonteq-ai/posttrain/actions/runs/36434036656
+published the same bytes to `carbonteq/dev`, which serves both exact hashes; the
+lock resolves them from there. Stable promotion and GPU qualification remain
+open. Fork branch
+`codex/active-sampling-oversample`, release commit
+`3135b502d69956200d1c030a514470c351d2ee9f` (feature commits `0b428cd6` and
+`2393648d`), on top of post10. It adds active-sampling oversampling:
+`GRPOConfig.active_sampling_oversample` adds that many prompt groups to the
+first round and `active_sampling_oversample_refill` adds that many to each
+refill round, never exceeding the first round. The update still keeps the first
+target groups with reward spread in candidate order and discards the surplus.
+Both default to `0`, which is byte-for-byte post10 behavior. Local build from
+the release commit (`SOURCE_DATE_EPOCH=1790604110 uv build --python 3.13` on a
+`git archive` export; the wheel rebuilds to identical bytes, the sdist does
+not): wheel SHA-256
+`7fcea40a21239ae57d22333aa612af939cf8e44a72443681ad4900a697e5a5b2`; sdist
+`bb3cdec95d3562054b4ad599a8ce8975232f466c7a593171f8798372c40c7785`. Publish
+those exact files. The previous pin was post10.
+
+Post11 also adds `peft_reference` to `GRPOConfig` and `RLOOConfig`. Upstream
+gives a run that continues a trained adapter a frozen copy of that adapter as
+its KL reference, so every `--model-from-run` restart re-anchored the penalty
+to an already drifted policy. `peft_reference="base"` creates no copy and
+scores the reference with adapters disabled, the base model. Posttrain's GRPO
+and SAMPO settings take `kl_reference: base | start`, default `base`. The TRL
+backend passes `peft_reference="base"` only for a continued adapter with
+`beta > 0` and `kl_reference: base`; everywhere else TRL's default already gives
+the intended reference (a fresh LoRA adapter starts at zero, so disabling it is
+the base model, and a full-parameter run from the foundation loads the
+foundation as `ref_model`). The TRL backend loads no other starting form for
+training: a full-parameter update from an adapter or a `full-finetuned`
+checkpoint is rejected when the model loads. `kl_reference` is part of the
+SAMPO reward-contract digest; `start` hashes like settings written before the
+field existed, so older checkpoints resume with `kl_reference: start`, and a
+resume that would switch the reference is refused. `posttrain job plan` prints
+the reference and runs record `kl_reference` (resolved: `off`, `base` or
+`start`) and `kl_reference_setting`. GDPO and CAPO have no setting and keep TRL's
+default. The veRL backend continues an adapter on its foundation weights and
+computes the LoRA reference with the adapter disabled (the base model), and
+otherwise loads the reference from the starting checkpoint; job planning and
+the veRL launcher reject `kl_reference: start` for a continued adapter and
+`kl_reference: base` for any other non-foundation starting model (see
+`docs/tooling/verl/README.md`).
+
+Posttrain exposes it as GRPO (OLMo 3) and SAMPO settings
+`active_sampling: {max_candidate_batches: N, oversample: K1, oversample_refill:
+K2}`, counted in prompt groups. `oversample` and `oversample_refill` are passed
+to TRL only when non-zero, so exact refill keeps working on post10; a non-zero
+value with an earlier TRL fails before training with the required version. The
+adaptive-curriculum sampler in `policy_curriculum.py` applies the same round
+sizes. The first round, `(num_prompts_per_step + oversample) *
+num_generations` episodes, is the largest round and must fit every rollout
+concurrency limit: the rollout engine's `max_num_seqs` (TRL's default is one
+generation batch), the environment's `max_concurrent` and, with native workers,
+`env_workers * episodes_per_worker`. `posttrain job plan` and trainer start
+reject an oversampled first round that exceeds any of them, naming each limit.
+The candidate reservation (`num_prompts_per_step * max_candidate_batches`) must
+hold `num_prompts_per_step + oversample` and still fit the environment's tasks.
+Oversampling is excluded from the SAMPO reward-contract digest: it changes
+rollout cost and wall time, not rewards, credit or how an update is assembled,
+so existing checkpoints keep their digest and a resumed run may turn it on.
+With an adaptive curriculum it does change which tasks later rounds select,
+because extra groups add evidence before a refill is chosen; that is a sampling
+choice recorded in the run attributes, not a learning-semantics change.
+
+Previous candidate: `1.12.0.post10`, release commit
 `4950b99d457faacbec856cbd5305732e7b3cf7b0`, tag `carbonteq-v1.12.0.post10`.
 It makes the single-process GRPO actor update cheaper for long agentic
 episodes: micro-batches are scored at their own real extent instead of the
@@ -373,10 +441,22 @@ materialized `training-checkpoint`. LoRA and QLoRA checkpoints contain the
 adapter plus trainer, optimizer, scheduler, and RNG state and are rejected if
 they duplicate immutable base-model weights. On failure or cancellation, the
 latest complete checkpoint is committed before the worker workspace is
-released. A new `posttrain job run --resume-from-run RUN_ID` invocation uses a
-fresh run identity and requires exactly one checkpoint output from the source
-run. Recovery may lose work after the last configured checkpoint; interruption
-before the first checkpoint has no safe resume point.
+released. When the host cancels a GRPO, DAPO, OLMo 3, SAMPO, GDPO, or CAPO run,
+the online-RL adapter first saves and publishes a checkpoint of the last
+completed optimizer update if it is newer than the last periodic one; a
+cancellation that arrives during an optimizer step is delivered after that
+update completes (bounded at 60 seconds), and the run's `cancel_checkpoint`
+event records the saved step or why nothing was saved
+(`docs/plan/cancel-checkpoint.md`). `train/cancel_checkpoint_step` carries the
+saved step as its value and is recorded at the step of the interrupted update
+(the event's `cancelled_update`), because that update's rollout may already
+have logged metrics at that step and logical steps never decrease. A new
+`posttrain job run --resume-from-run RUN_ID` invocation uses a fresh run
+identity and requires exactly one checkpoint output from the source run. SFT,
+DPO, and distillation recovery may still lose work after the last configured
+checkpoint, and a failure other than cancellation keeps the last periodic
+checkpoint; interruption before the first checkpoint and before any completed
+update has no safe resume point.
 The current release exposes that same generic `VLLMGeneration`
 synchronization choice through experimental `IWOPDConfig`. This is required
 when an on-policy distillation student
@@ -450,6 +530,64 @@ The fork's colocated vLLM path has been exercised on the local RTX 3070 Ti with
 a 0.5B Qwen smoke through engine creation, CUDA graph capture, weight sync,
 generation, and token-logprob extraction. That compatibility smoke does not
 replace SFT, DPO, or GRPO acceptance for the two foundation profiles.
+
+## Trainer and rollout precision
+
+The trainer and the colocated vLLM sampler compute the same policy's token
+log-probabilities with different kernels, and rounding in their compute dtype
+makes the two disagree; the truncated importance-sampling (IS) correction then
+absorbs the difference. Three selections choose the precision on each side
+(resolved by `posttrain.train.precision` and shown by `posttrain job plan` on
+its `Precision:` line):
+
+    training binding backend_options:
+      training_precision: fp16   # default bf16
+      fp16_initial_loss_scale: 1024  # fp16 only; default 1024 (PyTorch's own default is 65536)
+      logits_float32: true       # default false; always on (and false rejected) with fp16
+    rollout inference binding engine:
+      dtype: float16             # bfloat16 | float16 | float32; default: checkpoint
+
+`training_precision: fp16` loads the frozen base in float16, sets the
+Transformers `fp16` flag (float16 autocast with a dynamic loss scaler), and
+requires a LoRA update: PEFT keeps the adapter in float32 over a float16 base,
+fresh or resumed, so the scaler steps float32 master weights. The backend
+checks that before training and records `train/loss_scale`,
+`train/optimizer_step_skipped` and `train/optimizer_steps_skipped` after every
+optimizer step; one skipped step discards one rollout batch. The gradient norm
+of a skipped step is infinite by construction and is not treated as a failure.
+`fp16_initial_loss_scale` is the scaler's starting scale. Starting at
+PyTorch's 65536, the Qwen3.5-0.8B fp16 arm overflowed and skipped updates 1-5
+and 7 while the scale backed off to 1024, and every skipped step discards a
+rollout batch; the framework therefore starts at 1024. Growth (doubling after
+2000 finite steps) is unchanged.
+`logits_float32` casts the language-model head's output to float32 before the
+log-softmax (the logits are still produced in the model dtype, as vLLM's
+sampler also receives them); it cannot be combined with the fused Liger loss.
+Float16 training always does this, and its trainer also casts the per-token
+log-probabilities and entropies to float32, so every loss term (the k3 KL
+`exp(ref - logp)`, token and sequence importance ratios, vLLM importance
+weights, clipped policy term and masked sums) is computed in float32. TRL
+1.12.0.post11 computes those terms in the dtype of its log-probabilities, and
+its chunked-logits path calls the LM head outside Accelerate's autocast, so
+under float16 they were float16: `exp` of a log-ratio above about 11 is
+infinite in float16, and on the masked tool and environment tokens of
+multi-turn completions (log-ratios the policy never bounded) infinity times the
+zero mask made the loss NaN. The LFM2.5-2.6B SAMPO fp16 canary skipped every
+update that way. `logits_float32: false` is rejected with fp16. The fused Liger
+loss computes its logits and loss in float32 itself.
+Both options are online-RL only (GRPO, SAMPO, GDPO, CAPO); SFT, DPO and
+distillation reject them.
+
+`engine.dtype` is forwarded to vLLM. A TurboQuant KV cache still implies
+float16 and rejects any other explicit dtype. vLLM's chunked Gated-DeltaNet
+kernel rejects float32, so the advisor fails a Qwen3.5 binding with
+`dtype: float32` at plan time (`VLLM_FLOAT32_UNSUPPORTED_FOR_GATED_DELTANET`).
+A float16 trainer with a non-float16 sampler is a warning
+(`FP16_TRAINER_WITH_NON_FP16_ROLLOUT`), and a float16 sampler on a bf16
+checkpoint is only reported (`VLLM_FLOAT16_ON_BF16_CHECKPOINT`) when the trainer
+is not also float16. The fork itself is unchanged; see
+`docs/plan/fp16-training-precision.md` for the offline mismatch matrix and the
+training-arm evidence.
 
 ## Native MTP and TurboQuant rollouts
 

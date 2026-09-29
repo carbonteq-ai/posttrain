@@ -6,12 +6,13 @@ import asyncio
 import importlib
 import json
 import sys
+from collections import Counter
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Annotated, Any
 
 import typer
-from posttrain.common import ContractError, TraceFactSet
+from posttrain.common import EPISODE_ENDING_ATTRIBUTE, ContractError, TraceFactSet
 from posttrain.environment import project_verifiers_trace_facts
 from posttrain.tracking import TraceQuery
 
@@ -117,6 +118,7 @@ class TraceFactBackfillPage:
     preview: bool
     reasoning_filled: int = 0
     thinking_unscored: int = 0
+    endings: Mapping[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +138,7 @@ class TraceFactBackfillWindow:
     pages: tuple[TraceFactBackfillPage, ...]
     reasoning_filled: int = 0
     thinking_unscored: int = 0
+    endings: Mapping[str, int] = field(default_factory=dict)
 
 
 def backfill_verifiers_trace_page(
@@ -215,6 +218,7 @@ def backfill_verifiers_trace_window(
         partial = 0
         reasoning_filled = 0
         thinking_unscored = 0
+        endings: Counter[str] = Counter()
         updates: list[tuple[str, TraceFactSet]] = []
         for trace in raw_page.items:
             payload = trace.payload
@@ -222,6 +226,8 @@ def backfill_verifiers_trace_window(
                 payload, filled = fill_renderer_reasoning_tokens(payload, renderer)
                 reasoning_filled += filled
             facts = project_verifiers_trace_facts(payload, attributes=trace.attributes)
+            ending = facts.dimensions.get(EPISODE_ENDING_ATTRIBUTE)
+            endings[ending if isinstance(ending, str) else "unlabelled"] += 1
             if _has_unscored_thinking(payload, facts):
                 thinking_unscored += 1
             if facts.state == "complete":
@@ -260,6 +266,7 @@ def backfill_verifiers_trace_window(
             preview=not apply,
             reasoning_filled=reasoning_filled,
             thinking_unscored=thinking_unscored,
+            endings=dict(sorted(endings.items())),
         )
         pages.append(page)
         if checkpoint is not None:
@@ -284,7 +291,12 @@ def backfill_verifiers_trace_window(
         pages=tuple(pages),
         reasoning_filled=sum(page.reasoning_filled for page in pages),
         thinking_unscored=sum(page.thinking_unscored for page in pages),
+        endings=dict(sorted(sum((Counter(page.endings) for page in pages), Counter()).items())),
     )
+
+
+def _ending_summary(endings: Mapping[str, int]) -> str:
+    return ", ".join(f"{name} {count}" for name, count in endings.items()) or "none"
 
 
 def register(app: typer.Typer) -> None:
@@ -362,6 +374,7 @@ def register(app: typer.Typer) -> None:
                 f"({page.inspected} traces, {page.complete} complete, {page.partial} partial, "
                 f"{page.reasoning_filled} calls given renderer reasoning counts, "
                 f"{page.thinking_unscored} traces with reasoning but no count; "
+                f"endings: {_ending_summary(page.endings)}; "
                 f"next cursor: {page.next_cursor or 'done'})",
                 flush=True,
             )
@@ -383,6 +396,7 @@ def register(app: typer.Typer) -> None:
             receipt,
             f"Trace-fact window {mode}: {receipt.project}/{receipt.provider_run_id} "
             f"({receipt.inspected} traces, {receipt.complete} complete, {receipt.partial} partial; "
+            f"endings: {_ending_summary(receipt.endings)}; "
             f"next cursor: {receipt.next_cursor or 'done'})",
         )
 

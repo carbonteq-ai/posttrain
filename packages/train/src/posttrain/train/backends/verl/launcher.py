@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import os
 import signal
 import subprocess
@@ -25,8 +24,12 @@ from posttrain.common import (
     TraceObservation,
 )
 
+from ...backend_support import verl_grpo_settings_problem, verl_training_loop_problem, verl_warmup_steps
 from ...bindings import FullParameterUpdate, LoRAUpdate
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
+from ...kl_reference import kl_reference_problem, resolved_kl_reference
+from ...precision import resolve_precision, training_precision, verl_rollout_dtype
+from ...profiles import GRPOSettings
 from ...requests import CAPORequest, GDPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
@@ -59,10 +62,17 @@ VerlLaunchPlan = VerlLaunchManifest
 def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunchPlan:
     _validate_backend(request.training.backend)
     _validate_model(request.policy, "policy")
-    if request.settings.algorithm == "olmo3":
-        raise ValueError("the OLMo 3 GRPO recipe is currently supported by the TRL backend only")
-    if request.settings.truncation_penalty is not None:
-        raise ValueError("GRPO truncation_penalty is currently supported by the TRL backend only")
+    # OLMo 3 (it needs active sampling), adaptive_curriculum and every other GRPO
+    # setting veRL does not receive are rejected instead of silently ignored.
+    unsupported = verl_grpo_settings_problem(request.settings)
+    if unsupported is not None:
+        raise ValueError(unsupported)
+    problem = kl_reference_problem(
+        request.training.backend, request.settings.beta, request.settings.kl_reference, request.policy.form
+    )
+    if problem is not None:
+        raise ValueError(problem)
+    _validate_adapter_continuation(request.policy, request.training.update)
     return _plan(
         request,
         output_dir,
@@ -70,31 +80,48 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
         {
             "policy": _model(request.policy),
             "reference": _model(request.reference) if request.reference is not None else None,
-            "algorithm": {
-                "advantage_estimator": "grpo",
-                "beta": request.settings.beta,
-                "num_prompts_per_step": request.settings.num_prompts_per_step,
-                "num_generations": request.settings.num_generations,
-                "max_prompt_length": request.settings.max_prompt_length,
-                "max_completion_length": request.settings.max_completion_length,
-                "online_rl_algorithm": request.settings.algorithm,
-                "shuffle_prompts": request.settings.shuffle_prompts,
-                "clip_epsilon_low": request.settings.clip_epsilon_low,
-                "clip_epsilon_high": request.settings.resolved_clip_epsilon_high,
-                "dynamic_sampling": request.settings.dynamic_sampling is not None,
-                "dynamic_sampling_max_candidate_batches": (
-                    request.settings.dynamic_sampling.max_candidate_batches
-                    if request.settings.dynamic_sampling is not None
-                    else None
-                ),
-                "mask_truncated_completions": request.settings.mask_truncated_completions,
-                "overlong_buffer_tokens": request.settings.overlong_buffer_tokens,
-                "overlong_penalty_factor": request.settings.overlong_penalty_factor,
-            },
+            "algorithm": grpo_algorithm_payload(request.settings),
             "rollout": _inference(request.inference),
             "environment": _environment(request, output_dir),
         },
     )
+
+
+def grpo_algorithm_payload(settings: GRPOSettings) -> dict[str, Any]:
+    """Map GRPO, DAPO or OLMo 3 settings to the veRL algorithm contract.
+
+    OLMo 3 fixes mean-only group advantages and token-level sampler correction
+    capped at 2 (validated by GRPOSettings); veRL receives both explicitly. Other
+    algorithms keep veRL's historical advantage and correction behavior.
+    """
+
+    payload: dict[str, Any] = {
+        "advantage_estimator": "grpo",
+        "beta": settings.beta,
+        "num_prompts_per_step": settings.num_prompts_per_step,
+        "num_generations": settings.num_generations,
+        "max_prompt_length": settings.max_prompt_length,
+        "max_completion_length": settings.max_completion_length,
+        "online_rl_algorithm": settings.algorithm,
+        "shuffle_prompts": settings.shuffle_prompts,
+        "clip_epsilon_low": settings.clip_epsilon_low,
+        "clip_epsilon_high": settings.resolved_clip_epsilon_high,
+        "dynamic_sampling": settings.dynamic_sampling is not None,
+        "dynamic_sampling_max_candidate_batches": (
+            settings.dynamic_sampling.max_candidate_batches if settings.dynamic_sampling is not None else None
+        ),
+        "mask_truncated_completions": settings.mask_truncated_completions,
+        "overlong_buffer_tokens": settings.overlong_buffer_tokens,
+        "overlong_penalty_factor": settings.overlong_penalty_factor,
+        "truncation_penalty": settings.truncation_penalty,
+    }
+    if settings.algorithm == "olmo3":
+        payload.update(
+            normalize_advantage_by_std=False,
+            rollout_importance_sampling="token",
+            rollout_importance_sampling_cap=settings.importance_sampling_clip_max,
+        )
+    return payload
 
 
 def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaunchPlan:
@@ -112,6 +139,7 @@ def build_structured_launch_plan(request: GDPORequest | CAPORequest, output_dir:
 
     _validate_backend(request.training.backend)
     _validate_model(request.policy, "policy")
+    _validate_adapter_continuation(request.policy, request.training.update)
     technique = "gdpo" if isinstance(request, GDPORequest) else "capo"
     settings = request.settings
     algorithm: dict[str, Any] = {
@@ -247,6 +275,16 @@ def _plan(
             }
         )
     loop = request.settings.loop
+    world_size = request.training.target.placement.get("world_size", 1)
+    if not isinstance(world_size, int):
+        raise ValueError("veRL training target world_size must be an integer")
+    loop_problem = verl_training_loop_problem(
+        loop,
+        rows_per_update=request.settings.num_prompts_per_step * request.settings.num_generations,
+        world_size=world_size,
+    )
+    if loop_problem is not None:
+        raise ValueError(loop_problem)
     payload = VerlPayload.model_validate(
         {
             **operation_payload,
@@ -263,7 +301,8 @@ def _plan(
                     "per_device_batch_size": loop.per_device_batch_size,
                     "gradient_accumulation_steps": loop.gradient_accumulation_steps,
                     "learning_rate": loop.learning_rate,
-                    "warmup_steps": math.ceil(loop.max_steps * loop.warmup_ratio),
+                    "lr_scheduler_type": loop.lr_scheduler_type,
+                    "warmup_steps": verl_warmup_steps(loop),
                     "max_grad_norm": loop.max_grad_norm,
                     "checkpoint_steps": loop.checkpoint_steps,
                     "checkpoint_limit": loop.checkpoint_limit,
@@ -384,7 +423,9 @@ def _launch(
         _record_failure_artifacts_best_effort(context, plan, output_dir)
         raise RuntimeError(f"veRL process completed without its result contract: {result_path}")
     result = VerlWorkerResult.read(result_path)
-    backend, records = _backend_result(result, output_dir)
+    backend, records = _backend_result(
+        result, output_dir, loss_scaling=training_precision(request.training.backend_options) == "fp16"
+    )
     if isinstance(request, GRPORequest | SAMPORequest | GDPORequest | CAPORequest):
         _replay_grpo_metrics(context, request, records)
         _replay_trace_fact_updates(
@@ -550,6 +591,8 @@ def _record_failure_artifacts_best_effort(
 def _backend_result(
     payload: VerlWorkerResult,
     output_dir: Path,
+    *,
+    loss_scaling: bool = False,
 ) -> tuple[BackendTrainingResult, tuple[VerlMetricRecord, ...]]:
     summary = payload.summary
     training_summary = TrainingSummary(
@@ -571,7 +614,7 @@ def _backend_result(
         if payload.retention_manifest is not None
         else None
     )
-    records = read_verl_metric_records(metrics_path)
+    records = read_verl_metric_records(metrics_path, loss_scaling=loss_scaling)
     if not model_dir.is_dir():
         raise FileNotFoundError(model_dir)
     if checkpoint is not None and not checkpoint.exists():
@@ -632,7 +675,12 @@ def _replay_trace_fact_updates(
     context: RunContext,
     records: tuple[VerlRolloutRewardRecord, ...],
 ) -> None:
-    """Emit worker-side shaped rewards from the trusted parent process only."""
+    """Emit worker-side shaped rewards from the trusted parent process only.
+
+    An enrichment carries only ``algorithm_reward``: the rollout step and the
+    reward components belong to the Verifiers source projection, and tracking
+    backends reject an enrichment that supplies them.
+    """
 
     for record in records:
         context.trace_fact_update(
@@ -642,7 +690,6 @@ def _replay_trace_fact_updates(
                 TraceFactSet(
                     namespace="posttrain.train.reward",
                     calculator_version="verl-algorithm-reward.v1",
-                    dimensions={"rollout_step": record.step},
                     measures={"algorithm_reward": record.algorithm_reward},
                     provenance={"algorithm_reward": "verl_agent_loop_reward_shaping"},
                 ),
@@ -721,7 +768,16 @@ def _grpo_runtime_attributes(
         "rollout_mode": str(engine.get("mode", "async")),
         "update_kind": request.training.update.kind,
         "world_size": request.training.target.placement.get("world_size", 1),
-        "rollout_precision": str(engine.get("dtype", "bfloat16")),
+        **{
+            key: value
+            for key, value in resolve_precision(
+                request.training.backend_options, engine, request.policy.weight_precision, backend="verl"
+            )
+            .as_dict()
+            .items()
+            if key in {"training_precision", "loss_scaling"}
+        },
+        "rollout_precision": verl_rollout_dtype(engine)[0],
         "kv_cache_dtype": str(engine.get("kv_cache_dtype", "auto")),
         "max_model_len": engine.get(
             "max_model_len",
@@ -738,8 +794,14 @@ def _grpo_runtime_attributes(
         "shuffle_prompts": request.settings.shuffle_prompts,
     }
     if isinstance(request, GRPORequest):
+        attributes["kl_reference"] = resolved_kl_reference(
+            request.settings.beta, request.settings.kl_reference, request.policy.form
+        )
+        attributes["kl_reference_setting"] = request.settings.kl_reference
         attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
         attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
+        attributes["truncation_penalty"] = request.settings.truncation_penalty
+        attributes["advantage_scaling"] = "none" if request.settings.algorithm == "olmo3" else "group"
     elif isinstance(request, SAMPORequest):
         attributes["discount_gamma"] = request.settings.discount_gamma
         attributes["step_advantage_weight"] = request.settings.step_advantage_weight
@@ -764,6 +826,10 @@ def _validate_model(model: ModelVariant, role: str) -> None:
 def _model(model: ModelVariant | None) -> VerlModel | None:
     if model is None:
         return None
+    base = None
+    if model.form in {"adapter", "peft-adapter"}:
+        # The adapter is attached to its foundation weights inside veRL.
+        base = VerlHubArtifact(repo_id=model.base.repo_id, revision=model.base.revision)
     if isinstance(model.artifact, HubModelRef):
         artifact = VerlHubArtifact(repo_id=model.artifact.repo_id, revision=model.artifact.revision)
     elif isinstance(model.artifact, LocalArtifactRef):
@@ -777,7 +843,30 @@ def _model(model: ModelVariant | None) -> VerlModel | None:
         artifact=artifact,
         tokenizer_fingerprint=model.tokenizer_fingerprint,
         renderer_contract=model.renderer_contract,
+        base=base,
     )
+
+
+def _validate_adapter_continuation(model: ModelVariant, update: object) -> None:
+    """A PEFT-adapter starting model continues training that adapter, so the plan must match it."""
+
+    # The request itself rejects a full-parameter update from an unmerged adapter.
+    if model.form not in {"adapter", "peft-adapter"} or not isinstance(update, LoRAUpdate):
+        return
+    if not isinstance(model.artifact, LocalArtifactRef):
+        raise ValueError("the host must materialize the starting adapter before veRL training")
+    config_path = model.artifact.path / "adapter_config.json"
+    try:
+        config = json.loads(config_path.read_text())
+    except (OSError, ValueError) as error:
+        raise ValueError(f"starting adapter lacks a readable {config_path.name}") from error
+    rank = config.get("r")
+    if rank != update.rank:
+        # vLLM sizes its LoRA slots from the binding's rank; the actor takes the adapter's.
+        raise ValueError(
+            f"the starting adapter has LoRA rank {rank} but the training binding selects rank {update.rank}; "
+            "select a binding with the adapter's rank"
+        )
 
 
 def _inference(binding: Any) -> VerlInference:
@@ -816,6 +905,7 @@ __all__ = [
     "build_distillation_launch_plan",
     "build_grpo_launch_plan",
     "build_sampo_launch_plan",
+    "grpo_algorithm_payload",
     "run_distillation",
     "run_grpo",
     "run_sampo",

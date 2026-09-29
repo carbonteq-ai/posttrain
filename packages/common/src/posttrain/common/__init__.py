@@ -11,6 +11,15 @@ from .artifacts import (
     TrackioArtifactRef,
 )
 from .catalog import Catalog, CatalogLayer, CatalogRef, Resolved
+from .episodes import (
+    EPISODE_ENDING_ATTRIBUTE,
+    EPISODE_ENDING_DESCRIPTIONS,
+    EPISODE_ENDINGS,
+    TRUNCATED_EPISODE_ENDINGS,
+    EpisodeEnding,
+    episode_ending,
+    episode_ending_is_truncated,
+)
 from .errors import ContractError, OperationCancelled, PostTrainError
 from .execution import (
     CancellationToken,
@@ -35,6 +44,7 @@ from .hosted import (
     ProviderEndpointProfile,
     validate_secret_free_http_url,
 )
+from .interruption import CancellationRequest, CriticalSection, HostCancellation, host_cancellation
 from .jsonl_journal import AppendOnlyJsonlTailer, JsonlJournalStats
 from .models import (
     ChatTemplate,
@@ -50,8 +60,13 @@ from .selections import ExecutionTarget, HardwareCapabilities, InferenceBinding,
 from .validation import CheckOutcome, ConfigurationIssue, SettingOrigin
 
 __all__ = [
+    "EPISODE_ENDINGS",
+    "EPISODE_ENDING_ATTRIBUTE",
+    "EPISODE_ENDING_DESCRIPTIONS",
+    "TRUNCATED_EPISODE_ENDINGS",
     "ArtifactRef",
     "AppendOnlyJsonlTailer",
+    "CancellationRequest",
     "CancellationToken",
     "Catalog",
     "CatalogLayer",
@@ -60,10 +75,13 @@ __all__ = [
     "CheckOutcome",
     "ConfigurationIssue",
     "ContractError",
+    "CriticalSection",
+    "EpisodeEnding",
     "EventObservation",
     "ExternalInferenceService",
     "ExecutionTarget",
     "HubModelRef",
+    "HostCancellation",
     "HostedModel",
     "HostedInferenceBinding",
     "JudgeInferenceBinding",
@@ -100,5 +118,8 @@ __all__ = [
     "TraceRewardComponent",
     "TrackioArtifactRef",
     "Workload",
+    "episode_ending",
+    "episode_ending_is_truncated",
+    "host_cancellation",
     "validate_secret_free_http_url",
 ]

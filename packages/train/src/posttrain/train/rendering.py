@@ -76,6 +76,28 @@ def create_renderer_config(
     return config_class(**template_kwargs)
 
 
+def bridged_message_spans(rendered: Any, tail_start: int, prefix_tokens: int) -> tuple[tuple[int, int] | None, ...]:
+    """Spans over the full message list for a ``bridge_to_next_turn`` result.
+
+    A bridge result attributes tokens to the new messages only; offset them
+    past the retained prefix and leave the earlier messages without a span.
+    """
+
+    from renderers import RenderedTokens  # pyright: ignore[reportMissingImports]
+
+    tail = RenderedTokens(
+        message_indices=rendered.message_indices[prefix_tokens:],
+        message_roles=rendered.message_roles,
+    )
+    return tuple(
+        [None] * tail_start
+        + [
+            None if span is None else (span[0] + prefix_tokens, span[1] + prefix_tokens)
+            for span in tail.message_token_spans()
+        ]
+    )
+
+
 def create_renderer(tokenizer: Any, model: ModelVariant, renderer: TrainingRenderer) -> Any:
     """Create the pinned renderer while honoring the shared conversation contract."""
 

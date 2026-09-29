@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any, cast
 
 import pytest
@@ -235,6 +236,41 @@ def test_semantic_routes_run_sql_in_storage_and_explain_mistakes(
     with _client() as fixture:
         refused = fixture.post("/api/v1/semantic/query", json={"sql": "select 1"})
         assert refused.status_code == 501 and refused.json()["code"] == "sql_unavailable"
+
+
+def test_semantic_query_reads_the_requested_or_default_project_never_the_first_discovered(
+    trackio_project: TrackioDataSource,
+) -> None:
+    # Two projects on one Trackio storage, as discovery registers them: the empty one sorts first.
+    other = TrackioDataSource(
+        "aaa-other-project", server_url=os.environ.get("POSTTRAIN_TEST_TRACKIO_SERVER_URL") or None
+    )
+    registry = RunSourceRegistry({"aaa-other-project": other, trackio_project.project: trackio_project})
+    count = {"sql": "select count(*) as n from runs"}
+
+    service = ObservatoryService(registry, default_source_id=trackio_project.project)
+    with TestClient(create_http_app(service, ObservatorySettings())) as client:
+        assert client.post("/api/v1/semantic/query", json=count).json()["rows"] == [[2]]
+        explicit = client.post(f"/api/v1/semantic/query?source_id={trackio_project.project}", json=count)
+        assert explicit.json()["rows"] == [[2]]
+        # The request reached the other project (empty here, so Trackio has no such project yet).
+        other = client.post("/api/v1/semantic/query?source_id=aaa-other-project", json=count)
+        assert other.status_code == 404 and "Trackio project 'aaa-other-project'" in other.json()["message"]
+        missing = client.post("/api/v1/semantic/query?source_id=no-such-project", json=count)
+        assert missing.status_code == 404 and "no-such-project" in missing.json()["message"]
+
+    # Without a configured default, several sources require the request to name one.
+    undecided = ObservatoryService(registry)
+    with TestClient(create_http_app(undecided, ObservatorySettings())) as client:
+        refused = client.post("/api/v1/semantic/query", json=count)
+        assert refused.status_code == 404 and "pass source_id" in refused.json()["message"]
+        named = client.post(f"/api/v1/semantic/query?source_id={trackio_project.project}", json=count)
+        assert named.json()["rows"] == [[2]]
+
+    # A default that discovery did not find is an error, not a silent fallback.
+    absent = ObservatoryService(registry, default_source_id="posttrain")
+    with pytest.raises(LookupError, match="default Observatory source 'posttrain' is not available"):
+        absent.resolve_source_id()
 
 
 @pytest.mark.asyncio

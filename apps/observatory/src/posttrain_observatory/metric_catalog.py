@@ -11,11 +11,15 @@ from __future__ import annotations
 
 from typing import Literal
 
+from posttrain.common import EPISODE_ENDING_DESCRIPTIONS
 from pydantic import Field
 
 from .models import MetricHelp, ObservatoryModel
 
 type CatalogEntity = Literal["update", "run"]
+
+ACTIVE_SAMPLING_CATALOG_ROUNDS = 32
+"""Active-sampling rounds whose per-round metrics are described (max_candidate_batches in practice is 3-10)."""
 type CatalogAggregation = Literal["last", "first", "min", "max", "mean", "sum", "count", "stddev"]
 
 
@@ -579,6 +583,26 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         interpretation="A high value is expected when early candidate rounds are productive; it is not a failed rollout count.",
         entity="update",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
+    ),
+    _entry(
+        "train/rl/active_sampling_oversampled_groups",
+        "active_sampling_oversampled_groups",
+        "Active-sampling oversampled groups",
+        "Prompt groups generated beyond the groups each round was missing, from the oversample and oversample_refill settings.",
+        interpretation="This is the extra rollout work spent to avoid serial refill rounds; compare it with generation rounds.",
+        entity="update",
+        aggregation="sum",
+        job_kinds=("train.grpo", "train.sampo"),
+    ),
+    _entry(
+        "train/rl/active_sampling_discarded_groups",
+        "active_sampling_discarded_groups",
+        "Active-sampling discarded groups",
+        "Prompt groups with reward spread that were generated but dropped because the update was already full.",
+        interpretation="Discarded groups are the part of oversampling that did not reach the update; they never carry over to a later update.",
+        entity="update",
+        aggregation="sum",
+        job_kinds=("train.grpo", "train.sampo"),
     ),
     _entry(
         "train/rl/curriculum/candidate_groups",
@@ -1335,6 +1359,48 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         aggregation="sum",
         job_kinds=("eval.domain", "eval.general"),
     ),
+    # TRL's per-round active-sampling counts, one name per round (rounds count
+    # from 1 and are bounded by the settings' max_candidate_batches; described
+    # here for up to ACTIVE_SAMPLING_CATALOG_ROUNDS). Not semantic measures:
+    # the round is part of the name, and most updates run only the first round.
+    *(
+        _entry(
+            f"train/rl/active_sampling_round_{round_index}_{kind}_groups",
+            f"active_sampling_round_{round_index}_{kind}_groups",
+            f"Active-sampling round {round_index} {kind} groups",
+            description.format(round_index=round_index),
+            interpretation=(
+                "Compare requested with generated to see the oversampling each round added, and retained with "
+                "requested to see how many groups had reward spread; later rounds appear only when earlier ones "
+                "did not fill the update."
+            ),
+            aggregation="sum",
+            job_kinds=("train.grpo", "train.sampo"),
+        )
+        for round_index in range(1, ACTIVE_SAMPLING_CATALOG_ROUNDS + 1)
+        for kind, description in (
+            ("requested", "Prompt groups active-sampling round {round_index} still needed to fill the update."),
+            (
+                "generated",
+                "Prompt groups active-sampling round {round_index} generated, including oversampled groups.",
+            ),
+            ("retained", "Prompt groups from active-sampling round {round_index} with reward spread that were kept."),
+        )
+    ),
+    # One rate per episode ending (`posttrain.common.EpisodeEnding`); the
+    # per-rollout label is the `rollout.ending` dimension.
+    *(
+        _entry(
+            f"train/rl/ending_{ending}_rate",
+            f"ending_{ending}_rate",
+            f"Ending: {ending.replace('_', ' ')}",
+            f"Share of the update's attempted rollouts that ended {ending}. {meaning}",
+            unit="ratio",
+            entity="update",
+            job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
+        )
+        for ending, meaning in EPISODE_ENDING_DESCRIPTIONS.items()
+    ),
 )
 CATALOG_BY_METRIC: dict[str, MetricEntry] = {entry.metric: entry for entry in METRIC_CATALOG}
 
@@ -1343,4 +1409,4 @@ def metric_help(*metrics: str) -> tuple[MetricHelp, ...]:
     return tuple(CATALOG_BY_METRIC[metric].help() for metric in metrics)
 
 
-__all__ = ["CATALOG_BY_METRIC", "METRIC_CATALOG", "MetricEntry", "metric_help"]
+__all__ = ["ACTIVE_SAMPLING_CATALOG_ROUNDS", "CATALOG_BY_METRIC", "METRIC_CATALOG", "MetricEntry", "metric_help"]

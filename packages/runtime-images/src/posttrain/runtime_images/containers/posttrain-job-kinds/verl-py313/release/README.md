@@ -6,10 +6,10 @@ the dormant `online-rl-verl-py313` kind image.
 Current inputs:
 
 1. `pyproject.toml` selects CarbonTeq veRL
-   `18338a0efbd6f103378d2861f4a078ad243db455` (`0.9.0.post3` candidate), CarbonTeq vLLM
-   `f09e4479123d348cee87d217c695a22f9b2daacc`, and Verifiers core
-   `b71ade0a7ac712cdee9e1a4c0e53030d70768aff` with no concrete environment
-   packages and no editable or path sources.
+   `ef1c37715fa75de5973ae5b3c398383cd7e0093d` (`0.9.0.post8`), CarbonTeq vLLM
+   `f09e4479123d348cee87d217c695a22f9b2daacc`, and the framework's Verifiers
+   core `e6a3d9bbfe6959b97878f451fc721793a232cd5f` with no concrete
+   environment packages and no editable or path sources.
 2. `uv.lock` is generated for exact Python `3.13.12`.
 3. `backend-constraints.txt` is the exact, hash-bound export of that lock used
    while packaging veRL environment wheels. It prevents workspace dependency
@@ -71,3 +71,11 @@ sha256sum backend-constraints.txt
 
 Then update `dependency_lock_sha256` and `backend_constraints_sha256` in
 `../profile.toml` to match.
+
+The backend must select the framework's Verifiers revision (the one in
+`packages/eval/pyproject.toml`) and the same `carbonteq-renderers` release as
+the control environment: environment wheels are compiled once and installed
+into both roles, and `posttrain-release images publish` declares Verifiers and
+its companions as provided packages for both. When the framework moves
+Verifiers, move `[tool.uv.sources] verifiers` here and `verifiers_revision` in
+`../profile.toml` in the same change; `validate.py` fails otherwise.

@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 from typing import Annotated, Literal
 
-from posttrain.common import JsonValue
+from posttrain.common import EpisodeEnding, JsonValue
 from posttrain.tracking import (
     ArtifactLink,
     ArtifactSet,
@@ -733,6 +733,9 @@ class TraceSummary(ObservatoryModel):
     success: bool | None = None
     outcome: TraceOutcome = "unknown"
     truncated: bool = False
+    # How the episode ended, as the producer recorded it (`posttrain.common.EpisodeEnding`);
+    # None for traces recorded before the label existed.
+    ending: EpisodeEnding | None = None
     error: str | None = None
     tool_calls: int | None = Field(default=None, ge=0)
     model_calls: int | None = Field(default=None, ge=0)

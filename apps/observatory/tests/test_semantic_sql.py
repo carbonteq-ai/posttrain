@@ -125,6 +125,30 @@ def test_rollouts_are_rows_so_any_aggregation_works(trackio_project: TrackioData
     assert by_truncated[False]["output_tokens_p50"] == 300.0
 
 
+def test_rollouts_group_by_the_recorded_episode_ending(trackio_project: TrackioDataSource) -> None:
+    rows = _rows(
+        _query(
+            trackio_project,
+            measures=("rollouts", "rollout_reward"),
+            by=("rollout.ending", "rollout.truncated"),
+            runs={"run.job_kind": "train.grpo"},
+        )
+    )
+    by_ending = {row["rollout.ending"]: row for row in rows}
+    assert set(by_ending) == {"completed", "turn_limit", None}
+    assert by_ending["turn_limit"]["rollouts"] == 1 and by_ending["turn_limit"]["rollout.truncated"] is True
+    assert by_ending["completed"]["rollouts"] == 2 and by_ending["completed"]["rollout.truncated"] is False
+    # rollout-1's ending is only a fact and rollout-3's only a trace attribute; both count.
+    # A trace recorded before the label has no ending, and keeps its truncation fact.
+    assert by_ending[None]["rollouts"] == 1 and by_ending[None]["rollout_reward"] == 0.5
+
+    sql = SqlQuery(
+        sql="select ending, count(*) as n from rollouts where ending is not null group by ending order by ending"
+    )
+    result = asyncio.run(run_sql_query(FRAMEWORK_MODEL, trackio_project, sql))
+    assert [tuple(row) for row in result.rows] == [("completed", 2), ("turn_limit", 1)]
+
+
 def test_sql_reads_every_run_of_the_project_or_the_scoped_ones(trackio_project: TrackioDataSource) -> None:
     query = SqlQuery(
         sql=(

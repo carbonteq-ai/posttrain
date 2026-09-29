@@ -62,14 +62,35 @@ def _requirement_names(path: Path) -> set[str]:
     return names
 
 
+_CONTROL_PROFILES = {"online-rl-verl-py313": "online-rl-verl-py313-control.txt"}
+
+
 def _provided_packages(variant: str, root: Path) -> tuple[str, ...]:
-    profile = root / KIND_DEFINITION / "profiles" / f"{variant}.txt"
+    profile = root / KIND_DEFINITION / "profiles" / _CONTROL_PROFILES.get(variant, f"{variant}.txt")
     if not profile.is_file():
         return ()
     installed = _requirement_names(profile)
     provided = [name for name in _PROVIDABLE if name in installed]
     lock = root / KIND_DEFINITION / "locks" / f"{variant}.lock.txt"
     locked = _requirement_names(lock) if lock.is_file() else set()
+    for name in tuple(provided):
+        provided.extend(companion for companion in _PROVIDED_WITH.get(name, ()) if companion in locked)
+    return tuple(provided)
+
+
+def _backend_provided_packages(variant: str, root: Path) -> tuple[str, ...]:
+    """Packages the image's second (backend) environment already installs.
+
+    Environment wheels are compiled against the backend constraints too; a
+    package both roles provide must not be emitted into that compile, or its
+    Git/internal-index source reaches the portable lock without a hash.
+    """
+
+    backend_lock = backend_constraint_lock(variant)
+    if backend_lock is None:
+        return ()
+    locked = _requirement_names(root / backend_lock)
+    provided = [name for name in _PROVIDABLE if name in locked]
     for name in tuple(provided):
         provided.extend(companion for companion in _PROVIDED_WITH.get(name, ()) if companion in locked)
     return tuple(provided)
@@ -403,7 +424,7 @@ def _reuse_unchanged_kind(
         provided_packages=previous.provided_packages or _provided_packages(variant, root),
         backend_constraint_lock=previous.backend_constraint_lock,
         backend_lock_digest=previous.backend_lock_digest,
-        backend_provided_packages=previous.backend_provided_packages,
+        backend_provided_packages=previous.backend_provided_packages or _backend_provided_packages(variant, root),
         backend_runtime_identity=previous.backend_runtime_identity,
     )
 
@@ -606,6 +627,7 @@ def publish_release(
             provided_packages=supplied.get(variant) or _provided_packages(variant, root),
             backend_constraint_lock=backend_lock,
             backend_lock_digest=lock_digest(backend_lock) if backend_lock is not None else None,
+            backend_provided_packages=_backend_provided_packages(variant, root),
             backend_runtime_identity=backend_runtime_identity(variant),
         )
 
@@ -623,6 +645,8 @@ def publish_release(
                     provided_packages=supplied.get(variant)
                     or image.provided_packages
                     or _provided_packages(variant, root),
+                    backend_provided_packages=image.backend_provided_packages
+                    or _backend_provided_packages(variant, root),
                 )
             if node.action == "copy":
                 assert prior_manifest is not None and node.expected_digest is not None
@@ -641,6 +665,8 @@ def publish_release(
                     provided_packages=supplied.get(variant)
                     or image.provided_packages
                     or _provided_packages(variant, root),
+                    backend_provided_packages=image.backend_provided_packages
+                    or _backend_provided_packages(variant, root),
                 )
             return _build_kind(variant)
 

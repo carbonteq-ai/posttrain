@@ -15,13 +15,13 @@ dependencies = [
 
 [project.optional-dependencies]
 verifiers = [
-    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@cdd2ec7614131545df66484f9de11250daf16065",
+    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@e6a3d9bbfe6959b97878f451fc721793a232cd5f",
 ]
 trl = [
     "torch>=2.13,<2.14",
     "torchvision>=0.28,<0.29",
     "transformers>=5.14,<5.15",
-    "trl==1.12.0.post10",
+    "trl==1.12.0.post11",
     "peft>=0.19,<0.20",
     "datasets>=4.6.1,<4.7",
     "accelerate>=1.14,<1.15",
@@ -33,6 +33,11 @@ trl = [
     "huggingface-hub>=1.31,<1.32",
     # AsyncGRPO uses Transformers' Hub-hosted FlashAttention kernel directly.
     "kernels>=0.15.2,<0.16",
+    # Triton gated-delta-rule and gated-RMSNorm kernels (import `fla`) for
+    # Qwen3.5-style Gated DeltaNet layers; without them Transformers falls
+    # back to its slow torch implementation. vLLM vendors the same kernels.
+    "fla-core>=0.5.2,<0.6",
+    "causal-conv1d==1.7.0+cu130torch2.13; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 trl-vllm = [
     "aiohttp>=3.13,<4",
@@ -47,6 +52,7 @@ trl-vllm = [
 package = true
 
 [tool.uv.sources]
+causal-conv1d = { index = "carbonteq-dev" }
 posttrain-common = { workspace = true }
 posttrain-data = { workspace = true }
 posttrain-environment = { workspace = true }
@@ -56,11 +62,11 @@ trl = { index = "carbonteq-dev" }
 carbonteq-renderers = { index = "carbonteq-dev" }
 
 [tool.posttrain.trl]
-version = "1.12.0.post10"
-release-tag = "carbonteq-v1.12.0.post10"
-source-revision = "4950b99d457faacbec856cbd5305732e7b3cf7b0"
-wheel-sha256 = "96710f9cb530a9adae0de2cc0f37f7d77e0f8d0c9f9dc022489f62ba10d08bfd"
-sdist-sha256 = "d46df4912ef0b647ebf54b11ddf4359406bba97033c33334d018e17ae7191837"
+version = "1.12.0.post11"
+release-tag = "carbonteq-v1.12.0.post11"
+source-revision = "3135b502d69956200d1c030a514470c351d2ee9f"
+wheel-sha256 = "7fcea40a21239ae57d22333aa612af939cf8e44a72443681ad4900a697e5a5b2"
+sdist-sha256 = "bb3cdec95d3562054b4ad599a8ce8975232f466c7a593171f8798372c40c7785"
 
 [tool.posttrain.renderers]
 version = "0.1.12.post1.dev2"
@@ -83,3 +89,13 @@ allow-direct-references = true
 Documentation = "https://github.com/carbonteq-ai/posttrain#readme"
 Issues = "https://github.com/carbonteq-ai/posttrain/issues"
 Repository = "https://github.com/carbonteq-ai/posttrain"
+
+# CarbonTeq rebuild of unmodified upstream causal-conv1d v1.7.0 for PyTorch
+# 2.13.0+cu130 (tools/kernel-wheels/causal-conv1d). A wheel-only fork release:
+# the retained CPython 3.13 x86_64 wheel is the identity; there is no sdist.
+[tool.posttrain.causal-conv1d]
+version = "1.7.0+cu130torch2.13"
+release-tag = "carbonteq-v1.7.0+cu130torch2.13"
+source-revision = "b7bec200ce1391f69fac132bf7f8ae007446d46d"
+wheel-filename = "causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl"
+wheel-sha256 = "b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a"

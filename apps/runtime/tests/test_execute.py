@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
 import signal
 import sys
 import time
@@ -11,7 +13,7 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from posttrain.catalog import open_catalog
@@ -21,6 +23,7 @@ from posttrain.common import (
     ExecutionTarget,
     JsonValue,
     LocalArtifactRef,
+    host_cancellation,
 )
 from posttrain.data import (
     DatasetLoadPlan,
@@ -44,12 +47,30 @@ from posttrain.work import (
 )
 from posttrain_runtime import execute_manifest, qualify_manifest
 from posttrain_runtime.execute import (
+    _load_launch,
     _project_config_digest,
     _qualification_timeout,
     _qualify_activation,
+    _require_shared_memory,
+    _shared_memory_bytes,
     _tree_digest,
     _verify_backend_worktree,
 )
+
+
+@pytest.fixture(autouse=True)
+def _restore_verifiers_preinstalled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """execute_manifest sets POSTTRAIN_VERIFIERS_PREINSTALLED for the process; undo it after each test."""
+
+    monkeypatch.setenv("POSTTRAIN_VERIFIERS_PREINSTALLED", "unset")
+    monkeypatch.delenv("POSTTRAIN_VERIFIERS_PREINSTALLED")
+
+
+@pytest.fixture(autouse=True)
+def _container_shared_memory(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give tests a sized /dev/shm; CI hosts size theirs from their own memory."""
+
+    monkeypatch.setattr("posttrain_runtime.execute._shared_memory_bytes", lambda path=None: 64 * 2**30)
 
 
 def test_backend_worktree_accepts_deterministic_revision_marker(tmp_path: Path) -> None:
@@ -295,6 +316,7 @@ def _runtime(
     with_dataset: bool = False,
     terminate: bool = False,
     terminate_signal: int = signal.SIGTERM,
+    terminate_inside_update: bool = False,
     fail: bool = False,
 ) -> WorkPackageContext:
     def execute(context, seats):
@@ -307,6 +329,12 @@ def _runtime(
             source_metadata.append(dict(context.source_metadata))
         if terminate:
             signal.raise_signal(terminate_signal)
+        if terminate_inside_update:
+            with host_cancellation().critical("optimizer_update"):
+                signal.raise_signal(terminate_signal)
+                # An atomic update finishes before the deferred exit is delivered.
+                seen.append("update completed")
+            seen.append("unreachable after the update")
         if fail:
             raise RuntimeError("expected worker failure")
         return {"checked": True}
@@ -555,6 +583,61 @@ def _launch(
     )
 
 
+@pytest.mark.parametrize(
+    ("placement", "actual_gib", "message"),
+    [
+        # A provider that ignored the size: Docker's and RunPod-style defaults.
+        ({}, 64 / 1024, "is 0.06 GiB but target targets/local-cuda-8gb on provider local-docker requires 16 GiB"),
+        (
+            {"shm_size_gb": 32},
+            16,
+            "is 16.00 GiB but target targets/local-cuda-8gb on provider local-docker requires 32",
+        ),
+        ({}, None, "has no /dev/shm (target targets/local-cuda-8gb on provider local-docker)"),
+    ],
+)
+def test_worker_fails_at_start_when_the_provider_did_not_size_shared_memory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    placement: dict[str, object],
+    actual_gib: float | None,
+    message: str,
+) -> None:
+    manifest_path, manifest = _actual_job(tmp_path / "job")
+    launch = json.loads(_launch(manifest))
+    launch["target"]["placement"].update(placement)
+    monkeypatch.setenv("POSTTRAIN_EXECUTION", json.dumps(launch))
+    monkeypatch.setattr("posttrain_runtime.execute._RUN_ROOT", (tmp_path / "runs").resolve())
+    monkeypatch.setattr(
+        "posttrain_runtime.execute._shared_memory_bytes",
+        lambda path=None: None if actual_gib is None else int(actual_gib * 2**30),
+    )
+    monkeypatch.setattr(
+        "posttrain_runtime.execute.build_job_runtime",
+        lambda *args, **kwargs: pytest.fail("the job must not start"),
+    )
+
+    with pytest.raises(ContractError, match=re.escape(message)):
+        execute_manifest(manifest_path)
+    # Nothing ran, so no run workspace was created.
+    assert not (tmp_path / "runs").exists()
+
+
+def test_worker_accepts_exactly_the_declared_shared_memory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _, manifest = _actual_job(tmp_path / "job")
+    monkeypatch.setenv("POSTTRAIN_EXECUTION", _launch(manifest))
+    # Docker's --shm-size 16g is exactly 16 GiB.
+    monkeypatch.setattr("posttrain_runtime.execute._shared_memory_bytes", lambda path=None: 16 * 2**30)
+
+    _require_shared_memory(_load_launch())
+
+
+def test_shared_memory_size_reads_the_tmpfs_size(tmp_path: Path) -> None:
+    stats = os.statvfs(tmp_path)
+    assert _shared_memory_bytes(tmp_path) == stats.f_blocks * stats.f_frsize
+    assert _shared_memory_bytes(tmp_path / "missing") is None
+
+
 def test_worker_executes_verified_actual_job_with_launch_attempt(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -598,6 +681,27 @@ def test_worker_executes_verified_actual_job_with_launch_attempt(
     assert isinstance(package, dict)
     assert package["package_key"] == manifest.package_key
     assert package["framework_source_digest"] == (manifest.framework_source_digest)
+
+
+def test_worker_runs_verifiers_harnesses_from_the_packed_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Training kinds do not set POSTTRAIN_VERIFIERS_PREINSTALLED; the packed worker does, for every job."""
+
+    manifest_path, manifest = _actual_job(tmp_path / "job")
+    observed: list[str | None] = []
+    monkeypatch.setenv("POSTTRAIN_EXECUTION", _launch(manifest))
+    monkeypatch.setattr("posttrain_runtime.execute._RUN_ROOT", (tmp_path / "runs").resolve())
+
+    def runtime(request: Any, tracking: Any) -> Any:
+        observed.append(os.environ.get("POSTTRAIN_VERIFIERS_PREINSTALLED"))
+        return _runtime(request.catalog, [], [])
+
+    monkeypatch.setattr("posttrain_runtime.execute.build_job_runtime", runtime)
+
+    assert execute_manifest(manifest_path).status == "succeeded"
+    assert observed == ["1"]
 
 
 @pytest.mark.parametrize(
@@ -653,6 +757,50 @@ def test_worker_cancel_signal_durably_cancels_tracking_before_exit(
     assert [outcome.status for outcome in backend.tracked.outcomes] == ["cancelled"]
     marker = json.loads((tmp_path / "runs" / "run-runtime-1" / ".posttrain-terminal.json").read_text(encoding="utf-8"))
     assert marker["status"] == "cancelled"
+
+
+def test_worker_cancel_signal_waits_for_an_atomic_update_before_exit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cancel that lands inside a declared atomic update is delivered when it ends."""
+
+    manifest_path, manifest = _actual_job(tmp_path / "job")
+    backend = _TrackingBackend(repeat_signal=signal.SIGINT)
+    seen: list[str] = []
+    monkeypatch.setenv("POSTTRAIN_EXECUTION", _launch(manifest))
+    monkeypatch.setattr(
+        "posttrain_runtime.execute._RUN_ROOT",
+        (tmp_path / "runs").resolve(),
+    )
+
+    def build(request, tracking):
+        del tracking
+        runtime = _runtime(
+            request.catalog,
+            seen,
+            terminate_inside_update=True,
+            terminate_signal=signal.SIGINT,
+        )
+        return replace(
+            runtime,
+            executor=partial(
+                execute_run_tracked_finalized,
+                backend=backend,
+                scratch_root=request.state_dir / "scratch",
+            ),
+        )
+
+    monkeypatch.setattr("posttrain_runtime.execute.build_job_runtime", build)
+
+    with pytest.raises(SystemExit) as captured:
+        execute_manifest(manifest_path)
+
+    assert captured.value.code == 128 + signal.SIGINT
+    assert seen[-1] == "update completed"
+    assert backend.tracked is not None
+    assert [outcome.status for outcome in backend.tracked.outcomes] == ["cancelled"]
+    assert not host_cancellation().armed
 
 
 def test_worker_failure_writes_terminal_marker_after_unwind(

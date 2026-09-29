@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import replace
+from dataclasses import fields, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -12,8 +12,15 @@ from posttrain.common.cuda import TorchModule, activate_cuda_toolkit
 
 from ...grpo_observations import GRPOObservationFeatures
 from ...requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
+from .cancellation import (
+    UpdateBoundary,
+    retain_checkpoint_after_interruption,
+    update_boundary_callback_type,
+    update_boundary_trainer_type,
+)
 from .common import (
     BackendTrainingResult,
+    CheckpointPublisher,
     callback_type,
     checkpoint_callback_type,
     emit_parameter_counts,
@@ -22,7 +29,6 @@ from .common import (
     framework_imports,
     load_tokenizer,
     load_trainable_model,
-    preserve_recovery_checkpoint_after_error,
     trainer_lifecycle,
 )
 from .policy_config import (
@@ -31,6 +37,8 @@ from .policy_config import (
     _configure_torch_compile,
     _online_rl_arguments,
     _online_rl_runtime_attributes,
+    _resolved_precision,
+    validate_oversampled_round_capacity,
 )
 from .policy_curriculum import (
     AdaptiveCurriculumRuntime as _AdaptiveCurriculumRuntime,
@@ -58,6 +66,14 @@ from .policy_telemetry import (
 )
 from .policy_telemetry import (
     normalize_live_metrics as _normalize_live_grpo_metrics,
+)
+from .precision_runtime import (
+    LossScaleMonitor,
+    apply_initial_loss_scale,
+    float32_logprob_trainer_type,
+    loss_scale_callback_type,
+    require_float32_trainable_parameters,
+    upcast_logits_to_float32,
 )
 from .update_totals import RolloutUpdateTotals, update_totals_callback_type
 
@@ -117,9 +133,20 @@ def _run_online_rl(
 
     imports = framework_imports()
     emit_runtime_versions(context, imports)
+    precision = _resolved_precision(request)
     with context.phase("model_loading", {"backend": "trl"}):
         tokenizer = load_tokenizer(request.policy, imports)
-        model = load_trainable_model(request.policy, request.training.update, request.settings.loop, imports)
+        model = load_trainable_model(
+            request.policy,
+            request.training.update,
+            request.settings.loop,
+            imports,
+            model_dtype=precision.model_load_dtype,
+        )
+        if precision.training == "fp16":
+            require_float32_trainable_parameters(model)
+        if precision.logits_float32:
+            upcast_logits_to_float32(model)
     rows = []
     template_kwargs = request.policy.conversation.reasoning_mode(request.training.renderer.reasoning_mode).kwargs()
     for example in request.bridge.dataset.examples:
@@ -149,8 +176,11 @@ def _run_online_rl(
     )
     context.event("grpo_runtime_resolved", _online_rl_runtime_attributes(request))
     actor_update = _ActorUpdateTelemetry(context)
+    loss_scale = LossScaleMonitor(context)
     rollout_totals = RolloutUpdateTotals(context)
     trainer_type = _actor_update_trainer_type(GRPOTrainer, actor_update)
+    if precision.training == "fp16":
+        trainer_type = float32_logprob_trainer_type(trainer_type)
     curriculum = None
     if isinstance(request, GRPORequest | SAMPORequest) and request.settings.adaptive_curriculum is not None:
         # SAMPO requests carry no curriculum warm start; the controller starts cold.
@@ -165,6 +195,20 @@ def _run_online_rl(
             warm_start_state_dir=curriculum_from.path if curriculum_from is not None else None,
         )
         trainer_type = _adaptive_curriculum_trainer_type(trainer_type, curriculum)
+    # A host cancellation lands between optimizer updates, and the last completed
+    # update is saved as a checkpoint before the run finalizes as cancelled.
+    update_boundary = UpdateBoundary(controller_state=curriculum.capture_state if curriculum is not None else None)
+    trainer_type = update_boundary_trainer_type(trainer_type, update_boundary)
+    checkpoint_publisher = CheckpointPublisher(
+        context,
+        model=request.policy,
+        technique=technique,
+        settings=request.settings,
+        update=request.training.update,
+        workspace=output_dir.parent,
+        reward_contract=reward_contract,
+        checkpoint_state_writer=curriculum.checkpoint if curriculum is not None else None,
+    )
     checkpoint_callback = checkpoint_callback_type(
         context,
         imports,
@@ -173,17 +217,22 @@ def _run_online_rl(
         settings=request.settings,
         update=request.training.update,
         workspace=output_dir.parent,
-        reward_contract=reward_contract,
-        checkpoint_state_writer=curriculum.checkpoint if curriculum is not None else None,
+        publisher=checkpoint_publisher,
     )()
     callbacks = [
+        # Opens the atomic update span at on_pre_optimizer_step (cancel checkpoint).
+        update_boundary_callback_type(imports, update_boundary)(),
+        # Before the metrics callback, so the scaler state of a step is known before its metrics are logged.
+        loss_scale_callback_type(imports, loss_scale)(),
         callback_type(
             context,
             imports,
-            metric_normalizer=lambda step, native: _normalize_live_grpo_metrics(
-                step,
-                native,
-                observation_features,
+            metric_normalizer=loss_scale.finite_grad_norm(
+                lambda step, native: _normalize_live_grpo_metrics(
+                    step,
+                    native,
+                    observation_features,
+                )
             ),
         )(),
         _actor_update_callback_type(imports, actor_update)(),
@@ -204,6 +253,12 @@ def _run_online_rl(
                 callbacks=callbacks,
             )
             _configure_liger_loss(trainer, request)
+            apply_initial_loss_scale(trainer, precision.initial_loss_scale)
+            # Re-check with the engine's resolved limit before the first rollout.
+            validate_oversampled_round_capacity(
+                request,
+                vllm_max_num_seqs=getattr(getattr(trainer, "vllm_generation", None), "max_num_seqs", None),
+            )
         resume = str(request.resume_from.path) if request.resume_from is not None else None
         with trainer_lifecycle(trainer):
             try:
@@ -246,16 +301,14 @@ def _run_online_rl(
                 # Keep the rollout evidence of the update that failed.
                 rollout_totals.flush()
                 actor_update.fail(error)
-                preserve_recovery_checkpoint_after_error(
+                retain_checkpoint_after_interruption(
                     context,
                     trainer,
                     error,
-                    technique=technique,
-                    model=request.policy,
-                    settings=request.settings,
-                    update=request.training.update,
+                    boundary=update_boundary,
+                    publisher=checkpoint_publisher,
                     imports=imports,
-                    checkpoint_state_writer=curriculum.checkpoint if curriculum is not None else None,
+                    controller_state_writer=curriculum.checkpoint if curriculum is not None else None,
                 )
                 raise
     except BaseException as error:
@@ -296,6 +349,16 @@ def _trainer_arguments(
 ) -> Any:
     """Build the TRL config; the OLMo 3 recipe takes its selectable KL penalty after construction."""
 
+    unsupported = sorted(
+        name
+        for name in ("active_sampling_oversample", "active_sampling_oversample_refill", "peft_reference")
+        if name in arguments and name not in {item.name for item in fields(config_type)}
+    )
+    if unsupported:
+        raise RuntimeError(
+            f"{request.training.backend} does not provide {', '.join(unsupported)}; active_sampling oversample, "
+            "oversample_refill and kl_reference: base for a continued adapter require TRL 1.12.0.post11 or later"
+        )
     config = config_type(**arguments)
     if isinstance(request, GRPORequest) and request.settings.algorithm == "olmo3":
         # Olmo3GRPOConfig declares beta as a fixed init=False field (always 0.0), so

@@ -1,5 +1,122 @@
 # veRL training backend
 
+## 0.9.0.post8 (selected)
+
+Tag `carbonteq-v0.9.0.post8` (release commit
+`ef1c37715fa75de5973ae5b3c398383cd7e0093d`, branch
+`codex/agent-loop-config-defaults`, asset receipt `be582879`) is post7 plus one
+config fix. Since post2 the agent-loop manager read
+`rollout.agent.num_cpus_per_worker`, `max_concurrent_episodes` and
+`max_concurrent_episodes_per_worker` from the struct trainer config, but
+`rollout.yaml` never declared them; Posttrain passes them only with
+`rollout_execution` (accepted on no published fork revision), so every veRL
+job failed before its first rollout with `ConfigAttributeError`. Found by the
+0.4.12 qualification `q0412h-verl-qwen08b-bf16-r1`. Post8 declares them with
+the dataclass defaults (1.0, null, null: one reserved Ray CPU per worker and
+unbounded fan-out); the fork test
+`test_default_trainer_config_declares_every_agent_loop_field` fails on post7.
+Wheel SHA-256 `9da6fb77815d66aa424ab71adfed4862be5291dd12f7a15df4da81d8ffcc0d08`,
+sdist SHA-256 `ea34395aea7121f45e43045161830245e4239b0dd08495c9bf2a8f3438725cb1`.
+Published: GitHub release
+<https://github.com/carbonteq-ai/verl/releases/tag/carbonteq-v0.9.0.post8> and
+Posttrain run <https://github.com/carbonteq-ai/posttrain/actions/runs/36489415680>.
+`_FORK_NATIVE_NAME_REVISIONS` records post8 and its receipt. Relocking the
+`online-rl-verl-py313` kind changed only veRL.
+
+## 0.9.0.post7
+
+Tag `carbonteq-v0.9.0.post7` (release commit
+`6069abe14e2b3d27c89815a6502b849f15124e12`, branch `codex/vortex-lora-sync`,
+asset receipt `07ecac23`) is post6 plus the LoRA weight-sync fix. veRL named
+the synced LoRA tensors with the model's full HF-to-vLLM mapper, whose stacked
+maps rename `q_proj`/`k_proj`/`v_proj` to `qkv_proj` and LFM2's `w1`/`w3` to
+`w13`; the constituents collapsed onto one name, the last one won, and LoRA on
+fused layers crashed or silently loaded the wrong weights. Post7 uses vLLM's
+rename-only mapper, as vLLM's own adapter loader does. Post5 and post6 have the
+bug. Wheel SHA-256
+`9786ec44fbdba367791d8e9a4c58a895955639c79c4b9dd0e3a403a05b5e29c5`, sdist
+SHA-256 `3b0259523476d67aff9282b2b3c775c081bd866c04d369ad7a5eda8af6607088`
+(`carbonteq/dev` serves both). Published: GitHub release
+<https://github.com/carbonteq-ai/verl/releases/tag/carbonteq-v0.9.0.post7> and
+Posttrain run <https://github.com/carbonteq-ai/posttrain/actions/runs/36483660287>.
+
+Post6's additions (round-based active sampling, candidate-batch DAPO, a prompt
+selector, TRL-mode GRPO statistics and excluded rows, admission retries, the
+`sequence_clip` loss, the rollout-correction lower clamp and log-ratio bound,
+a linear LR schedule, extra SAMPO metrics) are opt-in, and 0.4.12's adapter
+selects none of them. Composing veRL's Hydra config for every override set the
+0.4.12 train tests generate (35 sets: GRPO with and without LoRA, DAPO group
+filtering, GDPO, CAPO, OLMo 3, FP16 and BF16 training and rollouts, adapter
+continuation, distillation, TurboQuant KV cache; veRL SAMPO stays rejected)
+under post5 and under post7 differs only by
+the new keys at their defaults (`algorithm.active_sampling.enable=false`,
+`filter_groups.candidate_batches=false`, `grpo_std_epsilon=null`,
+`grpo_std_scope=group`, `exclude_flagged_rows=false`,
+`rollout_correction.rollout_is_clip_min=null`,
+`rollout_is_log_ratio_bound=20.0` (the previous fixed bound),
+`data.prompt_selector.class_path=null`,
+`trainer.v1.sampler.failed_group_attempts=0`); with those defaults the trainer
+takes the post5 code paths. The one runtime change is the LoRA-sync mapper.
+`_FORK_NATIVE_NAME_REVISIONS` records post7 and its receipt, so GDPO and CAPO
+(`token_clip`, `k3_unclipped`) are accepted on it. Post8 supersedes it in 0.4.12.
+
+## 0.9.0.post5 and the VORTEX port (in progress)
+
+Tag `carbonteq-v0.9.0.post5` (release commit
+`9fd6e7a31396ba33a29233cc869ab05b0a9e5a80`, branch `codex/vortex`, pushed) is
+post4 plus the `token_clip` policy loss (asymmetric PPO token clipping without
+veRL's dual clip or log-ratio clamp) and the `k3_unclipped` KL estimator.
+Retained wheel SHA-256
+`c16a2ad14d1bd60947229bde41fae99955a4fcb7ab3f892020ef0c24e35dd158` (byte
+reproducible), sdist SHA-256
+`3c9e17c2d04a798eae1836e8dd82f64480bcbe4d8ee94441028625b2da71df57`. Published:
+GitHub release
+<https://github.com/carbonteq-ai/verl/releases/tag/carbonteq-v0.9.0.post5> and
+Posttrain run <https://github.com/carbonteq-ai/posttrain/actions/runs/36445711207>
+(`carbonteq/dev` serves both hashes). `codex/release-0.4.12` pins it for the
+`online-rl-verl-py313` kind together with the framework's Verifiers `cdd2ec76`,
+`carbonteq-renderers` 0.1.12.post1.dev2 and the Qwen3.5 fast-path kernels
+(`fla-core`, `causal-conv1d`); the regenerated backend lock and constraints
+digests are in `verl-py313/profile.toml`.
+
+Post5 fixes a live bug: the adapter selects both names for GDPO and CAPO, and
+post3/post4 register neither, so those runs failed at veRL's first actor
+update. The worker now records which fork commits register each fork-only name
+(`_FORK_NATIVE_NAME_REVISIONS` in `backends/verl/worker.py`) and rejects a
+clean checkout at any other revision before veRL starts. A strict-xfail test
+(`test_pinned_verl_fork_registers_every_native_name_posttrain_requests`) fails
+as soon as the job kind pins a fork with the names, so the pin commit must
+remove its marker; `test_verl_fork_native_names.py` checks the record against
+an installed veRL.
+
+With post5 the adapter maps `algorithm: olmo3` natively: `loss_agg_mode=token-mean`,
+`policy_loss.loss_mode=token_clip`, clip 0.2/0.272,
+`algorithm.norm_adv_by_std_in_grpo=false`, decoupled rollout correction
+`rollout_is=token`, `rollout_is_threshold=2.0`, and `kl_loss_type=k3_unclipped`
+for a nonzero `beta` (the LoRA reference is the base model, as in TRL). A CPU
+parity test feeds one fixed batch (both clip bounds, the correction cap,
+dual-clip and KL-clamp regions, a truncated rollout) through TRL post11's
+`GRPOTrainer._compute_loss` and veRL's `ppo_loss`; advantages, correction
+weights, loss and gradient agree to float64 round-off. `truncation_penalty` is
+applied in the veRL agent loop by the same shaping function as the TRL path and
+is accepted for GRPO and DAPO. OLMo 3 itself stays rejected on veRL until
+active sampling is ported (plan [verl-vortex-port.md](../../plan/verl-vortex-port.md),
+Phase 2).
+
+## FP16 metrics (0.9.0.post4, contained in post5)
+
+Branch `codex/precision-fp16` tags `carbonteq-v0.9.0.post4` at immutable
+release commit `54124edfb8d0b73694696400cf07a76a14d9be65`: post3 plus
+`actor/loss_scale` and `actor/optimizer_step_skipped` from the FSDP engine's
+fp16 `ShardedGradScaler` and the rollout-versus-actor log-probability gap
+(`training/rollout_logp_diff_{mean,p99,max}`,
+`training/rollout_seq_logp_diff_abs_mean`); no training or dependency change.
+Wheel SHA-256
+`1e5e5a50c14ec486019421ca06de03fbbc24010f850f5e66f2d731469a8f8eb0`;
+sdist SHA-256
+`8620646c250e85a0dee984d360a4c102e97a4776d5711accea8eb66a743445e5`.
+Post4 is published; post5, post7 and post8 contain it; post8 is the 0.4.12 selection.
+
 ## Rollout-execution development candidate
 
 Branch `codex/verl-rollout-execution` publishes `0.9.0.post3` from immutable
@@ -108,6 +225,58 @@ The framework exposes veRL as the general versioned training backend product
 `train.grpo` / `GRPORequest` and `train.distill` /
 `OnPolicyDistillationRequest`; callers do not use veRL-specific job types.
 
+## Trainer and rollout precision
+
+`backend_options.training_precision: fp16` on a veRL training binding selects
+veRL's own FP16 path (upstream verl-project/verl#4036 and #6150, both in the
+published fork 18338a0e): the worker adds
+`+actor_rollout_ref.{actor,ref}.fsdp_config.mixed_precision={param_dtype:fp16,reduce_dtype:fp32,buffer_dtype:fp32}`,
+and the V1 trainer's `FSDPEngine` then computes in float16 over float32 master
+weights with a `ShardedGradScaler(growth_interval=400)` that skips overflowing
+steps. veRL builds that scaler in its Ray actors without a configurable start,
+so for `fp16_initial_loss_scale` (default 1024) the worker also passes
+`++ray_kwargs.ray_init.runtime_env.env_vars.POSTTRAIN_FP16_INITIAL_LOSS_SCALE`
+and the Ray `worker_process_setup_hook`
+`posttrain.train.backends.verl.loss_scale_hook.configure_initial_loss_scale`,
+which makes the value the constructor's default `init_scale` in every Ray
+worker. The bf16 default adds no override. The rollout `engine.dtype` becomes
+`actor_rollout_ref.rollout.dtype` (default `bfloat16`; float16 for a TurboQuant
+KV cache). veRL logs neither the loss scale nor skipped steps; Posttrain records
+a step whose gradient norm is infinite under fp16 as
+`train/optimizer_step_skipped`. veRL's rollout-versus-actor mismatch metrics are
+probability differences (`train/rl/sampling_prob_delta_*`). GPU qualification
+(`qwen08b_gsm8k_verl_grpo_precision_{bf16,fp16}_local.yaml`) waits for the
+kind rebuild described below; see `docs/plan/fp16-training-precision.md`.
+
+## Training settings on veRL
+
+The veRL backend runs a selection exactly as the TRL backend would, or rejects
+it at `posttrain work-package plan` and again when the launch plan is built
+(`posttrain.train.backend_support`). Training loop, as of 0.4.12:
+
+| Setting | veRL mapping |
+| --- | --- |
+| `lr_scheduler_type: constant` | `actor.optim.lr_scheduler_type=constant`, `lr_warmup_steps=0` (Transformers' `constant` never warms up) |
+| `lr_scheduler_type: constant_with_warmup` | `constant` with `lr_warmup_steps = ceil(max_steps * warmup_ratio)`, the TRL value |
+| `lr_scheduler_type: linear` (the default) | rejected: veRL 0.9.0.post4 schedules only constant (after linear warmup) and cosine |
+| `seed` | `data.seed` (prompt order), `rollout.seed`, `actor.data_loader_seed`, `actor/ref.fsdp_config.seed` |
+| `logging_steps` | must be 1; veRL logs every update |
+| `per_device_batch_size` x `gradient_accumulation_steps` | must equal prompt groups x generations; one optimizer step per update (`ppo_mini_batch_size` = prompt groups) in micro-batches of `per_device_batch_size` rows per device (`ppo_micro_batch_size_per_gpu` and the log-prob micro-batches); the rows must split evenly over the devices |
+
+Weight decay is 0.0, the Transformers default the TRL backend trains with
+(veRL's own default is 0.01). Before 0.4.12 veRL ignored the schedule, seed,
+logging cadence and batch split: it always ran a constant rate, micro-batches
+of one row, weight decay 0.01 and an unseeded prompt order, while the lab veRL
+settings left the schedule at the `linear` default. Those settings now state
+`lr_scheduler_type: constant`, what they ran.
+
+GRPO settings veRL does not receive are rejected unless left at their
+defaults: `adaptive_curriculum`, `active_sampling`, `advantage_scaling`
+(`group`), `importance_sampling_mode`/`_clip_min`/`_clip_max`
+(`sequence_truncate`, 0.1, 3.0) and `max_admission_attempts` (3). The OLMo 3
+recipe (and with it `active_sampling`) stays rejected until veRL has active
+sampling; `truncation_penalty` is applied for GRPO and DAPO.
+
 ## Current support and qualification boundary
 
 The current adapter accepts only the **Qwen 3.5 model family**, for:
@@ -124,6 +293,40 @@ adapter rejects unqualified families before starting Ray.
 
 This first slice accepts full-parameter and LoRA updates. QLoRA and
 quantization-aware updates are not qualified.
+
+A GRPO run can continue a trained LoRA adapter (`--model-from-run` of an
+adapter view). The launcher records the adapter's foundation as the model's
+`base`; the worker loads that foundation as `actor_rollout_ref.model.path` and
+attaches the adapter with the fork's `actor_rollout_ref.model.lora_adapter_path`
+(upstream veRL: the FSDP engine calls `PeftModel.from_pretrained(...,
+is_trainable=True)`). The synchronous trainer's initial weight sync then gives
+the vLLM rollout that adapter before the first collection, and the adapter
+keeps training. With LoRA, veRL's KL reference is the actor with the adapter
+disabled, the base model, so `kl_reference: base` holds; veRL cannot keep a
+frozen copy of the starting adapter, so `kl_reference: start` with `beta > 0`
+is rejected at planning and launch. The adapter's `adapter_config.json` rank
+must equal the binding's LoRA rank, because vLLM sizes its LoRA slots from the
+binding. Any other non-foundation starting model (for example
+`full-finetuned`) takes its reference from the starting checkpoint, so there
+`kl_reference: base` is rejected and `start` is required. No fork change was
+needed; published post3 (`18338a0e`) already carries `lora_adapter_path`.
+
+GPU qualification of this path is blocked by the published `online-rl-verl-py313`
+kind image, not by the continuation code. Packing
+`qwen08b_verl_grpo_2_adapter_continuation.yaml` (Qwen 3.5 0.8B, local RTX 3070 Ti)
+cannot package any Verifiers environment for that kind. Its control
+environment locks Verifiers `cdd2ec76` and its backend environment
+`b71ade0a`, so gsm8k-v1 0.3.0 (`cdd2ec76`) fails the backend resolution with
+conflicting Verifiers URLs. gsm8k-v1 0.2.0 (`b71ade0a`) and the unpinned
+alphabet-sort environment resolve, but the kind declares neither
+`provided_packages` nor `backend_provided_packages`. The backend compile
+therefore emits `verifiers @ git+...` without a hash, and environment
+packaging rejects it ("every compiled dependency must have a sha256 hash"). The
+release tooling derives provided packages only from
+`profiles/<variant>.txt`, which the veRL kind lacks. The fix is a veRL kind
+rebuild whose backend selects the framework's Verifiers revision and declares
+Verifiers as provided in both roles; then run the package fresh and again with
+`--model-from-run` of its adapter.
 
 | Technique | Accepted family | Validation status |
 | --- | --- | --- |

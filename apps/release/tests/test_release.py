@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import shutil
 import subprocess
 import tomllib
 import zipfile
 from pathlib import Path
 from shutil import which
+from typing import Any
 
 import posttrain_release.versioning as versioning
 import pytest
@@ -700,6 +703,7 @@ def test_readiness_receipt_binds_the_exact_source_tree_and_selected_forks(tmp_pa
         "carbonteq-trackio",
         "trl",
         "carbonteq-renderers",
+        "causal-conv1d",
         "verl",
         "vllm",
         "automationbench",
@@ -717,16 +721,68 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
 
     entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
 
-    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev31"
-    assert entries["trl"].revision == "4950b99d457faacbec856cbd5305732e7b3cf7b0"
-    assert entries["verl"].release_tag == "carbonteq-v0.9.0.post3"
+    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev32"
+    assert entries["trl"].revision == "3135b502d69956200d1c030a514470c351d2ee9f"
+    assert entries["verl"].release_tag == "carbonteq-v0.9.0.post8"
+    assert entries["causal-conv1d"].revision == "b7bec200ce1391f69fac132bf7f8ae007446d46d"
+    assert entries["causal-conv1d"].artifacts == {
+        "wheel_sha256": "b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a",
+        "wheel_filename": "causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl",
+    }
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
         "7ba6018dd6bbc5872876c69a661cf136a6705221f937c3b5cbd826483c476bcb"
     )
-    assert entries["automationbench"].artifacts["environment_revision"] == ("5264ec153a543c62688efaa1ffe28aedb247d5bb")
+    assert entries["automationbench"].artifacts["environment_revision"] == ("11f4d712806d292c6c6a752af046f4e16c4f037e")
     assert entries["dstack"].required is False
     assert entries["dstack"].deployed_image and "@sha256:" in entries["dstack"].deployed_image
     assert render_fork_ledger(repository_root)["schema"] == "posttrain.fork-ledger.v1"
+
+
+def _fork_ledger_inputs(tmp_path: Path) -> Path:
+    source = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    for relative in (
+        "release/forks.toml",
+        "packages/tracking-trackio/pyproject.toml",
+        "packages/train/pyproject.toml",
+        "packages/runtime-images/src/posttrain/runtime_images/containers/posttrain-job-kinds/verl-py313/profile.toml",
+        "packages/eval/src/posttrain/eval/programs/automationbench.py",
+    ):
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source / relative, target)
+    return tmp_path
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "message"),
+    [
+        (
+            'wheel-filename = "causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl"',
+            'wheel-filename = "causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl"\n'
+            'sdist-sha256 = "' + "0" * 64 + '"',
+            "wheel-only fork release and must not record an sdist",
+        ),
+        (
+            'wheel-filename = "causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl"',
+            'wheel-filename = "causal_conv1d-1.6.0-cp313-cp313-linux_x86_64.whl"',
+            "does not name version",
+        ),
+        (
+            '"causal-conv1d==1.7.0+cu130torch2.13; sys_platform',
+            '"causal-conv1d==1.6.0; sys_platform',
+            "does not select causal-conv1d==1.7.0+cu130torch2.13",
+        ),
+    ],
+)
+def test_fork_ledger_checks_a_wheel_only_fork_release(tmp_path: Path, old: str, new: str, message: str) -> None:
+    root = _fork_ledger_inputs(tmp_path)
+    train = root / "packages/train/pyproject.toml"
+    text = train.read_text(encoding="utf-8")
+    assert old in text
+    train.write_text(text.replace(old, new), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=re.escape(message)):
+        load_fork_ledger(root)
 
 
 def test_readiness_runs_the_fixed_deterministic_check_set(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1137,6 +1193,7 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
         ("publish-verl-internal.yml", "verl"),
         ("publish-trackio-internal.yml", "carbonteq-trackio"),
         ("publish-renderers-internal.yml", "carbonteq-renderers"),
+        ("publish-causal-conv1d-internal.yml", "causal-conv1d"),
     ):
         workflow = (root / ".github/workflows" / filename).read_text(encoding="utf-8")
         assert "https://pypi.lan/carbonteq/dev/" in workflow
@@ -1154,6 +1211,12 @@ def test_retained_fork_candidates_use_development_before_server_side_promotion()
     assert "carbonteq-ai/verl" in promotion
     assert "carbonteq-ai/trackio" in promotion
     assert "carbonteq-ai/renderers" in promotion
+    assert "carbonteq-ai/causal-conv1d" in promotion
+    assert "          - causal-conv1d" in promotion
+    assert "is a wheel-only fork release; leave sdist_sha256 empty" in promotion
+    assert "retains a source distribution; sdist_sha256 is required" in promotion
+    assert 'wheel_filename="${filename_prefix}-${version}-cp313-cp313-linux_x86_64.whl"' in promotion
+    assert "stable holds only part of" in promotion
     assert '"${DEVPI_CLIENT}" push -y "${PACKAGE}==${VERSION}" carbonteq/stable' in promotion
     assert "DEVPI_CLIENT: /opt/posttrain-dstack-client/bin/devpi" in promotion
     assert "REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt" in promotion
@@ -1205,21 +1268,24 @@ def test_required_fork_index_check_uses_every_python_fork_hash(monkeypatch: pyte
         "carbonteq-trackio",
         "trl",
         "carbonteq-renderers",
+        "causal-conv1d",
         "verl",
     )
-    assert captured["packages"] == ["carbonteq-trackio", "trl", "carbonteq-renderers", "verl"]
+    assert captured["packages"] == ["carbonteq-trackio", "trl", "carbonteq-renderers", "causal-conv1d", "verl"]
     assert captured["simple_base_url"] == "https://stable.example/+simple/"
     artifacts = captured["artifacts"]
     assert isinstance(artifacts, list)
     assert {item["filename"] for item in artifacts} == {
-        "carbonteq_trackio-0.31.5.post14.dev31-py3-none-any.whl",
-        "carbonteq_trackio-0.31.5.post14.dev31.tar.gz",
-        "trl-1.12.0.post10-py3-none-any.whl",
-        "trl-1.12.0.post10.tar.gz",
+        "carbonteq_trackio-0.31.5.post14.dev32-py3-none-any.whl",
+        "carbonteq_trackio-0.31.5.post14.dev32.tar.gz",
+        "trl-1.12.0.post11-py3-none-any.whl",
+        "trl-1.12.0.post11.tar.gz",
         "carbonteq_renderers-0.1.12.post1.dev2-py3-none-any.whl",
         "carbonteq_renderers-0.1.12.post1.dev2.tar.gz",
-        "verl-0.9.0.post3-py3-none-any.whl",
-        "verl-0.9.0.post3.tar.gz",
+        # Wheel-only fork release: the retained platform wheel, no sdist.
+        "causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl",
+        "verl-0.9.0.post8-py3-none-any.whl",
+        "verl-0.9.0.post8.tar.gz",
     }
 
 
@@ -1626,6 +1692,25 @@ def test_public_ci_trl_mirror_matches_selected_distribution() -> None:
     assert 'uv pip install --python .venv/bin/python --no-deps "${CARBONTEQ_TRL_WHEEL_PATH}"' in workflow
 
 
+def test_public_ci_causal_conv1d_mirror_matches_selected_wheel() -> None:
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    train = tomllib.loads((root / "packages/train/pyproject.toml").read_text(encoding="utf-8"))
+    selection = train["tool"]["posttrain"]["causal-conv1d"]
+    filename = selection["wheel-filename"]
+    workflow = (root / ".github/workflows/quality.yml").read_text(encoding="utf-8")
+
+    url_tag = selection["release-tag"].replace("+", "%2B")
+    url_file = filename.replace("+", "%2B")
+    assert (
+        "CARBONTEQ_CAUSAL_CONV1D_WHEEL_URL: "
+        f"https://github.com/carbonteq-ai/causal-conv1d/releases/download/{url_tag}/{url_file}"
+    ) in workflow
+    assert f"CARBONTEQ_CAUSAL_CONV1D_WHEEL_SHA256: {selection['wheel-sha256']}" in workflow
+    assert f"CARBONTEQ_CAUSAL_CONV1D_WHEEL_PATH: /tmp/{filename}" in workflow
+    assert f":/tmp/{filename}\n" in workflow
+    assert "--no-install-package causal-conv1d" in workflow
+
+
 def test_final_release_verifies_and_stages_one_candidate_materialization() -> None:
     root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
     workflow = (root / ".github/workflows/release.yml").read_text(encoding="utf-8")
@@ -1699,3 +1784,59 @@ def test_kinds_that_provide_verifiers_also_provide_its_locked_renderers_fork() -
     assert _provided_packages("serve", root) == ()
     manifest = (root / "published.toml").read_text(encoding="utf-8")
     assert 'provided_packages = ["verifiers"]\n' not in manifest
+
+
+def test_verl_declares_verifiers_provided_in_both_environments() -> None:
+    """Environment wheels compile against both veRL roles.
+
+    With no provided packages the backend compile emitted Verifiers as an
+    unhashed Git URL and every veRL environment pack failed.
+    """
+    from posttrain_release.publish import _backend_provided_packages, _provided_packages
+
+    root = (
+        Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+        / "packages/runtime-images/src/posttrain/runtime_images"
+    )
+    assert _provided_packages("online-rl-verl-py313", root) == ("verifiers", "carbonteq-renderers")
+    assert _backend_provided_packages("online-rl-verl-py313", root) == ("verifiers", "carbonteq-renderers")
+    assert _backend_provided_packages("online-rl-trl-py312", root) == ()
+
+
+def _locked_verifiers_script() -> Any:
+    import importlib.util
+
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    spec = importlib.util.spec_from_file_location("locked_verifiers", root / "scripts/ci/locked_verifiers.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_ci_installs_environments_against_and_requires_the_locked_verifiers(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[_REPOSITORY_ROOT_DEPTH]
+    script = _locked_verifiers_script()
+    version, repository, commit = script.locked_verifiers()
+    assert repository == "https://github.com/carbonteq-ai/verifiers.git" and len(commit) == 40
+    assert script.constraint() == f"verifiers @ git+{repository}@{commit}"
+
+    workflow = (root / ".github/workflows/quality.yml").read_text(encoding="utf-8")
+    assert ".venv/bin/python scripts/ci/locked_verifiers.py constraint > /tmp/locked-verifiers.txt" in workflow
+    assert "--constraint /tmp/locked-verifiers.txt" in workflow
+    assert ".venv/bin/python scripts/ci/locked_verifiers.py check" in workflow
+    # Every environment package CI installs pins the framework's Verifiers.
+    assert "verifiers-environments.git@11f4d712806d292c6c6a752af046f4e16c4f037e" in workflow
+    assert "d994073b9632e73c96a57865683133d7a6ebc4bf" not in workflow
+
+    try:
+        from importlib.metadata import distribution
+
+        distribution("verifiers")
+    except Exception:
+        pytest.skip("the verifiers extra is not installed")
+    assert script.check() == f"verifiers {version} {repository}@{commit}"
+    other = tmp_path / "uv.lock"
+    other.write_text((root / "uv.lock").read_text(encoding="utf-8").replace(commit, "0" * 40), encoding="utf-8")
+    with pytest.raises(SystemExit, match="installed verifiers is not the locked build"):
+        script.check(other)

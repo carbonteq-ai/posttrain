@@ -58,6 +58,7 @@ def load_fork_ledger(repository_root: Path) -> tuple[ForkLedgerEntry, ...]:
         "carbonteq-trackio",
         "trl",
         "carbonteq-renderers",
+        "causal-conv1d",
         "verl",
         "vllm",
         "automationbench",
@@ -68,6 +69,7 @@ def load_fork_ledger(repository_root: Path) -> tuple[ForkLedgerEntry, ...]:
     trackio = _tool_metadata(root / _TRACKIO, "trackio")
     trl = _tool_metadata(root / _TRAIN, "trl")
     renderers = _tool_metadata(root / _TRAIN, "renderers")
+    causal_conv1d = _tool_metadata(root / _TRAIN, "causal-conv1d")
     profile = _toml(root / _VERL_PROFILE)
     dependencies = _mapping(profile.get("dependencies"), "veRL profile dependencies")
 
@@ -83,6 +85,13 @@ def load_fork_ledger(repository_root: Path) -> tuple[ForkLedgerEntry, ...]:
             expected["carbonteq-renderers"],
             metadata=renderers,
             package="carbonteq-renderers",
+            source=_TRAIN.as_posix(),
+        ),
+        _wheel_only_package_entry(
+            expected["causal-conv1d"],
+            metadata=causal_conv1d,
+            package="causal-conv1d",
+            root=root,
             source=_TRAIN.as_posix(),
         ),
         _verl_entry(expected["verl"], profile),
@@ -103,7 +112,12 @@ def render_fork_ledger(repository_root: Path) -> dict[str, object]:
 
 
 def verify_required_fork_index(repository_root: Path, simple_base_url: str) -> tuple[str, ...]:
-    """Prove every required Python fork is byte-identical in one index."""
+    """Prove every required Python fork is byte-identical in one index.
+
+    A pure-Python fork release is a universal wheel plus an sdist. A wheel-only
+    release (a rebuilt CUDA extension) names its exact platform wheel and has
+    no sdist; only that wheel is checked.
+    """
 
     selected: list[ForkLedgerEntry] = []
     packages: list[str] = []
@@ -111,29 +125,23 @@ def verify_required_fork_index(repository_root: Path, simple_base_url: str) -> t
     for entry in load_fork_ledger(repository_root):
         wheel_sha256 = entry.artifacts.get("wheel_sha256")
         sdist_sha256 = entry.artifacts.get("sdist_sha256")
-        if (
-            not entry.required
-            or entry.scope not in {"direct-package", "runtime-kind"}
-            or wheel_sha256 is None
-            or sdist_sha256 is None
-        ):
+        wheel_filename = entry.artifacts.get("wheel_filename")
+        if not entry.required or entry.scope not in {"direct-package", "runtime-kind"} or wheel_sha256 is None:
+            continue
+        if sdist_sha256 is None and wheel_filename is None:
             continue
         if entry.version is None:
             raise ValueError(f"required Python fork {entry.id!r} has no version")
         distribution = entry.id.replace("-", "_")
         packages.append(entry.id)
-        artifacts.extend(
-            (
-                {
-                    "filename": f"{distribution}-{entry.version}-py3-none-any.whl",
-                    "sha256": wheel_sha256,
-                },
-                {
-                    "filename": f"{distribution}-{entry.version}.tar.gz",
-                    "sha256": sdist_sha256,
-                },
-            )
+        artifacts.append(
+            {
+                "filename": wheel_filename or f"{distribution}-{entry.version}-py3-none-any.whl",
+                "sha256": wheel_sha256,
+            }
         )
+        if sdist_sha256 is not None:
+            artifacts.append({"filename": f"{distribution}-{entry.version}.tar.gz", "sha256": sdist_sha256})
         selected.append(entry)
     verify_index_artifacts(packages, artifacts, simple_base_url)
     return tuple(entry.id for entry in selected)
@@ -177,6 +185,40 @@ def _package_entry(declared: dict[str, Any], *, metadata: dict[str, str], packag
     return _entry(declared, version=version, revision=revision, artifacts=artifacts, selection_source=source)
 
 
+def _wheel_only_package_entry(
+    declared: dict[str, Any], *, metadata: dict[str, str], package: str, root: Path, source: str
+) -> ForkLedgerEntry:
+    """A fork released as one retained platform wheel, with no sdist."""
+
+    version = _string(metadata.get("version"), f"{package} version")
+    tag = _string(metadata.get("release_tag"), f"{package} release tag")
+    if tag != f"carbonteq-v{version}":
+        raise ValueError(f"{package} release tag {tag!r} does not match version {version!r}")
+    _matches(declared, tag, f"{package} release tag")
+    if "sdist_sha256" in metadata:
+        raise ValueError(f"{package} is a wheel-only fork release and must not record an sdist")
+    wheel_filename = _string(metadata.get("wheel_filename"), f"{package} wheel filename")
+    distribution = package.replace("-", "_")
+    if not wheel_filename.startswith(f"{distribution}-{version}-") or not wheel_filename.endswith(".whl"):
+        raise ValueError(f"{package} wheel filename {wheel_filename!r} does not name version {version!r}")
+    project = _mapping(_toml(root / source).get("project"), f"{source} project")
+    extras = _mapping(project.get("optional-dependencies", {}), f"{source} optional dependencies")
+    requirements = [*project.get("dependencies", []), *(item for group in extras.values() for item in group)]
+    selected = f"{package}=={version}"
+    if not any(isinstance(item, str) and item.split(";", 1)[0].strip() == selected for item in requirements):
+        raise ValueError(f"{source} does not select {selected}")
+    return _entry(
+        declared,
+        version=version,
+        revision=_revision(metadata.get("source_revision"), f"{package} source revision"),
+        artifacts={
+            "wheel_sha256": _sha256(metadata.get("wheel_sha256"), f"{package} wheel SHA-256"),
+            "wheel_filename": wheel_filename,
+        },
+        selection_source=source,
+    )
+
+
 def _verl_entry(declared: dict[str, Any], profile: dict[str, Any]) -> ForkLedgerEntry:
     tag = _string(profile.get("release_tag"), "veRL release tag")
     _matches(declared, tag, "veRL release tag")
@@ -212,7 +254,7 @@ def _vllm_entry(declared: dict[str, Any], dependencies: dict[str, Any]) -> ForkL
 def _automationbench_entry(declared: dict[str, Any], root: Path) -> ForkLedgerEntry:
     text = (root / _AUTOMATIONBENCH).read_text(encoding="utf-8")
     environment_revision = _python_constant(text, "AUTOMATIONBENCH_REVISION")
-    if environment_revision != "5264ec153a543c62688efaa1ffe28aedb247d5bb":
+    if environment_revision != "11f4d712806d292c6c6a752af046f4e16c4f037e":
         raise ValueError("AutomationBench environment source changed; update the release ledger deliberately")
     return _entry(
         declared,

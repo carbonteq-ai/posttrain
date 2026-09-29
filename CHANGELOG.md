@@ -6,7 +6,257 @@ version across first-party distributions.
 
 ## Unreleased
 
-## 0.4.11 - unreleased
+## 0.4.12 - unreleased
+
+Training-harness fixes found by auditing the LFM2.5-2.6B SAMPO continuation:
+tools that behave as documented, FP16 training, fast Qwen3.5 kernels, a label
+for how every episode ended, a checkpoint when a run is cancelled,
+oversampled active sampling, and a KL penalty measured against the base model.
+
+### Added
+
+- FP16 training for TRL and veRL online RL (GRPO, SAMPO, GDPO, CAPO). On a
+  training binding, `backend_options.training_precision: fp16` (default
+  `bf16`) trains a LoRA adapter in float32 over a float16 base with dynamic
+  loss scaling; `logits_float32: true` computes the trainer's log-probabilities
+  from float32 logits (TRL). The rollout inference binding's `engine.dtype`
+  (`bfloat16`, `float16` or `float32`) sets the vLLM sampler's precision.
+  `posttrain work-package plan` prints the resolved precision on a
+  `Precision:` line. Runs record the loss scale and skipped optimizer steps
+  (`train/loss_scale`, `train/optimizer_step_skipped`), and veRL runs also
+  record the rollout-versus-trainer log-probability gap. The advisor rejects
+  `dtype: float32` for Qwen3.5 rollouts (vLLM's Gated DeltaNet kernel does not
+  support it) and warns when an FP16 trainer samples in another precision.
+  New lab work packages compare BF16 and FP16 on Qwen3.5-0.8B GSM8K (TRL and
+  veRL, 8 GB GPU) and on the LFM2.5-2.6B SAMPO continuation.
+- Episode ending labels. Every training and evaluation episode records how it
+  ended: `completed`, `turn_limit`, `token_budget`, `time_limit`,
+  `reply_token_limit`, `context_limit_reply_cut`, `context_rejected` or
+  `error`. Every ending other than `completed` and `error` is a truncation, so
+  the `truncated` flag, truncation penalties and masking are unchanged.
+  Training writes per-update counts and rates (for example
+  `train/rl/ending_reply_token_limit_rate`); Observatory shows the ending in
+  the trace table and trace detail, and the semantic layer groups rollouts by
+  `rollout.ending`. Trace facts v9 store it in the `episode_ending` fact
+  column, and `posttrain trace-facts backfill` fills it for existing runs.
+- Checkpoint on cancel. When the host cancels a TRL GRPO, DAPO, OLMo 3,
+  SAMPO, GDPO or CAPO run, the last completed optimizer update is saved and
+  published as a checkpoint if it is newer than the last periodic one. A
+  cancellation that arrives during an optimizer step waits for that update to
+  finish (at most 60 seconds). The `cancel_checkpoint` event records the
+  saved step or why nothing was saved, and the run finishes as cancelled.
+  `train/cancel_checkpoint_step` (value: the saved update) is recorded at the
+  step of the update the cancel interrupted, the event's `cancelled_update`.
+- Oversampling for active sampling. `active_sampling: {oversample: N,
+  oversample_refill: M}` starts N extra prompt groups in the first round and M
+  in each refill round, so an update fills in fewer rounds; the surplus is
+  discarded. Both default to 0, which keeps the previous behaviour. Job plan,
+  and the trainer again before the first rollout, reject a first round larger
+  than vLLM `max_num_seqs`, the environment's `max_concurrent` or the rollout
+  workers can run at once. TRL only.
+- KL reference. GRPO and SAMPO settings take `kl_reference: base | start`
+  (default `base`). When a run continues a trained adapter
+  (`--model-from-run`), the KL penalty now measures distance from the base
+  model instead of from the adapter the run started from; `start` keeps the
+  previous behaviour on TRL. Job plan prints which reference a run uses.
+- veRL can continue a trained LoRA adapter: the adapter is attached to its
+  foundation model, reaches the vLLM rollout before the first collection, and
+  keeps training, with the base model as the KL reference. veRL rejects
+  `kl_reference: start` for a continued adapter, which it cannot provide.
+- Lab: held-out AutomationBench suites `automationbench-lfm26-heldout-mix-v4`
+  and `-v4-t05` on the fixed tools, with Liquid's recommended sampling at
+  temperature 0.1 and 0.5, and a continuation of the LFM2.5-2.6B SAMPO run
+  from its update-40 adapter on the fixed tools.
+
+### Changed
+
+- AutomationBench tools behave as documented: `automationbench-v1` 0.5.0
+  (`61448b5d`) vendors the CarbonTeq AutomationBench tool fixes. For example, a
+  Sheets row search now searches instead of returning the first ten rows,
+  Drive search no longer mixes placeholder files into results, Salesforce
+  search matches without a field name, list arguments are no longer corrupted
+  into strings, and Sheets row updates are kept for scoring. Graders are
+  unchanged; scores on the new suites are not comparable with earlier suites.
+- Fast Qwen3.5 kernels: the `supervised`, `online-rl-trl-py312`,
+  `online-rl-verl-py313` (backend environment) and `transform` job-kind images
+  install `fla-core` 0.5.2 and CarbonTeq's `causal-conv1d` 1.7.0 build for
+  PyTorch 2.13.0+cu130, so Transformers trains Qwen3.5 Gated DeltaNet layers on
+  fast kernels instead of its torch fallback. A Qwen3.5-0.8B LoRA actor step on
+  4,096 tokens drops from 5.0 s to 1.5 s on an RTX 3070 Ti, and FP16 steps no
+  longer produce NaN gradients.
+- veRL rejects GRPO settings it would otherwise silently ignore, at job plan
+  and when the launch plan is built: `adaptive_curriculum` ("currently
+  supported by the TRL backend only"), `advantage_scaling` other than `group`,
+  `importance_sampling_mode`, `importance_sampling_clip_min` or
+  `importance_sampling_clip_max` other than their defaults
+  (`sequence_truncate`, 0.1, 3.0), `max_admission_attempts` other than 3, and
+  `active_sampling` with the OLMo 3 recipe (until veRL has active sampling).
+- veRL applies `truncation_penalty` for GRPO and DAPO with the same reward
+  shaping as TRL, maps the OLMo 3 objective natively (ready for when active
+  sampling lands), and rejects a veRL revision that lacks the loss or KL names
+  GDPO, CAPO or OLMo 3 select. veRL `0.9.0.post5` adds the `token_clip` policy
+  loss and the `k3_unclipped` KL that GDPO and CAPO use; with post3 and post4
+  those runs failed at the first actor update.
+- veRL runs the training loop as selected, or rejects it: `lr_scheduler_type`
+  `constant` and `constant_with_warmup` map to veRL's constant schedule with
+  zero or `ceil(max_steps * warmup_ratio)` warmup steps, and `linear` is
+  rejected (this release does not map it to veRL); `seed` seeds prompt order,
+  the rollout sampler and the FSDP engines; `logging_steps` must be 1; and
+  `per_device_batch_size` becomes the per-device micro-batch, with
+  `per_device_batch_size x gradient_accumulation_steps` required to equal
+  prompt groups x generations and to split evenly over the devices. Behaviour
+  change: veRL now trains with weight decay 0.0 (the TRL backend's value)
+  instead of 0.01, seeds its prompt order, and uses the selected micro-batch
+  instead of one row. It always ran a constant learning rate; the lab veRL
+  settings, which left the `linear` default, now say `constant`.
+- The veRL backend environment uses the framework's Verifiers (`e6a3d9bb`) and
+  `carbonteq-renderers` 0.1.12.post1.dev2, the same as the control
+  environment, so Verifiers environments can be packaged for veRL again; the
+  image declares Verifiers as provided in both environments, and a release
+  check fails if the two ever select different Verifiers.
+- Trackio `0.31.5.post14.dev32`: artifact commits keep retrying while the
+  server is slow, and the `episode_ending` trace-fact column (Doris schema
+  version 5). Migrate the shared server to schema version 5 and run dev32
+  before job images from this release write to it.
+- Maintained forks: TRL `1.12.0.post11` (oversampling and `peft_reference`),
+  veRL `0.9.0.post8` (loss scale, skipped steps and log-probability gap
+  metrics from post4; `token_clip` and `k3_unclipped` from post5; post6's
+  opt-in trainer features, which this release does not select; the LoRA
+  weight-sync fix from post7; the agent-loop config defaults from post8), Trackio `0.31.5.post14.dev32`, and the `causal-conv1d`
+  `1.7.0+cu130torch2.13` rebuild, which is promoted to the stable index as a
+  wheel-only fork release.
+
+### Fixed
+
+- A cancellation checkpoint saved after the next update's rollout had started
+  lost its `train/cancel_checkpoint_step` metric: it was recorded at the saved
+  update's step, below the rollout metrics already logged at the next step,
+  and the tracker rejects decreasing steps (seen on the local provider; the
+  dstack run was cancelled before the next rollout logged). The metric is now
+  recorded at the interrupted update's step, and a metric the tracker still
+  rejects is named in the `cancel_checkpoint` event (`metric_error`).
+- veRL LoRA training on models with fused layers: veRL `0.9.0.post5` named the
+  synced LoRA tensors with vLLM's stacking weight mapper, which merges
+  `q_proj`/`k_proj`/`v_proj` into `qkv_proj` and LFM2's `w1`/`w3` into `w13`,
+  so the constituents collapsed onto one name and the rollout engine crashed
+  or silently loaded the wrong adapter weights. The veRL kind now pins
+  `0.9.0.post7`, which uses vLLM's rename-only mapper as vLLM's own adapter
+  loader does (post8 carries the same fix). Every other veRL setting the
+  release generates resolves as on post5.
+- veRL trained on zero reward for math environments: Verifiers'
+  `verify_boxed_math_answer` bounds math-verify with `signal.alarm`, which only
+  the main thread may set, and veRL scores episodes inside Ray actors off the
+  main thread, so every answer scored 0 (all GSM8K traces of the qualification
+  run, correct replies included). Verifiers `e6a3d9bb` (`0.3.2.dev94`) scores
+  such calls in a worker process that keeps the timeout. TRL scored on the
+  main thread and was unaffected.
+  Every environment package pins the same Verifiers, so the lab and base
+  catalogs move to pin-only verifiers-environments commits: `11f4d712` (on
+  `5264ec15`), `e9eacc3c` (on `3a486b0a`), `a344d127` (on `0afb73d7`) and
+  `0bad6187` (on `61448b5d`, AutomationBench 0.5.0). Environment code is
+  unchanged at each revision.
+- veRL runs reported `train/rl/kl` as PPO's approximate KL to the rollout
+  policy (`actor/ppo_kl`), which is 0 for an on-policy update, instead of the
+  KL to the reference (`actor/kl_loss`); every veRL run so far logged KL 0
+  whatever the policy did. `train/rl/kl` now means the same on TRL and veRL.
+- veRL runs failed after their last update while recording rewards: the
+  launcher attached a `rollout_step` dimension to each trace's
+  `algorithm_reward` enrichment, which Trackio rejects (`a trace-fact
+  enrichment may only supply algorithm_reward`). The rollout step belongs to
+  the Verifiers source projection; the enrichment now carries only the
+  algorithm reward, and the shared observation contract rejects any later
+  trace-fact update that supplies more, so every observer catches it.
+- veRL jobs without `rollout_execution` settings failed before their first
+  rollout (`ConfigAttributeError: Key 'num_cpus_per_worker' is not in
+  struct`): since fork post2 veRL's agent loop read three episode-capacity
+  keys that its trainer config never declared, and Posttrain passes them only
+  with `rollout_execution`. veRL `0.9.0.post8` declares them with their
+  defaults (one reserved CPU per agent-loop worker, no episode ceiling).
+- Every job container now gets an explicit `/dev/shm` size. Docker and dstack
+  left the 64 MiB default, and veRL's rollout server failed at start
+  (`Insufficient space in /dev/shm ... 160 MiB required, 64 MiB free`) on both
+  providers: vLLM's multiprocess executor allocates a 160 MiB shared-memory
+  broadcast queue at engine start. The size is 16 GiB unless the execution
+  target's placement declares `shm_size_gb`; a declared `host_memory_gb` caps
+  the default at half of it and rejects a larger explicit size. The local
+  provider passes `docker run --shm-size` (a private tmpfs, not `--ipc=host`);
+  dstack receives `resources.shm_size` and a matching `resources.memory`
+  minimum so the offer can hold it. dstack applies the size on VM and SSH
+  fleets; its RunPod backend creates pods whose shared memory RunPod sets, so
+  the job runtime now checks `/dev/shm` at start and fails at once, naming the
+  required and actual size, the target and the provider, when it is smaller
+  than required (declare `shm_size_gb` on a target whose provider sets a
+  smaller fixed size). Runs record the size in the worker context
+  (`shared_memory_bytes`). `posttrain job plan` prints `Container shared
+  memory:`, and the job run plan, provider plan and submission receipt record
+  `shared_memory_gb`.
+- veRL multi-turn episodes reported the prompt message spans of a bridged turn
+  with one entry per new message instead of one per message of the
+  conversation, so Verifiers attributed tool-result tokens to the wrong
+  messages in the trace (the token sequence and loss mask were unaffected).
+  They now use the TRL backend's `bridged_message_spans`.
+
+- Observatory semantic SQL (`/api/v1/semantic/query`, MCP `query_semantics`,
+  evaluations and bare run ids) read whichever source sorted first when no
+  source was named; with discovered Trackio projects that was an unrelated
+  project (`ai-infra-qualification` instead of `posttrain-lab`, 0 runs). A
+  request now reads the source it names (`?source_id=` on HTTP, `source_id`
+  on MCP), else the configured default, else the only source; with several
+  sources and no default it is refused with the available sources listed.
+  The default is `POSTTRAIN_OBSERVATORY_DEFAULT_SOURCE`, else the configured
+  Trackio project (`POSTTRAIN_TRACKIO_PROJECT`) when projects are discovered.
+  Deployments that discover projects must set one of them to `posttrain-lab`.
+- Lab Verifiers environments state the harness, stage timeouts and turn and
+  token limits on the agent seat, which Verifiers `cdd2ec76` requires; a test
+  validates every catalog environment against the pinned Verifiers.
+- FP16 TRL training no longer fails at the first gradient overflow with a
+  fused optimizer (Transformers' default `adamw_torch_fused`): a skipped step
+  is detected from the loss scale falling, recorded in
+  `train/optimizer_step_skipped`, and its non-finite gradient norm dropped.
+- Cancelling a job on the local provider gives it 300 s (was 10 s) to save,
+  publish and finalize its cancellation checkpoint, and cleanup moves any
+  checkpoint a stopped worker did not finalize to
+  `<state>/retained-checkpoints/<run id>` instead of deleting it. The search
+  runs inside the cleanup container, which can read the worker's root-owned
+  scratch directories, and an unreadable directory stops cleanup.
+- Oversampled active sampling runs again: the rollout function accepted at
+  most prompt groups x generations rows per round, so the oversampled first
+  round ((prompts + oversample) x generations) failed every OLMo 3 GRPO and
+  SAMPO run, including adaptive-curriculum rounds, at its first rollout.
+- Runs without an adaptive curriculum now record TRL's per-round
+  active-sampling counts as
+  `train/rl/active_sampling_round_<n>_{requested,generated,retained}_groups`
+  (rounds bounded by `max_candidate_batches`), described in the Observatory
+  metric catalog; they previously stayed in TRL's console log.
+- `posttrain run cleanup` completes for dstack runs whose exact-worker cleanup
+  task reclaimed more than about 2 GB: the task logged the total in awk's
+  scientific notation, which cleanup rejected, leaving the run in attention
+  with its placement held. The count is now printed in whole bytes, the old
+  form is accepted, late logs are retried, and a finished task whose log is
+  gone still completes cleanup.
+- `posttrain controller run` logs why a run needs attention (exception type
+  and first line, bounded), and `posttrain controller status` lists those runs.
+- FP16 TRL training computes its loss in float32. TRL computed the KL term,
+  importance ratios and masked sums in float16 from float16 log-probabilities,
+  so `exp` of a log-ratio above about 11 overflowed; on the masked tool tokens
+  of multi-turn SAMPO completions that made the loss NaN and the LFM2.5-2.6B
+  fp16 canary skipped every update. FP16 training now always takes
+  log-probabilities from float32 logits and casts them, and the entropies, to
+  float32 before the loss; `logits_float32: false` is rejected with fp16.
+- FP16 training starts its dynamic loss scaler at 1024 instead of PyTorch's
+  65536 (`backend_options.fp16_initial_loss_scale` on a training binding, TRL
+  and veRL): starting high, the Qwen3.5-0.8B fp16 arm skipped six of its first
+  seven updates while the scale backed off. Job plan shows the starting scale
+  on its `Precision:` line.
+- veRL workers start on the veRL job kind again: the worker reads the source
+  revision from the kind's `.posttrain-source-revision` snapshot marker instead
+  of running `git`, as `posttrain-runtime` does.
+- Training rollouts run the Verifiers harness scripts from the job's locked
+  environment instead of installing `uv` and the harness dependencies from
+  PyPI at the first rollout; `posttrain-runtime` enables this for every
+  packed job, as the evaluation kind already did.
+
+## 0.4.11 - 2026-09-28
 
 Runs can be queried in SQL and carry notes; metrics and trace facts are correct
 where they are recorded.

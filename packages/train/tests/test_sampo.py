@@ -213,7 +213,7 @@ def test_trl_sampo_selects_sequence_clipping_and_precomputed_advantages(tmp_path
         Any,
         SimpleNamespace(
             settings=_settings(),
-            policy=SimpleNamespace(provenance={}),
+            policy=SimpleNamespace(provenance={}, form="foundation"),
             training=SimpleNamespace(backend_options={}),
             inference=SimpleNamespace(backend="transformers@1", sampling={}, engine={}),
         ),
@@ -279,7 +279,7 @@ def test_trl_sampo_active_sampling_refills_only_missing_groups(tmp_path) -> None
         Any,
         SimpleNamespace(
             settings=_settings(active_sampling=ActiveGroupSampling(max_candidate_batches=4)),
-            policy=SimpleNamespace(provenance={}),
+            policy=SimpleNamespace(provenance={}, form="foundation"),
             training=SimpleNamespace(backend_options={}),
             inference=SimpleNamespace(backend="transformers@1", sampling={}, engine={}),
         ),
@@ -357,7 +357,7 @@ def _sampo_vllm_request(settings: SAMPOSettings) -> Any:
         Any,
         SimpleNamespace(
             settings=settings,
-            policy=SimpleNamespace(provenance={}),
+            policy=SimpleNamespace(provenance={}, form="foundation"),
             training=SimpleNamespace(backend_options={}),
             inference=SimpleNamespace(backend="vllm@0.29.1.dev4", sampling={}, engine={"mode": "colocate"}),
         ),

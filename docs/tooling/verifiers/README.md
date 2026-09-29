@@ -7,11 +7,18 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 
 ## Install / pin
 
-Posttrain 0.4.5 selects
-`carbonteq-ai/verifiers@cdd2ec7614131545df66484f9de11250daf16065`, released as
-[`carbonteq-v0.3.2.dev93`](https://github.com/carbonteq-ai/verifiers/releases/tag/carbonteq-v0.3.2.dev93)
-(wheel `6aca3ce60a6f6b71ee4b3705623b6d5e9c622ec0e41385b9260c91ac8c3f11a4`,
-sdist recorded in the release notes)
+Posttrain 0.4.12 selects
+`carbonteq-ai/verifiers@e6a3d9bbfe6959b97878f451fc721793a232cd5f`
+(`0.3.2.dev94`, branch `codex/math-verify-thread-safe`, fast-forwarded onto the
+release branch): `cdd2ec76` (released as
+[`carbonteq-v0.3.2.dev93`](https://github.com/carbonteq-ai/verifiers/releases/tag/carbonteq-v0.3.2.dev93))
+plus boxed-math scoring off the main thread. math-verify bounds parsing and
+verification with `signal.alarm`, which only the main thread may set, so
+`verify_boxed_math_answer` scored every answer 0.0 when an episode ran off the
+main thread, as veRL runs it inside Ray async actors (0.4.12 qualification
+`q0412j-ws-verl-bf16-r1`: all GSM8K traces 0, including correct replies). Such
+calls now score in a one-process spawn worker whose main thread keeps the
+timeout. The commit is consumed by its immutable Git revision
 and carried by the fork's release branch `codex/carbonteq-verifiers-latest`. It
 adds renderer reasoning-token accounting on top of `b71ade0a`: the train client
 records `usage.reasoning_tokens` from `carbonteq-renderers` on every call, the
@@ -21,7 +28,7 @@ runtime uv-script and MCP-install locks are kept per event loop (a scoring call
 abandoned in an earlier collection's loop poisoned later calls). GSM8K scores in-process
 from environments 0.3.0.
 The environment packages select this commit from
-`verifiers-environments@5264ec153a543c62688efaa1ffe28aedb247d5bb`, released as
+`verifiers-environments@11f4d712806d292c6c6a752af046f4e16c4f037e`, released as
 [`carbonteq-2026.09.25.2`](https://github.com/carbonteq-ai/verifiers-environments/releases/tag/carbonteq-2026.09.25.2)
 and on that repository's `main`. The dormant veRL runtime kind deliberately
 keeps its previously qualified `b71ade0a` backend closure until veRL is

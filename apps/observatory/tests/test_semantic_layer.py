@@ -147,3 +147,32 @@ def test_describe_lists_the_tables_and_narrows_by_job_kind() -> None:
     sampo = describe_semantics(FRAMEWORK_MODEL, job_kinds=("train.sampo",))
     names = {measure.name for measure in sampo.measures}
     assert "step_reward_share" in names and "preference_accuracy" not in names
+
+
+def test_episode_endings_are_a_rollout_dimension_and_update_rates() -> None:
+    from posttrain.common import EPISODE_ENDINGS
+
+    ending = FRAMEWORK_MODEL.dimension("rollout.ending")
+    assert ending.source == Source(kind="trace_fact", name="episode_ending", fallback_attribute="episode_ending")
+    for name in EPISODE_ENDINGS:
+        assert name in ending.description
+        measure = FRAMEWORK_MODEL.measure(f"ending_{name}_rate")
+        assert measure.entity == "update" and measure.source.name == f"train/rl/ending_{name}_rate"
+    sql = assemble(FRAMEWORK_MODEL, "select ending, count(*) from rollouts group by ending", None)
+    assert (
+        """COALESCE(t.fact_episode_ending, JSON_EXTRACT_STRING(t.metadata, '$."episode_ending"')) AS `ending`""" in sql
+    )
+    with pytest.raises(ValueError, match="only a trace_fact source"):
+        Source(kind="metric_series", name="train/rl/reward_mean", fallback_attribute="episode_ending")
+
+
+def test_catalog_describes_trl_per_round_active_sampling_metrics() -> None:
+    from posttrain_observatory.metric_catalog import ACTIVE_SAMPLING_CATALOG_ROUNDS
+
+    # The lab's largest max_candidate_batches is 10; every round a run may record is described.
+    assert ACTIVE_SAMPLING_CATALOG_ROUNDS >= 10
+    for round_index in range(1, ACTIVE_SAMPLING_CATALOG_ROUNDS + 1):
+        for kind in ("requested", "generated", "retained"):
+            entry = CATALOG_BY_METRIC[f"train/rl/active_sampling_round_{round_index}_{kind}_groups"]
+            assert entry.entity is None  # described, not a semantic measure: the round is in the name
+            assert entry.help().label == f"Active-sampling round {round_index} {kind} groups"

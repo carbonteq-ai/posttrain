@@ -32,11 +32,13 @@ from posttrain.common import (
 from posttrain.data import RolloutDataset, RolloutExample
 from posttrain.environment import (
     project_verifiers_trace_facts,
+    verifiers_episode_ending,
     verifiers_trace_attributes,
     verifiers_trace_has_error,
     verifiers_trace_is_truncated,
 )
 
+from ..grpo_observations import episode_ending_metrics
 from ..online_rl import (
     AgenticTurn,
     AsyncTerminalTraceObserver,
@@ -137,9 +139,14 @@ def _native_failure_detail(episode: Any) -> str | None:
 def _apply_verifiers_runtime_compatibility() -> None:
     """Apply bounded compatibility fixes for the pinned Verifiers runtime."""
 
+    from posttrain.environment.verifiers_preinstalled import configure_preinstalled_runtime
     from posttrain.environment.verifiers_runtime import enable_verifiers_fork_server
 
     enable_verifiers_fork_server()
+    # In a packed job (TRL control or veRL backend environment) harness scripts
+    # run from this process's locked interpreter: no pip, uv or PyPI at a rollout.
+    if configure_preinstalled_runtime():
+        return
     uv_executable = os.environ.get("POSTTRAIN_UV_EXECUTABLE")
     if uv_executable is None:
         return
@@ -1433,6 +1440,7 @@ def _trace_metrics(
         "train/rl/rollouts_failed": float(sum(_trace_has_error(record) for record in records)),
         "train/rl/rollouts_truncated": float(sum(_trace_is_truncated(record) for record in records)),
         "train/rl/rollouts_unscorable": float(attempted - len(rewards)),
+        **episode_ending_metrics(verifiers_episode_ending(record) for record in records),
     }
     if attempted:
         values["train/rl/tool_call_frequency"] = sum(_trace_has_tool_call(record) for record in records) / attempted

@@ -1,0 +1,35 @@
+project_id: posttrain-lab
+work_package_id: eval/lfm2.5-2.6b/automationbench-heldout-train-sampling-24k-v1
+stage: qualify
+description: The 20 held-out tasks, five repetitions, under the training budget and the training rollouts' sampling (temperature 0.8, top-p 0.95), to test whether training reduced how often episodes run out of budget.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-heldout-train-sampling-24k-v1@1
+  revision: "1"
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: evaluate
+      kind: eval.general
+      definition: eval/verifiers-managed-general@1
+  expected_artifacts: [native evaluation result]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  evaluation_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-eval-24k-train-sampling-local@1}
+  target: {type: ref, family: target, id: targets/carbonteq-rtx-pro-6000-96gb}
+  evaluation_plan: {type: ref, family: evaluation, id: lfm26-automationbench-heldout-v3-train-sampling}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-heldout-mix-v3-train-sampling}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-heldout-train-sampling-24k-v1
+  evaluation_population: heldout20
+  repetitions_per_task: "5"
+  policy_call_output_budget: "4096"
+  episode_output_budget: "12288"
+  max_turns: "12"
+  labels: [qualification, evaluation, automationbench, lfm2.5, heldout, train-budget, train-sampling, context24k]

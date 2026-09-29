@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 import types
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from posttrain.common import ExecutionTarget
+from posttrain.common import ContractError, ExecutionTarget
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
     BundleRef,
@@ -152,6 +153,10 @@ def test_translation_and_submit_have_no_secret_values(tmp_path: Path) -> None:
         for _, config in configurations
     )
     assert all(config["resources"]["gpu"]["memory"] == "24GB..30GB" for _, config in configurations)
+    # dstack otherwise leaves Docker's 64 MiB /dev/shm; the offer must hold it.
+    assert all(config["resources"]["shm_size"] == "16GB" for _, config in configurations)
+    assert all(config["resources"]["memory"] == "16GB.." for _, config in configurations)
+    assert plan.details["shared_memory_gb"] == 16
     assert all(config["instances"] == [{"hostname": "remote.lan"}] for _, config in configurations)
     assert all(
         config["commands"]
@@ -661,6 +666,33 @@ def test_target_can_constrain_backend_region_and_spot_policy(tmp_path: Path) -> 
     assert configuration["max_price"] == 1.0
 
 
+def test_target_declares_shared_memory_and_the_host_memory_that_bounds_it(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    provider = DstackExecutionProvider(gateway, project="posttrain")
+    request = _request(tmp_path)
+
+    def resources(**placement: object) -> dict[str, object]:
+        gateway.calls.clear()
+        target = replace(request.target, placement={**request.target.placement, **placement})
+        plan = provider.plan(replace(request, target=target))
+        configuration = gateway.calls[0][1]["configuration"]
+        assert plan.details["shared_memory_gb"] == int(configuration["resources"]["shm_size"].removesuffix("GB"))
+        return configuration["resources"]
+
+    assert resources(shm_size_gb=32) | {"gpu": None} == {
+        "gpu": None,
+        "disk": {"size": "120GB.."},
+        "shm_size": "32GB",
+        "memory": "32GB..",
+    }
+    declared_host = resources(host_memory_gb=62.5)
+    assert (declared_host["shm_size"], declared_host["memory"]) == ("16GB", "63GB..")
+    small_host = resources(host_memory_gb=12)
+    assert (small_host["shm_size"], small_host["memory"]) == ("6GB", "12GB..")
+    with pytest.raises(ContractError, match="exceeds its host_memory_gb"):
+        resources(host_memory_gb=12, shm_size_gb=16)
+
+
 def test_gpu_memory_maximum_must_cover_the_target_minimum(tmp_path: Path) -> None:
     gateway = FakeGateway()
     provider = DstackExecutionProvider(gateway, project="posttrain")
@@ -1030,3 +1062,106 @@ def test_sdk_bridge_active_runs_skips_terminal_runs_and_reports_page_completenes
         ],
         "complete": True,
     }
+
+
+def _done_cleanup_payload() -> dict[str, str]:
+    return {
+        "project": "posttrain",
+        "source_run_name": "source-run",
+        "cleanup_run_name": "pt-clean-test",
+        "hostname": "gpu-worker-a",
+        "run_id": "test-run",
+        "workspace": "/var/lib/posttrain/runs/test-run",
+        "image": "registry.lan/posttrain@sha256:" + "a" * 64,
+    }
+
+
+def _done_cleanup_client(log_batches: list[list[bytes]]):
+    """A finished source run and an existing done cleanup task whose logs arrive per call."""
+
+    class Run:
+        def __init__(self, name: str, status: str, hostname: str | None = None) -> None:
+            self.name = name
+            self.status = types.SimpleNamespace(value=status)
+            self.hostname = hostname
+            self._run = object()
+            self.log_calls = 0
+
+        def refresh(self):
+            return None
+
+        def logs(self, *, replica_num, job_num):
+            assert (replica_num, job_num) == (0, 0)
+            self.log_calls += 1
+            return iter(log_batches[min(self.log_calls, len(log_batches)) - 1])
+
+    source = Run("source-run", "done", hostname="gpu-worker-a")
+    cleanup = Run("pt-clean-test", "done")
+
+    class Runs:
+        def get(self, name):
+            return {"source-run": source, "pt-clean-test": cleanup}.get(name)
+
+    return types.SimpleNamespace(runs=Runs()), cleanup
+
+
+@pytest.mark.parametrize(
+    ("log_batches", "reclaimed", "log_calls"),
+    [
+        # lfm26-sampo-cont40-fixed-tools-20260928-r1: awk printed the 4.6 GB total in scientific notation.
+        ([[b"POSTTRAIN_CLEANUP_RECLAIMED_BYTES=4.63293e+09\n"]], 4_632_930_000, 1),
+        # Logs of a just-finished job arrive late.
+        ([[], [], [b"POSTTRAIN_CLEANUP_RECLAIMED_BYTES=1234\n"]], 1234, 3),
+    ],
+)
+def test_sdk_cleanup_reads_the_reclaimed_bytes_of_a_done_task(
+    monkeypatch: pytest.MonkeyPatch, log_batches: list[list[bytes]], reclaimed: int, log_calls: int
+) -> None:
+    module = _sdk_bridge_module(monkeypatch)
+    client, cleanup = _done_cleanup_client(log_batches)
+    monkeypatch.setattr(module, "_client", lambda _payload: client)
+    monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
+
+    response = module.cleanup_workspace(_done_cleanup_payload())
+
+    assert response == {
+        "cleanup_run_name": "pt-clean-test",
+        "hostname": "gpu-worker-a",
+        "workspace": "/var/lib/posttrain/runs/test-run",
+        "emptied": True,
+        "reclaimed_bytes": reclaimed,
+    }
+    assert cleanup.log_calls == log_calls
+
+
+def test_sdk_cleanup_rerun_completes_when_the_done_task_has_no_logs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The task exits 0 only after verifying the workspace is empty; missing logs do not undo that."""
+
+    module = _sdk_bridge_module(monkeypatch)
+    client, cleanup = _done_cleanup_client([[]])
+    monkeypatch.setattr(module, "_client", lambda _payload: client)
+    monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
+
+    response = module.cleanup_workspace(_done_cleanup_payload())
+
+    assert response["emptied"] is True and response["reclaimed_bytes"] == 0
+    assert response["reclaimed_bytes_evidence"] == "unavailable"
+    assert cleanup.log_calls == module._CLEANUP_LOG_ATTEMPTS
+
+
+def test_cleanup_command_prints_whole_bytes_for_large_workspaces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _sdk_bridge_module(monkeypatch)
+    workspace = tmp_path / "cleanup"
+    workspace.mkdir()
+    big = workspace / "checkpoint.bin"
+    with big.open("wb") as stream:
+        stream.truncate(3_000_000_123)  # sparse: above awk's integer print range
+    command = module._cleanup_command().replace("/opt/posttrain/cleanup", str(workspace))
+
+    result = subprocess.run(["/bin/sh", "-c", command], capture_output=True, text=True, check=True)
+
+    assert module.parse_reclaimed_bytes(result.stdout.splitlines()) == 3_000_000_123
+    assert "e+" not in result.stdout
+    assert list(workspace.iterdir()) == []

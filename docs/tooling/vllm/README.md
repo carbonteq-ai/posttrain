@@ -51,6 +51,22 @@ The independent SM120 kernel is
 commit `99a6fe0acbb4756735aa8e47236f8b74e3f7c4be`, with wheel SHA-256
 `3149a539c3296afbc56dfec88e86012fa00c8ac167eb828fa95efe90fdd38430`.
 
+## Float16 and float32 in the fork
+
+A rollout binding's `engine.dtype` (`bfloat16`, `float16`, `float32`) reaches vLLM
+through the colocated TRL path. In carbonteq-v0.29.1.dev4 every kernel the LFM2.5
+c144 rollout engine uses (FlashAttention 2, LFM2 short convolution, the
+unquantized DSpark drafter, Punica LoRA) runs float16. Float16 leaves
+bfloat16-tuned code only in SM120 batch-invariant GEMMs (the tuned shape table
+and generic rule are bf16-only; float16 uses the untuned default), Qwen3.5's
+fused CUDA Gated-DeltaNet decode (Triton fallback) and DSpark's NVFP4
+gathered-bias kernel; `posttrain job plan` reports these as
+`VLLM_FLOAT16_BF16_ONLY_KERNEL`. Float32 is rejected by FlashAttention 2,
+FlashInfer and SM120 FA4, by the Punica LoRA shrink kernel, and by the FLA
+Gated-DeltaNet prefill kernel (`VLLM_FLOAT32_KERNEL_UNSUPPORTED`,
+`VLLM_FLOAT32_UNSUPPORTED_FOR_GATED_DELTANET`). The per-kernel table and the
+precision evidence are in `docs/plan/fp16-training-precision.md`.
+
 ## Uno and SM120 release boundary
 
 The fork provides the native Uno proposer, position-gated system LoRA overlay,

@@ -182,7 +182,7 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert isinstance(environment.source, EnvironmentSource)
     assert environment.source.package == "automationbench-v1"
     assert environment.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-    assert environment.source.revision == "5264ec153a543c62688efaa1ffe28aedb247d5bb"
+    assert environment.source.revision == "11f4d712806d292c6c6a752af046f4e16c4f037e"
     assert environment.source.subdirectory == "environments/automationbench_v1"
     assert environment.parameters["domains"] == ["simple"]
     assert environment.parameters["sampling_seed"] == 17
@@ -403,7 +403,7 @@ def test_lfm26_comparison_uses_a_large_reproducible_training_population() -> Non
         (WORKSPACE / "packages/catalog/src/posttrain/catalog/base/locks.toml").read_text(encoding="utf-8")
     )
     current_trl_lock = lock_document["locks"]["trl-fork@current"]
-    assert remote_training.backend == "trl@1.12.0.post10"
+    assert remote_training.backend == "trl@1.12.0.post11"
     assert remote_training.backend_options["dependency_lock"] == "trl-fork@current"
     assert remote_training.backend_options["source_revision"] == current_trl_lock["source_revision"]
     assert remote_training.backend_options["dependency_lock_sha256"] == current_trl_lock["dependency_lock_sha256"]
@@ -504,7 +504,7 @@ def test_lfm26_three_step_qualification_retains_a_12k_episode_budget() -> None:
     judged_task = cast(Mapping[str, Any], taskset["task"])
     judges = cast(list[Mapping[str, Any]], judged_task["judges"])
     assert judges[0]["input_budget_tokens"] == 12_288
-    assert judges[0]["code_revision"] == "5264ec153a543c62688efaa1ffe28aedb247d5bb"
+    assert judges[0]["code_revision"] == "11f4d712806d292c6c6a752af046f4e16c4f037e"
     assert "assessment_scope" not in judges[0]
     assert "context_scope" not in judges[0]
 
@@ -628,7 +628,7 @@ def test_general_capability_catalog_and_library_qualification_are_pinned() -> No
     for item in plan.environments:
         assert isinstance(item.source, EnvironmentSource)
         assert item.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-        assert item.source.revision == "5264ec153a543c62688efaa1ffe28aedb247d5bb"
+        assert item.source.revision == "11f4d712806d292c6c6a752af046f4e16c4f037e"
 
 
 def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:
@@ -885,7 +885,7 @@ def test_automationbench_turn_progress_projection_reads_the_adapter_turn_evidenc
     task = taskset["task"]
     assert isinstance(task, Mapping)
     assert task["turn_rewards"] == {"tool_failure_penalty": 0.05}
-    assert environment.source.revision == "3a486b0ab173ece56f480f135c4cadfbf0135b57"
+    assert environment.source.revision == "e9eacc3c8e58acd6786403b9763d00a37f827a25"
 
     digest = projection.scorer_digest
     assert digest is not None

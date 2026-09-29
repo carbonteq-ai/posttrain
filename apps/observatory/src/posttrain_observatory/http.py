@@ -327,8 +327,8 @@ def create_http_app(
         return await service.describe_semantics(job_kinds=request.job_kinds)
 
     @app.post("/api/v1/semantic/query")
-    async def semantic_query(query: SemanticQuery | SqlQuery) -> SemanticResult:
-        return await service.query_semantics(query)
+    async def semantic_query(query: SemanticQuery | SqlQuery, source_id: str | None = None) -> SemanticResult:
+        return await service.query_semantics(query, source_id=source_id)
 
     @app.get("/api/v1/serving-capacity/work-packages/{work_package_id:path}")
     async def serving_capacity_work_package(

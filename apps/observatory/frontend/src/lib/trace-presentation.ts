@@ -1,4 +1,4 @@
-import type { TraceEvaluation, TraceSummary } from './api';
+import type { EpisodeEnding, TraceEvaluation, TraceSummary } from './api';
 
 export type TraceSurfaceMode = 'evaluation' | 'optimization' | 'generic';
 
@@ -91,4 +91,29 @@ export function traceSignalColumns(evaluation: TraceEvaluation): Array<{ name: s
     name,
     label: name.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()),
   }));
+}
+
+const episodeEndingLabels: Record<EpisodeEnding, { label: string; description: string }> = {
+  completed: { label: 'Completed', description: 'The agent finished on its own.' },
+  turn_limit: { label: 'Turn limit', description: 'The episode used every turn it was allowed.' },
+  token_budget: { label: 'Token budget', description: 'A rollout-wide token budget stopped the episode.' },
+  time_limit: { label: 'Time limit', description: 'The harness stopped the episode at its time limit.' },
+  reply_token_limit: {
+    label: 'Reply cut (max tokens)',
+    description: 'The last reply reached the per-call max tokens and was cut, so it ended the episode.',
+  },
+  context_limit_reply_cut: {
+    label: 'Reply cut (context)',
+    description: 'The last reply was cut because prompt plus reply reached the model context length.',
+  },
+  context_rejected: {
+    label: 'Prompt over context',
+    description: 'The next request was refused because its prompt exceeded the model context length.',
+  },
+  error: { label: 'Error', description: 'The episode failed execution.' },
+};
+
+/** Short label and one-sentence meaning of how an episode ended. */
+export function episodeEndingPresentation(ending: EpisodeEnding): { label: string; description: string } {
+  return episodeEndingLabels[ending];
 }

@@ -250,7 +250,11 @@ def _trl_colocated(snapshot: Snapshot, seat: Seat) -> bool:
 
 
 def _only_consumed_keys(snapshot: Snapshot, seat: Seat, suggestion: Suggestion) -> Suggestion:
-    """Drop suggestions the colocated TRL rollout engine would ignore (it follows the checkpoint dtype)."""
+    """Drop suggestions the colocated TRL rollout engine would ignore or that training owns.
+
+    The rollout dtype is chosen with the trainer's training_precision, not by
+    the serving calculator, so it is not suggested for colocated TRL rollouts.
+    """
 
     if not _trl_colocated(snapshot, seat):
         return suggestion

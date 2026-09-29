@@ -1,0 +1,30 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-0.8b/gsm8k-grpo-precision-bf16-local
+stage: train
+description: One hundred Qwen3.5-0.8B GRPO updates on GSM8K on the local 8 GB GPU with the trainer and the vLLM rollout both in bf16, measuring the sampler-trainer log-prob gap, importance-sampling truncation, loss scaling, reward and speed (docs/plan/fp16-training-precision.md).
+recipe:
+  type: inline
+  id: recipes/qwen3.5-0.8b-gsm8k-grpo-precision-bf16@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: grpo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/qwen3.5-0.8b@bf16}
+  environment: {type: ref, family: environment, id: gsm8k-grpo-precision}
+  settings: {type: ref, family: training, id: qwen3.5-0.8b/gsm8k-grpo-precision-v1}
+  training: {type: ref, family: training, id: training/qwen3.5-0.8b-trl-grpo-precision-bf16@1}
+  rollout_inference: {type: ref, family: inference, id: inference/qwen3.5-0.8b-vllm-precision-rollout-bf16@1}
+enabled_optional_jobs: []
+metadata:
+  question: Does bf16 on both the trainer and the rollout sampler change the sampler-trainer mismatch, truncation, stability and speed of LoRA GRPO (Qi et al. 2025, Section 4.4)?
+  labels: [experiment, precision, grpo, gsm8k, qwen3.5, local, 8gb]

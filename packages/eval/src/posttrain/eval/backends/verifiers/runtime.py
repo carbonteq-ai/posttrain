@@ -5,62 +5,24 @@ each harness script. That is useful for arbitrary local scripts, but it splits
 a packed evaluation into two independently resolved dependency graphs: the
 job/tool-server graph and the harness/MCP-client graph. A digest-pinned job
 image instead executes every Verifiers process from its one hash-locked image
-environment. Runtime preparation only materializes the script bytes.
+environment. Runtime preparation only materializes the script bytes. The
+policy is shared with training (``posttrain.environment.verifiers_preinstalled``).
 """
 
 from __future__ import annotations
 
-import hashlib
-import os
-import shlex
-import uuid
-from typing import Any
+from posttrain.environment.verifiers_preinstalled import (
+    PREINSTALLED_ENV,
+    preinstalled_uv_script_preparer,
+)
+from posttrain.environment.verifiers_preinstalled import (
+    configure_preinstalled_runtime as _configure_preinstalled_runtime,
+)
 
-PREINSTALLED_ENV = "POSTTRAIN_VERIFIERS_PREINSTALLED"
-_PATCHED = "_posttrain_preinstalled_runtime"
 _JOB_PYTHON = "/opt/posttrain/venv/bin/python"
 
-
-async def prepare_preinstalled_uv_script(
-    runtime: Any,
-    script: str | bytes,
-    env: dict[str, str] | None = None,
-    *,
-    activate: bool = True,
-) -> list[str]:
-    """Materialize a harness script and execute it from the packed job lock.
-
-    The packed interpreter already owns the job's complete environment, so
-    Verifiers' optional activation wrapper is unnecessary. Accept the keyword
-    to preserve the runtime protocol while returning the same direct argv for
-    either mode.
-    """
-
-    del activate
-
-    data = script.encode() if isinstance(script, str) else script
-    digest = hashlib.sha256(data).hexdigest()
-    path = f"/tmp/vf-scripts/{digest}.py"
-    interpreters = runtime._uv_interpreters
-    locks = runtime._uv_script_locks
-    if digest not in interpreters:
-        async with locks.get(digest):
-            if digest not in interpreters:
-                tmp = f"{path}.{uuid.uuid4().hex}.tmp"
-                await runtime.write(tmp, data)
-                command = (
-                    f"mv -f {shlex.quote(tmp)} {shlex.quote(path)} "
-                    f"&& test -x {shlex.quote(_JOB_PYTHON)} "
-                    f"&& {_JOB_PYTHON} -c "
-                    f"{shlex.quote('import httpx, mcp, openai, tenacity')}"
-                )
-                result = await runtime.run(["sh", "-c", command], env or {})
-                if result.exit_code != 0:
-                    raise RuntimeError(
-                        f"packed Verifiers harness dependencies are unavailable: {result.stderr.strip()[-2000:]}"
-                    )
-                interpreters[digest] = _JOB_PYTHON
-    return [interpreters[digest], path]
+prepare_preinstalled_uv_script = preinstalled_uv_script_preparer(_JOB_PYTHON)
+"""Materialize a harness script and execute it from the packed job lock."""
 
 
 def configure_preinstalled_runtime() -> None:
@@ -69,15 +31,7 @@ def configure_preinstalled_runtime() -> None:
     from posttrain.environment.verifiers_runtime import enable_verifiers_fork_server
 
     enable_verifiers_fork_server()
-    if os.environ.get(PREINSTALLED_ENV) != "1":
-        return
-    from verifiers.v1.runtimes import base as runtime_base
-
-    if getattr(runtime_base.Runtime, _PATCHED, False):
-        return
-
-    runtime_base.Runtime.prepare_uv_script = prepare_preinstalled_uv_script  # type: ignore[method-assign]
-    setattr(runtime_base.Runtime, _PATCHED, True)
+    _configure_preinstalled_runtime(interpreter=_JOB_PYTHON)
 
 
 __all__ = [

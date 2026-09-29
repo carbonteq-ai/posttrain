@@ -66,6 +66,7 @@ from posttrain.train import (
     SFTRequest,
     SFTSettings,
     TrainingBinding,
+    TrainingLoop,
     TransformRequest,
     TransformResult,
     build_verifiers_distillation_request,
@@ -77,11 +78,15 @@ from posttrain.train import (
     dpo,
     gdpo,
     grpo,
+    kl_reference_problem,
+    oversampled_round_capacity_error,
     run_llm_compressor,
     sampo,
     sft,
     transform,
     validate_verifiers_policy_sampling,
+    verl_grpo_settings_problem,
+    verl_training_loop_problem,
 )
 from posttrain.work import JobDefinition, ResolvedSeats
 
@@ -363,6 +368,7 @@ def distillation_definition(
         run,
         "Generate fresh student rollouts, score with the teacher, and apply distillation.",
         required_artifact_roles=("model", "summary"),
+        static_validator=_validate_verl_training_loop_seats,
     )
 
 
@@ -556,6 +562,7 @@ def structured_rl_definition(
         run,
         "Train from explicitly selected retained outcome and process evidence.",
         required_artifact_roles=("model", "summary"),
+        static_validator=_validate_verl_training_loop_seats,
     )
 
 
@@ -988,6 +995,11 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
     if not isinstance(settings, GRPOSettings | SAMPOSettings):
         raise TypeError("resolved seat 'settings' has the wrong type")
     training = _seat(seats, "training", TrainingBinding)
+    if isinstance(settings, GRPOSettings) and training.backend.split("@", 1)[0] == "verl":
+        unsupported = verl_grpo_settings_problem(settings)
+        if unsupported is not None:
+            raise ContractError(unsupported)
+    _validate_verl_training_loop(settings, training)
     expected_batch = settings.num_prompts_per_step * settings.num_generations
     global_batch = training.runtime.global_batch_size
     if isinstance(global_batch, int) and global_batch != expected_batch:
@@ -1015,6 +1027,41 @@ def _validate_online_rl_batch_seats(seats: ResolvedSeats) -> None:
         )
 
     _validate_task_supply(settings, seats.get("environment"), seats.get("training"))
+    _validate_oversampled_round_capacity(settings, training, inference, seats.get("environment"))
+    model = seats.get("model")
+    if isinstance(model, ModelVariant):
+        # A run-selected starting model (--model-from-run) is checked again when the
+        # backend builds its request.
+        problem = kl_reference_problem(training.backend, settings.beta, settings.kl_reference, model.form)
+        if problem is not None:
+            raise ContractError(problem)
+
+
+def _validate_verl_training_loop_seats(seats: ResolvedSeats) -> None:
+    """Static check for veRL-capable jobs without online-RL batch seats (distillation, GDPO, CAPO)."""
+
+    settings = seats.get("settings")
+    training = seats.get("training")
+    if isinstance(training, TrainingBinding) and settings is not None:
+        _validate_verl_training_loop(settings, training)
+
+
+def _validate_verl_training_loop(settings: object, training: TrainingBinding) -> None:
+    """Reject training-loop settings the veRL backend cannot run exactly as selected."""
+
+    if training.backend.split("@", 1)[0] != "verl":
+        return
+    loop = getattr(settings, "loop", None)
+    prompts = getattr(settings, "num_prompts_per_step", None)
+    generations = getattr(settings, "num_generations", None)
+    if not isinstance(loop, TrainingLoop) or not isinstance(prompts, int) or not isinstance(generations, int):
+        return
+    world_size = training.target.placement.get("world_size", 1)
+    if not isinstance(world_size, int) or world_size < 1:
+        raise ContractError("veRL training target world_size must be a positive integer")
+    problem = verl_training_loop_problem(loop, rows_per_update=prompts * generations, world_size=world_size)
+    if problem is not None:
+        raise ContractError(problem)
 
 
 def _validate_task_supply(
@@ -1045,6 +1092,53 @@ def _validate_task_supply(
                 f"adaptive curriculum class field {curriculum.class_field!r} must be an observation facet "
                 "of the environment, so every task row carries it"
             )
+
+
+def _validate_oversampled_round_capacity(
+    settings: GRPOSettings | SAMPOSettings,
+    training: TrainingBinding,
+    inference: InferenceBinding,
+    environment: object | None,
+) -> None:
+    """Reject an oversampled first active-sampling round that the rollout topology cannot run at once."""
+
+    active = settings.active_sampling
+    if active is None or (active.oversample == 0 and active.oversample_refill == 0):
+        return
+    if not training.backend.startswith("trl@"):
+        raise ContractError(
+            f"active_sampling oversample and oversample_refill are implemented by the TRL backend, not {training.backend}"
+        )
+    vllm_limit = None
+    if inference.backend.split("@", 1)[0] == "vllm":
+        declared = inference.engine.get("max_num_seqs")
+        # TRL's colocated default admits one generation batch per process: the
+        # per-device batch times tensor parallelism times steps per generation.
+        tensor_parallel = inference.engine.get("tensor_parallel_size", 1)
+        default = settings.loop.per_device_batch_size * settings.loop.gradient_accumulation_steps
+        vllm_limit = (
+            declared
+            if isinstance(declared, int)
+            else default * (tensor_parallel if isinstance(tensor_parallel, int) else 1)
+        )
+    execution = training.backend_options.get("rollout_execution")
+    worker_slots = None
+    if isinstance(execution, Mapping):
+        workers, episodes = execution.get("env_workers"), execution.get("episodes_per_worker")
+        if isinstance(workers, int) and isinstance(episodes, int):
+            worker_slots = (workers, episodes)
+    error = oversampled_round_capacity_error(
+        num_prompts_per_step=settings.num_prompts_per_step,
+        num_generations=settings.num_generations,
+        oversample=active.oversample,
+        vllm_max_num_seqs=vllm_limit,
+        environment_max_concurrent=(
+            environment.max_concurrent if isinstance(environment, EnvironmentBinding) else None
+        ),
+        worker_slots=worker_slots,
+    )
+    if error is not None:
+        raise ContractError(error)
 
 
 def _recovery_checkpoint(context: RunContext) -> LocalArtifactRef | None:

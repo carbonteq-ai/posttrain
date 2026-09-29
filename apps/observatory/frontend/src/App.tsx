@@ -64,7 +64,7 @@ import {
   type WorkPackageView,
   type EvaluationIndex,
 } from './lib/api';
-import { tracePresentation, traceSignalColumns, traceSurfaceMode, type TracePresentation } from './lib/trace-presentation';
+import { episodeEndingPresentation, tracePresentation, traceSignalColumns, traceSurfaceMode, type TracePresentation } from './lib/trace-presentation';
 
 const RunTranscript = lazy(async () => ({ default: (await import('./components/RunTranscript')).RunTranscript }));
 
@@ -2499,6 +2499,7 @@ function TraceInspector({
       <code className="mt-1 block truncate text-[9px] text-muted" title={detail.summary.external_id}>{detail.summary.external_id}</code>
       <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px]">
         <span className={`inline-flex rounded-full border px-2 py-1 ${detail.summary.outcome === 'pass' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : detail.summary.outcome === 'review' || detail.summary.outcome === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : detail.summary.outcome === 'truncated' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-violet-200 bg-violet-50 text-violet-700'}`}>{presentation.outcomeLabel(detail.summary.outcome)}</span>
+        {detail.summary.ending != null && <span className="rounded-full bg-subtle px-2 py-1" title={episodeEndingPresentation(detail.summary.ending).description}>Ending <strong>{episodeEndingPresentation(detail.summary.ending).label}</strong></span>}
         {detail.summary.reward != null && <span className="rounded-full bg-subtle px-2 py-1">Reward <strong>{detail.summary.reward.toFixed(3)}</strong></span>}
         <span className="rounded-full bg-subtle px-2 py-1">{detail.summary.latency_ms == null ? '—' : `${(detail.summary.latency_ms / 1000).toFixed(1)}s`}</span>
         <span className="rounded-full bg-subtle px-2 py-1">{detail.summary.completion_tokens == null ? '—' : `${detail.summary.completion_tokens.toLocaleString()} tokens`}</span>

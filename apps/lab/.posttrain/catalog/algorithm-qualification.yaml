@@ -1,10 +1,14 @@
 environment:
   gsm8k-grpo-qualification:
     category: math-reasoning
+    # GSM8K is fetched from Hugging Face when the Verifiers taskset activates.
+    # Actual-job smoke checks run with no network, so preserve that boundary and
+    # qualify the activation on the networked execution worker instead.
+    qualification: deferred
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
@@ -22,15 +26,6 @@ environment:
         taskset:
           id: gsm8k-v1
           split: train
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 180
-          finalize: 60
-          scoring: 120
     sampling:
       max_tokens: 384
       temperature: 1.0
@@ -53,7 +48,7 @@ environment:
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
@@ -71,15 +66,6 @@ environment:
         taskset:
           id: gsm8k-v1
           split: train
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 180
-          finalize: 60
-          scoring: 120
     sampling:
       max_tokens: 384
       temperature: 0.7
@@ -103,7 +89,7 @@ environment:
     source:
       package: gsm8k-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/gsm8k_v1
     activation:
       kind: verifiers-config
@@ -124,15 +110,6 @@ environment:
           dataset_revision: 740312add88f781978c0658806c59bc2815b9866
           dataset_config: main
           split: test
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 180
-          finalize: 60
-          scoring: 120
     sampling:
       max_tokens: 384
       temperature: 0.0
@@ -152,7 +129,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -163,27 +140,18 @@ environment:
           runtime:
             type: subprocess
           timeout:
-            setup: 120
-            rollout: 1800
-            finalize: 60
-            scoring: 120
+            setup: 600
+            rollout: 900
+            finalize: 120
+            scoring: 300
+          max_turns: 50
+          max_total_tokens: 32768
         taskset:
           id: automationbench-v1
           domains: [simple]
           task:
             toolset: limited_zapier
             search_top_k: 20
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 600
-          rollout: 900
-          finalize: 120
-          scoring: 300
-        max_turns: 50
-        max_total_tokens: 32768
     sampling:
       max_tokens: 2048
       temperature: 0.0
@@ -208,7 +176,7 @@ environment:
     source:
       package: mmlu-pro-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/mmlu_pro_v1
     activation:
       kind: verifiers-config
@@ -223,6 +191,7 @@ environment:
             rollout: 300
             finalize: 60
             scoring: 120
+          max_total_tokens: 32768
         taskset:
           id: mmlu-pro-v1
           dataset_repo: TIGER-Lab/MMLU-Pro
@@ -233,16 +202,6 @@ environment:
           order_seed: 0
           balanced: true
           limit_per_category: 1
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 300
-          finalize: 60
-          scoring: 120
-        max_total_tokens: 32768
     sampling:
       max_tokens: 1024
       temperature: 0.0
@@ -263,7 +222,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -284,15 +243,6 @@ environment:
           dataset_revision: 966cd89545d6b6acfd7638bc708b98261ca58e84
           split: train
           order_seed: 0
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 300
-          finalize: 60
-          scoring: 120
     sampling:
       max_tokens: 1024
       temperature: 0.0
@@ -314,7 +264,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -326,7 +276,7 @@ environment:
             type: subprocess
           timeout:
             setup: 120
-            rollout: 300
+            rollout: 600
             finalize: 60
             scoring: 120
         taskset:
@@ -335,15 +285,6 @@ environment:
           dataset_revision: 966cd89545d6b6acfd7638bc708b98261ca58e84
           split: train
           order_seed: 0
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 600
-          finalize: 60
-          scoring: 120
     sampling:
       max_tokens: 4096
       temperature: 1.0
@@ -366,7 +307,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -378,7 +319,7 @@ environment:
             type: subprocess
           timeout:
             setup: 120
-            rollout: 300
+            rollout: 900
             finalize: 60
             scoring: 120
         taskset:
@@ -387,15 +328,6 @@ environment:
           dataset_revision: 966cd89545d6b6acfd7638bc708b98261ca58e84
           split: train
           order_seed: 0
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 900
-          finalize: 60
-          scoring: 120
     sampling:
       max_tokens: 8192
       temperature: 1.0
@@ -418,7 +350,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -430,8 +362,8 @@ environment:
             type: subprocess
           timeout:
             setup: 120
-            rollout: 300
-            finalize: 60
+            rollout: 900
+            finalize: 120
             scoring: 120
         taskset:
           id: ifeval-v1
@@ -439,15 +371,6 @@ environment:
           dataset_revision: 966cd89545d6b6acfd7638bc708b98261ca58e84
           split: train
           order_seed: 0
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 900
-          finalize: 120
-          scoring: 120
     sampling:
       max_tokens: 8192
       temperature: 1.0
@@ -472,7 +395,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -484,8 +407,8 @@ environment:
             type: subprocess
           timeout:
             setup: 120
-            rollout: 300
-            finalize: 60
+            rollout: 1800
+            finalize: 120
             scoring: 120
         taskset:
           id: ifeval-v1
@@ -493,15 +416,6 @@ environment:
           dataset_revision: 966cd89545d6b6acfd7638bc708b98261ca58e84
           split: train
           order_seed: 0
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 1800
-          finalize: 120
-          scoring: 120
     sampling:
       max_tokens: 16384
       temperature: 1.0
@@ -526,7 +440,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -538,25 +452,16 @@ environment:
             type: subprocess
           timeout:
             setup: 120
-            rollout: 300
-            finalize: 60
+            rollout: 1800
+            finalize: 120
             scoring: 120
+          max_total_tokens: 32768
         taskset:
           id: ifeval-v1
           dataset_repo: google/IFEval
           dataset_revision: 966cd89545d6b6acfd7638bc708b98261ca58e84
           split: train
           order_seed: 0
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 1800
-          finalize: 120
-          scoring: 120
-        max_total_tokens: 32768
     sampling:
       max_tokens: 16384
       temperature: 1.0
@@ -581,7 +486,7 @@ environment:
     source:
       package: ifeval-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/ifeval_v1
     activation:
       kind: verifiers-config
@@ -593,8 +498,8 @@ environment:
             type: subprocess
           timeout:
             setup: 120
-            rollout: 300
-            finalize: 60
+            rollout: 900
+            finalize: 120
             scoring: 120
         taskset:
           id: ifeval-v1
@@ -602,15 +507,6 @@ environment:
           dataset_revision: 966cd89545d6b6acfd7638bc708b98261ca58e84
           split: train
           order_seed: 0
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 900
-          finalize: 120
-          scoring: 120
     sampling:
       max_tokens: 8192
       temperature: 1.0
@@ -635,7 +531,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -666,15 +562,6 @@ environment:
             - zebra_puzzles
           examples_per_generator: 1
           eval_seed_start: 1000000
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 300
-          finalize: 60
-          scoring: 120
     sampling:
       max_tokens: 2048
       temperature: 0.0
@@ -694,7 +581,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -706,7 +593,7 @@ environment:
             type: subprocess
           timeout:
             setup: 120
-            rollout: 300
+            rollout: 600
             finalize: 60
             scoring: 120
         taskset:
@@ -725,15 +612,6 @@ environment:
             - zebra_puzzles
           examples_per_generator: 1
           eval_seed_start: 1000000
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 600
-          finalize: 60
-          scoring: 120
     sampling:
       max_tokens: 4096
       temperature: 1.0
@@ -754,7 +632,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -766,7 +644,7 @@ environment:
             type: subprocess
           timeout:
             setup: 120
-            rollout: 300
+            rollout: 900
             finalize: 60
             scoring: 120
         taskset:
@@ -785,15 +663,6 @@ environment:
             - zebra_puzzles
           examples_per_generator: 1
           eval_seed_start: 1000000
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 900
-          finalize: 60
-          scoring: 120
     sampling:
       max_tokens: 8192
       temperature: 1.0
@@ -814,7 +683,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -826,8 +695,8 @@ environment:
             type: subprocess
           timeout:
             setup: 120
-            rollout: 300
-            finalize: 60
+            rollout: 900
+            finalize: 120
             scoring: 120
         taskset:
           id: reasoning-gym-v1
@@ -839,15 +708,6 @@ environment:
             - number_sorting
           examples_per_generator: 1
           eval_seed_start: 1000000
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 900
-          finalize: 120
-          scoring: 120
     sampling:
       max_tokens: 8192
       temperature: 1.0
@@ -870,7 +730,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -882,8 +742,8 @@ environment:
             type: subprocess
           timeout:
             setup: 120
-            rollout: 300
-            finalize: 60
+            rollout: 1800
+            finalize: 120
             scoring: 120
         taskset:
           id: reasoning-gym-v1
@@ -901,15 +761,6 @@ environment:
             - zebra_puzzles
           examples_per_generator: 1
           eval_seed_start: 1000000
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 1800
-          finalize: 120
-          scoring: 120
     sampling:
       max_tokens: 16384
       temperature: 1.0
@@ -932,7 +783,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -944,9 +795,10 @@ environment:
             type: subprocess
           timeout:
             setup: 120
-            rollout: 300
-            finalize: 60
+            rollout: 1800
+            finalize: 120
             scoring: 120
+          max_total_tokens: 32768
         taskset:
           id: reasoning-gym-v1
           split: eval
@@ -963,16 +815,6 @@ environment:
             - zebra_puzzles
           examples_per_generator: 1
           eval_seed_start: 1000000
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 1800
-          finalize: 120
-          scoring: 120
-        max_total_tokens: 32768
     sampling:
       max_tokens: 16384
       temperature: 1.0
@@ -995,7 +837,7 @@ environment:
     source:
       package: reasoning-gym-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/reasoning_gym_v1
     activation:
       kind: verifiers-config
@@ -1007,8 +849,8 @@ environment:
             type: subprocess
           timeout:
             setup: 120
-            rollout: 300
-            finalize: 60
+            rollout: 900
+            finalize: 120
             scoring: 120
         taskset:
           id: reasoning-gym-v1
@@ -1020,15 +862,6 @@ environment:
             - number_sorting
           examples_per_generator: 1
           eval_seed_start: 1000000
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 900
-          finalize: 120
-          scoring: 120
     sampling:
       max_tokens: 8192
       temperature: 1.0
@@ -1051,7 +884,7 @@ environment:
     source:
       package: math-python-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/math_python_v1
     activation:
       kind: verifiers-config
@@ -1075,15 +908,6 @@ environment:
           num_tasks: 2
           order_seed: 0
           balance_by_type: true
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 300
-          finalize: 60
-          scoring: 120
     sampling:
       max_tokens: 2048
       temperature: 0.0
@@ -1107,7 +931,7 @@ environment:
     source:
       package: math-python-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 5264ec153a543c62688efaa1ffe28aedb247d5bb
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
       subdirectory: environments/math_python_v1
     activation:
       kind: verifiers-config
@@ -1119,9 +943,11 @@ environment:
             type: subprocess
           timeout:
             setup: 120
-            rollout: 300
-            finalize: 60
+            rollout: 1800
+            finalize: 120
             scoring: 120
+          max_turns: 8
+          max_total_tokens: 32768
         taskset:
           id: math-python-v1
           repository: DigitalLearningGmbH/MATH-lighteval
@@ -1131,17 +957,6 @@ environment:
           num_tasks: 500
           order_seed: 0
           balance_by_type: true
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 1800
-          finalize: 120
-          scoring: 120
-        max_turns: 8
-        max_total_tokens: 32768
     sampling:
       max_tokens: 32768
       temperature: 1.0
@@ -1168,7 +983,7 @@ environment:
     source:
       package: reverse-text
       repository: https://github.com/carbonteq-ai/verifiers
-      revision: cdd2ec7614131545df66484f9de11250daf16065
+      revision: e6a3d9bbfe6959b97878f451fc721793a232cd5f
       subdirectory: environments/reverse_text
     activation:
       kind: verifiers-config
@@ -1187,15 +1002,6 @@ environment:
           id: reverse-text
           dataset_name: PrimeIntellect/Reverse-Text-RL
           dataset_split: train
-        harness:
-          id: "null"
-          runtime:
-            type: subprocess
-        timeout:
-          setup: 120
-          rollout: 180
-          finalize: 60
-          scoring: 120
     sampling:
       max_tokens: 128
       temperature: 0.0

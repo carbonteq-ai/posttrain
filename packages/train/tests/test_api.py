@@ -59,6 +59,7 @@ from posttrain.train import (
     OnPolicyDistillationSettings,
     QLoRAUpdate,
     QuantizationPlan,
+    SAMPORequest,
     SAMPOSettings,
     SFTRequest,
     SFTSettings,
@@ -108,6 +109,7 @@ from posttrain.train.backends.trl.policy_telemetry import (
 )
 from posttrain.train.backends.trl.update_totals import RolloutUpdateTotals
 from posttrain.train.catalog_schema import TrainingRuntimeSchema, decode_training_selection
+from posttrain.train.online_rl import AgenticTurn
 from posttrain.train.results import TrainingSummary
 from pydantic import ValidationError
 
@@ -243,6 +245,27 @@ class TruncatedRLBridge(FakeRLBridge):
     async def run(self, batch, generator) -> tuple[EnvironmentRollout, ...]:
         rollouts = await super().run(batch, generator)
         return tuple(replace(rollout, is_truncated=True) for rollout in rollouts)
+
+
+@dataclass
+class EndingLabelledRLBridge(FakeRLBridge):
+    """Traces carry the episode ending the Verifiers evidence records."""
+
+    endings: tuple[str, ...] = ("completed",)
+    calls: int = 0
+
+    async def run(self, batch, generator) -> tuple[EnvironmentRollout, ...]:
+        rollouts = await super().run(batch, generator)
+        ending = self.endings[self.calls % len(self.endings)]
+        self.calls += 1
+        return tuple(
+            replace(
+                rollout,
+                is_truncated=ending not in {"completed", "error"},
+                trace=replace(rollout.trace, attributes={"episode_ending": ending}),
+            )
+            for rollout in rollouts
+        )
 
 
 def test_environment_rollout_rejects_nonfinite_sampling_logprobs() -> None:
@@ -1374,6 +1397,53 @@ def test_grpo_rollout_adapter_rejects_all_truncated_masked_population(
     assert observer.traces[0].external_id == "trace-0"
 
 
+def test_grpo_rollout_adapter_writes_episode_ending_counts_and_rates_once_per_update(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observer = Observer()
+    context = _run_context(
+        tmp_path.resolve(),
+        observer,
+        job_kind="train.grpo",
+        run_id="runs/grpo-episode-endings",
+    )
+    model = QWEN_35_2B
+    request = GRPORequest(
+        model,
+        EndingLabelledRLBridge(endings=("reply_token_limit", "completed", "context_rejected", "completed")),
+        QWEN35_GRPO_SMOKE,
+        FakeEnvironment(),
+        _training(),
+        _inference(model),
+    )
+    monkeypatch.setattr(
+        "posttrain.train.backends.trl.online_rl.TrlPolicyGenerator",
+        lambda *args: object(),
+    )
+    totals = RolloutUpdateTotals(context)
+    rollout = _rollout_function(context, request, object(), totals)
+    for _ in range(4):
+        rollout(
+            [[{"role": "user", "content": "What is 2 + 2?"}]],
+            SimpleNamespace(state=SimpleNamespace(global_step=3)),
+            inputs=[{"example_id": "gsm8k/train/0"}],
+        )
+    totals.flush(4)
+
+    values = observer.metrics_seen[-1].values
+    assert values["train/rl/rollouts_ending_completed"] == 2
+    assert values["train/rl/rollouts_ending_reply_token_limit"] == 1
+    assert values["train/rl/rollouts_ending_context_rejected"] == 1
+    assert values["train/rl/rollouts_ending_turn_limit"] == 0
+    assert values["train/rl/ending_completed_rate"] == 0.5
+    assert values["train/rl/ending_reply_token_limit_rate"] == 0.25
+    assert values["train/rl/ending_context_rejected_rate"] == 0.25
+    assert values["train/rl/ending_context_limit_reply_cut_rate"] == 0.0
+    # Truncation keeps its meaning: every ending other than completed and error.
+    assert values["train/rl/rollouts_truncated"] == 2
+
+
 def test_grpo_actor_update_phase_starts_after_retained_rollouts_and_ends_at_optimizer_step(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -2241,3 +2311,101 @@ def test_trl_olmo3_config_still_fixes_beta() -> None:
     olmo3_config = pytest.importorskip("trl.trainer.olmo3_grpo_config").Olmo3GRPOConfig
     beta = {item.name: item for item in dataclasses.fields(olmo3_config)}["beta"]
     assert beta.init is False
+
+
+def _olmo3_oversampled_settings() -> GRPOSettings:
+    # Run q0412-oversample-qwen08b-r1: 4 prompt groups x 8 generations, oversample 1, oversample_refill 1.
+    return GRPOSettings(
+        "qwen3.5/olmo3-oversample-test@1",
+        TrainingLoop(max_steps=1, per_device_batch_size=1, gradient_accumulation_steps=32),
+        num_prompts_per_step=4,
+        num_generations=8,
+        max_completion_length=384,
+        algorithm="olmo3",
+        advantage_scaling="none",
+        clip_epsilon_high=0.272,
+        importance_sampling_mode="token_truncate",
+        importance_sampling_clip_min=None,
+        importance_sampling_clip_max=2.0,
+        active_sampling=ActiveGroupSampling(max_candidate_batches=3, oversample=1, oversample_refill=1),
+    )
+
+
+def _rows(groups: str, generations: int) -> list[dict[str, str]]:
+    return [{"example_id": f"gsm8k/train/{name}"} for name in groups for _ in range(generations)]
+
+
+def test_trl_rollout_accepts_an_oversampled_first_round_and_refill(monkeypatch, tmp_path: Path) -> None:
+    """Every oversampled run died in its first rollout: the 40-row first round exceeded 4 x 8."""
+
+    observer = Observer()
+    context = _context(tmp_path.resolve(), observer)
+    model = QWEN_35_2B
+    request = GRPORequest(
+        model,
+        FakeRLBridge(),
+        _olmo3_oversampled_settings(),
+        FakeEnvironment(),
+        replace(_training(update=LoRAUpdate()), runtime=TrainingRuntime(global_batch_size=32)),
+        _inference(model),
+    )
+    monkeypatch.setattr("posttrain.train.backends.trl.online_rl.TrlPolicyGenerator", lambda *args: object())
+    # A real TRL trainer exposes Accelerator, which selects complete-group identities and validation.
+    trainer = SimpleNamespace(state=SimpleNamespace(global_step=0), accelerator=SimpleNamespace(process_index=0))
+    rollout = _rollout_function(context, request, object())
+
+    first = _rows("abcde", 8)  # (4 + oversample 1) x 8 = 40 rows
+    output = rollout([[{"role": "user", "content": "q"}]] * len(first), trainer, inputs=first)
+    assert len(output["rollout_reward"]) == 40
+    refill = _rows("fg", 8)  # two missing groups + oversample_refill 1, cut by TRL to what remains
+    assert (
+        len(rollout([[{"role": "user", "content": "q"}]] * len(refill), trainer, inputs=refill)["rollout_reward"]) == 16
+    )
+
+    too_large = _rows("abcdef", 8)  # 48 rows: more than any round can hold
+    with pytest.raises(ValueError, match=r"at most 40 rows \(\(prompts \+ oversample\) x generations\); got 48"):
+        rollout([[{"role": "user", "content": "q"}]] * len(too_large), trainer, inputs=too_large)
+
+
+@dataclass
+class TurnRLBridge(FakeRLBridge):
+    """Multi-turn rollouts with reward spread, as SAMPO's hierarchical advantages need."""
+
+    async def run(self, batch, generator) -> tuple[EnvironmentRollout, ...]:
+        rollouts = await super().run(batch, generator)
+        return tuple(
+            replace(rollout, reward=float(index % 2), turns=(AgenticTurn(0, 3, "observation", None),))
+            for index, rollout in enumerate(rollouts)
+        )
+
+
+def test_trl_sampo_rollout_accepts_an_oversampled_first_round_and_refill(monkeypatch, tmp_path: Path) -> None:
+    observer = Observer()
+    context = _context(tmp_path.resolve(), observer)
+    model = QWEN_35_2B
+    settings = SAMPOSettings(
+        "qwen3.5/sampo-oversample-test@1",
+        TrainingLoop(max_steps=1, max_length=640, per_device_batch_size=1, gradient_accumulation_steps=32),
+        num_prompts_per_step=4,
+        num_generations=8,
+        max_completion_length=384,
+        active_sampling=ActiveGroupSampling(max_candidate_batches=3, oversample=1, oversample_refill=1),
+    )
+    request = SAMPORequest(
+        model,
+        TurnRLBridge(),
+        settings,
+        FakeEnvironment(),
+        replace(_training(update=LoRAUpdate()), runtime=TrainingRuntime(global_batch_size=32)),
+        _inference(model),
+    )
+    monkeypatch.setattr("posttrain.train.backends.trl.online_rl.TrlPolicyGenerator", lambda *args: object())
+    trainer = SimpleNamespace(state=SimpleNamespace(global_step=0), accelerator=SimpleNamespace(process_index=0))
+    rollout = _rollout_function(context, request, object())
+
+    first = _rows("abcde", 8)
+    assert len(rollout([[{"role": "user", "content": "q"}]] * 40, trainer, inputs=first)["rollout_reward"]) == 40
+    refill = _rows("fg", 8)
+    assert len(rollout([[{"role": "user", "content": "q"}]] * 16, trainer, inputs=refill)["rollout_reward"]) == 16
+    with pytest.raises(ValueError, match="at most 40 rows"):
+        rollout([[{"role": "user", "content": "q"}]] * 48, trainer, inputs=_rows("abcdef", 8))

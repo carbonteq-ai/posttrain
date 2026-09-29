@@ -20,6 +20,7 @@ from posttrain.common import JsonValue, LocalArtifactRef, ModelVariant, Produced
 
 from ...adaptive_curriculum import CURRICULUM_SNAPSHOT_NAME
 from ...bindings import FullParameterUpdate, LoRAUpdate, ParameterUpdatePlan, QLoRAUpdate, QuantizationAwareUpdate
+from ...precision import TrainingPrecision, rollout_dtype
 from ...profiles import TrainingLoop
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
@@ -159,8 +160,11 @@ def vllm_rollout_options(
         if not isinstance(kv_cache_dtype, str) or not kv_cache_dtype:
             raise ValueError("TRL rollout kv_cache_dtype must be a non-empty string")
         values["kv_cache_dtype"] = kv_cache_dtype
-        if kv_cache_dtype.startswith("turboquant_"):
-            values["dtype"] = "float16"
+    # vLLM follows the checkpoint dtype unless the binding selects one; a
+    # TurboQuant KV cache implies (and only accepts) float16.
+    dtype, _source = rollout_dtype(engine)
+    if dtype is not None:
+        values["dtype"] = dtype
     if speculative is not None:
         values["disable_log_stats"] = False
     return dict(speculative) if isinstance(speculative, Mapping) else None, values or None
@@ -302,16 +306,15 @@ def load_trainable_model(
     torch = imports["torch"]
     if isinstance(update, QuantizationAwareUpdate):
         raise ValueError("the TRL adapter does not yet implement quantization-aware updates")
-    dtype_by_name = {
-        "bfloat16": torch.bfloat16,
-        "float32": torch.float32,
-    }
-    try:
-        dtype = dtype_by_name[model_dtype]
-    except KeyError as error:
-        raise ValueError("TRL trainable model dtype must be 'bfloat16' or 'float32'") from error
+    if model_dtype not in {"bfloat16", "float16", "float32"}:
+        raise ValueError("TRL trainable model dtype must be 'bfloat16', 'float16' or 'float32'")
+    dtype = getattr(torch, model_dtype)
     if isinstance(update, QLoRAUpdate) and model_dtype != "bfloat16":
         raise ValueError("QLoRA training requires bfloat16 compute dtype")
+    if model_dtype == "float16" and not isinstance(update, LoRAUpdate):
+        # Loss scaling steps float32 master weights; only PEFT LoRA adapters are
+        # float32 over a float16 base.
+        raise ValueError("float16 training requires a LoRA update")
     load_options: dict[str, Any] = {
         "revision": model.base.revision,
         "device_map": {"": 0},
@@ -490,66 +493,128 @@ def callback_type(
     return ObservationCallback
 
 
+Technique = Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "gdpo", "capo", "distill"]
+
+
+class CheckpointPublisher:
+    """Publish one complete TRL checkpoint directory as the run's checkpoint views.
+
+    A periodic save and a cancellation save share this path, so both produce the
+    same controller snapshot, reward-contract record, recovery view, and model view.
+    """
+
+    def __init__(
+        self,
+        context: RunContext,
+        *,
+        model: ModelVariant,
+        technique: Technique,
+        settings: Any,
+        update: ParameterUpdatePlan,
+        workspace: Path,
+        reward_contract: str | None = None,
+        checkpoint_state_writer: Callable[[Path], None] | None = None,
+    ) -> None:
+        self.context = context
+        self.model = model
+        self.technique: Technique = technique
+        self.settings = settings
+        self.update = update
+        self.workspace = workspace
+        self.reward_contract = reward_contract
+        self.checkpoint_state_writer = checkpoint_state_writer
+        self.published_steps: set[int] = set()
+
+    def publish(
+        self,
+        checkpoint: Path,
+        *,
+        step: int,
+        interrupted: bool = False,
+        checkpoint_state_writer: Callable[[Path], None] | None = None,
+    ) -> None:
+        checkpoint = checkpoint.resolve()
+        writer = checkpoint_state_writer or self.checkpoint_state_writer
+        if writer is not None:
+            writer(checkpoint)
+        if self.reward_contract is not None:
+            from ...reward_recovery import retain_reward_contract
+
+            retain_reward_contract(checkpoint, self.reward_contract)
+        publish_checkpoint_views(
+            self.context,
+            checkpoint,
+            model=self.model,
+            technique=self.technique,
+            settings=self.settings,
+            update=self.update,
+            workspace=self.workspace,
+            interrupted=interrupted,
+        )
+        self.published_steps.add(step)
+
+
 def checkpoint_callback_type(
     context: RunContext,
     imports: Mapping[str, Any],
     *,
     model: ModelVariant,
-    technique: Literal["sft", "dpo", "grpo", "dapo", "olmo3", "sampo", "gdpo", "capo", "distill"],
+    technique: Technique,
     settings: Any,
     update: ParameterUpdatePlan,
     workspace: Path,
     reward_contract: str | None = None,
     checkpoint_state_writer: Callable[[Path], None] | None = None,
+    publisher: CheckpointPublisher | None = None,
 ) -> type[Any]:
     """Create a callback that publishes both views after a trainer save.
 
     The callback only projects a loadable model view for adapter updates. Full
     parameter checkpoints remain recovery-only until a backend explicitly
     attests that its checkpoint representation is safe to load as a model.
+    Passing ``publisher`` shares its record of published steps with a later
+    cancellation save.
     """
 
     parent = imports["TrainerCallback"]
+    shared = publisher or CheckpointPublisher(
+        context,
+        model=model,
+        technique=technique,
+        settings=settings,
+        update=update,
+        workspace=workspace,
+        reward_contract=reward_contract,
+        checkpoint_state_writer=checkpoint_state_writer,
+    )
 
     class CheckpointPublicationCallback(parent):
-        def __init__(self) -> None:
-            super().__init__()
-            self._published_steps: set[int] = set()
-
         def on_save(self, args: Any, state: Any, control: Any, **kwargs: Any) -> Any:
             del kwargs
             step = int(getattr(state, "global_step", 0))
-            if step < 1 or step in self._published_steps:
+            if step < 1 or step in shared.published_steps:
                 return control
             output_dir = Path(str(args.output_dir)).resolve()
             latest = imports["get_last_checkpoint"](str(output_dir))
             if latest is None:
                 context.event("checkpoint_publication_unavailable", {"technique": technique, "global_step": step})
                 return control
-            checkpoint = Path(latest).resolve()
-            if checkpoint_state_writer is not None:
-                checkpoint_state_writer(checkpoint)
-            if reward_contract is not None:
-                from ...reward_recovery import retain_reward_contract
-
-                retain_reward_contract(checkpoint, reward_contract)
-            publish_checkpoint_views(
-                context,
-                checkpoint,
-                model=model,
-                technique=technique,
-                settings=settings,
-                update=update,
-                workspace=workspace,
-                interrupted=False,
-            )
-            self._published_steps.add(step)
+            shared.publish(Path(latest), step=step)
             return control
 
     return CheckpointPublicationCallback
 
 
-def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
+def trainer_arguments(
+    loop: TrainingLoop,
+    output_dir: Path,
+    *,
+    precision: TrainingPrecision = "bf16",
+) -> dict[str, Any]:
+    """Transformers trainer arguments; ``fp16`` selects float16 autocast with dynamic loss scaling."""
+
+    if precision not in {"bf16", "fp16"}:
+        raise ValueError("TRL training precision must be 'bf16' or 'fp16'")
     arguments: dict[str, Any] = {
         "output_dir": str(output_dir),
         "max_steps": loop.max_steps,
@@ -568,8 +633,8 @@ def trainer_arguments(loop: TrainingLoop, output_dir: Path) -> dict[str, Any]:
         "data_seed": loop.seed,
         "gradient_checkpointing": loop.gradient_checkpointing,
         "gradient_checkpointing_kwargs": {"use_reentrant": False},
-        "bf16": True,
-        "fp16": False,
+        "bf16": precision == "bf16",
+        "fp16": precision == "fp16",
         "use_cache": False,
         "report_to": "none",
         "disable_tqdm": True,
@@ -870,6 +935,8 @@ def finish_training(
 __all__ = [
     "BackendTrainingResult",
     "callback_type",
+    "CheckpointPublisher",
+    "Technique",
     "checkpoint_callback_type",
     "emit_parameter_counts",
     "emit_runtime_versions",

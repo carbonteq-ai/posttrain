@@ -23,6 +23,7 @@ from .cleanup import (
     cleanup_execution,
 )
 from .contracts import (
+    DEFAULT_SHARED_MEMORY_GB,
     EXECUTION_LAUNCH_ENVIRONMENT,
     BundleRef,
     ExecutionHandle,
@@ -41,6 +42,7 @@ from .contracts import (
     ProviderCleanupDisposition,
     ProviderCleanupResult,
     RuntimeImageRef,
+    execution_shared_memory_gb,
 )
 from .job_package import (
     JOB_PACKAGE_MANIFEST_PATH,
@@ -140,6 +142,7 @@ __all__ = [
     "AdmissionResult",
     "AdmissionState",
     "BundleRef",
+    "DEFAULT_SHARED_MEMORY_GB",
     "EXECUTION_LAUNCH_ENVIRONMENT",
     "CleanupEvidenceState",
     "CancelledTrackingWriter",
@@ -233,6 +236,7 @@ __all__ = [
     "build_bundle",
     "build_execution_bundle",
     "cleanup_execution",
+    "execution_shared_memory_gb",
     "plan_execution_bundle",
     "reconcile_execution",
     "recover_cancelled_tracking",

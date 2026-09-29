@@ -1238,7 +1238,11 @@ class ObservatoryService:
         note_store_factory: NoteStoreFactory | None = None,
         note_templates: TemplateSet | None = None,
         note_writes: bool = False,
+        default_source_id: str | None = None,
     ) -> None:
+        # Requests without a source read this one; never "whichever source sorts first",
+        # which with discovered Trackio projects is an unrelated project.
+        self._default_source_id = default_source_id
         if isinstance(source, RunSourceRegistry):
             self.registry = source
         else:
@@ -1266,12 +1270,33 @@ class ObservatoryService:
             self, store_factory=note_store_factory, templates=note_templates or TemplateSet(), writes=note_writes
         )
 
+    def resolve_source_id(self, requested: str | None = None) -> str:
+        """The source a request reads: the one it names, else the configured default,
+        else the only source. With several sources and no default, a request must name one."""
+
+        available = self.registry.source_ids
+        if not available:
+            raise LookupError("Observatory has no configured sources")
+        listing = ", ".join(available)
+        if requested:
+            if requested not in available:
+                raise LookupError(f"Observatory source {requested!r} is not configured (sources: {listing})")
+            return requested
+        if self._default_source_id is not None:
+            if self._default_source_id not in available:
+                raise LookupError(
+                    f"the default Observatory source {self._default_source_id!r} is not available "
+                    f"(sources: {listing}); pass source_id"
+                )
+            return self._default_source_id
+        if len(available) == 1:
+            return available[0]
+        raise LookupError(f"Observatory reads {len(available)} sources ({listing}); pass source_id")
+
     def _locator(self, value: str | RunLocator) -> RunLocator:
         if isinstance(value, RunLocator):
             return value
-        if not self.registry.source_ids:
-            raise LookupError("Observatory has no configured sources")
-        return RunLocator(source_id=self.registry.source_ids[0], run_id=value)
+        return RunLocator(source_id=self.resolve_source_id(), run_id=value)
 
     def _remember_trace_read_context(
         self,
@@ -2476,20 +2501,14 @@ class ObservatoryService:
         """Answer the short form or read-only SQL inside the source's storage (Trackio project SQL)."""
         from .semantic_layer import FRAMEWORK_MODEL, run_semantic_query, run_sql_query
 
-        if not self.registry.source_ids:
-            raise LookupError("Observatory has no configured sources")
-        source = self.registry.resolve(
-            RunLocator(source_id=source_id or self.registry.source_ids[0], run_id="semantic-query")
-        )
+        source = self.registry.resolve(RunLocator(source_id=self.resolve_source_id(source_id), run_id="semantic-query"))
         if isinstance(query, SqlQuery):
             return await run_sql_query(FRAMEWORK_MODEL, source, query)
         return await run_semantic_query(FRAMEWORK_MODEL, source, query)
 
     async def evaluations(self, *, source_id: str | None = None) -> EvaluationIndex:
         """Every evaluation run with the model and checkpoint it scored; cached for a minute."""
-        if not self.registry.source_ids:
-            raise LookupError("Observatory has no configured sources")
-        source = source_id or self.registry.source_ids[0]
+        source = self.resolve_source_id(source_id)
         cached = self._evaluation_cache.get(source)
         if cached is not None and cached[0] > time.monotonic():
             return cached[1]
@@ -2503,9 +2522,7 @@ class ObservatoryService:
         if len(sources) > 1:
             raise ValueError("evaluation task scores read one source at a time")
         if not sources:
-            if not self.registry.source_ids:
-                raise LookupError("Observatory has no configured sources")
-            return EvaluationTaskScores(source_id=self.registry.source_ids[0])
+            return EvaluationTaskScores(source_id=self.resolve_source_id())
         source = sources.pop()
         return await evaluation_tasks(
             source,

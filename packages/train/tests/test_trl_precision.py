@@ -1,0 +1,508 @@
+"""Trainer and rollout precision selections (training_precision, logits_float32, engine.dtype)."""
+
+from __future__ import annotations
+
+import math
+from collections import defaultdict
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, cast
+
+import pytest
+from posttrain.common.variants import QWEN_35_2B
+from posttrain.train import FullParameterUpdate, LoRAUpdate, QLoRAUpdate, TrainingLoop
+from posttrain.train.backends.trl.common import load_trainable_model, trainer_arguments, vllm_rollout_options
+from posttrain.train.backends.trl.policy_telemetry import SamplerGapAccumulator
+from posttrain.train.backends.trl.precision_runtime import (
+    LossScaleMonitor,
+    apply_initial_loss_scale,
+    float32_logprob_trainer_type,
+    require_default_precision,
+    require_float32_trainable_parameters,
+    upcast_logits_to_float32,
+)
+from posttrain.train.bindings import _validate_precision
+from posttrain.train.precision import effective_logits_float32, resolve_precision, rollout_dtype
+
+
+def test_defaults_resolve_to_the_existing_bf16_behaviour() -> None:
+    resolved = resolve_precision({}, {}, "bf16")
+    assert resolved.as_dict() == {
+        "training_precision": "bf16",
+        "model_load_dtype": "bfloat16",
+        "loss_scaling": "none",
+        "logits_float32": False,
+        "rollout_dtype": "bfloat16",
+        "rollout_dtype_source": "checkpoint",
+        "backend": "trl",
+        "initial_loss_scale": None,
+    }
+    arguments = trainer_arguments(TrainingLoop(max_steps=2), Path("out"))
+    assert (arguments["bf16"], arguments["fp16"]) == (True, False)
+    _speculative, engine_kwargs = vllm_rollout_options(QWEN_35_2B, {"max_num_seqs": 4})
+    assert engine_kwargs == {"max_num_seqs": 4}
+
+
+def test_unified_fp16_resolves_trainer_scaling_and_rollout_dtype() -> None:
+    resolved = resolve_precision({"training_precision": "fp16"}, {"dtype": "float16"}, "bf16")
+    assert resolved.model_load_dtype == "float16"
+    assert resolved.loss_scaling == "dynamic"
+    assert resolved.logits_float32
+    assert (resolved.rollout_dtype, resolved.rollout_dtype_source) == ("float16", "binding")
+    assert resolved.summary() == (
+        "trainer fp16 (base weights float16, dynamic loss scaling from 1024; log-probs from float32 logits); "
+        "rollout vLLM float16 (binding)"
+    )
+    arguments = trainer_arguments(TrainingLoop(max_steps=2), Path("out"), precision="fp16")
+    assert (arguments["bf16"], arguments["fp16"]) == (False, True)
+    with pytest.raises(ValueError, match="bf16.*fp16"):
+        trainer_arguments(TrainingLoop(max_steps=2), Path("out"), precision=cast(Any, "fp32"))
+
+
+@pytest.mark.parametrize("dtype", ["bfloat16", "float16", "float32"])
+def test_rollout_engine_dtype_is_forwarded_to_vllm(dtype: str) -> None:
+    _speculative, engine_kwargs = vllm_rollout_options(QWEN_35_2B, {"dtype": dtype})
+    assert engine_kwargs == {"dtype": dtype}
+
+
+def test_rollout_dtype_keeps_the_turboquant_float16_requirement() -> None:
+    assert rollout_dtype({"kv_cache_dtype": "turboquant_k8v4"}) == ("float16", "turboquant")
+    assert rollout_dtype({"kv_cache_dtype": "turboquant_k8v4", "dtype": "float16"}) == ("float16", "binding")
+    with pytest.raises(ValueError, match="TurboQuant KV cache requires"):
+        vllm_rollout_options(QWEN_35_2B, {"kv_cache_dtype": "turboquant_k8v4", "dtype": "bfloat16"})
+    with pytest.raises(ValueError, match="bfloat16, float16, float32"):
+        rollout_dtype({"dtype": "half"})
+    assert rollout_dtype({"kv_cache_dtype": "fp8"}) == (None, "checkpoint")
+
+
+def test_training_binding_rejects_precision_no_backend_implements() -> None:
+    _validate_precision("trl@1.12.0.post10", LoRAUpdate(), {"training_precision": "fp16", "logits_float32": True})
+    _validate_precision("verl@0.6", FullParameterUpdate(), {"training_precision": "bf16"})
+    # veRL's FSDP keeps float32 masters for every parameter, so full updates may train in fp16.
+    _validate_precision("verl@0.6", FullParameterUpdate(), {"training_precision": "fp16"})
+    _validate_precision("verl@0.6", LoRAUpdate(), {"training_precision": "fp16"})
+    with pytest.raises(ValueError, match="requires a LoRA update"):
+        _validate_precision("trl@1.12.0.post10", FullParameterUpdate(), {"training_precision": "fp16"})
+    with pytest.raises(ValueError, match="requires a LoRA update"):
+        _validate_precision("trl@1.12.0.post10", QLoRAUpdate(), {"training_precision": "fp16"})
+    with pytest.raises(ValueError, match="TRL backend only"):
+        _validate_precision("verl@0.6", LoRAUpdate(), {"logits_float32": True})
+    with pytest.raises(ValueError, match="not qlora"):
+        _validate_precision("verl@0.6", QLoRAUpdate(), {"training_precision": "fp16"})
+    with pytest.raises(ValueError, match="TRL and veRL backends only"):
+        _validate_precision("nemo@1", LoRAUpdate(), {"training_precision": "fp16"})
+    with pytest.raises(ValueError, match="one of bf16, fp16"):
+        _validate_precision("trl@1.12.0.post10", LoRAUpdate(), {"training_precision": "float16"})
+    with pytest.raises(ValueError, match="must be a boolean"):
+        _validate_precision("trl@1.12.0.post10", LoRAUpdate(), {"logits_float32": "yes"})
+    with pytest.raises(ValueError, match="remove logits_float32: false"):
+        _validate_precision("trl@1.12.0.post10", LoRAUpdate(), {"training_precision": "fp16", "logits_float32": False})
+    with pytest.raises(ValueError, match="online RL only, not SFT"):
+        require_default_precision({"training_precision": "fp16"}, "SFT")
+    require_default_precision({"training_precision": "bf16"}, "SFT")
+
+
+def test_float16_loading_is_limited_to_lora_updates() -> None:
+    calls: list[dict[str, object]] = []
+
+    class Factory:
+        @staticmethod
+        def from_pretrained(_repo: str, **kwargs: object) -> Any:
+            calls.append(kwargs)
+            return SimpleNamespace(config=SimpleNamespace(use_cache=True))
+
+    imports = {
+        "torch": SimpleNamespace(bfloat16="bf16", float16="fp16", float32="fp32"),
+        "AutoModelForCausalLM": Factory,
+        "AutoModelForMultimodalLM": Factory,
+        "get_peft_model": lambda model, _config: model,
+        "LoraConfig": lambda **_kwargs: object(),
+    }
+    loop = cast(TrainingLoop, SimpleNamespace(gradient_checkpointing=False))
+    load_trainable_model(QWEN_35_2B, LoRAUpdate(), loop, imports, model_dtype="float16")
+    assert calls[-1]["dtype"] == "fp16"
+    with pytest.raises(ValueError, match="requires a LoRA update"):
+        load_trainable_model(QWEN_35_2B, FullParameterUpdate(), loop, imports, model_dtype="float16")
+
+
+class _Scaler:
+    def __init__(self, scale: float) -> None:
+        self.scale = scale
+
+    def get_scale(self) -> float:
+        return self.scale
+
+
+class _Context:
+    def __init__(self) -> None:
+        self.metrics_seen: list[tuple[dict[str, float], int | None]] = []
+        self.events: list[tuple[str, dict[str, object]]] = []
+
+    def metrics(self, values: dict[str, float], step: int | None = None) -> None:
+        self.metrics_seen.append((dict(values), step))
+
+    def event(self, name: str, attributes: dict[str, object]) -> None:
+        self.events.append((name, dict(attributes)))
+
+
+def test_loss_scale_monitor_records_scale_and_skipped_steps() -> None:
+    context = _Context()
+    monitor = LossScaleMonitor(cast(Any, context))
+    monitor.observe(SimpleNamespace(scaler=None), 1)  # bf16: no scaler, nothing recorded
+    assert context.metrics_seen == []
+    monitor.observe(SimpleNamespace(scaler=_Scaler(65536.0), step_was_skipped=True), 1)
+    monitor.observe(SimpleNamespace(scaler=_Scaler(32768.0), step_was_skipped=False), 2)
+    assert context.metrics_seen == [
+        (
+            {"train/loss_scale": 65536.0, "train/optimizer_step_skipped": 1.0, "train/optimizer_steps_skipped": 1.0},
+            1,
+        ),
+        (
+            {"train/loss_scale": 32768.0, "train/optimizer_step_skipped": 0.0, "train/optimizer_steps_skipped": 1.0},
+            2,
+        ),
+    ]
+    assert context.events == [
+        ("optimizer_step_skipped", {"global_step": 1, "loss_scale": 65536.0, "reason": "non-finite gradients"})
+    ]
+
+
+def test_infinite_grad_norm_is_dropped_only_for_a_skipped_step() -> None:
+    monitor = LossScaleMonitor(cast(Any, _Context()))
+    seen: list[dict[str, object]] = []
+
+    def normalizer(_step: int, native: Any) -> dict[str, float]:
+        seen.append(dict(native))
+        return {}
+
+    normalize = monitor.finite_grad_norm(normalizer)
+    monitor.last_step_skipped = True
+    normalize(1, {"grad_norm": math.inf, "loss": 0.5})
+    monitor.last_step_skipped = False
+    normalize(2, {"grad_norm": math.inf, "loss": 0.5})
+    normalize(3, {"grad_norm": 1.5})
+    assert seen == [{"loss": 0.5}, {"grad_norm": math.inf, "loss": 0.5}, {"grad_norm": 1.5}]
+
+
+def test_sampler_gap_is_pooled_over_the_whole_update() -> None:
+    torch = pytest.importorskip("torch")
+    gap = SamplerGapAccumulator()
+    # Two calls, as when the ratio is computed per micro-batch from the training forward.
+    gap.add(
+        torch.tensor([[-0.1, -0.2, -0.3, 0.0]]),
+        torch.tensor([[-0.1, -0.1, float("nan"), 0.0]]),
+        torch.tensor([[1.0, 1.0, 1.0, 0.0]]),
+    )
+    gap.add(torch.tensor([[-1.0, -1.0, 0.0]]), torch.tensor([[-1.5, -1.0, 0.0]]), torch.tensor([[1.0, 1.0, 0.0]]))
+    gap.add(torch.zeros(1, 2), torch.zeros(1, 2), torch.zeros(1, 2))  # no scored tokens: ignored
+    stats = gap.flush()
+    # Pooled tokens |gap| = 0.0, 0.1, 0.5, 0.0; the nearest-rank 99th percentile is the largest.
+    assert stats["sampling/sampling_logp_difference/p99"] == pytest.approx(0.5)
+    # Per-sequence sums of (trainer - sampler): -0.1 (the NaN token counts as zero) and +0.5.
+    assert stats["sampling/sequence_logp_difference/abs_mean"] == pytest.approx(0.3)
+    assert gap.flush() == {}
+
+
+def _tiny_float16_lora(tmp_path: Path) -> tuple[Any, Any, Any]:
+    torch = pytest.importorskip("torch")
+    transformers = pytest.importorskip("transformers")
+    peft = pytest.importorskip("peft")
+    config = transformers.Qwen3Config(
+        vocab_size=64,
+        hidden_size=32,
+        intermediate_size=64,
+        num_hidden_layers=2,
+        num_attention_heads=2,
+        num_key_value_heads=1,
+        head_dim=16,
+    )
+    torch.manual_seed(0)
+    lora = peft.LoraConfig(r=4, lora_alpha=8, target_modules="all-linear", task_type="CAUSAL_LM")
+    fresh = peft.get_peft_model(transformers.AutoModelForCausalLM.from_config(config, dtype=torch.float16), lora)
+    fresh.save_pretrained(tmp_path)
+    resumed = peft.PeftModel.from_pretrained(
+        transformers.AutoModelForCausalLM.from_config(config, dtype=torch.float16), tmp_path, is_trainable=True
+    )
+    return torch, fresh, resumed
+
+
+def test_float16_lora_keeps_float32_adapters_and_steps_with_loss_scaling(tmp_path: Path) -> None:
+    torch, fresh, resumed = _tiny_float16_lora(tmp_path)
+    # Both load paths of load_trainable_model: a fresh adapter and one resumed with is_trainable=True.
+    require_float32_trainable_parameters(fresh)
+    require_float32_trainable_parameters(resumed)
+    # TRL adds a frozen "ref" copy of a resumed adapter for the KL term; it is float32 and not trained.
+    resumed.add_adapter("ref", resumed.peft_config["default"])
+    ref = [parameter for name, parameter in resumed.named_parameters() if ".ref." in name]
+    assert ref and all(p.dtype == torch.float32 and not p.requires_grad for p in ref)
+    require_float32_trainable_parameters(resumed)
+
+    handle = upcast_logits_to_float32(resumed)
+    ids = torch.randint(0, 64, (1, 8))
+    with torch.autocast("cpu", dtype=torch.float16):
+        logits = resumed(input_ids=ids).logits
+        with resumed.disable_adapter():
+            reference = resumed(input_ids=ids).logits
+    assert logits.dtype == torch.float32 and reference.dtype == torch.float32
+    handle.remove()
+
+    trainable = [parameter for parameter in resumed.parameters() if parameter.requires_grad]
+    optimizer = torch.optim.AdamW(trainable, lr=1e-3)
+    scaler = torch.amp.GradScaler("cpu")
+    with torch.autocast("cpu", dtype=torch.float16):
+        loss = resumed(input_ids=ids, labels=ids).loss
+    scaler.scale(loss).backward()
+    scaler.unscale_(optimizer)  # refuses float16 gradients: "Attempting to unscale FP16 gradients"
+    scaler.step(optimizer)
+    scaler.update()
+    assert all(parameter.grad is not None and parameter.grad.dtype == torch.float32 for parameter in trainable)
+
+
+def test_float16_trainable_parameters_are_rejected(tmp_path: Path) -> None:
+    torch, fresh, _resumed = _tiny_float16_lora(tmp_path)
+    for parameter in fresh.parameters():
+        if parameter.requires_grad:
+            parameter.data = parameter.data.to(torch.float16)
+    with pytest.raises(ValueError, match="requires float32 trainable parameters"):
+        require_float32_trainable_parameters(fresh)
+
+
+def test_a_fused_optimizer_skip_is_detected_from_the_loss_scale() -> None:
+    """Accelerate reports no skip for a fused optimizer; the halved scale does (run q0412-trl-qwen08b-fp16-r1)."""
+
+    torch = pytest.importorskip("torch")
+    accelerate = pytest.importorskip("accelerate")
+    accelerate_optimizer = pytest.importorskip("accelerate.optimizer")
+    accelerate_state = pytest.importorskip("accelerate.state")
+    accelerate.Accelerator(cpu=True)  # AcceleratedOptimizer reads the process state
+    try:
+        _fused_skip_scenario(torch, accelerate_optimizer)
+    finally:
+        accelerate_state.AcceleratorState._reset_state(reset_partial_state=True)
+
+
+def _fused_skip_scenario(torch: Any, accelerate_optimizer: Any) -> None:
+    parameter = torch.nn.Parameter(torch.ones(4))
+    scaler = torch.amp.GradScaler("cpu", init_scale=65536.0)
+    optimizer = accelerate_optimizer.AcceleratedOptimizer(
+        torch.optim.AdamW([parameter], lr=1e-3, fused=True), device_placement=False, scaler=scaler
+    )
+    context = _Context()
+    monitor = LossScaleMonitor(cast(Any, context))
+    seen: list[dict[str, object]] = []
+    normalize = monitor.finite_grad_norm(lambda _step, native: seen.append(dict(native)) or {})
+
+    # Update 1 overflows: the fused step is still called, so Accelerate reports no skip.
+    scaler.scale((parameter * math.inf).sum()).backward()
+    monitor.before_step(optimizer)
+    optimizer.step()
+    assert optimizer.step_was_skipped is False
+    monitor.observe(optimizer, 1)
+    normalize(1, {"grad_norm": math.nan, "loss": 0.5})
+    assert torch.equal(parameter.detach(), torch.ones(4))  # the fused kernel skipped the update
+
+    # Update 2 is finite and steps.
+    optimizer.zero_grad()
+    scaler.scale((parameter * 0.1).sum()).backward()
+    monitor.before_step(optimizer)
+    optimizer.step()
+    monitor.observe(optimizer, 2)
+    normalize(2, {"grad_norm": 0.2})
+
+    assert [values for values, _step in context.metrics_seen] == [
+        {"train/loss_scale": 32768.0, "train/optimizer_step_skipped": 1.0, "train/optimizer_steps_skipped": 1.0},
+        {"train/loss_scale": 32768.0, "train/optimizer_step_skipped": 0.0, "train/optimizer_steps_skipped": 1.0},
+    ]
+    assert seen == [{"loss": 0.5}, {"grad_norm": 0.2}]
+    assert [name for name, _attributes in context.events] == ["optimizer_step_skipped"]
+
+
+def test_a_non_finite_grad_norm_without_a_scaler_skip_still_fails_the_run() -> None:
+    context = _Context()
+    monitor = LossScaleMonitor(cast(Any, context))
+    seen: list[dict[str, object]] = []
+    normalize = monitor.finite_grad_norm(lambda _step, native: seen.append(dict(native)) or {})
+    optimizer = SimpleNamespace(scaler=_Scaler(65536.0), step_was_skipped=False)
+    monitor.before_step(optimizer)
+    monitor.observe(optimizer, 1)  # the scale did not drop: not a scaler skip
+    normalize(1, {"grad_norm": math.nan})
+    assert math.isnan(cast(float, seen[0]["grad_norm"]))  # kept, so the normalizer fails the run
+    assert context.metrics_seen[0][0]["train/optimizer_step_skipped"] == 0.0
+
+
+def test_fp16_initial_loss_scale_defaults_to_1024_and_is_validated() -> None:
+    from posttrain.train.precision import fp16_initial_loss_scale
+
+    assert fp16_initial_loss_scale({"training_precision": "fp16"}) == 1024.0
+    assert fp16_initial_loss_scale({"training_precision": "fp16", "fp16_initial_loss_scale": 256}) == 256.0
+    assert fp16_initial_loss_scale({}) is None
+    with pytest.raises(ValueError, match="requires training_precision: fp16"):
+        fp16_initial_loss_scale({"fp16_initial_loss_scale": 256})
+    for bad in (0, -1, math.inf, True, "1024"):
+        with pytest.raises(ValueError, match="finite positive number"):
+            fp16_initial_loss_scale({"training_precision": "fp16", "fp16_initial_loss_scale": bad})
+    resolved = resolve_precision({"training_precision": "fp16", "fp16_initial_loss_scale": 512}, None, "bf16")
+    assert resolved.as_dict()["initial_loss_scale"] == 512.0
+    assert "dynamic loss scaling from 512" in resolved.summary()
+
+
+def test_configured_initial_loss_scale_reaches_the_trainer_gradient_scaler() -> None:
+    torch = pytest.importorskip("torch")
+    scaler = torch.amp.GradScaler("cpu")
+    trainer = SimpleNamespace(accelerator=SimpleNamespace(scaler=scaler))
+
+    apply_initial_loss_scale(trainer, 1024.0)
+
+    assert scaler.get_scale() == 1024.0
+    parameter = torch.nn.Parameter(torch.ones(2))
+    scaler.scale(parameter.sum()).backward()  # the scale tensor is created from the configured start
+    assert scaler.get_scale() == 1024.0 and scaler._growth_interval == 2000  # growth keeps its default
+    apply_initial_loss_scale(SimpleNamespace(), None)  # bf16: nothing to configure
+    with pytest.raises(RuntimeError, match="no gradient scaler"):
+        apply_initial_loss_scale(SimpleNamespace(accelerator=SimpleNamespace(scaler=None)), 1024.0)
+
+
+def test_float16_training_always_takes_log_probs_from_float32_logits() -> None:
+    assert effective_logits_float32({"training_precision": "fp16"})
+    assert effective_logits_float32({"training_precision": "fp16", "logits_float32": True})
+    assert not effective_logits_float32({})
+    assert effective_logits_float32({"logits_float32": True})
+    with pytest.raises(ValueError, match="remove logits_float32: false"):
+        effective_logits_float32({"training_precision": "fp16", "logits_float32": False})
+    # veRL computes its log-softmax and loss under autocast (float32) and has no such option.
+    assert not resolve_precision({"training_precision": "fp16"}, {}, "bf16", backend="verl").logits_float32
+
+
+class _SingleProcessAccelerator:
+    num_processes = 1
+    sync_gradients = True
+
+    def gather(self, tensor: Any) -> Any:
+        return tensor
+
+    def gather_for_metrics(self, tensor: Any) -> Any:
+        return tensor
+
+    def reduce(self, tensor: Any, reduction: str = "sum") -> Any:
+        return tensor
+
+
+def _grpo_loss(*, float32_log_probs: bool, importance_sampling_level: str, loss_type: str) -> Any:
+    """TRL's real GRPO loss over float16 log-probabilities of one multi-turn completion.
+
+    The completion has two policy tokens and one masked tool-output token. The
+    policy assigns the tool token a log-probability 12 nats below the reference
+    (the policy never sampled it), so the k3 KL term's exp(ref - logp) exceeds
+    float16's maximum of 65504 there even though the token is masked out. The
+    old and reference log-probs are scored through the same trainer method, as
+    TRL scores them before the update.
+    """
+
+    torch = pytest.importorskip("torch")
+    grpo = pytest.importorskip("trl.trainer.grpo_trainer")
+    policy = torch.tensor([[-0.5, -1.0, -14.0]], dtype=torch.float16)
+    reference = torch.tensor([[-0.6, -0.9, -2.0]], dtype=torch.float16)
+
+    class _Float16Scores(grpo.GRPOTrainer):
+        """Stands in for the model forward: float16 log-probs, as TRL's chunked path returns them."""
+
+        def __init__(self) -> None:  # the loss reads only the attributes set below
+            pass
+
+        def _get_per_token_logps_and_entropies(self, model: Any, *args: Any, **kwargs: Any) -> Any:
+            logps = reference if model == "reference" else policy
+            return logps.clone().requires_grad_(model == "policy"), torch.full_like(logps, 1.5), None
+
+    trainer_type = float32_logprob_trainer_type(_Float16Scores) if float32_log_probs else _Float16Scores
+    trainer = trainer_type()
+    trainer.__dict__.update(
+        top_entropy_quantile=1.0,
+        aux_loss_enabled=False,
+        use_vllm=False,
+        vllm_importance_sampling_correction=False,
+        off_policy_mask_threshold=None,
+        importance_sampling_level=importance_sampling_level,
+        beta=0.04,
+        loss_type=loss_type,
+        epsilon_low=0.2,
+        epsilon_high=0.28,
+        _entropy_bonus_enabled=False,
+        accelerator=_SingleProcessAccelerator(),
+        _metrics={"train": defaultdict(list)},
+        model=SimpleNamespace(training=True),
+        current_gradient_accumulation_steps=1,
+        max_completion_length=3,
+        args=SimpleNamespace(use_bias_correction_kl=False, delta=None, steps_per_generation=1),
+    )
+    with torch.no_grad():
+        old_logps = trainer._get_per_token_logps_and_entropies("old")[0]
+        ref_logps = trainer._get_per_token_logps_and_entropies("reference")[0]
+    inputs = {
+        "prompt_ids": torch.zeros((1, 2), dtype=torch.long),
+        "prompt_mask": torch.ones((1, 2), dtype=torch.long),
+        "completion_ids": torch.zeros((1, 3), dtype=torch.long),
+        "completion_mask": torch.ones((1, 3), dtype=torch.long),
+        "tool_mask": torch.tensor([[1, 1, 0]]),
+        "advantages": torch.tensor([0.7]),
+        "old_per_token_logps": old_logps,
+        "ref_per_token_logps": ref_logps,
+        "num_items_in_batch": torch.tensor(2.0),
+    }
+    return trainer._compute_loss("policy", inputs)
+
+
+@pytest.mark.parametrize(
+    ("importance_sampling_level", "loss_type"),
+    [("sequence", "grpo"), ("token", "dapo")],  # SAMPO's sequence ratio, OLMo 3 GRPO's token ratio
+)
+def test_float16_log_probs_make_the_trl_loss_arithmetic_float32(importance_sampling_level: str, loss_type: str) -> None:
+    torch = pytest.importorskip("torch")
+    # Float16 log-probabilities overflow the masked token's KL term: inf * mask 0 is NaN.
+    plain = _grpo_loss(
+        float32_log_probs=False, importance_sampling_level=importance_sampling_level, loss_type=loss_type
+    )
+    assert torch.isnan(plain)
+    fixed = _grpo_loss(float32_log_probs=True, importance_sampling_level=importance_sampling_level, loss_type=loss_type)
+    assert fixed.dtype == torch.float32 and torch.isfinite(fixed)
+    fixed.backward()
+
+
+def test_trl_chunked_log_probs_follow_the_head_dtype_outside_autocast(tmp_path: Path) -> None:
+    """TRL's chunked-logits path calls the backbone and LM head directly, not the
+    autocast-wrapped forward, so a float16 base scores float16 log-probs unless
+    the head's output is cast to float32."""
+
+    torch, _fresh, model = _tiny_float16_lora(tmp_path)
+    grpo = pytest.importorskip("trl.trainer.grpo_trainer")
+
+    class _Scorer(grpo.GRPOTrainer):
+        def __init__(self) -> None:
+            pass
+
+    scorer = _Scorer()
+    scorer.__dict__.update(
+        temperature=1.0,
+        logits_chunk_size=2,
+        model_kwarg_keys={"input_ids", "attention_mask", "logits_to_keep"},
+        _is_vlm=False,
+        _entropy_bonus_enabled=False,
+        accelerator=SimpleNamespace(unwrap_model=lambda wrapped: wrapped, is_main_process=True),
+        args=SimpleNamespace(gradient_checkpointing=False, report_to=[]),
+    )
+    ids = torch.randint(0, 64, (2, 8))
+    mask = torch.ones_like(ids)
+
+    def score(trainer_type: type[Any]) -> tuple[Any, Any]:
+        trainer = trainer_type()
+        trainer.__dict__.update(scorer.__dict__)
+        logps, entropies, _aux = trainer._get_per_token_logps_and_entropies(model, ids, mask, 4, compute_entropy=True)
+        return logps, entropies
+
+    logps, entropies = score(_Scorer)
+    assert (logps.dtype, entropies.dtype) == (torch.float16, torch.float16)
+    handle = upcast_logits_to_float32(model)
+    try:
+        logps, entropies = score(float32_logprob_trainer_type(_Scorer))
+    finally:
+        handle.remove()
+    assert (logps.dtype, entropies.dtype) == (torch.float32, torch.float32)

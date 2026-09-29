@@ -408,7 +408,13 @@ def _rollouts_sql(owners: Mapping[str, Dimension | Measure | None], columns: fro
         if name not in columns or not isinstance(owner, Dimension | Measure):
             continue
         fact = owner.source.name
-        expression = "1" if fact == "trace_count" else f"t.fact_{fact}"
+        if owner.source.kind == "trace_attribute":
+            expression = _extract("t.metadata", "string", fact)
+        elif owner.source.fallback_attribute is not None:
+            fallback = _extract("t.metadata", "string", owner.source.fallback_attribute)
+            expression = f"COALESCE(t.fact_{fact}, {fallback})"
+        else:
+            expression = "1" if fact == "trace_count" else f"t.fact_{fact}"
         selected.append(f"{expression} AS {_quote(name)}")
     return (
         f"SELECT {', '.join(selected)} FROM traces AS t JOIN _pt_scope AS s ON s.provider_id = t.run_id"

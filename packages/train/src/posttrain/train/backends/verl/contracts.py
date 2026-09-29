@@ -38,6 +38,10 @@ class VerlModel(VerlContract):
     artifact: VerlModelArtifact
     tokenizer_fingerprint: str | None
     renderer_contract: str
+    # Set for a PEFT-adapter model: the foundation weights the adapter in
+    # `artifact` is attached to. veRL loads it as the actor model path and the
+    # adapter through `lora_adapter_path`.
+    base: VerlHubArtifact | None = None
 
 
 class VerlTarget(VerlContract):
@@ -98,6 +102,7 @@ class VerlLoop(VerlContract):
     per_device_batch_size: int = Field(gt=0)
     gradient_accumulation_steps: int = Field(gt=0)
     learning_rate: float = Field(gt=0, allow_inf_nan=False)
+    lr_scheduler_type: Literal["constant", "constant_with_warmup"]
     warmup_steps: int = Field(ge=0)
     max_grad_norm: float = Field(gt=0, allow_inf_nan=False)
     checkpoint_steps: int = Field(ge=0)
@@ -142,7 +147,7 @@ class VerlAlgorithm(VerlContract):
     use_policy_gradient: bool | None = None
     use_task_rewards: bool | None = None
     temperature: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    online_rl_algorithm: Literal["grpo", "dapo", "sampo", "gdpo", "capo"] | None = None
+    online_rl_algorithm: Literal["grpo", "dapo", "olmo3", "sampo", "gdpo", "capo"] | None = None
     shuffle_prompts: bool | None = None
     clip_epsilon_low: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     clip_epsilon_high: float | None = Field(default=None, gt=0, allow_inf_nan=False)
@@ -151,6 +156,13 @@ class VerlAlgorithm(VerlContract):
     mask_truncated_completions: bool | None = None
     overlong_buffer_tokens: int | None = Field(default=None, gt=0)
     overlong_penalty_factor: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    # Subtracted from a truncated rollout's reward in the agent loop, before group statistics.
+    truncation_penalty: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    # None keeps veRL's historical GRPO default (divide by the group standard deviation).
+    normalize_advantage_by_std: bool | None = None
+    # Decoupled sampler correction: weight = min(exp(old_logp - rollout_logp), cap) per token.
+    rollout_importance_sampling: Literal["token"] | None = None
+    rollout_importance_sampling_cap: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     discount_gamma: float | None = Field(default=None, gt=0, le=1, allow_inf_nan=False)
     step_advantage_weight: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     advantage_normalization: Literal["mean", "mean_std"] | None = None
@@ -250,6 +262,22 @@ class VerlLaunchManifest(VerlContract):
                 raise ValueError("SAMPO manifest requires hierarchical advantage settings")
             if algorithm.dynamic_sampling and algorithm.dynamic_sampling_max_candidate_batches is None:
                 raise ValueError("veRL dynamic sampling requires a bounded candidate-batch policy")
+            if algorithm.online_rl_algorithm == "olmo3" and (
+                self.operation != "grpo"
+                or algorithm.normalize_advantage_by_std is not False
+                or algorithm.rollout_importance_sampling != "token"
+                or algorithm.rollout_importance_sampling_cap != 2.0
+                or algorithm.clip_epsilon_low != 0.2
+                or algorithm.clip_epsilon_high != 0.272
+                or algorithm.dynamic_sampling
+            ):
+                raise ValueError("the OLMo 3 manifest requires its fixed objective settings")
+            if algorithm.online_rl_algorithm != "olmo3" and (
+                algorithm.rollout_importance_sampling is not None
+                or algorithm.rollout_importance_sampling_cap is not None
+                or algorithm.normalize_advantage_by_std is not None
+            ):
+                raise ValueError("veRL maps sampler correction and advantage scaling only for OLMo 3")
         else:
             if payload.student is None or payload.teacher is None or payload.policy is not None:
                 raise ValueError("distillation manifest requires student and teacher and forbids policy")

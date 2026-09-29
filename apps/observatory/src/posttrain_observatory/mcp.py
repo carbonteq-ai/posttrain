@@ -220,7 +220,8 @@ def create_mcp(service: ObservatoryService) -> MCPServer:
         over the tables from describe_semantics (every run of the project; runs, as ids or run-dimension filters
         such as {"run.job_kind": "train.sampo"}, narrows them). Or the short form: measures (name or
         name:aggregation), by dimensions, where ({dimension: value, [any of], ">= n" or a "*" wildcard}); it
-        compiles to SQL, returned in the result."""
+        compiles to SQL, returned in the result. source_id selects the source (with discovered Trackio projects,
+        the project name); omitted, the Observatory's configured default source is read."""
         scope = tuple(runs) if isinstance(runs, list) else runs
         if sql is not None:
             query: SemanticQuery | SqlQuery = SqlQuery(sql=sql, runs=scope)

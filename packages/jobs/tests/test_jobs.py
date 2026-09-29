@@ -1,5 +1,6 @@
 """Tests for standard definitions and default runtime composition."""
 
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import cast
@@ -11,6 +12,7 @@ from posttrain.common import (
     ContractError,
     ExecutionTarget,
     InferenceBinding,
+    JsonValue,
     LocalArtifactRef,
     ModelVariant,
     NullObserver,
@@ -53,9 +55,13 @@ from posttrain.jobs.definitions import (
     _materialize_grpo_policy,
     _materialize_selected_model_variant,
     _validate_task_supply,
+    _validate_verl_training_loop_seats,
+    distillation_definition,
     sampo_definition,
+    structured_rl_definition,
 )
 from posttrain.train import (
+    AdaptiveCurriculum,
     GRPOSettings,
     SAMPOSettings,
     SFTRequest,
@@ -551,6 +557,123 @@ def test_static_preparation_rejects_a_candidate_pool_larger_than_the_environment
         _validate_task_supply(settings, small, training)
 
 
+def _oversampled_sampo_seats(
+    *,
+    oversample: int = 1,
+    oversample_refill: int = 0,
+    max_num_seqs: int | None = 12,
+    max_concurrent: int = 12,
+    worker_slots: tuple[int, int] | None = (3, 4),
+) -> dict[str, object]:
+    """Two prompts x four generations; one oversampled group makes a 12-episode first round."""
+
+    from posttrain.train.profiles import ActiveGroupSampling
+
+    catalog = open_catalog(scope="jobs-test")
+    model = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))
+    settings = SAMPOSettings(
+        id="sampo-oversample",
+        loop=TrainingLoop(max_steps=1, max_length=384, per_device_batch_size=1, gradient_accumulation_steps=8),
+        num_prompts_per_step=2,
+        num_generations=4,
+        active_sampling=ActiveGroupSampling(3, oversample=oversample, oversample_refill=oversample_refill),
+    )
+    base_training = _selection(catalog, "training", "training/qwen3.5-0.8b-trl-distill-lora@1")
+    assert isinstance(base_training, TrainingBinding) and base_training.backend.startswith("trl@")
+    options = dict(base_training.backend_options)
+    if worker_slots is not None:
+        options["rollout_execution"] = {
+            "env_workers": worker_slots[0],
+            "episodes_per_worker": worker_slots[1],
+            "worker_native_threads": 1,
+        }
+    training = replace(
+        base_training,
+        runtime=replace(base_training.runtime, global_batch_size=8),
+        backend_options=options,
+    )
+    environment = EnvironmentBinding(
+        "environments/static-oversample",
+        "tool-use",
+        EnvironmentSource("static", "https://example.test/static", "b" * 40),
+        PythonFactoryActivation("builtins:object"),
+        SamplingPolicy(max_tokens=128, temperature=0.7),
+        num_tasks=6,
+        max_concurrent=max_concurrent,
+    )
+    engine: dict[str, JsonValue] = {"max_model_len": 4096}
+    if max_num_seqs is not None:
+        engine["max_num_seqs"] = max_num_seqs
+    inference = InferenceBinding(
+        "inference/static-oversample@1",
+        "1",
+        model,
+        "vllm@0.25.1",
+        model.renderer_contract,
+        engine,
+        {"max_tokens": 128, "temperature": 0.7},
+        ExecutionTarget("targets/static", "1", "nvidia-cuda"),
+        ("rollout",),
+    )
+    return {"settings": settings, "training": training, "environment": environment, "rollout_inference": inference}
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"max_num_seqs": 8}, "rollout inference engine max_num_seqs is 8"),
+        # Without a declared limit TRL admits one generation batch (2 x 4) per process.
+        ({"max_num_seqs": None}, "rollout inference engine max_num_seqs is 8"),
+        ({"max_concurrent": 8, "worker_slots": (2, 4)}, "environment max_concurrent is 8"),
+        ({"worker_slots": (2, 4)}, "env_workers x episodes_per_worker is 2 x 4 = 8"),
+    ],
+)
+def test_static_preparation_rejects_an_oversampled_round_beyond_rollout_concurrency(changes, message) -> None:
+    validator = sampo_definition().static_validator
+    assert validator is not None
+    validator(_oversampled_sampo_seats())  # type: ignore[arg-type]
+
+    with pytest.raises(ContractError, match=f"oversample 1 needs 12 concurrent episodes.*{message}"):
+        validator(_oversampled_sampo_seats(**changes))  # type: ignore[arg-type]
+
+
+def test_static_preparation_bounds_concurrency_by_first_round_oversampling_only() -> None:
+    validator = sampo_definition().static_validator
+    assert validator is not None
+    exact = {"max_num_seqs": 8, "max_concurrent": 8, "worker_slots": (2, 4)}
+    validator(_oversampled_sampo_seats(oversample=0, **exact))  # type: ignore[arg-type]
+    # Refill rounds never exceed the first round, so refill oversampling needs no extra concurrency.
+    validator(_oversampled_sampo_seats(oversample=0, oversample_refill=5, **exact))  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("form", "kl_reference", "message"),
+    [
+        ("full-finetuned", "base", "veRL uses the starting checkpoint as the KL reference"),
+        ("adapter", "start", "cannot hold a frozen copy of the starting adapter"),
+    ],
+)
+def test_static_preparation_rejects_a_kl_reference_verl_cannot_provide(form, kl_reference, message) -> None:
+    validator = sampo_definition().static_validator
+    assert validator is not None
+    seats = _oversampled_sampo_seats(oversample=0)
+    settings = cast(SAMPOSettings, seats["settings"])
+    training = cast(TrainingBinding, seats["training"])
+    inference = cast(InferenceBinding, seats["rollout_inference"])
+    # A constant learning rate keeps the loop representable on veRL, so the KL check is reached.
+    seats["settings"] = replace(
+        settings, beta=0.01, kl_reference=kl_reference, loop=replace(settings.loop, lr_scheduler_type="constant")
+    )
+    seats["model"] = inference.model
+    validator(seats)  # type: ignore[arg-type]
+    seats["model"] = replace(inference.model, form=form)
+    validator(seats)  # type: ignore[arg-type]  # TRL provides either reference
+
+    seats["training"] = replace(training, backend="verl@candidate")
+    with pytest.raises(ContractError, match=message):
+        validator(seats)  # type: ignore[arg-type]
+
+
 def test_static_grpo_preparation_rejects_sampling_policy_mismatch() -> None:
     catalog = open_catalog(scope="jobs-test")
     model = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))
@@ -592,6 +715,92 @@ def test_static_grpo_preparation_rejects_sampling_policy_mismatch() -> None:
                 "environment": environment,
                 "rollout_inference": inference,
             }
+        )
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        (
+            {"adaptive_curriculum": AdaptiveCurriculum(class_field="category")},
+            "adaptive_curriculum is currently supported by the TRL backend only",
+        ),
+        ({"advantage_scaling": "batch"}, "advantage_scaling='batch' is currently supported by the TRL backend only"),
+        ({"importance_sampling_clip_max": 2.0}, "importance_sampling_clip_max=2.0"),
+        ({"max_admission_attempts": 1}, "max_admission_attempts=1"),
+    ],
+)
+def test_static_grpo_preparation_rejects_settings_verl_would_ignore(changes: dict[str, object], message: str) -> None:
+    catalog = open_catalog(scope="jobs-test")
+    model = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))
+    settings = GRPOSettings(
+        id="grpo-static-verl-unsupported",
+        loop=TrainingLoop(max_steps=1, per_device_batch_size=1, gradient_accumulation_steps=8),
+        num_prompts_per_step=2,
+        num_generations=4,
+        max_completion_length=128,
+    )
+    base_training = _selection(catalog, "training", "training/qwen3.5-0.8b-trl-distill-lora@1")
+    assert isinstance(base_training, TrainingBinding)
+    training = replace(base_training, runtime=replace(base_training.runtime, global_batch_size=8))
+    environment = EnvironmentBinding(
+        "environments/static-verl-unsupported",
+        "tool-use",
+        EnvironmentSource("static", "https://example.test/static", "b" * 40),
+        PythonFactoryActivation("builtins:object"),
+        SamplingPolicy(max_tokens=128, temperature=1.0),
+        num_tasks=1,
+    )
+    inference = InferenceBinding(
+        "inference/static-verl-unsupported@1",
+        "1",
+        model,
+        "vllm@0.25.1",
+        model.renderer_contract,
+        {"max_model_len": 4096},
+        {"max_tokens": 128, "temperature": 1.0, "top_p": 1.0},
+        ExecutionTarget("targets/static", "1", "nvidia-cuda"),
+        ("rollout",),
+    )
+    seats = {
+        "settings": replace(settings, **changes),  # type: ignore[arg-type]
+        "training": replace(training, backend="verl@candidate"),
+        "environment": environment,
+        "rollout_inference": inference,
+    }
+
+    with pytest.raises(ContractError, match=re.escape(message)):
+        grpo_definition().static_validator(seats)  # type: ignore[misc,arg-type]
+
+
+def test_static_preparation_rejects_a_training_loop_verl_cannot_run() -> None:
+    validator = sampo_definition().static_validator
+    assert validator is not None
+    seats = _oversampled_sampo_seats(oversample=0)
+    settings = cast(SAMPOSettings, seats["settings"])
+    training = cast(TrainingBinding, seats["training"])
+    seats["settings"] = replace(settings, loop=replace(settings.loop, lr_scheduler_type="linear"))
+    validator(seats)  # type: ignore[arg-type]  # TRL runs a linear schedule
+
+    seats["training"] = replace(training, backend="verl@candidate")
+    with pytest.raises(ContractError, match="lr_scheduler_type 'linear' is not available on the veRL backend"):
+        validator(seats)  # type: ignore[arg-type]
+    seats["settings"] = replace(settings, loop=replace(settings.loop, lr_scheduler_type="constant", logging_steps=5))
+    with pytest.raises(ContractError, match="logging_steps 5 is not available on the veRL backend"):
+        validator(seats)  # type: ignore[arg-type]
+
+
+def test_structured_and_distillation_preparation_check_the_verl_training_loop() -> None:
+    seats = _oversampled_sampo_seats(oversample=0)
+    settings = cast(SAMPOSettings, seats["settings"])
+    training = cast(TrainingBinding, seats["training"])
+    for definition in (distillation_definition(), structured_rl_definition("gdpo"), structured_rl_definition("capo")):
+        assert definition.static_validator is _validate_verl_training_loop_seats
+    linear = {"settings": replace(settings, loop=replace(settings.loop, lr_scheduler_type="linear"))}
+    _validate_verl_training_loop_seats({**linear, "training": training})  # type: ignore[arg-type]
+    with pytest.raises(ContractError, match="not available on the veRL backend"):
+        _validate_verl_training_loop_seats(
+            {**linear, "training": replace(training, backend="verl@candidate")}  # type: ignore[arg-type]
         )
 
 

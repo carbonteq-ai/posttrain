@@ -1,0 +1,504 @@
+# Port the VORTEX training recipe and SAMPO to the veRL backend
+
+This ExecPlan is a living document. The sections `Progress`, `Surprises &
+Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to
+date as work proceeds. This document follows `docs/templates/PLAN.md`.
+
+## Purpose / Big Picture
+
+Posttrain trains agents with two backends. TRL (Hugging Face's trainer, used
+through the CarbonTeq fork) runs everything today. veRL (ByteDance's
+distributed RL trainer, used through the CarbonTeq fork) scales further, but
+Posttrain only lets it run plain GRPO, DAPO, GDPO, CAPO and distillation on the
+Qwen 3.5 model family. The recipe the team actually trains with, VORTEX, and its
+multi-turn successor SAMPO, are rejected by the veRL adapter or silently lose
+parts of their behavior there.
+
+After this plan a user can select the same VORTEX or SAMPO training settings,
+switch `training.backend` from `trl@...` to `verl@...`, and get the same
+algorithm: the same advantages, the same loss, the same bounded refill of
+uninformative prompt groups, the same curriculum choosing which tasks to
+sample, on Qwen 3.5 and on LFM2.5 models. Each phase proves that with a test
+that feeds one fixed batch through both backends' real code and compares the
+numbers, and the last phase proves it with two short runs of the same settings
+on the local 8 GB GPU whose per-update metrics are compared.
+
+VORTEX is Posttrain's name for this combination of settings (defined by
+catalog entries `lfm2.5-2.6b/automationbench-vortex-20-local-v3` and
+`lfm2.5-2.6b/automationbench-vortex-yield-first-64-150-lr5e-5-kl5e-3-local-v5`
+in `apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml`):
+
+- `algorithm: olmo3`, the published OLMo 3 RL objective: asymmetric PPO
+  clipping of the per-token probability ratio at 0.2 below and 0.272 above,
+  advantages that are the reward minus its group mean with no division by the
+  group standard deviation (`advantage_scaling: none`), a per-token correction
+  for the difference between the vLLM sampler's and the trainer's
+  probabilities that is capped at 2 (token-level truncated importance sampling,
+  "TIS"), and a loss averaged over every trainable token of the whole update
+  ("token-mean", DAPO-style aggregation).
+- `active_sampling`: generate the update's prompt groups, drop every group
+  whose rewards are all equal (it carries no learning signal), and generate
+  only the missing number of groups again, from a bounded pool of candidates.
+  TRL fork 1.12.0.post11 adds `oversample` (extra groups in the first round)
+  and `oversample_refill` (extra groups per refill round) with a guard that the
+  largest round fits the rollout engine's and environment's concurrency.
+- `adaptive_curriculum`: Posttrain's own controller
+  (`packages/train/src/posttrain/train/adaptive_curriculum.py`) that chooses
+  which tasks every update and every refill round samples, from the reward
+  evidence already observed, and checkpoints its state with the model.
+- `truncation_penalty`: subtract a constant from the reward of a rollout that
+  hit a length, turn or context limit before group statistics, so a truncated
+  attempt ranks below an equally scored finished one.
+- `beta` with the reference model being the base model (a KL penalty, k3
+  estimator, added to the per-token loss).
+
+SAMPO (`SAMPOSettings`, operation `train.sampo`) adds per-turn advantages from
+the environment's turn rewards on top of active sampling and the curriculum.
+
+This work does not change the frozen product baseline. The canonical documents
+already define these settings independently of the backend
+(`docs/post-training/05-apis.md`, "GRPOSettings.algorithm selects ... Backend
+adapters reject unsupported semantics rather than approximating") and already
+require refill rounds to be separate curriculum decisions
+(`docs/post-training/02-primitives.md`, adaptive curriculum section). The plan
+adds backend support that meets those contracts; no product meaning changes.
+
+## Progress
+
+- [x] (2026-09-28) Read AGENTS.md, `docs/tooling/forks.md`,
+  `docs/tooling/verl/README.md`, `docs/templates/PLAN.md`, the canonical
+  GRPO/curriculum contracts, the TRL post11 loss and active-sampling code, the
+  veRL post4 loss, rollout-correction and V1 replay-buffer code.
+- [x] (2026-09-28) Worktrees created: veRL fork
+  `/home/hammad/projects/verl-vortex` on `codex/vortex` from
+  `carbonteq-v0.9.0.post4` (`54124edf`); Posttrain
+  `/home/hammad/projects/rl-verl-vortex` on `codex/verl-vortex` from
+  `c35da68e` (`codex/eval-train-budget`).
+- [x] (2026-09-28) Plan written.
+- [x] (2026-09-28) Phase 1 fork: `token_clip` loss and `k3_unclipped` KL,
+  7 new CPU tests (41 with the core-algorithm and rollout-correction suites),
+  ledger entry; commit `a4d84ad30b94c11c4de41b3d915eca6399ad2b6a` on
+  `codex/vortex` (not pushed).
+- [x] (2026-09-28) Phase 1 Posttrain: OLMo 3 objective mapping
+  (`grpo_algorithm_payload`, `_olmo3_hydra_overrides`, fork-revision gate,
+  protected overrides), shared reward shaping (`shape_rollout_reward`,
+  `shaped_rollout_reward`), truncation penalty accepted for GRPO/DAPO on veRL,
+  OLMo 3 still rejected pending Phase 2. `test_verl_backend.py` +
+  `test_truncation_penalty.py`: 80 passed. Parity test passes (see Artifacts).
+- [x] (2026-09-28) Phase 1 ladder (with `--extra trl --extra verifiers`):
+  ruff, format, pyright 0 errors, lint-imports 9 kept, pytest 2061 passed / 25
+  skipped (the parity test skips there because veRL is not installed), diff
+  check clean. Phase 1 complete; OLMo 3 acceptance on veRL waits for Phase 2.
+- [x] (2026-09-28) Coordinator request: Phase 1 fork delta released as
+  candidate 0.9.0.post5 for release 0.4.12 (GDPO/CAPO crash on post4). Release
+  commit `9fd6e7a31396ba33a29233cc869ab05b0a9e5a80`, annotated tag
+  `carbonteq-v0.9.0.post5` (tag object `3945e01a`), receipt commit
+  `9c10bd1a`; branch and tag pushed to carbonteq-ai/verl. Wheel
+  `c16a2ad1...` (identical across two clean-clone builds), sdist `3c9e17c2...`
+  (members identical), twine check passes; retained at
+  `/home/hammad/verl-release/verl-post5/dist1/`. GitHub release and publish
+  workflow left to the coordinator.
+- [x] (2026-09-28) Posttrain: fork-native-name gate in the worker
+  (`_FORK_NATIVE_NAME_REVISIONS`, `requested_fork_native_names`,
+  `fork_native_names`), GDPO/CAPO regression test on post4, strict-xfail test
+  against the pinned job-kind revision, installed-veRL record check.
+- [ ] Phase 2: active sampling with bounded refill, oversampling and the
+  concurrency guard in the veRL fork.
+- [ ] Phase 3: adaptive curriculum on veRL.
+- [ ] Phase 4: LFM2.5 on veRL.
+- [ ] Phase 5: SAMPO on veRL.
+- [ ] Phase 6: end-to-end TRL/veRL parity runs on the 8 GB GPU.
+- [ ] Fork release (next post version, ledger, wheel/sdist hashes) and
+  Posttrain pin as separate commits; report before publishing.
+- [ ] Rebase `codex/verl-vortex` onto `codex/release-0.4.12` once that branch
+  is final.
+
+## Surprises & Discoveries
+
+- Observation: the veRL GRPO path silently ignores several GRPO settings.
+  `advantage_scaling`, `importance_sampling_mode` and its bounds are never
+  passed to veRL, so a veRL GRPO run always uses group-std scaling and no
+  sampler correction. Branch `codex/release-0.4.12` (commit `af5684ed`, module
+  `packages/train/src/posttrain/train/backend_support.py`) now rejects
+  non-default values. This plan maps them for OLMo 3 only, where the recipe
+  fixes them, and leaves the other algorithms under that rejection.
+  Evidence: `packages/train/src/posttrain/train/backends/verl/worker.py`
+  `build_hydra_overrides` sets no `rollout_correction` or
+  `norm_adv_by_std_in_grpo` key.
+- Observation: veRL's built-in PPO loss (`vanilla`) is not the OLMo 3 loss. It
+  applies dual clipping (for a negative advantage the loss is capped at
+  `-A * clip_ratio_c`, default 3) and clamps the log ratio to [-20, 20]. Its
+  KL loss `low_var_kl` clamps the k3 estimate to [-10, 10]. TRL post11's OLMo 3
+  path has neither. The fork needs a plain token-clip loss and an unclipped k3
+  KL; the unpublished GDPO/CAPO candidate (`/home/hammad/projects/verl-gdpo-capo`,
+  uncommitted) already defines both under the names `token_clip` and
+  `k3_unclipped`, and Posttrain's worker already emits `k3_unclipped` for GDPO
+  and CAPO although post4 does not contain it.
+  Evidence: `verl/trainer/ppo/core_algos.py` `compute_policy_loss_vanilla` and
+  `kl_penalty_forward` at `54124edf`.
+- Observation: veRL's V1 trainer already has the other OLMo 3 pieces:
+  token-mean aggregation normalized by the mini-batch's global token count
+  (`FSDPEngine` all-reduces `batch_num_tokens`), decoupled rollout correction
+  (`algorithm.rollout_correction.rollout_is=token`, `rollout_is_threshold=2.0`
+  truncates `exp(old_logp - rollout_logp)` at 2 and detaches it), and GRPO
+  advantages without std scaling (`algorithm.norm_adv_by_std_in_grpo=false`).
+- Observation: veRL's own group filter (DAPO "filter_groups" in
+  `verl/trainer/ppo/v1/replay_buffer.py`) streams: each evicted group adds two
+  refill credits and new prompts start while earlier ones still run. TRL's
+  active sampling works in rounds: generate, filter, then request exactly the
+  missing groups (plus the optional refill oversample). The canonical
+  curriculum contract makes each refill round a separate curriculum decision
+  informed by earlier rounds, so the veRL port must be round-based.
+- Observation: Posttrain's veRL worker already selected `token_clip` and
+  `k3_unclipped` for GDPO and CAPO, but the selected post4 release does not
+  register either name, so GDPO/CAPO on post4 would fail at the first actor
+  update. The Phase 1 fork commit makes both names exist.
+  Evidence: `git -C /home/hammad/projects/verl-vortex grep -c token_clip 54124edf -- verl` finds none.
+- Observation: the first parity batch did not reach the dual-clip region or
+  the KL clamp, so replacing `token_clip` with `vanilla` or `k3_unclipped`
+  with `low_var_kl` still passed. The batch now forces ratios above 3 on
+  negative-advantage tokens and a reference 3.2 nats above the policy, and the
+  test asserts those regions are present. A mutation script (scratch
+  `mutation_check.py`) confirms each of these substitutions now fails: vanilla
+  loss, clamped KL, clip-high 0.28, seq-mean-token-mean aggregation, std
+  advantage scaling, correction cap 3.
+- Observation: the local veRL GPU path is not yet runnable through
+  `posttrain job run`: the published veRL kind image cannot package a Verifiers
+  environment (recorded in `docs/plan/fp16-training-precision.md` on branch
+  `codex/precision-fp16-verl`). Phases 4 and 6 will run the isolated worker
+  directly from a locally built veRL environment (see Phase 4) unless that
+  image is rebuilt first.
+
+## Decision Log
+
+- Decision: gate fork-only native names (`token_clip`, `k3_unclipped`) by an
+  explicit per-commit record in the worker and reject clean checkouts at other
+  revisions; do not gate dirty candidate checkouts (`source_dirty: true`).
+  Rationale: GDPO/CAPO on post3/post4 otherwise crash inside veRL after model
+  loading; dirty candidates (such as the GDPO/CAPO qualification worktree) are
+  identified by content digest and may register the names without a release.
+  The pinned-revision test is a strict xfail restricted to `AssertionError`, so
+  it cannot hide a broken test and flips to a failure when the pin moves.
+  Date/Author: 2026-09-28, Claude.
+
+- Decision: implement the OLMo 3 loss on veRL with a new registered policy
+  loss `token_clip` and KL type `k3_unclipped` in the fork, not with
+  `vanilla` plus a very large `clip_ratio_c`.
+  Rationale: the canonical APIs require adapters to reject rather than
+  approximate. `token_clip`/`k3_unclipped` reproduce TRL's formula exactly
+  (no dual clip, no log-ratio clamp, no KL clamp) and use the same names as
+  the unpublished GDPO/CAPO fork candidate, so the two deltas merge into one.
+  Date/Author: 2026-09-28, Claude.
+- Decision: map sampler correction, advantage scaling and aggregation only
+  for `algorithm: olmo3` in Phase 1; plain GRPO and DAPO keep their current
+  veRL mapping.
+  Rationale: changing an existing algorithm's veRL behavior would change
+  already-recorded selections; `codex/release-0.4.12` rejects their
+  non-default values instead.
+  Date/Author: 2026-09-28, Claude.
+- Decision: implement the truncation penalty as reward shaping inside
+  Posttrain's veRL agent loop through one shared function with the TRL path.
+  Rationale: it is a reward-shaping rule, applied before group statistics in
+  both backends; sharing the function makes the two paths identical by
+  construction and keeps veRL's DAPO filter reading the shaped reward.
+  Date/Author: 2026-09-28, Claude.
+- Decision: keep rejecting `algorithm: olmo3` on veRL until Phase 2 because
+  `GRPOSettings` requires OLMo 3 to use active sampling; Phase 1 delivers and
+  tests the objective mapping behind that rejection. Truncation penalty for
+  GRPO/DAPO is accepted once Phase 1 qualifies.
+  Rationale: the user asked to remove a rejection only when its phase
+  qualifies; OLMo 3 is not usable without active sampling.
+  Date/Author: 2026-09-28, Claude.
+- Decision: implement veRL active sampling as a round-based mode of the V1
+  replay buffer (Phase 2) rather than adapting the streaming DAPO filter.
+  Rationale: see the Surprises entry on streaming versus rounds; round
+  semantics also give the same metric meanings as TRL post11
+  (`active_sampling/round_<n>_{requested,generated,retained}_groups`).
+  Date/Author: 2026-09-28, Claude.
+- Decision: the Phase 1 parity test lives in Posttrain
+  (`packages/train/tests/test_verl_olmo3_parity.py`) and skips unless both
+  `trl` and `verl` import; it runs in a scratch environment described in
+  Concrete Steps. It uses TRL's real `GRPOTrainer._compute_loss` and veRL's
+  real `ppo_loss`, `compute_rollout_correction_and_add_to_batch` and
+  `compute_grpo_outcome_advantage`, configured from the Hydra overrides
+  Posttrain generates. TRL's group advantage is computed inline inside a large
+  generation method, so the test transcribes its four-line formula from TRL
+  post11 (`trl/trainer/grpo_trainer.py`, `sum_then_normalize` branch) and
+  cites it.
+  Rationale: neither fork may depend on the other; the adapter that maps one
+  selection to both backends is Posttrain, so the equivalence claim belongs
+  there.
+  Date/Author: 2026-09-28, Claude.
+
+## Outcomes & Retrospective
+
+Not yet reached.
+
+## Context and Orientation
+
+Repositories and worktrees (all under `/home/hammad/projects`):
+
+- `rl-verl-vortex`: Posttrain on branch `codex/verl-vortex`. The TRL backend
+  lives in `packages/train/src/posttrain/train/backends/trl/`; the veRL backend
+  in `packages/train/src/posttrain/train/backends/verl/`. Settings are frozen
+  dataclasses in `packages/train/src/posttrain/train/profiles.py`
+  (`GRPOSettings`, `ActiveGroupSampling`, `AdaptiveCurriculum`,
+  `SAMPOSettings`, `shape_online_reward`).
+- `verl-vortex`: the CarbonTeq veRL fork (remote `origin`
+  `git@github.com:carbonteq-ai/verl.git`, `upstream`
+  `https://github.com/verl-project/verl.git`) on branch `codex/vortex` from
+  release `carbonteq-v0.9.0.post4` (`54124edfb8d0b73694696400cf07a76a14d9be65`).
+  Its ledger is `CARBONTEQ_FORK.md`. The shared checkout `verl-upstream` may
+  hold other agents' work and must not be edited.
+- `trl` (read only here): the CarbonTeq TRL fork. Release tag
+  `carbonteq-v1.12.0.post11` (`4f5eeb3d9250c902be1d158abd5faf87178fd6c0`)
+  is the TRL reference for every parity check. Relevant code:
+  `trl/trainer/olmo3_grpo_config.py` (the fixed recipe),
+  `trl/trainer/grpo_trainer.py` `_compute_loss`,
+  `_vllm_importance_sampling_ratio`, `_prepare_active_sampling_inputs`.
+
+How a veRL run happens. `posttrain job run` builds a `GRPORequest` and the
+veRL launcher (`backends/verl/launcher.py`) turns it into a
+`VerlLaunchManifest` (`backends/verl/contracts.py`, pydantic, JSON on disk).
+It then starts `python -m posttrain.train.backends.verl.worker MANIFEST` in a
+separate interpreter that has veRL installed (`backend_options.python_executable`).
+The worker (`backends/verl/worker.py`) writes the dataset parquet and an
+agent-loop config, and runs `python -m verl.trainer.main_ppo` with Hydra
+overrides from `build_hydra_overrides`. Inside veRL, the V1 trainer
+(`verl/trainer/ppo/v1/trainer_base.py`) samples prompts, and for each prompt
+runs `rollout.n` copies of Posttrain's `PosttrainVerifiersAgentLoop`
+(`backends/verl/agent_loop.py`), which drives one Verifiers environment
+episode against veRL's vLLM server and returns token ids, the trainable mask,
+the rollout log-probabilities and a scalar reward. The replay buffer
+(`verl/trainer/ppo/v1/replay_buffer.py`) collects finished prompt groups; the
+trainer recomputes old log-probabilities with the actor
+(`_compute_old_log_prob`), reference log-probabilities (`_compute_ref_log_prob`,
+LoRA: the same model with the adapter disabled, i.e. the base model), applies
+the sampler correction and advantages (`_compute_advantage`), and updates the
+actor (`verl/workers/utils/losses.py` `ppo_loss`, with the policy loss chosen
+by `actor_rollout_ref.actor.policy_loss.loss_mode` from
+`verl/trainer/ppo/core_algos.py`).
+
+Terms used below. A prompt group is the `num_generations` rollouts of one
+task in one update. The rollout (or sampler) log-probability is the one vLLM
+reported while sampling; the old log-probability is the trainer's
+recomputation before the update; the reference log-probability is the base
+model's. The importance ratio is `exp(current - old)`; the sampler correction
+weight is `min(exp(old - rollout), 2)`.
+
+## Plan of Work
+
+### Phase 1: OLMo 3 objective and truncation penalty
+
+Fork (`verl-vortex`), file `verl/trainer/ppo/core_algos.py`: register policy
+loss `token_clip`: `ratio = exp(logp - old_logp)` on sampled tokens,
+`loss = max(-A * ratio, -A * clamp(ratio, 1 - clip_ratio_low, 1 + clip_ratio_high))`,
+multiplied by `rollout_is_weights` when present, aggregated with `agg_loss`
+and the actor's `global_batch_info`, with the same three metrics as `vanilla`
+(`actor/pg_clipfrac`, `actor/ppo_kl`, `actor/pg_clipfrac_lower` = 0). Add
+`k3_unclipped` to `kl_penalty_forward`: `expm1(ref - logp) - (ref - logp)`.
+Regression tests in `tests/trainer/ppo/test_token_clip_policy_loss_on_cpu.py`.
+Update `CARBONTEQ_FORK.md`.
+
+Posttrain (`rl-verl-vortex`):
+
+- `profiles.py`: factor the reward-shaping rule into
+  `shape_rollout_reward(reward, completion_tokens, *, is_truncated,
+  max_completion_tokens, overlong_buffer_tokens, overlong_penalty_factor,
+  truncation_penalty)`, used by `shape_online_reward` (TRL) and by the veRL
+  agent loop.
+- `backends/verl/contracts.py` `VerlAlgorithm`: accept
+  `online_rl_algorithm="olmo3"`; add `truncation_penalty`,
+  `normalize_advantage_by_std`, `rollout_importance_sampling`
+  (`"token"` or None) and `rollout_importance_sampling_cap`.
+- `backends/verl/launcher.py`: build the OLMo 3 algorithm payload
+  (`_grpo_algorithm_payload`), pass `truncation_penalty`, stop rejecting the
+  truncation penalty, keep rejecting OLMo 3 with a message naming active
+  sampling as the missing piece, and record `truncation_penalty` and
+  `advantage_scaling` in `grpo_runtime_resolved`.
+- `backends/verl/worker.py` `build_hydra_overrides`: for OLMo 3 emit
+  `actor_rollout_ref.actor.loss_agg_mode=token-mean`,
+  `actor_rollout_ref.actor.policy_loss.loss_mode=token_clip`, clip ratios
+  0.2/0.272, `algorithm.norm_adv_by_std_in_grpo=false`,
+  `+algorithm.rollout_correction.rollout_is=token`,
+  `+algorithm.rollout_correction.rollout_is_threshold=2.0`,
+  `+algorithm.rollout_correction.bypass_mode=false`, and
+  `actor_rollout_ref.actor.kl_loss_type=k3_unclipped`. Protect the new keys
+  from `backend_options.hydra_overrides`. Require a fork revision that
+  contains `token_clip` (a revision set, like the rollout-execution gate).
+  Pass `truncation_penalty` to the agent-loop config.
+- `backends/verl/agent_loop.py`: apply `shape_rollout_reward`.
+- Tests: `packages/train/tests/test_verl_backend.py` (mapping, protection,
+  truncation shaping, journal of shaped reward) and the parity test
+  `packages/train/tests/test_verl_olmo3_parity.py`.
+
+Parity test contents. One fixed batch: two prompt groups of four rollouts,
+16 response tokens each, trainable masks with gaps (tool tokens) and short
+rows, task rewards with one truncated rollout (so the penalty matters),
+current log-probabilities that require gradients, old log-probabilities
+perturbed so that some ratios cross both clip bounds, rollout
+log-probabilities perturbed so that some correction weights hit the cap of 2,
+and reference log-probabilities for `beta = 0.005`. TRL side: rewards shaped
+by `shape_online_reward`, advantage by TRL's formula, loss by
+`GRPOTrainer._compute_loss` on a stub trainer configured from
+`Olmo3GRPOConfig` defaults with the same `beta`. veRL side: rewards shaped by
+the agent-loop function, advantage by `compute_grpo_outcome_advantage`
+configured from the generated overrides, correction weights by
+`compute_rollout_correction_and_add_to_batch`, loss by `ppo_loss` with an
+`ActorConfig` composed by Hydra from veRL's `ppo_trainer.yaml` plus Posttrain's
+overrides. Compare advantages (exact), correction weights (1e-6), loss and the
+gradient with respect to the current log-probabilities (1e-6 relative, float64).
+
+### Phase 2: active sampling with bounded refill in the veRL fork
+
+Fork: add an `active` mode to the synchronous V1 replay buffer, selected by a
+new `algorithm.active_sampling` config block (`enable`, `max_candidate_batches`,
+`oversample`, `oversample_refill`, `reward_std_epsilon`, `metric`). Semantics
+copied from TRL post11 `_prepare_active_sampling_inputs`: the candidate pool is
+`max_candidate_batches * train_batch_size` prompts; round 1 dispatches
+`train_batch_size + oversample` prompts; the buffer waits for every in-flight
+group of the round (round barrier), keeps groups whose metric spread exceeds
+epsilon, then dispatches exactly `missing + oversample_refill` prompts, never
+more than round 1 and never more than the remaining pool, and fails with the
+TRL error text when rounds or the pool are exhausted. Selection keeps the
+first `train_batch_size` retained groups in dispatch order and discards the
+surplus. Metrics use TRL's names under `training/active_sampling/...` (the
+Posttrain metric normalizer maps both). The concurrency guard: the largest
+round's episodes, `(train_batch_size + max(oversample, oversample_refill)) *
+rollout.n`, must not exceed `min(rollout.max_num_seqs, agent
+max_concurrent_episodes, num_workers * max_concurrent_episodes_per_worker)`
+when those are set; checked at trainer start. Posttrain maps
+`ActiveGroupSampling` (after the post11 fields `oversample` and
+`oversample_refill` are merged from `codex/active-sampling-oversample`) and
+repeats the guard at plan time. Parity: a fake-rollout replay-buffer test in
+the fork that replays TRL post11's round decisions for the same reward
+sequences, and a Posttrain test that the metric names normalize identically.
+Remove the OLMo 3 rejection when this phase qualifies (CPU tests plus a short
+Qwen3.5-0.8B 8 GB run with at least one refill round).
+
+### Phase 3: adaptive curriculum on veRL
+
+The controller must choose the tasks of every round (initial and each
+refill) from evidence observed so far, exclude tasks already proposed in the
+update, and checkpoint its state with the model. Fork extension point: an
+optional `data.prompt_selector` (class path) consulted by the V1 trainer's
+refill path (`_add_prompts_to_generate`) instead of the dataloader, called
+with the number of prompts wanted, the round index and stage; a callback
+after each round with the finished groups' rewards; and `state_dict` /
+`load_state_dict` saved next to `data.pt` in each checkpoint. Posttrain
+implements the selector over `AdaptiveCurriculumController` (the same
+controller class the TRL path uses through
+`backends/trl/policy_curriculum.py`), emits the same decision/observation
+events and writes the same snapshot name in the checkpoint. Parity: feed the
+same reward sequence to the TRL runtime and the veRL selector and require the
+same decisions.
+
+### Phase 4: LFM2.5 on veRL
+
+Qualify LFM2.5 (hybrid short-convolution plus attention blocks, tied input
+and output embeddings) in veRL's FSDP2 actor and vLLM rollout: model loading
+through Transformers' `Lfm2ForCausalLM`, `use_remove_padding=false`, fused
+PPO head or chunked entropy on an unfused head, LoRA target modules that
+exist in both Transformers and vLLM (attention `q_proj`, `k_proj`, `v_proj`,
+`out_proj`; convolution `in_proj`, `out_proj`; feed-forward `w1`, `w2`,
+`w3`), LoRA weight synchronization to vLLM, checkpoint and merged export with
+tied embeddings. Add `"lfm2.5"` to the veRL launcher's qualified families only
+after a two-update LFM2.5-1.2B run on the 8 GB card completes.
+
+### Phase 5: SAMPO on veRL
+
+Rebuild SAMPO on the Phase 2/3 machinery: the fork already has the SAMPO
+estimator, the GSPO loss and V1 metadata transport. Posttrain maps
+`SAMPOSettings` including active sampling, curriculum, sampler correction and
+truncation penalty, and compares advantages with the TRL SAMPO path on one
+fixed multi-turn batch.
+
+### Phase 6: end-to-end parity runs
+
+Short runs (two to four updates) of the same VORTEX settings on TRL and veRL
+with the same seed and data on the 8 GB card, first Qwen3.5-0.8B then
+LFM2.5-1.2B; compare per-update reward, KL, entropy, advantage distribution,
+active-sampling counts and loss; document tolerances.
+
+## Concrete Steps
+
+Parity environment (scratch, not committed). From any directory:
+
+    S=/tmp/claude-1000/-home-hammad-projects-rl/9dcbdb8a-3c09-497d-bb22-978c505cddb5/scratchpad/verl-vortex
+    uv venv --python 3.13 $S/parity-venv
+    uv pip install --python $S/parity-venv/bin/python torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
+    uv pip install --system-certs --python $S/parity-venv/bin/python "trl==1.12.0.post11" "transformers>=5.14,<5.15" \
+        "peft>=0.19,<0.20" "accelerate>=1.14,<1.15" "datasets>=4.6.1,<4.7" \
+        --index-url https://pypi.org/simple --extra-index-url https://pypi.lan/carbonteq/dev/+simple/ \
+        --index-strategy unsafe-best-match
+    uv pip install --system-certs --python $S/parity-venv/bin/python "tensordict>=0.8.0,<=0.10.0,!=0.9.0" \
+        hydra-core omegaconf codetiming numpy pandas pyarrow cachetools dill orjson pytest \
+        "ray[default]>=2.41.0" torchdata "transferqueue==0.1.8" pylatexenc
+    uv pip install --python $S/parity-venv/bin/python --no-deps -e /home/hammad/projects/verl-vortex
+    uv pip install --python $S/parity-venv/bin/python -e /home/hammad/projects/rl-verl-vortex/packages/common \
+        -e /home/hammad/projects/rl-verl-vortex/packages/data -e /home/hammad/projects/rl-verl-vortex/packages/train
+
+Fork focused tests (from `/home/hammad/projects/verl-vortex`):
+
+    $S/parity-venv/bin/python -m pytest -q tests/trainer/ppo/test_token_clip_policy_loss_on_cpu.py
+
+Posttrain focused tests (from `/home/hammad/projects/rl-verl-vortex`):
+
+    uv run pytest -q packages/train/tests/test_verl_backend.py packages/train/tests/test_truncation_penalty.py
+    $S/parity-venv/bin/python -m pytest -q packages/train/tests/test_verl_olmo3_parity.py
+
+Full ladder (from `/home/hammad/projects/rl-verl-vortex`): `uv sync
+--all-packages --locked --python 3.13`, `uv run ruff check .`, `uv run
+pyright`, `uv run lint-imports`, `uv run pytest`, `git diff --check`.
+
+GPU rule for every GPU step: only the local RTX 3070 Ti; before starting run
+`nvidia-smi --query-compute-apps=pid --format=csv,noheader` and continue only
+when it prints nothing (retry later otherwise); one GPU job at a time;
+experiment directories under the scratch path above, never `/tmp` directly.
+
+## Validation and Acceptance
+
+Phase 1 is accepted when the fork's token-clip tests pass, the Posttrain veRL
+backend tests pass, and the parity test reports identical advantages and a
+loss and gradient that match TRL post11 within 1e-6 relative in float64, with
+the batch exercising both clip bounds, the correction cap and a truncated
+rollout. Each later phase names its acceptance in its section above and in
+Progress when it completes.
+
+## Idempotence and Recovery
+
+All code changes are on the two branches named above; the shared
+`verl-upstream` checkout is never modified. The scratch environment can be
+deleted and rebuilt with the commands above. Nothing is pushed or published
+without reporting first; the fork release and the Posttrain pin are separate
+commits so either can be dropped.
+
+## Artifacts and Notes
+
+Parity evidence is recorded here as each phase completes.
+
+Phase 1 (float64, 2 groups x 4 rollouts x 16 tokens, 2 micro-batches, beta
+0.005, truncation penalty 0.2):
+
+    TRL loss 0.021341312095130  veRL loss 0.021341312095130  |diff| 0.00e+00
+    max |grad diff| 1.08e-19  grad norm 0.047840
+    advantages [0.675, -0.325, 0.175, -0.525, -0.4625, -0.0125, 0.7375, -0.2625]
+
+Advantages are bitwise equal; correction weights agree to 1e-12.
+
+## Interfaces and Dependencies
+
+Fork, `verl/trainer/ppo/core_algos.py`:
+
+    @register_policy_loss("token_clip")
+    def compute_policy_loss_token_clip(old_log_prob, log_prob, advantages, response_mask,
+                                       loss_agg_mode="token-mean", config=None,
+                                       rollout_is_weights=None) -> tuple[torch.Tensor, dict]
+
+    kl_penalty_forward(logprob, ref_logprob, "k3_unclipped") == torch.expm1(ref - logprob) - (ref - logprob)
+
+Posttrain, `packages/train/src/posttrain/train/profiles.py`:
+
+    def shape_rollout_reward(reward: float, completion_tokens: int, *, is_truncated: bool,
+                             max_completion_tokens: int, overlong_buffer_tokens: int | None,
+                             overlong_penalty_factor: float, truncation_penalty: float | None) -> float

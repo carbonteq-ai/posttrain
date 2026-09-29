@@ -18,7 +18,7 @@ from ..models import ObservatoryModel
 
 type Aggregation = Literal["last", "first", "min", "max", "mean", "sum", "count", "stddev", "p50", "p90", "p95", "p99"]
 type EntityName = Literal["run", "update", "rollout"]
-type SourceKind = Literal["run_field", "setting", "event", "metric_series", "trace_fact", "derived"]
+type SourceKind = Literal["run_field", "setting", "event", "metric_series", "trace_fact", "trace_attribute", "derived"]
 type DimensionType = Literal["string", "integer", "number", "time", "boolean"]
 
 AGGREGATIONS: tuple[Aggregation, ...] = (
@@ -39,13 +39,27 @@ _NAME = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$")
 
 
 class Source(ObservatoryModel):
-    """Where values come from: a field, a settings path, a metric name, a trace fact."""
+    """Where values come from: a field, a settings path, a metric name, a trace fact.
+
+    A ``trace_attribute`` is a key the producer recorded in the trace's metadata
+    (its attributes); it serves labels Trackio has no fact column for yet. A
+    ``trace_fact`` may name a ``fallback_attribute``: the metadata key read when
+    the fact column is empty, for traces whose facts were projected before the
+    fact existed.
+    """
 
     kind: SourceKind
     name: str = Field(min_length=1)
+    fallback_attribute: str | None = Field(default=None, min_length=1)
     # `one_minus` turns a fraction into its complement (for example the share of
     # rollouts that did not fall back to sparse rewards).
     transform: Literal["identity", "one_minus"] = "identity"
+
+    @model_validator(mode="after")
+    def validate_fallback(self) -> Source:
+        if self.fallback_attribute is not None and self.kind != "trace_fact":
+            raise ValueError("only a trace_fact source can fall back to a trace attribute")
+        return self
 
 
 class Entity(ObservatoryModel):

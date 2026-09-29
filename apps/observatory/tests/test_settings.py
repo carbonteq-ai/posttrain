@@ -113,3 +113,15 @@ def test_project_settings_select_wandb_project(
     assert settings.source_id == "wandb-support-agent"
     assert settings.wandb_entity == "carbonteq"
     assert settings.wandb_project == "shared-evidence"
+
+
+def test_default_source_is_configured_never_the_first_discovered(monkeypatch: pytest.MonkeyPatch) -> None:
+    discovered = ObservatorySettings(
+        discover_trackio_projects=True, trackio_server_url="http://trackio:7860", trackio_project="posttrain-lab"
+    )
+    assert discovered.resolved_default_source_id() == "posttrain-lab"
+    assert ObservatorySettings(source_id="trackio-lab").resolved_default_source_id() == "trackio-lab"
+    assert ObservatorySettings(default_source_id="x").resolved_default_source_id() == "x"
+
+    monkeypatch.setenv("POSTTRAIN_OBSERVATORY_DEFAULT_SOURCE", "posttrain-lab")
+    assert ObservatorySettings.from_env().default_source_id == "posttrain-lab"

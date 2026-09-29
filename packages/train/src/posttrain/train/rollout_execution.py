@@ -115,6 +115,48 @@ def validate_execution_config(
         )
 
 
+def oversampled_round_capacity_error(
+    *,
+    num_prompts_per_step: int,
+    num_generations: int,
+    oversample: int,
+    vllm_max_num_seqs: int | None,
+    environment_max_concurrent: int | None,
+    worker_slots: tuple[int, int] | None,
+) -> str | None:
+    """Explain why an oversampled first active-sampling round would not run concurrently.
+
+    The first round, ``(num_prompts_per_step + oversample) * num_generations``
+    episodes, is the largest round active sampling creates. It must fit every
+    rollout concurrency limit that applies: the vLLM engine's ``max_num_seqs``,
+    the environment's ``max_concurrent`` and, with native rollout workers,
+    ``env_workers * episodes_per_worker``. Otherwise the surplus queues behind the
+    first wave and oversampling adds a serial wave instead of removing one. Without
+    oversampling nothing is checked; exact refill never exceeds the configured batch.
+    """
+    if oversample <= 0:
+        return None
+    episodes = (num_prompts_per_step + oversample) * num_generations
+    limits: list[str] = []
+    if vllm_max_num_seqs is not None and vllm_max_num_seqs < episodes:
+        limits.append(f"rollout inference engine max_num_seqs is {vllm_max_num_seqs}")
+    if environment_max_concurrent is not None and environment_max_concurrent < episodes:
+        limits.append(f"environment max_concurrent is {environment_max_concurrent}")
+    if worker_slots is not None and worker_slots[0] * worker_slots[1] < episodes:
+        limits.append(
+            "training backend_options.rollout_execution env_workers x episodes_per_worker is "
+            f"{worker_slots[0]} x {worker_slots[1]} = {worker_slots[0] * worker_slots[1]}"
+        )
+    if not limits:
+        return None
+    return (
+        f"active_sampling oversample {oversample} needs {episodes} concurrent episodes for the first round "
+        f"(({num_prompts_per_step} prompts + {oversample}) x {num_generations} generations), but "
+        + "; ".join(limits)
+        + f". Raise each limit to at least {episodes} or lower active_sampling oversample."
+    )
+
+
 class EpisodeStatus(StrEnum):
     COMPLETED = "completed"
     INVALID = "invalid"

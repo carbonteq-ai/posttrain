@@ -293,7 +293,7 @@ def test_agentic_and_domain_programs_share_the_native_port() -> None:
     source = AGENTIC_SMOKE.environments[0].source
     assert isinstance(source, EnvironmentSource)
     assert source.repository == ("https://github.com/carbonteq-ai/verifiers-environments")
-    assert source.revision == ("5264ec153a543c62688efaa1ffe28aedb247d5bb")
+    assert source.revision == ("11f4d712806d292c6c6a752af046f4e16c4f037e")
     assert source.subdirectory == "environments/automationbench_v1"
     assert AGENTIC_SMOKE.environments[0].max_concurrent == 1
     assert AUTOMATIONBENCH_PUBLIC.kind == "domain"
@@ -851,6 +851,13 @@ def test_trace_evidence_keeps_the_reward_of_an_episode_that_ran_out_of_context()
     earlier = {**record, "calls": [{"error": overflow}, record["calls"][0]]}
     assert verifiers_trace_has_error(earlier)
     assert not verifiers_trace_is_truncated(earlier)
+
+    # Evaluation traces carry the same ending label as training traces.
+    from posttrain.eval.backends.verifiers.adapter import _emit_batch
+
+    observer = RecordingObserver()
+    _emit_batch(context(Path.cwd(), observer), request(), [record, {**earlier, "id": "earlier-overflow"}])
+    assert [trace.attributes["episode_ending"] for trace in observer.traces] == ["context_rejected", "error"]
 
 
 def test_verifiers_eval_emits_shared_trace_facts() -> None:

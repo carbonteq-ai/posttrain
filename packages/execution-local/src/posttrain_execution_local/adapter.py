@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
+import shlex
 import subprocess
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
@@ -29,6 +31,51 @@ TRUST_BUNDLE_CONTAINER_PATH = Path("/opt/posttrain/trust/ca-certificates.crt")
 # SSL_CERT_FILE here instead would replace that set rather than extend it,
 # leaving an internally-trusting job unable to verify anything public.
 _EXTRA_TRUST_VARIABLE = "POSTTRAIN_EXTRA_CA_BUNDLE"
+
+# Seconds between the cancel signal and SIGKILL. A cancelled training run first
+# lets its atomic optimizer update finish (bounded at 60 s), saves a cancellation
+# checkpoint, publishes it to tracking and finalizes the tracked run; ten seconds
+# killed runs mid-publication. Five minutes is dstack's default stop duration,
+# the grace the same job images get on the remote provider.
+LOCAL_STOP_GRACE_SECONDS = 300
+
+_CLEANUP_CONTAINER_PATH = "/opt/posttrain/cleanup"
+_RETAINED_CONTAINER_PATH = "/opt/posttrain/retained"
+_RETAINED_LINE = "posttrain-retained "
+
+
+def workspace_cleanup_script(root: str = _CLEANUP_CONTAINER_PATH, retained: str = _RETAINED_CONTAINER_PATH) -> str:
+    """The shell program the cleanup container runs as the workspace's owner.
+
+    The worker writes ``.posttrain-terminal.json`` only after tracking
+    finalization unwinds; without it a saved checkpoint may never have been
+    published (a cancel killed the worker mid-publication). Every non-empty
+    trainer checkpoint directory (Transformers/TRL ``checkpoint-<step>``, veRL
+    ``global_step_<step>``, not nested in another) is then moved to ``retained``
+    and reported on stdout, and only after that is the workspace emptied. The
+    scan runs here, not on the host: the container creates root-owned, mode 700
+    scratch directories the host user cannot list. Any error, including an
+    unreadable directory, stops the program before anything is removed.
+    """
+
+    r, d = shlex.quote(root), shlex.quote(retained)
+    return f"""set -eu
+if [ ! -f {r}/.posttrain-terminal.json ]; then
+  candidates=$(mktemp)
+  find {r} -mindepth 1 -type d \\( -name 'checkpoint-[0-9]*' -o -name 'global_step_[0-9]*' \\) -prune -print > "$candidates"
+  while IFS= read -r directory; do
+    case "${{directory##*/}}" in checkpoint-*[!0-9]*|global_step_*[!0-9]*) continue ;; esac
+    files=$(find "$directory" -type f -print)
+    [ -n "$files" ] || continue
+    relative=${{directory#{root}/}}
+    mkdir -p "$(dirname {d}/"$relative")"
+    mv -- "$directory" {d}/"$relative"
+    printf '{_RETAINED_LINE}%s\\n' "$relative"
+  done < "$candidates"
+  rm -f -- "$candidates"
+fi
+find {r} -mindepth 1 -maxdepth 1 -exec rm -rf -- {{}} +
+"""
 
 
 class DockerGateway(Protocol):
@@ -110,6 +157,17 @@ class DockerCli:
                 arguments.extend(("--dns", str(dns_server)))
             if bool(payload.get("gpu")):
                 arguments.extend(("--gpus", "all"))
+            # Docker's 64 MiB /dev/shm default is too small for job containers:
+            # vLLM's multiprocess executor allocates a 160 MiB shared-memory
+            # broadcast queue (10 chunks of VLLM_MQ_MAX_CHUNK_BYTES_MB=16) and
+            # fails at engine start; NCCL and dataloader workers also use it.
+            # This is a tmpfs size limit, not a reservation. A private, sized
+            # tmpfs keeps the container's IPC namespace isolated; --ipc=host
+            # would share the host's.
+            shared_memory_gb = payload.get("shm_size_gb")
+            if isinstance(shared_memory_gb, bool) or not isinstance(shared_memory_gb, int) or shared_memory_gb < 1:
+                raise ValueError("local Docker submission requires a positive shared-memory size")
+            arguments.extend(("--shm-size", f"{shared_memory_gb}g"))
             command = tuple(str(value) for value in cast_sequence(payload.get("command")))
             if not command:
                 raise ValueError("local Docker submission command cannot be empty")
@@ -162,24 +220,30 @@ class DockerCli:
             result = self._run("logs", name, check=False)
             return {"lines": (result.stdout + result.stderr).splitlines()}
         if action == "cancel":
-            self._run("stop", "--time", "10", name)
+            self._run("stop", "--time", str(LOCAL_STOP_GRACE_SECONDS), name)
             return {"cancelled": True}
         if action == "cleanup":
             self._run("container", "rm", name)
             return {"removed": True}
         if action == "cleanup_workspace":
-            self._run(
+            # Files are owned by the container user, so a container scans the
+            # workspace, keeps unfinalized checkpoints and empties the rest. It
+            # only runs find/mv/rm, so it needs no GPU and Docker's default
+            # /dev/shm is enough.
+            result = self._run(
                 "run",
                 "--rm",
                 "--entrypoint",
                 "/bin/sh",
                 "--volume",
-                f"{payload['workspace']}:/opt/posttrain/cleanup",
+                f"{payload['workspace']}:{_CLEANUP_CONTAINER_PATH}",
+                "--volume",
+                f"{payload['retain_to']}:{_RETAINED_CONTAINER_PATH}",
                 str(payload["image"]),
                 "-c",
-                ("find /opt/posttrain/cleanup -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +"),
+                workspace_cleanup_script(),
             )
-            return {"emptied": True}
+            return {"emptied": True, "retained": retained_paths(result.stdout)}
         raise ValueError(f"unsupported Docker gateway action: {action}")
 
 
@@ -189,6 +253,12 @@ def cast_sequence(value: object) -> Sequence[object]:
 
 def cast_mapping(value: object) -> Mapping[str, object]:
     return value if isinstance(value, Mapping) else {}
+
+
+def retained_paths(stdout: str) -> list[str]:
+    """Checkpoint paths the cleanup program reported moving, in order."""
+
+    return [line[len(_RETAINED_LINE) :] for line in stdout.splitlines() if line.startswith(_RETAINED_LINE)]
 
 
 def _container_name(idempotency_key: str) -> str:
@@ -237,6 +307,7 @@ class LocalDockerExecutionProvider:
             "name": _container_name(request.idempotency_key),
             "image": request.local_image or request.image.value,
             "gpu": request.target.device_class in {"cuda", "nvidia-cuda"},
+            "shm_size_gb": request.shared_memory_gb,
             "environment_names": list(request.environment_names),
             "launch_environment": self._launch_environment(request),
             "volumes": self._volumes(request),
@@ -257,6 +328,7 @@ class LocalDockerExecutionProvider:
             native_plan_id=name,
             details={
                 "container_name": name,
+                "shared_memory_gb": request.shared_memory_gb,
                 "submission_ready": request.bundle is None,
             },
         )
@@ -387,6 +459,7 @@ class LocalDockerExecutionProvider:
         local_image: str | None = None,
     ) -> ProviderCleanupResult:
         record = self.status(handle)
+        retained_disposition = ""
         container_disposition = "already-absent"
         if record.native_state == "missing":
             self._cancel_marker(handle.provider_id).unlink(missing_ok=True)
@@ -404,14 +477,28 @@ class LocalDockerExecutionProvider:
                 or not run_workspace.is_dir()
             ):
                 raise RuntimeError("local Docker cleanup workspace is not an exact run directory")
-            self._gateway.invoke(
+            destination = self._state_root / "retained-checkpoints" / run_id
+            destination.mkdir(parents=True, exist_ok=True)
+            response = self._gateway.invoke(
                 "cleanup_workspace",
                 {
                     "workspace": str(run_workspace),
                     "image": local_image or runtime_image.value,
+                    "retain_to": str(destination),
                 },
             )
+            retained = [str(path) for path in cast_sequence(response.get("retained"))]
+            if retained:
+                retained_disposition = (
+                    f" after moving {len(retained)} checkpoint(s) the worker saved but did not finalize "
+                    f"({', '.join(retained)}) to {destination}"
+                )
+            else:
+                with contextlib.suppress(OSError):
+                    destination.rmdir()
         image_disposition = ""
+        if retained_disposition:
+            image_disposition += retained_disposition
         if local_image is not None:
             if (
                 not local_image.startswith("posttrain-local:")

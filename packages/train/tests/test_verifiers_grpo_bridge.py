@@ -110,6 +110,61 @@ def test_verifiers_runtime_compatibility_prefers_selected_uv(monkeypatch, tmp_pa
     assert "command -v uv >/dev/null 2>&1 || { download-uv; }" in runtime_base._ENSURE_UV
 
 
+def test_packed_training_runs_harness_scripts_without_installing_from_the_network(monkeypatch) -> None:
+    """A packed job sets POSTTRAIN_VERIFIERS_PREINSTALLED: no pip, uv or PyPI at the first rollout."""
+
+    import sys
+
+    from verifiers.v1.runtimes import base as runtime_base
+
+    monkeypatch.setattr(runtime_base.Runtime, "prepare_uv_script", runtime_base.Runtime.prepare_uv_script)
+    monkeypatch.setattr(runtime_base.Runtime, "_posttrain_preinstalled_runtime", None, raising=False)
+    monkeypatch.setattr(runtime_base, "_ENSURE_UV", "curl https://astral.sh/uv/install.sh | sh")
+    monkeypatch.setenv("POSTTRAIN_VERIFIERS_PREINSTALLED", "1")
+    monkeypatch.setenv("POSTTRAIN_UV_EXECUTABLE", "relative/uv")  # unused: nothing is installed
+
+    _apply_verifiers_runtime_compatibility()
+
+    commands: list[str] = []
+
+    class Runtime:
+        # The pinned Verifiers' own lock type, so a change to its API fails here.
+        _uv_interpreters: dict[str, str] = {}
+        _uv_script_locks = runtime_base.LoopLocks()
+
+        async def write(self, path: str, data: bytes) -> None:
+            del path, data
+
+        async def run(self, argv: list[str], env: dict[str, str]) -> Any:
+            del env
+            commands.append(argv[-1])
+            return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+    script = '# /// script\n# dependencies = ["openai", "mcp==2.0.0", "httpx", "httpx2", "tenacity"]\n# ///\n'
+    argv = asyncio.run(runtime_base.Runtime.prepare_uv_script(cast(Any, Runtime()), script))
+
+    assert argv[0] == sys.executable
+    assert argv[1].startswith("/tmp/vf-scripts/")
+    [command] = commands
+    assert "import httpx, httpx2, mcp, openai, tenacity" in command
+    for installer in ("pip", "uv ", "curl", "astral.sh"):
+        assert installer not in command
+    assert runtime_base._ENSURE_UV == "curl https://astral.sh/uv/install.sh | sh"  # left untouched and unused
+
+
+def test_unpacked_training_keeps_the_verifiers_script_environments(monkeypatch) -> None:
+    from verifiers.v1.runtimes import base as runtime_base
+
+    original = runtime_base.Runtime.prepare_uv_script
+    monkeypatch.setattr(runtime_base.Runtime, "_posttrain_preinstalled_runtime", None, raising=False)
+    monkeypatch.delenv("POSTTRAIN_VERIFIERS_PREINSTALLED", raising=False)
+    monkeypatch.delenv("POSTTRAIN_UV_EXECUTABLE", raising=False)
+
+    _apply_verifiers_runtime_compatibility()
+
+    assert runtime_base.Runtime.prepare_uv_script is original
+
+
 def test_verifiers_runtime_compatibility_rejects_invalid_selected_uv(monkeypatch, tmp_path) -> None:
     uv = tmp_path / "uv"
     uv.write_text("not executable")
@@ -824,6 +879,52 @@ def test_terminal_error_reward_is_never_folded_into_learning_aggregates() -> Non
 
     assert metrics["train/rl/rollouts_unscorable"] == 1
     assert "train/rl/reward_std" not in metrics
+
+
+def test_replayed_step_metrics_count_every_episode_ending() -> None:
+    def record(trace_id: str, stop: str, last_call: dict[str, object]) -> dict[str, object]:
+        return {
+            "id": trace_id,
+            "ok": True,
+            "errors": [],
+            "stop_condition": stop,
+            "is_completed": True,
+            "rewards": {"verifier": 0.5},
+            "calls": [last_call],
+            "nodes": [],
+        }
+
+    cut = {"finish_reason": "length", "usage": {"prompt_tokens": 9000, "completion_tokens": 4096}}
+    shortened = {"finish_reason": "length", "usage": {"prompt_tokens": 24108, "completion_tokens": 468}}
+    refused = {
+        "finish_reason": None,
+        "error": {
+            "type": "ProviderError",
+            "status_code": 400,
+            "message": "Prompt length (34021) exceeds maximum context length (24576).",
+        },
+    }
+    for call in (cut, shortened):
+        call["sampling"] = {"max_tokens": 4096}
+    metrics = _trace_metrics(
+        (
+            record("done", "agent_completed", {"finish_reason": "stop"}),
+            record("turns", "max_turns", {"finish_reason": "tool_calls"}),
+            record("cut", "agent_completed", cut),
+            record("shortened", "agent_completed", shortened),
+            record("refused", "agent_completed", refused),
+        ),
+        requested=5,
+    )
+
+    assert metrics["train/rl/rollouts_truncated"] == 4
+    assert metrics["train/rl/rollouts_failed"] == 0
+    assert metrics["train/rl/rollouts_unscorable"] == 0
+    for ending in ("completed", "turn_limit", "reply_token_limit", "context_limit_reply_cut", "context_rejected"):
+        assert metrics[f"train/rl/rollouts_ending_{ending}"] == 1
+        assert metrics[f"train/rl/ending_{ending}_rate"] == pytest.approx(0.2)
+    assert metrics["train/rl/ending_token_budget_rate"] == 0
+    assert metrics["train/rl/ending_error_rate"] == 0
 
 
 def test_native_bridge_preserves_declared_task_facets_in_dataset_and_trace_evidence(tmp_path) -> None:

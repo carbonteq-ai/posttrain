@@ -9,8 +9,15 @@ from collections.abc import Sequence
 from dataclasses import replace
 from typing import Any, Literal, cast
 
-from posttrain.common import RunContext, TraceFactSet, TraceFactUpdateObservation, TraceObservation
+from posttrain.common import (
+    EPISODE_ENDING_ATTRIBUTE,
+    RunContext,
+    TraceFactSet,
+    TraceFactUpdateObservation,
+    TraceObservation,
+)
 
+from ...grpo_observations import episode_ending_counts
 from ...online_rl import EnvironmentRollout, RolloutBatch, run_observed_rollouts
 from ...profiles import shape_online_reward
 from ...requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
@@ -80,7 +87,12 @@ def rollout_function(
             "rollout_batch_ordinal": rollout_batch_ordinal,
         }
 
+        endings: list[object] = []
+
         def observe_trace(trace: TraceObservation) -> None:
+            # Every attempted rollout is observed once, including failed and
+            # replaced ones, so endings count the attempted population.
+            endings.append(trace.attributes.get(EPISODE_ENDING_ATTRIBUTE))
             context.trace(
                 TraceObservation(
                     trace_type=trace.trace_type,
@@ -214,6 +226,7 @@ def rollout_function(
                 "train/rl/time/rollout_seconds": elapsed,
                 "train/rl/rollout_completion_tokens": completion_tokens,
                 "train/rl/rollout_selected_tokens": selected_tokens,
+                **episode_ending_counts(endings),
             },
             batch_seconds=elapsed,
         )
@@ -426,12 +439,17 @@ def _validate_group_relative_examples(settings: Any, example_ids: Sequence[str])
 
     size = settings.num_generations
     expected = settings.num_prompts_per_step * size
-    # Active sampling is a GRPO/OLMo capability, not part of the structured
-    # GDPO/CAPO settings contract. Keep the shared validator capability-safe.
-    active_refill = getattr(settings, "active_sampling", None) is not None
-    if active_refill:
-        if not example_ids or len(example_ids) > expected or len(example_ids) % size != 0:
-            raise ValueError("OLMo3 active-sampling refill must contain one or more complete prompt groups")
+    # Active sampling is a GRPO/OLMo and SAMPO capability, not part of the
+    # structured GDPO/CAPO settings contract. Keep the shared validator capability-safe.
+    active_sampling = getattr(settings, "active_sampling", None)
+    if active_sampling is not None:
+        # A round holds whole prompt groups, at most the oversampled first round.
+        largest = active_sampling.largest_round_groups(settings.num_prompts_per_step) * size
+        if not example_ids or len(example_ids) > largest or len(example_ids) % size != 0:
+            raise ValueError(
+                "an active-sampling round must contain one or more complete prompt groups and at most "
+                f"{largest} rows ((prompts + oversample) x generations); got {len(example_ids)}"
+            )
     elif len(example_ids) != expected:
         raise ValueError("group-relative RL generation must contain the complete logical batch")
     for start in range(0, len(example_ids), size):

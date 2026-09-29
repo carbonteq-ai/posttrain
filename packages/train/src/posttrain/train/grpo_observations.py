@@ -3,14 +3,60 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+import re
+from collections import Counter
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Literal
 
+from posttrain.common import EPISODE_ENDINGS, EpisodeEnding, episode_ending
+
 from .requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
 
 type GRPOBackendProduct = Literal["trl", "verl"]
+
+
+# How rollout episodes ended (`posttrain.common.EpisodeEnding`), one count and
+# one rate per ending for each update. The trace attribute `episode_ending` is
+# the authority; these are its per-update totals.
+EPISODE_ENDING_COUNT_METRICS: Mapping[EpisodeEnding, str] = MappingProxyType(
+    {ending: f"train/rl/rollouts_ending_{ending}" for ending in EPISODE_ENDINGS}
+)
+EPISODE_ENDING_RATE_METRICS: Mapping[EpisodeEnding, str] = MappingProxyType(
+    {ending: f"train/rl/ending_{ending}_rate" for ending in EPISODE_ENDINGS}
+)
+
+
+def episode_ending_counts(endings: Iterable[object]) -> dict[str, float]:
+    """How many of ``endings`` carry each known label (every ending, zeros included).
+
+    Unknown or missing labels are left out; with no known label the result is
+    empty, so a run without labelled traces writes nothing.
+    """
+
+    counts = Counter(label for value in endings if (label := episode_ending(value)) is not None)
+    if not counts:
+        return {}
+    return {name: float(counts[ending]) for ending, name in EPISODE_ENDING_COUNT_METRICS.items()}
+
+
+def episode_ending_metrics(endings: Iterable[object]) -> dict[str, float]:
+    """Counts and rates of the known ending labels among ``endings``."""
+
+    return episode_ending_rates(episode_ending_counts(endings))
+
+
+def episode_ending_rates(counts: Mapping[str, float]) -> dict[str, float]:
+    """Every ending's count and its share of the labelled rollouts, from summed counts."""
+
+    values = {name: float(counts.get(name, 0.0)) for name in EPISODE_ENDING_COUNT_METRICS.values()}
+    total = sum(values.values())
+    if total <= 0:
+        return {}
+    for ending, name in EPISODE_ENDING_COUNT_METRICS.items():
+        values[EPISODE_ENDING_RATE_METRICS[ending]] = values[name] / total
+    return values
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +71,10 @@ class GRPOObservationFeatures:
     """Any drafting method (MTP, DSpark, Uno, ...): vLLM reports the same speculative counters."""
     quantized_kv_cache: bool = False
     tool_environment: bool = False
+    active_sampling_rounds: int = 0
+    """Generation rounds one active-sampling update may run (max_candidate_batches; 0 without it).
+
+    Bounds the per-round metrics TRL logs as ``active_sampling/round_<n>_*_groups``."""
 
     @classmethod
     def from_request(
@@ -46,7 +96,37 @@ class GRPOObservationFeatures:
             speculative_rollout_enabled=isinstance(speculative, Mapping) and bool(speculative.get("method")),
             quantized_kv_cache=isinstance(kv_cache_dtype, str) and kv_cache_dtype.startswith("turboquant_"),
             tool_environment=tool_environment,
+            active_sampling_rounds=_active_sampling_rounds(request),
         )
+
+
+def _active_sampling_rounds(request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest) -> int:
+    active_sampling = getattr(request.settings, "active_sampling", None)
+    return int(active_sampling.max_candidate_batches) if active_sampling is not None else 0
+
+
+ACTIVE_SAMPLING_ROUND_KINDS = ("requested", "generated", "retained")
+_ACTIVE_SAMPLING_ROUND = re.compile(r"^active_sampling/round_(\d+)_(requested|generated|retained)_groups$")
+
+
+def active_sampling_round_metric(round_index: int, kind: str) -> str:
+    """Canonical name of one active-sampling round's prompt-group count (rounds count from 1)."""
+
+    if round_index < 1 or kind not in ACTIVE_SAMPLING_ROUND_KINDS:
+        raise ValueError(f"invalid active-sampling round metric: round {round_index}, {kind!r}")
+    return f"train/rl/active_sampling_round_{round_index}_{kind}_groups"
+
+
+def _active_sampling_round_canonical(name: str, features: GRPOObservationFeatures) -> str | None:
+    """Map TRL's per-round group counts, for rounds the run's settings allow."""
+
+    match = _ACTIVE_SAMPLING_ROUND.fullmatch(name)
+    if match is None:
+        return None
+    round_index = int(match.group(1))
+    if not 1 <= round_index <= features.active_sampling_rounds:
+        return None
+    return active_sampling_round_metric(round_index, match.group(2))
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +178,8 @@ _TRL_METRICS: Mapping[str, str] = MappingProxyType(
         "active_sampling/candidate_groups_generated": "train/rl/active_sampling_candidate_groups_generated",
         "active_sampling/candidate_groups_retained": "train/rl/active_sampling_candidate_groups_retained",
         "active_sampling/candidate_groups_unused": "train/rl/active_sampling_candidate_groups_unused",
+        "active_sampling/oversampled_groups": "train/rl/active_sampling_oversampled_groups",
+        "active_sampling/discarded_groups": "train/rl/active_sampling_discarded_groups",
         "grad_norm": "train/grad_norm",
         "learning_rate": "train/learning_rate",
         "step_time": "train/step_time_seconds",
@@ -109,6 +191,8 @@ _TRL_METRICS: Mapping[str, str] = MappingProxyType(
         "tools/failure_frequency": "train/rl/tool_failure_frequency",
         "sampling/sampling_logp_difference/mean": "train/rl/sampling_logp_delta_mean",
         "sampling/sampling_logp_difference/max": "train/rl/sampling_logp_delta_max",
+        "sampling/sampling_logp_difference/p99": "train/rl/sampling_logp_delta_p99",
+        "sampling/sequence_logp_difference/abs_mean": "train/rl/sampling_sequence_logp_delta_abs_mean",
         "sampling/policy_parity_logp_difference/mean": "train/rl/policy_parity_logp_delta_mean",
         "sampling/policy_parity_logp_difference/max": "train/rl/policy_parity_logp_delta_max",
         "sampling/policy_parity_logp_difference/token_count": "train/rl/policy_parity_token_count",
@@ -144,10 +228,23 @@ _VERL_METRICS: Mapping[str, str] = MappingProxyType(
         "critic/rewards/std": "train/rl/reward_std",
         "actor/pg_loss": "train/rl/policy_loss",
         "actor/policy_loss": "train/rl/policy_loss",
-        "actor/ppo_kl": "train/rl/kl",
+        # KL to the reference policy (the KL loss term). ``actor/ppo_kl`` is PPO's
+        # approximate KL to the rollout-time policy, which is 0 for an on-policy
+        # single mini-batch update, so it must not stand in for it.
+        "actor/kl_loss": "train/rl/kl",
         "actor/entropy": "train/rl/entropy",
         "actor/pg_clipfrac": "train/rl/clip_fraction",
         "actor/grad_norm": "train/grad_norm",
+        "actor/loss_scale": "train/loss_scale",
+        "actor/optimizer_step_skipped": "train/optimizer_step_skipped",
+        "actor/optimizer_steps_skipped": "train/optimizer_steps_skipped",
+        "training/rollout_logp_diff_mean": "train/rl/sampling_logp_delta_mean",
+        "training/rollout_logp_diff_p99": "train/rl/sampling_logp_delta_p99",
+        "training/rollout_logp_diff_max": "train/rl/sampling_logp_delta_max",
+        "training/rollout_seq_logp_diff_abs_mean": "train/rl/sampling_sequence_logp_delta_abs_mean",
+        "training/rollout_probs_diff_mean": "train/rl/sampling_prob_delta_mean",
+        "training/rollout_probs_diff_max": "train/rl/sampling_prob_delta_max",
+        "training/rollout_actor_probs_pearson_corr": "train/rl/sampling_prob_pearson_corr",
         "actor/lr": "train/learning_rate",
         "perf/time_per_step": "train/step_time_seconds",
         "perf/total_num_tokens": "train/num_tokens",
@@ -201,6 +298,8 @@ _CANONICAL_PASSTHROUGH = frozenset(
         "train/rl/rollouts_failed",
         "train/rl/rollouts_truncated",
         "train/rl/rollouts_unscorable",
+        *EPISODE_ENDING_COUNT_METRICS.values(),
+        *EPISODE_ENDING_RATE_METRICS.values(),
         "train/rl/completion_tokens_total",
         "train/rl/completion_tokens_mean",
         "train/rl/completion_tokens_max",
@@ -209,6 +308,8 @@ _CANONICAL_PASSTHROUGH = frozenset(
         "train/rl/tool_failure_frequency",
         "train/rl/sampling_logp_delta_mean",
         "train/rl/sampling_logp_delta_max",
+        "train/rl/sampling_logp_delta_p99",
+        "train/rl/sampling_sequence_logp_delta_abs_mean",
         "train/rl/policy_parity_logp_delta_mean",
         "train/rl/policy_parity_logp_delta_max",
         "train/rl/policy_parity_token_count",
@@ -261,6 +362,7 @@ _CANONICAL_PASSTHROUGH = frozenset(
 _RATIO_METRICS = frozenset(
     {
         "train/rl/group_zero_variance_fraction",
+        "train/optimizer_step_skipped",
         "train/rl/clip_fraction",
         "train/rl/clip_fraction_low",
         "train/rl/clip_fraction_high",
@@ -281,11 +383,18 @@ _RATIO_METRICS = frozenset(
         "serve/backend/speculative_acceptance_rate",
         "serve/backend/kv_cache_peak_usage_ratio",
         "serve/backend/prefix_cache_hit_rate",
+        *EPISODE_ENDING_RATE_METRICS.values(),
     }
 )
 
 _NON_NEGATIVE_METRICS = frozenset(
     {
+        "train/loss_scale",
+        "train/optimizer_steps_skipped",
+        "train/rl/sampling_prob_delta_mean",
+        "train/rl/sampling_prob_delta_max",
+        "train/rl/sampling_logp_delta_p99",
+        "train/rl/sampling_sequence_logp_delta_abs_mean",
         "train/rl/reward_std",
         "train/grad_norm",
         "train/learning_rate",
@@ -296,6 +405,7 @@ _NON_NEGATIVE_METRICS = frozenset(
         "train/rl/rollouts_failed",
         "train/rl/rollouts_truncated",
         "train/rl/rollouts_unscorable",
+        *EPISODE_ENDING_COUNT_METRICS.values(),
         "train/rl/dynamic_sampling_candidate_batches",
         "train/rl/active_sampling_generation_rounds",
         "train/rl/active_sampling_generated_rows",
@@ -303,6 +413,8 @@ _NON_NEGATIVE_METRICS = frozenset(
         "train/rl/active_sampling_candidate_groups_generated",
         "train/rl/active_sampling_candidate_groups_retained",
         "train/rl/active_sampling_candidate_groups_unused",
+        "train/rl/active_sampling_oversampled_groups",
+        "train/rl/active_sampling_discarded_groups",
         "train/rl/policy_parity_logp_delta_mean",
         "train/rl/policy_parity_logp_delta_max",
         "train/rl/policy_parity_token_count",
@@ -381,6 +493,8 @@ def normalize_grpo_metrics(
     origins: dict[str, str] = {}
     for name, raw_value in native.items():
         canonical = name if name in _CANONICAL_PASSTHROUGH else mapping.get(name)
+        if canonical is None and backend == "trl":
+            canonical = _active_sampling_round_canonical(name, features)
         if canonical is None or isinstance(raw_value, bool) or not isinstance(raw_value, int | float):
             continue
         value = float(raw_value)
@@ -464,6 +578,8 @@ def assess_grpo_evidence(
 
 
 def _validate_metric_value(name: str, value: float) -> None:
+    if name.startswith("train/rl/active_sampling_round_") and value < 0:
+        raise ValueError(f"GRPO metric {name!r} cannot be negative")
     if name in _RATIO_METRICS and not 0 <= value <= 1:
         raise ValueError(f"GRPO ratio metric {name!r} must be between zero and one")
     if name in _NON_NEGATIVE_METRICS and value < 0:
@@ -471,10 +587,17 @@ def _validate_metric_value(name: str, value: float) -> None:
 
 
 __all__ = [
+    "ACTIVE_SAMPLING_ROUND_KINDS",
+    "EPISODE_ENDING_COUNT_METRICS",
+    "EPISODE_ENDING_RATE_METRICS",
     "GRPOEvidenceStatus",
     "GRPOObservationFeatures",
     "NormalizedGRPOStep",
+    "active_sampling_round_metric",
     "assess_grpo_evidence",
+    "episode_ending_counts",
+    "episode_ending_metrics",
+    "episode_ending_rates",
     "normalize_grpo_metrics",
     "required_grpo_metrics",
 ]

@@ -111,6 +111,29 @@ update.
   looking like every other failure.
 - [ ] ~~Milestone 6: qualification on the RTX PRO 6000 with LFM2.5-2.6B~~ Out of
   scope for this round (user decision, 2026-09-26): the RTX PRO runs the KL job.
+- [ ] (2026-09-27, user request after the KL run finished) Milestone 6 reopened:
+  SAMPO with per-turn rewards on LFM2.5-2.6B from the base model at the KL run's
+  settings. Work package
+  `lfm26_automationbench_sampo_turns_150_lr5e5_kl5e3_local_v1.yaml` (150
+  updates, 16 prompt groups x 4 rollouts, LoRA learning rate 5e-5, KL 0.005,
+  yield-first curriculum with active refill, truncation penalty 0.2, DSpark
+  rollout, 12 turns and 4,096 tokens per reply on the v7 task mix) on
+  `automationbench-lfm26-sampo-turns-v1` (automationbench-v1 0.4.2 `3a486b0a`,
+  0.05 per failed tool call). SAMPO keeps its own clip range (0.003/0.004).
+  Submitted as `lfm26-sampo-turns-150-lr5e5-kl5e3-20260927-r1` (dstack
+  `pt-894e97d84349559cd6d2d0d1`, image
+  `posttrain-job@sha256:7dd5bf2b9e315be73c83c0cb8ca3e07284df4ec83bc4da16f204d1e7b3bb1062`,
+  Trackio dev31 client, 48-hour limit). r1 failed after its first update
+  (606 s): "speculative decoding metrics were emitted for a run without
+  speculative rollout". The TRL backend built SAMPO's observation features by
+  hand without the engine's speculative decoding, so DSpark's counters were
+  rejected; fixed in `12854da0` with a regression test. Resubmitted as
+  `lfm26-sampo-turns-150-lr5e5-kl5e3-20260927-r2` (dstack
+  `pt-c4f06c1abd162a77b9a7c347`, image
+  `posttrain-job@sha256:936a44ebf15b2bfc2732aaf9b0d7b06780d7ec6bd38e0fc70bb40528965c9a3c`).
+  The KL run's held-out results for
+  comparison: base 0.589, update 100 0.595, 130 0.599, 150 0.569 (note
+  `kl-checkpoint-heldout-evals` on the KL run).
 
 ## Surprises & Discoveries
 

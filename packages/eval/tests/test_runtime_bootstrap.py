@@ -67,7 +67,7 @@ def test_preinstalled_bootstrap_uses_the_packed_job_interpreter_without_uv() -> 
     assert argv[1].startswith("/tmp/vf-scripts/")
     command = runtime.commands[0][0][2]
     assert "/opt/posttrain/venv/bin/python" in command
-    assert "import httpx, mcp, openai, tenacity" in command
+    assert "import httpx, httpx2, mcp, openai, tenacity" in command
     assert "uv python" not in command
     assert "uv sync" not in command
     assert runtime.commands[0][1] == {}

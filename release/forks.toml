@@ -10,14 +10,14 @@ schema_version = 1
 id = "carbonteq-trackio"
 scope = "direct-package"
 repository = "https://github.com/carbonteq-ai/trackio"
-release_tag = "carbonteq-v0.31.5.post14.dev31"
+release_tag = "carbonteq-v0.31.5.post14.dev32"
 required = true
 
 [[fork]]
 id = "trl"
 scope = "direct-package"
 repository = "https://github.com/carbonteq-ai/trl"
-release_tag = "carbonteq-v1.12.0.post10"
+release_tag = "carbonteq-v1.12.0.post11"
 required = true
 
 [[fork]]
@@ -27,11 +27,20 @@ repository = "https://github.com/carbonteq-ai/renderers"
 release_tag = "carbonteq-v0.1.12.post1.dev2"
 required = true
 
+# Wheel-only: a CUDA-extension rebuild of an unmodified upstream tag whose
+# retained platform wheel is the release identity (no source distribution).
+[[fork]]
+id = "causal-conv1d"
+scope = "direct-package"
+repository = "https://github.com/carbonteq-ai/causal-conv1d"
+release_tag = "carbonteq-v1.7.0+cu130torch2.13"
+required = true
+
 [[fork]]
 id = "verl"
 scope = "runtime-kind"
 repository = "https://github.com/carbonteq-ai/verl"
-release_tag = "carbonteq-v0.9.0.post3"
+release_tag = "carbonteq-v0.9.0.post8"
 required = true
 
 [[fork]]

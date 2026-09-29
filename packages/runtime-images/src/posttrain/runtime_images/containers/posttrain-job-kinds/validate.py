@@ -300,8 +300,44 @@ def _validate_bake() -> None:
     )
 
 
+# Requirement (`verifiers.git@<rev>`), uv.lock (`verifiers.git?rev=<rev>`) and
+# `[tool.uv.sources]` (`verifiers.git", rev = "<rev>"`) spellings.
+_VERIFIERS_GIT = re.compile(r'verifiers\.git(?:@|\?rev=|", rev = ")([0-9a-f]{40})')
+
+
+def _verifiers_revisions(text: str) -> set[str]:
+    return set(_VERIFIERS_GIT.findall(text))
+
+
+def _validate_shared_verifiers() -> None:
+    """Every environment that loads Verifiers must load the framework's revision.
+
+    Environment wheels are compiled once and installed into both veRL roles, so
+    a control/backend Verifiers mismatch makes every veRL environment unpackable.
+    The veRL backend project is locked separately and must follow framework pins.
+    """
+
+    framework = _verifiers_revisions((ROOT / "packages" / "eval" / "pyproject.toml").read_text())
+    _require(len(framework) == 1, "packages/eval must pin exactly one Verifiers revision")
+    (revision,) = framework
+    sources = {
+        "packages/data/pyproject.toml": ROOT / "packages" / "data" / "pyproject.toml",
+        "veRL control profile": KINDS / "profiles" / "online-rl-verl-py313-control.txt",
+        "veRL backend project": KINDS / "verl-py313" / "release" / "pyproject.toml",
+        "veRL backend lock": KINDS / "verl-py313" / "release" / "uv.lock",
+        "veRL backend constraints": KINDS / "verl-py313" / "release" / "backend-constraints.txt",
+        "veRL profile": KINDS / "verl-py313" / "profile.toml",
+    }
+    for label, path in sources.items():
+        found = _verifiers_revisions(path.read_text())
+        if label == "veRL profile":
+            found = set(re.findall(r'^verifiers_revision = "([0-9a-f]{40})"', path.read_text(), flags=re.M))
+        _require(found == {revision}, f"{label} selects Verifiers {sorted(found)}, framework selects {revision}")
+
+
 def main() -> None:
     _validate_profiles()
+    _validate_shared_verifiers()
     _validate_boundaries()
     _validate_bake()
     print("framework image hierarchy: static validation passed")

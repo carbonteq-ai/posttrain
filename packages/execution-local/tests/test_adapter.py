@@ -10,6 +10,7 @@ from posttrain.common import ExecutionTarget
 from posttrain.execution import (
     JOB_PACKAGE_WORKER_COMMAND,
     BundleRef,
+    ExecutionHandle,
     ExecutionMount,
     ExecutionPolicy,
     ExecutionRequest,
@@ -17,6 +18,7 @@ from posttrain.execution import (
 )
 from posttrain.tracking import RunSpec
 from posttrain_execution_local import DockerCli, LocalDockerExecutionProvider
+from posttrain_execution_local.adapter import LOCAL_STOP_GRACE_SECONDS, retained_paths, workspace_cleanup_script
 
 
 class FakeDocker:
@@ -78,6 +80,7 @@ def test_docker_cli_uses_packaged_workdir_and_explicit_worker_entrypoint(
             "name": "pt-test",
             "image": f"registry.lan/posttrain@sha256:{'b' * 64}",
             "gpu": False,
+            "shm_size_gb": 16,
             "environment_names": ["TRACKIO_SERVER_URL"],
             "launch_environment": {"POSTTRAIN_EXECUTION": '{"schema":"test"}'},
             "volumes": [],
@@ -97,6 +100,77 @@ def test_docker_cli_uses_packaged_workdir_and_explicit_worker_entrypoint(
     assert arguments[arguments.index("--dns") + 1] == "192.0.2.53"
     assert 'POSTTRAIN_EXECUTION={"schema":"test"}' in arguments
     assert "/opt/posttrain/bundle" not in arguments
+    # A private, sized /dev/shm; the host IPC namespace is never shared.
+    assert arguments[arguments.index("--shm-size") + 1] == "16g"
+    assert arguments.index("--shm-size") < arguments.index(f"registry.lan/posttrain@sha256:{'b' * 64}")
+    assert not any(argument.startswith("--ipc") for argument in arguments)
+
+
+def test_docker_cli_gives_gpu_jobs_room_for_vllm_shared_memory(monkeypatch: pytest.MonkeyPatch) -> None:
+    """vLLM's multiprocess executor needs a 160 MiB /dev/shm segment; Docker defaults to 64 MiB."""
+
+    calls: list[list[str]] = []
+
+    def run(arguments, **kwargs):
+        del kwargs
+        calls.append(list(arguments))
+        return subprocess.CompletedProcess(arguments, 0, "container-id\n", "")
+
+    monkeypatch.setattr("posttrain_execution_local.adapter.subprocess.run", run)
+    DockerCli(environment={}).invoke(
+        "submit",
+        {
+            "name": "pt-gpu",
+            "image": f"registry.lan/posttrain@sha256:{'b' * 64}",
+            "gpu": True,
+            "shm_size_gb": 16,
+            "environment_names": [],
+            "launch_environment": {},
+            "volumes": [],
+            "dns_servers": [],
+            "labels": {},
+            "command": list(JOB_PACKAGE_WORKER_COMMAND),
+        },
+    )
+
+    arguments = calls[0]
+    assert arguments[arguments.index("--gpus") + 1] == "all"
+    assert arguments[arguments.index("--shm-size") + 1] == "16g"
+    assert arguments.index("--shm-size") < arguments.index(f"registry.lan/posttrain@sha256:{'b' * 64}")
+
+
+def test_docker_cli_refuses_a_job_container_without_a_shared_memory_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "posttrain_execution_local.adapter.subprocess.run",
+        lambda *args, **kwargs: pytest.fail("docker must not run"),
+    )
+    payload = {
+        "name": "pt-test",
+        "image": f"registry.lan/posttrain@sha256:{'b' * 64}",
+        "command": list(JOB_PACKAGE_WORKER_COMMAND),
+    }
+    for size in (None, 0, True, "16g"):
+        with pytest.raises(ValueError, match="positive shared-memory size"):
+            DockerCli(environment={}).invoke("submit", {**payload, "shm_size_gb": size})
+
+
+def test_local_docker_sizes_shared_memory_from_the_target(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TRACKIO_SERVER_URL", "https://trackio.example")
+    gateway = FakeDocker()
+    provider = LocalDockerExecutionProvider(gateway, state_root=(tmp_path / "state").resolve())
+    request = _request(tmp_path)
+
+    plan = provider.plan(request)
+    assert plan.details["shared_memory_gb"] == 16
+
+    declared = replace(request, target=replace(request.target, placement={"shm_size_gb": 40}))
+    plan = provider.plan(declared)
+    provider.submit(plan)
+    submit = next(payload for action, payload in gateway.calls if action == "submit")
+    assert plan.details["shared_memory_gb"] == 40
+    assert submit["shm_size_gb"] == 40
 
 
 def _request(tmp_path: Path) -> ExecutionRequest:
@@ -155,6 +229,7 @@ def test_local_docker_lifecycle_and_cancel_are_durable(
     assert launch["job_image"] == plan.request.image.value
     assert launch["target"]["id"] == plan.request.target.id
     assert submit["gpu"] is True
+    assert submit["shm_size_gb"] == 16
     assert submit["dns_servers"] == ["192.0.2.53"]
     assert all("trackio.example" not in str(payload) for _, payload in gateway.calls)
     assert submit["command"] == [
@@ -185,8 +260,11 @@ def test_local_docker_lifecycle_and_cancel_are_durable(
         {
             "workspace": str(workspace),
             "image": plan.request.image.value,
+            "retain_to": str((tmp_path / "state" / "retained-checkpoints" / "test-run").resolve()),
         },
     ) in gateway.calls
+    # Nothing was retained, so the retention directory is not left behind.
+    assert not (tmp_path / "state" / "retained-checkpoints" / "test-run").exists()
 
 
 def test_local_docker_uses_daemon_image_without_pull_and_cleans_exact_tag(
@@ -350,3 +428,149 @@ def test_docker_cli_active_by_run_filters_on_the_run_label(monkeypatch: pytest.M
 
     assert response == {"containers": [{"name": "pt-live", "state": "running"}]}
     assert captured[0][:6] == ["docker", "container", "ls", "--all", "--filter", "label=posttrain.run_id=orphan-run"]
+
+
+def test_docker_cli_stop_grace_covers_the_cancel_checkpoint_and_finalization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def run(arguments, **kwargs):
+        del kwargs
+        calls.append(list(arguments))
+        return subprocess.CompletedProcess(arguments, 0, "", "")
+
+    monkeypatch.setattr("posttrain_execution_local.adapter.subprocess.run", run)
+    DockerCli(environment={}).invoke("cancel", {"name": "pt-test"})
+
+    # 60 s for the in-flight update, then the checkpoint save, publication and
+    # tracking finalization; ten seconds killed a run mid-publication (exit 137).
+    assert calls == [["docker", "stop", "--time", "300", "pt-test"]]
+    assert LOCAL_STOP_GRACE_SECONDS >= 180
+
+
+def _checkpoint(workspace: Path, relative: str) -> None:
+    directory = workspace / relative
+    directory.mkdir(parents=True)
+    (directory / "adapter_model.safetensors").write_bytes(b"weights")
+
+
+def _run_cleanup_program(workspace: Path, retained: Path) -> subprocess.CompletedProcess[str]:
+    """Run the real cleanup program with the container's paths mapped onto test directories."""
+
+    return subprocess.run(
+        ["/bin/sh", "-c", workspace_cleanup_script(str(workspace), str(retained))],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+class RootContainerDocker(FakeDocker):
+    """A cleanup container that, like root in the real one, can read the worker's mode-700 scratch."""
+
+    def __init__(self, scratch: Path) -> None:
+        super().__init__()
+        self.scratch = scratch
+
+    def invoke(self, action: str, payload):
+        if action != "cleanup_workspace":
+            return super().invoke(action, payload)
+        self.calls.append((action, dict(payload)))
+        self.scratch.chmod(0o700)  # root reads it; the host user above could not
+        result = _run_cleanup_program(Path(payload["workspace"]), Path(payload["retain_to"]))
+        assert result.returncode == 0, result.stderr
+        return {"emptied": True, "retained": retained_paths(result.stdout)}
+
+
+def test_cleanup_keeps_checkpoints_in_root_owned_scratch_the_host_cannot_list(tmp_path: Path) -> None:
+    """q0412c-trl-qwen08b-fp16-r1: the host scan found nothing under root-owned 700 scratch and deleted checkpoint-45."""
+
+    workspace = tmp_path / "test-run"
+    scratch = workspace / "scratch" / "posttrain-abc"
+    _checkpoint(scratch, "trainer/checkpoint-40")
+    _checkpoint(scratch, "trainer/checkpoint-45")
+    _checkpoint(workspace, "outputs/global_step_2")
+    (scratch / "trainer" / "checkpoint-45" / "nested" / "checkpoint-1").mkdir(parents=True)
+    (scratch / "trainer" / "checkpoint-46").mkdir()  # empty: an interrupted save, nothing to keep
+    _checkpoint(scratch, "trainer/checkpoint-final")  # not a step checkpoint
+    scratch.chmod(0o000)  # the host user cannot list it, as with the container's root-owned mode 700
+    gateway = RootContainerDocker(scratch)
+    gateway.exists, gateway.status, gateway.exit_code = True, "exited", 137
+    state_root = (tmp_path / "state").resolve()
+    provider = LocalDockerExecutionProvider(gateway, state_root=state_root)
+    image = RuntimeImageRef(f"registry.lan/posttrain@sha256:{'b' * 64}")
+    try:
+        result = provider.cleanup(
+            ExecutionHandle("local-docker", "pt-run", "key"),
+            run_id="test-run",
+            run_workspace=workspace,
+            runtime_image=image,
+        )
+    finally:
+        if scratch.exists():
+            scratch.chmod(0o700)
+
+    retained = state_root / "retained-checkpoints" / "test-run"
+    assert sorted(str(path.relative_to(retained)) for path in retained.rglob("adapter_model.safetensors")) == [
+        "outputs/global_step_2/adapter_model.safetensors",
+        "scratch/posttrain-abc/trainer/checkpoint-40/adapter_model.safetensors",
+        "scratch/posttrain-abc/trainer/checkpoint-45/adapter_model.safetensors",
+    ]
+    assert (retained / "scratch/posttrain-abc/trainer/checkpoint-45/nested/checkpoint-1").is_dir()
+    assert list(workspace.iterdir()) == []
+    assert "did not finalize" in result.message and str(retained) in result.message
+    assert "checkpoint-45" in result.message
+
+
+def test_cleanup_program_keeps_nothing_once_the_worker_finalized(tmp_path: Path) -> None:
+    workspace, retained = tmp_path / "run", tmp_path / "retained"
+    retained.mkdir()
+    _checkpoint(workspace, "outputs/checkpoint-45")
+    (workspace / ".posttrain-terminal.json").write_text("{}")
+
+    result = _run_cleanup_program(workspace, retained)
+
+    assert result.returncode == 0, result.stderr
+    assert retained_paths(result.stdout) == []
+    assert list(workspace.iterdir()) == [] and list(retained.iterdir()) == []
+
+
+def test_cleanup_program_stops_before_removing_anything_when_a_directory_is_unreadable(tmp_path: Path) -> None:
+    workspace, retained = tmp_path / "run", tmp_path / "retained"
+    retained.mkdir()
+    _checkpoint(workspace, "outputs/checkpoint-45")
+    locked = workspace / "scratch"
+    locked.mkdir()
+    locked.chmod(0o000)
+    try:
+        result = _run_cleanup_program(workspace, retained)
+    finally:
+        locked.chmod(0o700)
+
+    if result.returncode == 0:  # running as root, which reads everything
+        pytest.skip("the unreadable-directory case needs a non-root test user")
+    assert (workspace / "outputs/checkpoint-45/adapter_model.safetensors").is_file()
+    assert locked.is_dir()
+
+
+def test_docker_cli_runs_the_cleanup_program_with_the_retention_mount(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+
+    def run(arguments, **kwargs):
+        del kwargs
+        calls.append(list(arguments))
+        return subprocess.CompletedProcess(arguments, 0, "noise\nposttrain-retained out/checkpoint-45\n", "")
+
+    monkeypatch.setattr("posttrain_execution_local.adapter.subprocess.run", run)
+    response = DockerCli(environment={}).invoke(
+        "cleanup_workspace", {"workspace": "/state/runs/r", "image": "img", "retain_to": "/state/retained/r"}
+    )
+
+    [arguments] = calls
+    assert "/state/runs/r:/opt/posttrain/cleanup" in arguments
+    assert "/state/retained/r:/opt/posttrain/retained" in arguments
+    assert arguments[-1] == workspace_cleanup_script()
+    assert response == {"emptied": True, "retained": ["out/checkpoint-45"]}
+    # The cleanup program only runs find/mv/rm: no GPU, no sized /dev/shm.
+    assert "--gpus" not in arguments and "--shm-size" not in arguments

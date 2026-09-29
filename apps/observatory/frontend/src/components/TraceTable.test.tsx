@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { TraceEvaluation } from '../lib/api';
 import { tracePresentation } from '../lib/trace-presentation';
-import { TraceOutcome } from './TraceTable';
+import { EpisodeEndingLabel, TraceOutcome } from './TraceTable';
 
 const evaluation: TraceEvaluation = {
   state: 'complete',
@@ -50,5 +50,23 @@ describe('TraceOutcome', () => {
 
     rerender(<TraceOutcome outcome="review" presentation={presentation} />);
     expect(screen.getByRole('img', { name: 'Fail' })).toHaveAttribute('title', 'Fail');
+  });
+});
+
+describe('Episode endings', () => {
+  it('names why a truncated rollout stopped', () => {
+    const presentation = tracePresentation('train.sampo', null);
+    render(<TraceOutcome outcome="truncated" presentation={presentation} ending="context_rejected" />);
+    expect(screen.getByRole('img', { name: 'Truncated: Prompt over context' })).toBeInTheDocument();
+  });
+
+  it('shows the recorded ending and a dash for traces recorded before it', () => {
+    const { rerender } = render(<EpisodeEndingLabel ending="reply_token_limit" />);
+    expect(screen.getByText('Reply cut (max tokens)')).toHaveAttribute(
+      'title',
+      'The last reply reached the per-call max tokens and was cut, so it ended the episode.',
+    );
+    rerender(<EpisodeEndingLabel ending={null} />);
+    expect(screen.getByTitle('Not recorded for this trace')).toHaveTextContent('—');
   });
 });

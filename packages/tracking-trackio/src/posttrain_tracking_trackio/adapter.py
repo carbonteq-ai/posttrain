@@ -622,7 +622,7 @@ class TrackioBackend:
                     TraceFactSet(
                         namespace="verifiers.trace",
                         calculator_version="compatibility-probe",
-                        dimensions={"task_id": "task-a", "prompt_group_id": "group-a"},
+                        dimensions={"task_id": "task-a", "prompt_group_id": "group-a", "episode_ending": "completed"},
                     ),
                 )
             except (ContractError, ValueError, TypeError) as exc:

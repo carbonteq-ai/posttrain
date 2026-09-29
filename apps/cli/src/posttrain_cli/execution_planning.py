@@ -1050,7 +1050,7 @@ def _plan_job_package_from_intent(
         backend_runtime_identity=backend_runtime_identity,
         backend_source_digest=(backend_inspection.digest if backend_inspection is not None else None),
     )
-    target = _execution_target(prepared)
+    target = primary_execution_target(prepared)
     if settings.runtime_profile is None:
         raise ContractError("execution runtime profile could not be resolved")
     project_config_digest = _project_config_bundle(
@@ -1588,7 +1588,7 @@ def _validate_backend_runtime_selection(
         raise ContractError("veRL training selection differs from the immutable kind image dependency lock")
 
 
-def _execution_target(prepared: PreparedWorkPackageJob) -> ExecutionTarget:
+def primary_execution_target(prepared: PreparedWorkPackageJob) -> ExecutionTarget:
     direct = [value for value in prepared.seats.values() if isinstance(value, ExecutionTarget)]
     training = [
         target

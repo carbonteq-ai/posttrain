@@ -15,11 +15,12 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ...precision import training_precision, verl_mixed_precision_overrides, verl_rollout_dtype
 from ...rollout_execution import RolloutExecutionConfig, validate_execution_config
 from ..retention import finalize_training_outputs
 from .contracts import (
     VerlLaunchManifest,
-    VerlModel,
+    VerlModelArtifact,
     VerlPayload,
     VerlTrainingSummary,
     VerlWorkerResult,
@@ -29,6 +30,29 @@ from .metrics import read_verl_metric_records
 _METRIC = re.compile(r"'([^']+)':\s*(?:np\.float\d+\()?([-+0-9.eE]+)")
 _INLINE_METRIC = re.compile(r"(?<![\w/])([A-Za-z_][\w]*(?:/[A-Za-z0-9_]+)*):(?:np\.(?:float|int)\d+\()?([-+0-9.eE]+)")
 _ROLLOUT_EXECUTION_FORK_REVISIONS = frozenset({"5dbf667c99b29db613d1dfcded1ed90440ef6311"})
+# Native veRL names Posttrain selects that upstream veRL v0.9.0 does not register.
+# Each maps to the CarbonTeq fork commits that do register it, with the fork
+# version at that commit. A clean checkout at any other revision is rejected
+# before veRL starts instead of failing at its first actor update.
+_FORK_ONLY_NATIVE_NAMES = frozenset({"token_clip", "k3_unclipped"})
+_FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str, frozenset[str]]] = {
+    # codex/vortex development commit for the OLMo 3 objective.
+    "a4d84ad30b94c11c4de41b3d915eca6399ad2b6a": ("0.9.0.post4", _FORK_ONLY_NATIVE_NAMES),
+    # carbonteq-v0.9.0.post5 release commit and its asset receipt.
+    "9fd6e7a31396ba33a29233cc869ab05b0a9e5a80": ("0.9.0.post5", _FORK_ONLY_NATIVE_NAMES),
+    "9c10bd1a5931e7f73dfa4b570eb2c8e767d225ca": ("0.9.0.post5", _FORK_ONLY_NATIVE_NAMES),
+    # carbonteq-v0.9.0.post7 release commit (post6 plus the LoRA-sync rename
+    # mapper) and its asset receipt.
+    "6069abe14e2b3d27c89815a6502b849f15124e12": ("0.9.0.post7", _FORK_ONLY_NATIVE_NAMES),
+    "07ecac23596d7fd6babdfb88e9dc0442dfc65a72": ("0.9.0.post7", _FORK_ONLY_NATIVE_NAMES),
+    # carbonteq-v0.9.0.post8 release commit (post7 plus the agent-loop config
+    # defaults) and its asset receipt.
+    "ef1c37715fa75de5973ae5b3c398383cd7e0093d": ("0.9.0.post8", _FORK_ONLY_NATIVE_NAMES),
+    "be582879e2efd45a7206be49010ab6e6fcd868e9": ("0.9.0.post8", _FORK_ONLY_NATIVE_NAMES),
+}
+_TOKEN_CLIP_FORK_REVISIONS = frozenset(
+    revision for revision, (_, names) in _FORK_NATIVE_NAME_REVISIONS.items() if "token_clip" in names
+)
 
 
 def main() -> None:
@@ -85,7 +109,9 @@ def main() -> None:
         shutil.rmtree(checkpoint_dir)
         recovery_checkpoint = None
     update_kind = payload.training.update.kind
-    records = read_verl_metric_records(metrics_file)
+    records = read_verl_metric_records(
+        metrics_file, loss_scaling=training_precision(payload.training.backend_options) == "fp16"
+    )
     metrics = records[-1].data
     observed_step = metrics.get("training/global_step")
     steps = int(observed_step) if isinstance(observed_step, int | float) else records[-1].step
@@ -141,7 +167,11 @@ def build_hydra_overrides(
     backend_options = training.backend_options
     model = payload.policy if manifest.operation in {"grpo", "sampo", "gdpo", "capo"} else payload.student
     assert model is not None
-    model_path = _model_path(model)
+    # A PEFT-adapter model trains the adapter on its foundation weights: the actor
+    # and rollout load the foundation, the actor attaches the starting adapter, and
+    # the first weight sync gives the rollout that adapter. With LoRA the KL
+    # reference is the actor with the adapter disabled, i.e. the base model.
+    model_path = _model_path(model.base if model.base is not None else model.artifact)
     world_size = training.target.world_size
     nnodes = runtime_options.nodes
     n_gpus_per_node = runtime_options.devices_per_node or world_size // nnodes
@@ -149,12 +179,12 @@ def build_hydra_overrides(
         raise ValueError("veRL training nnodes multiplied by n_gpus_per_node must equal target world_size")
     rollout_tp = _positive_int_option(engine.get("tensor_parallel_size"), "tensor_parallel_size", 1)
     kv_cache_dtype = engine.get("kv_cache_dtype")
-    rollout_dtype = engine.get(
-        "dtype",
-        "float16" if str(kv_cache_dtype).startswith("turboquant_") else "bfloat16",
-    )
+    rollout_dtype, _source = verl_rollout_dtype(engine)
+    # One optimizer step per update over every row (prompt groups x
+    # generations), in micro-batches of per_device_batch_size rows per device;
+    # the launcher checked that the split is exact.
     actor_mini_batch = algorithm.num_prompts_per_step
-    micro_batch = 1
+    micro_batch = loop.per_device_batch_size
     update = training.update
     resume_from = payload.resume_from
     rollout_load_format = engine.get("load_format", "safetensors" if update.kind == "lora" else "dummy")
@@ -172,18 +202,31 @@ def build_hydra_overrides(
         "data.filter_overlong_prompts=True",
         "data.truncation=error",
         f"data.shuffle={str(bool(algorithm.shuffle_prompts)).lower()}",
+        # loop.seed drives prompt order, the rollout sampler, the actor's
+        # mini-batch order and the FSDP engines, as seed and data_seed do on TRL.
+        f"data.seed={loop.seed}",
+        f"actor_rollout_ref.rollout.seed={loop.seed}",
+        f"actor_rollout_ref.actor.data_loader_seed={loop.seed}",
+        f"actor_rollout_ref.actor.fsdp_config.seed={loop.seed}",
+        f"actor_rollout_ref.ref.fsdp_config.seed={loop.seed}",
         f"actor_rollout_ref.model.path={model_path}",
         "actor_rollout_ref.model.use_remove_padding=False",
         f"actor_rollout_ref.model.enable_gradient_checkpointing={str(loop.gradient_checkpointing).lower()}",
         f"actor_rollout_ref.actor.optim.lr={loop.learning_rate}",
+        # Transformers "constant" and "constant_with_warmup" are veRL constant
+        # with 0 or the selected warmup steps (see backend_support).
+        "actor_rollout_ref.actor.optim.lr_scheduler_type=constant",
         f"actor_rollout_ref.actor.optim.lr_warmup_steps={loop.warmup_steps}",
+        # TrainingLoop has no weight decay; the TRL backend trains with
+        # Transformers' default 0.0, and veRL's own default is 0.01.
+        "actor_rollout_ref.actor.optim.weight_decay=0.0",
         f"actor_rollout_ref.actor.optim.clip_grad={loop.max_grad_norm}",
         f"actor_rollout_ref.actor.ppo_mini_batch_size={actor_mini_batch}",
         f"actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu={micro_batch}",
         "actor_rollout_ref.actor.strategy=fsdp2",
         f"actor_rollout_ref.actor.use_kl_loss={str((algorithm.beta or 0.0) > 0).lower()}",
         f"actor_rollout_ref.actor.kl_loss_coef={algorithm.beta or 0.0}",
-        f"actor_rollout_ref.actor.kl_loss_type={'k3_unclipped' if manifest.operation in {'gdpo', 'capo'} else 'low_var_kl'}",
+        f"actor_rollout_ref.actor.kl_loss_type={_kl_loss_type(manifest)}",
         "actor_rollout_ref.actor.use_torch_compile=False",
         f"actor_rollout_ref.actor.fsdp_config.offload_policy={str(parameter_offload or optimizer_offload).lower()}",
         f"actor_rollout_ref.actor.fsdp_config.param_offload={str(parameter_offload).lower()}",
@@ -234,7 +277,7 @@ def build_hydra_overrides(
         "trainer.val_before_train=False",
     ]
     if manifest.operation in {"grpo", "sampo", "gdpo", "capo"}:
-        loss_agg_mode = "token-mean" if algorithm.online_rl_algorithm == "dapo" else "seq-mean-token-mean"
+        loss_agg_mode = "token-mean" if algorithm.online_rl_algorithm in {"dapo", "olmo3"} else "seq-mean-token-mean"
         overrides.extend(
             [
                 f"actor_rollout_ref.actor.loss_agg_mode={loss_agg_mode}",
@@ -242,6 +285,8 @@ def build_hydra_overrides(
                 f"actor_rollout_ref.actor.clip_ratio_high={algorithm.clip_epsilon_high}",
             ]
         )
+        if algorithm.online_rl_algorithm == "olmo3":
+            overrides.extend(_olmo3_hydra_overrides(manifest))
         if manifest.operation in {"gdpo", "capo"}:
             structured = {
                 "reward_contract_digest": algorithm.reward_contract_digest,
@@ -290,6 +335,7 @@ def build_hydra_overrides(
                 ]
             )
         overrides.extend(_rollout_execution_hydra_overrides(manifest))
+    overrides.extend(verl_mixed_precision_overrides(backend_options))
     if resume_from is not None:
         overrides.append(f"trainer.resume_from_path={json.dumps(str(resume_from))}")
     if kv_cache_dtype is not None:
@@ -343,6 +389,10 @@ def build_hydra_overrides(
                 f"actor_rollout_ref.model.target_modules={json.dumps(update.target_modules)}",
             ]
         )
+        if model.base is not None:
+            overrides.append(
+                f"actor_rollout_ref.model.lora_adapter_path={json.dumps(str(_model_path(model.artifact)))}"
+            )
     if manifest.operation == "distill":
         teacher = payload.teacher
         teacher_scoring = payload.teacher_scoring
@@ -375,7 +425,7 @@ def build_hydra_overrides(
                 "distillation.enable_resource_pool=False",
                 f"distillation.n_gpus_per_node={teacher_gpus_per_node}",
                 f"distillation.nnodes={teacher_nnodes}",
-                f"distillation.teacher_models.teacher_model.model_path={_model_path(teacher)}",
+                f"distillation.teacher_models.teacher_model.model_path={_model_path(teacher.artifact)}",
                 f"distillation.teacher_models.teacher_model.num_replicas={teacher_replicas}",
                 "distillation.teacher_models.teacher_model.inference.name=vllm",
                 f"distillation.teacher_models.teacher_model.inference.dtype={teacher_dtype}",
@@ -406,7 +456,74 @@ def build_hydra_overrides(
                 f"{str(bool(teacher_engine['enable_chunked_prefill'])).lower()}"
             )
     overrides.extend(_backend_hydra_overrides(backend_options))
+    _validate_fork_native_names(manifest, overrides)
     return overrides
+
+
+def requested_fork_native_names(overrides: list[str]) -> frozenset[str]:
+    """Fork-only policy-loss and KL names a Hydra override list asks veRL to use."""
+
+    keys = ("actor_rollout_ref.actor.policy_loss.loss_mode=", "actor_rollout_ref.actor.kl_loss_type=")
+    selected = {value.lstrip("+").split("=", 1)[1] for value in overrides if value.lstrip("+").startswith(keys)}
+    return frozenset(selected & _FORK_ONLY_NATIVE_NAMES)
+
+
+def fork_native_names(revision: str) -> frozenset[str]:
+    """Fork-only native names registered at a CarbonTeq veRL commit (empty when unknown)."""
+
+    entry = _FORK_NATIVE_NAME_REVISIONS.get(revision)
+    return entry[1] if entry is not None else frozenset()
+
+
+def _validate_fork_native_names(manifest: VerlLaunchManifest, overrides: list[str]) -> None:
+    missing = requested_fork_native_names(overrides) - fork_native_names(manifest.backend_source_revision)
+    if not missing:
+        return
+    # A dirty candidate checkout is identified by its content digest, not by a
+    # release; its maintainer owns what it registers.
+    if manifest.payload.training.backend_options.get("source_dirty") is True:
+        return
+    raise ValueError(
+        f"selected veRL source revision {manifest.backend_source_revision} does not register "
+        f"{', '.join(sorted(missing))}, which the {manifest.operation} objective requires; select CarbonTeq "
+        "veRL 0.9.0.post8 (ef1c37715fa75de5973ae5b3c398383cd7e0093d) or a later qualified revision"
+    )
+
+
+def _kl_loss_type(manifest: VerlLaunchManifest) -> str:
+    """veRL's KL estimator: TRL's unclipped k3 wherever the objective must match it."""
+
+    if manifest.operation in {"gdpo", "capo"} or manifest.payload.algorithm.online_rl_algorithm == "olmo3":
+        return "k3_unclipped"
+    return "low_var_kl"
+
+
+def _olmo3_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
+    """The OLMo 3 objective in veRL's native terms, matching TRL's Olmo3GRPOConfig.
+
+    - policy loss ``token_clip``: asymmetric PPO token clipping with no dual clip;
+    - ``norm_adv_by_std_in_grpo=false``: advantage = reward - group mean;
+    - decoupled rollout correction: per-token weight min(exp(old - rollout), cap),
+      old log-probabilities recomputed by the actor (bypass mode off);
+    - token-mean aggregation and the unclipped k3 KL are set by the caller.
+    """
+
+    algorithm = manifest.payload.algorithm
+    if (
+        algorithm.normalize_advantage_by_std is not False
+        or algorithm.rollout_importance_sampling != "token"
+        or algorithm.rollout_importance_sampling_cap is None
+    ):
+        raise ValueError("the OLMo 3 veRL manifest is missing its advantage or sampler-correction settings")
+    return [
+        "actor_rollout_ref.actor.policy_loss.loss_mode=token_clip",
+        "algorithm.norm_adv_by_std_in_grpo=false",
+        f"algorithm.rollout_correction.rollout_is={algorithm.rollout_importance_sampling}",
+        f"algorithm.rollout_correction.rollout_is_threshold={algorithm.rollout_importance_sampling_cap}",
+        "algorithm.rollout_correction.rollout_is_batch_normalize=false",
+        "algorithm.rollout_correction.rollout_rs=null",
+        "algorithm.rollout_correction.bypass_mode=false",
+    ]
 
 
 def _uses_turboquant(payload: VerlPayload) -> bool:
@@ -474,6 +591,9 @@ def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
         "data.train_files=",
         "data.val_files=",
         "actor_rollout_ref.model.path=",
+        "actor_rollout_ref.rollout.dtype=",
+        "actor_rollout_ref.actor.fsdp_config.mixed_precision",
+        "actor_rollout_ref.ref.fsdp_config.mixed_precision",
         "actor_rollout_ref.actor.loss_agg_mode=",
         "actor_rollout_ref.actor.clip_ratio_low=",
         "actor_rollout_ref.actor.clip_ratio_high=",
@@ -482,6 +602,8 @@ def _backend_hydra_overrides(options: dict[str, Any]) -> list[str]:
         "actor_rollout_ref.actor.kl_loss_type=",
         "actor_rollout_ref.actor.kl_loss_coef=",
         "algorithm.use_kl_in_reward=",
+        "algorithm.norm_adv_by_std_in_grpo=",
+        "algorithm.rollout_correction",
         "algorithm=",
         "algorithm.structured_rewards=",
         "algorithm.adv_estimator=",
@@ -551,6 +673,7 @@ def _write_agent_config(payload: VerlPayload, path: Path) -> None:
             "max_completion_tokens": algorithm.max_completion_length,
             "overlong_buffer_tokens": algorithm.overlong_buffer_tokens,
             "overlong_penalty_factor": algorithm.overlong_penalty_factor,
+            "truncation_penalty": algorithm.truncation_penalty,
             "emit_sampo_metadata": algorithm.advantage_estimator == "sampo",
             "structured_algorithm": (
                 algorithm.advantage_estimator if algorithm.advantage_estimator in {"gdpo", "capo"} else None
@@ -567,8 +690,7 @@ def _write_agent_config(payload: VerlPayload, path: Path) -> None:
     path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
 
 
-def _model_path(model: VerlModel) -> str:
-    artifact = model.artifact
+def _model_path(artifact: VerlModelArtifact) -> str:
     if artifact.kind == "hub":
         try:
             from huggingface_hub import snapshot_download
@@ -611,13 +733,7 @@ def _validate_runtime(manifest: VerlLaunchManifest) -> None:
     if not installed:
         raise RuntimeError("could not resolve the installed veRL version")
     worktree = manifest.working_directory
-    head = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=worktree,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
+    head, dirty, dirty_digest = _worktree_source_state(worktree)
     if head != manifest.backend_source_revision:
         raise RuntimeError(
             f"veRL worktree is at {head}, expected immutable revision {manifest.backend_source_revision}"
@@ -626,11 +742,38 @@ def _validate_runtime(manifest: VerlLaunchManifest) -> None:
     expected_dirty = backend_options.get("source_dirty")
     expected_digest = backend_options.get("source_dirty_digest")
     if expected_dirty is not None:
-        dirty, dirty_digest = _git_source_state(worktree)
         if dirty is not expected_dirty:
             raise RuntimeError(f"veRL worktree dirty state is {dirty}, expected {expected_dirty}")
         if expected_digest is not None and dirty_digest != expected_digest:
             raise RuntimeError("veRL worktree content changed after the training selection was resolved")
+
+
+_SOURCE_REVISION_MARKER = ".posttrain-source-revision"
+
+
+def _worktree_source_state(worktree: Path) -> tuple[str, bool, str | None]:
+    """The veRL source revision, whether it differs from that revision, and a digest of the difference.
+
+    The veRL job kind ships an immutable source snapshot: it removes the Git
+    metadata and records the revision in ``.posttrain-source-revision``, exactly
+    as ``posttrain-runtime`` verifies it before starting the worker; that
+    snapshot is clean by construction. A development checkout is read with Git.
+    """
+
+    marker = worktree / _SOURCE_REVISION_MARKER
+    if marker.is_file():
+        if (worktree / ".git").exists():
+            raise RuntimeError("veRL immutable source snapshot unexpectedly retains Git metadata")
+        return marker.read_text(encoding="utf-8").strip(), False, None
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=worktree,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    dirty, digest = _git_source_state(worktree)
+    return head, dirty, digest
 
 
 def _git_source_state(worktree: Path) -> tuple[bool, str | None]:
