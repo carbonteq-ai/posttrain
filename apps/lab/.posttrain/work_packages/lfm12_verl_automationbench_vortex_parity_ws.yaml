@@ -1,0 +1,31 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-1.2b/verl-automationbench-vortex-parity-ws
+stage: train
+description: Phase 6 of docs/plan/verl-vortex-port.md - four lfm2.5-1.2b VORTEX (OLMo 3 objective, oversampled active sampling, curriculum, truncation penalty) updates on veRL on the RTX PRO 6000 workstation over the 57-task LFM2.5 AutomationBench comparison set; its TRL twin uses the same seed, data and settings.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-1.2b-verl-automationbench-vortex-parity-ws@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: grpo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-1.2b-thinking@bf16}
+  environment: {type: ref, family: environment, id: automationbench-verl-parity-lfm-v2}
+  settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-vortex-parity-v4}
+  training: {type: ref, family: training, id: training/lfm2.5-1.2b-verl-lora-parity-ws-g16@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-verl-parity-ws@2}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: verl-vortex-parity-lfm12-vortex-v1
+  question: Do TRL and veRL produce statistically equivalent per-update reward, KL, entropy, advantage, active-sampling and curriculum evidence for lfm2.5-1.2b vortex with the same seed, data and settings?
+  labels: [experiment, parity, verl, vortex, automationbench, lfm2.5, workstation]

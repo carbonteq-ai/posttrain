@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 from time import perf_counter
+from types import SimpleNamespace
 from typing import Any, Literal, cast
 from uuid import uuid4
 
@@ -22,12 +23,11 @@ from ...online_rl import (
     RolloutBatch,
 )
 from ...policy_messages import parsed_policy_message
-from ...rendering import bridged_message_spans
+from ...rendering import bridged_message_spans, renderer_config_from_spec
 from .reward_fields import (
     shaped_rollout_reward,
     streaming_reward_extra_info,
     structured_reward_metadata,
-    training_response_mask,
 )
 
 try:
@@ -127,6 +127,28 @@ def _effective_sampling(base: PolicySampling, overrides: Mapping[str, Any]) -> d
     }
 
 
+def _raise_context_rejected(prompt_tokens: int, max_model_len: int) -> None:
+    """Refuse a turn whose prompt fills the context exactly as the TRL path does.
+
+    The TRL path's renderer client refuses a prompt longer than the context with
+    ``OverlongPromptError`` ("Prompt length (N) exceeds maximum context length (M)."),
+    which Verifiers raises as a provider HTTP 400 and Posttrain reads as the
+    ``context_rejected`` ending (``is_context_overflow_error`` matches "maximum context
+    length"). A prompt exactly as long as the context passes that check and is
+    refused by TRL's policy endpoint with a message that is not an overflow.
+    """
+
+    if prompt_tokens > max_model_len:
+        message = f"Prompt length ({prompt_tokens}) exceeds maximum context length ({max_model_len})."
+    else:
+        message = f"token generation request has no remaining policy context: {prompt_tokens} prompt >= {max_model_len}"
+    try:
+        from verifiers.v1.errors import ProviderError  # pyright: ignore[reportMissingImports]
+    except ImportError as error:  # pragma: no cover - isolated runtime dependency
+        raise ValueError(message) from error
+    raise ProviderError(message, status_code=400)
+
+
 class VerlPolicyGenerator:
     """Expose veRL's already-loaded rollout server through the framework policy contract."""
 
@@ -135,27 +157,27 @@ class VerlPolicyGenerator:
         server_manager: Any,
         tokenizer: Any,
         *,
-        enable_thinking: bool,
-        renderer_implementation: str = "qwen3.5",
+        renderer: Mapping[str, Any],
         sampling_overrides: Mapping[str, Any] | None = None,
+        max_model_len: int | None = None,
     ) -> None:
         try:
-            from renderers import (  # pyright: ignore[reportMissingImports]
-                DefaultRendererConfig,
-                Qwen35RendererConfig,
-                create_renderer,
-            )
+            from renderers import create_renderer  # pyright: ignore[reportMissingImports]
         except ImportError as error:  # pragma: no cover - isolated runtime dependency
             raise RuntimeError("the veRL environment requires the selected renderer implementation") from error
         self._server_manager = server_manager
         self._tokenizer = tokenizer
-        if renderer_implementation == "qwen3.5":
-            renderer_config = Qwen35RendererConfig(enable_thinking=enable_thinking)
-        elif renderer_implementation == "default":
-            renderer_config = DefaultRendererConfig()
-        else:
-            raise ValueError(f"unsupported veRL renderer implementation: {renderer_implementation!r}")
-        self._renderer = create_renderer(tokenizer, renderer_config)
+        self._max_model_len = max_model_len
+        # The launcher resolved the renderer exactly as the TRL backend does:
+        # the family's pinned config, the reasoning mode's template arguments
+        # and a package chat template replacing the tokenizer's.
+        chat_template = renderer.get("chat_template")
+        if chat_template is not None:
+            tokenizer.chat_template = str(chat_template)
+        config = renderer_config_from_spec(str(renderer["config"]), dict(renderer.get("config_kwargs") or {}))
+        self._renderer = create_renderer(tokenizer, config)
+        protocol = renderer.get("tool_call_protocol")
+        self._tool_call_protocol = None if protocol is None else SimpleNamespace(**dict(protocol))
         self._sampling_overrides = _validated_sampling_overrides(sampling_overrides or {})
         self._behavior_policy: BehaviorPolicySpan | None = None
 
@@ -191,6 +213,14 @@ class VerlPolicyGenerator:
         else:
             spans = bridged_message_spans(rendered, request.tail_start, len(request.previous_token_ids))
         sampling = _effective_sampling(request.sampling, self._sampling_overrides)
+        if self._max_model_len is not None:
+            # As TRL's policy endpoint: a prompt that fills the context is refused like
+            # vLLM's HTTP 400 (Verifiers ends the episode as context_rejected), and a late
+            # turn gets the context that remains instead of the full per-turn max_tokens.
+            remaining = self._max_model_len - len(rendered.token_ids)
+            if remaining < 1:
+                _raise_context_rejected(len(rendered.token_ids), self._max_model_len)
+            sampling["max_tokens"] = min(int(sampling["max_tokens"]), remaining)
         output = await self._server_manager.generate(
             request_id=request.session_id or uuid4().hex,
             prompt_ids=list(rendered.token_ids),
@@ -205,6 +235,8 @@ class VerlPolicyGenerator:
                     "repetition_penalty": sampling["repetition_penalty"],
                     "presence_penalty": sampling["presence_penalty"],
                     "logprobs": True,
+                    # As Verifiers' train client: stop on the renderer's stop tokens.
+                    "stop_token_ids": list(self._renderer.get_stop_token_ids()),
                 }.items()
                 if value is not None
             },
@@ -221,11 +253,20 @@ class VerlPolicyGenerator:
                 behavior_policy if self._behavior_policy is None else self._behavior_policy.merge(behavior_policy)
             )
         parsed = self._renderer.parse_response(list(token_ids), tools=renderer_tools)
-        message = parsed_policy_message(parsed, token_ids, self._tokenizer)
+        message = parsed_policy_message(
+            parsed,
+            token_ids,
+            self._tokenizer,
+            tool_call_protocol=self._tool_call_protocol,
+            tools=tools,
+            # TRL's policy turns go through Verifiers' train client, which runs every
+            # named call (a value that is not valid JSON stays text); veRL acts alike.
+            admission="verifiers-train-client",
+        )
         finish_reason = _finish_reason(
             token_ids,
             frozenset(self._renderer.get_stop_token_ids()),
-            bool(message.get("tool_calls")),
+            any(item.status.value == "ok" for item in parsed.tool_calls),
             int(sampling["max_tokens"]),
         )
         return PolicyTurnResult(
@@ -259,8 +300,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         self,
         *args: Any,
         bridge_snapshot: str,
-        enable_thinking: bool = False,
-        renderer_implementation: str = "qwen3.5",
+        renderer: dict[str, Any],
         mask_truncated_completions: bool | None = False,
         max_completion_tokens: int,
         overlong_buffer_tokens: int | None = None,
@@ -276,8 +316,8 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         self._generator = VerlPolicyGenerator(
             self.server_manager,
             self.tokenizer,
-            enable_thinking=enable_thinking,
-            renderer_implementation=renderer_implementation,
+            renderer=renderer,
+            max_model_len=getattr(self.rollout_config, "max_model_len", None),
         )
         self._mask_truncated_completions = bool(mask_truncated_completions)
         self._max_completion_tokens = max_completion_tokens
@@ -292,7 +332,11 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
 
     async def run(self, sampling_params: dict[str, Any], **kwargs: Any) -> Any:
         self._generator.begin_episode()
-        self._generator.set_sampling_overrides(sampling_params)
+        # veRL hard-codes repetition_penalty 1.0 in every phase's sampling parameters;
+        # the environment's (binding's) value is the behavior policy, as on TRL.
+        self._generator.set_sampling_overrides(
+            {key: value for key, value in sampling_params.items() if key != "repetition_penalty"}
+        )
         example_id = str(kwargs["example_id"])
         step = int(kwargs.get("global_steps", 0))
         model_id = str(kwargs["model_id"])
@@ -323,7 +367,11 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         if len(rollout.prompt_ids) > self.rollout_config.prompt_length:
             raise ValueError("Verifiers trajectory prompt exceeds the selected veRL prompt length")
         if len(rollout.completion_ids) > self.rollout_config.response_length:
-            raise ValueError("Verifiers trajectory response exceeds the selected veRL response length")
+            raise ValueError(
+                "Verifiers trajectory response exceeds the veRL response budget "
+                f"({len(rollout.completion_ids)} > {self.rollout_config.response_length} tokens); the budget is the "
+                "rollout context (engine max_model_len), which the trajectory cannot exceed"
+            )
         reward = shaped_rollout_reward(
             rollout,
             max_completion_tokens=self._max_completion_tokens,
@@ -331,12 +379,10 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             overlong_penalty_factor=self._overlong_penalty_factor,
             truncation_penalty=self._truncation_penalty,
         )
-        response_mask = training_response_mask(
-            rollout.env_mask,
-            is_truncated=rollout.is_truncated,
-            mask_truncated_completions=self._mask_truncated_completions,
-            requires_complete_group=self._emit_sampo_metadata,
-        )
+        # TRL's mask_truncated_completions: the fork drops the row from GRPO statistics and the
+        # loss after advantages (SAMPO still centres it), so the mask keeps every policy token.
+        excluded = bool(rollout.is_truncated and self._mask_truncated_completions)
+        response_mask = [int(value) for value in rollout.env_mask]
         extra_fields: dict[str, Any] = {
             "rollout_trace_id": rollout.trace.external_id,
             "example_id": rollout.example_id,
@@ -350,12 +396,15 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             "reward_extra_info": streaming_reward_extra_info(
                 task_reward=rollout.reward,
                 algorithm_reward=reward,
+                excluded=excluded,
             ),
+            "exclude_from_loss": excluded,
             "min_global_steps": behavior_policy.start,
             "max_global_steps": behavior_policy.end,
         }
         if self._emit_sampo_metadata:
-            extra_fields.update(_sampo_metadata(rollout))
+            # The native prompt occurrence identifies the group even if a task repeats in one batch.
+            extra_fields.update(_sampo_metadata(rollout, str(kwargs.get("uid", rollout.example_id))))
         if self._structured_algorithm is not None:
             extra_fields["structured_rewards"] = structured_reward_metadata(
                 rollout,
@@ -435,11 +484,11 @@ def _append_rollout_reward_record(
         os.close(descriptor)
 
 
-def _sampo_metadata(rollout: EnvironmentRollout) -> dict[str, Any]:
+def _sampo_metadata(rollout: EnvironmentRollout, prompt_group_id: str) -> dict[str, Any]:
     if not rollout.turns:
         raise RuntimeError("SAMPO requires sampled assistant-turn metadata")
     return {
-        "sampo_prompt_group_id": rollout.example_id,
+        "sampo_prompt_group_id": prompt_group_id,
         "sampo_turn_lengths": [turn.completion_end - turn.completion_start for turn in rollout.turns],
         "sampo_turn_spans": [[turn.completion_start, turn.completion_end] for turn in rollout.turns],
         "sampo_anchor_state_keys": [turn.anchor_state_key for turn in rollout.turns],
@@ -450,16 +499,17 @@ def _sampo_metadata(rollout: EnvironmentRollout) -> dict[str, Any]:
 def _finish_reason(
     completion_ids: tuple[int, ...],
     stop_token_ids: frozenset[int],
-    has_tool_calls: bool,
+    has_ok_tool_calls: bool,
     max_completion_length: int,
 ) -> Literal["stop", "length", "tool_calls"]:
-    if has_tool_calls:
-        return "tool_calls"
-    if completion_ids[-1] in stop_token_ids:
-        return "stop"
-    if len(completion_ids) >= max_completion_length:
+    """vLLM's finish reason, promoted as Verifiers' train client does.
+
+    A turn that ran out of tokens stays ``length``; a stopped turn becomes
+    ``tool_calls`` only when the renderer parsed at least one call cleanly.
+    """
+    if completion_ids[-1] not in stop_token_ids and len(completion_ids) >= max_completion_length:
         return "length"
-    return "stop"
+    return "tool_calls" if has_ok_tool_calls else "stop"
 
 
 def _openai_message(message: dict[str, Any]) -> dict[str, Any]:

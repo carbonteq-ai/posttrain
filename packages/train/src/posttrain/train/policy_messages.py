@@ -6,7 +6,9 @@ import ast
 import json
 import re
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal
+
+ToolCallAdmission = Literal["strict", "verifiers-train-client"]
 
 
 def parsed_policy_message(
@@ -16,15 +18,22 @@ def parsed_policy_message(
     *,
     tool_call_protocol: Any | None = None,
     tools: Sequence[dict[str, Any]] = (),
+    admission: ToolCallAdmission = "strict",
 ) -> dict[str, Any]:
     """Keep rejected tool syntax visible without making it executable.
 
     Token IDs remain replay authority. Decode rejected spans directly from that
     sequence; never substitute an empty action or repair arguments implicitly.
     Reasoning stays in its native channel and accepted calls stay structured.
+
+    ``admission="verifiers-train-client"`` instead builds the message exactly as
+    Verifiers' train client (``response_from_generate``) does for the TRL policy
+    endpoint, so an in-process policy (veRL) acts on the same calls as TRL.
     """
     if tool_call_protocol is not None and tool_call_protocol.id == "k2_ifm_xml":
         return _k2_ifm_message(token_ids, tokenizer, tools)
+    if admission == "verifiers-train-client":
+        return _train_client_message(parsed, token_ids, tokenizer)
 
     content = [parsed.content] if parsed.content else []
     calls = []
@@ -68,6 +77,56 @@ def parsed_policy_message(
         if recovered is not None:
             message["content"] = recovered[0]
             message["tool_calls"] = recovered[1]
+    return message
+
+
+def _train_client_message(parsed: Any, token_ids: Sequence[int], tokenizer: Any) -> dict[str, Any]:
+    """Verifiers' train-client admission: every named call except an unknown tool runs.
+
+    Its arguments are the renderer's best parse (a call whose values did not all
+    parse as JSON keeps them as text), and a call without a name or naming an
+    undeclared tool is dropped from the model-visible message. Both kinds stay in
+    ``provider_state`` as evidence, decoded from the sampled tokens.
+    """
+    calls = []
+    evidence = []
+    for index, item in enumerate(parsed.tool_calls):
+        status = item.status.value
+        executed = bool(item.name) and status != "unknown_tool"
+        if executed:
+            calls.append(
+                {
+                    "id": getattr(item, "id", None) or f"call_{index}",
+                    "name": item.name,
+                    # json.dumps defaults, as response_from_generate.
+                    "arguments": item.arguments
+                    if isinstance(item.arguments, str)
+                    else json.dumps(item.arguments or {}),
+                }
+            )
+            if status == "ok":
+                continue
+        span = item.token_span
+        if span is None or len(span) != 2 or not 0 <= span[0] < span[1] <= len(token_ids):
+            raise ValueError("a non-conforming policy tool call requires an exact sampled-token span")
+        raw = tokenizer.decode(list(token_ids[span[0] : span[1]]), skip_special_tokens=False)
+        if not raw:
+            raise ValueError("a non-conforming policy tool call decoded to empty evidence")
+        evidence.append(
+            {
+                "type": "posttrain.nonconforming_tool_call" if executed else "posttrain.rejected_tool_call",
+                "status": status,
+                "token_span": [span[0], span[1]],
+                "raw": raw,
+            }
+        )
+    message: dict[str, Any] = {"role": "assistant", "content": parsed.content or None}
+    if parsed.reasoning_content is not None:
+        message["reasoning_content"] = parsed.reasoning_content
+    if calls:
+        message["tool_calls"] = calls
+    if evidence:
+        message["provider_state"] = evidence
     return message
 
 

@@ -1,0 +1,30 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-1.2b/verl-automationbench-check-local
+stage: train
+description: Phase 4 of docs/plan/verl-vortex-port.md - two LFM2.5-1.2B-thinking GRPO updates on veRL on the local 8 GB GPU over five AutomationBench tasks, qualifying model loading, the LFM2.5 renderer and tool-call recovery, LoRA weight sync to vLLM after the first update, checkpointing and merged export with tied embeddings.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-1.2b-verl-automationbench-check@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: grpo
+      kind: train.grpo
+      definition: train/trl-grpo@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-1.2b-thinking@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm12-local-five-step-v1}
+  settings: {type: ref, family: training, id: lfm2.5-1.2b/verl-automationbench-check-v1}
+  training: {type: ref, family: training, id: training/lfm2.5-1.2b-verl-lora-local-g4@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-verl-check-local@1}
+enabled_optional_jobs: []
+metadata:
+  question: Does veRL (0.9.0.post8) train LFM2.5-1.2B (LoRA, tied embeddings, hybrid short-convolution blocks) through two updates with the TRL-identical renderer, vLLM LoRA sync and export?
+  labels: [qualification, verl, lfm2.5, grpo, automationbench, local, 8gb]

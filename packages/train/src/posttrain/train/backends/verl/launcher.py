@@ -9,8 +9,9 @@ import signal
 import subprocess
 import time
 from dataclasses import asdict
+from dataclasses import fields as dataclass_fields
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from posttrain.common import (
     AppendOnlyJsonlTailer,
@@ -29,7 +30,8 @@ from ...bindings import FullParameterUpdate, LoRAUpdate
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
 from ...kl_reference import kl_reference_problem, resolved_kl_reference
 from ...precision import resolve_precision, training_precision, verl_rollout_dtype
-from ...profiles import GRPOSettings
+from ...profiles import GRPOSettings, SAMPOSettings, TrainingRenderer
+from ...rendering import renderer_config_spec
 from ...requests import CAPORequest, GDPORequest, GRPORequest, OnPolicyDistillationRequest, SAMPORequest
 from ...results import TrainingSummary
 from ..common import BackendTrainingResult
@@ -52,18 +54,23 @@ from .metrics import (
     read_verl_rollout_reward_records,
 )
 
-_SUPPORTED_MODEL_FAMILIES = frozenset({"qwen3.5"})
+_SUPPORTED_MODEL_FAMILIES = frozenset({"lfm2.5", "qwen3.5"})
 _RESULT_FILE = "posttrain-result.json"
 
 
+if TYPE_CHECKING:
+    from .curriculum import CurriculumJournalReplay
+
 VerlLaunchPlan = VerlLaunchManifest
+# Identifies veRL online-RL runs that reproduce TRL's GRPO/DAPO/OLMo 3/SAMPO semantics.
+VERL_SEMANTICS = "trl-parity-v1"
 
 
 def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunchPlan:
     _validate_backend(request.training.backend)
     _validate_model(request.policy, "policy")
-    # OLMo 3 (it needs active sampling), adaptive_curriculum and every other GRPO
-    # setting veRL does not receive are rejected instead of silently ignored.
+    # adaptive_curriculum and every other GRPO setting veRL does not receive are
+    # rejected instead of silently ignored.
     unsupported = verl_grpo_settings_problem(request.settings)
     if unsupported is not None:
         raise ValueError(unsupported)
@@ -73,6 +80,7 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
     if problem is not None:
         raise ValueError(problem)
     _validate_adapter_continuation(request.policy, request.training.update)
+    _validate_active_sampling_capacity(request)
     return _plan(
         request,
         output_dir,
@@ -83,8 +91,50 @@ def build_grpo_launch_plan(request: GRPORequest, output_dir: Path) -> VerlLaunch
             "algorithm": grpo_algorithm_payload(request.settings),
             "rollout": _inference(request.inference),
             "environment": _environment(request, output_dir),
+            "curriculum_from": request.curriculum_from.path if request.curriculum_from is not None else None,
         },
     )
+
+
+def _validate_active_sampling_capacity(request: GRPORequest | SAMPORequest) -> None:
+    """The oversampled first round must fit rollout concurrency, as on TRL (the fork checks it again)."""
+
+    from ...rollout_execution import oversampled_round_capacity_error
+
+    active = request.settings.active_sampling
+    if active is None:
+        return
+    from .worker import fork_native_names
+
+    options = request.training.backend_options
+    revision = options.get("source_revision")
+    if (
+        isinstance(revision, str)
+        and "active_sampling" not in fork_native_names(revision)
+        and options.get("source_dirty") is not True
+    ):
+        raise ValueError(
+            f"veRL source revision {revision} has no round-based active sampling, which OLMo 3 requires; "
+            "select a CarbonTeq veRL revision that provides it (none is released yet)"
+        )
+    engine = request.inference.engine
+    declared = engine.get("max_num_seqs")
+    execution = request.training.backend_options.get("rollout_execution")
+    worker_slots = None
+    if isinstance(execution, dict):
+        workers, episodes = execution.get("env_workers"), execution.get("episodes_per_worker")
+        if isinstance(workers, int) and isinstance(episodes, int):
+            worker_slots = (workers, episodes)
+    error = oversampled_round_capacity_error(
+        num_prompts_per_step=request.settings.num_prompts_per_step,
+        num_generations=request.settings.num_generations,
+        oversample=active.oversample,
+        vllm_max_num_seqs=declared if isinstance(declared, int) else request.settings.num_generations,
+        environment_max_concurrent=getattr(request.bridge, "max_concurrent", None),
+        worker_slots=worker_slots,
+    )
+    if error is not None:
+        raise ValueError(error)
 
 
 def grpo_algorithm_payload(settings: GRPOSettings) -> dict[str, Any]:
@@ -115,23 +165,100 @@ def grpo_algorithm_payload(settings: GRPOSettings) -> dict[str, Any]:
         "overlong_penalty_factor": settings.overlong_penalty_factor,
         "truncation_penalty": settings.truncation_penalty,
     }
-    if settings.algorithm == "olmo3":
+    if settings.adaptive_curriculum is not None:
+        payload["adaptive_curriculum"] = {
+            item.name: getattr(settings.adaptive_curriculum, item.name)
+            for item in dataclass_fields(settings.adaptive_curriculum)
+        }
+    if settings.active_sampling is not None:
         payload.update(
-            normalize_advantage_by_std=False,
-            rollout_importance_sampling="token",
-            rollout_importance_sampling_cap=settings.importance_sampling_clip_max,
+            active_sampling=True,
+            active_sampling_max_candidate_batches=settings.active_sampling.max_candidate_batches,
+            active_sampling_oversample=settings.active_sampling.oversample,
+            active_sampling_oversample_refill=settings.active_sampling.oversample_refill,
         )
+    payload.update(_rollout_importance_sampling(settings))
+    if settings.advantage_scaling == "none":
+        payload["normalize_advantage_by_std"] = False
+    else:
+        payload.update(normalize_advantage_by_std=True, advantage_std_scope=settings.advantage_scaling)
+    payload["max_admission_attempts"] = settings.max_admission_attempts
     return payload
 
 
 def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaunchPlan:
-    """veRL has no active group sampling, so SAMPO is TRL-only."""
+    """SAMPO on veRL: the fork's SAMPO estimator, TRL's sequence-ratio objective,
+    round-based active sampling and optionally the adaptive curriculum."""
 
-    del request, output_dir
-    raise ValueError(
-        "SAMPO refills prompt groups with VORTEX active sampling, which the veRL backend does not provide; "
-        "select the TRL backend"
+    _validate_backend(request.training.backend)
+    _validate_model(request.policy, "policy")
+    settings = request.settings
+    problem = kl_reference_problem(request.training.backend, settings.beta, settings.kl_reference, request.policy.form)
+    if problem is not None:
+        raise ValueError(problem)
+    _validate_adapter_continuation(request.policy, request.training.update)
+    _validate_active_sampling_capacity(request)
+    return _plan(
+        request,
+        output_dir,
+        "sampo",
+        {
+            "policy": _model(request.policy),
+            "reference": _model(request.reference) if request.reference is not None else None,
+            "algorithm": sampo_algorithm_payload(settings),
+            "rollout": _inference(request.inference),
+            "environment": _environment(request, output_dir),
+        },
     )
+
+
+def sampo_algorithm_payload(settings: SAMPOSettings) -> dict[str, Any]:
+    """Map SAMPOSettings to the veRL algorithm contract (TRL SAMPO semantics)."""
+
+    payload: dict[str, Any] = {
+        "advantage_estimator": "sampo",
+        "online_rl_algorithm": "sampo",
+        "beta": settings.beta,
+        "num_prompts_per_step": settings.num_prompts_per_step,
+        "num_generations": settings.num_generations,
+        "max_prompt_length": settings.max_prompt_length,
+        "max_completion_length": settings.max_completion_length,
+        "shuffle_prompts": settings.shuffle_prompts,
+        "clip_epsilon_low": settings.clip_epsilon_low,
+        "clip_epsilon_high": settings.clip_epsilon_high,
+        "dynamic_sampling": False,
+        "mask_truncated_completions": settings.mask_truncated_completions,
+        "overlong_penalty_factor": 1.0,
+        "truncation_penalty": settings.truncation_penalty,
+        # TRL runs one admission attempt under active sampling; a failed group is refilled.
+        "max_admission_attempts": settings.max_admission_attempts,
+        "discount_gamma": settings.discount_gamma,
+        "step_advantage_weight": settings.step_advantage_weight,
+        "advantage_normalization": settings.advantage_normalization,
+        "active_sampling": True,
+        "active_sampling_max_candidate_batches": settings.active_sampling.max_candidate_batches,
+        "active_sampling_oversample": settings.active_sampling.oversample,
+        "active_sampling_oversample_refill": settings.active_sampling.oversample_refill,
+    }
+    payload.update(_rollout_importance_sampling(settings))
+    if settings.adaptive_curriculum is not None:
+        payload["adaptive_curriculum"] = {
+            item.name: getattr(settings.adaptive_curriculum, item.name)
+            for item in dataclass_fields(settings.adaptive_curriculum)
+        }
+    return payload
+
+
+def _rollout_importance_sampling(settings: GRPOSettings | SAMPOSettings) -> dict[str, Any]:
+    """TRL's vLLM sampler correction in the veRL contract: level, truncate or mask, and its bounds."""
+
+    mode = settings.importance_sampling_mode
+    return {
+        "rollout_importance_sampling": "token" if mode.startswith("token") else "sequence",
+        "rollout_importance_sampling_mode": "truncate" if mode.endswith("truncate") else "mask",
+        "rollout_importance_sampling_cap": settings.importance_sampling_clip_max,
+        "rollout_importance_sampling_min": settings.importance_sampling_clip_min,
+    }
 
 
 def build_structured_launch_plan(request: GDPORequest | CAPORequest, output_dir: Path) -> VerlLaunchPlan:
@@ -290,11 +417,10 @@ def _plan(
             **operation_payload,
             "training": {
                 "binding_id": request.training.id,
-                "renderer": {
-                    "id": request.training.renderer.id,
-                    "implementation": request.training.renderer.implementation,
-                    "reasoning_mode": request.training.renderer.reasoning_mode,
-                },
+                "renderer": _renderer_payload(
+                    request.student if isinstance(request, OnPolicyDistillationRequest) else request.policy,
+                    request.training.renderer,
+                ),
                 "update": update_payload,
                 "loop": {
                     "max_steps": loop.max_steps,
@@ -334,6 +460,27 @@ def _plan(
         result_file=(output_dir / _RESULT_FILE).resolve(),
         payload=payload,
     )
+
+
+def _renderer_payload(model: ModelVariant, renderer: TrainingRenderer) -> dict[str, object]:
+    """Resolve the policy renderer on the launcher, as the TRL backend does in-process."""
+
+    config, config_kwargs = renderer_config_spec(model, renderer)
+    protocol = model.conversation.tool_calls
+    return {
+        "id": renderer.id,
+        "implementation": renderer.implementation,
+        "reasoning_mode": renderer.reasoning_mode,
+        "model_family": model.family,
+        "config": config,
+        "config_kwargs": config_kwargs,
+        "chat_template": model.conversation.chat_template.text(),
+        "tool_call_protocol": (
+            None
+            if protocol is None
+            else {"id": protocol.id, "start_token": protocol.start_token, "end_token": protocol.end_token}
+        ),
+    }
 
 
 def _launch(
@@ -426,13 +573,79 @@ def _launch(
     backend, records = _backend_result(
         result, output_dir, loss_scaling=training_precision(request.training.backend_options) == "fp16"
     )
+    curriculum = None
+    if isinstance(request, GRPORequest | SAMPORequest) and request.settings.adaptive_curriculum is not None:
+        from .curriculum import CURRICULUM_JOURNAL_NAME, CurriculumJournalReplay, read_curriculum_journal
+
+        curriculum = CurriculumJournalReplay(context, read_curriculum_journal(output_dir / CURRICULUM_JOURNAL_NAME))
     if isinstance(request, GRPORequest | SAMPORequest | GDPORequest | CAPORequest):
-        _replay_grpo_metrics(context, request, records)
+        _replay_grpo_metrics(context, request, records, curriculum)
         _replay_trace_fact_updates(
             context,
             read_verl_rollout_reward_records(output_dir / "verl-rollout-rewards.jsonl"),
         )
+    if curriculum is not None:
+        assert isinstance(request, GRPORequest | SAMPORequest)
+        curriculum.rest()
+        _publish_curriculum_state(context, request, output_dir)
     return backend
+
+
+def _publish_curriculum_state(context: RunContext, request: GRPORequest | SAMPORequest, output_dir: Path) -> None:
+    """Replay the selector's curriculum events and publish its state like the TRL path."""
+
+    from ...adaptive_curriculum import CURRICULUM_SNAPSHOT_NAME, digest_curriculum_state
+    from .curriculum import checkpoint_views
+    from .worker import CURRICULUM_CHECKPOINT_VIEWS_DIR, CURRICULUM_STATE_DIR
+
+    curriculum = request.settings.adaptive_curriculum
+    assert curriculum is not None
+    state_dir = (output_dir / CURRICULUM_STATE_DIR).resolve()
+    snapshot = state_dir / CURRICULUM_SNAPSHOT_NAME
+    if not snapshot.is_file():
+        raise RuntimeError(f"veRL completed without its adaptive curriculum state: {snapshot}")
+    technique = "sampo" if isinstance(request, SAMPORequest) else request.settings.algorithm
+    for step, view in checkpoint_views(output_dir / CURRICULUM_CHECKPOINT_VIEWS_DIR):
+        # The same per-checkpoint view the TRL path publishes, so a later run can
+        # warm-start with --curriculum-checkpoint-step from this veRL run.
+        view = view.resolve()
+        context.artifact(
+            ProducedArtifact(
+                name=f"training/{request.policy.id}/{technique}/checkpoint-{step:08d}/curriculum",
+                kind="adaptive-curriculum-state",
+                reference=LocalArtifactRef(view, digest_curriculum_state(view)),
+                metadata={
+                    "technique": technique,
+                    "model_variant_id": request.policy.id,
+                    "training_settings_id": request.settings.id,
+                    "training_settings_revision": request.settings.revision,
+                    "parameter_update_kind": request.training.update.kind,
+                    "global_step": step,
+                    "checkpoint_step": step,
+                    "checkpoint_snapshot_id": f"{context.run_id}/step-{step:08d}",
+                    "checkpoint_view": "curriculum",
+                    "interrupted": False,
+                    "training_backend": "verl",
+                },
+                role="checkpoint-curriculum",
+            )
+        )
+    decision_index = json.loads(snapshot.read_text(encoding="utf-8")).get("decision_index")
+    context.artifact(
+        ProducedArtifact(
+            name=f"training/{request.policy.id}/{technique}/adaptive-curriculum-state",
+            kind="adaptive-curriculum-state",
+            reference=LocalArtifactRef(state_dir, digest_curriculum_state(state_dir)),
+            metadata={
+                "class_field": curriculum.class_field,
+                "decision_count": decision_index if isinstance(decision_index, int) else None,
+                "format": "queued-jsonl-with-snapshot",
+                "snapshot": CURRICULUM_SNAPSHOT_NAME,
+                "training_backend": "verl",
+            },
+            role="controller-state",
+        )
+    )
 
 
 def _verifiers_trace_tailer(
@@ -650,6 +863,7 @@ def _replay_grpo_metrics(
     context: RunContext,
     request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
     records: tuple[VerlMetricRecord, ...],
+    curriculum: CurriculumJournalReplay | None = None,
 ) -> None:
     environment_category = getattr(request.environment, "category", "")
     features = GRPOObservationFeatures.from_request(
@@ -657,6 +871,9 @@ def _replay_grpo_metrics(
         tool_environment=isinstance(environment_category, str) and "tool" in environment_category.split("-"),
     )
     for record in records:
+        if curriculum is not None:
+            # Curriculum records of earlier and equal steps first: tracking steps never decrease.
+            curriculum.through(record.step)
         normalized = normalize_grpo_metrics(
             backend="verl",
             step=record.step,
@@ -793,6 +1010,10 @@ def _grpo_runtime_attributes(
         "mask_truncated_completions": request.settings.mask_truncated_completions,
         "shuffle_prompts": request.settings.shuffle_prompts,
     }
+    if isinstance(request, GRPORequest | SAMPORequest):
+        # Runs from this version on reproduce TRL's objective, correction, scaling, admission
+        # and sampling (docs/plan/verl-vortex-port.md); earlier veRL runs did not.
+        attributes["verl_semantics"] = VERL_SEMANTICS
     if isinstance(request, GRPORequest):
         attributes["kl_reference"] = resolved_kl_reference(
             request.settings.beta, request.settings.kl_reference, request.policy.form
@@ -801,6 +1022,20 @@ def _grpo_runtime_attributes(
         attributes["overlong_buffer_tokens"] = request.settings.overlong_buffer_tokens
         attributes["overlong_penalty_factor"] = request.settings.overlong_penalty_factor
         attributes["truncation_penalty"] = request.settings.truncation_penalty
+        active = request.settings.active_sampling
+        attributes["active_sampling"] = active is not None
+        curriculum = request.settings.adaptive_curriculum
+        attributes["adaptive_curriculum"] = curriculum is not None
+        if curriculum is not None:
+            attributes["adaptive_curriculum_policy"] = curriculum.policy
+            attributes["adaptive_curriculum_class_field"] = curriculum.class_field
+            attributes["adaptive_curriculum_sampling_mode"] = (
+                "active_sampling_refill" if active is not None else "initial_batch"
+            )
+        if active is not None:
+            attributes["active_sampling_max_candidate_batches"] = active.max_candidate_batches
+            attributes["active_sampling_oversample"] = active.oversample
+            attributes["active_sampling_oversample_refill"] = active.oversample_refill
         attributes["advantage_scaling"] = "none" if request.settings.algorithm == "olmo3" else "group"
     elif isinstance(request, SAMPORequest):
         attributes["discount_gamma"] = request.settings.discount_gamma
@@ -906,6 +1141,7 @@ __all__ = [
     "build_grpo_launch_plan",
     "build_sampo_launch_plan",
     "grpo_algorithm_payload",
+    "sampo_algorithm_payload",
     "run_distillation",
     "run_grpo",
     "run_sampo",

@@ -565,7 +565,10 @@ class _PolicyClient:
             raise ValueError("environment policy turns require an explicit max_tokens value")
         min_p = getattr(sampling_args, "min_p", None)
         request = PolicyTurnRequest(
-            messages=tuple(_record(message) for message in messages),
+            # The OpenAI wire shapes Verifiers' own train client renders (message_to_wire,
+            # tool_to_wire), so an in-process policy (veRL, synchronous TRL) sees the same
+            # prompt as the TRL policy endpoint; flat Tool records render shorter tool lists.
+            messages=tuple(_wire_message(message) for message in messages),
             sampling=PolicySampling(
                 max_tokens=int(sampling_args.max_tokens),
                 temperature=1.0 if sampling_args.temperature is None else float(sampling_args.temperature),
@@ -575,7 +578,7 @@ class _PolicyClient:
                 repetition_penalty=float(getattr(sampling_args, "repetition_penalty", None) or 1.0),
                 presence_penalty=float(getattr(sampling_args, "presence_penalty", None) or 0.0),
             ),
-            tools=tuple(_record(tool) for tool in tools or []),
+            tools=tuple(_wire_tool(tool) for tool in tools or []),
             session_id=session_id,
             previous_prompt_ids=tuple(anchor[0]) if anchor else (),
             previous_completion_ids=tuple(anchor[1]) if anchor else (),
@@ -602,6 +605,26 @@ class _PolicyClient:
 
     async def close(self) -> None:
         return None
+
+
+def _wire_message(message: Any) -> Mapping[str, JsonValue]:
+    """A Verifiers message in the OpenAI chat wire shape its train client renders."""
+
+    if isinstance(message, Mapping):
+        return dict(message)
+    from verifiers.v1.dialects.chat import message_to_wire  # pyright: ignore[reportMissingImports]
+
+    return message_to_wire(message)
+
+
+def _wire_tool(tool: Any) -> Mapping[str, JsonValue]:
+    """A Verifiers tool in the OpenAI function-tool wire shape its train client renders."""
+
+    if isinstance(tool, Mapping):
+        return dict(tool)
+    from verifiers.v1.clients.train import tool_to_wire  # pyright: ignore[reportMissingImports]
+
+    return tool_to_wire(tool)
 
 
 def _record(value: Any) -> Mapping[str, JsonValue]:

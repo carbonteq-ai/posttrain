@@ -179,3 +179,64 @@ def test_missing_or_invalid_provenance_fails_instead_of_creating_empty_turn(span
     )
     with pytest.raises(ValueError, match="exact sampled-token span"):
         parsed_policy_message(parsed, [1, 2], Tokenizer())
+
+
+def _train_client_parse(renderers):
+    status = renderers.ToolCallParseStatus
+    # Qwen3.5 XML call whose array parameter was sampled as a bare word
+    # (verl-vortex-p6-qwen08b-verl-vortex-ws-r3, update 1): the renderer keeps
+    # the value as text and marks the call invalid_json.
+    raw = "<tool_call>asana_create_task projects=proj_eng</tool_call>"
+    calls = [
+        renderers.ParsedToolCall(
+            raw="asana",
+            name="asana_create_task",
+            arguments={"projects": "proj_eng"},
+            token_span=(0, 10),
+            status=status.INVALID_JSON,
+        ),
+        renderers.ParsedToolCall(raw="ok", name="asana_get_task", arguments={"gid": "a", "n": 2}, token_span=(10, 20)),
+        renderers.ParsedToolCall(
+            raw="x", name="jira_nope", arguments={}, token_span=(20, 30), status=status.UNKNOWN_TOOL
+        ),
+        renderers.ParsedToolCall(raw="y", token_span=(30, len(raw)), status=status.UNCLOSED_BLOCK),
+    ]
+    return raw, renderers.ParsedResponse(content="Creating it.", reasoning_content="plan", tool_calls=calls)
+
+
+def test_train_client_admission_acts_on_the_calls_verifiers_train_client_runs():
+    """veRL takes TRL's (Verifiers train client) actions: named calls run, unknown or nameless ones drop."""
+
+    renderers = pytest.importorskip("renderers")
+    train = pytest.importorskip("verifiers.v1.clients.train")
+    raw, parsed = _train_client_parse(renderers)
+    ids = list(map(ord, raw))
+
+    message = parsed_policy_message(parsed, ids, Tokenizer(), admission="verifiers-train-client")
+    reference = train.response_from_generate(
+        {"content": parsed.content, "reasoning_content": parsed.reasoning_content, "tool_calls": parsed.tool_calls},
+        "policy",
+    ).message
+
+    assert message["content"] == reference.content == "Creating it."
+    assert message["reasoning_content"] == reference.reasoning_content
+    assert message["tool_calls"] == [
+        call.model_dump(include={"id", "name", "arguments"}) for call in reference.tool_calls
+    ]
+    assert [call["name"] for call in message["tool_calls"]] == ["asana_create_task", "asana_get_task"]
+    assert message["tool_calls"][0]["arguments"] == '{"projects": "proj_eng"}'
+    assert [(item["type"], item["status"], item["raw"]) for item in message["provider_state"]] == [
+        ("posttrain.nonconforming_tool_call", "invalid_json", raw[0:10]),
+        ("posttrain.rejected_tool_call", "unknown_tool", raw[20:30]),
+        ("posttrain.rejected_tool_call", "unclosed_block", raw[30:]),
+    ]
+
+
+def test_strict_admission_still_keeps_nonconforming_calls_as_text():
+    renderers = pytest.importorskip("renderers")
+    raw, parsed = _train_client_parse(renderers)
+
+    message = parsed_policy_message(parsed, list(map(ord, raw)), Tokenizer())
+
+    assert [call["name"] for call in message["tool_calls"]] == ["asana_get_task"]
+    assert message["content"] == "\n".join(["Creating it.", raw[0:10], raw[20:30], raw[30:]])

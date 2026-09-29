@@ -234,7 +234,7 @@ def test_distillation_yaml_resolves_every_seat_through_the_catalog() -> None:
     }
     assert training["resolved"]["backend_options"] == {  # type: ignore[index]
         "dependency_lock": "trl-fork@current",
-        "source_revision": "3135b502d69956200d1c030a514470c351d2ee9f",
+        "source_revision": "c4d0db051a7839fe1b1d587185fac33ba88c784f",
         "dependency_lock_sha256": hashlib.sha256((WORKSPACE / "uv.lock").read_bytes()).hexdigest(),
         "bf16": False,
         "model_dtype": "float32",

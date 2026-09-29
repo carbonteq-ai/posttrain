@@ -44,3 +44,23 @@
 - The pinned TRL fork validates vLLM 0.25.1. Any compatibility warning means the
   lock or runtime drifted beyond the tested pair and should fail setup rather
   than be ignored.
+
+## LoRA for RL
+
+Evidence and sources for these rules are in
+[LoRA for RL: settings and evidence](./lora-rl.md).
+
+- Compare LoRA learning rates in alpha × learning rate, not alpha / rank: with
+  PEFT's initialisation and Adam, a fresh adapter's first steps scale with
+  alpha × LR at any rank. 1e-5 at alpha 32 equals 4e-5 at alpha 8.
+- Do not size RL learning rates from SFT evidence. LoRA Without Regret's 15×
+  short-run multiplier and large-batch penalty, and Tinker's `get_lr` formula,
+  are SFT results; Tinker's own RL recipes use 1e-5 at rank 32.
+- Anchor the KL penalty to the base model, including on continuations. With one
+  optimizer step per batch the policy ratio is 1 and clipping never fires, so KL
+  and the learning rate are the only drift brakes. Under mean-only advantage
+  normalisation a published β acts about 1/σ stronger.
+- Sample training rollouts with top-p 1.0. A nucleus below 1 adds a constant
+  sampler/trainer log-probability gap that biases importance sampling.
+- In float16 training, keep log-probabilities, the KL term and the loss in
+  float32; a half-precision `exp` in the k3 KL overflows on masked tool tokens.

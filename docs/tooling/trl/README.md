@@ -28,7 +28,23 @@ resume checkpoint 1 to matching uninterrupted weights, and generate from the
 export. This is deterministic full-parameter fixture evidence, not live Verifiers,
 judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
 
-Selected candidate: `1.12.0.post11`, tag `carbonteq-v1.12.0.post11` (GitHub
+Selected candidate: `1.12.0.post12`, tag `carbonteq-v1.12.0.post12`, release
+commit `c4d0db051a7839fe1b1d587185fac33ba88c784f` (branch
+`codex/fp16-loss-fp32`, feature commit `9aa833ae`, on the post11 release
+commit). It is post11 plus float16-safe GRPO and RLOO: float16 logits are
+scored in float32 on GRPO's full and chunked-logits paths and RLOO's, and the
+GRPO loss takes float16 log-probabilities and entropies to float32 before its
+KL, importance-ratio and masked-sum arithmetic. bfloat16 and float32 behavior
+is unchanged, and so is the `vllm` extra. Wheel SHA-256
+`7fb9b9c3805e65cb064a1789060d40f4ebe3b31833840f1f439c51241de0029d`, sdist
+`81d60f035864a36d4c65b429504c58bce47beed3f9a530abec0c2dd08b4142ce`; both are on
+`carbonteq/dev` and the GitHub prerelease. Posttrain's float32 trainer subclass
+and LM-head upcast stay in place and are no-ops on post12
+(`packages/train/tests/test_trl_precision.py` checks they leave the loss
+unchanged). The catalog lock `trl-fork@current` is
+`f18308d1af3fbfe72c9be17344762ae83dbbeaeb23a6d736767f166c763aed80`.
+
+Previously selected: `1.12.0.post11`, tag `carbonteq-v1.12.0.post11` (GitHub
 prerelease https://github.com/carbonteq-ai/trl/releases/tag/carbonteq-v1.12.0.post11,
 asset digests verified against the hashes below). Posttrain retained-asset
 workflow run https://github.com/carbonteq-ai/posttrain/actions/runs/36434036656
@@ -567,7 +583,8 @@ Float16 training always does this, and its trainer also casts the per-token
 log-probabilities and entropies to float32, so every loss term (the k3 KL
 `exp(ref - logp)`, token and sequence importance ratios, vLLM importance
 weights, clipped policy term and masked sums) is computed in float32. TRL
-1.12.0.post11 computes those terms in the dtype of its log-probabilities, and
+1.12.0.post11 and earlier compute those terms in the dtype of their
+log-probabilities (post12 computes them in float32 itself), and
 its chunked-logits path calls the LM head outside Accelerate's autocast, so
 under float16 they were float16: `exp` of a log-ratio above about 11 is
 infinite in float16, and on the masked tool and environment tokens of

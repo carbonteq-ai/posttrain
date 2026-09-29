@@ -6,7 +6,107 @@ version across first-party distributions.
 
 ## Unreleased
 
-## 0.4.12 - unreleased
+## 0.4.13 - unreleased
+
+VORTEX and SAMPO on veRL, checked against TRL on matched Qwen3.5-0.8B and
+LFM2.5-1.2B pairs (update-1 reward within 1.6 standard errors on every pair,
+identical first prompts); veRL fixes those comparisons found, including the
+rollout temperature veRL ignored; TRL 1.12.0.post12; and a LoRA-for-RL
+evidence page that corrects how our recipes compare learning rates. Keeps
+CarbonTeq veRL 0.9.0.post8 (pinned by 0.4.12); the VORTEX port selects the
+post6 additions that 0.4.12 leaves off.
+
+### Changed
+
+- TRL is CarbonTeq 1.12.0.post12 (post11 plus float32 scoring and loss for
+  float16 GRPO and RLOO training). Posttrain's own float32 subclass and LM-head
+  upcast are kept and are no-ops on post12; bfloat16 runs are unchanged. The
+  catalog lock `trl-fork@current` and the TRL bindings record the new lock.
+
+- **Behaviour change for veRL GRPO and DAPO runs.** veRL now reproduces the
+  semantics the selected GRPO settings always declared (TRL's), instead of
+  silently running different ones. Compared with earlier veRL runs:
+  - Policy loss: plain asymmetric token clipping (`token_clip`); veRL's
+    default loss capped negative-advantage tokens with dual clipping.
+  - KL penalty: the unclamped k3 estimator; veRL clamped it to [-10, 10].
+  - Sampler correction: the selected `importance_sampling_mode` and bounds are
+    applied (the GRPO default truncates sequence ratios to [0.1, 3.0]); veRL
+    applied no correction.
+  - Advantage scaling: the group (or batch) standard deviation plus 1e-4 with
+    TRL's statistics; veRL added 1e-6.
+  - Failed rollout groups: retried with the same prompt up to
+    `max_admission_attempts`, then dropped with the loss averaged over the
+    remaining rows; veRL either trained the incomplete group or, with
+    `rollout_execution`, replaced it with a new prompt.
+  - DAPO dynamic sampling: whole candidate batches from a reserved pool, with
+    batch-scaled advantages using each candidate batch's standard deviation;
+    veRL streamed replacement prompts.
+
+  Runs are therefore not numerically comparable with earlier veRL GRPO runs.
+  New veRL GRPO, DAPO, OLMo 3 and SAMPO runs record
+  `verl_semantics: trl-parity-v1` in `grpo_runtime_resolved`, so Observatory
+  can tell them apart.
+
+### Fixed
+
+- veRL multi-turn runs sized the response budget as `max_completion_length`,
+  the per-reply cap, and rejected longer episodes; admission then dropped
+  their groups (a batch of them ended the run). The budget is now the rollout
+  context (`max_model_len`), as TRL bounds trajectories;
+  `max_completion_length` remains the per-reply cap.
+- veRL runs with the adaptive curriculum failed after training: the launcher
+  replayed the curriculum journal after every trainer metric, and tracking
+  rejects a decreasing step. The journal is now interleaved by step.
+- veRL failed an episode whose next turn's prompt filled the rollout context;
+  like TRL's policy endpoint, the veRL generator now refuses such a turn as a
+  provider HTTP 400 (the episode ends as `context_rejected`) and gives a late
+  turn only the context that remains.
+- veRL sampled and scored at veRL's default temperature, top-p and top-k
+  (1.0, 1.0, -1) instead of the rollout binding's, and replaced the binding's
+  repetition penalty with 1.0. The worker now sets veRL's rollout sampling
+  from the binding exactly as the TRL backend resolves it.
+- veRL policy turns saw a different prompt and acted on different tool calls
+  than TRL's. The in-process Verifiers client passed Verifiers' flat tool
+  records, which render each tool about 9 tokens shorter than the OpenAI
+  function shape Verifiers' train client sends; it now passes the wire shapes.
+  The veRL generator now also admits tool calls as the train client does (every
+  named call runs; a value that is not valid JSON stays text; an unknown tool
+  or a nameless call is dropped, with its sampled text kept as trace evidence),
+  reports vLLM's finish reason the same way, and stops on the renderer's stop
+  tokens. Before, veRL turned a Qwen3.5 call with a malformed argument into
+  plain text and ended the episode where TRL ran the call. The TRL batch path
+  keeps its strict admission.
+
+### Added
+
+- The VORTEX recipe and SAMPO on veRL: OLMo 3 loss, active sampling with
+  oversampling, the adaptive curriculum (including per-checkpoint curriculum
+  views for `--curriculum-checkpoint-step`), the truncation penalty, SAMPO's
+  turn-level advantages, and every GRPO setting previously rejected on veRL
+  (`advantage_scaling`, all importance-sampling modes and bounds,
+  `mask_truncated_completions`, `max_admission_attempts`, `lr_scheduler_type:
+  linear`, curriculum with DAPO). Each is checked against TRL's real code by
+  CPU parity tests; see `docs/plan/verl-vortex-port.md`.
+- `docs/techniques/grpo/lora-rl.md`: LoRA for RL, settings and evidence.
+  With the PEFT initialization and Adam a LoRA step is sized by alpha x
+  learning rate, independent of rank; each setting (rank, learning rate, KL,
+  temperature, batch, active sampling, precision) separates LoRA-RL,
+  full-fine-tuning RL and SFT-only evidence (the last does not transfer),
+  our run evidence and a confidence. The LFM2.5 VORTEX recipe is corrected
+  where it compared learning rates across alphas: the published ~1e-5 is at
+  alpha 32, about 4e-5 at our alpha 8.
+- Lab work package `lfm26_automationbench_sampo_turns_100_r4_fp16_os4r5_local_v1`:
+  LFM2.5-2.6B SAMPO from the base model in fp16 (TRL post12), rank 4 / alpha 8
+  at 6e-5, KL 0.01 to the base model, temperature 0.8 with top_p 1.0,
+  24 x 6 with oversampling 4 / 5 at 180 concurrent episodes
+  (`docs/plan/lfm26-sampo-fp16-base.md`).
+- LFM2.5 on veRL. The launcher resolves the policy's renderer exactly as the
+  TRL backend does (the family's renderer config, the reasoning mode's
+  template arguments, the package chat template and the tool-call protocol)
+  and the veRL agent loop rebuilds that renderer, so LFM2.5's Python call
+  lists are recovered as tool calls on veRL too.
+
+## 0.4.12 - 2026-09-29
 
 Training-harness fixes found by auditing the LFM2.5-2.6B SAMPO continuation:
 tools that behave as documented, FP16 training, fast Qwen3.5 kernels, a label

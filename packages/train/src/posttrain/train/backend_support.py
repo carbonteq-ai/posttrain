@@ -8,52 +8,31 @@ recorded configuration say.
 from __future__ import annotations
 
 import math
-from dataclasses import fields
 
 from .profiles import GRPOSettings, TrainingLoop
 
-# Top-level GRPOSettings fields the veRL GRPO launch plan does not pass to veRL.
-# Only their defaults are accepted, so a selection cannot claim behaviour veRL
-# never applies.
-_VERL_GRPO_FIXED_DEFAULTS: tuple[str, ...] = (
-    "advantage_scaling",
-    "importance_sampling_mode",
-    "importance_sampling_clip_min",
-    "importance_sampling_clip_max",
-    "max_admission_attempts",
-)
-
 
 def verl_grpo_settings_problem(settings: GRPOSettings) -> str | None:
-    """Explain the first GRPO setting the veRL backend would silently ignore, or None."""
+    """Explain a GRPO setting veRL cannot reproduce exactly as TRL runs it, or None.
 
-    # GRPOSettings requires active sampling for OLMo 3, and active sampling only
-    # with OLMo 3; the veRL worker already maps the OLMo 3 objective, but veRL has
-    # no active sampling until the VORTEX port (docs/plan/verl-vortex-port.md).
-    if settings.algorithm == "olmo3" or settings.active_sampling is not None:
-        return (
-            "the OLMo 3 GRPO recipe refills prompt groups with active sampling, which the veRL backend does "
-            "not provide yet; select the TRL backend"
-        )
-    if settings.adaptive_curriculum is not None:
-        return "adaptive_curriculum is currently supported by the TRL backend only"
-    defaults = {item.name: item.default for item in fields(GRPOSettings) if item.name in _VERL_GRPO_FIXED_DEFAULTS}
-    changed = [name for name in _VERL_GRPO_FIXED_DEFAULTS if getattr(settings, name) != defaults[name]]
-    if changed:
-        selected = ", ".join(f"{name}={getattr(settings, name)!r}" for name in changed)
-        return (
-            f"GRPO {selected} is currently supported by the TRL backend only; the veRL backend does not "
-            "receive this setting, so keep the default " + ", ".join(f"{name}={defaults[name]!r}" for name in changed)
-        )
+    The CarbonTeq veRL fork reproduces TRL's objective, sampler correction (every
+    mode and bound), advantage scaling, truncated-completion masking, group
+    admission, candidate-batch DAPO dynamic sampling (including the curriculum's
+    pool decision and batch-std scaling per candidate batch) and learning-rate
+    schedules; the worker requires a fork revision that provides them. No GRPO
+    setting is rejected.
+    """
+
+    del settings
     return None
 
 
-# Transformers schedule names veRL 0.9.0.post4 reproduces exactly: its FSDP
-# optimizer offers only "constant" (linear warmup, then constant) and "cosine".
-# Transformers' "constant" never warms up, so it maps to veRL constant with zero
-# warmup steps; "constant_with_warmup" maps to veRL constant with the same
-# ceil(max_steps * warmup_ratio) warmup steps the TRL backend uses.
-VERL_LR_SCHEDULES: frozenset[str] = frozenset({"constant", "constant_with_warmup"})
+# Transformers schedule names the CarbonTeq veRL fork reproduces exactly. Transformers'
+# "constant" never warms up, so it maps to veRL constant with zero warmup steps;
+# "constant_with_warmup" maps to veRL constant with the same ceil(max_steps *
+# warmup_ratio) warmup steps the TRL backend uses; "linear" maps to the fork's
+# Transformers-identical linear schedule (warmup, then linear decay to zero).
+VERL_LR_SCHEDULES: frozenset[str] = frozenset({"constant", "constant_with_warmup", "linear"})
 
 
 def verl_warmup_steps(loop: TrainingLoop) -> int:
@@ -61,6 +40,7 @@ def verl_warmup_steps(loop: TrainingLoop) -> int:
 
     if loop.lr_scheduler_type == "constant":
         return 0
+    # "constant_with_warmup" and "linear" warm up over ceil(max_steps * warmup_ratio) steps.
     return math.ceil(loop.max_steps * loop.warmup_ratio)
 
 

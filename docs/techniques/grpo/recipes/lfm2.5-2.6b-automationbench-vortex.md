@@ -22,12 +22,18 @@ the VORTEX curriculum, what each did, and the rules we now follow.
 
 ## Learning rates
 
-LoRA needs a larger learning rate than full fine-tuning: a LoRA update scales with
-learning rate × alpha / rank, and only the small adapter moves. Tinker's LoRA RL
-recipes use 1e-5 to 4e-5 at alpha 32, which is 4e-5 to 1.6e-4 at our alpha 8 (catalog
-comment on `vortex-20-local-v3`, commit 583f21e7). Our first runs (v1, v2) used a
-normal fine-tuning rate, 1e-5. The sweep then deliberately started high, at 2e-4 in
-v3, and stepped down: 1e-4 in v5, then 5e-5 with a KL penalty.
+LoRA needs a larger learning rate than full fine-tuning. With PEFT's
+initialisation and Adam, the size of a fresh adapter's first updates scales with
+alpha × learning rate, independent of rank (LoRA Without Regret; see
+[LoRA for RL](../lora-rl.md#how-a-lora-step-is-sized)). An earlier version of this
+page said "learning rate × alpha / rank"; that is the wrong unit for comparing
+runs of different rank. Tinker's LoRA RL recipes default to 1e-5 at alpha 32
+(`math_rl`, `code_rl`, `verifiers_rl` and the multi-turn `harbor_rl`, checked
+2026-09-29), which is 4e-5 at our alpha 8. The 4e-5 upper end at alpha 32 in the
+catalog comment on `vortex-20-local-v3` (commit 583f21e7) is UNVERIFIED. Our first
+runs (v1, v2) used a normal fine-tuning rate, 1e-5. The sweep then deliberately
+started high, at 2e-4 in v3, and stepped down: 1e-4 in v5, then 5e-5 with a KL
+penalty. In alpha-32 units these are 2.5e-6, 5e-5, 2.5e-5 and 1.25e-5.
 
 Reward and entropy below are averages of the first and last 10 updates of each run
 (Trackio `updates`; reward includes the 0.2 truncation penalty from v5 on).
@@ -70,12 +76,18 @@ zero) and v4 is worse (−0.200 to −0.020;
 `docs/plan/vortex-v3-v4-matched-heldout-evaluation.md`).
 
 1. **Do not reuse full-model learning rates for LoRA.** At rank 4 / alpha 8, 1e-5
-   left the policy nearly unchanged over 20-50 updates; published runs train for
-   hundreds to thousands of steps, so this does not show 1e-5 fails over a full run.
-2. **Do not go above 5e-5 here; published LoRA RL points to about 1e-5.**
-   2e-4 destabilised within 20 updates, 1e-4 within about 55, and 5e-5 drifted
-   without gaining reward after update 40. See Research basis: the published
-   LoRA optimum is about 10× the full fine-tuning norm of 1e-6.
+   (2.5e-6 at alpha 32, a quarter of the published LoRA RL default) left the
+   policy nearly unchanged over 20-50 updates; published runs train for hundreds
+   to thousands of steps, so this does not show 1e-5 fails over a full run.
+2. **Do not go above 5e-5 at alpha 8 (alpha × LR 4e-4) here.** 2e-4 destabilised
+   within 20 updates, 1e-4 within about 55, and 5e-5 drifted without gaining
+   reward after update 40 in the KL run, while SAMPO at the same rate stayed
+   stable to about update 120. The published LoRA RL value, about 10× the full
+   fine-tuning norm of 1e-6, is about 1e-5 **at alpha 32**, which is about 4e-5
+   at our alpha 8. An earlier version of this rule compared 1e-5 directly with our
+   alpha-8 rates; in the same units 5e-5 at alpha 8 (1.25e-5 at alpha 32) sits at
+   the published optimum, not five times above it. Compare rates across alpha and
+   rank in alpha × LR units ([LoRA for RL](../lora-rl.md)).
 3. **Watch entropy from the first update.** Its slope predicts collapse long
    before reward does. At 1e-4 it tripled in 41 updates while reward still looked
    healthy. Stop or lower the rate when entropy passes about twice its early level.
@@ -94,7 +106,11 @@ zero) and v4 is worse (−0.200 to −0.020;
 The rates and penalty above were chosen from our own short runs, not from the
 literature. This section records what published RL work on language models uses,
 so each setting can be defended or changed. Values are as stated in each paper;
-"none" means the paper sets the term to zero.
+"none" means the paper sets the term to zero. The model-independent evidence
+for LoRA with RL, with the LoRA-RL, full fine-tuning and SFT-only results kept
+apart and the alpha × LR unit conversion, is in
+[LoRA for RL: settings and evidence](../lora-rl.md); where the two pages differ,
+that page's source readings are the more recent.
 
 ### What published runs use
 
@@ -111,21 +127,26 @@ so each setting can be defended or changed. Values are as stated in each paper;
 | ScaleRL ([2510.13786](https://arxiv.org/abs/2510.13786)) | 8B and 17B×16 MoE, full | 5e-7 constant, 100-step warmup | none | A 10-15% truncation rate typically destabilized training; entropy alone did not predict performance |
 | Practitioner's guide to multi-turn agentic RL ([2510.01132](https://arxiv.org/abs/2510.01132)) | 1.5-8B, full | 1e-6 (GRPO); higher rates trained faster in a sweep | 0.001 default; above 0.001 more stable, 0.01 best | GRPO and RLOO collapsed at 1.5B on the hard task |
 | GiGPO ([2505.10978](https://arxiv.org/abs/2505.10978)) | 1.5-7B, full | 1e-6 | 0.01 (ALFWorld, WebShop), 0.001 (search) | Step-level credit for multi-turn agents |
-| RAGEN ([2504.20073](https://arxiv.org/abs/2504.20073)) | 0.5-3B | full; LoRA variant at 10× the rate | 0.001, removed in the stable variant | "Echo trap": reward spread and entropy move before reward collapses; gradient-norm spikes mark the point of no return |
+| RAGEN ([2504.20073](https://arxiv.org/abs/2504.20073)) | 0.5-3B | full (RL); the version read on 2026-09-29 uses LoRA only for its SFT comparison (App. G: rank 64, α 32, 1e-4). A LoRA RL variant at 10× the rate is UNVERIFIED | 0.001, removed in the stable variant | "Echo trap": reward spread and entropy move before reward collapses; gradient-norm spikes mark the point of no return |
 | Turn-PPO ([2512.17008](https://arxiv.org/abs/2512.17008)) | 1.7-7B, full | 1e-6 actor | 0.001; removing KL did not stop multi-turn GRPO crashes | Multi-turn GRPO collapses abruptly; a critic fixed it |
-| LoRA Without Regret ([Thinking Machines, 2025](https://thinkingmachines.ai/blog/lora/)) | 8B, LoRA | about 10× the full fine-tuning optimum (15× under 100 steps), constant | – | RL matches full fine-tuning even at rank 1 |
-| Tina ([2504.15777](https://arxiv.org/abs/2504.15777)) | 1.5B, LoRA r32 α128 | 1e-6 cosine with warmup | – | Ranks 8-32 all strong |
+| LoRA Without Regret ([Thinking Machines, 2025](https://thinkingmachines.ai/blog/lora/)) | Llama-3.1-8B (MATH, GSM8K) and Qwen3-8B-Base (DeepMath), LoRA α 32; RL experiments are single-turn math only | about 10× the full fine-tuning optimum "for both supervised learning and reinforcement learning", constant with no warmup. The 15× multiplier for runs under about 100 steps is an SFT, anecdotal observation and does not transfer to RL. RL rates appear only in figures (UNVERIFIED) | not stated (UNVERIFIED) | RL matches full fine-tuning even at rank 1 |
+| Tina ([2504.15777](https://arxiv.org/abs/2504.15777)) | DeepSeek-R1-Distill-Qwen-1.5B, LoRA r32 α128 on attention only (query, key, value, dense), dropout 0.05 (Table 5); single-turn math, 4 generations, batch 32 | 1e-6, cosine with a minimum LR, warmup ratio 0.1 (Table 5); ablation 5e-6 / 1e-6 / 5e-7 averaged 47.87 / 48.47 / 47.91 (Table 4) | β appears in the objective (App. B); its value is not in Table 5 (UNVERIFIED) | Ranks 8, 16 and 32 averaged 47.89-48.92; rank 4 47.72 and rank 64 46.95 (Table 4, one run each) |
 | Entropy mechanism ([2505.22617](https://arxiv.org/abs/2505.22617)) | 0.5-32B | – | a plain KL-to-reference penalty degraded performance | Entropy bonuses are highly coefficient-sensitive |
 
 ### What this says about our settings
 
 - **Learning rate.** Full fine-tuning RL uses 1e-6 almost everywhere (range
-  1e-7 to 5e-6). LoRA's optimum is about 10× that, so about 1e-5, and
-  LoRA Without Regret found it barely depends on rank. Our 5e-5 is five times
-  that and our 1e-4 and 2e-4 ten to twenty times. We judged 1e-5 as "barely
-  learns" after 20-50 updates, but the runs above train for 500-2,300 steps: a
-  low rate needs more updates, not a higher rate. Our rules 1 and 2 therefore
-  traded stability for speed without evidence that 1e-5 fails over a full run.
+  1e-7 to 5e-6). LoRA's optimum is about 10× that, so about 1e-5 at the α 32
+  used by LoRA Without Regret and Tinker, and it barely depends on rank at a
+  fixed α. Compared in the same units (alpha × LR), 1e-5 at α 32 is 4e-5 at our
+  α 8. An earlier version of this bullet compared 1e-5 with our α-8 rates
+  directly and concluded that 5e-5 was five times too high; corrected, our 5e-5
+  is 1.25× the published value, our 1e-4 and 2e-4 are 2.5× and 5× above it, and
+  v1/v2's 1e-5 at α 8 was a quarter of it, which fits "barely learns". The
+  published runs train for 500-2,300 steps, so a rate that learns slowly over
+  20-50 updates is not shown to fail over a full run. The "15× under 100 steps"
+  multiplier in LoRA Without Regret is SFT-only and does not justify a higher RL
+  rate for short runs.
 - **Schedule.** GRPO-family work uses a constant rate, often with a 20-100 step
   linear warmup. Decay is not the norm: Tülu 3 (PPO) decays linearly and Tina
   uses cosine, and the only direct comparison found (DRG-Sapphire,
@@ -153,8 +174,10 @@ so each setting can be defended or changed. Values are as stated in each paper;
 
 ### Next experiments this supports
 
-1. LoRA learning rate 1e-5 (10× the full fine-tuning norm), constant with a
-   10-update linear warmup, run long enough to judge (at least 150 updates).
+1. LoRA learning rate at the published value, 10× the full fine-tuning norm:
+   1e-5 at α 32, which is 4e-5 at our α 8 (an earlier version of this item read
+   1e-5 at our α 8, a quarter of that). Constant with a 10-update linear warmup,
+   run long enough to judge (at least 150 updates).
 2. KL either off, relying on held-out checkpoint selection, or at 0.01, the value
    the multi-turn guide found best; not 0.005.
 3. Keep truncation under 10%: raise the per-reply budget or change how truncated
@@ -202,8 +225,9 @@ recompiles are the candidates.
 
 ## Next
 
-- The experiments listed under Research basis: LoRA rate 1e-5 with warmup, KL
-  off or 0.01, truncation under 10%, held-out checkpoint selection.
+- The experiments listed under Research basis: LoRA rate at alpha × LR about
+  3.2e-4 (1e-5 at α 32, 4e-5 at α 8) with warmup, KL off or 0.01, truncation
+  under 10%, held-out checkpoint selection.
 - SAMPO with environment-derived turn rewards (assertion progress minus 0.05 per
   failed tool call) at the KL run's settings is running as
   `lfm26-sampo-turns-150-lr5e5-kl5e3-20260927-r2`. Over updates 101-121 it drifted

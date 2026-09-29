@@ -1,6 +1,5 @@
 """Tests for standard definitions and default runtime composition."""
 
-import re
 from dataclasses import replace
 from pathlib import Path
 from typing import cast
@@ -61,7 +60,7 @@ from posttrain.jobs.definitions import (
     structured_rl_definition,
 )
 from posttrain.train import (
-    AdaptiveCurriculum,
+    DynamicGroupSampling,
     GRPOSettings,
     SAMPOSettings,
     SFTRequest,
@@ -555,6 +554,10 @@ def test_static_preparation_rejects_a_candidate_pool_larger_than_the_environment
 
     with pytest.raises(ContractError, match="15 tasks but each update reserves 20 candidate prompts"):
         _validate_task_supply(settings, small, training)
+    # veRL is held to the same rule (verl-vortex-p6-lfm12 planned a 40-prompt pool over 24 tasks).
+    verl = replace(training, backend="verl@ef1c37715fa75de5973ae5b3c398383cd7e0093d")
+    with pytest.raises(ContractError, match="15 tasks but each update reserves 20 candidate prompts"):
+        _validate_task_supply(settings, small, verl)
 
 
 def _oversampled_sampo_seats(
@@ -719,18 +722,18 @@ def test_static_grpo_preparation_rejects_sampling_policy_mismatch() -> None:
 
 
 @pytest.mark.parametrize(
-    ("changes", "message"),
+    "changes",
     [
-        (
-            {"adaptive_curriculum": AdaptiveCurriculum(class_field="category")},
-            "adaptive_curriculum is currently supported by the TRL backend only",
-        ),
-        ({"advantage_scaling": "batch"}, "advantage_scaling='batch' is currently supported by the TRL backend only"),
-        ({"importance_sampling_clip_max": 2.0}, "importance_sampling_clip_max=2.0"),
-        ({"max_admission_attempts": 1}, "max_admission_attempts=1"),
+        {
+            "algorithm": "dapo",
+            "clip_epsilon_high": 0.28,
+            "dynamic_sampling": DynamicGroupSampling(max_candidate_batches=2),
+            "advantage_scaling": "batch",
+        },
+        {"advantage_scaling": "none", "importance_sampling_mode": "token_mask", "max_admission_attempts": 1},
     ],
 )
-def test_static_grpo_preparation_rejects_settings_verl_would_ignore(changes: dict[str, object], message: str) -> None:
+def test_static_grpo_preparation_accepts_trl_settings_on_verl(changes: dict[str, object]) -> None:
     catalog = open_catalog(scope="jobs-test")
     model = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))
     settings = GRPOSettings(
@@ -749,7 +752,8 @@ def test_static_grpo_preparation_rejects_settings_verl_would_ignore(changes: dic
         EnvironmentSource("static", "https://example.test/static", "b" * 40),
         PythonFactoryActivation("builtins:object"),
         SamplingPolicy(max_tokens=128, temperature=1.0),
-        num_tasks=1,
+        # Enough tasks for a DAPO candidate pool of 2 batches x 2 prompts.
+        num_tasks=4,
     )
     inference = InferenceBinding(
         "inference/static-verl-unsupported@1",
@@ -769,8 +773,7 @@ def test_static_grpo_preparation_rejects_settings_verl_would_ignore(changes: dic
         "rollout_inference": inference,
     }
 
-    with pytest.raises(ContractError, match=re.escape(message)):
-        grpo_definition().static_validator(seats)  # type: ignore[misc,arg-type]
+    grpo_definition().static_validator(seats)  # type: ignore[misc,arg-type]
 
 
 def test_static_preparation_rejects_a_training_loop_verl_cannot_run() -> None:
@@ -783,8 +786,7 @@ def test_static_preparation_rejects_a_training_loop_verl_cannot_run() -> None:
     validator(seats)  # type: ignore[arg-type]  # TRL runs a linear schedule
 
     seats["training"] = replace(training, backend="verl@candidate")
-    with pytest.raises(ContractError, match="lr_scheduler_type 'linear' is not available on the veRL backend"):
-        validator(seats)  # type: ignore[arg-type]
+    validator(seats)  # type: ignore[arg-type]  # the veRL fork runs the same linear schedule
     seats["settings"] = replace(settings, loop=replace(settings.loop, lr_scheduler_type="constant", logging_steps=5))
     with pytest.raises(ContractError, match="logging_steps 5 is not available on the veRL backend"):
         validator(seats)  # type: ignore[arg-type]
@@ -796,11 +798,11 @@ def test_structured_and_distillation_preparation_check_the_verl_training_loop() 
     training = cast(TrainingBinding, seats["training"])
     for definition in (distillation_definition(), structured_rl_definition("gdpo"), structured_rl_definition("capo")):
         assert definition.static_validator is _validate_verl_training_loop_seats
-    linear = {"settings": replace(settings, loop=replace(settings.loop, lr_scheduler_type="linear"))}
-    _validate_verl_training_loop_seats({**linear, "training": training})  # type: ignore[arg-type]
+    logging = {"settings": replace(settings, loop=replace(settings.loop, logging_steps=5))}
+    _validate_verl_training_loop_seats({**logging, "training": training})  # type: ignore[arg-type]
     with pytest.raises(ContractError, match="not available on the veRL backend"):
         _validate_verl_training_loop_seats(
-            {**linear, "training": replace(training, backend="verl@candidate")}  # type: ignore[arg-type]
+            {**logging, "training": replace(training, backend="verl@candidate")}  # type: ignore[arg-type]
         )
 
 
@@ -1092,3 +1094,20 @@ def test_runtime_preflight_rejects_serving_workload_below_project_context(tmp_pa
 
     with pytest.raises(ContractError, match="below the project serving requirement"):
         validate_work_package(runtime, _serving_package())
+
+
+def test_static_preparation_checks_sampo_oversampling_capacity_on_verl() -> None:
+    validator = sampo_definition().static_validator
+    assert validator is not None
+
+    def on_verl(**changes: object) -> dict[str, object]:
+        seats = _oversampled_sampo_seats(**changes)  # type: ignore[arg-type]
+        training = cast(TrainingBinding, seats["training"])
+        settings = cast(SAMPOSettings, seats["settings"])
+        seats["settings"] = replace(settings, loop=replace(settings.loop, lr_scheduler_type="constant"))
+        seats["training"] = replace(training, backend="verl@d344b545")
+        return seats
+
+    validator(on_verl())  # type: ignore[arg-type]
+    with pytest.raises(ContractError, match="oversample 1 needs 12 concurrent episodes"):
+        validator(on_verl(max_num_seqs=8))  # type: ignore[arg-type]

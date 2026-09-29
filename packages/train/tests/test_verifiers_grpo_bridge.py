@@ -477,6 +477,57 @@ def test_policy_client_preserves_exact_turn_tokens_and_response() -> None:
     assert response.raw == {"id": "response-1"}
 
 
+def test_policy_client_renders_the_wire_shapes_of_verifiers_train_client() -> None:
+    """An in-process policy sees the prompt the TRL policy endpoint's train client renders.
+
+    Flat Tool records rendered nine tokens shorter per tool on Qwen3.5 and LFM2.5, so veRL
+    prompts differed from the TRL twins' (Phase 6, docs/plan/verl-vortex-port.md).
+    """
+
+    from verifiers.v1.clients.train import tool_to_wire
+    from verifiers.v1.dialects import parse_tools
+    from verifiers.v1.dialects.chat import message_to_wire
+
+    generator = FakeGenerator()
+    wire_tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "lookup",
+                "description": "Find a record.",
+                "parameters": {"type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"]},
+            },
+        }
+    ]
+    body = {
+        "messages": [
+            {"role": "user", "content": "hello"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "call_0", "type": "function", "function": {"name": "lookup", "arguments": '{"q":"x"}'}}
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_0", "content": "found"},
+        ],
+        "tools": wire_tools,
+    }
+    asyncio.run(
+        _PolicyClient(generator).get_response(
+            ChatDialect(), body, "model-profile-v1", Sampling(temperature=1.0, max_tokens=32)
+        )
+    )
+
+    request = generator.requests[0]
+    parsed: Any = ChatDialect().parse_request(body)
+    messages = parsed.messages if hasattr(parsed, "messages") else parsed[0]
+    assert list(request.tools) == [tool_to_wire(tool) for tool in parse_tools(wire_tools) or []]
+    assert request.tools[0]["type"] == "function" and request.tools[0]["function"]["name"] == "lookup"
+    assert list(request.messages) == [message_to_wire(message) for message in messages]
+    assert request.messages[1]["tool_calls"][0]["function"]["name"] == "lookup"
+
+
 @pytest.mark.parametrize(
     ("record", "expected"),
     [

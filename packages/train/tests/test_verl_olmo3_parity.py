@@ -4,7 +4,7 @@ Both sides are configured from one ``GRPOSettings`` by Posttrain's own adapters:
 TRL through ``_online_rl_arguments``/``_trainer_arguments`` into
 ``Olmo3GRPOConfig``, veRL through ``grpo_algorithm_payload`` and the worker's
 Hydra overrides composed onto veRL's ``ppo_trainer.yaml``. The test needs an
-environment with CarbonTeq TRL 1.12.0.post11 and a CarbonTeq veRL revision that
+environment with CarbonTeq TRL 1.12.0.post12 and a CarbonTeq veRL revision that
 registers ``token_clip``; it skips elsewhere. See Concrete Steps in
 ``docs/plan/verl-vortex-port.md`` for that environment.
 """
@@ -12,7 +12,7 @@ registers ``token_clip``; it skips elsewhere. See Concrete Steps in
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -38,10 +38,9 @@ from posttrain.train import (  # noqa: E402
 )
 from posttrain.train.backends.trl.policy_config import _online_rl_arguments  # noqa: E402
 from posttrain.train.backends.trl.policy_optimization import _trainer_arguments  # noqa: E402
-from posttrain.train.backends.verl.contracts import VerlLaunchManifest  # noqa: E402
 from posttrain.train.backends.verl.launcher import build_grpo_launch_plan, grpo_algorithm_payload  # noqa: E402
 from posttrain.train.backends.verl.reward_fields import shaped_rollout_reward  # noqa: E402
-from posttrain.train.backends.verl.worker import _TOKEN_CLIP_FORK_REVISIONS, build_hydra_overrides  # noqa: E402
+from posttrain.train.backends.verl.worker import _FORK_NATIVE_NAME_REVISIONS, build_hydra_overrides  # noqa: E402
 from posttrain.train.online_rl import EnvironmentRollout  # noqa: E402
 from posttrain.train.profiles import shape_online_reward  # noqa: E402
 
@@ -81,6 +80,7 @@ def _settings() -> GRPOSettings:
         TrainingLoop(
             max_steps=1,
             max_length=RESPONSE + PROMPT,
+            lr_scheduler_type="constant",
             per_device_batch_size=ROWS // MICRO_BATCHES,
             gradient_accumulation_steps=MICRO_BATCHES,
         ),
@@ -185,14 +185,14 @@ def _environment_rollout(reward: float, length: int, truncated: bool) -> Environ
 def _trl_config(tmp_path: Path) -> Any:
     from trl.trainer.olmo3_grpo_config import Olmo3GRPOConfig
 
-    request = _request("trl@1.12.0.post11")
+    request = _request("trl@1.12.0.post12")
     arguments = _online_rl_arguments(request, tmp_path / "trl", {"enable_thinking": False})
     arguments.update(bf16=False, fp16=False, use_cpu=True, report_to=[])
     return _trainer_arguments(Olmo3GRPOConfig, arguments, request)
 
 
 def _trl_advantages(rewards: Any) -> Any:
-    # Transcribed from TRL 1.12.0.post11 GRPOTrainer._generate_and_score_completions,
+    # Transcribed from TRL 1.12.0.post12 GRPOTrainer._generate_and_score_completions,
     # multi_objective_aggregation="sum_then_normalize" with one reward function of
     # weight 1 and scale_rewards="none" (Olmo3GRPOConfig): the group mean is
     # subtracted and nothing is divided.
@@ -293,26 +293,13 @@ def _verl_configs(tmp_path: Path) -> tuple[Any, Any, list[str]]:
     from hydra import compose, initialize_config_dir
     from verl.utils.config import omega_conf_to_dataclass
 
-    revision = next(iter(_TOKEN_CLIP_FORK_REVISIONS))
-    request = _request(f"verl@{revision[:7]}", source_revision=revision)
-    # The launcher still rejects OLMo 3 until veRL has active sampling; build the
-    # manifest from a plain GRPO plan plus the launcher's own OLMo 3 mapping.
-    plain = replace(
-        request,
-        settings=replace(
-            _settings(),
-            algorithm="grpo",
-            advantage_scaling="group",
-            importance_sampling_mode="sequence_truncate",
-            importance_sampling_clip_min=0.1,
-            importance_sampling_clip_max=3.0,
-            active_sampling=None,
-            clip_epsilon_high=None,
-        ),
+    revision = next(
+        revision
+        for revision, (_, names) in reversed(_FORK_NATIVE_NAME_REVISIONS.items())
+        if {"active_sampling", "trl_sampler_correction"} <= names
     )
-    data = build_grpo_launch_plan(plain, tmp_path / "verl").model_dump()
-    data["payload"]["algorithm"] = grpo_algorithm_payload(request.settings)
-    manifest = VerlLaunchManifest.model_validate(data)
+    request = _request(f"verl@{revision[:7]}", source_revision=revision)
+    manifest = build_grpo_launch_plan(request, tmp_path / "verl")
     from posttrain.train.backends.verl import worker
 
     original = worker._model_path

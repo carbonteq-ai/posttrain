@@ -6,7 +6,7 @@ import asyncio
 import math
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal, Protocol, cast
+from typing import Any, Literal, Protocol, cast
 
 from posttrain.common import InferenceBinding, JsonValue, MetricBatchObservation, ProducedArtifact, TraceObservation
 from posttrain.data import MessageRecord, RolloutDataset
@@ -112,16 +112,27 @@ def policy_sampling_from_binding(
 ) -> PolicySampling:
     """Resolve one inference selection into the complete online-RL behavior policy."""
 
+    return policy_sampling_from_mapping(binding.sampling, max_tokens, default_temperature=default_temperature)
+
+
+def policy_sampling_from_mapping(
+    sampling: Mapping[str, Any],
+    max_tokens: int,
+    *,
+    default_temperature: float = 1.0,
+) -> PolicySampling:
+    """Resolve an inference binding's ``sampling`` mapping (also carried by backend payloads)."""
+
     def number(key: str, default: float) -> float:
-        value = binding.sampling.get(key)
+        value = sampling.get(key)
         if value is None:
             return default
         if isinstance(value, bool) or not isinstance(value, int | float):
             raise ValueError(f"rollout sampling {key} must be numeric")
         return float(value)
 
-    top_k = binding.sampling.get("top_k", 0)
-    min_p = binding.sampling.get("min_p")
+    top_k = sampling.get("top_k", 0)
+    min_p = sampling.get("min_p")
     if isinstance(top_k, bool) or not isinstance(top_k, int):
         raise ValueError("rollout sampling top_k must be an integer")
     if min_p is not None and (isinstance(min_p, bool) or not isinstance(min_p, int | float)):

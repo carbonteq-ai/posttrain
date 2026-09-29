@@ -1075,9 +1075,13 @@ def _validate_task_supply(
     num_tasks = getattr(environment, "num_tasks", None)
     reserved = settings.num_prompts_per_step * (refill.max_candidate_batches if refill is not None else 1)
     backend = str(getattr(training, "backend", ""))
-    if backend.startswith("trl@") and isinstance(num_tasks, int) and num_tasks < reserved:
+    held = backend.startswith("trl@") or (backend.startswith("verl@") and refill is not None)
+    if held and isinstance(num_tasks, int) and num_tasks < reserved:
         # TRL reserves every candidate prompt of an update up front and drops an incomplete
         # reservation, so a smaller environment yields no batch and the trainer does no step.
+        # veRL's bounded refill pool would instead run into the next epoch and repeat tasks
+        # within an update, so it is held to TRL's rule; without a refill pool veRL cycles a
+        # smaller dataset deterministically.
         raise ContractError(
             f"environment has {num_tasks} tasks but each update reserves {reserved} candidate prompts "
             f"({settings.num_prompts_per_step} per step x {reserved // settings.num_prompts_per_step} candidate "
@@ -1105,22 +1109,25 @@ def _validate_oversampled_round_capacity(
     active = settings.active_sampling
     if active is None or (active.oversample == 0 and active.oversample_refill == 0):
         return
-    if not training.backend.startswith("trl@"):
+    backend = training.backend.split("@", 1)[0]
+    if backend not in {"trl", "verl"}:
         raise ContractError(
-            f"active_sampling oversample and oversample_refill are implemented by the TRL backend, not {training.backend}"
+            "active_sampling oversample and oversample_refill are implemented by the TRL and veRL backends, "
+            f"not {training.backend}"
         )
     vllm_limit = None
     if inference.backend.split("@", 1)[0] == "vllm":
         declared = inference.engine.get("max_num_seqs")
-        # TRL's colocated default admits one generation batch per process: the
-        # per-device batch times tensor parallelism times steps per generation.
         tensor_parallel = inference.engine.get("tensor_parallel_size", 1)
-        default = settings.loop.per_device_batch_size * settings.loop.gradient_accumulation_steps
-        vllm_limit = (
-            declared
-            if isinstance(declared, int)
-            else default * (tensor_parallel if isinstance(tensor_parallel, int) else 1)
-        )
+        if backend == "verl":
+            # The veRL worker defaults each engine to one prompt group of sequences.
+            default = settings.num_generations
+        else:
+            # TRL's colocated default admits one generation batch per process: the
+            # per-device batch times tensor parallelism times steps per generation.
+            default = settings.loop.per_device_batch_size * settings.loop.gradient_accumulation_steps
+            default *= tensor_parallel if isinstance(tensor_parallel, int) else 1
+        vllm_limit = declared if isinstance(declared, int) else default
     execution = training.backend_options.get("rollout_execution")
     worker_slots = None
     if isinstance(execution, Mapping):
