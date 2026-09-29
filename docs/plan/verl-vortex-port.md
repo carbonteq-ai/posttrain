@@ -487,6 +487,15 @@ adds backend support that meets those contracts; no product meaning changes.
   comparison settings v2 use all 24 tasks (6 candidate batches).
   Evidence: `verl-vortex-p6-lfm12-verl-vortex-ws-r2`,
   `verl-vortex-p6-lfm12-verl-sampo-ws-r1`.
+- Observation: even all 24 tasks (6 candidate batches) did not reliably give
+  LFM2.5-1.2B four groups with reward spread (`verl-vortex-p6-lfm12-verl-vortex-ws-r4`
+  exhausted its pool; `-ws-r3` with the same settings filled four updates). The
+  LFM2.5 pairs use a separate 57-task set (the tasks of
+  `automationbench-lfm12-sampo-8gb-v2`, screened because LFM2.5-1.2B's attempts
+  disagree) with the Qwen set's budgets and VORTEX's 10 candidate batches
+  (settings v3). The job plan held only TRL to "the pool may not exceed the
+  environment"; veRL is now held to it too (veRL's bounded pool would run into
+  the next epoch and repeat tasks within an update).
 - Observation: Phase 4 passed. `verl-vortex-lfm12-check-20260929-r6` (veRL
   post8, LFM2.5-1.2B, two updates, local 8 GB card) succeeded: rendering and
   tool-call recovery, LoRA sync to vLLM after update 1, checkpoint and export.

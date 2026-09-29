@@ -1075,9 +1075,13 @@ def _validate_task_supply(
     num_tasks = getattr(environment, "num_tasks", None)
     reserved = settings.num_prompts_per_step * (refill.max_candidate_batches if refill is not None else 1)
     backend = str(getattr(training, "backend", ""))
-    if backend.startswith("trl@") and isinstance(num_tasks, int) and num_tasks < reserved:
+    held = backend.startswith("trl@") or (backend.startswith("verl@") and refill is not None)
+    if held and isinstance(num_tasks, int) and num_tasks < reserved:
         # TRL reserves every candidate prompt of an update up front and drops an incomplete
         # reservation, so a smaller environment yields no batch and the trainer does no step.
+        # veRL's bounded refill pool would instead run into the next epoch and repeat tasks
+        # within an update, so it is held to TRL's rule; without a refill pool veRL cycles a
+        # smaller dataset deterministically.
         raise ContractError(
             f"environment has {num_tasks} tasks but each update reserves {reserved} candidate prompts "
             f"({settings.num_prompts_per_step} per step x {reserved // settings.num_prompts_per_step} candidate "

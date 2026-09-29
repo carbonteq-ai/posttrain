@@ -554,6 +554,10 @@ def test_static_preparation_rejects_a_candidate_pool_larger_than_the_environment
 
     with pytest.raises(ContractError, match="15 tasks but each update reserves 20 candidate prompts"):
         _validate_task_supply(settings, small, training)
+    # veRL is held to the same rule (verl-vortex-p6-lfm12 planned a 40-prompt pool over 24 tasks).
+    verl = replace(training, backend="verl@ef1c37715fa75de5973ae5b3c398383cd7e0093d")
+    with pytest.raises(ContractError, match="15 tasks but each update reserves 20 candidate prompts"):
+        _validate_task_supply(settings, small, verl)
 
 
 def _oversampled_sampo_seats(
@@ -748,7 +752,8 @@ def test_static_grpo_preparation_accepts_trl_settings_on_verl(changes: dict[str,
         EnvironmentSource("static", "https://example.test/static", "b" * 40),
         PythonFactoryActivation("builtins:object"),
         SamplingPolicy(max_tokens=128, temperature=1.0),
-        num_tasks=1,
+        # Enough tasks for a DAPO candidate pool of 2 batches x 2 prompts.
+        num_tasks=4,
     )
     inference = InferenceBinding(
         "inference/static-verl-unsupported@1",
