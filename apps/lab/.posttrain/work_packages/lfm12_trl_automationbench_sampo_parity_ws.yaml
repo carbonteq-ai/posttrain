@@ -21,7 +21,7 @@ recipe:
 bindings:
   model: {type: ref, family: model, id: models/lfm2.5-1.2b-thinking@bf16}
   environment: {type: ref, family: environment, id: automationbench-verl-parity-v1}
-  settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-sampo-parity-v1}
+  settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-sampo-parity-v2}
   training: {type: ref, family: training, id: training/lfm2.5-1.2b-trl-lora-parity-ws-g16@1}
   rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-trl-parity-ws@1}
 enabled_optional_jobs: []

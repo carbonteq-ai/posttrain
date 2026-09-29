@@ -289,6 +289,51 @@ training:
     clip_epsilon_high: 0.272
     truncation_penalty: 0.1
 
+  # v2: a pool of all 24 tasks (6 candidate batches). With 4 batches (16 tasks)
+  # LFM2.5-1.2B ran out of groups with reward spread before filling an update
+  # (verl-vortex-p6-lfm12-verl-vortex-ws-r2; TRL raises the same error).
+  lfm2.5-1.2b/automationbench-vortex-parity-v2:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 4
+      max_length: 5120
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 16
+      learning_rate: 0.00004
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 4
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 1729
+    num_prompts_per_step: 4
+    num_generations: 4
+    max_prompt_length: 4096
+    max_completion_length: 1024
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 6, oversample: 1, oversample_refill: 1}
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    truncation_penalty: 0.1
+
   # Phase 6: SAMPO with the same sampling, curriculum and correction.
   lfm2.5-1.2b/automationbench-sampo-parity-v1:
     selection_type: sampo-settings
@@ -313,6 +358,50 @@ training:
     importance_sampling_clip_min: null
     importance_sampling_clip_max: 2.0
     active_sampling: {max_candidate_batches: 4, oversample: 1, oversample_refill: 1}
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    beta: 0.005
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    truncation_penalty: 0.2
+
+  # v2: a pool of all 24 tasks (6 candidate batches). With 4 batches (16 tasks)
+  # LFM2.5-1.2B ran out of groups with reward spread before filling an update
+  # (verl-vortex-p6-lfm12-verl-vortex-ws-r2; TRL raises the same error).
+  lfm2.5-1.2b/automationbench-sampo-parity-v2:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 4
+      max_length: 5120
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 16
+      learning_rate: 0.00004
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 4
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 1729
+    num_prompts_per_step: 4
+    num_generations: 4
+    max_prompt_length: 4096
+    max_completion_length: 1024
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 6, oversample: 1, oversample_refill: 1}
     adaptive_curriculum:
       class_field: domain
       policy: yield_first
