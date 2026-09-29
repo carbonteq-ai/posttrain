@@ -249,6 +249,161 @@ environment:
       facets:
         - {field: domain, dimension: domain, label: Domain}
 
+  # v2: the budgets of the 8 GB TRL SAMPO work (automationbench-lfm12-sampo-8gb-v2):
+  # 12 turns of up to 3,072 tokens. At 1,024 tokens per reply LFM2.5-1.2B-thinking
+  # ended most episodes with zero reward, so groups rarely had reward spread
+  # (verl-vortex-p6-lfm12-verl-vortex-ws-r6).
+  automationbench-verl-parity-lfm-v2:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 11f4d712806d292c6c6a752af046f4e16c4f037e
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, finance]
+          task_names:
+            - simple.email_sf_contact_phone_update
+            - simple.sf_opp_closed_won
+            - simple.sf_opp_stage_value_prop
+            - simple.sf_create_case
+            - simple.email_sf_lead_rating_hot
+            - simple.hs_create_contact
+            - simple.email_hs_create_contact
+            - simple.buffer_twitter_product_launch
+            - simple.buffer_linkedin_partnership
+            - simple.buffer_facebook_blog_post
+            - simple.buffer_twitter_quarterly_results
+            - simple.buffer_job_opening
+            - simple.buffer_company_award
+            - simple.buffer_product_tip
+            - simple.gmail_weekly_status
+            - simple.gmail_reply_customer_inquiry
+            - simple.gmail_reply_pricing_inquiry
+            - simple.gmail_invoice_email
+            - simple.gmail_reply_complaint
+            - simple.slack_marketing_campaign
+            - simple.slack_dm_project_status
+            - simple.mailchimp_email_request
+            - simple.sheets_add_lead
+            - simple.sheets_update_status
+            - simple.sheets_closed_deal
+            - simple.sheets_read_then_email
+            - simple.sheets_read_then_slack_dm
+            - simple.sheets_update_from_email
+            - simple.sheets_add_vendor
+            - simple.asana_dark_mode_from_email
+            - simple.asana_board_presentation
+            - simple.asana_sprint_section_task
+            - simple.asana_performance_reviews
+            - simple.asana_rfp_response
+            - simple.jira_legacy_data_migration
+            - simple.trello_q1_marketing_budget
+            - simple.gcal_weekly_standup
+            - simple.gcal_client_discovery_call
+            - simple.gcal_company_holiday
+            - simple.gcal_quarterly_business_review
+            - simple.gcal_new_hire_orientation
+            - simple.zendesk_feature_request
+            - simple.zendesk_urgent_reply
+            - simple.email_sf_update_slack_notify
+            - simple.email_zendesk_ack_reply
+            - simple.email_calendar_meeting_reply
+            - simple.email_hubspot_deal_slack
+            - simple.close_deal_sf_slack
+            - simple.new_hire_asana_email
+            - simple.new_lead_sf_jira
+            - simple.event_asana_calendar
+            - simple.launch_announcement_email
+            - simple.zoom_calendar_sync
+            - simple.weekly_digest_sheets_email
+            - simple.partner_hubspot_asana
+            - simple.campaign_launch_asana
+            - finance.vendor_spend_analysis
+          task: {toolset: limited_zapier, search_top_k: 20, turn_budget: 12}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 12
+          max_output_tokens: 8192
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 0.95}
+    num_tasks: 57
+    num_rollouts: 4
+    max_concurrent: 20
+    parameters:
+      task_names:
+        - simple.email_sf_contact_phone_update
+        - simple.sf_opp_closed_won
+        - simple.sf_opp_stage_value_prop
+        - simple.sf_create_case
+        - simple.email_sf_lead_rating_hot
+        - simple.hs_create_contact
+        - simple.email_hs_create_contact
+        - simple.buffer_twitter_product_launch
+        - simple.buffer_linkedin_partnership
+        - simple.buffer_facebook_blog_post
+        - simple.buffer_twitter_quarterly_results
+        - simple.buffer_job_opening
+        - simple.buffer_company_award
+        - simple.buffer_product_tip
+        - simple.gmail_weekly_status
+        - simple.gmail_reply_customer_inquiry
+        - simple.gmail_reply_pricing_inquiry
+        - simple.gmail_invoice_email
+        - simple.gmail_reply_complaint
+        - simple.slack_marketing_campaign
+        - simple.slack_dm_project_status
+        - simple.mailchimp_email_request
+        - simple.sheets_add_lead
+        - simple.sheets_update_status
+        - simple.sheets_closed_deal
+        - simple.sheets_read_then_email
+        - simple.sheets_read_then_slack_dm
+        - simple.sheets_update_from_email
+        - simple.sheets_add_vendor
+        - simple.asana_dark_mode_from_email
+        - simple.asana_board_presentation
+        - simple.asana_sprint_section_task
+        - simple.asana_performance_reviews
+        - simple.asana_rfp_response
+        - simple.jira_legacy_data_migration
+        - simple.trello_q1_marketing_budget
+        - simple.gcal_weekly_standup
+        - simple.gcal_client_discovery_call
+        - simple.gcal_company_holiday
+        - simple.gcal_quarterly_business_review
+        - simple.gcal_new_hire_orientation
+        - simple.zendesk_feature_request
+        - simple.zendesk_urgent_reply
+        - simple.email_sf_update_slack_notify
+        - simple.email_zendesk_ack_reply
+        - simple.email_calendar_meeting_reply
+        - simple.email_hubspot_deal_slack
+        - simple.close_deal_sf_slack
+        - simple.new_hire_asana_email
+        - simple.new_lead_sf_jira
+        - simple.event_asana_calendar
+        - simple.launch_announcement_email
+        - simple.zoom_calendar_sync
+        - simple.weekly_digest_sheets_email
+        - simple.partner_hubspot_asana
+        - simple.campaign_launch_asana
+        - finance.vendor_spend_analysis
+      toolset: limited_zapier
+    reward_components: [partial_credit]
+    required_inference_capabilities: [tool-calling]
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
 training:
   # Phase 4: two LFM2.5-1.2B GRPO updates on veRL over the five-task local
   # AutomationBench set (the TRL changed-weight gate's settings, two updates).
@@ -534,6 +689,49 @@ training:
     clip_epsilon_high: 0.272
     truncation_penalty: 0.1
 
+  # v4: v3 with the 8 GB TRL SAMPO work's 3,072-token replies and 8,192-token context.
+  lfm2.5-1.2b/automationbench-vortex-parity-v4:
+    selection_type: grpo-settings
+    revision: "1"
+    loop:
+      max_steps: 4
+      max_length: 8192
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 16
+      learning_rate: 0.00004
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 4
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 1729
+    num_prompts_per_step: 4
+    num_generations: 4
+    max_prompt_length: 5120
+    max_completion_length: 3072
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10, oversample: 1, oversample_refill: 1}
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    algorithm: olmo3
+    beta: 0.0
+    advantage_scaling: none
+    clip_epsilon_low: 0.2
+    clip_epsilon_high: 0.272
+    truncation_penalty: 0.1
+
   # Phase 6: SAMPO with the same sampling, curriculum and correction.
   lfm2.5-1.2b/automationbench-sampo-parity-v1:
     selection_type: sampo-settings
@@ -642,6 +840,48 @@ training:
     num_generations: 4
     max_prompt_length: 4096
     max_completion_length: 1024
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 10, oversample: 1, oversample_refill: 1}
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    beta: 0.005
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    truncation_penalty: 0.2
+
+  # v4: v3 with the 8 GB TRL SAMPO work's 3,072-token replies and 8,192-token context.
+  lfm2.5-1.2b/automationbench-sampo-parity-v4:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 4
+      max_length: 8192
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 16
+      learning_rate: 0.00004
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 4
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 1729
+    num_prompts_per_step: 4
+    num_generations: 4
+    max_prompt_length: 5120
+    max_completion_length: 3072
     importance_sampling_mode: token_truncate
     importance_sampling_clip_min: null
     importance_sampling_clip_max: 2.0
@@ -1058,6 +1298,59 @@ inference:
       enforce_eager: false
       dtype: bfloat16
     sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-1.2b-vllm-trl-parity-ws@2:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 8192
+      max_num_seqs: 20
+      max_num_batched_tokens: 8192
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 4294967296
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 0.95}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-1.2b-vllm-verl-parity-ws@2:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 8192
+      max_num_seqs: 20
+      max_num_batched_tokens: 8192
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 4294967296
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 0.95}
     target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]
