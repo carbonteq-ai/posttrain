@@ -407,6 +407,46 @@ training:
       <<: *verl_lfm_options
       rollout_execution: {env_workers: 2, episodes_per_worker: 10, worker_native_threads: 1}
 
+  # Phase 6 LFM2.5 pairs on the RTX PRO 6000 workstation: the 8 GB twins with
+  # only the target changed (and no veRL CPU offload, a placement choice); each
+  # TRL/veRL pair runs on the same machine.
+  training/lfm2.5-1.2b-trl-lora-parity-ws-g16@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post12
+    renderer: {id: lfm2.5-tools@1, model_family: lfm2.5, implementation: default, reasoning_mode: native}
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 16, devices_per_node: 1, timeout_seconds: 7200}
+    backend_options:
+      rollout_execution: {env_workers: 2, episodes_per_worker: 10, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      training_precision: bf16
+      dependency_lock: trl-fork@current
+      source_revision: c4d0db051a7839fe1b1d587185fac33ba88c784f
+      dependency_lock_sha256: f18308d1af3fbfe72c9be17344762ae83dbbeaeb23a6d736767f166c763aed80
+
+  training/lfm2.5-1.2b-verl-lora-parity-ws-g16@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: verl@ef1c37715fa75de5973ae5b3c398383cd7e0093d
+    renderer: {id: lfm2.5-tools@1, model_family: lfm2.5, implementation: default, reasoning_mode: native}
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 16
+      nodes: 1
+      devices_per_node: 1
+      parameter_offload: false
+      optimizer_offload: false
+      timeout_seconds: 7200
+    backend_options:
+      <<: *verl_lfm_options
+      rollout_execution: {env_workers: 2, episodes_per_worker: 10, worker_native_threads: 1}
+
 inference:
   inference/lfm2.5-1.2b-vllm-verl-check-local@1:
     revision: "1"
@@ -538,5 +578,58 @@ inference:
       dtype: bfloat16
     sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
     target: targets/local-cuda-rollout-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-1.2b-vllm-trl-parity-ws@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 5120
+      max_num_seqs: 20
+      max_num_batched_tokens: 4096
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 536870912
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-1.2b-vllm-verl-parity-ws@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 5120
+      max_num_seqs: 20
+      max_num_batched_tokens: 4096
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 536870912
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 0.95}
+    target: targets/carbonteq-rtx-pro-6000-96gb
     purpose: [rollout]
     capabilities: [tool-calling]

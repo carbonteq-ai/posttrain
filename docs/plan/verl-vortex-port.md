@@ -306,6 +306,18 @@ adds backend support that meets those contracts; no product meaning changes.
   `transfer_queue.backend.SimpleStorage.num_data_storage_units=2`, because
   veRL's default 8 reward workers plus 8 TransferQueue storage units took about
   7.4 GB and Ray killed a run at 95% of the 62 GB host's RAM.
+- [x] (2026-09-29) 0.4.13 integration: `codex/release-0.4.13` from
+  `origin/main` `6d07ce75` (0.4.12 merged); this branch rebased onto it (the
+  Phase 6 environment repinned to the pin-only `11f4d712`; `train/rl/kl` now
+  maps `actor/kl_loss`, `07bc0329`) and merged; TRL pinned to
+  1.12.0.post12 (`c4d0db05`; catalog lock `f18308d1...`); the fp16 plan
+  commits `395241a8` and `b78f88e0` cherry-picked (`a944a518`/`20b0b577` did
+  not apply cleanly together and were left out). Workstation twins of the four
+  LFM2.5 Phase 6 packages (`lfm12_*_automationbench_*_parity_ws.yaml`) differ
+  only in target (and no veRL CPU offload). The Qwen TRL twins ran on post11
+  with the pre-repin environment `5264ec15`/Verifiers `cdd2ec76`; post12 and the
+  pin-only repin change nothing for bf16 AutomationBench, so they stay the
+  twins of the post8 veRL runs.
 - [ ] GPU, when the coordinator releases the local card: Phase 4 check
   `-r5`, Qwen veRL VORTEX `-r2` and SAMPO `-r1`, then the four LFM2.5 Phase 6
   runs (only if the check succeeds); all on post8 from a clean detached

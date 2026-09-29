@@ -1,0 +1,31 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-1.2b/trl-automationbench-sampo-parity-ws
+stage: train
+description: Phase 6 of docs/plan/verl-vortex-port.md - four lfm2.5-1.2b SAMPO (oversampled active sampling, curriculum, truncation penalty) updates on TRL on the RTX PRO 6000 workstation over the 24-task AutomationBench comparison set; its veRL twin uses the same seed, data and settings.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-1.2b-trl-automationbench-sampo-parity-ws@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: sampo
+      kind: train.sampo
+      definition: train/trl-sampo@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-1.2b-thinking@bf16}
+  environment: {type: ref, family: environment, id: automationbench-verl-parity-v1}
+  settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-sampo-parity-v1}
+  training: {type: ref, family: training, id: training/lfm2.5-1.2b-trl-lora-parity-ws-g16@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-trl-parity-ws@1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: verl-vortex-parity-lfm12-sampo-v1
+  question: Do TRL and veRL produce statistically equivalent per-update reward, KL, entropy, advantage, active-sampling and curriculum evidence for lfm2.5-1.2b sampo with the same seed, data and settings?
+  labels: [experiment, parity, trl, sampo, automationbench, lfm2.5, workstation]
