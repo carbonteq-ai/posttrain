@@ -54,6 +54,10 @@ selects the post6 additions that 0.4.12 leaves off.
   like TRL's policy endpoint, the veRL generator now refuses such a turn as a
   provider HTTP 400 (the episode ends as `context_rejected`) and gives a late
   turn only the context that remains.
+- veRL sampled and scored at veRL's default temperature, top-p and top-k
+  (1.0, 1.0, -1) instead of the rollout binding's, and replaced the binding's
+  repetition penalty with 1.0. The worker now sets veRL's rollout sampling
+  from the binding exactly as the TRL backend resolves it.
 
 ### Added
 

@@ -316,7 +316,11 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
 
     async def run(self, sampling_params: dict[str, Any], **kwargs: Any) -> Any:
         self._generator.begin_episode()
-        self._generator.set_sampling_overrides(sampling_params)
+        # veRL hard-codes repetition_penalty 1.0 in every phase's sampling parameters;
+        # the environment's (binding's) value is the behavior policy, as on TRL.
+        self._generator.set_sampling_overrides(
+            {key: value for key, value in sampling_params.items() if key != "repetition_penalty"}
+        )
         example_id = str(kwargs["example_id"])
         step = int(kwargs.get("global_steps", 0))
         model_id = str(kwargs["model_id"])

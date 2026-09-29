@@ -508,6 +508,32 @@ adds backend support that meets those contracts; no product meaning changes.
   again there so each pair shares a machine.
   Evidence: `verl-vortex-p6-qwen08b-verl-sampo-r1`,
   `test_verl_policy_generator_refuses_and_bounds_turns_at_the_rollout_context`.
+- Observation: settings audit before the TRL twins (coordinator request). veRL's
+  rollout `temperature`, `top_p` and `top_k` were never set, so veRL's defaults
+  (1.0, 1.0, -1) reached every agent-loop episode as sampling overrides, and the
+  actor and reference scaled logits by 1.0. The veRL runs sampled at T=1.0 and
+  top-p 1.0 and scored at T=1.0; TRL samples at the binding's 0.8/0.95 and
+  scores at 0.8. veRL also hard-codes `repetition_penalty` 1.0 in those
+  overrides. The worker now sets the rollout sampling from the binding with the
+  TRL backend's resolver (`policy_sampling_from_mapping`), and the agent loop
+  ignores veRL's repetition-penalty override. This explains the first
+  comparison's gap (entropy 0.28 to 1.0 and falling reward on veRL); that run
+  is marked invalid.
+  The rest of the audit agrees: loss aggregation (token-mean for OLMo 3,
+  seq-mean-token-mean for SAMPO, CPU parity-tested); KL (VORTEX beta 0; SAMPO
+  beta 0.005, k3, base reference); LR 4e-5 constant, no warmup, weight decay
+  0, AdamW betas 0.9/0.999; LoRA r8/a16 on the same `o_proj`/`down_proj`
+  regex (Qwen) or r4/a8 `all-linear` (LFM2.5), dropout 0; one optimizer step
+  per update on both (veRL `ppo_mini_batch_size` = all 4 prompt groups,
+  `ppo_epochs` 1; TRL 16 rows accumulated); gradient clipping 1.0; vLLM
+  log-probabilities `processed_logprobs` on both. Entropy is defined
+  differently: veRL aggregates token entropies with the loss aggregation over
+  the whole batch before the update (token-weighted for OLMo 3), TRL averages
+  per-micro-batch masked means (one sequence per micro-batch, so a
+  sequence-weighted mean); the comparison reads them as the same quantity
+  with that caveat.
+  Evidence: `test_verl_samples_and_scores_with_the_bindings_behavior_policy_like_trl`;
+  run notes on `verl-vortex-p6-qwen08b-verl-vortex-ws-r1`.
 - Observation: Phase 4 passed. `verl-vortex-lfm12-check-20260929-r6` (veRL
   post8, LFM2.5-1.2B, two updates, local 8 GB card) succeeded: rendering and
   tool-call recovery, LoRA sync to vLLM after update 1, checkpoint and export.

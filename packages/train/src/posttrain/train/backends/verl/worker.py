@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ...online_rl import policy_sampling_from_mapping
 from ...precision import training_precision, verl_mixed_precision_overrides, verl_rollout_dtype
 from ...rollout_execution import RolloutExecutionConfig, validate_execution_config
 from ..retention import finalize_training_outputs
@@ -254,6 +255,11 @@ def build_hydra_overrides(
     parameter_offload = runtime_options.parameter_offload
     optimizer_offload = runtime_options.optimizer_offload
     max_model_len = engine.get("max_model_len", algorithm.max_prompt_length + algorithm.max_completion_length)
+    # The behavior policy TRL resolves from the same binding. veRL passes its rollout
+    # temperature/top_p/top_k to every agent-loop episode as sampling overrides and
+    # scales the actor's and reference's logits by the same temperature, so they must
+    # be the binding's, not veRL's defaults (1.0, 1.0, -1).
+    behavior = policy_sampling_from_mapping(payload.rollout.sampling, algorithm.max_completion_length)
     response_budget = verl_response_budget(algorithm.max_completion_length, max_model_len)
     overrides = [
         f"algorithm.adv_estimator={algorithm.advantage_estimator}",
@@ -316,6 +322,10 @@ def build_hydra_overrides(
         f"actor_rollout_ref.rollout.enforce_eager={str(bool(engine.get('enforce_eager', True))).lower()}",
         f"actor_rollout_ref.rollout.load_format={rollout_load_format}",
         f"actor_rollout_ref.rollout.n={algorithm.num_generations}",
+        f"actor_rollout_ref.rollout.temperature={behavior.temperature}",
+        f"actor_rollout_ref.rollout.top_p={behavior.top_p}",
+        # TRL and vLLM treat top_k 0 as disabled; veRL's disabled value is -1.
+        f"actor_rollout_ref.rollout.top_k={behavior.top_k if behavior.top_k > 0 else -1}",
         # Prefix caching stays off unless the binding enables it: veRL rollouts
         # with prefix caching across LoRA weight syncs are not yet qualified.
         "actor_rollout_ref.rollout.enable_prefix_caching="

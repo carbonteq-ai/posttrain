@@ -101,7 +101,7 @@ from posttrain.train.backends.verl.worker import (
     build_hydra_overrides,
     verl_response_budget,
 )
-from posttrain.train.online_rl import BehaviorPolicySpan, EnvironmentRollout
+from posttrain.train.online_rl import BehaviorPolicySpan, EnvironmentRollout, policy_sampling_from_binding
 from posttrain.train.policy_messages import parsed_policy_message
 from posttrain.train.profiles import shape_online_reward
 from posttrain.train.rendering import create_renderer_config, renderer_config_from_spec, renderer_config_spec
@@ -792,6 +792,33 @@ def test_verl_policy_generator_refuses_and_bounds_turns_at_the_rollout_context(
     assert late.requests[0]["max_tokens"] == 2
     assert result.finish_reason == "length"  # cut by the context, as vLLM's length finish on TRL
     sys.modules.pop(module_name, None)
+
+
+def test_verl_samples_and_scores_with_the_bindings_behavior_policy_like_trl(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """veRL's rollout temperature/top_p/top_k default to 1.0/1.0/-1 and override every episode.
+
+    verl-vortex-p6-qwen08b-verl-vortex-ws-r1 sampled at T=1.0, top_p=1.0 (and scored
+    the actor at T=1.0) while its TRL twin used the binding's 0.8/0.95.
+    """
+
+    request = _grpo_request()
+    inference = replace(request.inference, sampling={"temperature": 0.8, "top_p": 0.95, "max_tokens": 128})
+    request = replace(request, inference=inference)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    overrides = build_hydra_overrides(
+        build_grpo_launch_plan(request, tmp_path),
+        tmp_path / "rollouts.parquet",
+        tmp_path / "agent-loop.json",
+        tmp_path / "checkpoints",
+    )
+    assert "actor_rollout_ref.rollout.temperature=0.8" in overrides
+    assert "actor_rollout_ref.rollout.top_p=0.95" in overrides
+    assert "actor_rollout_ref.rollout.top_k=-1" in overrides
+    trl = policy_sampling_from_binding(inference, 128)
+    assert (trl.temperature, trl.top_p, trl.top_k) == (0.8, 0.95, 0)
 
 
 def test_qwen35_grpo_translation_is_deterministic_and_backend_neutral(tmp_path: Path) -> None:
