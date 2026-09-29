@@ -50,6 +50,10 @@ selects the post6 additions that 0.4.12 leaves off.
 - veRL runs with the adaptive curriculum failed after training: the launcher
   replayed the curriculum journal after every trainer metric, and tracking
   rejects a decreasing step. The journal is now interleaved by step.
+- veRL failed an episode whose next turn's prompt filled the rollout context;
+  like TRL's policy endpoint, the veRL generator now refuses such a turn as a
+  provider HTTP 400 (the episode ends as `context_rejected`) and gives a late
+  turn only the context that remains.
 
 ### Added
 

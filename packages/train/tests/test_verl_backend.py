@@ -718,6 +718,82 @@ def test_verl_curriculum_journal_interleaves_with_trainer_metrics_in_step_order(
     assert context.steps == [1, 1, 1, 2, 2, 3, 3]
 
 
+def test_verl_policy_generator_refuses_and_bounds_turns_at_the_rollout_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """As TRL's policy endpoint: a full context is a provider HTTP 400, a late turn gets what remains.
+
+    verl-vortex-p6-qwen08b-verl-sampo-r1: veRL's vLLM server raised on 6592-token
+    prompts over a 5120-token context, the session failed and admission dropped
+    the group; TRL ends such an episode as context_rejected.
+    """
+
+    errors = pytest.importorskip("verifiers.v1.errors")
+    module_name = "posttrain.train.backends.verl.agent_loop"
+    monkeypatch.delitem(sys.modules, module_name, raising=False)
+    for package in ("verl", "verl.experimental", "verl.experimental.agent_loop"):
+        module = ModuleType(package)
+        module.__path__ = []  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, package, module)
+    verl_agent_loop = ModuleType("verl.experimental.agent_loop.agent_loop")
+    for name in ("AgentLoopBase", "AgentLoopMetrics", "AgentLoopOutput"):
+        verl_agent_loop.__dict__[name] = object
+    monkeypatch.setitem(sys.modules, "verl.experimental.agent_loop.agent_loop", verl_agent_loop)
+
+    class FakeRenderer:
+        def render(self, messages, *, tools, add_generation_prompt):
+            return SimpleNamespace(
+                token_ids=tuple(range(10)), message_token_spans=lambda: ((0, 10),), is_content=(True,) * 10
+            )
+
+        def parse_response(self, token_ids, *, tools):
+            return SimpleNamespace(content="done", reasoning_content=None, tool_calls=())
+
+        def get_stop_token_ids(self):
+            return (99,)
+
+    renderers = ModuleType("renderers")
+    for name in (
+        "Qwen35RendererConfig",
+        "DefaultRendererConfig",
+        "LFM25RendererConfig",
+        "K2HorizonRendererConfig",
+        "Nanbeige42RendererConfig",
+        "Spark25RendererConfig",
+        "Gemma4RendererConfig",
+    ):
+        renderers.__dict__[name] = lambda **kwargs: kwargs
+    renderers.__dict__["create_renderer"] = lambda tokenizer, config: FakeRenderer()
+    monkeypatch.setitem(sys.modules, "renderers", renderers)
+
+    class ServerManager:
+        def __init__(self) -> None:
+            self.requests: list[dict[str, object]] = []
+
+        async def generate(self, **kwargs):
+            self.requests.append(kwargs["sampling_params"])
+            return SimpleNamespace(token_ids=(3, 4), log_probs=(-0.1, -0.2), extra_fields={})
+
+    agent_loop = importlib.import_module(module_name)
+    renderer = {"config": "qwen3.5", "config_kwargs": {}, "chat_template": None, "tool_call_protocol": None}
+    sampling = PolicySampling(max_tokens=32, temperature=1.0, top_p=1.0)
+    request = PolicyTurnRequest(messages=({"role": "user", "content": "go"},), sampling=sampling)
+
+    full = ServerManager()
+    generator = agent_loop.VerlPolicyGenerator(full, object(), renderer=renderer, max_model_len=10)
+    with pytest.raises(errors.ProviderError) as refused:
+        asyncio.run(generator.generate(request))
+    assert refused.value.status_code == 400
+    assert full.requests == []
+
+    late = ServerManager()
+    generator = agent_loop.VerlPolicyGenerator(late, object(), renderer=renderer, max_model_len=12)
+    result = asyncio.run(generator.generate(request))
+    assert late.requests[0]["max_tokens"] == 2
+    assert result.finish_reason == "length"  # cut by the context, as vLLM's length finish on TRL
+    sys.modules.pop(module_name, None)
+
+
 def test_qwen35_grpo_translation_is_deterministic_and_backend_neutral(tmp_path: Path) -> None:
     request = _grpo_request(update=LoRAUpdate(rank=16, alpha=32))
     output_dir = tmp_path / "trainer"

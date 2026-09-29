@@ -496,6 +496,18 @@ adds backend support that meets those contracts; no product meaning changes.
   (settings v3). The job plan held only TRL to "the pool may not exceed the
   environment"; veRL is now held to it too (veRL's bounded pool would run into
   the next epoch and repeat tasks within an update).
+- Observation: veRL's vLLM server raised on turns whose prompt filled the
+  rollout context (6440-6784 tokens over 5120), failing the session and the
+  group. TRL's policy endpoint refuses such a turn as a provider HTTP 400
+  (Verifiers ends the episode as `context_rejected`) and bounds a late turn's
+  `max_tokens` by the remaining context. The veRL policy generator now does
+  both. Separately, with the response budget equal to the context, veRL pads
+  every row to 4096 + 5120 tokens without padding removal, and the 8 GB actor
+  update ran out of memory; the Qwen pairs move to the RTX PRO 6000
+  (`qwen08b_*_automationbench_*_parity_ws.yaml`), and the Qwen TRL twins run
+  again there so each pair shares a machine.
+  Evidence: `verl-vortex-p6-qwen08b-verl-sampo-r1`,
+  `test_verl_policy_generator_refuses_and_bounds_turns_at_the_rollout_context`.
 - Observation: Phase 4 passed. `verl-vortex-lfm12-check-20260929-r6` (veRL
   post8, LFM2.5-1.2B, two updates, local 8 GB card) succeeded: rendering and
   tool-call recovery, LoRA sync to vLLM after update 1, checkpoint and export.

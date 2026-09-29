@@ -127,6 +127,17 @@ def _effective_sampling(base: PolicySampling, overrides: Mapping[str, Any]) -> d
     }
 
 
+def _raise_context_rejected(prompt_tokens: int, max_model_len: int) -> None:
+    """Refuse a turn whose prompt fills the context, as a provider HTTP 400 (Verifiers: context_rejected)."""
+
+    message = f"prompt of {prompt_tokens} tokens leaves no room within the rollout context of {max_model_len}"
+    try:
+        from verifiers.v1.errors import ProviderError  # pyright: ignore[reportMissingImports]
+    except ImportError as error:  # pragma: no cover - isolated runtime dependency
+        raise ValueError(message) from error
+    raise ProviderError(message, status_code=400)
+
+
 class VerlPolicyGenerator:
     """Expose veRL's already-loaded rollout server through the framework policy contract."""
 
@@ -137,6 +148,7 @@ class VerlPolicyGenerator:
         *,
         renderer: Mapping[str, Any],
         sampling_overrides: Mapping[str, Any] | None = None,
+        max_model_len: int | None = None,
     ) -> None:
         try:
             from renderers import create_renderer  # pyright: ignore[reportMissingImports]
@@ -144,6 +156,7 @@ class VerlPolicyGenerator:
             raise RuntimeError("the veRL environment requires the selected renderer implementation") from error
         self._server_manager = server_manager
         self._tokenizer = tokenizer
+        self._max_model_len = max_model_len
         # The launcher resolved the renderer exactly as the TRL backend does:
         # the family's pinned config, the reasoning mode's template arguments
         # and a package chat template replacing the tokenizer's.
@@ -189,6 +202,14 @@ class VerlPolicyGenerator:
         else:
             spans = bridged_message_spans(rendered, request.tail_start, len(request.previous_token_ids))
         sampling = _effective_sampling(request.sampling, self._sampling_overrides)
+        if self._max_model_len is not None:
+            # As TRL's policy endpoint: a prompt that fills the context is refused like
+            # vLLM's HTTP 400 (Verifiers ends the episode as context_rejected), and a late
+            # turn gets the context that remains instead of the full per-turn max_tokens.
+            remaining = self._max_model_len - len(rendered.token_ids)
+            if remaining < 1:
+                _raise_context_rejected(len(rendered.token_ids), self._max_model_len)
+            sampling["max_tokens"] = min(int(sampling["max_tokens"]), remaining)
         output = await self._server_manager.generate(
             request_id=request.session_id or uuid4().hex,
             prompt_ids=list(rendered.token_ids),
@@ -280,6 +301,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             self.server_manager,
             self.tokenizer,
             renderer=renderer,
+            max_model_len=getattr(self.rollout_config, "max_model_len", None),
         )
         self._mask_truncated_completions = bool(mask_truncated_completions)
         self._max_completion_tokens = max_completion_tokens
