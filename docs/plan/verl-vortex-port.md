@@ -534,6 +534,16 @@ adds backend support that meets those contracts; no product meaning changes.
   with that caveat.
   Evidence: `test_verl_samples_and_scores_with_the_bindings_behavior_policy_like_trl`;
   run notes on `verl-vortex-p6-qwen08b-verl-vortex-ws-r1`.
+- Observation: the veRL context refusal (`4e44feef`) used its own wording, but
+  Posttrain recognizes a context overflow only by "maximum context length"
+  (`is_context_overflow_error`). The refused episode was therefore an error,
+  not `context_rejected`; the bridge rejected it as untrainable, the session
+  failed and its group was dropped (the first Phase 6 veRL runs lost about one
+  group per update, and had no `context_rejected` endings where TRL had 3-7).
+  The veRL generator now uses the TRL path's wording and boundary: a prompt
+  longer than the context gets the renderer's "Prompt length (N) exceeds
+  maximum context length (M)."; a prompt exactly as long gets the TRL
+  endpoint's non-overflow refusal.
 - Observation: Phase 4 passed. `verl-vortex-lfm12-check-20260929-r6` (veRL
   post8, LFM2.5-1.2B, two updates, local 8 GB card) succeeded: rendering and
   tool-call recovery, LoRA sync to vLLM after update 1, checkpoint and export.

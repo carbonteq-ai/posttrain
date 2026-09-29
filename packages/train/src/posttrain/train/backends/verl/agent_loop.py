@@ -128,9 +128,20 @@ def _effective_sampling(base: PolicySampling, overrides: Mapping[str, Any]) -> d
 
 
 def _raise_context_rejected(prompt_tokens: int, max_model_len: int) -> None:
-    """Refuse a turn whose prompt fills the context, as a provider HTTP 400 (Verifiers: context_rejected)."""
+    """Refuse a turn whose prompt fills the context exactly as the TRL path does.
 
-    message = f"prompt of {prompt_tokens} tokens leaves no room within the rollout context of {max_model_len}"
+    The TRL path's renderer client refuses a prompt longer than the context with
+    ``OverlongPromptError`` ("Prompt length (N) exceeds maximum context length (M)."),
+    which Verifiers raises as a provider HTTP 400 and Posttrain reads as the
+    ``context_rejected`` ending (``is_context_overflow_error`` matches "maximum context
+    length"). A prompt exactly as long as the context passes that check and is
+    refused by TRL's policy endpoint with a message that is not an overflow.
+    """
+
+    if prompt_tokens > max_model_len:
+        message = f"Prompt length ({prompt_tokens}) exceeds maximum context length ({max_model_len})."
+    else:
+        message = f"token generation request has no remaining policy context: {prompt_tokens} prompt >= {max_model_len}"
     try:
         from verifiers.v1.errors import ProviderError  # pyright: ignore[reportMissingImports]
     except ImportError as error:  # pragma: no cover - isolated runtime dependency

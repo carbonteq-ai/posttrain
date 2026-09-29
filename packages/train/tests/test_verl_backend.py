@@ -779,12 +779,20 @@ def test_verl_policy_generator_refuses_and_bounds_turns_at_the_rollout_context(
     sampling = PolicySampling(max_tokens=32, temperature=1.0, top_p=1.0)
     request = PolicyTurnRequest(messages=({"role": "user", "content": "go"},), sampling=sampling)
 
+    from posttrain.environment.verifiers_evidence import is_context_overflow_error
+
     full = ServerManager()
-    generator = agent_loop.VerlPolicyGenerator(full, object(), renderer=renderer, max_model_len=10)
+    generator = agent_loop.VerlPolicyGenerator(full, object(), renderer=renderer, max_model_len=9)
     with pytest.raises(errors.ProviderError) as refused:
         asyncio.run(generator.generate(request))
     assert refused.value.status_code == 400
+    # The TRL path's wording, which Posttrain reads as the context_rejected ending.
+    assert is_context_overflow_error({"message": str(refused.value)})
     assert full.requests == []
+    exact = agent_loop.VerlPolicyGenerator(full, object(), renderer=renderer, max_model_len=10)
+    with pytest.raises(errors.ProviderError) as no_room:
+        asyncio.run(exact.generate(request))
+    assert not is_context_overflow_error({"message": str(no_room.value)})  # as TRL's endpoint refusal
 
     late = ServerManager()
     generator = agent_loop.VerlPolicyGenerator(late, object(), renderer=renderer, max_model_len=12)
