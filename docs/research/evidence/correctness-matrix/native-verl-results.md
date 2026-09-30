@@ -88,6 +88,53 @@ or a repair for every skipped update. Loss scaling is data and model dependent.
 
 ## Evidence and reproduction
 
+### Rendered multi-turn masks, padding and clipping
+
+Native veRL now also executes the controlled conversation construction used
+by the earlier TRL probe: a system/user prompt, assistant continuation, injected
+calculator result and final assistant answer. The shared prompt has26 tokens;
+responses have42 and45 tokens, with12 and15 sampled assistant tokens.
+The shorter response is right-padded. Renderer masks exclude tool output and
+serialization tokens; inactive positions carry deliberately large credit99.
+This is controlled supplied conversation evidence, not a freshly generated
+AutomationBench trajectory or proof of task learning.
+
+| Native rendered arm | Applied updates | Independent loss/gradient checks | Sampled tokens clipped on second update |
+| --- | ---: | ---: | ---: |
+| BF16, ordinary fallback | 2 of2 | 4 of4 | 10 of27 (37.0%) |
+| BF16, FP32 region | 2 of2 | 4 of4 | 17 of27 (63.0%) |
+| FP16 scale1024, ordinary fallback | 0 of2 | 4 of4 | 0 of27 |
+| FP16 scale1024, FP32 region | 2 of2 | 4 of4 | 17 of27 (63.0%) |
+
+All16 independent loss and sampled-score derivative checks pass. Gradients
+at prompt predictions, excluded tool/header positions and response padding
+are exactly zero. Jagged rows are checked individually after native padding
+conversion. Maximum loss error1.59e-8, score-gradient error4.22e-9 and
+applied AdamW parameter error2.26e-9 remain below their existing gates.
+Peak Torch allocation is about4.22GiB. Uncorrected FP16 keeps parameters
+finite by skipping both updates; it fails the execution qualification.
+
+Behavior/reference scores stay frozen across two attempts. The first attempt
+has ratio1 and no clipping. On the second corrected FP16 attempt, the two
+sequence ratios are0.991054 and1.029557. Under bounds0.997/1.004, seven
+negative-credit tokens in the first row and ten positive-credit tokens in the
+second row activate clipping:17/27. Independent derivatives verify those
+branches as part of the loss checks. This demonstrates native clipping after
+policy movement on a reused population; it does not select production bounds,
+establish a preferred clipping rate, or resolve fresh-rollout learning quality.
+
+BF16 with the FP32 region also clips17/27 but has different second-attempt
+ratios0.965099/1.013024. Ordinary BF16 has ratios1.003219/1.004107 and clips
+10/27. Those actual probability differences remain visible: objective agreement
+and finite updates do not imply identical trajectories across precision regions.
+No matched initial adapter/Adam-state native TRL comparison is inferred.
+
+The external archive's `results/rendered-native/` retains the fixture, four
+final arms, the initial BF16 probe, executed runner/builder copies and hash
+manifest. `working/native_verl_rendered_run.py` is local experimental tooling.
+Only this written report is committed; production runtime adoption and native
+LFM/Gemma, fresh task collection and full backend trajectory parity remain open.
+
 ### Native context extension
 
 The next external-runner experiment extends the supplied population beyond

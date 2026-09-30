@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Execute native veRL on controlled rendered multi-turn Qwen conversations with tool/header masks and unequal42/45-token responses. Four final BF16/FP16 precision arms pass16 independent loss/score checks and exact zero prompt/excluded/padding gradients. Three successful arms apply six updates; ordinary FP16 skips2/2. Reused-population clipping activates at10/27 sampled tokens for ordinary BF16 and17/27 for both FP32-region arms. Preserve measured probability differences and fresh-task/native initial-state parity gates. All tools and receipts remain external.
+
 - [x] (2026-10-01) Run external native Qwen context extension: BF16 at128 tokens and corrected FP16(scale1024) at128/256 tokens apply six updates total; uncorrected FP16 at128 skips both attempts. All16 independent loss/score/context checks pass, applied AdamW errors stay below2.25e-9, and peak Torch allocation is5.05GiB. Keep runners/receipts in the external archive, not Git. Supplied-token results do not close the full rendered/fresh-rollout gates.
 
 - [x] (2026-10-01 user correction) Remove experimental correctness runners and raw receipts from unpublished Posttrain commits. Preserve them byte-for-byte in `/home/hammad/experiments/posttrain-correctness/2026-10-01`, with a verified Git bundle and dirty-work snapshot. Keep written findings and actual production fixes/regressions in the repository; ignore known experimental paths to prevent recommitting them. Future experiments run from the external archive.
@@ -87,6 +89,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- (2026-10-01) Clipping activates in the native engine on the second update of a frozen rendered population, with opposing token credit selecting the appropriate clipped branch. Corrected BF16/FP16 both clip17/27 sampled tokens, but their probability ratios differ; ordinary BF16 clips10/27. Passing objective derivatives does not prove identical parameter trajectories or choose an optimal recipe. Prompt/tool/header/padding score gradients are exactly zero after native jagged conversion.
 
 - (2026-10-01) At128 tokens, uncorrected FP16 still passes every loss/score check while applying no updates. Masked objective correctness and native scaled optimizer execution are distinct acceptance requirements. The combined precision control continues to apply updates at128 and256 tokens within the local GPU budget.
 
@@ -318,6 +322,12 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 rendered-native milestone: Qwen masking and applied optimizer
+checks now cover real renderer token serialization, injected tool messages,
+unequal response lengths and padding in native veRL. Controlled frozen reuse
+also exercises clipping. Fresh AutomationBench learning and matched native
+backend initialization remain unqualified; this is not their substitute.
 
 2026-10-01 context milestone: the native Qwen precision candidate extends
 from8 to256 supplied tokens with verified optimizer updates and context masks.
@@ -629,3 +639,6 @@ and make local evidence/reproduction locations explicit in the reports.
 Revision 17: external native context-extension experiments in BF16/FP16,
 separate successful loss checks from applied updates, retain the failed baseline,
 and record GPU allocation without committing runners or raw data.
+Revision 18: native rendered multi-turn masking/padding and active clipping
+checks across four precision arms; retain actual probability sensitivity,
+failed FP16 attempts and external-only experimental artifacts.
