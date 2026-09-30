@@ -1128,6 +1128,11 @@
       "EvaluationIndex": {
         "additionalProperties": false,
         "properties": {
+          "behaviour_definition": {
+            "default": "Per-episode means over attempts that did not fail: turns are model calls; turns (completed) counts only episodes that ended on their own; tool calls, output and thinking tokens come from the recorded trace facts. A missing value means no attempt recorded it.",
+            "title": "Behaviour Definition",
+            "type": "string"
+          },
           "records": {
             "default": [],
             "items": {
@@ -1553,6 +1558,13 @@
             "title": "Attempts",
             "type": "integer"
           },
+          "endings": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Endings",
+            "type": "object"
+          },
           "environment": {
             "anyOf": [
               {
@@ -1584,6 +1596,17 @@
               }
             ],
             "title": "Model"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
           },
           "parent_run": {
             "anyOf": [
@@ -1672,10 +1695,54 @@
             ],
             "title": "Suite"
           },
+          "thinking_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking Tokens"
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Calls"
+          },
           "truncated": {
             "default": 0,
             "title": "Truncated",
             "type": "integer"
+          },
+          "turns": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turns"
+          },
+          "turns_completed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turns Completed"
           }
         },
         "required": [
@@ -2093,6 +2160,17 @@
             "title": "Failed",
             "type": "integer"
           },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
           "run_key": {
             "minLength": 1,
             "title": "Run Key",
@@ -2113,10 +2191,54 @@
             "title": "Task",
             "type": "string"
           },
+          "thinking_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking Tokens"
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Calls"
+          },
           "truncated": {
             "default": 0,
             "title": "Truncated",
             "type": "integer"
+          },
+          "turns": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turns"
+          },
+          "turns_completed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turns Completed"
           }
         },
         "required": [

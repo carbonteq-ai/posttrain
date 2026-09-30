@@ -145,3 +145,43 @@ export function deltaClass(value: number | null | undefined): string {
   if (value == null || Math.abs(value) < 0.0005) return 'text-muted';
   return value > 0 ? 'text-emerald-700' : 'text-rose-700';
 }
+
+/** Per-episode behaviour recorded beside the score of every evaluation run. */
+export type BehaviourKey = 'turns' | 'turns_completed' | 'tool_calls' | 'output_tokens' | 'thinking_tokens';
+
+export const BEHAVIOUR_COLUMNS: ReadonlyArray<{ key: BehaviourKey; label: string; title: string; digits: number }> = [
+  { key: 'turns', label: 'Turns', title: 'Mean model calls (turns) per episode', digits: 1 },
+  { key: 'turns_completed', label: 'Turns (completed)', title: 'Mean turns on episodes that ended on their own', digits: 1 },
+  { key: 'tool_calls', label: 'Tool calls', title: 'Mean tool calls per episode', digits: 1 },
+  { key: 'output_tokens', label: 'Output tokens', title: 'Mean tokens generated per episode, thinking included', digits: 0 },
+  { key: 'thinking_tokens', label: 'Thinking tokens', title: 'Mean thinking tokens per episode', digits: 0 },
+];
+
+export const NOT_RECORDED = 'Not recorded for this run';
+
+const NUMBER_FORMATS = new Map<number, Intl.NumberFormat>();
+
+export function formatMean(value: number | null | undefined, digits: number): string {
+  if (value == null) return '—';
+  let format = NUMBER_FORMATS.get(digits);
+  if (!format) {
+    format = new Intl.NumberFormat('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    NUMBER_FORMATS.set(digits, format);
+  }
+  return format.format(value);
+}
+
+/** Mean of one behaviour value over the records that recorded it; null when none did. */
+export function behaviourMean(records: readonly EvaluationRecord[], key: BehaviourKey): number | null {
+  const values = records.map((record) => record[key]).filter((value): value is number => value != null);
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+}
+
+/** How a run's episodes ended, most common first: "completed 97 · turn limit 3". */
+export function endingSummary(endings: Record<string, number> | null | undefined): string {
+  return Object.entries(endings ?? {})
+    .filter(([, count]) => count > 0)
+    .sort(([nameA, countA], [nameB, countB]) => countB - countA || nameA.localeCompare(nameB))
+    .map(([name, count]) => `${name.replace(/_/g, ' ')} ${count}`)
+    .join(' · ');
+}
