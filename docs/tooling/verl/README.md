@@ -1,5 +1,28 @@
 # veRL training backend
 
+## Native padded Qwen engine source candidate
+
+Source `8778c5d6e2ddd847d5098a24f4dc882f11ac57b4` repairs optional
+FlashAttention indexing and padded Qwen forward selection. Fifteen fork
+regressions pass. The real Qwen0.8B FSDP1 engine applies two BF16 updates
+and two FP16(scale1) updates; score masks/gradients and AdamW arithmetic
+pass independent checks. High-scale FP16, packed/distributed paths, other
+families and production release assets/pins remain open.
+See [native-engine evidence](../../research/evidence/correctness-matrix/native-verl-results.md).
+
+
+## Source candidate math qualification
+
+Published source candidate `10ad6babade57546139554a67bc8469118627748`
+retains the dedicated SAMPO token-credit loss and early invalid-score masking,
+and extends stable k3 arithmetic through absolute delta 0.25. The finer
+independent sweep passes all 3880 checks. Its loss/gradient kernels agree on
+real Qwen, LFM and tiny Gemma4 BF16/FP16 model outputs; TRL applies the
+updates. Native veRL engine, normalized production mapping, release assets
+and immutable runtime adoption remain open.
+See [matched-kernel evidence](../../research/evidence/correctness-matrix/matched-kernel-results.md).
+
+
 ## 0.9.0.post8 (selected)
 
 Tag `carbonteq-v0.9.0.post8` (release commit

@@ -61,6 +61,32 @@ def test_renderer_builds_nonempty_assistant_only_sft_masks(model, profile) -> No
     assert "#### 4" in decoded
 
 
+@pytest.mark.parametrize("trainable", [(2,), (4,), (2, 4)])
+def test_lfm_sft_targets_exclude_injected_headers_and_tool_results(trainable: tuple[int, ...]) -> None:
+    tokenizer = _load_tokenizer(LFM_25_12B_THINKING)
+    messages = (
+        {"role": "system", "content": "SYSTEM_SENTINEL"},
+        {"role": "user", "content": "USER_SENTINEL"},
+        {
+            "role": "assistant",
+            "content": "FIRST_ANSWER",
+            "tool_calls": [{"type": "function", "id": "a", "function": {"name": "lookup", "arguments": '{"key":"x"}'}}],
+        },
+        {"role": "tool", "tool_call_id": "a", "content": "TOOL_SENTINEL"},
+        {"role": "assistant", "content": "FINAL_ANSWER"},
+    )
+    dataset = SupervisedDataset("lfm-mask-regression", "c" * 40, (SupervisedExample("case", messages, trainable),))
+    sample = render_supervised(tokenizer, LFM_25_12B_THINKING, dataset, LFM25_RENDERER, max_length=512)[0]
+    targets = tokenizer.decode([label for label in sample.labels if label != -100], skip_special_tokens=False)
+    assert all(
+        marker not in targets
+        for marker in ["SYSTEM_SENTINEL", "USER_SENTINEL", "TOOL_SENTINEL", "<|im_start|>assistant"]
+    )
+    assert ("FIRST_ANSWER" in targets) == (2 in trainable)
+    assert ("FINAL_ANSWER" in targets) == (4 in trainable)
+    assert [label for label in sample.labels if label != -100][-1] == tokenizer.convert_tokens_to_ids("<|im_end|>")
+
+
 def test_gemma_renderer_masks_tool_observations_from_sft_loss() -> None:
     tokenizer = _load_tokenizer(GEMMA_4_12B_IT)
     dataset = SupervisedDataset(

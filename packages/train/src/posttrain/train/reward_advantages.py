@@ -28,9 +28,28 @@ def _normalize(values: Sequence[float], epsilon: float) -> tuple[float, ...]:
     # on top of large common reward offsets.
     origin = values[0]
     offsets = [value - origin for value in values]
-    mean = math.fsum(offsets) / len(offsets)
-    centered = [value - mean for value in offsets]
-    scale = math.hypot(*centered) / math.sqrt(len(centered) - 1)
+    try:
+        if not all(math.isfinite(value) for value in offsets):
+            raise OverflowError
+        mean = math.fsum(offsets) / len(offsets)
+        centered = [value - mean for value in offsets]
+        scale = math.hypot(*centered) / math.sqrt(len(centered) - 1)
+        if not math.isfinite(scale + epsilon):
+            raise OverflowError
+    except OverflowError:
+        # Opposite finite rewards or the norm's intermediate sum can exceed
+        # float range even though dimensionless normalized credit is finite.
+        # Retain the offset path above for small differences on large offsets.
+        magnitude = max(abs(value) for value in values)
+        if not math.isfinite(magnitude):
+            raise InvalidRewardEvidence("reward normalization overflowed") from None
+        scaled = [value / magnitude for value in values]
+        origin = scaled[0]
+        offsets = [value - origin for value in scaled]
+        mean = math.fsum(offsets) / len(offsets)
+        centered = [value - mean for value in offsets]
+        scale = math.hypot(*centered) / math.sqrt(len(centered) - 1)
+        epsilon /= magnitude
     result = tuple(value / (scale + epsilon) for value in centered)
     if not all(math.isfinite(value) for value in result):
         raise InvalidRewardEvidence("reward normalization overflowed")

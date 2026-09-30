@@ -1,5 +1,46 @@
 # TRL
 
+## Sampled KL boundary and matched kernel qualification
+
+Published source candidate `5d4f9ad3c5f5d51b1ea50b827d82fdd379231dbf`
+uses a tenth-order k3 series through absolute delta 0.25. The finer independent
+typed-input sweep closes 268 failures and passes all 3880 checks; 92 focused
+SAMPO tests pass. Matched Qwen, LFM and tiny Gemma4 BF16/FP16 loss kernels
+pass 12 updates and 24 microbatch comparisons. TRL applies those updates;
+native veRL engines and production wheel/runtime adoption remain open.
+See [matched-kernel evidence](../../research/evidence/correctness-matrix/matched-kernel-results.md).
+
+
+## Preference divergence numerical qualification
+
+Published source-only candidate
+`416b8978053d56bf4bc8674748c652f464999fac` on `codex/sampo-local-credit`
+uses stable expm1 for forward-KL and alpha-divergence DPO scores. Matched
+BF16 Qwen0.8B/LFM1.2B controls reproduce 1.9–2.3% parameter-gradient errors
+near alpha=1 before correction and exact agreement on all six repaired
+preference steps. The independent 306-case grid improves from 69 to 13 failures;
+remaining strict value gates are retained. All 66 expanded BF16 model-step
+parameter checks match; four SPPO-hard values miss the original tolerance.
+Twenty-five focused regressions and four native divergence training tests pass.
+These are numerical checks, not full recipe or held-out learning qualification.
+FP64 is reference-only. Runtime wheel pins and default objectives are unchanged.
+See [preference branch evidence](../../research/evidence/correctness-matrix/preference-branches-and-divergences.md).
+
+## Near-zero KL and native Trainer numerical qualification
+
+Source-only follow-on on `codex/sampo-local-credit` evaluates sampled k3 with
+published source `9f0825046ae3509a6be804d74a93fb89d5dc695e`. It uses
+a stable series near zero, preserving the selected estimator, beta, and
+bias-correction setting. Decimal80 reproduces 22/28 value/gradient failures
+before correction; all 28 pass after. The focused fork slice passes 82 tests.
+Matched native Trainer runs on Qwen0.8B and LFM1.2B in BF16/FP32 complete three
+updates each with supplied multi-turn traces. All 24 microbatch derivative
+checks pass after correction; three prior BF16 parameter-gradient misses
+disappear. Tool/context tokens have zero direct loss gradient while remaining
+visible as conditioning context. Fresh Verifiers collection, task learning,
+fused/distributed paths, and wheel/runtime qualification remain open.
+Evidence: `docs/research/evidence/correctness-matrix/native-multiturn-results.md`.
+
 ## Uno full-policy and native LoRA-policy refresh candidate
 
 The post9 candidate supports both CUDA-IPC full-policy refresh

@@ -79,6 +79,34 @@ def test_gdpo_preserves_small_variation_on_large_offsets():
     assert result.token_advantages[0][0] == pytest.approx(-result.token_advantages[2][0], abs=1e-15)
 
 
+@pytest.mark.parametrize("values", [(-1e308, 1e308), (-1e308, -0.9e308, 0.9e308, 1e308)])
+def test_gdpo_finite_extreme_rewards_do_not_overflow_normalization(values):
+    evidence = [_evidence(i, "g", {"a": value}) for i, value in enumerate(values)]
+    result = compute_gdpo_advantages(
+        evidence, [(True,)] * len(values), component_names=("a",), component_weights=(1,), group_size=len(values)
+    )
+    expected = _decimal_normalize(_decimal_normalize(values, "0.0001"), "0.0001")
+    assert [row[0] for row in result.token_advantages] == pytest.approx([float(x) for x in expected], abs=1e-12)
+
+
+def test_capo_finite_extreme_weights_do_not_overflow_normalization():
+    evidence = [_evidence(0, "g", {"outcome": 0}, ((0, 1),)), _evidence(1, "g", {"outcome": 1})]
+    result = compute_capo_advantages(
+        evidence, [(True,), (True,)], group_size=2, outcome_weight=1.7e308, process_weight=1e308
+    )
+    expected = _decimal_normalize([-1e308, 1.7e308], "0.000001")
+    assert [row[0] for row in result.token_advantages] == pytest.approx([float(x) for x in expected], abs=1e-12)
+
+
+def test_capo_large_epsilon_does_not_silently_zero_finite_credit():
+    evidence = [_evidence(0, "g", {"outcome": 0}), _evidence(1, "g", {"outcome": 1})]
+    result = compute_capo_advantages(
+        evidence, [(True,), (True,)], group_size=2, outcome_weight=1e308, process_weight=0, epsilon=1.7e308
+    )
+    expected = _decimal_normalize([0.0, 1e308], "1.7e308")
+    assert [row[0] for row in result.token_advantages] == pytest.approx([float(x) for x in expected], abs=1e-12)
+
+
 @pytest.mark.parametrize("algorithm", ["gdpo", "capo"])
 def test_constant_groups_remain_finite_zero(algorithm):
     evidence = [_evidence(i, "g", {"outcome": 1}) for i in range(2)]

@@ -45,6 +45,15 @@ wandb/
 .agents/
 .codex/
 
+# Local correctness experiments: keep runners and raw receipts out of Git.
+/tools/correctness/
+/tools/check_online_rl_objective_math.py
+/tools/check_verl_sequence_credit.py
+/tools/measure_sampo_checkpoint_drift.py
+/docs/research/evidence/correctness-matrix/**/*.json
+/docs/research/evidence/correctness-matrix/**/*.log
+/docs/research/evidence/correctness-matrix/**/*.py
+
 # Local-only secrets and host dumps (never commit)
 ops/ops-server.txt
 ops/remote-server.txt

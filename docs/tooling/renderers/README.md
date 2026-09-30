@@ -23,6 +23,19 @@ None of this delta is submitted to upstream (user decision, 2026-09-25).
 
 ## Selection
 
+Source-only LFM sampled-mask correction under qualification on branch
+`codex/lfm-sampled-mask`, published source
+`1aafe24595a7f2d2f31d24afb4b1bb7a6c6dd076`, based on ledger commit
+`d1458bf1a665278b05ac6e9ed0611abc78f953a8`: LFM SFT previously trained injected
+assistant headers and separators because its template renderer provided only
+message attribution. The candidate now excludes those tokens and retains actual
+assistant output through the turn stop. It handles 2.6B's prefilled `<think>`
+versus 1.2B Thinking's sampled marker. Twenty new regressions fail on the old
+wheel; 59 focused renderer cases and 15 Posttrain integration cases pass.
+Real LFM three-step SFT and DPO math checks pass; this does not establish task
+quality or native rollout extraction. Existing pins and runtimes remain dev2.
+Evidence: [LFM mask repair](../../research/evidence/correctness-matrix/lfm-renderer-mask-repair.md).
+
 Posttrain selects `carbonteq-renderers==0.1.12.post1.dev2` from `carbonteq-dev`
 (`packages/train/pyproject.toml`, with its identity under
 `[tool.posttrain.renderers]`). It is built from fork commit
