@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Measure native LFM partition accumulation with identical initial adapters: BF16/FP16 microbatch1 gradients exactly equal separate-row sums. Ten native contribution/layout/FP32 diagnostic arms apply updates and pass13 score checks. Batch2 versus microbatch1 changes total gradients29.06% BF16/6.51% FP16 versus0.00732% FP32; component cancellation conditions are43.65/42.51. Preserve measured Adam coordinate amplification and avoid inferring a dropped gradient, production cause or full independent model Jacobian. Tools/tensors remain external.
+
 - [x] (2026-10-01) Exercise native LFM1.2B with FSDP2 CPUOffloadPolicy, preserving FP32 trainable masters and optimizer moments. Four BF16/FP16 arms at8/128 tokens apply8/8 updates and pass16 score/mask checks; FP16 retains scale1024 without skips. Independent native-gradient AdamW error stays below2.13e-9 and peak Torch GPU allocation is1.00GiB. Full parameter-derivative/accumulation, rendered LFM and fresh-task parity gates remain open. Tools/receipts remain external.
 
 - [x] (2026-10-01) Repair GDPO weighted-aggregate overflow, distinct from component normalization. Four of nine finite-weight probes fail despite finite independent credit. Reject a common-scale candidate that erases a tiny residual after large-component cancellation; use precision1600 Decimal only on weighted-overflow fallback. Five new regressions fail against exact prior source and pass after repair;46 related tests,86 independent existing cases,9 new oracle cases, scoped Pyright/Ruff and9 boundary contracts pass. Retain extreme-coefficient scope and external-only runners/receipts.
@@ -93,6 +95,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- (2026-10-01) Native accumulation can be exactly correct while batch-layout precision differences substantially alter a cancelling gradient. The half-precision row sum is exact; changing layout yields small errors relative to component norms but large errors relative to their remaining signal. FP32 reduces that sensitivity. Near-zero coordinates around Adam epsilon can also produce large coordinate-update differences despite a small full-gradient error.
 
 - (2026-10-01) FSDP1 actor CPUOffload is explicitly disabled because of accumulation limitations; FSDP2 CPUOffloadPolicy provides a separate executable native LFM path. Its8/128-token BF16/FP16 probes preserve FP32 CPU masters/moments and use about1GiB peak Torch GPU allocation. Passing AdamW arithmetic does not independently prove accumulation through every model parameter.
 
@@ -332,6 +336,11 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 accumulation milestone: a direct separate-row invariant rules out
+dropped accumulation on the controlled LFM fixture. Layout/precision and Adam
+sensitivity are measured instead. Current-run causality, rendered populations,
+model-layer independent derivatives and task outcomes remain unqualified.
 
 2026-10-01 native LFM milestone: both requested primary model families now
 have actual native veRL model/optimizer evidence. LFM executes BF16/FP16
@@ -669,3 +678,6 @@ and explicit separation from current-run performance attribution.
 Revision 20: native LFM FSDP2 CPU-offload BF16/FP16 checks at8/128 tokens,
 FP32 master/moment preservation, bounded independent optimizer evidence and
 explicit parameter-gradient/accumulation limitations.
+Revision 21: native partition/row-gradient measurements, FP32 diagnostic,
+cancellation conditioning and Adam coordinate sensitivity; preserve the exact
+accumulation result separately from precision stability and production causality.

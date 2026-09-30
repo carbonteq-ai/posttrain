@@ -55,7 +55,10 @@ receipt is committed.
 These checks close the initially unexecuted native LFM engine path. They verify
 score derivatives and optimizer arithmetic, not an independent derivative
 through every model parameter or a proof of microbatch accumulation equivalence.
-Still required: rendered LFM masks and unequal lengths, independent accumulated
+The subsequent [partition comparison](native-accumulation-results.md) verifies
+accumulation against separately measured rows on the8-token fixture and exposes
+precision sensitivity when those contributions cancel.
+Still required: rendered LFM masks and unequal lengths, broader accumulated
 LoRA-gradient checks, matched native TRL/veRL initial states, fresh AutomationBench
 collection/learning, broader modules/contexts, distributed and fused paths,
 and immutable production adoption.
