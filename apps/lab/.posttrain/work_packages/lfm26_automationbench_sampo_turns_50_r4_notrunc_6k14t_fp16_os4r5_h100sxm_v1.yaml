@@ -1,0 +1,35 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-sampo-turns-50-r4-notrunc-6k14t-fp16-os4r5-h100sxm-v1
+stage: train
+description: The 6e-5 fp16 SAMPO base run (lfm26-sampo-fp16-base-r4-lr6e5-kl1e2-t08-20260929-r1) on a RunPod H100 SXM with the truncation penalty removed (0.1 was subtracted from a truncated episode's reward before group statistics) and a moderately larger budget (6144 tokens per reply instead of 4096, 14 turns instead of 12, 18432 output tokens per episode instead of 12288, a 28672-token context instead of 24576), 50 updates, a checkpoint every 25; everything else identical (rank 4 / alpha 8, KL 0.01 to the base, 24 x 6, oversampling 4 / 5, concurrency 180, temperature 0.8).
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-sampo-turns-50-r4-notrunc-6k14t-fp16-os4r5-h100sxm-v1@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    reward_projection: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: sampo
+      kind: train.sampo
+      definition: train/sampo-turns@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, per-turn environment reward evidence, adaptive curriculum state, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-sampo-turns-v3-c180-t08-6k14t}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-sampo-turns-50-g24x6-r4-lr6e-5-kl1e-2-t08-os4r5-notrunc-6k14t-v1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-turn-progress@2}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-h100sxm-g144-w12-r4-fp16@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-h100sxm-c180-6k-t08-fp16@1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-automationbench-vortex-20-local-v1
+  arm: sampo-turns-50-g24x6-r4-lora6e5-kl1e2-base-t08-os4r5-fp16-no-truncation-penalty-6k14t-h100sxm
+  task_mix: lfm26-automationbench-mix-v2
+  question: Does removing the 0.1 truncation penalty and giving replies and episodes more room change truncation, reward and held-out AutomationBench compared with the 6e-5 run with the penalty?
+  labels: [experiment, sampo, turn-rewards, automationbench, lfm2.5, yield-first, adaptive-curriculum, active-sampling, oversampling, truncation-penalty, mistake-penalty, fp16, runpod-h100-sxm]

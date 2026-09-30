@@ -302,8 +302,8 @@ training:
       source_revision: c4d0db051a7839fe1b1d587185fac33ba88c784f
       dependency_lock_sha256: f18308d1af3fbfe72c9be17344762ae83dbbeaeb23a6d736767f166c763aed80
 
-  # The g144 fp16 rank-4 training binding placed on the RunPod H100 NVL; everything else is unchanged.
-  training/lfm2.5-2.6b-trl-lora-automationbench-h100nvl-g144-w12-r4-fp16@1:
+  # The g144 fp16 rank-4 training binding placed on the RunPod H100 SXM; everything else is unchanged.
+  training/lfm2.5-2.6b-trl-lora-automationbench-h100sxm-g144-w12-r4-fp16@1:
     selection_type: training-binding
     revision: "1"
     backend: trl@1.12.0.post12
@@ -313,7 +313,7 @@ training:
       implementation: default
       reasoning_mode: native
     update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
-    target: targets/runpod-h100nvl-94gb-secure-ondemand
+    target: targets/runpod-h100sxm-80gb-secure-ondemand
     parallelism: {sequence_length_divisor: 2}
     runtime: {global_batch_size: 144, devices_per_node: 1, timeout_seconds: 86400}
     backend_options:
@@ -519,11 +519,11 @@ inference:
     purpose: [rollout]
     capabilities: [tool-calling]
 
-  # The c180 rollout engine on a 94 GB H100 NVL: the workstation's 48 GiB KV cache (the 6e-5 and 1e-4 runs
-  # peaked at 55% of it), and a utilization cap of 0.70 of the card (the workstation's 0.68 of 96 GB is the
-  # same vLLM share) so the colocated trainer keeps about 28 GB, close to the workstation's 30 GB.
+  # The c180 rollout engine on an 80 GB H100 SXM: the KV cache shrinks from 48 to 40 GiB (1.31M tokens; the
+  # 6e-5 and 1e-4 runs peaked at 1.04M in use) so the colocated trainer keeps about the workstation's headroom,
+  # and the utilization cap rises to 0.72 of the card so vLLM accepts the fixed cache size.
   # Replies may run to 6144 tokens in a 28672-token context; a full cache preempts requests, it does not fail.
-  inference/lfm2.5-2.6b-vllm-automationbench-rollout-h100nvl-c180-6k-t08-fp16@1:
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-h100sxm-c180-6k-t08-fp16@1:
     revision: "1"
     model: models/lfm2.5-2.6b@bf16
     backend: vllm@0.29.1.dev4
@@ -532,12 +532,12 @@ inference:
       mode: colocate
       request_mode: async
       sleep_during_optimization: true
-      gpu_memory_utilization: 0.70
+      gpu_memory_utilization: 0.72
       tensor_parallel_size: 1
       max_model_len: 28672
       max_num_seqs: 180
       max_num_batched_tokens: 65536
-      kv_cache_memory_bytes: 51539607552
+      kv_cache_memory_bytes: 42949672960
       weight_sync_mode: lora
       enforce_eager: false
       enable_chunked_prefill: true
@@ -553,7 +553,7 @@ inference:
         num_speculative_tokens: 9
       dtype: float16
     sampling: {max_tokens: 6144, temperature: 0.8, top_p: 1.0}
-    target: targets/runpod-h100nvl-94gb-secure-ondemand
+    target: targets/runpod-h100sxm-80gb-secure-ondemand
     purpose: [rollout]
     capabilities: [tool-calling]
 

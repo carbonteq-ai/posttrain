@@ -1580,8 +1580,8 @@ owner = "posttrain-platform"
 replacement_condition = "Retire once the Phase 6 comparison of docs/plan/verl-vortex-port.md is recorded and the port ships in 0.4.13."
 
 [[gates]]
-id = "lfm26-sampo-turns-50-r4-notrunc-6k14t-fp16-os4r5-h100nvl"
-work_package = ".posttrain/work_packages/lfm26_automationbench_sampo_turns_50_r4_notrunc_6k14t_fp16_os4r5_h100nvl_v1.yaml"
+id = "lfm26-sampo-turns-50-r4-notrunc-6k14t-fp16-os4r5-h100sxm"
+work_package = ".posttrain/work_packages/lfm26_automationbench_sampo_turns_50_r4_notrunc_6k14t_fp16_os4r5_h100sxm_v1.yaml"
 job_id = "sampo"
 tier = "experimental"
 state = "candidate"
