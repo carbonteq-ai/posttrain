@@ -88,6 +88,38 @@ or a repair for every skipped update. Loss scaling is data and model dependent.
 
 ## Evidence and reproduction
 
+### Native context extension
+
+The next external-runner experiment extends the supplied population beyond
+eight tokens. The128-token population has96 context and32 response tokens;
+the256-token population has192 context and64 response tokens. Both contain
+two rows, alternating positive/negative credit and excluded response positions
+with deliberately large credit99. The context-score check covers every
+non-response prediction position, including the final unused prediction.
+Other model, adapter, accumulation and objective settings remain as above.
+These are supplied-token fixtures, not rendered conversations or task learning.
+
+| Native upstream5.19 arm | Applied updates | Independent loss/gradient checks | Peak Torch allocation |
+| --- | ---: | ---: | ---: |
+| BF16,128 tokens, ordinary fallback | 2 of2 | 4 of4 | 4.34GiB |
+| FP16,128 tokens, scale1024, ordinary fallback | 0 of2 | 4 of4 | 4.34GiB |
+| FP16,128 tokens, scale1024, FP32 region | 2 of2 | 4 of4 | 4.41GiB |
+| FP16,256 tokens, scale1024, FP32 region | 2 of2 | 4 of4 | 5.05GiB |
+
+All16 score checks pass: maximum loss error2.07e-8 and sampled-score
+gradient error2.93e-9; context-score gradients are exactly zero. The six
+applied updates match the independent native-gradient AdamW calculation
+within2.25e-9. The uncorrected FP16 arm retains finite parameters because
+the scaler skips both attempts; that is a failed update qualification despite
+passing loss checks. Desktop/driver memory is additional to Torch allocation.
+
+The external archive's `results/context-extension/` retains four JSON/log
+receipts, the executed runner and a hash manifest. The research runner is
+`working/native_verl_context_run.py`, with explicit context/response lengths.
+No runner or raw receipt is committed. These tests extend the bounded
+precision evidence; full rendered masks, matched initial adapter/Adam states,
+fresh trajectories and native LFM/Gemma remain required.
+
 ### FP16 gated-delta precision control
 
 The next matched experiment locates and removes the high-scale failure on this

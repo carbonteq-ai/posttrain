@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Run external native Qwen context extension: BF16 at128 tokens and corrected FP16(scale1024) at128/256 tokens apply six updates total; uncorrected FP16 at128 skips both attempts. All16 independent loss/score/context checks pass, applied AdamW errors stay below2.25e-9, and peak Torch allocation is5.05GiB. Keep runners/receipts in the external archive, not Git. Supplied-token results do not close the full rendered/fresh-rollout gates.
+
 - [x] (2026-10-01 user correction) Remove experimental correctness runners and raw receipts from unpublished Posttrain commits. Preserve them byte-for-byte in `/home/hammad/experiments/posttrain-correctness/2026-10-01`, with a verified Git bundle and dirty-work snapshot. Keep written findings and actual production fixes/regressions in the repository; ignore known experimental paths to prevent recommitting them. Future experiments run from the external archive.
 
 - [x] (2026-10-01) Separate GDN precision components: promotion-only and autocast-disable-only each skip2/2 native Qwen updates, while the combined control applies2/2. Add independent token-state recurrence, all six input derivatives and reference directional finite differences; FP32-region grids pass24/24 fixtures on each of Transformers5.16.1 and immutable upstream5.19. Autocast controls miss the FP32-accuracy gate; preserve these as precision measurements rather than treating normal half rounding as an algorithm bug.
@@ -85,6 +87,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- (2026-10-01) At128 tokens, uncorrected FP16 still passes every loss/score check while applying no updates. Masked objective correctness and native scaled optimizer execution are distinct acceptance requirements. The combined precision control continues to apply updates at128 and256 tokens within the local GPU budget.
 
 - (2026-10-01) A tensor's FP32 storage does not guarantee FP32 recurrence compute under CUDA autocast. Promotion-only removes the norm overflow but leaves internal delta-rule backward overflow. Both precision safeguards are needed on the measured native fixture. Independent recurrent equations validate chunk outputs, final states and q/k/v/decay/beta/initial-state derivatives before half-boundary casts.
 
@@ -314,6 +318,11 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 context milestone: the native Qwen precision candidate extends
+from8 to256 supplied tokens with verified optimizer updates and context masks.
+The failed128-token FP16 baseline remains visible. Raw evidence and scripts
+remain external under the user's repository-hygiene requirement.
 
 2026-10-01 recurrence milestone: the two-component correction is now supported
 by failing native single-component controls and independent recurrence
@@ -617,3 +626,6 @@ token-state equations and reference finite differences on two runtimes.
 Revision 16: externalize experimental tools and raw receipts, reduce the
 publishable diff, preserve the unpublished history and unrelated dirty work,
 and make local evidence/reproduction locations explicit in the reports.
+Revision 17: external native context-extension experiments in BF16/FP16,
+separate successful loss checks from applied updates, retain the failed baseline,
+and record GPU allocation without committing runners or raw data.
