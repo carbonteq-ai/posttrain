@@ -554,6 +554,9 @@ inference:
       dtype: float16
     sampling: {max_tokens: 6144, temperature: 0.8, top_p: 1.0}
     target: targets/runpod-h100sxm-80gb-secure-ondemand
+    # A fresh RunPod pod has no vLLM/FlashInfer autotune cache: on 2026-09-30 the first generation spent
+    # about 175 s autotuning on sm90, past the 180 s default, and the rollout runtime never started.
+    startup_timeout_seconds: 900
     purpose: [rollout]
     capabilities: [tool-calling]
 
