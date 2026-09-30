@@ -53,6 +53,11 @@ wandb/
 /docs/research/evidence/correctness-matrix/**/*.json
 /docs/research/evidence/correctness-matrix/**/*.log
 /docs/research/evidence/correctness-matrix/**/*.py
+/docs/research/evidence/sampo-lr1e4-checkpoint20-40-drift.json
+/docs/research/evidence/sampo-lr6e5-checkpoint20-40-drift.json
+/docs/research/evidence/sampo-native-action-mask-audit.json
+/docs/research/evidence/sampo-opposing-credit-cuda-canary.json
+/docs/research/evidence/verl-sequence-credit-math.json
 
 # Local-only secrets and host dumps (never commit)
 ops/ops-server.txt

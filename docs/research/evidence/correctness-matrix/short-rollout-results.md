@@ -188,9 +188,87 @@ in `PYTHONPATH`, then run:
     /home/hammad/projects/trl-gdpo-capo/.venv/bin/python ${POSTTRAIN_CORRECTNESS_ROOT}/tools/correctness/short_rollout_run.py --model qwen08 --reuse-rollouts --score-fp32 --deterministic --output .posttrain/state/correctness/qwen08-frozen-group-candidate-deterministic.json
     /home/hammad/projects/trl-gdpo-capo/.venv/bin/python ${POSTTRAIN_CORRECTNESS_ROOT}/tools/correctness/short_rollout_run.py --model lfm12 --score-fp32 --deterministic --max-tokens 384 --output .posttrain/state/correctness/lfm12-short-candidate-deterministic.json
 
-JSON files beside this report retain the complete public simulated trajectories,
+JSON files in the external experiment archive retain the complete public simulated trajectories,
 per-round rewards, truncation, advantages, gradients, updates and drift. Failed
 initial parser and OOM runs remain machine-local and are described above. The
 runner writes each completed round atomically. Run serially and fence nonfinite
 gradients; a shorter fixture is the recovery for the full FP32 OOM, not evidence
 that the larger failed control passed.
+
+## Native collection and the reward signal (2026-10-01)
+
+Qwen0.8B now completes fresh AutomationBench episodes through the pinned native
+Verifiers runtime, its chat harness, MCP discovery and tool execution, task setup,
+finalization and assertion scoring. This uses the `null` harness with a local
+subprocess runtime and the task's `limited_zapier` tools. The tools mutate the
+benchmark's simulated world; no real Slack messages are sent. The HF inference
+provider is an external research adapter, so this is not production vLLM
+qualification or a full Trainer learning experiment.
+
+The task is `simple.slack_office_closure`, with a four-turn budget and up to256
+tokens per model request. It asks for a facilities-maintenance announcement in
+`#general`, work-from-home instructions and Monday reopening. Verifiers is pinned
+to `e6a3d9bbfe6959b97878f451fc721793a232cd5f`, AutomationBench to
+`11f4d712806d292c6c6a752af046f4e16c4f037e`, and the renderer source to
+`1aafe24595a7f2d2f31d24afb4b1bb7a6c6dd076`. The model snapshot remains
+`2fc06364715b967f1860aea9cf38778875588b17`; inference uses BF16 and the isolated
+Transformers source `d6c1e71bd717bf092f8293f0c3c9bd4a5ac5401a`.
+
+| Collection | Episode | Assistant turns | Tool calls | Posts | Reward | Tool failures / truncations |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| Scripted transport control | 1 /2 | 3 each | 2 each | 1 each | 1.0 each | 0 /0 |
+| Real Qwen, evaluation client | 1 | 4 | 5 | 3 | 1.0 | 0 /0 |
+| Real Qwen, evaluation client | 2 | 3 | 2 | 1 | 1.0 | 0 /0 |
+| Real Qwen, native training client | 1 | 2 | 1 | 1 | 1.0 | 0 /0 |
+| Real Qwen, native training client | 2 | 3 | 2 | 1 | 1.0 | 0 /0 |
+
+All posted messages contain the requested instructions. The evaluation client's
+first episode posts the announcement three times and searches for channels twice
+in one turn. Its reward still matches the single-post episode. The assertion
+checks only for a message in `general` containing `February 27`; it does not
+penalize duplicate side effects or redundant searches. That is a measured reward
+limitation on this task. These two episodes do not establish its prevalence in
+the current training run.
+
+The native training client uses the renderer's token-generation contract and
+retains exact sampled spans and sampling log probabilities. The external HF
+provider implements `/inference/v1/generate`; Verifiers performs decoding and
+tool parsing. The two episodes contain133 and165 sampled tokens, across two and
+three assistant turns. Posttrain's actual `_project` method accepts both traces
+and preserves those token and turn counts. This checks the direct projection
+seam; it bypasses worker scheduling, admission/refill and the optimizer.
+On the full-precision repeat, all five calls retain exactly the provider's
+sampled IDs and log probabilities. Each final graph branch exactly matches
+the final provider prompt plus completion. All system/user/tool input nodes
+have zero sampled mask entries. The analysis asserts these invariants and
+the independent sparse-return credit equations.
+
+Equal terminal rewards give episode advantages `[0,0]`. With Posttrain's default
+discount0.95, sparse terminal rewards give initial returns0.95 and0.9025 for
+the two-turn and three-turn episodes. Independent centering therefore predicts
+first-turn credits `+0.02375` and `-0.02375`; the framework returns those values.
+Later anchors are singletons and carry zero relative credit. With discount1,
+all turn and token credits are zero. Thus equal episode rewards can still yield
+a length-dependent SAMPO turn signal before admission. The inspected TRL active
+sampling path keeps groups using terminal reward standard deviation greater than
+zero; it would reject this equal-reward group. We have not executed that native
+admission path on these episodes, so its effect here remains a source-backed
+prediction.
+
+Two runner mistakes remain visible in the external evidence. The first local
+evaluation adapter failed on the second turn because it passed OpenAI's JSON
+argument strings to a Qwen template that expects mappings. Conversion of the
+renderer copy fixes the transport without changing the original wire request.
+The first training-client receipt used Verifiers' default four-decimal JSON
+serialization, producing log-probability differences up to4.994e-5 on reload.
+Posttrain already opts out through `to_record(float_decimals=None)`. The runner
+was corrected to retain full precision and rerun; neither issue proves a
+production framework defect.
+
+Runners and raw receipts live under `${POSTTRAIN_CORRECTNESS_ROOT}/working/` and
+`${POSTTRAIN_CORRECTNESS_ROOT}/results/native-collection/`. The collection runner
+is `native_automationbench_collection.py`; the analysis runner is
+`analyze_native_collection.py`. Retain both failed attempts and successful arms.
+Further acceptance needs multiple task groups/seeds, native admission/refill and actual matched optimizer
+updates. Reward changes belong to the external environment/rubric contract and
+need controlled task-quality evidence before adoption.

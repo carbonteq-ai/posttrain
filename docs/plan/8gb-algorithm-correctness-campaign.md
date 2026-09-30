@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Collect fresh Qwen BF16 AutomationBench episodes through native Verifiers null harness/MCP and native training-client token transport. Scripted controls pass twice; real evaluation episodes expose duplicate-post reward blindness. Native training-client episodes project into Posttrain as133/165 sampled tokens and2/3 turns. Derive sparse-return SAMPO credit at discount0.95 versus1; preserve external adapter/serialization failures and keep full learning/admission acceptance open.
+
 - [x] (2026-10-01) Measure native LFM partition accumulation with identical initial adapters: BF16/FP16 microbatch1 gradients exactly equal separate-row sums. Ten native contribution/layout/FP32 diagnostic arms apply updates and pass13 score checks. Batch2 versus microbatch1 changes total gradients29.06% BF16/6.51% FP16 versus0.00732% FP32; component cancellation conditions are43.65/42.51. Preserve measured Adam coordinate amplification and avoid inferring a dropped gradient, production cause or full independent model Jacobian. Tools/tensors remain external.
 
 - [x] (2026-10-01) Exercise native LFM1.2B with FSDP2 CPUOffloadPolicy, preserving FP32 trainable masters and optimizer moments. Four BF16/FP16 arms at8/128 tokens apply8/8 updates and pass16 score/mask checks; FP16 retains scale1024 without skips. Independent native-gradient AdamW error stays below2.13e-9 and peak Torch GPU allocation is1.00GiB. Full parameter-derivative/accumulation, rendered LFM and fresh-task parity gates remain open. Tools/receipts remain external.
@@ -95,6 +97,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- (2026-10-01) Real native task success can hide duplicate actions: the office-closure assertion rewards three identical posts and one post equally. Equal terminal rewards have zero episode credit, while discount0.95 still produces length-dependent initial turn credit; terminal-reward variance admission would reject that group. Native evaluation traces lack token evidence, so the training client is a separate acceptance gate. Default Verifiers JSON rounds policy floats; Posttrain already explicitly retains full precision.
 
 - (2026-10-01) Native accumulation can be exactly correct while batch-layout precision differences substantially alter a cancelling gradient. The half-precision row sum is exact; changing layout yields small errors relative to component norms but large errors relative to their remaining signal. FP32 reduces that sensitivity. Near-zero coordinates around Adam epsilon can also produce large coordinate-update differences despite a small full-gradient error.
 
@@ -256,6 +260,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Decision: exercise the pinned native chat harness and MCP task tools locally with an external HF token provider. Preserve native traces and exact sampling evidence, distinguish evaluation transport from training transport, and retain duplicate-action reward limitations without changing the environment's reward contract. No frozen product amendment or production pin change is required for these experiments. Date/Author: 2026-10-01 / Codex.
+
 - Decision: use Decimal precision1600 only after GDPO weighted aggregation overflows, preserving the ordinary float path and component normalization semantics. Commit the generic framework repair and meaningful regressions, while keeping exploratory candidates, plugins and receipts external. This changes no frozen product meaning or training recipe. Date/Author: 2026-10-01 / Codex.
 
 - Decision: correctness runners and raw traces are local research material, not product source. Consolidate unpublished root commits to remove them from the publishable history, while preserving the original history and receipts externally. Retain source repairs, regression tests and concise reports. This follows the user's explicit request. Date/Author: 2026-10-01 / Codex.
@@ -336,6 +342,12 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 native collection milestone: actual multi-turn task execution is now
+observed through native Verifiers, including task scoring and sampled-token
+projection. A duplicate-action reward blind spot and a discount/admission
+interaction deserve controlled experiments. Full native collection-to-update
+learning, LFM native collection and production inference parity remain open.
 
 2026-10-01 accumulation milestone: a direct separate-row invariant rules out
 dropped accumulation on the controlled LFM fixture. Layout/precision and Adam
@@ -681,3 +693,6 @@ explicit parameter-gradient/accumulation limitations.
 Revision 21: native partition/row-gradient measurements, FP32 diagnostic,
 cancellation conditioning and Adam coordinate sensitivity; preserve the exact
 accumulation result separately from precision stability and production causality.
+Revision 22: fresh native AutomationBench transport, real Qwen tool behavior,
+reward blind spots and sparse-return SAMPO credit; preserve exact token evidence,
+runner failures and full learning/admission gates. Experiments remain external.
