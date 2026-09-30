@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
+from typing import cast
 
 from posttrain.common import (
     EPISODE_ENDING_ATTRIBUTE,
@@ -22,7 +23,13 @@ from posttrain.common import (
 # rejected for exceeding the context is truncated, not an error, and keeps the
 # reward the environment scored. v9: the episode ending label is a fact
 # dimension (`episode_ending`), which needs Trackio 0.31.5.post14.dev32.
-VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v9"
+# v10: a call whose reasoning count the renderer recovered from the stored reply
+# text (traces without sampled token ids, such as chat-completion evaluations)
+# marks its usage `reasoning_tokens_source: renderer_retokenized_text`, and the
+# thinking fact records that provenance instead of provider usage.
+VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v10"
+RENDERER_RETOKENIZED_TEXT = "renderer_retokenized_text"
+"""Usage source of a reasoning count the renderer recovered from reply text, not sampled token ids."""
 
 # Verifiers stop conditions that are limits, and the ending each one records.
 # `context_length` and `harness_timeout` come from pre-v1 Verifiers records.
@@ -201,9 +208,13 @@ def project_verifiers_trace_facts(
     }
 
     if reasoning_tokens is not None:
-        provenance["thinking_tokens"] = (
-            "provider_reasoning_usage" if reasoning_complete else "provider_reasoning_usage_partial"
+        retokenized = any(
+            isinstance(call.get("usage"), Mapping)
+            and cast(Mapping[str, object], call["usage"]).get("reasoning_tokens_source") == RENDERER_RETOKENIZED_TEXT
+            for call in calls or ()
         )
+        source = RENDERER_RETOKENIZED_TEXT if retokenized else "provider_reasoning_usage"
+        provenance["thinking_tokens"] = source if reasoning_complete else f"{source}_partial"
     else:
         provenance["thinking_tokens"] = "unsupported"
 
@@ -484,6 +495,7 @@ def _string(value: object) -> str | None:
 
 
 __all__ = [
+    "RENDERER_RETOKENIZED_TEXT",
     "VERIFIERS_FACT_CALCULATOR_VERSION",
     "final_call_overflowed_context",
     "is_context_overflow_error",

@@ -15,8 +15,9 @@ To see it working, open Observatory's Evaluations page for the suite `eval/lfm2.
 - [x] (2026-10-01 00:10Z) Surveyed the evals view, trace facts, fact projection, eval trace contents and the backfill command (Context and Orientation).
 - [x] (2026-10-01 00:30Z) Wrote this plan.
 - [x] (2026-10-01 04:40Z) Milestone 1: behaviour columns from existing facts (turns, turns on completed episodes, tool calls, output tokens, thinking tokens where recorded, ending mix) in `evaluations.py`, `openapi.json`, `api-schema.ts`, the suite table and a "How episodes went" table on the comparison page; backend 187 passed, frontend 120 passed, production build succeeds; the new index SQL ran against production and matched the 2026-09-30 trace scoring. Not yet deployed.
-- [ ] Milestone 2 prototype: choose how new evaluations report thinking tokens (vLLM LFM2 reasoning parser versus renderer-routed eval client).
-- [ ] Milestone 2: thinking and answer tokens for new evaluations and a renderer-based backfill for existing evaluation traces.
+- [x] (2026-10-01 05:30Z) Milestone 2 prototype (in the job image, CPU only, on real eval replies): the LFM2.5 eval bindings had no reasoning parser at all; vLLM's `qwen3` parser counts thinking without an opening tag, `deepseek_r1` counts 0; the chat template already strips past thinking, so prompts stay identical.
+- [x] (2026-10-01 06:00Z) Milestone 2 code: `reasoning_parser: qwen3` on new binding revisions `inference/lfm2.5-2.6b-vllm-automationbench-eval-local@5` and `...-eval-t05-liquid-local@2`, used by the v4 and v4-t05 suites; backfill text path in `fill_renderer_reasoning_tokens` with `renderer_retokenized_text` provenance (fact calculator v10). Preview on the H100 step-50 v4-t05 eval: 100 traces, 551 calls counted, 0 unscored.
+- [ ] Milestone 2 remaining: apply the backfill to every existing evaluation run; confirm a new v4 or v4-t05 evaluation records provider reasoning counts.
 - [ ] Milestone 3a: Trackio fork `trace_environment_metrics` table, write and read paths, both backends, tests, release, Posttrain pin.
 - [ ] Milestone 3b: Posttrain projection of environment metrics, tracking adapter, semantic layer, evals view columns, backfill, canonical-doc amendment.
 - [ ] Milestone 4: deploy (Trackio release and Doris migration through ai-infra, Observatory), run the backfills, verify on the v4 and v4-t05 suites.
@@ -27,6 +28,10 @@ To see it working, open Observatory's Evaluations page for the suite `eval/lfm2.
   Evidence: in `eval-lfm26-heldout-64k-v4-t05-h100notrunc-step50-20260930-r1`, every assistant node has 10 `token_ids` and no sampled positions, while the calls report 142, 353, 248 and 2661 completion tokens.
 - Observation: LFM2.5 evaluation traces record no thinking tokens although the model thinks on every call. The chat template opens `<think>` in the prompt, so the sampled text is "thinking, then `</think>`, then the answer"; vLLM's LFM2 reasoning parser does not split it, reports no `reasoning_tokens`, and leaves `reasoning_content` empty.
   Evidence: `calls[].usage` holds only `prompt_tokens` and `completion_tokens`; `</think>` appears once per call in `nodes[*].message.content`; the projected fact has provenance `thinking_tokens: unsupported`.
+- Observation: the LFM2.5 evaluation bindings configure no vLLM reasoning parser, so vLLM returns thinking inside `content` and no reasoning count. Of vLLM's parsers, only `qwen3` counts thinking when the template opened `<think>` in the prompt.
+  Evidence: on three real replies (254, 386 and 254 completion tokens), `qwen3.count_reasoning_tokens` gave 177, 302 and 144, and `deepseek_r1` gave 0, 0 and 0. Rendering a history with the thinking inline and without it produced byte-identical prompts.
+- Observation: the renderer counts the closing `</think>` token as thinking and vLLM's `qwen3` parser does not, a difference of exactly one token per model call (about 0.3% of thinking on these tasks).
+  Evidence: three full eval traces gave renderer versus `qwen3` totals of 4654 vs 4644 (10 calls), 13874 vs 13859 (15 calls) and 7595 vs 7583 (12 calls). Thinking is 61% to 84% of all generated tokens.
 - Observation: AutomationBench already counts tool mistakes per episode and records them as native metrics, while raw tool results have no consistent failure shape.
   Evidence: 300 eval traces carry `tool_mistakes`, `tool_invalid_arguments`, `tool_missing_arguments`, `tool_unknown_id`, `tool_unknown_tool`, `tool_empty_results` and `task_completed_correctly` in `raw.metrics`. Their tool results were 2184 `{"success": true}`, 122 `{"success": false, "error": ...}`, 10 `{"error": ...}` without `success`, 81 JSON objects with neither field, and 232 plain-text results.
 
@@ -41,6 +46,9 @@ To see it working, open Observatory's Evaluations page for the suite `eval/lfm2.
 - Decision: backfill evaluations that were recorded before this change, for both environment metrics and thinking counts.
   Rationale: the comparisons researchers need span existing checkpoints (base, SAMPO r2, the 6e-5, 1e-4 and H100 runs); a view that only fills for new runs would not answer current questions.
   Date/Author: 2026-10-01, user.
+- Decision: new LFM2.5 evaluations report thinking through vLLM's `qwen3` reasoning parser, configured on new revisions of the two eval bindings, rather than routing evaluation traffic through the renderer.
+  Rationale: it is one line of serving configuration that vLLM already turns into `completion_tokens_details.reasoning_tokens`, which Verifiers and the existing projection read; prompts are unchanged because the chat template strips past thinking; `deepseek_r1` was rejected because it counts zero on replies whose thinking the prompt opened. Existing binding revisions are left unchanged so past evaluations keep their exact configuration.
+  Date/Author: 2026-10-01, Claude.
 - Decision: thinking counts come from the model's renderer, which already provides them on the training path. For existing evaluation traces, which keep only text, the backfill tokenizes each reply with the renderer's tokenizer and lets the renderer's parser find the thinking boundary, recording the provenance as re-tokenized text.
   Rationale: the renderer is the component that knows each model's thinking markers; hard-coding `</think>` in the projection was deliberately removed at fact calculator v6 and must stay removed. Re-tokenizing decoded text can differ from the sampled tokens by a few tokens per reply, which is why the provenance records it.
   Date/Author: 2026-10-01, user and Claude.

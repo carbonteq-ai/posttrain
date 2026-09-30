@@ -39,7 +39,7 @@ def test_real_automationbench_episodes_get_their_ending(case: dict[str, Any]) ->
     assert facts.measures["task_reward"] is not None
     # The ending is also a fact dimension, so Trackio stores it in its own column.
     assert facts.dimensions["episode_ending"] == expected
-    assert facts.calculator_version == "verifiers-trace-facts.v9"
+    assert facts.calculator_version == "verifiers-trace-facts.v10"
 
 
 def test_context_rejection_keeps_the_scored_reward() -> None:
@@ -131,3 +131,26 @@ def test_labels_are_one_closed_vocabulary() -> None:
     assert all(episode_ending(name) == name for name in EPISODE_ENDINGS)
     assert episode_ending("truncated") is None
     assert episode_ending(None) is None
+
+
+def test_thinking_counted_from_reply_text_keeps_its_provenance() -> None:
+    from posttrain.environment import RENDERER_RETOKENIZED_TEXT, project_verifiers_trace_facts
+
+    def record(usages: list[dict]) -> dict:
+        return {
+            "id": "t",
+            "version": 3,
+            "agent": {"model": "models/lfm2.5-2.6b@bf16"},
+            "calls": [{"node": 0, "usage": usage} for usage in usages],
+            "nodes": [{"message": {"role": "assistant", "content": "a"}}],
+            "rewards": {"task": 1.0},
+        }
+
+    text = {"completion_tokens": 10, "reasoning_tokens": 6, "reasoning_tokens_source": RENDERER_RETOKENIZED_TEXT}
+    complete = project_verifiers_trace_facts(record([text, dict(text)]))
+    assert complete.measures["thinking_tokens"] == 12
+    assert complete.provenance["thinking_tokens"] == "renderer_retokenized_text"
+    partial = project_verifiers_trace_facts(record([text, {"completion_tokens": 3}]))
+    assert partial.provenance["thinking_tokens"] == "renderer_retokenized_text_partial"
+    provider = project_verifiers_trace_facts(record([{"completion_tokens": 10, "reasoning_tokens": 6}]))
+    assert provider.provenance["thinking_tokens"] == "provider_reasoning_usage"
