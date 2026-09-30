@@ -363,3 +363,91 @@ def test_apply_refuses_to_erase_reasoning_counts_without_a_renderer(monkeypatch)
     [(external_id, facts)] = written
     assert external_id == "qwen-trace"
     assert facts.measures["thinking_tokens"] == 2
+
+
+class _TextRenderer:
+    """Renders messages as one token per message and counts tokens before 99 (inclusive) as reasoning."""
+
+    def __init__(self) -> None:
+        self.prompts: list[list[dict]] = []
+
+    def render_ids(self, messages, *, add_generation_prompt):
+        assert add_generation_prompt is True
+        self.prompts.append([dict(message) for message in messages])
+        return [len(message["content"]) for message in messages]
+
+    def parse_response(self, token_ids, *, prompt_ids):
+        return SimpleNamespace(reasoning_tokens=token_ids.index(99) + 1 if 99 in token_ids else 0)
+
+
+class _WordTokenizer:
+    """Maps each space-separated word to a token id; '</think>' becomes 99."""
+
+    def encode(self, text, *, add_special_tokens):
+        assert add_special_tokens is False
+        return [99 if word == "</think>" else 7 for word in text.split()]
+
+
+def test_renderer_counts_reasoning_from_reply_text_when_no_tokens_were_sampled() -> None:
+    from posttrain_cli.trace_fact_backfill import fill_renderer_reasoning_tokens
+
+    payload = {
+        "nodes": [
+            {"message": {"role": "system", "content": "sys"}, "token_ids": [1], "mask": [False], "parent": None},
+            {"message": {"role": "user", "content": "task"}, "token_ids": [2], "mask": [False], "parent": 0},
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "plan the call </think> done",
+                    "tool_calls": [{"id": "c1"}],
+                },
+                "token_ids": [3],
+                "mask": [False],
+                "parent": 1,
+            },
+            {
+                "message": {"role": "tool", "content": "{}", "tool_call_id": "c1"},
+                "token_ids": [4],
+                "mask": [False],
+                "parent": 2,
+            },
+            {
+                "message": {"role": "assistant", "content": "check </think>"},
+                "token_ids": [5],
+                "mask": [False],
+                "parent": 3,
+            },
+            {"message": {"role": "assistant", "content": "x"}, "token_ids": [6, 7], "mask": [False, True], "parent": 1},
+        ],
+        "calls": [
+            {"node": 2, "usage": {"completion_tokens": 9}},
+            {"node": 4, "usage": {"completion_tokens": 4}},
+            {"node": 5, "usage": {"completion_tokens": 1}},
+        ],
+    }
+    renderer = _TextRenderer()
+
+    # Without a tokenizer only the call whose node kept sampled token ids is counted (exactly, from its tokens).
+    without_tokenizer, filled = fill_renderer_reasoning_tokens(payload, renderer)
+    assert filled == 1
+    assert [call["usage"].get("reasoning_tokens") for call in without_tokenizer["calls"]] == [None, None, 0]
+
+    updated, filled = fill_renderer_reasoning_tokens(payload, renderer, _WordTokenizer())
+
+    assert filled == 3
+    usages = [call["usage"] for call in updated["calls"]]
+    assert [usage.get("reasoning_tokens") for usage in usages] == [4, 2, 0]
+    assert [usage.get("reasoning_tokens_source") for usage in usages] == [
+        "renderer_retokenized_text",
+        "renderer_retokenized_text",
+        None,
+    ]
+    # The prompt is rendered from the reply's ancestor messages, tool calls and results included.
+    assert [[message["role"] for message in prompt] for prompt in renderer.prompts] == [
+        ["system", "user"],
+        ["system", "user", "assistant", "tool"],
+    ]
+    assert renderer.prompts[1][2]["tool_calls"] == [{"id": "c1"}]
+    assert renderer.prompts[1][3]["tool_call_id"] == "c1"
+    # A call whose node has sampled token ids is only counted by the exact token path, never from text.
+    assert "reasoning_tokens" not in payload["calls"][0]["usage"]

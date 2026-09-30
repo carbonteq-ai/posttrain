@@ -13,7 +13,7 @@ from typing import Annotated, Any
 
 import typer
 from posttrain.common import EPISODE_ENDING_ATTRIBUTE, ContractError, TraceFactSet
-from posttrain.environment import project_verifiers_trace_facts
+from posttrain.environment import RENDERER_RETOKENIZED_TEXT, project_verifiers_trace_facts
 from posttrain.tracking import TraceQuery
 
 from .context import CliState
@@ -23,16 +23,24 @@ from .tracking_config import project_tracking_environment
 _TRACE_FACT_READ_CHUNK_SIZE = 1000
 
 
-def fill_renderer_reasoning_tokens(payload: Mapping[str, Any], renderer: Any) -> tuple[dict[str, Any], int]:
+def fill_renderer_reasoning_tokens(
+    payload: Mapping[str, Any], renderer: Any, tokenizer: Any = None
+) -> tuple[dict[str, Any], int]:
     """Return a copy of a native trace whose calls carry renderer reasoning counts.
 
     Traces recorded before the renderer reported ``reasoning_tokens`` keep each
     call's generated tokens on its committed node. Re-parsing them with the
     model's renderer gives the same count a new rollout would record. The prompt
     is the node's ancestor chain plus its unsampled prefix, which lets the
-    renderer see reasoning the generation prompt opened. Calls that already
-    report the count, failed, or have no token evidence are left unchanged.
-    Returns the updated payload and how many calls were filled.
+    renderer see reasoning the generation prompt opened.
+
+    Chat-completion traces (evaluations) keep only the reply text, not the
+    sampled token ids. With a ``tokenizer``, such a call's reply is tokenized
+    and parsed against the prompt the renderer builds from the node's ancestor
+    messages; its usage then records ``reasoning_tokens_source`` so the fact
+    keeps ``renderer_retokenized_text`` provenance. Calls that already report
+    the count, failed, or have no evidence are left unchanged. Returns the
+    updated payload and how many calls were filled.
     """
 
     nodes = payload.get("nodes")
@@ -43,11 +51,17 @@ def fill_renderer_reasoning_tokens(payload: Mapping[str, Any], renderer: Any) ->
     updated_calls: list[Any] = []
     for call in calls:
         count = _renderer_reasoning_count(call, nodes, renderer)
+        source = None
+        if count is None and tokenizer is not None:
+            count = _renderer_reasoning_count_from_text(call, nodes, renderer, tokenizer)
+            source = RENDERER_RETOKENIZED_TEXT if count is not None else None
         if count is None:
             updated_calls.append(call)
             continue
         usage = dict(call["usage"])
         usage["reasoning_tokens"] = count
+        if source is not None:
+            usage["reasoning_tokens_source"] = source
         updated_calls.append({**call, "usage": usage})
         filled += 1
     return {**payload, "calls": updated_calls}, filled
@@ -100,6 +114,48 @@ def _renderer_reasoning_count(call: Any, nodes: list[Any], renderer: Any) -> int
     parsed = renderer.parse_response(list(token_ids[first:]), prompt_ids=prompt)
     count = getattr(parsed, "reasoning_tokens", None)
     return count if isinstance(count, int) and not isinstance(count, bool) and count >= 0 else None
+
+
+def _renderer_reasoning_count_from_text(call: Any, nodes: list[Any], renderer: Any, tokenizer: Any) -> int | None:
+    if not isinstance(call, Mapping) or call.get("error") not in (None, False, ""):
+        return None
+    usage = call.get("usage")
+    index = call.get("node")
+    if not isinstance(usage, Mapping) or usage.get("reasoning_tokens") is not None:
+        return None
+    if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(nodes):
+        return None
+    node = nodes[index]
+    mask = node.get("mask") if isinstance(node, Mapping) else None
+    if isinstance(mask, list) and any(sampled is True for sampled in mask):
+        return None  # sampled token ids exist; only the exact token path may count them
+    message = node.get("message") if isinstance(node, Mapping) else None
+    content = message.get("content") if isinstance(message, Mapping) else None
+    if not isinstance(content, str) or not content:
+        return None
+    history: list[dict[str, Any]] = []
+    seen = {index}
+    parent = node.get("parent")
+    while isinstance(parent, int) and not isinstance(parent, bool) and 0 <= parent < len(nodes) and parent not in seen:
+        seen.add(parent)
+        ancestor = nodes[parent]
+        ancestor_message = ancestor.get("message") if isinstance(ancestor, Mapping) else None
+        if not isinstance(ancestor_message, Mapping) or not isinstance(ancestor_message.get("role"), str):
+            return None
+        history.insert(0, _wire_message(ancestor_message))
+        parent = ancestor.get("parent")
+    prompt_ids = renderer.render_ids(history, add_generation_prompt=True)
+    parsed = renderer.parse_response(tokenizer.encode(content, add_special_tokens=False), prompt_ids=list(prompt_ids))
+    count = getattr(parsed, "reasoning_tokens", None)
+    return count if isinstance(count, int) and not isinstance(count, bool) and count >= 0 else None
+
+
+def _wire_message(message: Mapping[str, Any]) -> dict[str, Any]:
+    wired: dict[str, Any] = {"role": message["role"], "content": message.get("content") or ""}
+    for key in ("tool_calls", "tool_call_id", "name"):
+        if message.get(key):
+            wired[key] = message[key]
+    return wired
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +234,7 @@ def backfill_verifiers_trace_window(
     apply: bool,
     checkpoint: Callable[[TraceFactBackfillPage], None] | None = None,
     renderer: Any = None,
+    tokenizer: Any = None,
 ) -> TraceFactBackfillWindow:
     """Process a bounded window while checkpointing every physical page.
 
@@ -223,7 +280,7 @@ def backfill_verifiers_trace_window(
         for trace in raw_page.items:
             payload = trace.payload
             if renderer is not None:
-                payload, filled = fill_renderer_reasoning_tokens(payload, renderer)
+                payload, filled = fill_renderer_reasoning_tokens(payload, renderer, tokenizer)
                 reasoning_filled += filled
             facts = project_verifiers_trace_facts(payload, attributes=trace.attributes)
             ending = facts.dimensions.get(EPISODE_ENDING_ATTRIBUTE)
@@ -352,13 +409,15 @@ def register(app: typer.Typer) -> None:
             raise ContractError("trace-fact backfill requires POSTTRAIN_TRACKIO_SERVER_URL")
         project = trackio_project or environment.get("POSTTRAIN_TRACKIO_PROJECT") or layout.project_id
         renderer = None
+        tokenizer = None
         if renderer_model is not None:
             try:
                 from renderers import create_renderer  # pyright: ignore[reportMissingImports]
                 from renderers.base import load_tokenizer  # pyright: ignore[reportMissingImports]
             except ImportError as error:
                 raise ContractError("--renderer-model requires the carbonteq-renderers package") from error
-            renderer = create_renderer(load_tokenizer(renderer_model))
+            tokenizer = load_tokenizer(renderer_model)
+            renderer = create_renderer(tokenizer)
 
         def report_checkpoint(page: TraceFactBackfillPage) -> None:
             if state.json_output:
@@ -389,6 +448,7 @@ def register(app: typer.Typer) -> None:
             apply=apply,
             checkpoint=report_checkpoint,
             renderer=renderer,
+            tokenizer=tokenizer,
         )
         mode = "applied" if apply else "previewed"
         emit(

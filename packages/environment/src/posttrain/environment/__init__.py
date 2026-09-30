@@ -34,6 +34,7 @@ from .requests import (
 )
 from .task_inventory import TaskDescriptor, TaskFacetValue, task_inventory_digest
 from .verifiers_evidence import (
+    RENDERER_RETOKENIZED_TEXT,
     VERIFIERS_FACT_CALCULATOR_VERSION,
     final_call_overflowed_context,
     is_context_overflow_error,
@@ -71,6 +72,7 @@ __all__ = [
     "SignalSourceSchema",
     "TaskDescriptor",
     "TaskFacetValue",
+    "RENDERER_RETOKENIZED_TEXT",
     "VERIFIERS_FACT_CALCULATOR_VERSION",
     "VerifiersV1ConfigActivation",
     "VerifiersV1ConfigActivationSchema",
