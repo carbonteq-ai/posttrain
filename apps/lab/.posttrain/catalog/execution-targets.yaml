@@ -93,6 +93,28 @@ target:
       gpu_memory_max_gb: 96
       max_price: 2.2
       disk_gb: 100
+  # One RunPod Secure Cloud H100 (80 GB HBM, Hopper) on demand, found by GPU name because RunPod
+  # reports 80 GB cards as 79.6 GiB and an exact 80 GB memory filter matches none. No fleet: the
+  # secure-ondemand fleet lists RTX cards only, so dstack places it through the RunPod backend.
+  targets/runpod-h100-80gb-secure-ondemand:
+    revision: "1"
+    device_class: nvidia-cuda
+    memory_gb: 80
+    hardware:
+      accelerator_count: 1
+      accelerator_model: H100
+      gpu_architecture: hopper
+      supports_bf16: true
+    placement:
+      world_size: 1
+      backends:
+        - runpod
+      spot_policy: on-demand
+      managed_run_storage: true
+      gpu_names:
+        - H100
+      max_price: 3.3
+      disk_gb: 100
   targets/runpod-rtx-pro-6000-spot-qualification:
     revision: "2"
     device_class: nvidia-cuda
