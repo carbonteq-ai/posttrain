@@ -10,6 +10,11 @@ training runs with each other, on the suites they share.
 Score: mean rollout reward over attempts that did not fail. A truncated attempt
 counts at its recorded reward (0 when none was recorded); failed attempts are
 execution errors, not model outcomes, and are counted separately.
+
+Behaviour: per-episode means over the same attempts, computed from the recorded
+trace facts: turns (model calls), turns on episodes that ended on their own,
+tool calls, output tokens and thinking tokens, plus how many episodes ended each
+way. A mean is missing (``None``), never zero, when no attempt recorded the fact.
 """
 
 from __future__ import annotations
@@ -33,11 +38,23 @@ _SCORE = "avg(case when o.failed then null else coalesce(o.rollout_reward, 0) en
 _TRUNCATED = "sum(case when o.truncated then 1 else 0 end)"
 _FAILED = "sum(case when o.failed then 1 else 0 end)"
 
+
+def _mean(column: str, *, completed_only: bool = False) -> str:
+    excluded = "o.failed or o.ending <> 'completed'" if completed_only else "o.failed"
+    return f"avg(case when {excluded} then null else o.{column} end)"
+
+
+_BEHAVIOUR = (
+    f"{_mean('model_calls')} as turns, {_mean('model_calls', completed_only=True)} as turns_completed, "
+    f"{_mean('tool_calls')} as tool_calls, {_mean('output_tokens')} as output_tokens, "
+    f"{_mean('thinking_tokens')} as thinking_tokens"
+)
+
 INDEX_SQL = f"""
 select r.id as run_id, r.job_kind as job_kind, r.work_package as suite, r.environment as environment,
        r.model as model, r.parent_run as parent_run, r.parent_step as parent_step, r.status as status,
        r.started_at as started_at, count(o.task) as attempts, {_SCORE} as score,
-       {_TRUNCATED} as truncated, {_FAILED} as failed
+       {_TRUNCATED} as truncated, {_FAILED} as failed, {_BEHAVIOUR}
 from runs r left join rollouts o on o.run_id = r.id
 group by r.id, r.job_kind, r.work_package, r.environment, r.model, r.parent_run, r.parent_step, r.status,
          r.started_at
@@ -46,11 +63,23 @@ order by r.started_at
 
 TASKS_SQL = f"""
 select o.run_id as run_id, o.task as task, count(*) as attempts, {_SCORE} as score,
-       {_TRUNCATED} as truncated, {_FAILED} as failed
+       {_TRUNCATED} as truncated, {_FAILED} as failed, {_BEHAVIOUR}
 from rollouts o
 group by o.run_id, o.task
 order by o.task, o.run_id
 """.strip()
+
+ENDINGS_SQL = """
+select o.run_id as run_id, o.ending as ending, count(*) as episodes
+from rollouts o
+group by o.run_id, o.ending
+""".strip()
+
+BEHAVIOUR_DEFINITION = (
+    "Per-episode means over attempts that did not fail: turns are model calls; turns (completed) counts only "
+    "episodes that ended on their own; tool calls, output and thinking tokens come from the recorded trace facts. "
+    "A missing value means no attempt recorded it."
+)
 
 
 class EvaluationRecord(ObservatoryModel):
@@ -71,11 +100,18 @@ class EvaluationRecord(ObservatoryModel):
     score: float | None = None
     truncated: int = 0
     failed: int = 0
+    turns: float | None = None
+    turns_completed: float | None = None
+    tool_calls: float | None = None
+    output_tokens: float | None = None
+    thinking_tokens: float | None = None
+    endings: dict[str, int] = Field(default_factory=dict)
 
 
 class EvaluationIndex(ObservatoryModel):
     source_id: str = Field(min_length=1)
     score_definition: str = SCORE_DEFINITION
+    behaviour_definition: str = BEHAVIOUR_DEFINITION
     records: tuple[EvaluationRecord, ...] = ()
 
 
@@ -86,6 +122,11 @@ class EvaluationTaskScore(ObservatoryModel):
     score: float | None = None
     truncated: int = 0
     failed: int = 0
+    turns: float | None = None
+    turns_completed: float | None = None
+    tool_calls: float | None = None
+    output_tokens: float | None = None
+    thinking_tokens: float | None = None
 
 
 class EvaluationTaskScores(ObservatoryModel):
@@ -122,9 +163,21 @@ def _float(value: Any) -> float | None:
     return number if number == number else None
 
 
+def _behaviour(row: dict[str, Any]) -> dict[str, float | None]:
+    return {
+        name: _float(row.get(name))
+        for name in ("turns", "turns_completed", "tool_calls", "output_tokens", "thinking_tokens")
+    }
+
+
 async def evaluation_index(source_id: str, query: Query) -> EvaluationIndex:
     """Every evaluation run in the source with its lineage and score."""
     result = await query(SqlQuery(sql=INDEX_SQL, runs={"run.job_kind": "eval.*"}))
+    endings: dict[str, dict[str, int]] = {}
+    for row in _rows(await query(SqlQuery(sql=ENDINGS_SQL, runs={"run.job_kind": "eval.*"}))):
+        run_id, ending, count = _text(row.get("run_id")), _text(row.get("ending")), _int(row.get("episodes"))
+        if run_id is not None and ending is not None and count:
+            endings.setdefault(run_id, {})[ending] = count
     records = []
     for row in _rows(result):
         run_id = _text(row.get("run_id"))
@@ -148,6 +201,8 @@ async def evaluation_index(source_id: str, query: Query) -> EvaluationIndex:
                 score=_float(row.get("score")),
                 truncated=_int(row.get("truncated")) or 0,
                 failed=_int(row.get("failed")) or 0,
+                **_behaviour(row),
+                endings=endings.get(run_id, {}),
             )
         )
     return EvaluationIndex(source_id=source_id, records=tuple(records))
@@ -172,6 +227,7 @@ async def evaluation_tasks(source_id: str, run_ids: Sequence[str], query: Query)
                 score=_float(row.get("score")),
                 truncated=_int(row.get("truncated")) or 0,
                 failed=_int(row.get("failed")) or 0,
+                **_behaviour(row),
             )
         )
     return EvaluationTaskScores(source_id=source_id, scores=tuple(scores))

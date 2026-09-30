@@ -1083,6 +1083,11 @@ export interface components {
         /** EvaluationIndex */
         EvaluationIndex: {
             /**
+             * Behaviour Definition
+             * @default Per-episode means over attempts that did not fail: turns are model calls; turns (completed) counts only episodes that ended on their own; tool calls, output and thinking tokens come from the recorded trace facts. A missing value means no attempt recorded it.
+             */
+            behaviour_definition: string;
+            /**
              * Records
              * @default []
              */
@@ -1235,6 +1240,10 @@ export interface components {
              * @default 0
              */
             attempts: number;
+            /** Endings */
+            endings?: {
+                [key: string]: number;
+            };
             /** Environment */
             environment?: string | null;
             /**
@@ -1246,6 +1255,8 @@ export interface components {
             job_kind: string;
             /** Model */
             model?: string | null;
+            /** Output Tokens */
+            output_tokens?: number | null;
             /** Parent Run */
             parent_run?: string | null;
             /** Parent Run Key */
@@ -1264,11 +1275,19 @@ export interface components {
             status?: string | null;
             /** Suite */
             suite?: string | null;
+            /** Thinking Tokens */
+            thinking_tokens?: number | null;
+            /** Tool Calls */
+            tool_calls?: number | null;
             /**
              * Truncated
              * @default 0
              */
             truncated: number;
+            /** Turns */
+            turns?: number | null;
+            /** Turns Completed */
+            turns_completed?: number | null;
         };
         /** EvaluationRunView */
         EvaluationRunView: {
@@ -1419,17 +1438,27 @@ export interface components {
              * @default 0
              */
             failed: number;
+            /** Output Tokens */
+            output_tokens?: number | null;
             /** Run Key */
             run_key: string;
             /** Score */
             score?: number | null;
             /** Task */
             task: string;
+            /** Thinking Tokens */
+            thinking_tokens?: number | null;
+            /** Tool Calls */
+            tool_calls?: number | null;
             /**
              * Truncated
              * @default 0
              */
             truncated: number;
+            /** Turns */
+            turns?: number | null;
+            /** Turns Completed */
+            turns_completed?: number | null;
         };
         /** EvaluationTaskScores */
         EvaluationTaskScores: {
