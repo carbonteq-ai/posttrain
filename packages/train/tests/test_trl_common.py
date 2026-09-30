@@ -243,6 +243,22 @@ def test_vllm_rollout_options_preserves_bounded_large_batch_wave_settings() -> N
     assert kwargs == {"max_num_seqs": 32, "max_num_batched_tokens": 32768}
 
 
+def test_vllm_rollout_options_forwards_cuda_graph_capture_size() -> None:
+    speculative, kwargs = vllm_rollout_options(
+        QWEN_35_2B,
+        {"mode": "colocate", "max_num_seqs": 180, "max_cudagraph_capture_size": 2048},
+    )
+
+    assert speculative is None
+    assert kwargs == {"max_num_seqs": 180, "compilation_config": {"max_cudagraph_capture_size": 2048}}
+
+
+@pytest.mark.parametrize("value", [0, -1, True, 512.0, "2048"])
+def test_vllm_rollout_options_rejects_invalid_cuda_graph_capture_size(value: JsonValue) -> None:
+    with pytest.raises(ValueError, match="max_cudagraph_capture_size must be a positive integer"):
+        vllm_rollout_options(QWEN_35_2B, {"mode": "colocate", "max_cudagraph_capture_size": value})
+
+
 def test_vllm_rollout_options_preserves_attention_cache_and_scheduler_settings() -> None:
     speculative, kwargs = vllm_rollout_options(
         QWEN_35_2B,

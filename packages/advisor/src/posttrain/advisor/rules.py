@@ -61,6 +61,7 @@ TRL_ROLLOUT_ENGINE_KEYS = frozenset(
         "gpu_memory_utilization",
         "kv_cache_dtype",
         "kv_cache_memory_bytes",
+        "max_cudagraph_capture_size",
         "max_model_len",
         "max_num_batched_tokens",
         "max_num_seqs",

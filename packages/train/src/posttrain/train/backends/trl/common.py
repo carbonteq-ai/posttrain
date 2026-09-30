@@ -108,6 +108,20 @@ def vllm_rollout_options(
             if isinstance(requested, bool) or not isinstance(requested, int) or requested < 1:
                 raise ValueError(f"TRL rollout {key} must be a positive integer")
             values[key] = requested
+    max_cudagraph_capture_size = engine.get("max_cudagraph_capture_size")
+    if max_cudagraph_capture_size is not None:
+        if (
+            isinstance(max_cudagraph_capture_size, bool)
+            or not isinstance(max_cudagraph_capture_size, int)
+            or max_cudagraph_capture_size < 1
+        ):
+            raise ValueError("TRL rollout max_cudagraph_capture_size must be a positive integer")
+        # vLLM captures CUDA graphs only for steps of at most this many tokens
+        # (512 by default). With speculative decoding a running request adds
+        # 1 + num_speculative_tokens tokens per step, so large rollout waves
+        # exceed the default and every step launches kernels eagerly from the
+        # engine's single CPU thread.
+        values["compilation_config"] = {"max_cudagraph_capture_size": max_cudagraph_capture_size}
     if engine.get("enforce_eager") is not None:
         enforce_eager = engine["enforce_eager"]
         if not isinstance(enforce_eager, bool):
