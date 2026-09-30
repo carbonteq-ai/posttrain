@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Exercise native LFM1.2B with FSDP2 CPUOffloadPolicy, preserving FP32 trainable masters and optimizer moments. Four BF16/FP16 arms at8/128 tokens apply8/8 updates and pass16 score/mask checks; FP16 retains scale1024 without skips. Independent native-gradient AdamW error stays below2.13e-9 and peak Torch GPU allocation is1.00GiB. Full parameter-derivative/accumulation, rendered LFM and fresh-task parity gates remain open. Tools/receipts remain external.
+
 - [x] (2026-10-01) Repair GDPO weighted-aggregate overflow, distinct from component normalization. Four of nine finite-weight probes fail despite finite independent credit. Reject a common-scale candidate that erases a tiny residual after large-component cancellation; use precision1600 Decimal only on weighted-overflow fallback. Five new regressions fail against exact prior source and pass after repair;46 related tests,86 independent existing cases,9 new oracle cases, scoped Pyright/Ruff and9 boundary contracts pass. Retain extreme-coefficient scope and external-only runners/receipts.
 
 - [x] (2026-10-01) Execute native veRL on controlled rendered multi-turn Qwen conversations with tool/header masks and unequal42/45-token responses. Four final BF16/FP16 precision arms pass16 independent loss/score checks and exact zero prompt/excluded/padding gradients. Three successful arms apply six updates; ordinary FP16 skips2/2. Reused-population clipping activates at10/27 sampled tokens for ordinary BF16 and17/27 for both FP32-region arms. Preserve measured probability differences and fresh-task/native initial-state parity gates. All tools and receipts remain external.
@@ -91,6 +93,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- (2026-10-01) FSDP1 actor CPUOffload is explicitly disabled because of accumulation limitations; FSDP2 CPUOffloadPolicy provides a separate executable native LFM path. Its8/128-token BF16/FP16 probes preserve FP32 CPU masters/moments and use about1GiB peak Torch GPU allocation. Passing AdamW arithmetic does not independently prove accumulation through every model parameter.
 
 - (2026-10-01) Stable component normalization does not prevent the subsequent GDPO weighted sum from overflowing. Simple global rescaling is insufficient when equal large opposing signals cancel and a tiny third component determines the credit. Preserve represented component values and original epsilon in an exceptional high-precision aggregate/whitening path; do not extrapolate this extreme-weight issue to current-run learning failures.
 
@@ -328,6 +332,12 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 native LFM milestone: both requested primary model families now
+have actual native veRL model/optimizer evidence. LFM executes BF16/FP16
+through FSDP2 CPU offload without changing master precision; Qwen's prior
+evidence uses FSDP1. Rendered LFM, fresh tasks and full initialized-backend
+trajectory comparison remain separate unproven requirements.
 
 2026-10-01 structured-reward milestone: weighted-aggregate overflow and
 cancellation now have independent failing controls and a bounded source repair.
@@ -656,3 +666,6 @@ failed FP16 attempts and external-only experimental artifacts.
 Revision 19: GDPO aggregate overflow/cancellation controls, rejected scale-only
 candidate, rare high-precision framework fallback, before/after regressions
 and explicit separation from current-run performance attribution.
+Revision 20: native LFM FSDP2 CPU-offload BF16/FP16 checks at8/128 tokens,
+FP32 master/moment preservation, bounded independent optimizer evidence and
+explicit parameter-gradient/accumulation limitations.
