@@ -324,12 +324,13 @@ enable` or `controller disable`, a systemd unit, or an Ansible role.
   signals, and coverage separate. Partial traces remain visible while a run is
   active.
 - Release artifacts are built from committed source, installed in a clean
-  consumer, checked against immutable image digests, and exercised through a
-  packed dstack GPU canary before promotion.
+  consumer, and checked against immutable image digests. Since v0.4.11 the
+  release workflow does not run a GPU canary; capability qualification remains
+  a separate evidence requirement.
 
 ### Current support boundaries
 
-- The `0.4.0` candidate contains native asynchronous agent collection and TRL
+- The v0.4 series contains native asynchronous agent collection and TRL
   learner integration, but asynchronous training is not a supported public mode
   until its remaining live recovery, packaged 2B, and publication gates pass.
 - Gemma 4 qualifications are bounded, text-only profiles. They do not establish
@@ -338,11 +339,11 @@ enable` or `controller disable`, a systemd unit, or an Ansible role.
   TurboQuant K8V4 long-context use remains experimental.
 - The six environment packages have provider-backed activation and execution
   evidence, but that does not mean every full catalog population has completed.
-  See the [v0.4 release notes](./docs/releases/v0.4.md) for candidate gates and
+  See the [v0.4 release notes](./docs/releases/v0.4.md) for remaining gates and
   the [v0.3 release notes](./docs/releases/v0.3.md) for published coverage.
 
-See the [v0.4 release notes](./docs/releases/v0.4.md) for the current release
-target, the [v0.3 release notes](./docs/releases/v0.3.md) for shipped
+See the [v0.4 release notes](./docs/releases/v0.4.md) for shipped changes through
+v0.4.13, the [v0.3 release notes](./docs/releases/v0.3.md) for earlier
 capabilities, the [CHANGELOG](./CHANGELOG.md) for individual versions, and the
 [product baseline](./docs/post-training/README.md) for the public contracts.
 

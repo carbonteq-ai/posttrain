@@ -4,9 +4,12 @@ All notable changes to Posttrain are documented here. The project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) with a coordinated
 version across first-party distributions.
 
+Series overviews: [v0.4 release notes](docs/releases/v0.4.md) and
+[v0.3 release notes](docs/releases/v0.3.md).
+
 ## Unreleased
 
-## 0.4.13 - unreleased
+## 0.4.13 - 2026-09-29
 
 VORTEX and SAMPO on veRL, checked against TRL on matched Qwen3.5-0.8B and
 LFM2.5-1.2B pairs (update-1 reward within 1.6 standard errors on every pair,
@@ -1635,7 +1638,21 @@ those paths.
 - GitHub Release wheelhouses with immutable fork constraints and SHA-256
   checksums.
 
-[Unreleased]: https://github.com/carbonteq-ai/posttrain/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.13...HEAD
+[0.4.13]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.12...v0.4.13
+[0.4.12]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.11...v0.4.12
+[0.4.11]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.10...v0.4.11
+[0.4.10]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.9...v0.4.10
+[0.4.9]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.8...v0.4.9
+[0.4.8]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.7...v0.4.8
+[0.4.7]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.6...v0.4.7
+[0.4.6]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.5...v0.4.6
+[0.4.5]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.4...v0.4.5
+[0.4.4]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.3...v0.4.4
+[0.4.3]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.2...v0.4.3
+[0.4.2]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/carbonteq-ai/posttrain/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/carbonteq-ai/posttrain/compare/v0.3.26...v0.4.0
 [0.2.2]: https://github.com/carbonteq-ai/posttrain/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/carbonteq-ai/posttrain/compare/v0.1.0-rc.2...v0.2.1
 [0.1.0-rc.2]: https://github.com/carbonteq-ai/posttrain/compare/v0.1.0-rc.1...v0.1.0-rc.2
