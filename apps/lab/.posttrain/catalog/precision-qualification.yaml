@@ -228,26 +228,28 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
   # The 6e-5 fp16 SAMPO base run (lfm26-sampo-fp16-base-r4-lr6e5-kl1e2-t08-20260929-r1) with the truncation
-  # penalty removed (it subtracted 0.1 from a truncated episode's reward before group statistics), 60 updates,
-  # checkpoint every 20. Truncated episodes still train, and keep the task's own partial credit.
-  lfm2.5-2.6b/automationbench-sampo-turns-60-g24x6-r4-lr6e-5-kl1e-2-t08-os4r5-notrunc-v1:
+  # penalty removed (it subtracted 0.1 from a truncated episode's reward before group statistics), 50 updates,
+  # checkpoint every 25. Truncated episodes still train, and keep the task's own partial credit. Replies
+  # may run to 6144 tokens (was 4096) in a 28672-token context (was 24576), paired with the 14-turn,
+  # 18432-output-token environment automationbench-lfm26-sampo-turns-v3-c180-t08-6k14t.
+  lfm2.5-2.6b/automationbench-sampo-turns-50-g24x6-r4-lr6e-5-kl1e-2-t08-os4r5-notrunc-6k14t-v1:
     selection_type: sampo-settings
     revision: "1"
     loop:
-      max_steps: 60
-      max_length: 24576
+      max_steps: 50
+      max_length: 28672
       per_device_batch_size: 1
       gradient_accumulation_steps: 144
       learning_rate: 0.00006
       lr_scheduler_type: constant
       logging_steps: 1
-      checkpoint_steps: 20
-      checkpoint_limit: 3
+      checkpoint_steps: 25
+      checkpoint_limit: 2
       gradient_checkpointing: true
     num_prompts_per_step: 24
     num_generations: 6
-    max_prompt_length: 20480
-    max_completion_length: 4096
+    max_prompt_length: 22528
+    max_completion_length: 6144
     beta: 0.01
     kl_reference: base
     discount_gamma: 0.95
@@ -520,7 +522,8 @@ inference:
   # The c180 rollout engine on an 80 GB H100: the KV cache shrinks from 48 to 40 GiB (1.57M tokens; the
   # 6e-5 run and the 1e-4 run peaked at 1.04M in use, 55% of the 48 GiB cache) so the colocated trainer keeps
   # the same headroom, and the utilization cap rises to 0.72 of the card so vLLM accepts the fixed cache size.
-  inference/lfm2.5-2.6b-vllm-automationbench-rollout-h100-c180-4k-t08-fp16@1:
+  # Replies may run to 6144 tokens in a 28672-token context; a full cache preempts requests, it does not fail.
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-h100-c180-6k-t08-fp16@1:
     revision: "1"
     model: models/lfm2.5-2.6b@bf16
     backend: vllm@0.29.1.dev4
@@ -531,7 +534,7 @@ inference:
       sleep_during_optimization: true
       gpu_memory_utilization: 0.72
       tensor_parallel_size: 1
-      max_model_len: 24576
+      max_model_len: 28672
       max_num_seqs: 180
       max_num_batched_tokens: 65536
       kv_cache_memory_bytes: 42949672960
@@ -549,7 +552,7 @@ inference:
         revision: 458cedab07d0f7b2b05700c77e1aa463d43d6f04
         num_speculative_tokens: 9
       dtype: float16
-    sampling: {max_tokens: 4096, temperature: 0.8, top_p: 1.0}
+    sampling: {max_tokens: 6144, temperature: 0.8, top_p: 1.0}
     target: targets/runpod-h100-80gb-secure-ondemand
     purpose: [rollout]
     capabilities: [tool-calling]
