@@ -227,6 +227,51 @@ training:
     shuffle_prompts: true
     mask_truncated_completions: false
     max_admission_attempts: 1
+  # Continuation of the 100-update 6e-5 fp16 SAMPO base run (lfm26-sampo-fp16-base-r4-lr6e5-kl1e2-t08-20260929-r1,
+  # started from its update-100 adapter) for 100 more updates with more distinct tasks per update: 30 prompt
+  # groups x 4 attempts (120 episodes, was 24 x 6 = 144), 5 extra groups in the first round and in each refill
+  # (largest round (30 + 5) x 4 = 140), at most 5 candidate rounds (30 x 5 = 150 of the 160 training tasks),
+  # a checkpoint every 25 updates. KL stays anchored to the base model.
+  lfm2.5-2.6b/automationbench-sampo-cont100-g30x4-r4-lr6e-5-kl1e-2-t08-os5r5-16t-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 100
+      max_length: 24576
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 120
+      learning_rate: 0.00006
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 25
+      checkpoint_limit: 4
+      gradient_checkpointing: true
+    num_prompts_per_step: 30
+    num_generations: 4
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    beta: 0.01
+    kl_reference: base
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 5, oversample: 5, oversample_refill: 5}
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    truncation_penalty: 0.1
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
   # training/lfm2.5-2.6b-trl-lora-automationbench-local-g144-w12-fp16@1 on TRL
   # 1.12.0.post12 with SAMPO r2's rank-4, alpha-8 LoRA adapter, float32 logits stated explicitly, the
   # 1024 starting loss scale stated explicitly, 180 environment worker slots
@@ -244,6 +289,33 @@ training:
     target: targets/carbonteq-rtx-pro-6000-96gb
     parallelism: {sequence_length_divisor: 2}
     runtime: {global_batch_size: 144, devices_per_node: 1, timeout_seconds: 86400}
+    backend_options:
+      rollout_execution: {env_workers: 12, episodes_per_worker: 15, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      compile_decoder_layers: true
+      importance_sampling_from_training_logps: true
+      vllm_policy_parity_max_sequence_tokens: 4096
+      training_precision: fp16
+      fp16_initial_loss_scale: 1024
+      logits_float32: true
+      dependency_lock: trl-fork@current
+      source_revision: c4d0db051a7839fe1b1d587185fac33ba88c784f
+      dependency_lock_sha256: f18308d1af3fbfe72c9be17344762ae83dbbeaeb23a6d736767f166c763aed80
+  # The g144 rank-4 fp16 workstation binding for 120-episode updates (30 prompt groups x 4 attempts).
+  training/lfm2.5-2.6b-trl-lora-automationbench-local-g120-w12-r4-fp16@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post12
+    renderer:
+      id: lfm2.5-tools-thinking@2
+      model_family: lfm2.5
+      implementation: default
+      reasoning_mode: native
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 120, devices_per_node: 1, timeout_seconds: 86400}
     backend_options:
       rollout_execution: {env_workers: 12, episodes_per_worker: 15, worker_native_threads: 1}
       use_liger_kernel: false
@@ -427,6 +499,44 @@ inference:
       max_model_len: 24576
       max_num_seqs: 180
       max_num_batched_tokens: 65536
+      kv_cache_memory_bytes: 51539607552
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+      speculative_config:
+        method: dspark
+        model: LiquidAI/LFM2.5-2.6B-DSpark
+        revision: 458cedab07d0f7b2b05700c77e1aa463d43d6f04
+        num_speculative_tokens: 9
+      dtype: float16
+    sampling: {max_tokens: 4096, temperature: 0.8, top_p: 1.0}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+  # The c180 rollout engine with CUDA graphs captured up to 2048-token steps (vLLM's default
+  # cap is 512; with 9 DSpark draft tokens a step exceeds it above about 51 running requests).
+  # On this workstation throughput was unchanged (about 10K tokens/s, GPU-bound) and the engine
+  # thread's CPU halved; on a RunPod H100 SXM it raised throughput about 32% (2026-09-30).
+  inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c180-4k-t08-fp16-cg2048@1:
+    revision: "1"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.68
+      tensor_parallel_size: 1
+      max_model_len: 24576
+      max_num_seqs: 180
+      max_num_batched_tokens: 65536
+      max_cudagraph_capture_size: 2048
       kv_cache_memory_bytes: 51539607552
       weight_sync_mode: lora
       enforce_eager: false

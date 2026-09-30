@@ -1,0 +1,35 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-sampo-cont100-g30x4-16t-r4-fp16-os5r5-local-v1
+stage: train
+description: Continuation of the 100-update 6e-5 fp16 SAMPO base run (lfm26-sampo-fp16-base-r4-lr6e5-kl1e2-t08-20260929-r1) from its update-100 adapter and curriculum state for 100 more updates, with 16 turns per episode (was 12; each reply keeps its 4096-token budget) and more distinct tasks per update (30 prompt groups x 4 attempts = 120 episodes, was 24 x 6 = 144; 5 extra groups in the first round and in each refill). Learning rate 6e-5, KL 0.01 to the base model, truncation penalty 0.1, mistake penalty 0.02 each (at most 0.1), temperature 0.8, fp16, CUDA graphs up to 2048-token steps, a checkpoint every 25 updates.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-sampo-cont100-g30x4-16t-r4-fp16-os5r5-local-v1@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    reward_projection: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: sampo
+      kind: train.sampo
+      definition: train/sampo-turns@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, per-turn environment reward evidence, adaptive curriculum state, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-lfm26-sampo-turns-v3-c180-t08-16t}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-sampo-cont100-g30x4-r4-lr6e-5-kl1e-2-t08-os5r5-16t-v1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-turn-progress@2}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-automationbench-local-g120-w12-r4-fp16@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-rollout-local-c180-4k-t08-fp16-cg2048@1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-automationbench-vortex-20-local-v1
+  arm: sampo-cont100-g30x4-16t-r4-lora6e5-kl1e2-base-t08-os5r5-fp16-mistake-penalty-fixed-tools-dspark
+  task_mix: lfm26-automationbench-mix-v2
+  question: Does continuing the 6e-5 run with 16 turns and 30 x 4 prompt groups per update improve held-out AutomationBench and tool reliability, and are updates faster than 24 x 6?
+  labels: [experiment, sampo, turn-rewards, automationbench, lfm2.5, yield-first, adaptive-curriculum, active-sampling, oversampling, truncation-penalty, mistake-penalty, fp16, local-rtx-pro-6000]

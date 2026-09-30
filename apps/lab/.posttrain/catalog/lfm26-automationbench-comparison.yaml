@@ -1385,6 +1385,41 @@ environment:
     # log-prob gap (docs/techniques/grpo/lora-rl.md).
     sampling: {max_tokens: 4096, temperature: 0.8, top_p: 1.0}
     max_concurrent: 180
+
+  # sampo-turns-v3-c180-t08 with 16 turns (was 12; the system prompt states the real 16-turn
+  # budget). Each reply keeps its 4096-token budget; the episode output budget, context and
+  # penalties are unchanged.
+  automationbench-lfm26-sampo-turns-v3-c180-t08-16t:
+    <<: *automationbench_sampo_turns_v3
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 16
+            turn_rewards: {tool_failure_penalty: 0.02}
+            mistake_penalty: {per_mistake: 0.02, cap: 0.1}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 16
+          max_output_tokens: 12288
+    sampling: {max_tokens: 4096, temperature: 0.8, top_p: 1.0}
+    max_concurrent: 180
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 16
+      max_output_tokens: 12288
   automationbench-lfm26-train-mix-episode-judged-v2: &automationbench_train_mix_episode_judged_v2
     category: agentic-tool-use
     source:
