@@ -272,3 +272,62 @@ is `native_automationbench_collection.py`; the analysis runner is
 Further acceptance needs multiple task groups/seeds, native admission/refill and actual matched optimizer
 updates. Reward changes belong to the external environment/rubric contract and
 need controlled task-quality evidence before adoption.
+
+## Admission replay and temperature audit (2026-10-01)
+
+The observed equal-reward group was replayed through the actual
+`GRPOTrainer._prepare_active_sampling_inputs` method and Posttrain's
+`_prepare_adaptive_active_sampling_inputs`. Both reject all two rows and report
+an exhausted one-round population, even though the projected SAMPO credit is
+nonzero on88 and16 first-turn tokens. This executes the admission method bodies
+with observed rewards injected at the scoring seam; it does not run fresh
+worker selection or refill. The rejection is consistent with the selected
+terminal-reward variance rule. Retaining discounted turn signal would be a
+recipe/contract decision requiring a controlled comparison.
+
+The same five native requests also provide298 sampled tokens for a temperature
+audit. Actual TRL scoring divides the teacher-forced logits by0.8, matching the
+native sampler. A direct full-log-softmax baseline agrees within1.91e-6. Fifteen
+selected positions checked with an independent Python `math.fsum` softmax have
+maximum error1.12e-6. Changing only the scoring temperature to1 worsens the
+absolute sampling-score discrepancy on every request. No missing temperature
+normalization was found in this path.
+
+The remaining sampling-score discrepancy exists before any optimizer update.
+An independent cached forward replay reproduces every recorded BF16 sampling
+log probability exactly. Full teacher forcing on the same model and token ids
+uses a different execution path and yields the following differences:
+
+| Request | Sampled tokens | Mean absolute log-probability difference | Maximum difference | Geometric mean teacher/sampler ratio |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 88 | 0.008618 | 0.146559 | 0.997934 |
+| 2 | 45 | 0.015328 | 0.161058 | 1.004053 |
+| 3 | 16 | 0.000468 | 0.007206 | 0.999567 |
+| 4 | 129 | 0.002715 | 0.087238 | 1.000556 |
+| 5 | 20 | 0.016084 | 0.073517 | 0.997043 |
+
+Across all tokens, the weighted mean absolute difference is0.00713942.
+Individual teacher/sampler token ratios range from0.863675 to1.174753. A
+diagnostic FP32 model, with TF32 disabled, reduces the cache-versus-teacher-force
+weighted mean difference to1.947e-6 and the maximum to4.983e-5 on these same
+tokens. Its independent temperature checks also pass. This strongly supports
+numerical execution sensitivity; it does not identify a particular layer as
+the cause or establish equivalence to the production vLLM kernels. FP32 is a
+diagnostic reference, not a proposed replacement for BF16/FP16 training.
+
+These ratios compare the sampler with the training forward. They are separate
+from the PPO/SAMPO ratio between current training scores and frozen old
+training scores. A fixed model can have sampler/trainer disagreement while its
+current/old ratio remains1. Therefore the table does not demonstrate clipping
+caused by a learning update. Posttrain's default SAMPO sampler correction is
+per-token upper truncation at2, distinct from the sequence-level policy clip.
+None of the observed token ratios reaches that correction cap.
+
+The executed external runners are `native_group_admission_replay.py` and
+`native_temperature_score_audit.py`. Receipts are `admission-replay.json`,
+`temperature-score-audit.json`, `temperature-cached-replay.json` and
+`temperature-fp32-cache-control.json` under the same external
+`results/native-collection/` directory. Source snapshots and hashes accompany
+the receipts. No source fix or production recipe change follows from this
+slice; native collection-to-update, LFM fresh collection and matched backend
+learning remain pending.

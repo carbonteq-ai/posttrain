@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Execute actual TRL/adaptive admission method bodies on observed equal-reward native group: both discard two rows despite104 nonzero discounted-credit tokens. Check298 native Qwen sampled tokens through actual TRL temperature scoring, direct softmax and30 independent BF16/FP32 selected-position checks. Cached BF16 replay matches every sampling score exactly; teacher-forcing discrepancy falls from weighted mean0.00713942 BF16 to1.947e-6 FP32. Keep sampling-correction ratios separate from optimizer policy ratios and native worker/refill learning open.
+
 - [x] (2026-10-01) Collect fresh Qwen BF16 AutomationBench episodes through native Verifiers null harness/MCP and native training-client token transport. Scripted controls pass twice; real evaluation episodes expose duplicate-post reward blindness. Native training-client episodes project into Posttrain as133/165 sampled tokens and2/3 turns. Derive sparse-return SAMPO credit at discount0.95 versus1; preserve external adapter/serialization failures and keep full learning/admission acceptance open.
 
 - [x] (2026-10-01) Measure native LFM partition accumulation with identical initial adapters: BF16/FP16 microbatch1 gradients exactly equal separate-row sums. Ten native contribution/layout/FP32 diagnostic arms apply updates and pass13 score checks. Batch2 versus microbatch1 changes total gradients29.06% BF16/6.51% FP16 versus0.00732% FP32; component cancellation conditions are43.65/42.51. Preserve measured Adam coordinate amplification and avoid inferring a dropped gradient, production cause or full independent model Jacobian. Tools/tensors remain external.
@@ -97,6 +99,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- (2026-10-01) A fixed Qwen model has nontrivial BF16 cached-versus-teacher-forced score differences without any update. Exact cached replay rules out lost sampling log probabilities on this fixture; FP32 greatly reduces the execution gap. Matching temperature does not remove half-precision path differences. Observed sampler/trainer ratios must not be reported as PPO update clipping.
 
 - (2026-10-01) Real native task success can hide duplicate actions: the office-closure assertion rewards three identical posts and one post equally. Equal terminal rewards have zero episode credit, while discount0.95 still produces length-dependent initial turn credit; terminal-reward variance admission would reject that group. Native evaluation traces lack token evidence, so the training client is a separate acceptance gate. Default Verifiers JSON rounds policy floats; Posttrain already explicitly retains full precision.
 
@@ -260,6 +264,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Decision: measure score discrepancies using identical native token paths and an independent cached replay before attributing them to temperature, optimizer movement or a loss bug. Preserve FP32 solely as a diagnostic and treat equal-reward discounted-credit rejection as a measured recipe tradeoff. Keep runners/receipts external and retain production inference and native lifecycle gaps. Date/Author: 2026-10-01 / Codex.
+
 - Decision: exercise the pinned native chat harness and MCP task tools locally with an external HF token provider. Preserve native traces and exact sampling evidence, distinguish evaluation transport from training transport, and retain duplicate-action reward limitations without changing the environment's reward contract. No frozen product amendment or production pin change is required for these experiments. Date/Author: 2026-10-01 / Codex.
 
 - Decision: use Decimal precision1600 only after GDPO weighted aggregation overflows, preserving the ordinary float path and component normalization semantics. Commit the generic framework repair and meaningful regressions, while keeping exploratory candidates, plugins and receipts external. This changes no frozen product meaning or training recipe. Date/Author: 2026-10-01 / Codex.
@@ -342,6 +348,12 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 admission/scoring milestone: both admission method bodies reject
+the observed reward-constant group. Actual TRL temperature scoring agrees with
+independent softmax math; cache/teacher-force precision sensitivity is measured
+on298 real sampled tokens. This narrows the diagnosis without establishing
+production causality or completing fresh task learning.
 
 2026-10-01 native collection milestone: actual multi-turn task execution is now
 observed through native Verifiers, including task scoring and sampled-token
@@ -696,3 +708,6 @@ accumulation result separately from precision stability and production causality
 Revision 22: fresh native AutomationBench transport, real Qwen tool behavior,
 reward blind spots and sparse-return SAMPO credit; preserve exact token evidence,
 runner failures and full learning/admission gates. Experiments remain external.
+Revision 23: observed-group admission replay, independent temperature scores,
+exact cached replay and FP32 path-sensitivity control; keep sampler correction
+and optimizer policy clipping distinct, with full native learning still open.
