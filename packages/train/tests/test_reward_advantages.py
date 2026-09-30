@@ -89,6 +89,52 @@ def test_gdpo_finite_extreme_rewards_do_not_overflow_normalization(values):
     assert [row[0] for row in result.token_advantages] == pytest.approx([float(x) for x in expected], abs=1e-12)
 
 
+@pytest.mark.parametrize("weights", [(1e308, 1e308), (1.7e308, 0.0), (1.7e308, 1.7e308)])
+def test_gdpo_finite_weights_preserve_final_whitening_when_aggregate_overflows(weights):
+    values = [0, 0, 0, 1]
+    evidence = [_evidence(i, "g", {"a": value, "b": value}) for i, value in enumerate(values)]
+    result = compute_gdpo_advantages(
+        evidence, [(True, False, True)] * 4, component_names=("a", "b"), component_weights=weights, group_size=4
+    )
+    with localcontext() as context:
+        context.prec = 100
+        column = _decimal_normalize(values, "0.0001")
+        combined = [(Decimal(str(weights[0])) + Decimal(str(weights[1]))) * value for value in column]
+        expected = _decimal_normalize(combined, "0.0001")
+    for row, value in zip(result.token_advantages, expected, strict=True):
+        assert row == pytest.approx([float(value), 0.0, float(value)], abs=1e-12)
+
+
+def test_gdpo_overflowing_opposed_components_cancel_with_subnormal_epsilon():
+    evidence = [_evidence(i, "g", {"a": value, "b": 1 - value}) for i, value in enumerate([0, 0, 0, 1])]
+    result = compute_gdpo_advantages(
+        evidence,
+        [(True,)] * 4,
+        component_names=("a", "b"),
+        component_weights=(1.7e308, 1.7e308),
+        group_size=4,
+        epsilon=5e-324,
+    )
+    assert result.token_advantages == ((0.0,),) * 4
+
+
+def test_gdpo_overflowing_cancellation_preserves_a_tiny_third_component():
+    evidence = [_evidence(i, "g", {"a": value, "b": 1 - value, "c": i}) for i, value in enumerate([0, 0, 0, 1])]
+    result = compute_gdpo_advantages(
+        evidence,
+        [(True, False)] * 4,
+        component_names=("a", "b", "c"),
+        component_weights=(1.7e308, 1.7e308, 1e-300),
+        group_size=4,
+        epsilon=5e-324,
+    )
+    # Equal opposite components cancel exactly. The third component's tiny
+    # weight still dominates epsilon; common rescaling would erase it.
+    expected = _decimal_normalize([0, 1, 2, 3], "0.000000000000000000000001")
+    for row, value in zip(result.token_advantages, expected, strict=True):
+        assert row == pytest.approx([float(value), 0.0], abs=1e-12)
+
+
 def test_capo_finite_extreme_weights_do_not_overflow_normalization():
     evidence = [_evidence(0, "g", {"outcome": 0}, ((0, 1),)), _evidence(1, "g", {"outcome": 1})]
     result = compute_capo_advantages(

@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Repair GDPO weighted-aggregate overflow, distinct from component normalization. Four of nine finite-weight probes fail despite finite independent credit. Reject a common-scale candidate that erases a tiny residual after large-component cancellation; use precision1600 Decimal only on weighted-overflow fallback. Five new regressions fail against exact prior source and pass after repair;46 related tests,86 independent existing cases,9 new oracle cases, scoped Pyright/Ruff and9 boundary contracts pass. Retain extreme-coefficient scope and external-only runners/receipts.
+
 - [x] (2026-10-01) Execute native veRL on controlled rendered multi-turn Qwen conversations with tool/header masks and unequal42/45-token responses. Four final BF16/FP16 precision arms pass16 independent loss/score checks and exact zero prompt/excluded/padding gradients. Three successful arms apply six updates; ordinary FP16 skips2/2. Reused-population clipping activates at10/27 sampled tokens for ordinary BF16 and17/27 for both FP32-region arms. Preserve measured probability differences and fresh-task/native initial-state parity gates. All tools and receipts remain external.
 
 - [x] (2026-10-01) Run external native Qwen context extension: BF16 at128 tokens and corrected FP16(scale1024) at128/256 tokens apply six updates total; uncorrected FP16 at128 skips both attempts. All16 independent loss/score/context checks pass, applied AdamW errors stay below2.25e-9, and peak Torch allocation is5.05GiB. Keep runners/receipts in the external archive, not Git. Supplied-token results do not close the full rendered/fresh-rollout gates.
@@ -89,6 +91,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- (2026-10-01) Stable component normalization does not prevent the subsequent GDPO weighted sum from overflowing. Simple global rescaling is insufficient when equal large opposing signals cancel and a tiny third component determines the credit. Preserve represented component values and original epsilon in an exceptional high-precision aggregate/whitening path; do not extrapolate this extreme-weight issue to current-run learning failures.
 
 - (2026-10-01) Clipping activates in the native engine on the second update of a frozen rendered population, with opposing token credit selecting the appropriate clipped branch. Corrected BF16/FP16 both clip17/27 sampled tokens, but their probability ratios differ; ordinary BF16 clips10/27. Passing objective derivatives does not prove identical parameter trajectories or choose an optimal recipe. Prompt/tool/header/padding score gradients are exactly zero after native jagged conversion.
 
@@ -244,6 +248,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Decision: use Decimal precision1600 only after GDPO weighted aggregation overflows, preserving the ordinary float path and component normalization semantics. Commit the generic framework repair and meaningful regressions, while keeping exploratory candidates, plugins and receipts external. This changes no frozen product meaning or training recipe. Date/Author: 2026-10-01 / Codex.
+
 - Decision: correctness runners and raw traces are local research material, not product source. Consolidate unpublished root commits to remove them from the publishable history, while preserving the original history and receipts externally. Retain source repairs, regression tests and concise reports. This follows the user's explicit request. Date/Author: 2026-10-01 / Codex.
 
 - Decision: require an independent state-equation oracle and split precision ablations before treating the combined Qwen control as understood. Scope the derivative grid to its FP32 region and retain native scaled-update evidence for boundary behavior. Do not infer a math defect solely from ordinary half rounding against an FP32 gate. Date/Author: 2026-10-01 / Codex.
@@ -322,6 +328,11 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 structured-reward milestone: weighted-aggregate overflow and
+cancellation now have independent failing controls and a bounded source repair.
+Ordinary behavior remains covered; current-run performance causality and the
+broader native/fresh-rollout campaign remain unproven.
 
 2026-10-01 rendered-native milestone: Qwen masking and applied optimizer
 checks now cover real renderer token serialization, injected tool messages,
@@ -642,3 +653,6 @@ and record GPU allocation without committing runners or raw data.
 Revision 18: native rendered multi-turn masking/padding and active clipping
 checks across four precision arms; retain actual probability sensitivity,
 failed FP16 attempts and external-only experimental artifacts.
+Revision 19: GDPO aggregate overflow/cancellation controls, rejected scale-only
+candidate, rare high-precision framework fallback, before/after regressions
+and explicit separation from current-run performance attribution.

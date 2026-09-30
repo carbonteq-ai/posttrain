@@ -89,6 +89,35 @@ rollouts and held-out task outcomes remain necessary for learning conclusions.
 
 ## Reproduction and remaining gates
 
+### Additional GDPO weighted-aggregate overflow repair
+
+The prior normalization fix did not cover weighting the normalized components.
+Four of nine large finite-weight probes fail before final whitening, either
+because a product becomes infinite or because `math.fsum` overflows. The
+independent normalized result remains finite. Ordinary component normalization
+is not the failure point in these cases.
+
+The framework now retains its ordinary float calculation and, only after
+weighted aggregation overflows, recomputes that aggregate and final whitening
+using Decimal precision1600. Component scores retain their represented float
+values and original epsilon. This is CPU reward arithmetic, not high-precision
+model training. A common weight scale was rejected after it erased a tiny
+third component left by cancellation of large opposing components.
+
+Five regression cases cover product overflow, sum overflow, exact cancellation
+with a subnormal epsilon and preservation of a tiny residual component. An
+exact pre-repair function substitution fails all five while14 retained cases
+pass. The repaired module passes all19 advantage tests,46 related
+advantage/evidence/projection tests, the existing86-case independent grid and
+all nine new weighted-aggregation probes. Scoped Ruff and Pyright pass; all
+nine import-boundary contracts are preserved.
+
+Raw receipts, rejected scale-candidate source, the negative-control plugin and
+source hashes remain in the external correctness archive. Only the source
+repair, regression tests and written findings are committed. These deliberately
+extreme coefficients are numerical boundary tests; there is no evidence that
+this overflow explains current-run performance, and no recipe changed.
+
 From the Posttrain root, run the grid with `.venv/bin/python
 ${POSTTRAIN_CORRECTNESS_ROOT}/tools/correctness/structured_reward_grid.py --output <path>`. The model runner
 is `${POSTTRAIN_CORRECTNESS_ROOT}/tools/correctness/short_structured_run.py --model qwen08|lfm12 --output
