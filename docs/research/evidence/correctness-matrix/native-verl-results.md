@@ -629,3 +629,55 @@ all credited-token tensors, `qwen-allcredit-gradient-oracle.json`,
 No production source, precision defaults or dependency pins change. Next isolate
 projection accumulation controls and downstream backward/cancellation over the
 complete population, then return to broader algorithm/family and quality gates.
+
+## Complete decoder-boundary loss-scale trace
+
+Two new native FP16 SAMPO updates capture every decoder-output cotangent over
+the complete context/response sequences at scales1,024 and65,536:24 layers
+times two trajectories per arm,96 boundary records total. Every unscaled LoRA
+gradient matches its original native capture bitwise; initial and post-update
+adapter parameters and exported scores also match exactly. Four independent
+loss/score/mask checks,48 LoRA matrix checks,192 scalar dots and independent
+AdamW(max1.34e-9) pass. The first instrumentation attempt rejects its module
+lookup before training because FSDP dynamically subclasses decoder modules;
+the corrected wrapper recognizes those subclasses. Failed source/logs remain
+external, alongside the final exact-repeat evidence.
+
+The complete boundary trace shows progressive numerical divergence through
+backward, rather than only an output-head discrepancy or final optimizer effect.
+Layer indices are zero-based. Each boundary denotes the gradient with respect
+to that layer's output; going23→22 traverses decoder block23 backward.
+
+| Decoder output boundary | Boundary gradient scale gap, relative L2 | LoRA parameter-gradient gap at that block, relative L2 |
+| --- | ---: | ---: |
+| 23 | 0.0101537% | 0.181314% |
+| 22 | 0.0944382% | No selected LoRA matrices |
+| 19 | 0.169466% | 0.740066% |
+| 18 | 0.434429% | No selected LoRA matrices |
+| 15 | 0.455706% | 0.553177% |
+| 11 | 0.602039% | 0.805070% |
+| 7 | 0.724136% | 1.04014% |
+| 3 | 0.793414% | 0.874294% |
+| 0 | 0.820993% | No selected LoRA matrices |
+
+The largest jumps among these boundaries occur traversing blocks23 and19,
+which the immutable model configuration identifies as full-attention blocks.
+Each block also contains normalizations, residual additions and an MLP; this
+does not isolate attention itself or prove a formula defect. The layerwise
+LoRA gaps can exceed their activation-boundary gaps because parameter-gradient
+projection and cancellation operate in a different space. All original
+native linear-gradient references still pass.
+
+Conditioning-prefix hidden gradients are zero at boundary23 but nonzero at
+earlier boundaries, where later tokens depend on earlier representations.
+This is expected: masking prompt log-probabilities from the objective does
+not remove prompt conditioning or its influence on shared model parameters.
+The native prompt-score gradient audits remain exactly zero, so these prefix
+hidden gradients are not evidence of a masking bug.
+
+External receipts: `qwen-layer-scale1024.json`,
+`qwen-layer-scale65536.json`, complete decoder cotangent tensors,
+`qwen-layer-gradient-comparison.json`, original-update controls and exact runner
+snapshots. No production source/default/pin changes. Next capture the internal
+attention, normalization and MLP backward boundaries of blocks23/19 before
+selecting a correction, while retaining the broader algorithm/quality gates.
