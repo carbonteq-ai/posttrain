@@ -1423,5 +1423,11 @@ production offload design or a completed Qwen qualification. Production pins
 remain unchanged.
 
 External failed receipts: qwen-live-tq-sampo-bfloat16-temperature-repaired
-and retry1/retry2/retry3 logs plus step-zero adapters. Active retry4 is recorded
-in the campaign plan; all tools/raw evidence remain outside Git.
+and retry1/retry2/retry3 logs plus step-zero adapters. Retry4 subsequently fails
+backward requesting1.42GiB with1.25GiB device-free. Filtering jagged tensors
+solves the symbolic-shape hook failure but does not solve peak backward memory.
+All five attempts are terminal and preserved. The next correction to qualify
+is row-wise FP32 probability scaling directly from half logits, avoiding a full
+FP32 logit-gradient buffer while retaining the same trace population and
+derivatives. This is a proposed memory diagnosis, not a tested implementation.
+All tools/raw evidence remain outside Git.
