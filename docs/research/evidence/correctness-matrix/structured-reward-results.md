@@ -248,3 +248,90 @@ All tools and raw receipts stay outside Git. Live judge integration, actual
 structured-evidence worker transport/admission, nonzero KL, repeatability,
 native TRL model/optimizer parity, checkpoint continuity and fresh held-out
 task learning remain open.
+
+## Locate CAPO FP16 overflow and test a wider delta-attention state
+
+1 October 2026. The follow-up trace narrows the preceding CAPO failure to
+the second Qwen trajectory's layer22 gated RMS norm. Its output cotangent
+is finite, but one ideal scaled input derivative exceeds FP16's maximum
+finite value65,504. The actual input gradient has exactly one non-finite
+coordinate where the reference predicts an overflow, followed by widespread
+non-finite gradients in earlier layers. Independent norm equations use
+represented native inputs, gate, weight and output cotangent.
+
+| Native attempt | Loss scale | Ideal maximum norm input derivative | Reference coordinates exceeding65,504 | Actual non-finite input coordinates | Optimizer applies |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 1 | 1024 | 347,692.106 | 1 | 1 | No |
+| 2 | 512 | 173,846.053 | 1 | 1 | No |
+| 3 | 256 | 86,923.026 | 1 | 1 | No |
+| 4 | 128 | 43,461.513 | 0 | 0 | Yes |
+
+Finite coordinates at the first three scales differ from the ideal reference
+by about0.032% relative L2; at128 the corresponding norm error is0.01719%.
+The unscaled maximum is about339.543. Multiplying by1024 cannot fit a
+half-precision gradient tensor. A local norm-formula correction alone cannot
+make that scaled derivative representable. Backoff or a wider intermediate
+dtype is required. This does not prove an incorrect symbolic CAPO objective.
+
+The first broad tracing attempt runs out of GPU memory while boolean-indexing
+the vocabulary-wide logit cotangent; the index materialization requests7.82GiB.
+Preserve that failed instrumentation attempt. The bounded trace skips output
+tensors larger than10 million elements, while retaining the separate
+score-gradient audit and all gated-norm records. It completes four attempts
+with144 norm records and3,232 captured module-output gradient records at
+3.991GB peak Torch allocation. Large skipped tensors are not covered by its
+module-gradient summaries. This tracing OOM is not a model-training OOM.
+
+### Intermediate overflow is a separate numerical failure mode
+
+A six-case CPU experiment calls the actual Transformers
+`Qwen3_5RMSNormGated` class in BF16/FP16, with independently computed NumPy
+input derivatives. With activation magnitude32, gate20 and output cotangent
+4096, the intermediate effective gradient is81,920, while the ideal final
+input derivative is only about4,399.78. Native FP16 returns256 non-finite
+input coordinates. A native-forward-preserving, input-only FP32 reverse
+control produces finite input derivatives with0.00495% relative error.
+BF16 remains finite in the same range test.
+
+For a tiny activation and cotangent16, the ideal final derivative is about
+319,460. Both native and corrective FP16 paths overflow at all256 positions,
+as final-half rounding predicts. The reference's12 selected finite differences
+agree within6.90e-9 relative error. These distinguish premature intermediate
+overflow from unavoidable final-gradient range overflow. Gate/weight derivatives
+are not qualified by the input-only control, whose gate/weight are fixed;
+FP64 is only detached oracle arithmetic. The native CAPO norm event above
+matches the final-range case, so the synthetic premature-cast remedy is not
+presented as a fix for that event.
+
+### Whole delta-rule FP32 control on the same native CAPO fixture
+
+Use the existing `gdn_fp32_control` to promote delta-rule Q/K/V and disable
+autocast within that rule. Its output and downstream gated norm use FP32
+intermediates; the surrounding model/base projections remain in the FP16
+native configuration with FP32 LoRA masters. The control completes three
+native updates at scale1024 with no skips, six loss/score checks,72 matrix
+checks,288 scalar dots and detached AdamW checks. Peak allocation remains
+3.991GB. All captured module-output cotangents are finite, and all108
+gated-norm records have finite actual/reference input gradients, with maximum
+relative error1.17e-7.
+
+Layer22's first-update ideal maximum remains348,279.78, above FP16 range,
+but its FP32 input-gradient tensor safely carries it. This demonstrates a
+wider-intermediate path handling this fixture, rather than merely shrinking
+the reference derivative below the half limit.
+
+Initial adapter weights match the native arm bitwise, but forward arithmetic
+changes: sampled initial scores differ by mean absolute0.00071835 and
+maximum0.01656437. Each arm derives its old scores and frozen sampler
+correction from its own forward. The control therefore changes more than a
+single norm derivative and is not a forward-preserving model-level ablation.
+No native repeatability, learning-quality or held-out generalization advantage
+is established. Default-scale65536, other model families/recipes, full
+distributed/packed paths and production adoption remain unqualified.
+
+External evidence: `native-structured-norm-overflow-analysis.json`, failed
+wide-trace log/controller, bounded native/candidate receipts and exports,
+`gated-norm-intermediate-range.json`, `gated-norm-range-reference-fd.json`,
+and retained executed sources. Four additional updates apply across the
+bounded native trace and FP32 delta-rule control. No correctness tools/raw
+receipts, production defaults or dependency pins change in the repository.

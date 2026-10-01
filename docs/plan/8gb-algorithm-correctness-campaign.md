@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Trace native sparse-CAPO FP16 overflow to layer22 gated-norm input: ideal scaled maxima347,692/173,846/86,923 at1024/512/256 each predict one overflow matching actual;128 yields43,461 and applies. Preserve tracing OOM from vocabulary-wide gradient indexing; bounded trace keeps144 norm/3,232 module records within3.991GB. Six actual-class BF16/FP16 CPU cases distinguish avoidable intermediate overflow from final-range overflow, with12 oracle finite differences(max6.90e-9 relative). Existing FP32 delta-rule control applies three updates at1024 with108 finite norm references(max1.17e-7), still carrying348,280 in FP32. Native forward changes(mean/max sampled-score delta0.000718/0.01656); no backward-only or quality claim/adoption. Four additional applied updates; raw sources/receipts external. Next broader nonzero-KL/worker qualification, residual precision and harder fresh-task behavior.
+
 - [x] (2026-10-01) Extend native veRL model/optimizer coverage to GDPO/CAPO on both recorded Qwen/LFM task pairs in BF16/FP16. Actual outcomes plus explicitly controlled effort/spans normalize within4.45e-16 of Decimal references. Final eight-arm matrix applies24 updates in27 attempts,54 loss/mask checks,576 matrices,2,472 scalar dots and Adam(max4.10e-9), peaks3.992GB Qwen/1.450GB LFM. Actual TRL loss replay at common scores matches scalar loss/derivatives within1.42e-15/3.47e-18; native loss difference max6.79e-8. Qwen sparse CAPO credit−8.55 triggers FP16 overflow; preserve failed audit assertion, correct only external instrumentation to allow native skip/backoff, verify three exact unchanged skips1024→512→256 then three applied updates at128 with Adam counters1→2→3. Separate extra zero-update control from final matrix. No new production repair/default/pin; live evidence/admission, nonzero KL, precision repeatability/native TRL optimizer parity and full worker/fresh learning remain open.
 
 - [x] (2026-10-01) Capture native deterministic SDPA layer23 forward/cotangents in both FP16 scales/BF16, preserving original adapters/scores/gradients bitwise. Independent full causal/GQA NumPy references cover27,159,552 Q/K/V coordinates and18,106,368 output coordinates; full-reference finite differences agree within6.24e-11, selected actual-query checks within7.94e-17. Native query errors reach0.13367% FP16/0.90953% BF16, beyond final-half rounding; diagnostic saved-output reduction lowers them. Three all-six-block FP32 reverse-equation updates preserve forward/represented layer23 upstream cotangents and approach local final-rounding floors, but full FP16 gradient scale gap remains0.29553% versusnative0.29532%; update gap3.357%→2.901%. BF16 update changes12.15%, without quality evidence. Six total new updates remain within3.99GB; tools/raw archives external. Next isolate residual numerical sensitivity, broaden native algorithms and harder task/fresh-worker qualification.
@@ -157,6 +159,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- The live CAPO fixture's first norm overflow is expected from its ideal scaled derivative, unlike a synthetic intermediate-cast case whose ideal final derivative fits FP16. One non-finite norm-input coordinate propagates widely upstream. FP32 delta-rule state permits the still-large derivative and1024-scale updates, but also changes forward/sampler weights, so it is not an isolated backward remedy. Large-logit tracing itself can exceed8GB via boolean-index materialization; bound trace shapes and retain separate score-gradient audits.
 
 - Sparse CAPO whitening can amplify four controlled errors among298 sampled tokens to−8.5514, despite equal actual outcome rewards. Qwen FP16 overflows at scales1024/512/256 but applies at128; BF16 and both LFM precision paths apply normally. An audit assertion initially intercepted overflow before the native scaler could handle it. Fixing the external harness reveals safe native skips with exact unchanged adapters/scores and unadvanced Adam counters; it does not prove a symbolic CAPO defect or justify a recipe change.
 
@@ -414,6 +418,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Keep representability, premature intermediate-cast overflow and symbolic objective correctness distinct. Use norm references at actual inputs/cotangents to explain the captured native failure, and retain the FP32 delta-rule control as external evidence with measured forward changes. Preserve failed wide tracing and bound instrumentation to smaller tensors. Do not adopt a production norm patch, fixed loss scale or FP32 island solely from this fixture.
+
 - Broaden native coverage using production-selected structured token clipping and0.2 bounds, retaining actual recorded outcome rewards and labeling extra effort/spans as controlled audit evidence. Test Posttrain normalization independently and replay actual TRL loss at common native scores. Report skipped attempts separately from applied updates. Preserve the original failed-hook arm, permit native backoff in a distinct external runner, and keep repeatability/live worker/native TRL model parity as separate gates.
 
 - Retain the native-forward/FP32-backward SDPA control only as an external diagnostic. It qualifies the observed causal/zero-dropout GQA equations and captured layer23 cotangents, not every supported mask/path, all nonlinear layers, candidate repeats or learning quality. Native BF16 updates change materially; no production kernel/default adoption. Continue residual-operation isolation and wider native algorithm coverage instead of presenting local rounding-floor agreement as campaign completion.
@@ -548,6 +554,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Native CAPO's layer22 overflow now has a concrete mathematical explanation: the scaled ideal derivative exceeds FP16 range before upstream propagation. A wider delta-rule/norm intermediate path applies three1024-scale updates without skips and matches local references, while changing forward arithmetic. This resolves the captured range question, not the full objective, current-run quality, universal precision stability or production release gates. Nonzero KL, repeatability, live worker/evidence/admission and fresh harder-task consequences remain open.
 
 - Native GDPO/CAPO now have24 applied updates across both families/primary precisions and common-score TRL/veRL logical-loss agreement. CAPO sparse-credit scaling exposes a real FP16 backward limitation handled by existing native scaler backoff; scale128 permits three updates after three safe skips. Only experimental instrumentation changes, with all sources/raw evidence external. First overflowing nonlinear operation, default-scale qualification, nonzero KL, full structured-evidence worker/judge transport and fresh held-out learning remain unproven. The wider campaign is still incomplete.
 
@@ -1104,3 +1112,7 @@ Revision 51: qualify native GDPO/CAPO BF16/FP16 updates on both recorded model
 families, independently normalize structured credits and replay TRL loss,
 preserve a failed overflow audit hook, and verify native sparse-CAPO scaler
 backoff with exact skip safety and three subsequent optimizer updates.
+Revision 52: locate native sparse-CAPO gradient range overflow at layer22,
+preserve/fix bounded tracing, distinguish intermediate-cast versus final-range
+failures with independent references, and qualify a forward-changing FP32
+delta-rule control without claiming production or learning-quality adoption.
