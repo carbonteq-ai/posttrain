@@ -611,3 +611,66 @@ kernels and end-to-end nonlinear parameter derivatives remain open.
 External receipts are `lfm-attention-conv-paired-oracle.json` and
 `lfm-normalized-attention-oracle.json`; their runners and the earlier grid
 remain outside Git.
+
+## Full gated convolution and actual attention activations
+
+The full `Lfm2ShortConv` block now has an independent scalar forward/reverse
+reference: input projection splits B/C/x; B*x enters the causal convolution;
+C gates its result; output projection completes the block. Manual derivatives
+cover input, both projection matrices, convolution weights and optional biases.
+Sixty native CUDA cases use4 hidden dimensions, FP32 parameter masters with
+BF16/FP16 autocast or diagnostic FP32, lengths1/5, bias on/off and all/left/
+right/hole/fully-masked layouts. All outputs and derivatives are finite, and
+masked input gradients are exactly zero. Seven independent finite differences
+validate the scalar reference within5.29e-11. Native FP32 maximum absolute
+error is5.37e-7 across outputs and all derivatives.
+
+| Maximum relative L2 error, full short-conv block | BF16 | FP16 | FP32 diagnostic |
+| --- | ---: | ---: | ---: |
+| Output | 0.500% | 0.117% | 1.61e-7 |
+| Any input/parameter derivative | 0.817% | 0.133% | 2.00e-7 |
+
+Bias-free fully masked cases produce exactly zero output and gradients.
+Bias-enabled padded positions can produce nonzero outputs (up to0.486 in this
+fixture) after input masking: projection/convolution/output biases still act.
+This matches the scalar equations, not a lost input mask. The current model
+uses bias-free convolution; downstream loss masking remains a separate duty.
+This slice uses the installed unfused fallback and does not qualify packed
+sequence-boundary resets or native fused kernels.
+
+An actual full HF FP16 teacher-forced forward now captures Q/K/V after native
+normalization and RoPE, using the exactly copied native step-one adapter and
+the successful1,890-token task branch. All six attention layers are measured.
+Q RMS ranges0.892–1.882 and K RMS0.961–1.954 over this branch. For three
+selected queries per layer, allowed scaled logits over the full key support
+range approximately−10.03 to20.39. Real heads can therefore be sharp even
+though this path does not resemble unnormalized amplitude15 inputs.
+
+First, explicit scalar equations check three-query/six-key subsets for all
+layers and precisions. Then a stronger check retains all1,890 key positions,
+their actual causal masks and the full softmax denominator for each selected
+query. Independent NumPy float64 matrix/softmax/reverse equations avoid Torch
+autograd when predicting derivatives. Three finite differences validate the
+full-support reference within2.35e-12. Both slices are finite and masked
+edges have exactly zero native probability.
+
+| Maximum relative L2 error, actual full-key-support slice | BF16 recast | FP16 | FP32 diagnostic |
+| --- | ---: | ---: | ---: |
+| Output | 0.814% | 0.117% | 3.64e-7 |
+| Query derivative | 1.12% | 0.139% | 6.10e-7 |
+| Key derivative | 1.53% | 0.214% | 7.29e-7 |
+| Value derivative | 1.57% | 0.199% | 6.81e-7 |
+
+Maximum reference attention probability is0.9722; the smallest inverse
+squared-probability sum (effective key support) is1.058. Sharpness is observed,
+but the measured full-support differences are bounded rather than the extreme
+stress-gradient errors. These are recasts of captured FP16 activations; they
+do not measure a native BF16 model trajectory. Selected-query kernel gradients
+also do not prove a full model backward or quantify accumulated learning harm.
+No production source or precision policy changed from these measurements.
+
+External receipts/runners: `lfm-gated-conv-block-oracle.json`,
+`lfm-actual-attention-inputs.json`/`.pt`, and
+`lfm-actual-attention-full-support.json`. The initial unsupported BF16-to-NumPy
+mask conversion failed in the experiment runner; its source/log are retained,
+and explicit float conversion repairs the runner without modifying the model.

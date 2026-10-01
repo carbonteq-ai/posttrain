@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Independently audit full gated LFM short-conv forward and all parameter/input derivatives in60 bias/mask/precision cases. Seven finite differences agree within5.29e-11; native FP32 absolute error max5.37e-7; masked input gradients are exactly zero. Capture all six attention layers on an actual1,890-token FP16 task path, then check18 masked subsets and18 selected-query/full-key-support arms against scalar/NumPy reverse equations. Full-support reference finite differences agree within2.35e-12; maximum gradient relative differences are1.57% BF16 recast,0.214% FP16,7.29e-7 FP32 diagnostic. Native BF16 capture, full nonlinear model backward, packed/fused boundaries and task-learning consequences remain open.
+
 - [x] (2026-10-01) Independently check LFM eager attention and unfused causal convolution outputs and reverse derivatives:54 paired BF16/FP16/FP32-diagnostic cases plus three native-head-dimension normalized controls. Six scalar finite differences agree within5.69e-11. All masks/cache-state/prefix-causality checks pass; convolution cached/full outputs match exactly. Stress attention gradients expose precision/saturation sensitivity, with FP32 rounded-input controls isolating it; normalized32-query/8-KV-head,64-dimension errors max0.335% BF16/0.0416% FP16. Do not claim trained-model or fused-kernel qualification; actual activation ranges and nonlinear block Jacobians remain open.
 
 - [x] (2026-10-01) Collect four matched training-seed episodes after the fresh-group update: successes2/4→3/4, truncations3/4→2/4 and sampled tokens2775→2908. Seed6200 recovers the tool task; the other three generated-token paths remain identical. All four exact native/projection/independent episode/turn/token-credit audits pass. This is small training-sample recovery, not held-out generalization or a production throughput claim.
@@ -117,6 +119,13 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+Bias-enabled short-conv padded positions need not output zero despite exact
+zero masked-input gradients; later biases still act. The current pretrained
+model is bias-free. Actual task-path attention has Q/K RMS below2 but sharp
+heads (maximum selected-query probability0.9722). Full key support is needed
+for a meaningful softmax denominator; a small key subset is only an auxiliary
+kernel check and must not stand in for the actual attention distribution.
 
 Saturated attention can show100% relative query-gradient error while the
 reference gradient norm is only2.15e-8. A different stress fixture has a
@@ -311,6 +320,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Decision: check the whole gated-convolution reverse chain, then capture actual task-path Q/K/V and preserve every key for selected-query attention checks. Use independent NumPy reverse equations to keep full support affordable; distinguish BF16 recasts from a native BF16 forward and kernel gradients from full-model parameter gradients. Retain experiment failures and keep all runners/receipts external. Date/Author:2026-10-01/Codex.
+
 - Decision: use explicit scalar grouped-attention and causal-convolution equations for expected derivatives, validate the scalar reference with finite differences, retain paired rounded-input controls and report absolute as well as relative errors. Check native LFM head dimensions and normalization separately; do not modify production precision based on artificial saturated logits. Date/Author:2026-10-01/Codex.
 
 - Decision: continue from the native checkpoint with fresh observed task groups, retain the original reward and truncation evidence, and audit all four microbatches using the restored optimizer/scaler. Keep collection/updating orchestration external and do not equate this bounded continuity probe with the production worker loop or general task improvement. Date/Author:2026-10-01/Codex.
@@ -405,6 +416,13 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 actual-activation milestone:60 full gated-convolution cases and
+36 attention arms on captured task-path activations extend the numerical
+audit. Source equations, masks and gradients agree in these slices within
+measured precision differences. Actual sharp attention does not reproduce
+the catastrophic artificial stress case here; this does not close native
+BF16 full-model backward or prove that accumulated numerical error is harmless.
 
 2026-10-01 nonlinear-kernel milestone:57 paired/native-shape attention and
 convolution cases extend the audit beyond LoRA linear layers. Independent
@@ -814,3 +832,6 @@ Revision 31: independently audit eager attention and unfused convolution,
 retain paired precision controls and scalar finite differences, quantify
 saturation versus absolute gradient magnitude, and test normalized native head
 dimensions without claiming actual trained activation or fused-kernel coverage.
+Revision 32: check the full gated-convolution reverse chain and padding/bias
+semantics; capture real FP16 task-path attention and compare selected queries
+with full causal key support, preserving native-BF16/full-backward limitations.
