@@ -426,3 +426,60 @@ External receipts include `qwen-native-sampo-parity-summary.json`,
 gradient/adapter snapshots and exact executed runners. Raw correctness tools
 remain outside Git. Default-scale TRL execution, upstream backward-precision
 isolation, broader algorithms/families and fresh held-out learning remain open.
+
+## Captured Qwen output-head underflow and saturated-softmax cancellation
+
+Two one-update native FP16 runs capture six actual credited token positions
+at scales1,024 and65,536. Raw logits and unscaled score cotangents are identical
+between scales. Both instrumentation runs reproduce their original step0/1
+adapters bitwise. A tiny standalone CUDA replay of the native per-row
+log-softmax and half-temperature division reproduces all captured raw-logit
+gradients bitwise. This locates a real numerical difference before model
+backward; it does not yet account for every downstream LoRA sign flip.
+
+The independent distribution derivative is
+`g_score * (indicator(target) - probability) / represented_temperature`.
+CPU float64 evaluates the reference at the actual represented tempered logits;
+selected-coordinate finite differences agree within2.24e-14. Float64 is an
+oracle only. The supported training targets remain BF16 and FP16.
+
+| Token position | Target probability | Native gradient relative L2 error, scale1,024 | Scale65,536 | Ideal maximum gradient magnitude |
+| --- | ---: | ---: | ---: | ---: |
+| Row0, index0 | 0.0573421 | 0.0188715% | 0.0188703% | 9.23e-5 |
+| Row0, index29 | 0.9998940 | 0.429667% | 0.0511309% | 1.18e-8 |
+| Row0, index86 | 0.9999999976 | 100% | 100% | 2.68e-13 |
+| Row1, index3 | 0.9999997357 | 100% | 8.20557% | 2.38e-11 |
+| Row1, index6 | 0.8198275 | 0.0364780% | 0.0364670% | 1.61e-5 |
+| Row1, index14 | 0.9999999974 | 100% | 100% | 2.35e-13 |
+
+At row1/index3 the low-scale native raw-logit derivative is entirely zero;
+the higher scale recovers six vocabulary coordinates. At row0/index29,
+lost ideal gradient L1 mass decreases from0.33675% to0.07363%. Vocabulary
+zero counts alone would exaggerate the problem: most coordinates carry
+negligible probability mass. The fully lost saturated-token derivatives are
+tiny in absolute terms; no measured task-quality loss is attributed to them.
+
+Three local controls separate the stages. Promoting logits after half-temperature
+division preserves represented forward values but does not consistently improve
+gradients: high-scale row1/index3 error becomes30.7132%, versus native8.20557%.
+Removing all half gradient casts improves ordinary-token errors to approximately
+3e-8–8e-8 relative L2, yet the same FP32 log-softmax backward still has31.8341%
+error at row1/index3 and77.1115%/88.1624% at the two most saturated positions.
+Thus half underflow is not the only effect. Subtraction of nearly equal values
+in the selected-target derivative also loses precision in FP32.
+
+An independent FP32 distribution derivative computes the target's complement
+by summing non-target probability mass directly, avoiding `1 - p_target`.
+Its maximum relative L2 error against the float64 oracle is1.97e-7 across
+all twelve scale/token cases, including saturated tokens. This is a useful
+reference and a corrective-backward candidate, not a production implementation:
+it bypasses native autograd and final half-gradient casts. Promoting before
+temperature also changes represented forward logits and is not an equivalent
+forward control. No head precision policy or backend dependency pin changes.
+
+External evidence: `qwen-head-scale1024.json`, `qwen-head-scale65536.json`,
+selected head tensors and adapter controls, `qwen-head-gradient-oracle.json`,
+and `qwen-head-precision-stages.json`, with exact executed runner snapshots.
+Next: evaluate a stable derivative through the real frozen output projection
+and model backward, check both primary precisions, and measure how much of the
+full normalized-gradient and Adam sensitivity it explains before adoption.
