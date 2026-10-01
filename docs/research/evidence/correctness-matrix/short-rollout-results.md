@@ -512,3 +512,69 @@ receipt whose scope mistakenly called reward-floor outcomes "no headroom";
 correct the wording without changing its measurements. Reference probes add
 zero optimizer updates. All tools/raw evidence remain outside Git. No product
 source, budget default, KL coefficient or dependency pin changed.
+
+## Matched 1024 versus 2048 token budgets
+
+1 October 2026. Add eight native fresh episodes at2048 tokens per turn using
+the same LFM starting/trained adapters, seeds39400/40400, initial prompt tokens,
+six-turn limit, sampling settings, precision, SDPA and deterministic flags as
+the preceding1024-token experiment. The derived total output allowance also
+doubles from6144 to12288; this comparison does not isolate those two limits.
+All four loads again reproduce both recorded native score rows exactly. Peak
+Torch allocation is3,460,183,040 bytes (approximately3.46GB).
+
+For every one of the eight budget pairs, the first1024 generated IDs and their
+log probabilities match exactly. The longer run continues the shorter run's
+sampled prefix, rather than silently changing prompt serialization or initial
+sampling behavior. Exact fresh token/logprob/branch/excluded-mask checks and
+independent sheet/email world-state reward checks pass on all compared episodes.
+
+| Precision / adapter | Rewards at1024 | Rewards at2048 | Truncated at2048 | Sampled tokens at2048 |
+| --- | --- | --- | --- | --- |
+| BF16 / starting | 0, 0 | 0, 0 | both | 2048, 2048 |
+| BF16 / trained | 0, 0 | 0.5, 0.5 | neither | 1801, 3049 |
+| FP16 / starting | 0, 0 | 1, 0 | second | 2901, 2048 |
+| FP16 / trained | 0, 0 | 0, 0.5 | first | 2048, 2072 |
+
+The trained BF16 adapter now sends the email in both episodes, but fails the
+spreadsheet assertion. FP16 loses the starting adapter's fully rewarded first
+episode and gains an email-only second episode. These are native benchmark
+assertion outcomes, not general task-quality certification. The longer budget
+reveals actions and differences that the1024-token truncation hid, but does not
+establish a uniformly better trained policy or make2048 an optimal default.
+Two seeds on a screened task cannot justify choosing a precision or declaring
+a recipe effective. A correct local gradient/update check likewise does not
+guarantee improved fresh reward after three updates of one cached group.
+
+Continue quality comparisons at budgets that permit tool actions, measure
+truncation separately, and expand task/seed coverage before adopting a budget
+or recipe. Preserve the adverse FP16 pair. No product setting or source change
+follows from this result. External evidence: four
+`lfm-headroom-budget2048-*-step*.json` receipts, exact provider/controller sources
+and `headroom-budget-comparison.json` with per-pair prefix and state checks.
+
+### Native reference routing and score-coordinate projection
+
+Execute the exact AST-extracted veRL `_compute_ref_log_prob` and
+`response_from_nested` function bodies with CPU transport doubles. Six cases
+cover three unequal prompt/response-length layouts under both in-actor and
+separate-reference routing. Unique numerical coordinate labels independently
+verify next-token alignment: response token position `j` receives model score
+position `j-1`. Excluded response positions retain their coordinates rather
+than shortening the response; masking belongs to the subsequent loss.
+
+Both routes read the expected queue fields and store only aligned
+`ref_log_prob`, with the selected temperature0.8 and loss/entropy disabled.
+In-actor routing sets `no_lora_adapter=True`; separate-reference routing uses
+its dedicated worker. One empty-response projection boundary passes, without
+claiming that empty trajectories are admitted for training. Its first external
+fixture failed because an empty list inferred float dtype while other masks
+were integer; specify the mask dtype and rerun, preserving the failed source.
+
+These source-seam checks extend the previous native GPU disable/restore checks.
+They do not execute live Ray dispatch, TransferQueue persistence, concurrent
+worker ownership or full reference-model transport. No projection or routing
+defect is found in these tested valid layouts. Exact sources and
+`native-reference-projection-audit.json` remain outside Git. This slice adds
+eight fresh episodes and six CPU routing/projection cases, with zero optimizer
+updates; the broader correctness campaign remains incomplete.

@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Add eight matched2048-token fresh LFM episodes against previous1024 controls; all eight pairs preserve first1024 IDs/logprobs exactly and verify native adapter scores/token transport/independent world rewards. BF16 starting/trained rewards at2048 are[0,0]/[.5,.5]; FP16 [1,0]/[0,.5], preserving an adverse trained pair. Peak3.461GB. Per-turn and derived total output budgets change together; no optimal/default/efficacy claim. Six exact-source native reference route/projection CPU cases check unequal lengths, next-token shift, retained excluded coordinates and both worker routes with transport doubles. Fix only external empty-mask dtype fixture, preserve failure. No optimizer/product updates; real queue/worker, fresh iterative training and broader gates remain open.
+
 - [x] (2026-10-01) Compare eight fresh LFM weekly-report episodes under matched seeds39400/40400, starting versus three-update adapters in BF16/FP16. All four loaded adapters reproduce their recorded native scores exactly; token/logprob/excluded-mask and independent final-state reward checks pass. All eight remain reward0, truncate at1024 inside unclosed thinking, and make no tool action; changed first-turn prefixes establish inference sees the updates, not efficacy. Actual native FSDP2 LoRA-disable probes in both precisions recover initial base scores exactly and restore trained scores exactly after normal and exceptional exit; no optimizer steps in those probes. Full reference-worker/TransferQueue transport remains open. Next paired budget/reasoning controls and real fresh iterative worker behavior, preserving broader algorithm/family gates.
 
 - [x] (2026-10-01) Collect12 fresh native training-client episodes across Qwen/LFM and two harder AutomationBench tasks, with exact token/logprob/branch/excluded-mask projection and per-task independent credit audits. Independent plain-JSON world-state checks reproduce all12 task rewards. Initial512-token LFM episodes all truncate; follow-up1024-token weekly-report pair has observed rewards[1,0], but seeds differ so no isolated budget-effect claim. Preserve an audit identity-mismatch failure and correct only its external requested task IDs. Three deterministic native SAMPO updates per precision on the complete LFM pair pass12 loss checks,144 matrices,576 scalar dots and Adam(max2.13e-9), peak2.440GB. Third-update clipping reaches both FP16 populations and BF16's failure row. No live refill, post-update task-quality, production pin/default or full-worker qualification. Next fresh adapter task comparisons and actual worker reference/admission transport, alongside broader algorithm/model gates.
@@ -167,6 +169,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Identical1024-token prefixes can hide different later actions: larger budgets reveal trained BF16 partial reward and an adverse trained FP16 pair. Thus a truncation-floor evaluation conceals useful behavioral distinctions while correct local updates remain insufficient for robust quality. Reference projection preserves excluded token coordinates and applies a one-token shift; the tested routes agree with independent coordinate labels, without validating live queue/concurrency.
 
 - Longer-task adapters transfer to inference exactly but do not improve the two fresh seeds: all1024 generated tokens remain inside unclosed thinking blocks. This is an observed rollout bottleneck, not proof of a symbolic gradient defect or optimal budget. Native adapter disabling separately recovers the unchanged base reference and restores the actor even after intentional exception exit, closing a context-lifecycle gate without claiming live queue/worker qualification.
 
@@ -434,6 +438,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Retain both positive and adverse fresh outcomes, require exact prefix controls for budget attribution, and report that per-turn and total output allowances change together. Expand seeds/tasks before adopting budget or precision settings. Source-body routing/projection checks with explicit transport doubles complement native GPU context checks, but cannot replace real worker/queue integration.
+
 - Require adapter identity and exact cached-score reproduction before interpreting fresh before/after behavior. Match seeds, initial prompts, attention, deterministic flags, precision and budgets within pairs. Keep reward-floor outcomes descriptive; do not label them lack of task headroom or infer quality from changed text. Reference-only native probes execute zero optimizer updates and must be reported separately.
 
 - Keep task populations separate during credit construction and use authoritative example IDs; retain the failed external audit as evidence that identity guards work. Verify sampled transport and final world-state rewards before using a fresh task fixture. Treat screening and fixed-group native updates as separate from held-out/post-update quality, and retain current admission/truncation policy while testing a group it would admit by predicate.
@@ -578,6 +584,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Eight longer-budget episodes change the behavioral evidence: some previously truncated runs act later, yet trained quality is mixed across precisions. Six CPU projection/routing seams pass and introduce no confirmed product fix. Exact transport, rewards and updates narrow several hypotheses without proving global mathematical correctness or explaining an active production run. The broad goal stays active; tools/raw evidence remain external.
 
 - Eight fresh episodes provide a negative quality result despite verified update transport; no new math defect appears in the tested seams. Both native reference contexts pass exact base/actor restoration checks. Reasoning-budget mismatch warrants controlled follow-up, but full worker/reference transport, fresh iterative training, held-out quality, nonlinear/distributed derivatives and broad algorithm/model coverage remain unresolved. Tools and raw receipts remain external; no product default or dependency adoption.
 
@@ -1161,3 +1169,6 @@ and preserve seed, admission, clipping and fresh-quality evidence boundaries.
 Revision 56: verify exact fresh adapter transport, record matched reward-floor
 behavior and unclosed-thinking truncation, and execute native reference-context
 disable/restore checks without inflating them into optimizer or worker proof.
+Revision 57: compare matched token budgets with exact sampled prefixes, preserve
+mixed precision-specific fresh quality, and extend native reference routing/
+projection seams without adopting a recipe or claiming live worker qualification.
