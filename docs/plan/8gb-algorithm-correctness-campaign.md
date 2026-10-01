@@ -22,6 +22,9 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] Replay newly collected Qwen weekly-report groups through actual native SAMPO/GRPO/DAPO Trainer.train in FP16: nine applied finite updates/eighteen scalar loss/mask checks. CPU copies of diagnostic cotangents permit the complete FP16 traces to fit5.669GB. SAMPO/DAPO pass exact independent scaled accumulation; GRPO remains fail at step2(.001610136 versus.0001), despite exact actual-loss VJP/Adam within1.85e-9. Preserve all original six GPU-diagnostic OOMs.
+- [x] Matched fresh GRPO FP16 loss-only precision diagnostic applies three further updates and passes: independent scaled accumulation0, loss2.665e-15, score1.084e-18, Adam1.865e-9. Same fixture/input/settings hashes; model/backward remain FP16. No FP64 production adoption or tolerance relaxation. Native clipping under three-use diagnostic recipe reaches SAMPO[0,.5,1], GRPO[0,.101495,.126950], DAPO[0,.099989,.128457].
+- [ ] Fresh BF16 native full-audit memory qualification remains open: three CPU-cotangent retries and three pinned save_on_cpu retries still OOM on the unchanged960/484-token responses. All runners are terminal(48279/19278/52142); archive12 memory failures. Next inspect/release audit-only captured logit/head references before full-model VJPs while preserving exact data and independent optimizer checks; do not truncate the fixture or infer production model memory failure from the audit.
 - [x] (2026-10-01) Project32 eligible complete historical AutomationBench groups through the actual Posttrain Verifiers bridge and default SAMPO builder. Zero projection errors/exact duplicates;22 equal-reward groups, only one with nonzero credit(Qwen rewards.5/.5, three/two turns,458 credited tokens). The other21 are zero-credit. This heterogeneous convenience corpus is not a current-run prevalence estimate.
 - [x] Fresh signal matrix finishes under session91278(exit0):16 base-model episodes across LFM/Qwen BF16/FP16, seed82400, two tasks/two repetitions, six-turn/2048-token budget. Exact sampled IDs/logprobs/masks/native projection pass; independently inspected world-state rewards agree; rational sparse SAMPO token-credit error0 in all eight groups. Three unmasked mixed-reward groups retain signal, five equal-reward groups have none. Masked scalar spread rejects all eight groups. Matched retention-policy optimizer/outcome comparison remains pending.
 - [x] Replay actual schema-aware tool parsing and match native call admission. Correct two external assumptions: the generic Qwen parser ignores declared string schemas; native Verifiers admits named calls except UNKNOWN_TOOL, including INVALID_JSON. Preserve original generic-parser summary and failed strict-OK assertion separately. Final Qwen BF16/FP16 each has eight OK/eight INVALID_JSON calls,15 tool responses and nine errors; LFM BF16 has two OK calls, FP16 one unclosed block. All native trace.errors lists are empty, so they are not a complete behavior-error metric.
@@ -239,6 +242,13 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Fresh Qwen GRPO FP16 shows scalar-oracle scaled-gradient sensitivity previously
+  measured on LFM: step2 relative error.001610136, actual-loss VJP0 and Adam
+  correct. Loss-only FP64 arithmetic removes it. Fresh DAPO/SAMPO FP16 pass,
+  so this is not an across-the-board model/backend failure. Longer BF16 response
+  shapes exceed the external full-vocabulary audit memory even with CPU saved
+  tensors. Preserve those failures before changing instrumentation.
 
 - Fresh Qwen contact failures use a nonexistent contact ID or empty object type;
   weekly-report failures repeatedly send invalid Sheets cells JSON. Both
@@ -563,6 +573,12 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Keep fresh GRPO FP16 qualification fail until its independent precision gate
+  is resolved; applied steps/exit0 do not override it. Run the matched loss-only
+  diagnostic only for the failing objective, not repeat the passing DAPO arm.
+  CPU cotangent/saved-tensor storage are external instrumentation controls, not
+  production runtime selections. Continue BF16 with complete unchanged traces.
+
 - (2026-10-01) Use the model renderer with the recorded tool schema and native
   response_from_generate admission rule for parser audits. Do not equate
   generic-parser fallback status with actual tool failure, or force strict OK
@@ -755,6 +771,14 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+Revision84 adds twelve actual native updates on newly collected Qwen traces:
+nine ordinary FP16 across three objectives and three GRPO precision controls.
+SAMPO/DAPO qualify; ordinary GRPO does not. Diagnostic clipping now demonstrably
+hits, but this is three-update reuse with small clip bounds, not a default-run
+claim. Twelve BF16/GPU-diagnostic memory failures stay explicit and unqualified.
+All launched processes have terminated; the goal remains active with BF16 memory,
+host/fresh training, cross-backend trajectories and broad algorithm gates open.
 
 Revision83 completes the fresh16-episode matrix and independent trace/reward/
 credit verification. No equal-reward hidden credit occurs in these eight fresh
@@ -1473,3 +1497,6 @@ for matched retention-policy and outcome investigation.
 Revision 83: complete16 fresh episodes, verify exact transport/masks and independent
 world rewards/rational credits, correct schema/admission audit assumptions,
 and quantify truncation/tool failures without asserting current-run causation.
+Revision 84: replay fresh Qwen groups through three native objectives in FP16,
+preserve GRPO's independent precision failure and successful loss-only control,
+measure clipping and retain twelve full-audit memory failures/BF16 gate.

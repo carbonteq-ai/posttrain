@@ -2044,3 +2044,60 @@ External final artifacts:fresh-sampo-signal-schema-aware-summary.json,
 fresh-sampo-signal-matrix-summary.json(original generic parser fields),
 collected-sampo-signal-complete-fresh-matrix.json and four
 {lfm,qwen}-fresh-sampo-signal-{bfloat16,float16}.json sources.
+
+## Native training on the newly collected Qwen groups
+
+Build complete weekly-report fixtures directly from the new native traces:
+unchanged rewards[.5,0], prompt1603 tokens, BF16 responses960/484 with409/354
+sampled tokens, FP16 responses824/462 with349/332 sampled tokens. Credit comes
+from production SAMPO construction already independently verified above.
+Replay actual Trainer.train for SAMPO/GRPO/DAPO with rank4/alpha8, LR1e-4,
+beta.01, clip.003/.004, three uses of the same population, microbatch1 and
+accumulation2. Truncation remains unmasked; FP16 scaler1024. This training
+replays newly collected data; it does not generate fresh trajectories per step.
+
+First six arms OOM while external instrumentation retains full-vocabulary
+cotangents. Preserve logs, then copy only diagnostic logit/head gradients to
+CPU while retaining their dtypes and native GPU model/loss/backward arithmetic.
+All FP16 objectives now execute three finite updates each. All18 scalar loss/
+mask checks pass, excluded gradients0, actual-loss scaled VJP accumulation0,
+Adam error below1.849e-9, peak5.669GB. Qualification differs:
+
+| Objective FP16 | Independent scalar-oracle accumulated-gradient errors | Native qualification | Clip-region means at steps1/2/3 |
+| --- | --- | --- | --- |
+| SAMPO | [0,0,0] | Pass | [0,.5,1] |
+| GRPO | [0,.001610136,0] | Fail | [0,.101495,.126950] |
+| DAPO | [0,0,0] | Pass | [0,.099989,.128457] |
+
+Maximum loss errors8.866e-9 SAMPO,2.981e-8 GRPO and3.462e-8 DAPO; derivative
+errors below2.329e-10. GRPO normalization error1.737e-8. Its scalar-oracle
+scaled-gradient error exceeds the unchanged.0001 gate; applied optimizer steps
+do not erase this failure. Actual-loss VJP matching separates correct gradient
+transport from this independent arithmetic sensitivity.
+
+Repeat only failing GRPO with loss-only FP64 score arithmetic. The model,
+backward path, fixture/input hashes and settings remain FP16/matched. All three
+updates now pass independent scaled accumulation exactly; loss2.665e-15,
+derivative1.084e-18, Adam1.865e-9, peak5.669GB. This is a diagnostic consistent
+with loss-rounding sensitivity amplified by half-precision VJPs; it neither
+proves a new formula defect nor adopts FP64 production loss or looser tolerance.
+
+Clipping can activate on these complete native traces with bounded reuse. SAMPO
+step3 reports fully clipped policy region, current gradient norm.000376835
+(beta.01 KL remains present), yet Adam changes parameters by9.373e-5. Movement
+alone therefore does not show fresh policy learning; optimizer history and KL
+must be distinguished. The settings are diagnostic, not the active-run recipe.
+
+BF16 still fails all three CPU-cotangent retries and three further pinned
+save_on_cpu retries. Preserve twelve total memory failures(six original arms,
+three BF16 CPU-cotangent, three BF16 saved-tensor controls). Complete BF16
+qualification remains open; next release audit-only retained head/logit references
+before full-model VJPs rather than shrinking the trace. These audit failures
+do not establish that an ordinary production trainer cannot fit the same model.
+All three runners48279/19278/52142 are terminal; no GPU job remains active.
+
+External summaries:fresh-qwen-native-fp16-summary.json and
+fresh-qwen-native-loss-control-summary.json; receipts:
+qwen-fresh-weekly-native-{sampo,grpo,dapo}-float16-auditcpu.json and
+qwen-fresh-weekly-native-grpo-float16-loss64-auditcpu.json. Tools/raw data stay
+external; no production source, pin or recipe change is adopted here.
