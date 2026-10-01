@@ -1980,9 +1980,67 @@ complete group before masking. These are projected retention labels, not an
 actual host refill or optimizer run. Native episode.ok records execution
 completion and is not used as a success reward.
 
-Three fresh model/precision arms remain pending/live under exec session91278.
-Poll that runner rather than starting duplicate GPU jobs. Matrix and retention
-policy quality comparison remain incomplete. External summaries:
+At revision82, three fresh model/precision arms remained pending/live under
+exec session91278. Revision83 below completes collection; retention-policy
+training and quality comparison remain incomplete. External summaries:
 collected-sampo-signal-prior.json and collected-sampo-signal-first-fresh-arm.json;
 first fresh source:lfm-fresh-sampo-signal-bfloat16.json. Only documentation is
 committed; experiment code/raw receipts stay outside Git.
+
+## Completed fresh matrix: transport, credit and observed failures
+
+Runner91278 exits0 after all four arms. Sixteen fresh episodes/eight two-response
+groups pass exact sampled-token/logprob/mask/native projection checks. Initial
+prompt hashes and seed schedule match within each family across BF16/FP16.
+System/user/tool nodes remain outside sampled-policy masks. Independently read
+Salesforce contact fields and Sheets/email world state reproduce all assertion
+flags and rewards. Independently reconstruct sparse discounted returns and
+anchor/episode centering with rational arithmetic: token-credit maximum error0
+for every group against production Posttrain SAMPO construction.
+
+| Model / precision | Contact rewards | Weekly-report rewards | Truncated trajectories / 4 | Weekly nonzero-credit tokens |
+| --- | --- | --- | --- | --- |
+| LFM BF16 | [0,0] | [0,1] | 3 | 5155 |
+| LFM FP16 | [0,0] | [0,0] | 4 | 0 |
+| Qwen BF16 | [0,0] | [.5,0] | 1 | 763 |
+| Qwen FP16 | [0,0] | [.5,0] | 1 | 681 |
+
+The three mixed-reward groups retain unmasked scalar-spread signal. The five
+equal-reward fresh groups all have zero hierarchical credit. Excluding truncated
+rows before scalar-spread selection rejects every fresh group because no group
+has two untruncated differing rewards. This selection label does not recompute
+hierarchical credit or execute the host sampler. Mean absolute weekly credit is
+.864888458 LFM BF16, .400882864 Qwen BF16 and .414989879 Qwen FP16. Peaks2.970GB
+LFM/2.145GB Qwen. Cumulative convenience-corpus projection now covers40 groups:
+27 equal-reward, one with nonzero credit, zero errors/ungrouped/exact duplicates.
+
+An external parser audit initially used the generic Qwen35ToolParser, reporting
+16 INVALID_JSON calls per Qwen arm. It lacks schema-aware argument coercion, so
+ordinary XML string parameters inflate that count. Preserve that original
+summary; replay with Qwen35Renderer, recorded tool specs and actual prompt IDs.
+The first schema-aware audit then assumed only OK calls execute and failed on a
+malformed Sheets argument. Source inspection shows Verifiers
+response_from_generate accepts named calls unless UNKNOWN_TOOL; INVALID_JSON
+may reach the environment and return a recoverable tool error. Correct the
+external audit to match that actual rule, preserving the failed strict audit.
+
+Final schema-aware replay matches native emitted call names and arguments in
+every turn. Both Qwen precisions have eight OK/eight INVALID_JSON calls,15 tool
+responses and nine tool errors across four episodes. Each has one nonexistent
+contact ID, one empty object type and seven invalid Sheets cells JSON responses.
+LFM BF16 has two OK calls/two successful tool responses; FP16 has one unclosed
+tool block and no tool responses. All sixteen native trace.errors lists are
+empty. Infrastructure trace errors therefore cannot serve as an exhaustive
+tool-call or task-failure metric. Trajectory truncation also includes harness
+turn-budget exhaustion; it need not mean the last model request hit2048 tokens.
+
+These results verify transport, policy-token masking, reward provenance and
+hierarchical credit on fresh behavior. They establish concrete rollout problems,
+not optimizer qualification, a general precision ranking, a better retention
+recipe or current-run causation. Broader seed/task coverage remains necessary
+for efficacy claims. No production recipe change is adopted.
+
+External final artifacts:fresh-sampo-signal-schema-aware-summary.json,
+fresh-sampo-signal-matrix-summary.json(original generic parser fields),
+collected-sampo-signal-complete-fresh-matrix.json and four
+{lfm,qwen}-fresh-sampo-signal-{bfloat16,float16}.json sources.

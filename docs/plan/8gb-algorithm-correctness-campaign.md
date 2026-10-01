@@ -23,7 +23,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 ## Progress
 
 - [x] (2026-10-01) Project32 eligible complete historical AutomationBench groups through the actual Posttrain Verifiers bridge and default SAMPO builder. Zero projection errors/exact duplicates;22 equal-reward groups, only one with nonzero credit(Qwen rewards.5/.5, three/two turns,458 credited tokens). The other21 are zero-credit. This heterogeneous convenience corpus is not a current-run prevalence estimate.
-- [ ] Fresh signal matrix is running serially under exec session91278: LFM/Qwen BF16/FP16, base policies, seed82400, two tasks/two repetitions, six-turn/2048-token-per-turn budget. First LFM BF16 arm exits0 and projects both groups: contact-update[0,0], both truncated, zero credit; weekly-report[0,1], one truncated,5155 credited tokens and mean absolute credit.864888. Unmasked spread retains the latter; masked spread rejects its singleton scorable reward. Remaining three arms and matched retention-policy update/outcome comparison are pending. Poll the same live runner; do not restart from elapsed observation time.
+- [x] Fresh signal matrix finishes under session91278(exit0):16 base-model episodes across LFM/Qwen BF16/FP16, seed82400, two tasks/two repetitions, six-turn/2048-token budget. Exact sampled IDs/logprobs/masks/native projection pass; independently inspected world-state rewards agree; rational sparse SAMPO token-credit error0 in all eight groups. Three unmasked mixed-reward groups retain signal, five equal-reward groups have none. Masked scalar spread rejects all eight groups. Matched retention-policy optimizer/outcome comparison remains pending.
+- [x] Replay actual schema-aware tool parsing and match native call admission. Correct two external assumptions: the generic Qwen parser ignores declared string schemas; native Verifiers admits named calls except UNKNOWN_TOOL, including INVALID_JSON. Preserve original generic-parser summary and failed strict-OK assertion separately. Final Qwen BF16/FP16 each has eight OK/eight INVALID_JSON calls,15 tool responses and nine errors; LFM BF16 has two OK calls, FP16 one unclosed block. All native trace.errors lists are empty, so they are not a complete behavior-error metric.
 - [x] (2026-10-01) Verify native Qwen BF16/FP16 active sampling rejects an unmasked recorded equal-reward[1,1] group despite104 nonzero sampled-token SAMPO credits. Two rounds per arm, no loss/optimizer/state changes, peak2.998GB. Independently compare24 rational discounted-return/centering cases with production Posttrain credit construction and48 exact veRL source-function metadata cases. Equal episode rewards can produce nonzero hierarchical credit with different remaining turn counts or explicit step rewards; the native scalar-spread predicate rejects these. This is a measured sampling-policy limitation, not yet a demonstrated implementation defect or current-run cause.
 - [x] (2026-10-01) Execute native active-sampling rejection/recovery for DAPO and supplied-credit SAMPO in BF16/FP16. Four rejection arms exhaust two rounds with no loss calls, no optimizer events/state and unchanged parameters. Four recovery arms reject the first masked singleton, deliberately make the second candidate scorable, then apply one independently verified update each: eight loss/mask checks, maximum loss error2.50e-8, exact scaled accumulation, Adam2.67e-11, peak6.090GB. Cached tokens/repeated prompt metadata and controlled truncation override exclude fresh-generation/host task-uniqueness qualification.
 - [x] (2026-10-01) Execute actual native GRPO warm-Adam/zero-signal controls in BF16/FP16: one informative retained group then two singleton masked groups, beta0, one iteration per supplied population. Six optimizer events/twelve loss-mask checks pass. Later current loss/gradients are exactly0 but parameter changes6.70057e-5/5.17956e-5 follow Adam history; independent update error2.43e-11, peak6.093GB. Recorded truncation flags are deliberately overridden for the first control group; no actual live-run/fresh generation claim.
@@ -238,6 +239,13 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Fresh Qwen contact failures use a nonexistent contact ID or empty object type;
+  weekly-report failures repeatedly send invalid Sheets cells JSON. Both
+  precisions have nine tool-error responses with no trace.errors. LFM BF16
+  truncates three of four trajectories and achieves one full reward; FP16
+  truncates all four with zero rewards. This small base-policy sample does not
+  establish a precision efficacy difference or any current-run causal verdict.
 
 - The projected historical corpus tempers the sampling limitation: only one of
   22 equal-reward groups contains hierarchical signal under the tested defaults;
@@ -555,6 +563,13 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- (2026-10-01) Use the model renderer with the recorded tool schema and native
+  response_from_generate admission rule for parser audits. Do not equate
+  generic-parser fallback status with actual tool failure, or force strict OK
+  filtering into the external oracle. Preserve failed controls and supersede only
+  parser fields with the schema-aware summary; mathematical/transport checks
+  remain valid. Separate trace infrastructure errors from environment tool errors.
+
 - (2026-10-01) Count only complete two-response groups with explicit collection
   task metadata and one native trace per episode. Deduplicate projected token,
   mask, reward, turn/anchor bytes with model/precision identity; record failures
@@ -740,6 +755,15 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+Revision83 completes the fresh16-episode matrix and independent trace/reward/
+credit verification. No equal-reward hidden credit occurs in these eight fresh
+groups; the cumulative convenience corpus now has40 groups,27 equal-reward,
+one with nonzero hierarchical signal. Source-confirmed native parsing exposes
+recoverable invalid arguments and repeated tool errors rather than a new credit
+formula defect. Runner91278 and all CPU audit handles are terminal. Matched
+retention-policy training/quality, broad optimizer/backend coverage and production
+adoption remain open. Experiment tools/raw evidence stay external.
 
 Revision82 adds direct trace-projection evidence and launches a fresh two-family,
 two-precision matrix. The32 historical groups provide a counterexample to
@@ -1446,3 +1470,6 @@ and distinguish selected retention policy from objective correctness.
 Revision 82: audit32 historical native groups through real projection/credit,
 record the first fresh LFM BF16 arm and keep the serial four-arm collection live
 for matched retention-policy and outcome investigation.
+Revision 83: complete16 fresh episodes, verify exact transport/masks and independent
+world rewards/rational credits, correct schema/admission audit assumptions,
+and quantify truncation/tool failures without asserting current-run causation.
