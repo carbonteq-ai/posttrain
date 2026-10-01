@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Qualify six three-update native/candidate trajectories in FP16(two scales)/BF16:18 applied updates,36 loss checks,432 matrix checks,1,728 scalar dots and Adam(max4.11e-9), exact earlier step0/1 replay. Retained FP16 endpoint scale gaps2.896%→2.062%→1.877% versusnative7.948%→5.760%→5.144%. At third reuse all104 credited positions clip in four FP16 arms/candidate BF16, leaving zero current gradients but valid momentum updates; native BF16 retains row2 signal. Twelve fresh conditional-Qwen episodes under exact native adapters/scores pass all trace/projection/credit audits, each arm2/2 reward/no truncation/errors. Baseline ceiling prevents a quality claim. Restore exact environment11f4 outside Git after import failure, verify499 Git blobs. Next native kernels/harder tasks/residual precision and wider campaign gates.
+
 - [x] (2026-10-01) Run seven all-six-attention-block ablation updates: FP16 three policies×two scales and BF16 retained-intermediate control. Initial scores/weights remain bitwise native;14 loss checks,168 matrix checks,672 scalar dots and Adam(max1.34e-9) pass at3.95GB. Retained FP32 intermediates reduce scale gaps to0.26843% gradient/2.89572% update/86 sign flips versusnative0.84449%/7.94874%/295; FP32 products with half intermediates remain0.84378%/8.12159%. Native-products explicit-VJP control remains0.85151%/8.15353%. BF16 gradient/update changes1.9848%/11.0602%. Exact class passes18 independent primary-precision staged-reference cases(max0.02562% FP16/0.23137% BF16). Intermediate casts causally implicated; multi-update/fresh-rollout and supported-kernel/quality qualification remain open.
 
 - [x] (2026-10-01) Capture144 internal cotangent records in blocks19/23 with exact original-gradient/adapter/score and prior-boundary replay. Attention query scale gaps0.293%/0.915% exceed output gaps0.039%/0.158%. Two native-forward-preserving FP32 internal attention-VJP updates pass four loss checks,48 matrix checks,192 scalar dots and Adam(max1.34e-9) at3.95GB; full LoRA scale gap decreases0.84449%→0.76569%, update gap7.9487%→7.2013%, sign flips295→256. Exact candidate independently checked in six CPU FP16/BF16 causal GQA cases plus four ideal-equation finite differences. Partial causal reduction only; no quality verdict or production adoption. Next remaining full-attention blocks and operation-specific backward ablations/native BF16.
@@ -149,6 +151,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Three reuses of the tiny frozen population exhaust all credited FP16 gradient signal despite partially clipped sampled-token metrics; zero-advantage tokens make that metric misleading. Adam momentum still moves weights. Fresh adapters remain valid, but the easy task already has2/2 baseline success, so numerical consistency gains cannot be called learning gains.
 
 - Across all six full-attention blocks, FP32 products alone leave scale sensitivity essentially unchanged; retaining FP32 intermediate cotangents reduces it substantially. Native half-products plus explicit softmax-VJP control retains the original-scale gap, strengthening the intermediate-cast explanation while preserving softmax-kernel rounding differences.
 
@@ -398,6 +402,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Report first-step scale error separately from later different-weight trajectories, normalize relative comparisons consistently, and distinguish momentum-only updates from fresh policy gradients. Use harder tasks/native kernels next; restore immutable environment dependencies outside the dirty sibling and require exact adapter-score qualification before behavioral comparisons.
+
 - Treat all-block retained intermediates as a promising numerical control, requiring repeated updates/fresh behavior and native supported-kernel qualification. Do not adopt the diagnostic custom-autograd attention implementation, extrapolate eager-path findings to fused kernels, or equate improved scale consistency with learning quality.
 
 - Keep the two-block FP32 VJP as a corrective experiment, not a production replacement. Its attention-weight diagnostic output lacks a gradient contract, and its partial scale-gap reduction does not establish learning quality. Extend operation/block ablations and native BF16 before recommending policy.
@@ -524,6 +530,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Candidate consistency improvement persists across bounded update trajectories, and exact native adapters produce valid independently audited fresh rollouts in both primary precisions. Constant task-success ceilings and frozen-population clipping limit quality conclusions; supported-kernel/full-worker, harder-task, broader-algorithm/family and residual-derivative requirements remain open.
 
 - The ablations identify a substantial causal precision effect over the full native model/population while preserving forward scores. They support a concrete corrective direction, but residual backward sensitivity, full-model derivative references, multiple-step behavior and the broader algorithm/family/quality requirements remain open.
 
@@ -1058,3 +1066,6 @@ primary-precision references and a measured partial global-gap reduction.
 Revision 47: ablate all six full-attention blocks, separate FP32 products from
 retained intermediate cotangents, validate native BF16 and18 independent
 staged-reference cases, and require multi-update/fresh-kernel qualification.
+Revision 48: run matched three-update trajectories, identify fully clipped
+credited populations versus momentum updates, qualify exact conditional-adapter
+handoffs and twelve fresh native episodes, and retain baseline-ceiling limits.

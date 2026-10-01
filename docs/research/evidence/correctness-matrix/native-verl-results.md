@@ -12,8 +12,10 @@ attention ablations identify intermediate half-gradient casts as a major
 contributor. Retaining FP32 intermediates in all six full-attention blocks
 reduces the gradient scale gap0.844%→0.268% and update gap7.95%→2.90%.
 This is a bounded corrective experiment, not a production kernel replacement
-or demonstrated learning-quality improvement. Multi-update/fresh-rollout,
-other-kernel and full-model-reference qualification remain open.
+or demonstrated learning-quality improvement. Three-update controls and twelve
+fresh episodes now pass their independent checks, but the task's baseline is
+already successful. Other-kernel, harder-task and full-model-reference
+qualification remain open.
 
 ## Repairs
 
@@ -815,3 +817,74 @@ and exact executed sources in the external manifest. No production source,
 precision defaults or dependency pins change. Next test repeated optimizer
 updates and fresh matched rollouts, then compare supported native kernels and
 remaining backward boundaries before proposing a qualified correction.
+
+## Three-update trajectories and fresh conditional-model rollouts
+
+Six native trajectories apply three updates each: original and retained-FP32
+attention backward in FP16(scales1,024/65,536) and BF16. All18 updates pass
+36 independent loss/score/mask checks,432 LoRA matrix checks,1,728 scalar dots
+and AdamW(max4.11e-9). Steps0/1 reproduce each earlier native/candidate
+parameter and score export bitwise. Peak Torch allocation remains3.95GB.
+This deliberately reuses one frozen observed population, its old scores,
+credits and sampler correction; it is not an online rollout/refill loop.
+
+| Update | Native FP16 parameter-displacement scale gap | Retained-intermediate FP16 gap |
+| --- | ---: | ---: |
+| 1 | 7.94829% | 2.89572% |
+| 2 | 5.75952% | 2.06189% |
+| 3 | 5.14437% | 1.87748% |
+
+These relative L2 gaps consistently use the scale1,024 displacement norm.
+Earlier first-step sensitivity used the65,536 norm, explaining its slightly
+different7.94874% figure without changed tensors. First-step gradient gaps
+under the same low-scale normalization are0.844918% native and0.268428%
+candidate. From step2 onward, weights, clipping and optimizer moments differ;
+later gradient-vector comparisons are trajectory differences rather than pure
+loss-scale errors at a common model state.
+
+At step3, all four FP16 trajectories and the retained-intermediate BF16 arm
+have exactly zero current parameter gradients. The first trajectory has88
+credited tokens among133 sampled positions; the second has16 among165. Clipped
+fractions66.1654% and9.69697% therefore cover all104 credited tokens, although
+many sampled positions remain nominally unclipped with zero advantage. Adam
+still applies a finite parameter update through existing momentum. Native BF16
+retains a nonzero step3 gradient(norm0.00127673) because the second row remains
+unclipped. All respective independent loss/gradient/optimizer references pass.
+This is a concrete frozen-population/tight-clipping recipe effect, not proof
+that Adam, masking or the clipping formula is defective. Repeated optimizer
+movement alone must not be called fresh policy learning.
+
+Fresh native Verifiers/AutomationBench collection then compares initial,
+native-step3 and candidate-step3 adapters in both precisions, using seeds8400
+and9400, a512-token request budget and four turns. The actual conditional Qwen
+model preserves native parameter names; copied FP32 LoRA masters match exactly,
+and a full-fixture rescore reproduces both native exported rows with zero
+maximum error for every loaded adapter. No custom backward is needed during
+inference. The initial collection attempt stops before generation for a missing
+environment import; restore the exact catalog-pinned environment11f4d712 from
+Git outside the repository, verifying all499 source files against Git blobs.
+No dirty sibling environment edits are imported. Failed logs remain retained.
+
+| Precision / adapter | Positive task reward | Truncations | Sampled tokens across two episodes |
+| --- | ---: | ---: | ---: |
+| FP16 initial | 2/2 | 0/2 | 317 |
+| FP16 native step3 | 2/2 | 0/2 | 317 |
+| FP16 retained-intermediate step3 | 2/2 | 0/2 | 317 |
+| BF16 initial | 2/2 | 0/2 | 344 |
+| BF16 native step3 | 2/2 | 0/2 | 317 |
+| BF16 retained-intermediate step3 | 2/2 | 0/2 | 327 |
+
+All12 episodes have no trace errors and pass native sampled-token/log-probability,
+branch, excluded-mask, Posttrain projection and independent hierarchical/token
+SAMPO-credit audits. Every two-episode updated prompt/generated-token path
+differs from its initial counterpart; equal token counts do not imply identical
+generation. Reward is already at2/2 initially, so these tiny samples cannot show
+a quality improvement or an unseen-task/generalization result. They establish
+valid fresh behavior under the measured adapters, not a production qualification.
+
+External receipts: `qwen-three-update-comparison.json`, six native arm receipts
+and step0–3 exports, `qwen-three-update-rollout-summary.json`, six collection
+and audit receipts, immutable environment provenance and exact executed runners.
+No production defaults/pins change. Next compare supported native attention
+kernels and harder tasks with room to improve, isolate residual backward
+sensitivity, and continue broader algorithms/families and full worker gates.
