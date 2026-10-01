@@ -1476,3 +1476,67 @@ scale, distributed/multi-family gates and task-quality impact remain open.
 Production pins/images are unchanged. External receipts:
 {qwen,lfm}-live-tq-sampo-{bfloat16,float16}-temperature-rowwise.json and
 temperature-rowwise-sampo-summary.json; tools/raw artifacts remain external.
+
+## Row-wise GRPO, GSPO and DAPO replay; selected normalization cancellation
+
+The published row-wise score-only candidate now completes six LFM native
+model/queue arms, BF16 and FP16 for each algorithm, three applied updates each.
+All18 updates,36 independent loss/score checks,432 matrix checks and1,728 scalar
+dots pass. Maximum errors: loss4.73e-8, score derivative7.33e-11, worker loss
+6.01e-8 and Adam2.14e-9. Peak tensor allocation is2.014GB in every arm.
+Initialization and fixture hashes match the pre-temperature controls exactly;
+FP16 scale1024 applies every update. Bounds.003/.004 are diagnostic.
+
+| Algorithm / dtype | Baseline clipped sampled tokens, steps1/2/3 | Row-wise corrected | First gradient relative L2 change |
+| --- | --- | --- | --- |
+| GRPO BF16 | 0 / 337 / 338 | 0 / 338 / 329 | 3.087% |
+| GRPO FP16 | 0 / 336 / 507 | 0 / 351 / 497 | .401% |
+| GSPO BF16 | 0 / 0 / 0 | 0 / 0 / 0 | 3.087% |
+| GSPO FP16 | 0 / 0 / 2341 | 0 / 0 / 2341 | .401% |
+| DAPO BF16 | 0 / 318 / 337 | 0 / 323 / 365 | 3.091% |
+| DAPO FP16 | 0 / 343 / 473 | 0 / 337 / 487 | .402% |
+
+There are2,341 active sampled tokens per update. The comparison includes the
+downstream sampler correction, not an isolated Jacobian change. Stable row-wise
+scoring also differs slightly from the earlier full-FP32 implementation; later
+BF16 clipping can magnify small gradient differences. These cached updates do
+not establish fresh task quality, recipe superiority or full-controller admission.
+GSPO remains an explicit research branch rather than a new framework selection.
+
+A separate exact-source scalar audit found a defect in both TRL
+selective_log_softmax and veRL logprobs_from_logits_v2. Both FP32 paths computed
+selected_logit-logsumexp(logits). In exact arithmetic a common shift cancels:
+log p_j=(z_j-max(z))-log(sum(exp(z_i-max(z)))). Its derivative is
+1[i=j]-p_i, whose vocabulary sum is zero. The original implementations first
+formed the large absolute normalizer, losing its small correction. The
+logsumexp backward normalization also inherited rounding of that value.
+
+| Represented equal FP32 logits | Original selected score | Original gradient | Stable scalar reference |
+| --- | --- | --- | --- |
+| 10000 / 10000 | -.693359375 | .50010610 / -.49989390 | -log2; .5 / -.5 |
+| 600000 / 600000 | -.6875 | .49716842 / -.50283158 | -log2; .5 / -.5 |
+| 1e8 / 1e8 | 0 | 0 / -1 | -log2; .5 / -.5 |
+
+Twelve of16 exact-source FP32 cases exceeded1e-5 against independent Python
+scalar values/derivatives. Dedicated native regressions fail6/8 TRL CPU cases
+and5/18 veRL CPU cases before repair; the latter includes FP64 diagnostic
+cancellation with tighter tolerance. FP64 is a scalar control, not model training.
+Normalize with batch-row log_softmax before gathering in every dtype. After
+repair16/16 external scalar cases pass, TRL28 single/top-K/repeated-index CPU/CUDA
+tests pass, and veRL68 selected-score/temperature/actual FSDP-route cases pass.
+Two intentional FP16 offsets exceeding its finite range skip. Ruff/diff pass.
+Half-input behavior, dtype and existing batch-row processing remain intact.
+
+Published source candidates: TRL4020c122e4ba2147829ecc0bbaddf6b566a0c8b5 and
+veRL661bbf395e90a060acde0ec0bbed84ef67b5cee3. The repaired FP32/FP64 utilities
+retain normalized vocabulary buffers; larger-context backward memory and
+throughput need qualification. The independently qualified half score-only
+token-row path already uses stable log_softmax. No extreme common offsets have
+been demonstrated in actual model traces, so this corner-case defect is not
+evidence that it caused the current run's poor performance. Native TRL optimizer,
+full controller, runtime assets, production pins and task-quality gates stay open.
+
+External receipts:temperature-rowwise-update-summary.json,
+lfm-native-{grpo,gspo,dapo}-{bfloat16,float16}-temperature-rowwise.json,
+selected-logprob-offset-baseline.json and selected-logprob-offset-corrected.json.
+Runners and raw artifacts remain outside Git.

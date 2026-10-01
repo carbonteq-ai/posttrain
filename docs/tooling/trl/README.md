@@ -773,3 +773,16 @@ the private TRL adapter converts those values into its custom rollout contract
 and records traces through the execution context. Verifiers does not initialize
 a model. Transformers and colocated-vLLM generation remain explicit
 training-profile choices rather than behavior hidden in job code.
+
+### Selected-logprob offset stability source candidate
+
+Published source4020c122e4ba2147829ecc0bbaddf6b566a0c8b5 repairs
+selective_log_softmax by normalizing with batch-row log_softmax before gathering.
+Absolute FP32 selected-logit minus logsumexp loses its small correction at large
+common offsets and corrupts derivatives; equal logits1e8 returned0 with gradient
+[0,-1] instead of-log2 and[.5,-.5]. Preserve half behavior, dtype and top-K indices.
+Focused TestSelectiveLogSoftmax passes28 CPU/CUDA cases after6/8 new CPU
+regressions fail on the original source; Ruff/diff checks pass. Larger-context
+FP32 backward memory/throughput, native TRL optimizer equivalence and production
+assets remain open. This is not a wheel/pin update or evidence of task-quality
+causation. Generic regressions and rebase obligations live in CARBONTEQ_FORK.md.

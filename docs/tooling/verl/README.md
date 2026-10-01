@@ -1244,3 +1244,23 @@ No task-quality improvement follows from these arithmetic checks.
 
 This score-only path bypasses optional flash CE; throughput, fused/distributed
 integration, entropy memory and runtime asset/pin adoption remain gates.
+
+### Selected normalization stability and broader row-wise qualification
+
+Six additional native LFM GRPO/GSPO/DAPO BF16/FP16 arms qualify the published
+row-wise score-only source:18 applied updates,36 independent losses/derivatives,
+432 matrix checks and1,728 scalar dots pass; max loss4.73e-8, derivative7.33e-11,
+worker loss6.01e-8 and Adam2.14e-9, peak2.014GB. Cached diagnostic clipping differs
+by precision/algorithm; this is not a fresh quality or admission/refill claim.
+
+Published source661bbf395e90a060acde0ec0bbed84ef67b5cee3 separately repairs
+logprobs_from_logits_v2 with batch-row log_softmax before gathering in every dtype.
+Absolute selected-logit minus logsumexp loses small normalizer corrections at
+common offsets even in FP32/FP64. Native selected-score/temperature/FSDP-route
+regressions pass68 cases, with two intentional offsets outside finite FP16 skipped;
+five CPU cases fail before repair. Ruff/diff pass. Half routes/dtype remain intact.
+FP32 normalized vocabulary buffers require larger-context memory/throughput
+qualification. No extreme offsets have been observed in actual model traces.
+Native optimizer/controller and production asset/pin adoption gates remain open;
+fork ledger owns generic regressions and rebase procedure. Detailed matched
+clipping/scalar evidence is in the correctness campaign findings.
