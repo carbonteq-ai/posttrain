@@ -836,3 +836,67 @@ External receipts: `fresh-moment-controls-summary.json`,
 `fresh-second-moment-max-coordinate.json`, two native moment controls and two
 matched fresh collections. All runners, checkpoints and raw results remain
 outside Git; repository changes contain findings and the living plan only.
+
+## Counter and matched-size controls: smaller updates do not recover this pair
+
+Retaining Adam state and lowering LR to match the first-moment-clear update
+magnitude does not recover its partial success. Resetting only the counter also
+fails. This narrows the explanation: global displacement size or counter age
+alone is insufficient for the observed two-seed recovery.
+
+Both new FP16 arms reproduce the common step0–3 parameters/native scores,
+fresh-group loss checks and preclip gradients exactly. Counter clearing retains
+both moments bitwise and changes only their bias-correction age from3 to0 before
+update4. The size control retains all state and lowers LR only for update4,
+from0.0001 to0.00004915403053. That intervention scales the ordinary retained
+Adam update to the measured magnitude of the prior first-moment-clear arm.
+All other model, objective, reference, correction, precision and sampling
+settings remain fixed. These are diagnostics, not proposed production resets.
+
+| One fresh update | Displacement L2 | Cosine with ordinary retained update | Rewards |
+| --- | --- | --- | --- |
+| Ordinary retained state | 0.0222530 | 1 | [0,0] |
+| First-moment clearing, counter retained | 0.0109382674 | 0.5267224 | [0,0.5] |
+| Retained state, reduced LR | 0.0109382701 | 0.99999999985 | [0,0] |
+| Counter clearing, moments retained | 0.0383423 | 0.9999941 | [0,0] |
+| Full state clearing | 0.0395709 | 0.4391237 | [0.5,0.5] |
+
+The reduced-LR displacement matches its target with relative error2.44e-7.
+Its direction remains effectively unchanged, whereas clearing first momentum
+changes the distribution of parameter movements and preserves the email-only
+success at the same global magnitude. Resetting the counter amplifies the
+retained direction by roughly1.72, without reproducing full-reset behavior.
+The counter and full-reset magnitudes are close but not exactly matched; that
+comparison alone does not isolate direction. The matched-small-magnitude
+comparison establishes that global norm alone does not describe these outcomes.
+
+Eight new applied native updates comprise six replay controls and two fresh
+updates, with16 loss checks,192 linear matrices and768 scalar-dot controls.
+Independent temporal Adam reconstruction matches all eight parameter steps
+within2.17e-9 maximum error, using the actual per-step LR and deliberate counter
+intervention; gradient norms remain below1. Peak is3,005,776,384 bytes. All
+exported scores are finite. Four fresh native Verifiers episodes preserve exact
+adapter scores, token/logprob transport, excluded masks, initial prompts, seeds
+39400/40400,2048-token per-turn budget and six-turn ceiling. Both new policies
+score[0,0] and truncate on both seeds. Fourteen independent episode final-state
+checks across the seven starting/control arms agree with the benchmark rewards.
+
+No tested Adam, derivative or transport invariant fails here, and changing
+counter/size does not solve this small regression. The evidence supports a
+dependence on how optimizer history distributes the update across parameters;
+it does not certify a general momentum remedy, learning-rate default or active
+production-run explanation. These are two reused training seeds on one task,
+with a short recipe and FP16 scale1024. Broader precision/task/family behavior
+and full native worker/queue/refill qualification remain open.
+
+Next move beyond this single-task optimizer-state suite to the actual native
+TrainingWorker model/reference/training methods and return to Qwen/BF16 and
+broader algorithm coverage. Counter or norm matching alone is not a reason to
+change production settings. Native worker source inspection identifies a local
+Torch-distributed construction path; its successful GPU execution is still
+unproven and must not be inferred from the earlier instrumented-body checks.
+
+External receipts: `fresh-counter-size-controls-summary.json`, two
+`lfm-fresh-counter-size-*-float16.json` native arms and two matched fresh
+collections. Runners/checkpoints/raw outputs remain external; only this
+findings document and living plan enter Git.
