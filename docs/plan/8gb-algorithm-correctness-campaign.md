@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Native LoRA chain-rule audit exposed a timing-sensitive CPU-offload unscale race in Torch2.13: delayed scalar-only control multiplies instead of divides in3/4 plain CPU cases, while synchronous controls pass. Publish veRL `CPUOffloadShardedGradScaler` source269fde84d1769469f6b02b186170f420ec353d9e: five CPU/GPU regressions pass, native BF16/FP16 each apply2/2 updates,96 total matrix gradients match exactly and384 scalar dot checks pass. Correct the earlier unconditional FP16 qualification; post-fix fresh learning, distributed overflow/recovery and production adoption remain open. No runtime pin changes.
+
 - [x] (2026-10-01) Reproduce LFM adapter3's held-out failure exactly; intermediate adapters1/2 already produce identical failing512-token outputs. Larger1,024-token budget preserves the first512 IDs/logprobs, exposes unknown-tool error at625 tokens and still fails after a second truncated response. Native trace audits pass. Matched temperature ratio differences stay below0.000151 with identical eight clipping classifications;32 independent softmax checks stay below2.17e-7. The first-update behavior change precedes reuse clipping; retain full fresh-loop, parameter-Jacobian and broader algorithm gates.
 
 - [x] (2026-10-01) Export native LFM FP16 adapters at steps0–3, verify exact parameter handoff and isolate teacher-forced score differences to temperature precision: matched native arithmetic agrees within4.77e-7 across eight row/state checks. Fresh matched-seed AutomationBench collections give2/4 versus1/4 success and2/4 versus3/4 truncations before/after training. All eight native token/mask/projection/independent-credit audits pass. Preserve this adverse small sample and the open shared FP32-temperature/backward, intermediate-step, reproducibility and full fresh-update/refill gates; raw tools and exports remain external.
@@ -105,6 +107,13 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+The independent linear-gradient audit catches an upstream scaler ordering race
+that score-loss and conditional AdamW oracles miss. An inverse-scale scalar
+read synchronizes CUDA and hides it. The delayed ordinary-CPU control removes
+model/DTensor semantics from the reproduction. First-step native adapters are
+identical before/after the fix; later states differ, so earlier held-out behavior
+must remain tied to its exact exported state rather than a broad FP16 verdict.
 
 The LFM held-out behavior change appears after the first unclipped training
 update and repeats exactly. More rollout budget reveals an invalid tool name
@@ -278,6 +287,8 @@ their previous immutable runtimes. The prior work remains dirty and must be
 preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
+
+- Decision: stage inverse-scale and overflow scalars synchronously on CPU only when gradients have CPU storage, in veRL's FSDP engine scaler subclass. Rationale: PyTorch's nonblocking CUDA-to-CPU scalar copies can be consumed by a host foreach kernel before completion; an inverse-scale Python read hides the failure. Preserve native device-only scaling and distributed overflow reduction. This changes no frozen product meaning. Edit `verl/utils/sharded_grad_scaler.py`, `verl/workers/engine/fsdp/transformer_impl.py`, `tests/utils/test_sharded_grad_scaler.py` and `CARBONTEQ_FORK.md` in `/home/hammad/projects/verl-posttrain-parity` (base8778c5d6e2ddd847d5098a24f4dc882f11ac57b4); then commit/push that fork, then commit Posttrain's consumer/evidence/plan documentation. Keep production pins, lockfiles and unrelated dirty work untouched. Run the three new CPU/GPU regressions using `/tmp/posttrain-native-verl-update-runtime/bin/python -m pytest -c /dev/null -p no:cacheprovider tests/utils/test_sharded_grad_scaler.py -q` with the fork on `PYTHONPATH`; run external native collected-LFM chain probes serially in FP16/BF16. Require manual linear gradients to match unscaled preclip native gradients, finite applied updates, score/AdamW oracles and external hash receipts. Restore the previous fork commit to discard the candidate; raw failures remain external. Date/Author:2026-10-01/Codex.
 
 - Decision: preserve native observed LFM rewards and token spans, compute framework SAMPO credit without relabeling outcomes, and include the selected per-token sampler correction before testing two/three frozen-population native updates. Use beta0 matching the default for this slice; make no new KL claim. Separate collection and veRL research dependency environments after a confirmed ANTLR grammar conflict. Date/Author: 2026-10-01 / Codex.
 
@@ -744,3 +755,6 @@ full learning-loop and shared numerical-policy gates.
 Revision 26: intermediate-state, exact-repeat and larger-budget controls;
 independent softmax denominator and matched temperature clipping ratios;
 separate the first-update tool error from later reuse and budget truncation.
+Revision 27: native linear chain-rule checks reveal a CPU-offload scalar-copy
+race; publish the synchronous-host-staging source fix and five regressions,
+qualify BF16/FP16 matrix gradients, and narrow earlier FP16 conclusions.

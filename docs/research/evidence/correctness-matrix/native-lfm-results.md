@@ -153,6 +153,14 @@ was changed, and no runner/raw receipt is committed.
 
 ## Exported adapter handoff and temperature arithmetic
 
+**Later qualification correction:** the CPU-offload unscale investigation
+below invalidates an unconditional FP16 training-correctness verdict for
+these stock-scaler trajectories. The loss/score and conditional AdamW checks
+remain valid; they did not establish that the optimizer received correctly
+unscaled gradients. The first update/export is unchanged by the scalar-ordering
+fix, while later adapter states differ. Retain all earlier behavior results
+as observations of their exact exported states.
+
 The collected FP16 update was repeated with exports before training and after
 each of its three native optimizer steps. All three updates applied, and the
 independent AdamW checks again stayed below2.12e-9. Copying every trainable
@@ -274,3 +282,71 @@ intermediate summary runner is `lfm_intermediate_control_summary.py`.
 These controls justify prioritizing token-level behavior and the full fresh
 collection/update loop over another clipping-only diagnostic. They do not
 justify declaring SAMPO wrong or selecting a new recipe from one held-out seed.
+
+## Native linear-gradient audit finds an FP16 offload race
+
+The next audit applies the independent linear derivative `dL/dW = D.T @ X`
+to every trainable LoRA A/B matrix, using actual saved layer inputs and output
+derivatives under the selected autocast. It sums both native microbatches,
+divides by the loss scale and compares against native gradients **before**
+global norm clipping. This adds a check upstream of the earlier AdamW oracle,
+which deliberately trusted the gradients it received.
+
+The stock FP16 run passes all24 matrices on update1, then fails update2. For
+the first A matrix, scaled norm0.477781862 should become0.000466584 at
+scale1,024; native unscale instead produces489.248627. This is a factor of
+1,048,576 relative to the required gradient. A separate B matrix changes
+17.487034→17,906.722656 instead of0.017077. The failure repeats in diagnostic
+runs. Reading the CUDA inverse scale as a Python scalar before the host
+operation makes the run pass, exposing a synchronization-sensitive failure.
+
+Torch2.13 `ShardedGradScaler` uses a scalar replicator whose copies specify
+`non_blocking=True`. The inverse scale originates on CUDA; the CPU foreach
+unscale operation can consume the host copy before it is ready. A tensor-only
+control inserts a10-million-cycle CUDA delay before unscale. Ordinary CPU
+gradients fail3/4 iterations, with exactly the same1,048,576 amplification;
+the no-delay controls pass. This rules out needing model, LoRA or DTensor
+semantics to produce the race. The DTensor arm of that particular delayed
+control passes; do not claim it fails universally. No FP64 model is trained.
+
+The veRL source fix stages inverse-scale and overflow scalars synchronously
+on CPU if any gradient has CPU storage. The parent scaler still handles
+device-only arithmetic and distributed overflow reduction. Five regressions
+pass: CPU finite/overflow, delayed CUDA-to-CPU finite/overflow, and CUDA-only
+unscale. The new helper is `verl/utils/sharded_grad_scaler.py`; its engine
+selection and regression tests are in the fork, not in experimental tools.
+The published source is `269fde84d1769469f6b02b186170f420ec353d9e`;
+the corrected native receipts ran the same file contents immediately before
+that commit. Production wheels and pins are unchanged.
+
+| Native collected-population audit | BF16 | FP16, scale1,024 |
+| --- | ---: | ---: |
+| Applied updates | 2/2 | 2/2 |
+| Adapter matrix comparisons | 48 | 48 |
+| Maximum matched-compute gradient error | 0 | 0 |
+| Independent scalar dot checks | 192 | 192 |
+| Maximum relative difference from FP32 dot accumulation | 0.002441 | 0.000326 |
+| Independent AdamW maximum absolute error | 2.12e-9 | 2.14e-9 |
+| Peak Torch allocation, GiB | 2.27 | 2.06 |
+
+The matrix equation oracle does not use autograd to construct gradients;
+its matched-compute multiplication reproduces actual half-precision GEMM.
+The additional Python `math.fsum` dots independently check selected products
+and reductions. FP32 dot differences measure precision sensitivity, not an
+algorithm defect. This is not an independent Jacobian of the model's
+attention, convolution or normalization blocks. All existing loss, score-mask
+and applied-optimizer checks also pass in both corrected runs.
+
+Stock and fixed adapter-step0/1 parameters and native scores are exactly
+equal. After update2, maximum parameter difference is8.73e-5 and native
+score difference is0.082369 on the recorded trajectories. Thus the verified
+first-update held-out failure cannot be attributed to this later observed
+unscale race. Corrected later-step fresh behavior is still unmeasured.
+
+External receipts include `lfm-chain-fp16-fixed.json`, `lfm-chain-bf16.json`,
+`sharded-unscale-delayed.json`, successful synchronous controls and the failed
+chain/unscale logs. Runners are `native_verl_lora_chain_run.py`,
+`native_verl_unscale_only_run.py`, `dtensor_cpu_unscale_reproducer.py`.
+Distributed overflow, restart/scaler state, production runtime adoption,
+other Torch versions and nonlinear-gradient oracles remain open. The broad
+campaign is incomplete; this repair closes a specific demonstrated race.

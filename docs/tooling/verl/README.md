@@ -1,5 +1,17 @@
 # veRL training backend
 
+## CPU-offload FP16 scalar ordering candidate
+Published source candidate `269fde84d1769469f6b02b186170f420ec353d9e`
+uses `CPUOffloadShardedGradScaler` in the FSDP engine to stage inverse
+scale and overflow scalars synchronously when gradients reside on CPU. A
+delayed Torch2.13 scalar-copy control previously amplified gradients by
+1,048,576 at scale1024. Five finite/overflow/copy-ordering/device-only
+regressions pass, and actual LFM BF16/FP16 adapter linear gradients match
+independent matrix equations across two updates each. This source candidate
+does not change the selected runtime pin. Distributed overflow/recovery,
+production release assets and nonlinear model-gradient oracles remain gates.
+See [native LFM evidence](../../research/evidence/correctness-matrix/native-lfm-results.md).
+
 ## Native padded Qwen engine source candidate
 
 Source `8778c5d6e2ddd847d5098a24f4dc882f11ac57b4` repairs optional
