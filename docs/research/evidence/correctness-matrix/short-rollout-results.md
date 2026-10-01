@@ -1335,3 +1335,36 @@ has been attributed to this correction.
 External receipts: {lfm,qwen}-model-score-precision-{bfloat16,float16}.json.
 All runners and raw evidence remain external; source hashes and exact native
 score agreement tie these measurements to the candidate implementation.
+
+### Candidate correction: first native update controls
+
+Implement scale_logits_by_temperature in the maintained veRL candidate fork
+and call it from both non-fused FSDP routes. Half logits promote before
+division; FP32/FP64 arithmetic and the existing temperature floor are preserved.
+Original scaling fails8/15 new scalar score/gradient/overflow/floor regressions;
+the candidate passes15/15. Combined CPU utilities pass62 tests, with10
+CUDA/distributed cases deliberately deselected. Actual packed/unpacked
+prepare_model_outputs methods with the real CPU fallback pass four scalar
+score/gradient cases and six existing top-K distillation compatibility cases.
+The first packed test adapter omitted inplace_backward; retain that harness
+failure and its corrected retry, without calling it a product defect.
+
+Both corrected GRPO native LFM arms apply three finite updates. Twelve independent
+loss/score checks,144 matrix checks and576 scalar dots pass. Maximum loss error
+is4.59e-8, score derivative7.17e-11, aggregate worker loss5.08e-8 and Adam2.14e-9.
+Peak tensor allocation grows from2.440GB to3.714GB but fits8GB.
+
+With exact initial parameters and unchanged cached task inputs, the first
+gradient changes by3.070% BF16 /0.402% FP16 relative L2, with cosines0.999530/
+0.999992. This comparison includes the score path and its downstream sampler
+correction; it is not an isolated model-Jacobian ablation. GRPO clipping counts
+out of2,341 active tokens change BF16[0,337,338]→[0,327,332] and
+FP16[0,336,507]→[0,354,501]. Promotion does not make first-update clipping
+appear: native old/current scores still agree initially. It changes later
+counts modestly in these controls. Task-quality improvement is untested.
+
+GSPO native BF16/FP16 arms have also finished successfully; complete combined
+analysis awaits the still-running DAPO arms. Candidate source, tests, ledger
+and consumer documentation remain unpublished; production pins are unchanged.
+Raw receipts and runners remain external. Partial comparison receipt:
+temperature-repaired-update-partial-summary.json.
