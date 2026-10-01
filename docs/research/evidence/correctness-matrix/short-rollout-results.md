@@ -1579,3 +1579,60 @@ retry arms terminate successfully. External receipts:
 {qwen,lfm}-{bfloat16,float16}-selected-score-model-audit-retry1.json/.log.
 Tools/raw data are excluded from Git; full model/optimizer backward, throughput,
 full controller and native TRL optimizer qualification stay open.
+
+## Native TRL Trainer updates on recorded SAMPO traces
+
+The final four-arm audit runs actual GRPOTrainer.train, model backward,
+Accelerate optimizer accumulation and callbacks on full recorded Qwen/LFM
+AutomationBench token fixtures, supplied SAMPO credits and stored native rewards.
+Each arm applies three optimizer updates from two microbatches. Rank4/alpha8,
+LR1e-4, constant schedule, beta.01, diagnostic bounds.003/.004, checkpointing
+without reentrancy and supported fused SDPA are explicit. FP16 scale1024 is
+controlled; this is not default-scale qualification. No fresh generator runs.
+
+| Model / dtype | Applied updates | Max independent loss error | Max score derivative error | Max Adam update error | Peak tensor bytes |
+| --- | --- | --- | --- | --- | --- |
+| Qwen BF16 | 3 | 9.726e-10 | 7.276e-12 | 1.838e-9 | 5153868800 |
+| Qwen FP16 | 3 | 8.598e-10 | 7.276e-12 | 1.826e-9 | 5153714176 |
+| LFM BF16 | 3 | 3.454e-8 | 2.911e-11 | 9.429e-10 | 6091453952 |
+| LFM FP16 | 3 | 3.736e-8 | 2.911e-11 | 9.434e-10 | 6091454976 |
+
+All24 loss/score cases pass; excluded tool/padding score gradients are exactly
+zero. Scaler-aware accumulated gradients match actual pre-optimizer gradients
+exactly, including all LoRA parameters; parameters change finitely at every step.
+Independent Adam arithmetic computes updated moments, bias correction, epsilon,
+decay and parameter displacement from each step's observed prior optimizer
+state and actual gradient. It checks per-step update equations, not independently
+maintained moment history or arbitrary checkpoint restoration.
+
+Native logged clipping-region means for steps1/2/3 are Qwen BF16[0,0,.379312],
+Qwen FP16[0,.330827,.330827], LFM BF16[0,0,0], and LFM FP16[0,0,1]. These are
+logged native aggregation fractions rather than counts or a quality measure.
+The reused population allows clipping after the first update; absence of clipping
+in LFM BF16 does not by itself establish a broken recipe.
+
+The unscaled backward disagrees with normalized scaled FP16 backward, maximum
+relative gradient discrepancies.799984 Qwen and1.253146 LFM. Exact agreement
+with the scaler-aware audit does not erase this half-arithmetic sensitivity.
+Default65536 overflow/backoff and applied-gradient checks remain a separate gate.
+
+Preserve two LFM BF16 failures. The inherited first harness disables fused SDPA;
+math attention requests1.26GiB with113.62MiB free. Enabling fused SDPA gets through
+native derivatives, but the full head-gradient diagnostic then requests838MiB
+with296.56MiB free. Bound those external norm/count reductions in1,048,576-element
+chunks; model/loss/backward stays unchanged and both final LFM arms pass. Initial
+Qwen BF16/FP16 arms also pass six updates before the temporal-Adam extension.
+
+This is actual Trainer execution, but supplied cached tokens/rewards bypass
+host rollout/admission/refill. Qwen rewards[1,1] would still fail the frozen
+host spread gate; LFM's recorded truncation is retained diagnostically and its
+metadata is preserved in final arms. Initial adapters are seeded rather than
+loaded from matching veRL exports; scoring, sampler correction, beta and native
+engine layout are not all matched. Do not claim exact native backend trajectories,
+fresh learning or production adoption. Broader native algorithms, default scaler,
+full host and runtime gates stay open. No production source/pin changes.
+
+External final receipts:qwen08-trl-recorded-sampo-{bfloat16,float16}-adam-sdpa-retry1.json,
+lfm12-trl-recorded-sampo-{bfloat16,float16}-adam-sdpa-bounded-retry2.json,
+native-trl-recorded-adam-summary.json plus original terminal logs. Scripts/raw
+results remain outside Git.
