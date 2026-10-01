@@ -1219,3 +1219,28 @@ are unchanged; resume qualification must recompute old/current scores together.
 
 The generic implementation and regression ownership are recorded in the fork's
 CARBONTEQ_FORK.md; experiment runners and raw receipts remain outside Git.
+
+### Row-wise score-only memory follow-up
+
+Published source: `7cf23e101ba70813a0b23392465b4a6eaf073731`,
+branch `codex/posttrain-math-parity`. Production pins/images remain unchanged.
+
+The published full-FP32 scaling source passes LFM updates but exhausts memory
+in Qwen's8GB SAMPO backward gate. Allocator and offload controls do not establish
+a successful full-FP32 update. The row-wise follow-up promotes each token's
+half logits before normalization and avoids a full FP32 logit-gradient buffer.
+Both non-fused FSDP routes use it for half score-only requests; entropy,
+sum-pi-squared and distillation retain the full-FP32 path and its memory gate.
+
+The candidate passes42 focused CPU/CUDA/route/distillation regressions and all
+95 combined utility/route/distillation cases(four distributed cases deselected).
+Its native qualification includes
+four native Qwen/LFM BF16/FP16 SAMPO arms:12 updates,24 loss/score derivatives,
+288 matrices and1,152 scalar dots. Thirty-two independent scalar score checks
+agree within1.54e-7. Peak allocations3.218GB Qwen /2.014GB LFM, ordinary allocator
+and no added offload. Initial parameters match; Qwen BF16 scores agree with the
+full-FP32 reference within2.27e-6. BF16 clipping changes; FP16 counts stay equal.
+No task-quality improvement follows from these arithmetic checks.
+
+This score-only path bypasses optional flash CE; throughput, fused/distributed
+integration, entropy memory and runtime asset/pin adoption remain gates.

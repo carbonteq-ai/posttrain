@@ -1431,3 +1431,48 @@ is row-wise FP32 probability scaling directly from half logits, avoiding a full
 FP32 logit-gradient buffer while retaining the same trace population and
 derivatives. This is a proposed memory diagnosis, not a tested implementation.
 All tools/raw evidence remain outside Git.
+
+### Row-wise correction clears the score-only SAMPO memory gate
+
+Candidate temperature_scaled_logprobs unbinds represented half logits into
+token rows before FP32 temperature scaling and stable log_softmax. Autograd
+returns half row gradients without a full FP32 logit-gradient buffer. Both
+non-fused FSDP routes select it for half score-only requests. Entropy,
+sum-pi-squared and distillation requests retain the prior full-FP32 path;
+their memory requirements are not fixed by this candidate.
+
+All four Qwen/LFM BF16/FP16 SAMPO arms now complete with the original full
+trace populations, ordinary allocator and no additional offload. Twelve
+updates,24 independent losses/score derivatives,288 matrices and1,152 scalar
+dots pass. Max errors are loss5.39e-8, derivative9.96e-11, worker aggregate
+4.62e-8 and independent Adam4.12e-9. Sixty successful native inferences and
+four intentional reference-loss exceptions preserve base identity and actor
+restoration. FP16 scale1024 applies all updates without skips.
+
+Thirty-two independent full-vocabulary scalar score checks agree within1.54e-7.
+Initial parameters match the baseline exactly. Qwen BF16 initial scores also
+agree with the preserved full-FP32 candidate within2.27e-6. Forty-two focused
+CPU/CUDA/route/distillation regressions and95 combined utility/route cases pass,
+with four distributed cases deliberately excluded from the combined command.
+
+| Family / precision | Peak tensor allocation | Baseline clipped tokens, updates1/2/3 | Corrected clipped tokens | First-gradient relative L2 change |
+| --- | ---: | --- | --- | ---: |
+| Qwen BF16 | 3.218GB | 0 / 88 / 104 | 0 / 0 / 16 | 5.246% |
+| Qwen FP16 | 3.218GB | 0 / 88 / 88 | 0 / 88 / 88 | 0.724% |
+| LFM BF16 | 2.014GB | 0 / 0 / 1,024 | 0 / 0 / 0 | 3.135% |
+| LFM FP16 | 2.014GB | 0 / 0 / 2,341 | 0 / 0 / 2,341 | 0.417% |
+
+Clipping denominators are298 Qwen and2,341 LFM sampled tokens. First-update
+ratios still equal1. Comparisons include corrected scores and downstream
+sampler correction, not an isolated model-Jacobian ablation. The reduction
+in BF16 clipping is an observed update difference, not proof of improved
+task quality or a reason to force clipping through a different recipe.
+
+Published row-wise source candidate:7cf23e101ba70813a0b23392465b4a6eaf073731
+in carbonteq-ai/verl on codex/posttrain-math-parity. This score-only path
+bypasses optional flash CE; throughput/fused integration, broader algorithm
+replay with this implementation, controller admission/refill, default FP16
+scale, distributed/multi-family gates and task-quality impact remain open.
+Production pins/images are unchanged. External receipts:
+{qwen,lfm}-live-tq-sampo-{bfloat16,float16}-temperature-rowwise.json and
+temperature-rowwise-sampo-summary.json; tools/raw artifacts remain external.
