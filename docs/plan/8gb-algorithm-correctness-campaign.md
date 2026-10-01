@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Independently check LFM eager attention and unfused causal convolution outputs and reverse derivatives:54 paired BF16/FP16/FP32-diagnostic cases plus three native-head-dimension normalized controls. Six scalar finite differences agree within5.69e-11. All masks/cache-state/prefix-causality checks pass; convolution cached/full outputs match exactly. Stress attention gradients expose precision/saturation sensitivity, with FP32 rounded-input controls isolating it; normalized32-query/8-KV-head,64-dimension errors max0.335% BF16/0.0416% FP16. Do not claim trained-model or fused-kernel qualification; actual activation ranges and nonlinear block Jacobians remain open.
+
 - [x] (2026-10-01) Collect four matched training-seed episodes after the fresh-group update: successes2/4→3/4, truncations3/4→2/4 and sampled tokens2775→2908. Seed6200 recovers the tool task; the other three generated-token paths remain identical. All four exact native/projection/independent episode/turn/token-credit audits pass. This is small training-sample recovery, not held-out generalization or a production throughput claim.
 
 - [x] (2026-10-01) Connect native step-one LFM adapter collection to a fresh-process checkpointed FP16 update. Four observed episodes have rewards `[1,0,0,1]`, three truncations and exact token/projection/independent hierarchical-credit checks. Adapter equality is exact; optimizer advances1→2 and restored scaler512/tracker1→1024/tracker0. Four independent loss/score/mask checks,24 matrix gradients across four microbatches,192 scalar dots and AdamW(max2.12e-9) pass at2.54GiB peak Torch allocation. No first-forward policy clipping: fresh current/old ratios equal1. Full production admission/refill and other-family/precision continuity remain open.
@@ -115,6 +117,13 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+Saturated attention can show100% relative query-gradient error while the
+reference gradient norm is only2.15e-8. A different stress fixture has a
+material0.429 BF16 coordinate error; both magnitude and conditioning must be
+reported. Shape-correct unit-weight Q/K normalization reduces the measured
+gradient error to0.335% BF16 and0.0416% FP16. Actual trained activations remain
+unmeasured, so stress arithmetic is not a diagnosis of current-run failure.
 
 A successful AutomationBench episode can truncate after the correct tool call:
 the fresh step-one group has two successes but three truncated episodes.
@@ -302,6 +311,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Decision: use explicit scalar grouped-attention and causal-convolution equations for expected derivatives, validate the scalar reference with finite differences, retain paired rounded-input controls and report absolute as well as relative errors. Check native LFM head dimensions and normalization separately; do not modify production precision based on artificial saturated logits. Date/Author:2026-10-01/Codex.
+
 - Decision: continue from the native checkpoint with fresh observed task groups, retain the original reward and truncation evidence, and audit all four microbatches using the restored optimizer/scaler. Keep collection/updating orchestration external and do not equate this bounded continuity probe with the production worker loop or general task improvement. Date/Author:2026-10-01/Codex.
 
 - Decision: bind the FSDP engine's optional GradScaler to `FSDPCheckpointManager` and persist it in per-rank extra state. Validate required FP16 scaler state before loading model/optimizer; old checkpoints remain usable for explicitly model-only loading, while full FP16 restore fails clearly if scaler state is absent. This preserves the existing exact-recovery meaning and changes no frozen baseline. Source edits belong in `/home/hammad/projects/verl-posttrain-parity` at `verl/utils/checkpoint/fsdp_checkpoint_manager.py`, `verl/workers/engine/fsdp/transformer_impl.py`, checkpoint CPU regressions and the fork ledger. Commit/push the fork before consumer documentation; no pins change. Validate focused checkpoint tests plus an external actual LFM native save/load/replay with LoRA-only model state, full optimizer/extra state and a deliberately nondefault loss scale. Require exact restored scaler state and next-update parameter/moment equality; retain negative control and GPU/multi-rank limitations. Date/Author:2026-10-01/Codex.
@@ -394,6 +405,12 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 nonlinear-kernel milestone:57 paired/native-shape attention and
+convolution cases extend the audit beyond LoRA linear layers. Independent
+derivatives, masks, cache state and causality hold in these slices, while
+attention stress sensitivity is quantified rather than hidden behind finite
+outputs. Full nonlinear blocks and actual trained activation checks remain open.
 
 2026-10-01 fresh-group continuity milestone: native LFM FP16 collection,
 Posttrain SAMPO credit and the resumed native update agree with independent
@@ -793,3 +810,7 @@ verify its resumed four-microbatch update, independent credit/linear/Adam math,
 overlapping success/truncation and the initial fresh-policy ratio of1. Repeat
 the training seeds after updating and record bounded task recovery alongside
 the increased sampled work and held-out/production limitations.
+Revision 31: independently audit eager attention and unfused convolution,
+retain paired precision controls and scalar finite differences, quantify
+saturation versus absolute gradient magnitude, and test normalized native head
+dimensions without claiming actual trained activation or fused-kernel coverage.

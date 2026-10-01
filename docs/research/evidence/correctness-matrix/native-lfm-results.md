@@ -550,3 +550,64 @@ matched training sample rather than held-out generalization. Earlier harmful
 fixed-population updates remain part of the evidence; this result does not
 establish a generally superior recipe or remove the broader correctness gates.
 Post-update receipts are `lfm-fresh-group-postupdate.json` and its audit/logs.
+
+## Independent attention and convolution equations
+
+The next slice checks native eager attention and the unfused depthwise causal
+convolution used by the research runtime. Both collection and native update
+explicitly select eager attention. Scalar Python equations independently
+compute grouped-head attention, stable softmax, Q/K/V derivatives and causal
+convolution input/weight/bias derivatives. They do not call native attention,
+convolution or autograd to construct expected derivatives. Scalar double
+arithmetic is a diagnostic reference, not a supported training precision.
+Six scalar finite-difference checks validate the reference derivatives with
+maximum absolute error5.69e-11.
+
+The paired grid has54 cases: BF16, FP16 and diagnostic FP32; sequence lengths
+1/5/9; attention input amplitudes0.3/3/15; convolution widths1/3/5. Native
+CUDA autograd derivatives are compared with reference equations evaluated on
+the same rounded inputs. Inputs are paired across precisions. An earlier
+unpaired exploratory grid is retained separately, not silently replaced.
+All cases are finite. Masked attention edges have exactly zero probability;
+the excluded last key/value has zero gradient. All27 convolution cases have
+exact cached-versus-full outputs, exact rolling cache state and prefix
+causality. These checks cover the installed fallback, not fused kernels.
+
+| Relative L2 error, maximum over convolution grid | BF16 | FP16 | FP32 diagnostic |
+| --- | ---: | ---: | ---: |
+| Output | 0.232% | 0.0383% | 6.13e-8 |
+| Input derivative | 0.269% | 0.0232% | 3.83e-8 |
+| Weight derivative | 0.235% | 0.0256% | 7.60e-8 |
+| Bias derivative | 0.360% | 0.0239% | 9.59e-8 |
+
+Attention is more sensitive to scale and saturation. At amplitude15/length9,
+query-gradient relative error is5.29% BF16 and0.628% FP16, with maximum
+absolute error0.429 and0.0648 respectively. Computing the same rounded inputs
+through FP32 attention lowers query-gradient relative error to6.36e-7 and
+9.78e-7. At amplitude15/length5, relative errors of66.3% BF16,100% FP16 and
+67.0% FP32 accompany reference gradient norms only1.72e-8/2.15e-8/2.21e-8.
+The FP16 gradient underflows to zero in that case. Reporting relative error
+alone would misrepresent the size and cause of this discrepancy. This is
+not evidence that an actual training rollout reaches this stress regime.
+
+LFM normalizes Q/K before attention. A separate shape-correct control uses
+32 query heads,8 KV heads,64 dimensions, native scaling1/sqrt(64), unit-weight
+Q/K RMS normalization and five positions, including a padded final key.
+These are random projected activations, not measurements from a trained
+rollout or the pretrained normalization weights.
+
+| Relative L2 error, normalized head control | BF16 | FP16 | FP32 diagnostic |
+| --- | ---: | ---: | ---: |
+| Output | 0.194% | 0.0241% | 5.73e-8 |
+| Query derivative | 0.298% | 0.0398% | 1.49e-7 |
+| Key derivative | 0.335% | 0.0416% | 1.50e-7 |
+| Value derivative | 0.283% | 0.0345% | 7.94e-8 |
+
+The equations, mask behavior and cache indexing agree in the tested slices;
+rounding/saturation explains the measured attention sensitivity. No production
+arithmetic change is justified by this slice alone. Actual trained Q/K
+activation ranges, norm/RoPE Jacobians, the gated convolution block, fused
+kernels and end-to-end nonlinear parameter derivatives remain open.
+External receipts are `lfm-attention-conv-paired-oracle.json` and
+`lfm-normalized-attention-oracle.json`; their runners and the earlier grid
+remain outside Git.
