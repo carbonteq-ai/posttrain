@@ -825,3 +825,61 @@ External receipts are `lfm-full-model-lora-fd-float16-fp32-head.json` and
 `lfm-full-model-lora-fd-bfloat16-fp32-head.json`, with logs and a separate
 `lfm_full_model_lora_fd_head_control.py` runner snapshot. Native-head receipts
 and their exact runner remain unchanged.
+
+## Native GRPO and DAPO engine updates
+
+Four native veRL arms extend the model-update audit beyond SAMPO: GRPO and
+DAPO, each in BF16 and FP16, apply two updates to the same collected task
+population. Initial FP32 LoRA weights are bitwise identical across all arms.
+The real prompt has1,018 tokens; sampled row lengths are741/512, with131
+excluded tool/template positions in the longer full response. Observed rewards
+remain `[1,0]`; preassigned episode credit is reward minus group mean,
+`[0.5,−0.5]`, with std scaling deliberately disabled. Excluded positions carry
+sentinel credit99 to expose loss-mask leaks. Beta is0; narrow clipping bounds
+are0.003/0.004, rank4/alpha8, q/v targets, LR1e-4 and microbatch1.
+
+Posttrain's GRPO/DAPO veRL mapping selects `token_clip`, with per-row mean
+aggregation for GRPO and global sampled-token mean for DAPO. These experiments
+execute those native actor loss/engine configurations directly; they do not
+run live worker advantage production or validate all framework defaults.
+Old-policy scores and sampler-correction weights are frozen across the two
+updates, as in the previous reuse checks.
+
+| Native arm | Applied updates | Maximum loss error | Maximum score-gradient error | Active token clipping on update2, successful/failed rows |
+| --- | ---: | ---: | ---: | ---: |
+| GRPO BF16 | 2/2 | 2.23e-8 | 6.85e-11 | 14.845% / 16.797% |
+| DAPO BF16 | 2/2 | 1.87e-8 | 5.98e-11 | 13.630% / 15.234% |
+| GRPO FP16 | 2/2 | 1.03e-8 | 6.79e-11 | 12.146% / 19.531% |
+| DAPO FP16 | 2/2 | 1.37e-8 | 6.27e-11 | 13.090% / 15.234% |
+
+All16 independent microbatch loss/score checks pass; context and excluded
+response score gradients are exactly zero. All192 LoRA matrix comparisons
+match native-arithmetic manual chain rules, with768 independent scalar dots.
+Maximum AdamW parameter error is2.13e-9, and all eight finite updates apply.
+Peak Torch allocation is2.28GiB BF16 and2.06GiB FP16. First-update policy
+ratios are1 and active clipping is zero; update2 reuses the original scores
+and clips individual tokens. This is not a fresh-group production schedule.
+
+Independent normalization explicitly uses GRPO weight1/(2*N_row) versus
+DAPO weight1/1253 before the shared sampler correction. DAPO therefore weights
+the longer successful row's tokens1.18276 times as much as GRPO and the shorter
+failed row's tokens0.817239 times as much. Their updates should differ; that
+is an objective distinction, not backend disagreement. Corresponding GRPO/
+DAPO adapter coordinates can differ by approximately2e-4 after update1 and
+4e-4 after update2, while each native AdamW result matches its own reference.
+
+The actual published TRL loss methods then replay exported native model scores,
+identical masks/credits and sampler weights for all16 microbatch cases.
+Maximum TRL/veRL loss difference is2.99e-8; TRL score-gradient reference error
+is at most7.43e-11. Native veRL gradients also agree with the same independent
+equations within the bounds above. TRL model inference, optimizer trajectories
+and the complete worker loop are not executed by this score replay.
+Source revisions are veRL `d0d7804795dc1254f7309916fce69898387a2a8a` and
+TRL `5d4f9ad3c5f5d51b1ea50b827d82fdd379231dbf`; production pins stay unchanged.
+
+External receipts: `lfm-native-{grpo,dapo}-{bf16,fp16}.json`, corresponding
+adapter exports/logs, `native-episode-policy-trl-score-parity.json` and
+`native-episode-policy-summary.json`. The first exploratory GRPO BF16 run
+retained an inherited SAMPO scope sentence; its exact source/receipts remain
+separate. The final GRPO BF16 rerun has corrected metadata and is the arm
+reported here. No correctness runner or raw receipt is committed.
