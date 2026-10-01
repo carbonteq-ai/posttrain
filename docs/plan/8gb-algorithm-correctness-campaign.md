@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Execute full pretrained LFM backward on the real1018-token prompt plus8 sampled tokens, with FP32 LoRA masters and gradient checkpointing. Check four shared q-projection A/B coordinates with three finite-difference sizes in FP32/BF16/FP16. Best FP32 errors per coordinate are0.0284–0.0647%, all12 range0.0284–1.092%; diagnostic peak5.05GiB fits8GB. Half analytical gradients differ from FP32 by1.90–3.33% FP16/0.514–6.18% BF16, but native half finite differences do not give stable slopes. Unperturbed no-grad/grad repeats are exact. Preserve half rounding/boundary crossings and failed initial probes; full-coordinate Jacobians, LM-head isolation and broader native algorithms remain open.
+
 - [x] (2026-10-01) Run the actual1,890-token LFM task branch through native BF16 with identical FP32 LoRA weights, then validate six layers/18 full-key-support arms against independent reverse equations. Native BF16 gradient relative error max1.60%; reference finite differences within2.14e-12. Paired native FP16 capture repeats bitwise. With common FP32 temperature arithmetic,128 selected-token log probabilities differ by mean absolute0.0122932/max0.142080; this is not KL or quality evidence. Native BF16 forward is now measured on this branch; complete nonlinear model backward and optimizer/backend trajectory agreement remain open.
 
 - [x] (2026-10-01) Independently audit full gated LFM short-conv forward and all parameter/input derivatives in60 bias/mask/precision cases. Seven finite differences agree within5.29e-11; native FP32 absolute error max5.37e-7; masked input gradients are exactly zero. Capture all six attention layers on an actual1,890-token FP16 task path, then check18 masked subsets and18 selected-query/full-key-support arms against scalar/NumPy reverse equations. Full-support reference finite differences agree within2.35e-12; maximum gradient relative differences are1.57% BF16 recast,0.214% FP16,7.29e-7 FP32 diagnostic. Native BF16 capture, full nonlinear model backward, packed/fused boundaries and task-learning consequences remain open.
@@ -121,6 +123,14 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+A fixed tiny parameter perturbation is not a reliable full-model derivative
+oracle: weak LoRA A coupling and forward rounding can overwhelm its loss
+change. Function-sized FP32 perturbations agree much better; native half
+slopes plateau/jump even with exact unperturbed repeats. Positive-credit
+upper-bound crossings change the clipped objective, while lower-bound
+crossings alone do not. Native rounded-map differences must be distinguished
+from the continuous derivative propagated by the backward implementation.
 
 Even after controlling temperature division, native BF16/FP16 model forwards
 differ by up to0.142 in selected-token log probability on the paired task
@@ -328,6 +338,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Decision: check full-model LoRA coordinates using a common real prompt and fixed-old interior SAMPO surrogate; retain three perturbation sizes and shared coordinates, calibrate by functional loss change, record repeatability and directional clipping crossings, and do not treat failed tiny half finite differences as proof of a backward defect. Keep FP32 diagnostic and all experiment sources/receipts external. Date/Author:2026-10-01/Codex.
+
 - Decision: close the native BF16 forward gap with a paired actual task branch and exact FP32 adapter handoff; isolate temperature arithmetic with common FP32 division and retain selected-token score differences separately from KL, generation quality and full-model backward claims. Preserve original receipts by saving parameterized runner snapshots under new names. Date/Author:2026-10-01/Codex.
 
 - Decision: check the whole gated-convolution reverse chain, then capture actual task-path Q/K/V and preserve every key for selected-query attention checks. Use independent NumPy reverse equations to keep full support affordable; distinguish BF16 recasts from a native BF16 forward and kernel gradients from full-model parameter gradients. Retain experiment failures and keep all runners/receipts external. Date/Author:2026-10-01/Codex.
@@ -426,6 +438,12 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 full-backward milestone: selected full-model FP32 derivatives agree
+with independent outer-objective finite differences, extending beyond local
+matrix/kernel checks. BF16/FP16 backward remains finite but numerical finite
+differences expose rounding and boundary sensitivity; no blanket native-half
+Jacobian qualification follows. No production precision or recipe changed.
 
 2026-10-01 native precision milestone: actual BF16 and FP16 model forward
 captures now exist for the same task branch. Independent full-support attention
@@ -854,3 +872,6 @@ with full causal key support, preserving native-BF16/full-backward limitations.
 Revision 33: capture a native BF16 forward, check its full-key-support attention
 derivatives, repeat FP16 exactly, and quantify paired chosen-token score
 differences under common temperature arithmetic without interpreting them as KL.
+Revision 34: compare four full-model LoRA derivative coordinates over three
+perturbation sizes and three precisions; preserve native half rounding/crossing
+failures, functional calibration and exact baseline-repeat evidence.

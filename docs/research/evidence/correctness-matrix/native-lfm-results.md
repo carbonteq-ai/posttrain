@@ -717,3 +717,68 @@ External receipts: `lfm-actual-attention-native-bf16.json`/`.pt`,
 `lfm-native-forward-precision-comparison.json`. Parameterized runner snapshots
 and the comparison script are retained outside Git; previous FP16 receipts
 and their original runner snapshots remain intact.
+
+## Full-model LoRA directional derivative checks
+
+The next probe differentiates through the entire pretrained model on the real
+1,018-token task prompt plus its first eight observed sampled continuation
+tokens. It uses the native step-one adapter, FP32 LoRA masters, eager attention
+and nonreentrant gradient checkpointing. The fixed-old single-row SAMPO
+interior objective is `−0.975*exp(mean(logp−old_logp))`; baseline ratios equal1.
+No optimizer update or reward modification is performed in this probe.
+The model backward reaches every trainable LoRA tensor with finite gradients.
+
+Four q-projection coordinates cover LoRA A/B at attention layers2 and14.
+The FP32 diagnostic chooses the largest-gradient coordinate in each matrix;
+BF16/FP16 use those exact coordinates and the same perturbation sizes.
+Three symmetric finite differences per coordinate give36 measured slopes.
+Expected outer losses use scalar sums/exp independently of autograd, but the
+perturbed model forwards remain native Torch. This is a selected-coordinate
+full-model check, not an independent implementation of the whole network.
+
+The first FP32 attempt used a fixed maximum parameter perturbation0.01.
+Weak LoRA A coupling through the small trained B weights made some score
+changes comparable with FP32 forward noise: relative errors reached29.6%.
+The retained follow-up sizes the largest perturbation by a predicted loss
+change0.0005, capped at5, and also checks0.3/0.1 times that size. A large raw
+A perturbation need not be a large function change when its paired B is tiny.
+
+| Coordinate | Best FP32 finite-difference relative error across three sizes | FP16 analytical gradient difference from FP32 | BF16 analytical gradient difference from FP32 |
+| --- | ---: | ---: | ---: |
+| Layer2 A `[2,101]` | 0.0284% | 2.58% | 0.514% |
+| Layer2 B `[1845,1]` | 0.0647% | 1.90% | 6.18% |
+| Layer14 A `[1,1293]` | 0.0332% | 3.33% | 2.19% |
+| Layer14 B `[1405,0]` | 0.0461% | 2.22% | 5.23% |
+
+Across all12 FP32 slopes, errors range0.0284–1.092%; the table reports the
+best size explicitly rather than declaring every perturbation accurate.
+Peak Torch allocation is5.05GiB FP32,2.75GiB FP16 and2.81GiB BF16 on the8GB
+GPU. FP32 is a diagnostic reference here, not a proposed production setting.
+
+Native half-precision finite differences do not give stable agreement: FP16
+relative errors range34.2–951%, BF16 approximately99.6–9,000%. Some slopes
+vanish or reverse sign as perturbation size changes. Unperturbed no-grad and
+gradient-enabled repeats match baseline scores exactly in both half arms;
+the observed variation accompanies parameter changes, not baseline drift.
+These results are consistent with rounding plateaus/jumps in the low-precision
+forward map, whose tiny finite differences need not match the continuous
+arithmetic derivative propagated by autograd. They do not independently prove
+that the backward is wrong. Separating LM-head rounding from upstream rounding
+and extending the checked coordinates remain open.
+
+Two FP16 and eight BF16 perturbation pairs leave the0.997–1.004 interval despite
+small predicted functional changes. Two FP16 and seven BF16 pairs cross the
+upper bound that activates clipping for positive credit; their outer finite
+differences measure the unclipped smooth extension and cannot qualify the
+clipped derivative across that boundary. Three BF16 pairs cross the lower
+bound, which does not activate clipping for this positive advantage. Some
+pairs cross both bounds. All12 FP32 perturbations stay inside. The initial
+FP16 runner stopped at this interval gate; its source/log
+are retained. The corrected runner records crossings instead of silently
+discarding them and preserves gradient-enabled forward evaluation. This is
+parameter-perturbation evidence on eight tokens, not observed training-update
+clipping or a diagnosis of the larger real run.
+
+External receipts: `lfm-full-model-lora-fd-{float32,float16,bfloat16}.json` and
+logs, the initial FP32 grid, the initial FP16 interval-gate failure and exact
+runner snapshots. No source/runtime recipe was changed by this slice.
