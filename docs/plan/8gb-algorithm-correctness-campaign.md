@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Compare eight fresh LFM weekly-report episodes under matched seeds39400/40400, starting versus three-update adapters in BF16/FP16. All four loaded adapters reproduce their recorded native scores exactly; token/logprob/excluded-mask and independent final-state reward checks pass. All eight remain reward0, truncate at1024 inside unclosed thinking, and make no tool action; changed first-turn prefixes establish inference sees the updates, not efficacy. Actual native FSDP2 LoRA-disable probes in both precisions recover initial base scores exactly and restore trained scores exactly after normal and exceptional exit; no optimizer steps in those probes. Full reference-worker/TransferQueue transport remains open. Next paired budget/reasoning controls and real fresh iterative worker behavior, preserving broader algorithm/family gates.
+
 - [x] (2026-10-01) Collect12 fresh native training-client episodes across Qwen/LFM and two harder AutomationBench tasks, with exact token/logprob/branch/excluded-mask projection and per-task independent credit audits. Independent plain-JSON world-state checks reproduce all12 task rewards. Initial512-token LFM episodes all truncate; follow-up1024-token weekly-report pair has observed rewards[1,0], but seeds differ so no isolated budget-effect claim. Preserve an audit identity-mismatch failure and correct only its external requested task IDs. Three deterministic native SAMPO updates per precision on the complete LFM pair pass12 loss checks,144 matrices,576 scalar dots and Adam(max2.13e-9), peak2.440GB. Third-update clipping reaches both FP16 populations and BF16's failure row. No live refill, post-update task-quality, production pin/default or full-worker qualification. Next fresh adapter task comparisons and actual worker reference/admission transport, alongside broader algorithm/model gates.
 
 - [x] (2026-10-01) Revalidate the earlier TRL admission result and add exact-source veRL active-group/Posttrain native-statistic seam agreement across seven observed/controlled cases. Equal-success Qwen has104 credited tokens but rejects under the canonical episode-spread rule. Observed LFM [1,0] retains by default; conditional truncation masking leaves one finite reward and rejects. This is a contract-consistent policy tradeoff, not a new loss defect or full worker/refill qualification. Correct a superseded source-prediction sentence; preserve runners/receipts externally. Next obtain fresh admitted populations with task headroom and qualify reference/evidence/refill in the real worker.
@@ -165,6 +167,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Longer-task adapters transfer to inference exactly but do not improve the two fresh seeds: all1024 generated tokens remain inside unclosed thinking blocks. This is an observed rollout bottleneck, not proof of a symbolic gradient defect or optimal budget. Native adapter disabling separately recovers the unchanged base reference and restores the actor even after intentional exception exit, closing a context-lifecycle gate without claiming live queue/worker qualification.
 
 - Native rollout `ok` and empty harness errors do not mean task success: Qwen's report tools return invalid-cell payloads while traces remain `ok`. Equal partial-credit pairs are also filtered despite nonzero discounted turn credit. An independently checked mixed-outcome LFM group now exercises longer3248-token native trajectories without changing rewards; clipping appears by its third reuse in both precisions. Larger-budget follow-up changed seeds, so its success cannot be attributed to budget alone.
 
@@ -430,6 +434,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Require adapter identity and exact cached-score reproduction before interpreting fresh before/after behavior. Match seeds, initial prompts, attention, deterministic flags, precision and budgets within pairs. Keep reward-floor outcomes descriptive; do not label them lack of task headroom or infer quality from changed text. Reference-only native probes execute zero optimizer updates and must be reported separately.
+
 - Keep task populations separate during credit construction and use authoritative example IDs; retain the failed external audit as evidence that identity guards work. Verify sampled transport and final world-state rewards before using a fresh task fixture. Treat screening and fixed-group native updates as separate from held-out/post-update quality, and retain current admission/truncation policy while testing a group it would admit by predicate.
 
 - Keep SAMPO's frozen episode-spread admission contract unchanged during this audit. Any token-credit-based admission proposal needs a baseline amendment and controlled fresh-task evidence, including whether discounted length preferences are useful. Default unmasked LFM admission and conditional masked admission are separate selections; do not attribute either to an uninspected active run.
@@ -572,6 +578,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Eight fresh episodes provide a negative quality result despite verified update transport; no new math defect appears in the tested seams. Both native reference contexts pass exact base/actor restoration checks. Reasoning-budget mismatch warrants controlled follow-up, but full worker/reference transport, fresh iterative training, held-out quality, nonlinear/distributed derivatives and broad algorithm/model coverage remain unresolved. Tools and raw receipts remain external; no product default or dependency adoption.
 
 - Twelve fresh baseline episodes and six native updates broaden behavior evidence beyond the office-closure ceiling. Measured failures include clarification instead of action, invalid tool payloads and truncation; tested transport/credit/reward/update seams pass. This narrows some hypotheses without proving that math is globally correct or explaining the active production run. Full worker/fresh iterative training, post-update quality and broad algorithm/family coverage remain incomplete; all tools/raw evidence stay external.
 
@@ -1150,3 +1158,6 @@ episode-spread contract, and clarify cached-objective versus live-update evidenc
 Revision 55: screen harder real tasks, independently verify transport/group
 credit/final-state reward, qualify longer native LFM updates in both precisions,
 and preserve seed, admission, clipping and fresh-quality evidence boundaries.
+Revision 56: verify exact fresh adapter transport, record matched reward-floor
+behavior and unclosed-thinking truncation, and execute native reference-context
+disable/restore checks without inflating them into optimizer or worker proof.

@@ -450,3 +450,65 @@ token/credit audits, `headroom-world-reward-audit.json`,
 exports and `headroom-native-update-summary.json`. Exact executed sources and
 the identity-failure attempt remain outside Git. No product code, default or
 dependency pin changed.
+
+## Fresh trained-adapter behavior and native reference contexts
+
+1 October 2026. Compare the longer-task LFM adapters before training and after
+three native updates. Use fresh seeds39400/40400 on the same screened weekly
+report task, six turns and1024 tokens per turn. Run both BF16 and FP16. The
+provider uses SDPA, matching the native training engine, global deterministic
+algorithms and the same autocast precision. Within each precision pair, seeds,
+initial prompt tokens, tokenizer, tools and budgets match. These are eight
+fresh episodes on a previously screened task, not a held-out efficacy study.
+
+All four adapter loads have exact parameter keys and zero copy error. Each
+reproduces both recorded native fixture score rows exactly (maximum error0).
+Fresh sampled IDs/log probabilities and zero masks on nonsampled nodes pass
+their transport checks. Independent final JSON sheet/email checks reproduce
+the native rewards. This verifies that the measured native updates reach
+inference under the tested loading path.
+
+| Precision | Seed | Starting reward → trained reward | Starting/trained truncation | First-turn common prefix |
+| --- | ---: | --- | --- | ---: |
+| BF16 | 39400 | 0 → 0 | both | 44 tokens |
+| BF16 | 40400 | 0 → 0 | both | 80 tokens |
+| FP16 | 39400 | 0 → 0 | both | 675 tokens |
+| FP16 | 40400 | 0 → 0 | both | 228 tokens |
+
+Every episode generates1024 tokens on its first turn, opens `<think>` and
+never closes `</think>`. None produces a tool response or satisfies either
+world-state assertion. The trained model changes the generated sequences,
+but these two seeds show no reward or truncation improvement. This is a
+negative descriptive result with a reward floor, not a reward ceiling or
+proof that updates are absent. It does not isolate the cause of long thinking,
+establish an optimal budget, or prove that simply allowing more tokens solves
+the tasks. Test matched budget/reasoning controls before changing a recipe.
+
+### Actual native adapter-disable reference checks
+
+Load each trained adapter into the native single-GPU veRL FSDP2 engine without
+performing optimizer updates. Its initial active scores exactly reproduce the
+trained artifact. Inside `engine.disable_adapter()`, scores exactly reproduce
+the recorded step0 base-model scores. The step0 adapter has zero LoRA-B state,
+so it is the unchanged base reference in this experiment. After ordinary exit,
+active scores restore exactly. An intentional exception inside the disable
+context also restores the actor exactly. Maximum recorded response-score
+differences between trained actor and base are0.4752505 BF16 and0.5330752 FP16;
+these maxima include all recorded response positions, not only sampled credit.
+Peak Torch allocation is approximately1.315GB per reference-only arm.
+
+This closes the tested native adapter context/restoration gate. Production
+source uses `no_lora_adapter=True` for the in-actor reference and then writes
+projected reference scores through TransferQueue. Those live worker/queue
+operations are not executed here. A starting adapter already containing
+trained weights can also differ from the disabled foundation reference; the
+current experiment does not qualify every checkpoint/reference selection.
+
+External evidence: four `lfm-headroom-fresh-*-step*.json` receipts,
+`headroom-fresh-adapter-comparison.json`,
+`headroom-reasoning-budget-audit.json`, two native reference-context receipts,
+exact executed sources and logs. Preserve the initial comparison source and
+receipt whose scope mistakenly called reward-floor outcomes "no headroom";
+correct the wording without changing its measurements. Reference probes add
+zero optimizer updates. All tools/raw evidence remain outside Git. No product
+source, budget default, KL coefficient or dependency pin changed.
