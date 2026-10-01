@@ -22,6 +22,9 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] Revision86 measures conditional Adam sensitivity from identical observed prior parameters/moments for six native updates; independent NumPy replay confirms exported states. SAMPO BF16 step3 gradient1.054974% changes update0.804452%, max6.79751e-5,130 coordinate reversals; exact reproduction of previous BF16 checks/optimizer fields. FP16 GRPO with additional memory instrumentation measures gradient0.076836%, update0.319717%,13 reversals, but does not reproduce earlier FP16 trajectory. Preserve raw failures and two external callback-state bookkeeping failures.
+- [x] Complete original CPU-cotangent-only FP16 GRPO sensitivity control under terminal session63517(exit0, qualification fail). Three more native updates; all original loss checks/optimizer fields/input hash/fixture/settings match exactly. Step2 gradient0.161014% changes conditional update0.564001%, max5.05991e-5,28 reversals; independent NumPy confirms. All three sensitivity arms terminal/GPU idle. Keep numerical conditioning, instrumentation-dependent trajectory differences, behavioral impact and broad native algorithm/host qualification gates open.
+
 - [x] Complete unchanged fresh Qwen BF16 SAMPO/GRPO/DAPO native updates on8GB by releasing external head/logit captures, retaining diagnostic/saved tensors on CPU and using PYTORCH_ALLOC_CONF=expandable_segments:True. Nine applied updates, peak6.078GB. GRPO/DAPO pass; SAMPO fails last microbatch/step3 independent gradient(.010548760/.010549745), despite exact actual-loss VJP and Adam1.861e-9. Preserve one additional lifetime-only attempt: first audited update then second-step OOM; first two loss checks/optimizer receipt exactly match completed allocator control.
 - [x] Matched BF16 SAMPO loss-only FP64 control applies3 more updates and reconciles independent accumulated gradients to0 with BF16 model/backward unchanged. Preserve ordinary failure, do not adopt FP64 production loss or relax gates. Added allocator/provenance output to future producer while the second control was already loaded; reconstruct/archive its pre-metadata snapshot and record launch environment in companion evidence without altering the successful raw receipt.
 - [x] Actual fresh-trace FP16 SAMPO beta0 ablation applies3 verified native updates, clips[0,.5,1]. At final step current gradient norm0 and KL/weight decay absent, but Adam changes parameters7.74047e-5; independent Adam error1.855e-9 and scaled accumulation0. Nonzero clipped losses are constant with respect to current policy. First optimizer event exactly matches beta.01 baseline; later states diverge, so displacement differences are not a pure current-KL effect.
@@ -245,6 +248,13 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Adam need not attenuate gradient error: the new FP16 conditional update
+  difference exceeds its gradient discrepancy; BF16 differences are concentrated
+  in few coordinates. Additional external FP16 memory instrumentation also
+  changes the observed trajectory despite matching fixture/settings, so an
+  exact original-instrumentation control is required. Global error norms do
+  not establish downstream task quality.
 
 - Fixing external memory lifetimes/allocator behavior exposes a BF16 independent
   precision failure rather than universal qualification. GRPO/DAPO pass on the
@@ -583,6 +593,12 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Reconstruct counterfactual gradients only from the same observed Adam history;
+  do not conflate conditional sensitivity with a counterfactual training run.
+  Export CPU moments/options/gradients for an independent NumPy reference.
+  Preserve numerical fail gates, tools outside Git and original-instrumentation
+  control before interpreting FP16 repeat differences.
+
 - Preserve completed-but-failing BF16 SAMPO and its first partial OOM attempt.
   Treat released captures/CPU storage/expandable allocation as external audit
   operating controls, not a production memory recipe. A precision-control pass
@@ -788,6 +804,14 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+Revision86 adds nine completed native updates and independent conditional Adam
+state replay. BF16 raw precision failure has a measurable0.804% update effect
+and localized coordinate reversals. The differently instrumented FP16 repeat
+has0.320% update difference and is kept separate from the earlier exact trajectory.
+The matched original-instrumentation FP16 control reproduces every previous
+field and measures0.564% update difference with28 coordinate reversals. The broad campaign
+and production/current-run quality attribution remain open.
 
 Revision85 completes15 additional full native updates(nine BF16 objective,
 three BF16 loss-precision and three FP16 beta0), plus one audited update in a
@@ -1528,3 +1552,6 @@ measure clipping and retain twelve full-audit memory failures/BF16 gate.
 Revision 85: complete full BF16 native execution with bounded audit lifetimes
 and allocator controls, preserve SAMPO's raw gradient failure/reconciled precision
 control, and demonstrate KL-free momentum movement after full policy clipping.
+Revision 86: independently reconstruct conditional Adam update sensitivity from
+exported native history, quantify concentrated coordinate effects, preserve
+audit failures and separate FP16 instrumentation drift from matched evidence.

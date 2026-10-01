@@ -2162,3 +2162,67 @@ Receipts:qwen-fresh-weekly-native-{sampo,grpo,dapo}-bfloat16-lifetime-expandable
 qwen-fresh-weekly-native-sampo-bfloat16-loss64-lifetime-expandable.json and
 qwen-fresh-weekly-native-sampo-float16-beta0-auditcpu.json. All processes are
 terminal; tools/raw receipts remain external and the campaign stays active.
+
+## Conditional Adam update sensitivity on fresh Qwen traces
+
+Revision86 measures the effect of the independent score-gradient discrepancies
+on a single Adam update. Export the actual prior parameters, first/second
+moments, effective learning rate/betas/epsilon/weight decay and both accumulated,
+unscaled, clipped gradients before each optimizer call. Reconstruct each update
+twice from that identical observed history. An independent NumPy float64 replay
+agrees with the external Torch double reconstruction within1e-12 relative and
+1e-15 maximum-coordinate comparison tolerances. Float64 here is an analysis
+reference; model/loss/backward remain the supported BF16/FP16 paths.
+
+For either gradient g, use m'=beta1*m+(1-beta1)*g and
+v'=beta2*v+(1-beta2)*g²; displacement is
+-lr*weight_decay*p-lr*(m'/(1-beta1^t))/(sqrt(v'/(1-beta2^t))+epsilon).
+Report ||update_native-update_oracle||/||update_native||. This is a conditional
+single-update sensitivity, not a recursively different optimizer history or
+a measured behavioral counterfactual. Existing native-versus-independent Adam
+checks separately bound actual optimizer/parameter-rounding error.
+
+| Native objective/precision | Step | Gradient relative discrepancy | Adam update relative difference | Largest coordinate difference | Reversed update coordinates |
+| --- | --- | --- | --- | --- | --- |
+| SAMPO BF16, lifetime/allocator audit | 3 | 1.054974% | 0.804452% | 6.79751e-5 | 130/159744 |
+| GRPO FP16, original CPU-cotangent audit | 2 | 0.161014% | 0.564001% | 5.05991e-5 | 28/159744 |
+| GRPO FP16, lifetime/allocator audit | 2 | 0.076836% | 0.319717% | 3.81839e-5 | 13/159744 |
+
+All three arms complete three finite applied native updates; the other six events
+have exactly zero conditional update differences. Preserve both failing raw
+qualification results. SAMPO rerun checks, fixture/settings and all original
+optimizer fields exactly match the earlier BF16 run. Its difference is
+concentrated: the largest1% of coordinate differences account for74.49% of
+squared difference; reversed native updates have maximum magnitude1.22066e-5.
+For this FP16 control the largest1% account for98.86%; reversed native updates
+have maximum magnitude1.70143e-5. Global norm alone hides concentration.
+
+The FP16 control uses saved tensors/lifetime/allocator controls absent from the
+earlier CPU-cotangent-only FP16 audit. Fixture/settings match, but parameter
+movement and later losses do not match that earlier trajectory; its previous
+gradient discrepancy was0.161014%. Do not assign the present0.319717% update
+difference to the earlier gradient measurement. The completed original-audit
+repeat matches every earlier loss check, optimizer field, input hash and
+fixture/settings. Its conditional update difference is0.564001%, with28
+coordinate reversals; the largest1% account for98.33% of squared difference.
+Reversed native updates have maximum magnitude2.29031e-5. Independent NumPy
+reconstruction confirms all three events. Thus the original FP16 failure has
+a verified update effect, while instrumentation-dependent trajectory differences
+remain unresolved. Neither result establishes a production quality cause.
+
+Two initial instrumentation attempts terminate before the first applied update:
+the existing Adam audit shadows callback state with an optimizer-state dict,
+so the new snapshot filename incorrectly accessed state.global_step. Preserve
+both failed logs/source and use trainer.state.global_step in the corrected
+external runner. This changes audit bookkeeping, not production code.
+
+Receipts and CPU state snapshots are external under
+/home/hammad/experiments/posttrain-correctness/2026-10-01/results/native-collection:
+qwen-fresh-weekly-native-{sampo-bfloat16,grpo-float16}-adam-sensitivity.json,
+their -adam-state-step{1,2,3}.pt files, and
+fresh-qwen-adam-sensitivity-summary.json. No tools or raw receipts belong in Git.
+The matched FP16 receipt additionally ends -adam-sensitivity-auditcpu.json;
+its state files and fresh-qwen-adam-sensitivity-auditcpu-summary.json preserve
+the original instrumentation result. All processes are terminal and GPU idle.
+These measurements justify retaining the numerical failure for investigation;
+they do not yet demonstrate poorer task success or justify relaxing the gate.
