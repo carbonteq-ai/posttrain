@@ -22,6 +22,10 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] Revision88 completes three native BF16 SAMPO updates with last-microbatch backward tracing; every original loss/optimizer/settings/input field matches. Four raw-head differences are adjacent BF16 values, accurate relative norm2.942e-11. Trace210 labels; all identical-cotangent repeats bitwise equal and parameter-repeat error0. Adjoint relative differences reach.00080996 at layer22 attention input and.0174288 at layer3 output. Preserve same raw qualification fail and unchanged6.077GB peak; no isolated kernel defect/adoption claim.
+- [x] Verify eight CPU norm cases against NumPy: FP32 norm reports0 for4096 changed BF16 values near1e-23, while accurate norm3.309e-24. Preserve failed equal-hook-count analyzer; checkpoint input-hook duplicates3/4/5 are identical within phases and collapse only after verification. Correct external diagnostics without production changes.
+- [ ] Isolate four-coordinate head-adjoint perturbation on the native graph and quantify intermediate BF16 rounding thresholds; distinguish model Jacobian conditioning, discrete rounding and an implementation defect before selecting a correction. Continue broad native algorithm/host/fresh-policy and quality gates.
+
 - [x] Revision87 tests an external FP32 analytical-backward control retaining native forward loss values, with separately derived expm1 KL gradients/combined denominators. Six further native Qwen updates and independent scalar/NumPy state replay. FP16 GRPO passes exact independent scaled accumulation; BF16 SAMPO fails/worsens to1.282714% gradient and1.002827% conditional update difference. Exact prior parameters/Adam history/options match earlier failing states. No production adoption; preserve both outcomes and all external snapshots.
 - [ ] Localize BF16 propagation using intermediate backward tensors, same-cotangent repeatability and accurate accumulated norms; distinguish rounding thresholds from an implementation defect before choosing a correction. Continue broad native algorithm, host/fresh-policy and behavioral-quality qualification.
 
@@ -251,6 +255,14 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- The ordinary BF16 failure repeats exactly, including210 recorded adjoint
+  labels and parameter gradients with identical score cotangents. Only four
+  adjacent representable head gradients differ, yet later BF16 adjoints differ
+  by percent-scale norms. This localizes the propagation without identifying
+  an isolated defective operator. Checkpoint recomputation duplicates input
+  hooks; phase counts differ despite identical captured values. FP32 norms can
+  hide extremely small BF16 differences in a separate verified CPU toy case.
 
 - A separately derived FP32 backward formula resolves the fresh FP16 GRPO
   discrepancy but worsens BF16 SAMPO at identical prior model/Adam states.
@@ -603,6 +615,12 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Keep observed adjoint relative growth distinct from an operator condition
+  number or causal kernel ablation. Verify identical-cotangent repeatability,
+  exact prior-run reconciliation and phase-duplicate equality before interpreting
+  traces. Accumulate diagnostic norms accurately on CPU; do not change supported
+  model/loss precision or token masking on this evidence alone.
+
 - Keep the FP32 analytical-backward experiment external. Retaining the native
   forward value while replacing its derivative tests a narrow arithmetic
   hypothesis, not the complete production loss/option contract. Do not adopt
@@ -821,6 +839,14 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+Revision88 adds three native updates,210 exact repeat controls and an eight-case
+CPU norm audit. The BF16 discrepancy is deterministic in this fixture and grows
+through backward stages from four adjacent head-gradient values. Accurate norm
+measurement retains the head difference; an independent toy exposes FP32 norm
+underflow for much smaller values. The raw fail stays open, with isolated head
+perturbation/rounding investigation next. No production kernel correction or
+current-run quality cause is established; the broad goal remains active.
 
 Revision87 adds six native updates with a mixed experimental verdict: the FP32
 analytical-backward control passes FP16 GRPO, but BF16 SAMPO's raw failure gets
@@ -1583,3 +1609,6 @@ audit failures and separate FP16 instrumentation drift from matched evidence.
 Revision 87: test separately derived FP32 backward arithmetic at matched prior
 states, preserve the passing FP16/worsening BF16 outcomes and advance accurate
 intermediate-gradient localization without premature production adoption.
+Revision 88: trace ordinary BF16 adjoints, verify exact repeated backward and
+prior-run reconciliation, correct checkpoint-hook analysis and measure tiny
+norm underflow while retaining isolated-causation and broad qualification gates.

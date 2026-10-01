@@ -2292,3 +2292,86 @@ fresh-qwen-fp32-derivative-adam-summary.json and exact prior-state provenance
 remain external. Session71346 is terminal(exit0 for both arms, with qualification
 fail/pass respectively); GPU idle. Production code and dependency pins are
 unchanged by this experiment; the broad campaign remains active.
+
+## BF16 backward localization and deterministic-repeat control
+
+Revision88 replays the ordinary fresh BF16 SAMPO fixture through all three
+native updates. Instrument only the last microbatch, where the earlier raw
+qualification failed. Capture CPU copies of tensor adjoints at decoder, MLP,
+attention and RMSNorm outputs and available positional inputs, for independent
+score derivative, native score derivative and an identical independent-derivative
+repeat. These are tensor gradients; an input tensor's adjoint includes its other
+uses and is not an isolated module-branch contribution. The210 recorded labels
+include aliases/shared tensors, not210 independent experiments.
+
+The added trace reproduces every earlier loss-check field, optimizer field,
+fixture/settings and input hash exactly. All three updates are applied; the
+same last-microbatch/step3 numerical failure remains. Peak allocation is still
+6,077,364,224 bytes. All210 intermediate reference/repeat comparisons are
+bitwise equal; repeated parameter gradients have zero changed coordinates and
+maximum difference0. This does not support nondeterminism as the explanation
+for this particular discrepancy. It does not qualify every kernel/runtime.
+
+At the raw BF16 head, exactly four gradient coordinates differ. All four native
+values are-9.15179043659009e-12 versus reference-9.208633855450898e-12.
+CPU nextafter verifies that these are adjacent BF16 values. Maximum difference
+is5.684341886080802e-14; a CPU FP64 chunked norm with math.fsum gives difference
+norm1.1368683772161603e-13, reference norm.0038642486903911507 and relative
+error2.9420165944368426e-11. The important head difference does not vanish under
+accurate norm accumulation; it is extremely small and representable.
+
+| Observed backward stage | Relative adjoint difference | Changed coordinates |
+| --- | --- | --- |
+| Raw head | 2.94202e-11 | 4 |
+| Final RMSNorm output | 1.05269e-9 | 14 |
+| Decoder23 output | 1.09698e-9 | 36 |
+| Decoder23 input-layernorm output/full-attention input | 4.58757e-6 | 337 |
+| Decoder22 output | 3.45363e-6 | 369 |
+| Decoder22 input-layernorm output/linear-attention input | .000809960 | 594215 |
+| Decoder15 output | .008286595 | 1404684 |
+| Decoder7 output | .015960763 | 1486723 |
+| Decoder3 output | .017428812 | 1492652 |
+
+Indices are zero-based. The final layer is full attention, layer22 linear
+attention. Differences grow through multiple stages and are not monotonic at
+every tensor. These observed relative norms compare different reference tensors;
+their ratio is not an isolated operator condition number. The same trace ends
+with the previously measured1.054876% microbatch parameter-gradient and
+1.054974% accumulated-gradient errors. Revision86 separately measured.804452%
+conditional Adam update impact. Thus a score-level rounding perturbation is
+associated with progressively larger BF16 backward differences, but no individual
+attention/norm implementation is proved defective by this trace.
+
+Decoder-output gradients span[1,2087,1024], including prompt context. Gradients
+on those hidden activations are expected because response probabilities depend
+on the prompt; they do not demonstrate prompt-token loss leakage. The existing
+explicit policy-token masks/excluded score-gradient checks still reproduce and
+pass. Keep activation-gradient propagation distinct from token-loss masking.
+
+The initial CPU analyzer incorrectly required equal hook invocation counts.
+Checkpoint recomputation attached duplicate input hooks to existing tensors:
+20 labels have3/4/5 reference/native/repeat captures;190 labels have one per
+phase. Every duplicate within its phase is bitwise identical. Preserve the
+failed analyzer source and collapse duplicates only after that verification.
+This is a corrected trace-analysis assumption; no GPU rerun or production
+change was needed.
+
+An independent eight-case CPU norm experiment verifies a measurement pitfall:
+4096 adjacent BF16 values near1e-23 differ, but the FP32 difference norm is0;
+CPU FP64/Torch and NumPy both give3.308722450212111e-24. Squaring tiny BF16
+differences after casting to FP32 can underflow. The other seven designed
+BF16/FP16 cases do not show norm underflow; very small requested FP16 inputs
+already round to0 before nextafter. This is a diagnostic arithmetic test, not
+a training-precision comparison or evidence that the final raw-head norm was0.
+
+Next isolate the four-coordinate head perturbation on the actual backward graph
+and identify which quantized intermediate stages introduce larger differences.
+Retain the raw numerical failure and repeatability evidence; do not alter
+production loss, mask or model kernels based on relative-norm growth alone.
+Broader model/algorithm, native host/fresh-policy and task-quality gates remain.
+
+External artifacts: qwen-fresh-weekly-native-sampo-bfloat16-backward-trace.json,
+its -backward-trace.pt CPU adjoints, fresh-qwen-backward-trace-summary.json,
+fresh-qwen-backward-amplification-summary.json and
+half-gradient-norm-underflow.json. Native session75674 and corrected CPU
+session1369 are terminal; GPU idle. Tools/raw data remain outside Git.
