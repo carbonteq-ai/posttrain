@@ -6,6 +6,15 @@ masked loss and AdamW optimizer. Two confirmed integration defects are repaired
 in published source [8778c5d6](https://github.com/carbonteq-ai/verl/commit/8778c5d6e2ddd847d5098a24f4dc882f11ac57b4).
 Released Posttrain runtime pins are unchanged.
 
+Current numerical finding: on the complete observed Qwen SAMPO population,
+native eager FP16 backward is loss-scale sensitive. Forward-preserving
+attention ablations identify intermediate half-gradient casts as a major
+contributor. Retaining FP32 intermediates in all six full-attention blocks
+reduces the gradient scale gap0.844%→0.268% and update gap7.95%→2.90%.
+This is a bounded corrective experiment, not a production kernel replacement
+or demonstrated learning-quality improvement. Multi-update/fresh-rollout,
+other-kernel and full-model-reference qualification remain open.
+
 ## Repairs
 
 The padded eager path initially required `flash_attn.bert_padding` merely to
@@ -749,3 +758,60 @@ sources. No production precision/default/pin changes. Next isolate the remaining
 attention blocks and distinguish internal softmax casts, matrix-product
 underflow and subsequent model/parameter-gradient cancellation; include native
 BF16 and broader algorithm/family/quality qualification before adoption.
+
+## All-attention-block intermediate-cast ablations
+
+Seven further native one-update SAMPO arms cover all six full-attention blocks
+(3/7/11/15/19/23). Six FP16 arms pair scales1,024 and65,536 under three backward
+policies, followed by a native BF16 arm retaining FP32 intermediates. All retain
+the native half-forward scores and distributions. Fourteen independent
+loss/score/mask checks,168 LoRA matrix checks,672 scalar dots and independent
+AdamW(max1.34e-9) pass; each initial parameter/score export matches native
+bitwise. Peak Torch allocation remains3.95GB.
+
+| Backward policy across all six blocks | FP16 gradient scale gap, relative L2 | Update scale gap, relative L2 | Gradient sign flips |
+| --- | ---: | ---: | ---: |
+| Original native eager backward | 0.844489% | 7.94874% | 295 |
+| FP32 products and retained FP32 intermediates | 0.268428% | 2.89572% | 86 |
+| FP32 products with native intermediate half casts | 0.843785% | 8.12159% | 311 |
+| Native half products and intermediate casts, explicit softmax VJP | 0.851509% | 8.15353% | 317 |
+
+The second policy retains FP32 probability cotangents, softmax-score
+cotangents, scaled-score gradients and repeated-key/value gradient sums until
+the final query/key/value cast. The third uses FP32 matrix products but
+reinstates half casts after probability/scaled-score gradients and repeated
+key/value products. The last uses native half matrix products too. Its explicit
+softmax VJP can differ from Torch's native kernel, so it is not an assumed
+bitwise baseline. These controls isolate the value of retaining intermediate
+precision rather than simply replacing matrix multiplication.
+
+Keeping FP32 intermediates produces a substantially smaller scale discrepancy;
+FP32 products with half intermediates do not. This supports intermediate
+quantization/underflow as a major contributor in this eager path. It does not
+assign the effect to one cast or prove equality to a full-model mathematical
+oracle. Final half casts, other model backward paths and parameter-gradient
+cancellation remain active and require further isolation of the residual gap.
+
+Against native at the same scale, retaining FP32 intermediates changes FP16
+gradients0.862168% at1,024 and0.251741% at65,536, with update differences
+8.16158% and2.47199%. The BF16 arm changes gradients1.98483% and updates
+11.0602%, with493 sign flips. BF16 has no scaler in this arm: its changes
+demonstrate sensitivity to intermediate precision, not FP16 range overflow.
+Independent first-Adam sensitivity predicts all seven parameter-difference
+vectors within3.67e-11. None of these change metrics is a task-quality verdict.
+
+The exact executed ablation class also passes18 small independent CPU cases:
+three policies times FP16/BF16 times three scales, with causal masking and
+grouped-query reduction. NumPy VJP references explicitly model each intermediate
+rounding policy; maximum relative derivative differences are0.0256215% FP16
+and0.231374% BF16, including final half-output rounding. This is a bounded
+equation/implementation reference, not native full-model derivative truth.
+The earlier ideal float64 finite differences remain a separate mathematical
+calibration rather than a proposed training dtype.
+
+Evidence: `qwen-attention-ablation-comparison.json`, seven native receipts and
+adapter/gradient exports, `qwen-attention-ablation-independent-reference.json`,
+and exact executed sources in the external manifest. No production source,
+precision defaults or dependency pins change. Next test repeated optimizer
+updates and fresh matched rollouts, then compare supported native kernels and
+remaining backward boundaries before proposing a qualified correction.
