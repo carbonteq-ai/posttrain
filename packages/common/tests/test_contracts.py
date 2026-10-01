@@ -329,6 +329,29 @@ class RunContextTests(unittest.TestCase):
             context.metric("serve/ttft_ms", 12.5)
             context.trace(TraceObservation("serve.request", "request-1", {"status": "ok"}))
 
+    def test_environment_metrics_are_validated_sorted_and_part_of_the_projection_identity(self) -> None:
+        plain = TraceFactSet(namespace="verifiers.trace", calculator_version="test.v1")
+        with_metrics = TraceFactSet(
+            namespace="verifiers.trace",
+            calculator_version="test.v1",
+            environment_metrics={"tool_unknown_id": 1, "tool_mistakes": 3},
+        )
+        self.assertEqual(dict(with_metrics.environment_metrics), {"tool_mistakes": 3.0, "tool_unknown_id": 1.0})
+        self.assertEqual(list(with_metrics.environment_metrics), ["tool_mistakes", "tool_unknown_id"])
+        self.assertNotEqual(with_metrics.projection_id, plain.projection_id)
+        # Without metrics the identity is the one projections had before the field existed.
+        self.assertEqual(
+            plain.projection_id,
+            TraceFactSet(namespace="verifiers.trace", calculator_version="test.v1").projection_id,
+        )
+        for metrics in ({"": 1.0}, {"x" * 257: 1.0}, {"m": float("nan")}, {"m": float("inf")}, {"m": True}, {"m": "3"}):
+            with self.subTest(metrics=metrics), self.assertRaises(ContractError):
+                TraceFactSet(
+                    namespace="verifiers.trace",
+                    calculator_version="test.v1",
+                    environment_metrics=cast(Any, metrics),
+                )
+
 
 class CatalogTests(unittest.TestCase):
     def test_inference_cannot_select_a_renderer_different_from_its_model(self) -> None:

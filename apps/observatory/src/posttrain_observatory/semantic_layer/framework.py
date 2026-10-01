@@ -279,6 +279,13 @@ DIMENSIONS = (
         source=Source(kind="trace_fact", name="task_id"),
     ),
     Dimension(
+        name="rollout.trace",
+        entity="rollout",
+        type="string",
+        description="The rollout's trace id; joins to trace_environment_metrics.external_id.",
+        source=Source(kind="trace_column", name="external_id"),
+    ),
+    Dimension(
         name="rollout.task_type",
         entity="rollout",
         type="string",

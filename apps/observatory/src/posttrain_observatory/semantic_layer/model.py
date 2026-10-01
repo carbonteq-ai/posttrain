@@ -18,7 +18,9 @@ from ..models import ObservatoryModel
 
 type Aggregation = Literal["last", "first", "min", "max", "mean", "sum", "count", "stddev", "p50", "p90", "p95", "p99"]
 type EntityName = Literal["run", "update", "rollout"]
-type SourceKind = Literal["run_field", "setting", "event", "metric_series", "trace_fact", "trace_attribute", "derived"]
+type SourceKind = Literal[
+    "run_field", "setting", "event", "metric_series", "trace_fact", "trace_attribute", "trace_column", "derived"
+]
 type DimensionType = Literal["string", "integer", "number", "time", "boolean"]
 
 AGGREGATIONS: tuple[Aggregation, ...] = (
@@ -45,7 +47,8 @@ class Source(ObservatoryModel):
     (its attributes); it serves labels Trackio has no fact column for yet. A
     ``trace_fact`` may name a ``fallback_attribute``: the metadata key read when
     the fact column is empty, for traces whose facts were projected before the
-    fact existed.
+    fact existed. A ``trace_column`` is an identity column of the trace itself
+    (its ``external_id``), which other evidence tables join on.
     """
 
     kind: SourceKind

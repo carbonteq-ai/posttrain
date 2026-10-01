@@ -50,11 +50,11 @@ const index: EvaluationIndex = {
   score_definition: 'Mean rollout reward.',
   behaviour_definition: 'Per-episode means.',
   records: [
-    record('base-1', { score: 0.6, turns: 6.2, turns_completed: 5.9, tool_calls: 9.0, output_tokens: 3400, thinking_tokens: null, endings: { turn_limit: 2, completed: 58 } }),
-    record('base-2', { score: 0.58, turns: 6.0, turns_completed: 5.8, tool_calls: 8.6, output_tokens: 3300, thinking_tokens: null }),
+    record('base-1', { score: 0.6, turns: 6.2, turns_completed: 5.9, tool_calls: 9.0, output_tokens: 3400, thinking_tokens: null, endings: { turn_limit: 2, completed: 58 }, environment_metrics: { tool_mistakes: { mean: 1.09, positive_rate: 0.27, episodes: 60 }, tool_unknown_id: { mean: 0.3, positive_rate: 0.2, episodes: 60 }, tool_invalid_arguments: { mean: 0.5, positive_rate: 0.3, episodes: 60 }, tool_empty_results: { mean: 0, positive_rate: 0, episodes: 60 } } }),
+    record('base-2', { score: 0.58, turns: 6.0, turns_completed: 5.8, tool_calls: 8.6, output_tokens: 3300, thinking_tokens: null, environment_metrics: { tool_mistakes: { mean: 0.91, positive_rate: 0.25, episodes: 60 } } }),
     record('base-other-model', { model: 'models/other', score: 0.9 }),
     checkpoint('a-150', 'train-a', 150, 0.57),
-    checkpoint('a-100', 'train-a', 100, 0.62, { turns: 5.51, turns_completed: 5.49, tool_calls: 9.1, output_tokens: 3127.89, thinking_tokens: 1840.4, endings: { completed: 60 } }),
+    checkpoint('a-100', 'train-a', 100, 0.62, { turns: 5.51, turns_completed: 5.49, tool_calls: 9.1, output_tokens: 3127.89, thinking_tokens: 1840.4, endings: { completed: 60 }, environment_metrics: { tool_mistakes: { mean: 0.86, positive_rate: 0.22, episodes: 60 } } }),
     checkpoint('a-100-failed', 'train-a', 100, 0.7, { status: 'failed', started_at: '2026-09-26T00:00:00Z' }),
     checkpoint('b-20', 'train-b', 20, 0.55, { turns: 7.04, tool_calls: 10.2, output_tokens: 4012.2 }),
     checkpoint('c-20', 'train-c', 20, 0.5, { model: 'models/other' }),
@@ -135,8 +135,16 @@ describe('RunEvaluations', () => {
     const baseCells = within(baseRow).getAllByRole('cell');
     // A value no episode recorded is shown as missing, never as zero.
     expect(baseCells[8]).toHaveAttribute('title', 'Not recorded for this run');
+    // Tool mistakes are the environment's own count; the tooltip breaks them down, most frequent first, leaving out the total and zero metrics.
+    expect(baseCells[9]).toHaveTextContent('1.09');
+    expect(baseCells[9]).toHaveAttribute('title', 'invalid arguments 0.50 · unknown id 0.30');
+    expect(baseCells[10]).toHaveTextContent('27%');
+    // A run whose traces recorded none shows a dash, not zero.
+    const failedRow = within(table).getAllByRole('row')[3]!;
+    expect(within(failedRow).getAllByRole('cell')[9]).toHaveTextContent('—');
+    expect(within(failedRow).getAllByRole('cell')[9]).toHaveAttribute('title', 'Not recorded for this run');
     // The truncated count names how every episode ended.
-    expect(baseCells[10]).toHaveAttribute('title', 'completed 58 · turn limit 2');
+    expect(baseCells[12]).toHaveAttribute('title', 'completed 58 · turn limit 2');
     // The failed evaluation is not read for task scores.
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(String(fetchMock.mock.calls[0][0])).not.toContain('a-100-failed');
@@ -178,6 +186,8 @@ describe('EvalComparePage', () => {
     expect(cells('Turns')).toEqual(['6.1', '5.5', '7.0']);
     expect(cells('Tool calls')).toEqual(['8.8', '9.1', '10.2']);
     expect(cells('Thinking tokens')).toEqual(['—', '1,840', '—']);
+    expect(cells('Tool mistakes')).toEqual(['1.00', '0.86', '—']);
+    expect(cells('With a mistake')).toEqual(['26%', '22%', '—']);
     expect(cells('Endings')).toEqual(['2 runs', 'completed 60', '—']);
   });
 

@@ -36,6 +36,9 @@ SEMANTIC_TABLES = {"run": "runs", "update": "updates", "rollout": "rollouts"}
 TRACKIO_TABLES: dict[str, tuple[str, ...]] = {
     "metric_rows": ("run_id", "run_name", "step", "timestamp", "metrics"),
     "run_configs": ("run_id", "run_name", "config", "created_at"),
+    # The environment's own per-episode numbers (an agent benchmark's tool mistakes), one row per
+    # trace and metric name for each trace's current projection; join to rollouts on external_id.
+    "trace_environment_metrics": ("run_id", "trace_type", "external_id", "name", "value"),
     "traces": (
         "run_id",
         "run_name",
@@ -410,6 +413,8 @@ def _rollouts_sql(owners: Mapping[str, Dimension | Measure | None], columns: fro
         fact = owner.source.name
         if owner.source.kind == "trace_attribute":
             expression = _extract("t.metadata", "string", fact)
+        elif owner.source.kind == "trace_column":
+            expression = f"t.{fact}"
         elif owner.source.fallback_attribute is not None:
             fallback = _extract("t.metadata", "string", owner.source.fallback_attribute)
             expression = f"COALESCE(t.fact_{fact}, {fallback})"

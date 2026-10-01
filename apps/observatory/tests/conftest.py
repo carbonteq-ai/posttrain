@@ -78,11 +78,16 @@ def _trace(index: int, *, step: int, task: str, reward: float, truncated: bool) 
     # trace attribute (facts projected before the fact existed), and rollout-2 predates the label.
     if index in (0, 1):
         dimensions["episode_ending"] = ending
+    # rollout-0..2 carry the environment's own per-episode numbers; rollout-3 predates them.
+    environment_metrics = (
+        {"tool_mistakes": float(index), "tool_unknown_id": 1.0 if index == 2 else 0.0} if index in (0, 1, 2) else {}
+    )
     facts = TraceFactSet(
         namespace="verifiers.trace",
         calculator_version="test.v1",
         dimensions=dimensions,
         measures={"task_reward": reward, "model_output_tokens": 100.0 * (index + 1)},
+        environment_metrics=environment_metrics,
     )
     attributes = {"episode_ending": ending} if index in (0, 3) else {}
     return TraceObservation("verifiers", f"rollout-{index}", payload, attributes=attributes, facts=(facts,))

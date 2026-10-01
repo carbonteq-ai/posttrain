@@ -177,6 +177,34 @@ export function behaviourMean(records: readonly EvaluationRecord[], key: Behavio
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
 
+/** The environment's own per-episode metric for a run, or null when its traces recorded none. */
+export function environmentMetric(record: EvaluationRecord, name: string): { mean: number | null; positiveRate: number | null; episodes: number } | null {
+  const metric = record.environment_metrics?.[name];
+  return metric ? { mean: metric.mean ?? null, positiveRate: metric.positive_rate ?? null, episodes: metric.episodes } : null;
+}
+
+/** Mean of a run's environment metric over the records that recorded it, as the mean and the share of episodes. */
+export function environmentMetricMean(records: readonly EvaluationRecord[], name: string): { mean: number | null; positiveRate: number | null } {
+  const found = records.map((record) => environmentMetric(record, name)).filter((value): value is NonNullable<typeof value> => value != null);
+  const average = (pick: (value: (typeof found)[number]) => number | null) => {
+    const values = found.map(pick).filter((value): value is number => value != null);
+    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+  };
+  return { mean: average((value) => value.mean), positiveRate: average((value) => value.positiveRate) };
+}
+
+/**
+ * The environment's tool-error metrics other than the total, as "unknown id 0.12 · invalid arguments 0.30".
+ * The environment names its metrics; only the common `tool_` prefix is dropped for display.
+ */
+export function toolMistakeBreakdown(record: EvaluationRecord, total = 'tool_mistakes'): string {
+  return Object.entries(record.environment_metrics ?? {})
+    .filter(([name, metric]) => name.startsWith('tool_') && name !== total && metric.mean != null && metric.mean > 0)
+    .sort(([nameA, a], [nameB, b]) => (b.mean as number) - (a.mean as number) || nameA.localeCompare(nameB))
+    .map(([name, metric]) => `${name.slice('tool_'.length).replace(/_/g, ' ')} ${(metric.mean as number).toFixed(2)}`)
+    .join(' · ');
+}
+
 /** How a run's episodes ended, most common first: "completed 97 · turn limit 3". */
 export function endingSummary(endings: Record<string, number> | null | undefined): string {
   return Object.entries(endings ?? {})

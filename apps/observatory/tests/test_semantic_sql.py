@@ -202,3 +202,37 @@ def test_statements_that_read_no_semantic_table_pass_through(
         run_sql_query(FRAMEWORK_MODEL, trackio_project, SqlQuery(sql="select count(*) as notes from run_notes"))
     )
     assert result.rows == ((0,),)
+
+
+def test_the_evaluation_view_reads_environment_metrics_per_run_and_name(trackio_project: TrackioDataSource) -> None:
+    from posttrain_observatory.evaluations import ENVIRONMENT_METRICS_SQL
+
+    result = asyncio.run(
+        run_sql_query(FRAMEWORK_MODEL, trackio_project, SqlQuery(sql=ENVIRONMENT_METRICS_SQL, runs=("grpo-a",)))
+    )
+    rows = {(row[0], row[1]): row[2:] for row in map(list, result.rows)}
+    # grpo-a's rollouts 0, 1 and 2 carry metrics (rollout-3 predates them and is not counted); a
+    # truncated attempt still counts because only failed attempts are excluded.
+    mistakes = rows[("grpo-a", "tool_mistakes")]
+    assert mistakes[0] == pytest.approx((0 + 1 + 2) / 3)  # mean per episode
+    assert mistakes[1] == pytest.approx(2 / 3)  # share of episodes with at least one
+    assert mistakes[2] == 3  # episodes that recorded it
+    unknown = rows[("grpo-a", "tool_unknown_id")]
+    assert unknown[0] == pytest.approx(1 / 3) and unknown[1] == pytest.approx(1 / 3)
+
+
+def test_raw_environment_metric_rows_join_to_rollouts_by_trace(trackio_project: TrackioDataSource) -> None:
+    result = asyncio.run(
+        run_sql_query(
+            FRAMEWORK_MODEL,
+            trackio_project,
+            SqlQuery(
+                sql=(
+                    "select o.trace, m.value from rollouts o join trace_environment_metrics m on m.external_id = o.trace "
+                    "where m.name = 'tool_mistakes' order by o.trace"
+                ),
+                runs=("grpo-a",),
+            ),
+        )
+    )
+    assert [list(row) for row in result.rows] == [["rollout-0", 0.0], ["rollout-1", 1.0], ["rollout-2", 2.0]]

@@ -9,6 +9,9 @@ import {
   defaultCheckpoint,
   deltaClass,
   endingSummary,
+  environmentMetric,
+  environmentMetricMean,
+  toolMistakeBreakdown,
   evaluatedTrainingRuns,
   formatDelta,
   formatMean,
@@ -151,6 +154,20 @@ function BehaviourTable({ columns }: { columns: Array<{ label: string; records: 
           })}
         </tr>)}
         <tr>
+          <th scope="row" title="Mean tool mistakes per episode, as the environment counts them" className="whitespace-nowrap px-2.5 py-1.5 font-medium text-ink">Tool mistakes</th>
+          {columns.map((column) => {
+            const value = environmentMetricMean(column.records, 'tool_mistakes').mean;
+            return <td key={column.label} title={value == null ? NOT_RECORDED : undefined} className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums">{formatMean(value, 2)}</td>;
+          })}
+        </tr>
+        <tr>
+          <th scope="row" title="Share of episodes with at least one tool mistake" className="whitespace-nowrap px-2.5 py-1.5 font-medium text-ink">With a mistake</th>
+          {columns.map((column) => {
+            const value = environmentMetricMean(column.records, 'tool_mistakes').positiveRate;
+            return <td key={column.label} title={value == null ? NOT_RECORDED : undefined} className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums">{value == null ? '—' : `${(value * 100).toFixed(0)}%`}</td>;
+          })}
+        </tr>
+        <tr>
           <th scope="row" title="How the episodes ended" className="whitespace-nowrap px-2.5 py-1.5 font-medium text-ink">Endings</th>
           {columns.map((column) => <td key={column.label} className="px-2.5 py-1.5 text-right text-[10px]">{column.records.length === 1 ? endingSummary(column.records[0]?.endings) || '—' : column.records.length ? `${column.records.length} runs` : '—'}</td>)}
         </tr>
@@ -197,6 +214,8 @@ function SuiteSection({ group, onOpenRun }: { group: SuiteEvaluations; onOpenRun
             {[
               { label: 'Model' }, { label: 'Evaluation run' }, { label: 'Score', numeric: true }, { label: 'Δ vs base', numeric: true },
               ...BEHAVIOUR_COLUMNS.map((column) => ({ label: column.label, title: column.title, numeric: true })),
+              { label: 'Tool mistakes', title: 'Mean tool mistakes per episode as the environment counts them (hover a value for the breakdown)', numeric: true },
+              { label: 'With a mistake', title: 'Share of episodes with at least one tool mistake', numeric: true },
               { label: 'Attempts', numeric: true }, { label: 'Truncated', numeric: true }, { label: 'Failed', numeric: true }, { label: 'Status' },
             ].map(({ label, title, numeric }: { label: string; title?: string; numeric?: boolean }) => <th key={label} scope="col" title={title} className={`whitespace-nowrap px-2.5 py-1.5 font-medium ${numeric ? 'text-right' : ''}`}>{label}</th>)}
           </tr></thead>
@@ -212,6 +231,13 @@ function SuiteSection({ group, onOpenRun }: { group: SuiteEvaluations; onOpenRun
                   const value = record[column.key];
                   return <td key={column.key} title={value == null ? NOT_RECORDED : undefined} className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums">{formatMean(value, column.digits)}</td>;
                 })}
+                {(() => {
+                  const mistakes = environmentMetric(record, 'tool_mistakes');
+                  return <>
+                    <td title={mistakes == null ? NOT_RECORDED : toolMistakeBreakdown(record) || undefined} className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums">{formatMean(mistakes?.mean, 2)}</td>
+                    <td title={mistakes == null ? NOT_RECORDED : undefined} className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums">{mistakes?.positiveRate == null ? '—' : `${(mistakes.positiveRate * 100).toFixed(0)}%`}</td>
+                  </>;
+                })()}
                 <td className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">{record.attempts}</td>
                 <td title={endingSummary(record.endings) || undefined} className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">{record.truncated}</td>
                 <td className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">{record.failed}</td>
