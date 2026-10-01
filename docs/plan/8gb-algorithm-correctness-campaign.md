@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Run15 native Torch SDPA arms/21 applied updates on both primary precisions:42 loss checks,504 matrix checks,2,016 scalar dots and Adam(max4.05e-9), peak3.99GB. Uncontrolled first-update repeats differ0.23553%/1.82980% in FP16/BF16 gradients and2.11023%/10.26202% in updates despite exact initial weights/scores. Global deterministic controls yield bitwise paired repeats in FP16 scales1024/65536 and BF16. Deterministic profiler controls retain actual Torch FlashAttention and reproduce unprofiled gradients/adapters/scores exactly. Repeat-controlled FP16 scale gap remains0.295324% gradient/3.357149% update with89 sign changes, independently explained by first-step AdamW within3.71e-11. Preserve failed profiler repeatability gate and avoid attributing all noise to attention. Next independently audit fused attention derivatives, harder tasks and wider campaign gates.
+
 - [x] (2026-10-01) Qualify six three-update native/candidate trajectories in FP16(two scales)/BF16:18 applied updates,36 loss checks,432 matrix checks,1,728 scalar dots and Adam(max4.11e-9), exact earlier step0/1 replay. Retained FP16 endpoint scale gaps2.896%→2.062%→1.877% versusnative7.948%→5.760%→5.144%. At third reuse all104 credited positions clip in four FP16 arms/candidate BF16, leaving zero current gradients but valid momentum updates; native BF16 retains row2 signal. Twelve fresh conditional-Qwen episodes under exact native adapters/scores pass all trace/projection/credit audits, each arm2/2 reward/no truncation/errors. Baseline ceiling prevents a quality claim. Restore exact environment11f4 outside Git after import failure, verify499 Git blobs. Next native kernels/harder tasks/residual precision and wider campaign gates.
 
 - [x] (2026-10-01) Run seven all-six-attention-block ablation updates: FP16 three policies×two scales and BF16 retained-intermediate control. Initial scores/weights remain bitwise native;14 loss checks,168 matrix checks,672 scalar dots and Adam(max1.34e-9) pass at3.95GB. Retained FP32 intermediates reduce scale gaps to0.26843% gradient/2.89572% update/86 sign flips versusnative0.84449%/7.94874%/295; FP32 products with half intermediates remain0.84378%/8.12159%. Native-products explicit-VJP control remains0.85151%/8.15353%. BF16 gradient/update changes1.9848%/11.0602%. Exact class passes18 independent primary-precision staged-reference cases(max0.02562% FP16/0.23137% BF16). Intermediate casts causally implicated; multi-update/fresh-rollout and supported-kernel/quality qualification remain open.
@@ -151,6 +153,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Native SDPA's uncontrolled repeat noise is material: BF16 first updates differ10.26% relative L2 with405 gradient sign changes. The earlier profiler mismatch also occurs without profiling, so profiling alone cannot explain it. Deterministic flags make paired repeats exact but leave FP16 scale sensitivity. These are separate issues; finite local seam checks do not prove ideal nonlinear derivatives or learning stability.
 
 - Three reuses of the tiny frozen population exhaust all credited FP16 gradient signal despite partially clipped sampled-token metrics; zero-advantage tokens make that metric misleading. Adam momentum still moves weights. Fresh adapters remain valid, but the easy task already has2/2 baseline success, so numerical consistency gains cannot be called learning gains.
 
@@ -402,6 +406,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Use global deterministic controls for native SDPA precision comparisons after preserving the failed repeat gate and uncontrolled repeats. Record actual native dispatch and forward-score changes; SDPA versus eager is not a forward-preserving backward ablation. Do not adopt production determinism/defaults/pins or call a quality improvement from these controls. Keep all executed tools and raw receipts external.
+
 - Report first-step scale error separately from later different-weight trajectories, normalize relative comparisons consistently, and distinguish momentum-only updates from fresh policy gradients. Use harder tasks/native kernels next; restore immutable environment dependencies outside the dirty sibling and require exact adapter-score qualification before behavioral comparisons.
 
 - Treat all-block retained intermediates as a promising numerical control, requiring repeated updates/fresh behavior and native supported-kernel qualification. Do not adopt the diagnostic custom-autograd attention implementation, extrapolate eager-path findings to fused kernels, or equate improved scale consistency with learning quality.
@@ -530,6 +536,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Native SDPA controls separate uncontrolled repeat noise from remaining FP16 loss-scale sensitivity. All three deterministic repeat pairs are bitwise equal; scale1024/65536 still differ0.2953% in gradients and3.3571% in the first displacement, which the independent Adam equation reproduces. Full fused-attention derivative truth, harder-task learning consequences and broad native algorithm qualification remain unproven. Existing published repairs and production pins are unchanged.
 
 - Candidate consistency improvement persists across bounded update trajectories, and exact native adapters produce valid independently audited fresh rollouts in both primary precisions. Constant task-success ceilings and frozen-population clipping limit quality conclusions; supported-kernel/full-worker, harder-task, broader-algorithm/family and residual-derivative requirements remain open.
 
@@ -1069,3 +1077,6 @@ staged-reference cases, and require multi-update/fresh-kernel qualification.
 Revision 48: run matched three-update trajectories, identify fully clipped
 credited populations versus momentum updates, qualify exact conditional-adapter
 handoffs and twelve fresh native episodes, and retain baseline-ceiling limits.
+Revision 49: run native SDPA controls, preserve failed repeatability checks,
+measure uncontrolled BF16/FP16 noise, establish exact deterministic repeats
+and quantify the remaining repeat-controlled FP16 gradient/update scale gap.

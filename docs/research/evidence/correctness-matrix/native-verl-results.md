@@ -15,7 +15,12 @@ This is a bounded corrective experiment, not a production kernel replacement
 or demonstrated learning-quality improvement. Three-update controls and twelve
 fresh episodes now pass their independent checks, but the task's baseline is
 already successful. Other-kernel, harder-task and full-model-reference
-qualification remain open.
+qualification remain open. Native Torch SDPA adds a separate repeatability
+issue: identical uncontrolled runs differ in gradients and first updates.
+Paired deterministic runs reproduce exactly in both primary precisions, and
+the deterministic FP16 scale comparison still differs by0.295% in gradients
+and3.36% in the first update. This distinguishes loss-scale sensitivity from
+repeat noise; it does not establish a production remedy.
 
 ## Repairs
 
@@ -888,3 +893,115 @@ and audit receipts, immutable environment provenance and exact executed runners.
 No production defaults/pins change. Next compare supported native attention
 kernels and harder tasks with room to improve, isolate residual backward
 sensitivity, and continue broader algorithms/families and full worker gates.
+
+## Native SDPA repeatability and controlled FP16 scale sensitivity
+
+The next control uses the real Torch `scaled_dot_product_attention` path in
+all six Qwen full-attention blocks, rather than the custom eager backward
+ablation. The native conditional model, FSDP2 CPU offload, checkpointing,
+FP32 LoRA masters, two complete task trajectories and SAMPO credits remain
+the same. Dispatch capture records causal, unmasked GQA with query shape
+`[1,8,1408,256]`, key shape `[1,2,1408,256]`, and the selected primary half
+dtype; the second trajectory has1539 positions. There are132 SDPA calls per
+three-update arm, including scoring and checkpoint recomputation.
+
+Three native SDPA trajectories (FP16 scales1024/65536 and BF16 without a
+scaler) apply all nine updates and pass independent loss, masked score-gradient,
+LoRA-linear and Adam checks. Torch allocation peaks at about3.93GB. This
+checks those seams; it does not independently prove the fused attention
+Jacobian or the whole nonlinear model. At first update all policy ratios
+equal1 and clipping is inactive. At third reuse BF16 has zero current
+gradient with both credited populations clipped; Adam momentum can still
+move parameters. This remains a frozen-population replay that bypasses
+production constant-base-reward admission, without refill or fresh rollouts.
+
+The SDPA forward itself differs from eager. Initial chosen-token log-probability
+mean/max absolute differences are0.0009548/0.0294123 in FP16 and
+0.0074429/0.2054734 in BF16. These are not KL measurements. Initial adapter
+weights and task tokens match, but each path computes its own initial old
+scores and frozen sampler-correction weights. Consequently SDPA versus eager
+is not a forward-preserving backward ablation.
+
+### Failed repeatability gate and deterministic controls
+
+A CPU-activity profiler observes actual Torch FlashAttention forward/backward
+operations in both precisions. However, the first profiled update does not
+match the original unprofiled gradient or endpoint. Preserve the failed
+exact-repeat comparison and log; changing the summary to record the failure
+does not turn that gate into a pass.
+
+Unprofiled single-update repeats also differ, despite bitwise equal initial
+weights and scores. This rules out the profiler as the sole explanation.
+All arms still pass their local loss/linear/Adam checks.
+
+| Same first update comparison | Gradient relative L2 difference | Update relative L2 difference | Gradient sign changes |
+| --- | ---: | ---: | ---: |
+| FP16 scale65536, original versus unprofiled repeat | 0.23553% | 2.11023% | 40 |
+| BF16, original versus unprofiled repeat | 1.82980% | 10.26202% | 405 |
+| FP16 scale65536, deterministic run1 versus run2 | 0% | 0% | 0 |
+| FP16 scale1024, deterministic run1 versus run2 | 0% | 0% | 0 |
+| BF16, deterministic run1 versus run2 | 0% | 0% | 0 |
+
+Each percentage uses the left arm's full gradient or first-update displacement
+norm. Deterministic controls set `CUBLAS_WORKSPACE_CONFIG=:4096:8` before
+process startup and `torch.use_deterministic_algorithms(True)` before model
+initialization. In all three paired cases, initial/final adapters, native
+scores and all159,744 gradient coordinates match bitwise. The flags affect
+all supported operations, so this does not isolate attention as the unique
+source of uncontrolled repeat noise. Uncontrolled profiler differences are
+0.23585% gradient/1.76608% gradient in FP16/BF16 respectively; they cannot be
+interpreted as an instrumentation-only perturbation.
+
+The final deterministic profiler controls still dispatch
+`aten::_scaled_dot_product_flash_attention` and
+`aten::_scaled_dot_product_flash_attention_backward` in FP16 and BF16.
+They reproduce unprofiled deterministic initial/final weights, scores and
+gradients bitwise. Thus the reproducible control retains native Torch
+FlashAttention; it does not achieve repeatability by falling back to the
+eager path. The unprofiled/profiler comparison now has a valid repeatable
+baseline in both primary precisions.
+
+Across all SDPA controls there are15 native arms and21 applied updates,
+42 loss/score checks,504 LoRA matrix checks and2,016 independent scalar dots.
+The detached AdamW oracle's maximum error is4.05e-9; peak Torch allocation
+is3,985,357,824 bytes (3.99GB decimal). These counts include failed exact-repeat
+comparisons whose underlying local seam checks pass; repeatability and local
+arithmetic acceptance remain separate gates.
+
+### Loss-scale comparison after controlling repeat noise
+
+Under the same deterministic configuration, independently repeated FP16
+scales1024 and65536 start from identical weights/scores, yet their first
+unscaled gradients differ by0.295324% relative L2 with89 sign changes. Their
+first-update displacement differs by3.357149% (both use the low-scale norm),
+with maximum parameter difference0.0001876864. Deterministic controls thus
+remove measured repeat noise but do not remove loss-scale sensitivity.
+
+For the first zero-state AdamW step, the gradient-dependent coordinate
+update is `-lr*g/(abs(g)+eps)`, here `lr=1e-4`, `eps=1e-8`.
+The common weight-decay term cancels when comparing identical initial
+parameters (native weight decay is0.01). The independently calculated
+difference between the two updates matches actual parameters
+within3.71e-11. The same equation explains the uncontrolled paired differences
+within3.67e-11. Small gradient changes near zero can change signs and create
+much larger differences in Adam's normalized update. That is expected optimizer
+arithmetic given those gradients; it does not prove either backward is the
+ideal derivative. High precision here is only a detached arithmetic oracle,
+not a proposed training dtype.
+
+The original uncontrolled SDPA scale comparison (0.273% gradient/3.296%
+first-update gap) is confounded by repeat noise. Later three-update
+comparisons additionally include changed model weights, clipping and optimizer
+history. Do not use either as a pure loss-scaling or stability verdict.
+
+External evidence remains under
+`/home/hammad/experiments/posttrain-correctness/2026-10-01/results/native-collection`:
+`qwen-sdpa-update-comparison.json`, retained failed-repeat script/log,
+`qwen-sdpa-repeat-comparison.json`,
+`qwen-sdpa-deterministic-scale-comparison.json`,
+`qwen-sdpa-deterministic-profile-comparison.json`, native receipts, exported
+gradients/adapters and exact executed source snapshots. No correctness runner
+or raw artifact belongs in Git. Native fused-attention derivative references,
+harder tasks, wider algorithms/families and full worker qualification remain
+open; no production attention default, determinism setting or dependency pin
+is adopted from these bounded controls.
