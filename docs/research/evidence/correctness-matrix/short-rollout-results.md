@@ -251,9 +251,8 @@ Later anchors are singletons and carry zero relative credit. With discount1,
 all turn and token credits are zero. Thus equal episode rewards can still yield
 a length-dependent SAMPO turn signal before admission. The inspected TRL active
 sampling path keeps groups using terminal reward standard deviation greater than
-zero; it would reject this equal-reward group. We have not executed that native
-admission path on these episodes, so its effect here remains a source-backed
-prediction.
+zero. The subsequent admission replay below confirms rejection at the scoring
+seam; full fresh worker selection and refill remain unqualified.
 
 Two runner mistakes remain visible in the external evidence. The first local
 evaluation adapter failed on the second turn because it passed OpenAI's JSON
@@ -284,6 +283,43 @@ with observed rewards injected at the scoring seam; it does not run fresh
 worker selection or refill. The rejection is consistent with the selected
 terminal-reward variance rule. Retaining discounted turn signal would be a
 recipe/contract decision requiring a controlled comparison.
+
+### Cross-backend admission and truncation revalidation
+
+A later source-seam replay adds veRL's actual `_keeps_group` predicate and
+Posttrain's actual `_native_group_reward_std`, using the exact TRL `nanstd`
+helper. Functions are AST-extracted without rewriting their bodies; CPU
+transport doubles supply the observed rewards and identity gather. This is
+not a full worker, fresh collection or refill test, and it does not replace
+the earlier executed TRL preparation-method replay.
+
+Seven cases agree across these seams. The observed Qwen rewards `[1, 1]`
+reject despite 88 and 16 nonzero sampled credits (absolute credit sums 2.09
+and 0.38). Equal failures also reject; mixed rewards retain with sample
+standard deviation approximately 0.707107. Fewer than two unmasked finite
+rewards reject. These last synthetic cases are controlled boundary checks.
+
+The observed LFM fixture has rewards `[1, 0]`, with only the failed trajectory
+truncated. Keeping its rewards unmasked retains the group. Selecting
+`mask_truncated_completions=True` instead leaves one finite reward and rejects
+the group at these seams. The current SAMPO setting defaults to `False`;
+the masked result is a conditional configuration comparison, not a claim
+about an active run's settings or full veRL transport of exclusion flags.
+
+The frozen contract in `docs/post-training/05-apis.md` explicitly requires
+differing episode rewards for SAMPO active sampling. Rejection therefore
+agrees with the contract, even though hierarchical credit can remain nonzero.
+Changing admission to retain such credit would change that policy and needs
+a recorded baseline amendment plus a fresh controlled quality comparison.
+In particular, discounted sparse returns can create a length-dependent
+preference between equally successful episodes; nonzero credit alone does
+not prove that retaining the group improves task learning. Current objective
+probes bypass this admission rule, so passing optimizer checks cannot imply
+that these populations would update in production.
+
+External evidence: `sampo-active-admission-source-replay.json` and exact
+`replay_sampo_active_admission.py`, retained outside Git with source and fixture
+hashes. No product code, admission default or reward semantics changed.
 
 The same five native requests also provide298 sampled tokens for a temperature
 audit. Actual TRL scoring divides the teacher-forced logits by0.8, matching the

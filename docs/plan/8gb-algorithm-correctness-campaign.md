@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Revalidate the earlier TRL admission result and add exact-source veRL active-group/Posttrain native-statistic seam agreement across seven observed/controlled cases. Equal-success Qwen has104 credited tokens but rejects under the canonical episode-spread rule. Observed LFM [1,0] retains by default; conditional truncation masking leaves one finite reward and rejects. This is a contract-consistent policy tradeoff, not a new loss defect or full worker/refill qualification. Correct a superseded source-prediction sentence; preserve runners/receipts externally. Next obtain fresh admitted populations with task headroom and qualify reference/evidence/refill in the real worker.
+
 - [x] (2026-10-01) Qualify nonzero beta0.02 sampled-k3 on native SAMPO/GDPO/CAPO×Qwen/LFM×BF16/FP16:36 updates,72 loss/mask checks,864 matrices,3,456 scalar dots and Adam(max4.13e-9), excluded reference NaNs neutralized. Actual TRL replay matches independent value/gradient within2.14e-15/1.30e-17 and native losses within6.79e-8. Add12 deterministic Qwen SAMPO updates at beta0/.02 with identical initial and first updated states/gradients. Common-state step2 parameter gradients differ116.46% BF16/125.53% FP16, updates61.22%/81.01%; final cached k3 proxy reduces40.22%/48.62%. Score-space smallness did not imply parameter-space irrelevance after clipping. No source defect, production beta/pin change or task-quality/active-run verdict; all48 updates/tool receipts external. Next real structured/admission/reference worker paths and harder fresh-task behavior, preserving broader algorithm/model gates.
 
 - [x] (2026-10-01) Trace native sparse-CAPO FP16 overflow to layer22 gated-norm input: ideal scaled maxima347,692/173,846/86,923 at1024/512/256 each predict one overflow matching actual;128 yields43,461 and applies. Preserve tracing OOM from vocabulary-wide gradient indexing; bounded trace keeps144 norm/3,232 module records within3.991GB. Six actual-class BF16/FP16 CPU cases distinguish avoidable intermediate overflow from final-range overflow, with12 oracle finite differences(max6.90e-9 relative). Existing FP32 delta-rule control applies three updates at1024 with108 finite norm references(max1.17e-7), still carrying348,280 in FP32. Native forward changes(mean/max sampled-score delta0.000718/0.01656); no backward-only or quality claim/adoption. Four additional applied updates; raw sources/receipts external. Next broader nonzero-KL/worker qualification, residual precision and harder fresh-task behavior.
@@ -161,6 +163,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Nonzero hierarchical credit is insufficient for current SAMPO admission by design. Both backend seams reject the observed equal-success Qwen pair; optional truncation exclusion can also remove the reward spread from LFM's mixed-outcome pair. This limits what the frozen-fixture optimizer results say about production updates. The earlier TRL result already existed; this turn extends backend/boundary coverage rather than counting it as a newly discovered defect.
 
 - Beta0.02 remains an active score derivative when policy credit clips to zero, and in deterministic common-state controls changes actual LoRA gradients by more than the beta-zero gradient norm. Initial and first updated states match exactly, so step2 isolates the coefficient effect; later clipping/history diverge. Cached sampled-k3 reductions are40–49%, but neither those proxies nor small score-space gradients establish true KL or production-run quality.
 
@@ -422,6 +426,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Keep SAMPO's frozen episode-spread admission contract unchanged during this audit. Any token-credit-based admission proposal needs a baseline amendment and controlled fresh-task evidence, including whether discounted length preferences are useful. Default unmasked LFM admission and conditional masked admission are separate selections; do not attribute either to an uninspected active run.
+
 - Validate the current uncorrected sampled-k3 definition and its independent masking/aggregation/sampler-weight placement without relabeling it full-vocabulary KL. Treat broad native/TRL loss replay as common-score logical agreement only. Use deterministic paired common-state controls before attributing beta effects, and keep production settings unchanged pending fresh/held-out and real worker qualification.
 
 - Keep representability, premature intermediate-cast overflow and symbolic objective correctness distinct. Use norm references at actual inputs/cotangents to explain the captured native failure, and retain the FP32 delta-rule control as external evidence with measured forward changes. Preserve failed wide tracing and bound instrumentation to smaller tensors. Do not adopt a production norm patch, fixed loss scale or FP32 island solely from this fixture.
@@ -560,6 +566,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Seven source-seam admission checks establish current cross-backend logical agreement and an important evidence boundary: cached objective updates may use groups that active sampling would reject. Full worker/refill, admitted harder tasks, held-out learning, reference transport and broader algorithm coverage remain open. No product repair is justified by this contract-consistent result; correctness tools remain external.
 
 - Forty-eight further native updates cover combined KL/policy/mask/Adam seams in both model families/primary precisions and deterministic beta controls. No new symbolic seam defect is found. KL measurably changes cached-fixture updates and reduces its reference proxy despite a small score-gradient impression, but worker reference transport, real admission, fresh harder tasks, held-out quality and full algorithm/architecture coverage remain incomplete. Correctness tools/raw artifacts remain external; the goal stays active.
 
@@ -1128,3 +1136,6 @@ Revision 53: qualify nonzero sampled-k3 native updates and common-score TRL
 agreement, test excluded reference NaNs, isolate deterministic beta effects
 from a common state, and distinguish cached reference proxies from true KL
 and fresh-task or production-run conclusions.
+Revision 54: extend prior admission replay to veRL/native-reward statistic
+seams and observed LFM truncation-policy effects, preserve the frozen
+episode-spread contract, and clarify cached-objective versus live-update evidence.
