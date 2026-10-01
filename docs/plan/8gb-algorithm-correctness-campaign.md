@@ -22,6 +22,10 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Collect four matched training-seed episodes after the fresh-group update: successes2/4→3/4, truncations3/4→2/4 and sampled tokens2775→2908. Seed6200 recovers the tool task; the other three generated-token paths remain identical. All four exact native/projection/independent episode/turn/token-credit audits pass. This is small training-sample recovery, not held-out generalization or a production throughput claim.
+
+- [x] (2026-10-01) Connect native step-one LFM adapter collection to a fresh-process checkpointed FP16 update. Four observed episodes have rewards `[1,0,0,1]`, three truncations and exact token/projection/independent hierarchical-credit checks. Adapter equality is exact; optimizer advances1→2 and restored scaler512/tracker1→1024/tracker0. Four independent loss/score/mask checks,24 matrix gradients across four microbatches,192 scalar dots and AdamW(max2.12e-9) pass at2.54GiB peak Torch allocation. No first-forward policy clipping: fresh current/old ratios equal1. Full production admission/refill and other-family/precision continuity remain open.
+
 - [x] (2026-10-01) Corrected native LFM step2 handoff matches scores within4.77e-7; fresh matched seeds still give1/4 success versus2/4 at step0, with all four new native token/mask/projection/credit audits passing. Publish scaler lifecycle tests atdc08945ddecf0693ea42bfb1bf0b11312aa2a0b4: eight tests pass, including exact CPU/CUDA scaler/AdamW restore after overflow and two-rank Gloo shared skip/backoff. Corrected update3 retains a positive policy derivative, applies successfully and passes72 matrix/288 scalar-dot checks across all three updates. Fresh corrected-step3 succeeds0/4 with four truncations and zero group credit; all native trace/projection audits pass. Fixed-token positive conditional likelihood ratio grows18.32→153.35 after updates2→3 while the geometric ratios are1.003932→1.006815. Preserve the adverse sample and distinguish length normalization, surrogate clipping and full trajectory likelihood.
 - [x] (2026-10-01) Close single-rank native LFM FP16 checkpoint state omission: publish sourced0d7804795dc1254f7309916fce69898387a2a8a. Persist enabled scaler with optimizer/scheduler/RNG; reject missing enabled-scaler state before tensor restore; preserve model-only/BF16/disabled-scaler compatibility. The34-test checkpoint/cleanup/scaler slice passes. Actual LoRA-only/full-optimizer native save/load and fresh-process replay match next-update parameters, moments, scaler, scheduler and RNG exactly at deliberately nondefault scale512/tracker1. Omitted-binding control fails only scaler restore. Raw checkpoint/receipts remain external; runtime pins are unchanged.
 - [ ] Complete fresh-collection/update continuity with native checkpointed optimizer/scaler state across fresh groups; verify other-family/BF16/full-weight/distributed native replay and production adoption. Single-rank LFM FP16 replay does not close these gates.
@@ -111,6 +115,12 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+A successful AutomationBench episode can truncate after the correct tool call:
+the fresh step-one group has two successes but three truncated episodes.
+Reward, completion and sampled-token work must therefore be reported separately.
+Fresh-data ratios reset to1 even when restoring nonzero AdamW moment history;
+this distinguishes optimizer continuity from old-policy reuse.
 
 The independent linear-gradient audit catches an upstream scaler ordering race
 that score-loss and conditional AdamW oracles miss. An inverse-scale scalar
@@ -292,6 +302,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Decision: continue from the native checkpoint with fresh observed task groups, retain the original reward and truncation evidence, and audit all four microbatches using the restored optimizer/scaler. Keep collection/updating orchestration external and do not equate this bounded continuity probe with the production worker loop or general task improvement. Date/Author:2026-10-01/Codex.
+
 - Decision: bind the FSDP engine's optional GradScaler to `FSDPCheckpointManager` and persist it in per-rank extra state. Validate required FP16 scaler state before loading model/optimizer; old checkpoints remain usable for explicitly model-only loading, while full FP16 restore fails clearly if scaler state is absent. This preserves the existing exact-recovery meaning and changes no frozen baseline. Source edits belong in `/home/hammad/projects/verl-posttrain-parity` at `verl/utils/checkpoint/fsdp_checkpoint_manager.py`, `verl/workers/engine/fsdp/transformer_impl.py`, checkpoint CPU regressions and the fork ledger. Commit/push the fork before consumer documentation; no pins change. Validate focused checkpoint tests plus an external actual LFM native save/load/replay with LoRA-only model state, full optimizer/extra state and a deliberately nondefault loss scale. Require exact restored scaler state and next-update parameter/moment equality; retain negative control and GPU/multi-rank limitations. Date/Author:2026-10-01/Codex.
 
 - Decision: stage inverse-scale and overflow scalars synchronously on CPU only when gradients have CPU storage, in veRL's FSDP engine scaler subclass. Rationale: PyTorch's nonblocking CUDA-to-CPU scalar copies can be consumed by a host foreach kernel before completion; an inverse-scale Python read hides the failure. Preserve native device-only scaling and distributed overflow reduction. This changes no frozen product meaning. Edit `verl/utils/sharded_grad_scaler.py`, `verl/workers/engine/fsdp/transformer_impl.py`, `tests/utils/test_sharded_grad_scaler.py` and `CARBONTEQ_FORK.md` in `/home/hammad/projects/verl-posttrain-parity` (base8778c5d6e2ddd847d5098a24f4dc882f11ac57b4); then commit/push that fork, then commit Posttrain's consumer/evidence/plan documentation. Keep production pins, lockfiles and unrelated dirty work untouched. Run the three new CPU/GPU regressions using `/tmp/posttrain-native-verl-update-runtime/bin/python -m pytest -c /dev/null -p no:cacheprovider tests/utils/test_sharded_grad_scaler.py -q` with the fork on `PYTHONPATH`; run external native collected-LFM chain probes serially in FP16/BF16. Require manual linear gradients to match unscaled preclip native gradients, finite applied updates, score/AdamW oracles and external hash receipts. Restore the previous fork commit to discard the candidate; raw failures remain external. Date/Author:2026-10-01/Codex.
@@ -382,6 +394,12 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 fresh-group continuity milestone: native LFM FP16 collection,
+Posttrain SAMPO credit and the resumed native update agree with independent
+references. Optimizer/scaler continuity holds on changed data, beyond replaying
+the same fixture. Broader model mathematics, backend trajectory agreement and
+production fresh-learning behavior remain incomplete.
 
 2026-10-01 LFM collected-population milestone: six fresh native episodes expose
 reasoning-budget and tool-grammar failures, while all retained token/projection
@@ -770,3 +788,8 @@ likelihood ratios, and the remaining native checkpoint/scaler continuity gate.
 Revision 29: bind/persist the native scaler in checkpoint extra state, retain
 legacy compatibility boundaries, and prove same-engine/fresh-process replay
 against the actual uninterrupted next update with a failing omission control.
+Revision 30: collect a fresh native LFM group from the checkpointed adapter and
+verify its resumed four-microbatch update, independent credit/linear/Adam math,
+overlapping success/truncation and the initial fresh-policy ratio of1. Repeat
+the training seeds after updating and record bounded task recovery alongside
+the increased sampled work and held-out/production limitations.

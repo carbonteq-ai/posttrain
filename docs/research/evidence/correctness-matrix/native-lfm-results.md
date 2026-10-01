@@ -489,3 +489,64 @@ and their logs. `lfm-native-checkpoint-final/` contains the native checkpoint;
 `native_verl_checkpoint_replay_run.py`. Initial runs and their exact runner
 snapshot are retained separately. Final receipts hash the executed engine,
 checkpoint manager, fixture and runner sources.
+
+## Fresh task group after native checkpoint restore
+
+The next experiment connects collection to an actual resumed optimizer update.
+Load the verified step-one adapter into the native HF/Verifiers collection path
+and collect four episodes with the same seed schedule and512-token turn budget.
+Observed rewards are `[1,0,0,1]`: two successes, three truncated episodes.
+The last successful episode executes the correct tool, then truncates its
+following assistant response. Success and truncation are separate measurements.
+Sampled lengths are741/512/512/1010; full response lengths including excluded
+tool/template positions are872/512/512/1141. Native IDs, log probabilities,
+final branches and direct Posttrain projections match exactly. Independent
+episode, anchor-return and token-span equations reproduce the SAMPO credit,
+including zero credit on excluded positions. No reward is relabeled.
+
+A fresh native veRL process restores the actual step-one checkpoint, checks
+exact adapter equality with the collection producer, and updates on this new
+four-row group with microbatch1. Optimizer steps advance1→2; the restored
+scale512/tracker1 advances to1024/tracker0 under growth interval2. All four
+loss/score checks pass: maximum loss error1.09e-8 and score-gradient error
+3.54e-11, with zero context and excluded-response score gradients. All24 LoRA
+matrix gradients match manual native-arithmetic chain-rule calculations across
+four microbatches;192 independent scalar-dot checks pass. The largest AdamW
+parameter error is2.12e-9; the finite update is applied rather than skipped.
+Peak Torch allocation is2.54GiB. Sampler correction ranges0.962711–1.040920.
+
+Old-policy scores are recomputed by the native training engine before the
+update; HF collection scores enter the separate sampler-correction weights.
+Each optimizer policy ratio is1 at the first forward on this population,
+so active clipping is zero for this update. Preserving previous Adam moments
+does not change that initial current/old ratio. This supplies a concrete
+fresh-data explanation for zero clipping without asserting that reuse,
+minibatch updates or sampler correction must also have zero clipping.
+
+This closes bounded single-rank LFM FP16 fresh-group update continuity. The
+experiment still orchestrates collection and updating separately; it does not
+qualify production worker admission/refill, rollout synchronization or vLLM.
+The24 linear parameter checks do not prove every nonlinear model Jacobian.
+External receipts are `lfm-step1-new-group.json`, its audit,
+`lfm-step1-fresh-fixture.json`, and `lfm-fresh-group-update.json`; runners are
+`build_native_fresh_fixture.py` and `native_verl_fresh_group_run.py`.
+
+Fresh post-update collection repeats the four training-group seeds:
+
+| Measurement | Restored step-one adapter | After fresh-group update |
+| --- | ---: | ---: |
+| Task successes | 2/4 | 3/4 |
+| Truncated episodes | 3/4 | 2/4 |
+| Sampled tokens | 2775 | 2908 |
+| Executed tools / posted messages | 2 / 2 | 3 / 3 |
+
+The previously failed seed6200 succeeds with645 sampled tokens. The other
+three episodes retain the same generated token IDs, including the successful
+but truncated final episode. All four post-update native token, mask,
+projection and independent episode/turn/token-credit checks pass. The143-token
+increase buys an additional completed tool task; it is not a throughput result.
+These seeds also produced the training population, so this is recovery on a
+matched training sample rather than held-out generalization. Earlier harmful
+fixed-population updates remain part of the evidence; this result does not
+establish a generally superior recipe or remove the broader correctness gates.
+Post-update receipts are `lfm-fresh-group-postupdate.json` and its audit/logs.
