@@ -1941,3 +1941,48 @@ External artifacts:qwen-native-active-equal-reward-sampo-{bfloat16,float16}.json
 and sampo-equal-reward-signal-summary.json. Preserve external harness failures
 (list concatenation and missing isolated-source math namespace) and corrected
 source separately. No tools/raw receipts are committed.
+
+## Observed groups: frequency evidence and fresh signal collection
+
+Project32 complete historical two-response groups using the production Posttrain
+Verifiers bridge and default SAMPO builder. Grouping requires explicit collection
+task metadata and one native trace per episode; exact projected-group hashes
+deduplicate tokens, masks, rewards and turn/anchor metadata with model/precision
+identity. All32 project successfully; no exact duplicates. This is a heterogeneous
+convenience corpus across adapters, seeds and budgets, not a live-run population.
+
+| Corpus slice | Mixed rewards, retained by spread | Equal rewards, zero credit | Equal rewards, nonzero credit |
+| --- | --- | --- | --- |
+| LFM FP16 | 5 | 12 | 0 |
+| LFM BF16 | 5 | 7 | 0 |
+| Qwen BF16 | 0 | 2 | 1 |
+
+The single equal-reward signal group is the Qwen weekly-report control from
+qwen-headroom-screen-bfloat16.json: rewards[.5,.5], three/two sampled turns,
+458 tokens with nonzero hierarchical credit. The other21 equal-reward groups
+have zero credit. Thus the scalar filter can discard signal, but this corpus
+does not support treating every equal-reward rejection as wasted learning.
+It also does not estimate how often the issue affects the active training run.
+
+Launch a fresh matched collection with base LFM/Qwen in BF16/FP16, seed82400,
+two tasks and two repetitions each, six turns and2048 tokens per turn. GPU jobs
+are serial. First LFM BF16 arm exits0; actual trace projection yields:
+
+| Task | Native rewards | Truncation | Nonzero-credit tokens | Unmasked spread retains? | Masked spread retains? |
+| --- | --- | --- | --- | --- | --- |
+| Contact phone update | [0,0] | Both | 0 | No | No |
+| Weekly report | [0,1] | First only | 5155 | Yes | No |
+
+Weekly-report mean absolute sampled credit is.8648884578. The masked retention
+label excludes truncated rewards before checking spread, leaving a singleton;
+it does not recompute SAMPO credit, whose current builder still centers the
+complete group before masking. These are projected retention labels, not an
+actual host refill or optimizer run. Native episode.ok records execution
+completion and is not used as a success reward.
+
+Three fresh model/precision arms remain pending/live under exec session91278.
+Poll that runner rather than starting duplicate GPU jobs. Matrix and retention
+policy quality comparison remain incomplete. External summaries:
+collected-sampo-signal-prior.json and collected-sampo-signal-first-fresh-arm.json;
+first fresh source:lfm-fresh-sampo-signal-bfloat16.json. Only documentation is
+committed; experiment code/raw receipts stay outside Git.

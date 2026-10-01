@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Project32 eligible complete historical AutomationBench groups through the actual Posttrain Verifiers bridge and default SAMPO builder. Zero projection errors/exact duplicates;22 equal-reward groups, only one with nonzero credit(Qwen rewards.5/.5, three/two turns,458 credited tokens). The other21 are zero-credit. This heterogeneous convenience corpus is not a current-run prevalence estimate.
+- [ ] Fresh signal matrix is running serially under exec session91278: LFM/Qwen BF16/FP16, base policies, seed82400, two tasks/two repetitions, six-turn/2048-token-per-turn budget. First LFM BF16 arm exits0 and projects both groups: contact-update[0,0], both truncated, zero credit; weekly-report[0,1], one truncated,5155 credited tokens and mean absolute credit.864888. Unmasked spread retains the latter; masked spread rejects its singleton scorable reward. Remaining three arms and matched retention-policy update/outcome comparison are pending. Poll the same live runner; do not restart from elapsed observation time.
 - [x] (2026-10-01) Verify native Qwen BF16/FP16 active sampling rejects an unmasked recorded equal-reward[1,1] group despite104 nonzero sampled-token SAMPO credits. Two rounds per arm, no loss/optimizer/state changes, peak2.998GB. Independently compare24 rational discounted-return/centering cases with production Posttrain credit construction and48 exact veRL source-function metadata cases. Equal episode rewards can produce nonzero hierarchical credit with different remaining turn counts or explicit step rewards; the native scalar-spread predicate rejects these. This is a measured sampling-policy limitation, not yet a demonstrated implementation defect or current-run cause.
 - [x] (2026-10-01) Execute native active-sampling rejection/recovery for DAPO and supplied-credit SAMPO in BF16/FP16. Four rejection arms exhaust two rounds with no loss calls, no optimizer events/state and unchanged parameters. Four recovery arms reject the first masked singleton, deliberately make the second candidate scorable, then apply one independently verified update each: eight loss/mask checks, maximum loss error2.50e-8, exact scaled accumulation, Adam2.67e-11, peak6.090GB. Cached tokens/repeated prompt metadata and controlled truncation override exclude fresh-generation/host task-uniqueness qualification.
 - [x] (2026-10-01) Execute actual native GRPO warm-Adam/zero-signal controls in BF16/FP16: one informative retained group then two singleton masked groups, beta0, one iteration per supplied population. Six optimizer events/twelve loss-mask checks pass. Later current loss/gradients are exactly0 but parameter changes6.70057e-5/5.17956e-5 follow Adam history; independent update error2.43e-11, peak6.093GB. Recorded truncation flags are deliberately overridden for the first control group; no actual live-run/fresh generation claim.
@@ -236,6 +238,13 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- The projected historical corpus tempers the sampling limitation: only one of
+  22 equal-reward groups contains hierarchical signal under the tested defaults;
+  21 have none. Corpus composition is29 LFM groups and3 Qwen BF16 groups across
+  different adapters/seeds/budgets, so an aggregate percentage would misrepresent
+  live-run prevalence. First fresh BF16 results distinguish discarded zero-credit
+  failures from a retained mixed-reward group and expose masking sensitivity.
 
 - Equal episode rewards do not imply zero SAMPO token credit. At gamma.95,
   two successful sparse trajectories with two versus three turns and shared
@@ -546,6 +555,12 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- (2026-10-01) Count only complete two-response groups with explicit collection
+  task metadata and one native trace per episode. Deduplicate projected token,
+  mask, reward, turn/anchor bytes with model/precision identity; record failures
+  and ungrouped exclusions instead of inferring membership. Fresh groups use
+  unchanged observed rewards and base models, not a fabricated reward contrast.
+
 - (2026-10-01) Keep total-reward-spread active sampling as the observed selected
   recipe and record its hierarchical-signal exclusion explicitly. Do not silently
   replace retention with token-credit magnitude: that changes the training
@@ -725,6 +740,13 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+Revision82 adds direct trace-projection evidence and launches a fresh two-family,
+two-precision matrix. The32 historical groups provide a counterexample to
+assuming all equal totals hide useful signal. The first new LFM BF16 arm passes
+projection; three model/precision arms remain live/pending under runner91278.
+No claim of completed fresh matrix, optimizer qualification or better retention
+recipe is made. Keep the goal active and tooling/raw receipts external.
 
 Revision81 verifies a real separation between sampler admission and the SAMPO
 objective: both primary-precision Qwen native controls reject equal totals with
@@ -1421,3 +1443,6 @@ verify scaled gradients/Adam and retain fresh host task-uniqueness gates.
 Revision 81: verify actual native equal-reward Qwen rejection despite hierarchical
 credit, compare independent rational math with both credit implementations,
 and distinguish selected retention policy from objective correctness.
+Revision 82: audit32 historical native groups through real projection/credit,
+record the first fresh LFM BF16 arm and keep the serial four-arm collection live
+for matched retention-policy and outcome investigation.
