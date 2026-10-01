@@ -1234,3 +1234,63 @@ iterative admission/refill run remain required.
 External receipts: lfm-outcome-fresh-{base,grpo,gspo,dapo,sampo}-float16.json,
 outcome-policy-fresh-fp16-summary.json and fresh-tool-grammar-audit.json.
 Runners, raw traces and checkpoints remain outside Git.
+
+## Matched fresh BF16 task behavior
+
+The corresponding fresh BF16 matrix completes all ten native episodes and
+passes the same adapter, fixture-score, token/logprob/mask/projection and
+independent world-reward audits. SAMPO/base initial parameters and fixture
+scores match bitwise; peak tensor allocation is3,460,183,040 bytes.
+
+| Adapter | BF16 rewards, seeds71400 / 72400 | Full successes | Truncated episodes |
+| --- | --- | ---: | ---: |
+| Base, step0 | 1 / 0.5 | 1/2 | 0/2 |
+| GRPO, step3 | 1 / 0 | 1/2 | 1/2 |
+| Native GSPO, step3 | 0 / 0.5 | 0/2 | 1/2 |
+| DAPO, step3 | 0 / 0.5 | 0/2 | 0/2 |
+| SAMPO, step3 | 1 / 1 | 2/2 | 0/2 |
+
+Native parser replay identifies an unclosed GSPO block in seed71400 and a
+complete malformed DAPO block in that same seed. DAPO again uses the invalid
+`spreadsheet: 'ss_reports'` function-argument syntax seen in FP16, despite other
+output differences. SAMPO executes both calls and satisfies both assertions in
+both BF16 seeds; both FP16 SAMPO episodes instead truncated without a tool
+response. GRPO's two FP16 successes also fail to repeat in BF16. These are
+precision-sensitive sampled behavior differences on a tiny single-task set,
+not isolated causes, a production recipe ranking or proof of improved learning.
+The same UUID4 post-action context limitation applies.
+
+External receipts: lfm-outcome-fresh-{base,grpo,gspo,dapo,sampo}-bfloat16.json,
+outcome-policy-fresh-bf16-summary.json and fresh-tool-grammar-audit-bf16.json.
+
+## Temperature and score precision: a remaining backend difference
+
+Inspect the candidate veRL FSDP non-fused scoring path and replay the exact
+logprobs_from_logits_v2 function body on24 small CPU cases. Inputs are identical
+represented BF16/FP16 logits; an independent Python scalar softmax supplies
+expected values and derivatives. This separates score-path rounding from model
+forward rounding. TRL's current ordinary and chunked GRPO paths promote half
+logits before temperature scaling; veRL scales in the original dtype and its
+fallback returns half log-probabilities.
+
+For represented logits[-12,-4,0,2], selecting the first token at temperature0.8,
+veRL's BF16 score differs by-0.0455992 from the scalar oracle. Its ratio to the
+oracle probability is0.955425. For the same case FP16 error is+0.00127576.
+Across24 cases, maximum score error is0.0455992 BF16 and0.00370286 FP16;
+promotion before scaling reduces the maximum to3.78e-7. Maximum gradient error
+is0.00614961 BF16 and0.000453979 FP16. Promoting the score calculation cannot
+remove rounding when derivatives are stored back into half model coordinates.
+
+This is a demonstrated numerical difference on controlled logits, not measured
+fresh model-token drift or evidence of its contribution to poor task rewards.
+The tail-token example has low probability. Both native old/current scorers
+can also share the same bias, and sampler correction may account for some
+rollout-versus-training differences. Do not equate the illustrative probability
+ratio with the actual PPO old/current ratio. Full-model score/gradient controls,
+fused-kernel coverage and a deliberate cross-backend correction remain open.
+The completed BF16 behavioral run used the unchanged scoring implementation
+and checked adapter handoff against the original receipts.
+
+External receipt: temperature-score-precision-audit.json; source hash identifies
+the extracted native fallback body. This test uses a scalar reference rather
+than an FP64 training runtime.
