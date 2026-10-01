@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Run12 further native LFM scoring/head/alignment diagnostic updates. Matched BF16 scoring closes GRPO/DAPO parameter differences to1.86e-9. FP16 actual veRL row-wise helper plus full head gives bitwise-identical first gradients; CPU/CUDA AdamW differ only2.91e-11 but17 coordinates cast differently to FP16, zero to BF16. Optimizer-only replay reproduces each backend bitwise. Enforcing common native weights before second forward restores bitwise-identical FP16 gradients and1.86e-9 update difference while retaining own moments. These controls isolate numerical path and rounding-boundary causes, not a new formula bug or task-quality gain; wider model/algorithm/default recipe gates remain open.
+
 - [x] (2026-10-01) Execute actual TRL scoring/loss, HF backward and AdamW for collected LFM GRPO/DAPO in BF16/FP16: eight applied updates,16 independent loss/score/mask checks, maximum errors2.28e-8/8.78e-11/2.13e-9. Native backend score arithmetic differs. FP16 matched-arithmetic controls reduce initial score difference below4.77e-7 but first preclip gradients still differ0.125–0.128% L2;18–22 small sign flips produce3.36–3.73% update L2 differences. Independent first-step Adam sensitivity predicts all parameter differences within3.76e-11. Full-head projection does not resolve residual backward differences. Native capture rerun matches all adapter snapshots exactly. All tools/raw receipts remain external; broader families, BF16/DAPO isolation and full lifecycle/quality remain open.
 
 - [x] (2026-10-01) Extend native collected-LFM updates to GRPO/DAPO in BF16/FP16: all8 final updates apply;16 independent loss/score/mask checks,192 LoRA matrix gradients and768 scalar dots pass. Maximum loss/score/Adam errors2.23e-8/6.85e-11/2.13e-9. First updates do not clip; second reused-population token clipping12.146–19.531%. Global token versus row normalization is checked on unequal741/512 sampled lengths. Actual TRL loss replay on exported scores agrees within2.99e-8 across16 cases. Initial adapters match exactly; native TRL model/optimizer trajectories, live advantage production and full worker/default-recipe qualification remain open.
@@ -129,6 +131,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- (2026-10-01) Matching forward scores is insufficient for FP16 backward parity: actual veRL row-wise log-softmax plus full-head projection is required in this control to match first gradients bitwise. Even then, CPU/CUDA optimizer FP32 differences as small as7.28e-12 straddle FP16 rounding boundaries. Seventeen cast differences change the next forward and clipped gradient population. Native-weight alignment removes this discrepancy; BF16 has no such cast differences for this measured first step.
 
 - (2026-10-01) Closely matching initial token scores does not guarantee identical half-precision gradients. In FP16 GRPO,18–22 sign flips among159,744 LoRA coordinates occur despite0.125–0.128% gradient L2 discrepancy. With eps1e-8, first-step Adam nearly normalizes gradients larger than epsilon to their sign, explaining near2*LR maximum coordinate differences. Completion-only versus full-head projection changes few flips but barely reduces the discrepancy; preserve this failed isolation hypothesis.
 
@@ -358,6 +362,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Decision: distinguish matched-state gradient correctness from unconstrained backend trajectory reproducibility. Preserve actual helper/head and CPU/CUDA Adam controls plus a deliberately weight-aligned causal test; do not call tiny optimizer-device rounding a formula error or adopt weight snapping in product code. Keep precision-policy/default-recipe changes pending broader evidence. No baseline or dependency-pin change. Date/Author:2026-10-01/Codex.
+
 - Decision: retain backend score-temperature differences and native trajectory discrepancies as measured qualification gaps. Use external matched-arithmetic/full-head controls and independent first-step Adam equations to locate causes; do not alter product precision policy merely to force parity. Both native optimizers pass their own mathematical references. No frozen baseline or dependency-pin change. Date/Author:2026-10-01/Codex.
 
 - Decision: extend the published native veRL engine probe to Posttrain's token-clipped GRPO/DAPO actor mappings, using explicit group-mean/std-disabled episode credits and unchanged native task masks. Audit each normalization with global counts and replay actual TRL loss methods on exported scores; do not call that a native TRL model/optimizer or live admission qualification. Preserve exact initial adapter equality, exploratory receipts and external-only tools. Date/Author:2026-10-01/Codex.
@@ -464,6 +470,13 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+Matched-state native FP16 GRPO gradients can now agree bitwise across two
+updates when the scorer/head and forward weights match. The previous second
+update discrepancy is reproduced by CPU/CUDA optimizer rounding crossing17
+FP16 boundaries, and removed by common-weight alignment. BF16 GRPO/DAPO matched
+scoring trajectories differ by only1.86e-9. This closes these particular causal
+questions; it does not prove broader numerical stability or task-learning quality.
 
 Native TRL model/optimizer coverage now includes collected LFM GRPO/DAPO in
 BF16/FP16, beyond the earlier score-only replay. Eight applied updates pass
@@ -930,3 +943,6 @@ replay actual TRL losses on native scores while preserving model/optimizer gates
 Revision 37: execute actual TRL model/optimizer arms, isolate half-temperature
 scoring, capture preclip native gradients and test full-head projection; explain
 first-update Adam sign sensitivity without treating bounded checks as full parity.
+Revision 38: isolate actual row-wise scoring and full-head projection, reproduce
+CPU/CUDA Adam rounding independently, and test half-boundary causation with
+matched next-step weights; preserve unconstrained trajectory and quality gates.

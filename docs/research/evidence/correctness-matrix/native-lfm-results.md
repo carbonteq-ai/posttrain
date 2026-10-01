@@ -957,3 +957,64 @@ External receipts include `lfm-trl-native-grpo-fp16.json`,
 `lfm-native-gradient-controls-summary.json`, plus gradient/adapter exports and
 exact runner snapshots. BF16/DAPO matched-arithmetic gradient isolation, other model families,
 full lifecycle agreement and held-out task effects remain separate gates.
+
+## Isolating score helpers and optimizer-device rounding
+
+Twelve additional applied diagnostic updates narrow the previous discrepancy.
+Every independent loss/score/mask/Adam check passes: maximum errors are
+2.11e-8/6.79e-11/2.14e-9. These controls preserve the actual TRL objective,
+HF model backward and optimizer while varying only the named scoring/head or
+weight-alignment path. They do not change production code or qualify learning.
+
+| Control | Initial scores versus veRL | Parameter max difference, update1 /update2 |
+| --- | ---: | ---: |
+| GRPO BF16, matched half-temperature and batched log-softmax | Exact | 2.91e-11 /1.86e-9 |
+| DAPO BF16, actual veRL row-wise score helper, completion head | Exact | 2.91e-11 /1.86e-9 |
+| GRPO FP16, actual veRL helper, completion head | Exact | 1.98130e-4 /3.45512e-4 |
+| DAPO FP16, actual veRL helper, completion head | Exact | 1.86964e-4 /3.27553e-4 |
+| GRPO FP16, actual veRL helper, full head | Exact | 2.91e-11 /1.72120e-4 |
+| Same full-head control, native weights enforced before next forward | Exact | 2.91e-11 /1.86e-9 |
+
+The actual veRL `logprobs_from_logits_v2` helper executes row-wise log-softmax
+for half logits; the earlier matched-arithmetic substitute used batched FP32
+log-softmax. In FP16, combining its exact helper with full-sequence projection
+makes the entire first preclip gradient snapshot bitwise identical to native
+veRL. Neither change alone achieved this. BF16 trajectories agree within
+1.86e-9 after matching scoring, including DAPO's unequal-length token aggregation.
+This isolates scoring/projection numerical paths; it does not prove one path
+is mathematically preferable or establish all-coordinate precision accuracy.
+
+The remaining FP16 second-update discrepancy has a different cause. First-step
+gradients are exact, but native CPU-offloaded AdamW and CUDA AdamW produce tiny
+FP32 weight differences. A separate optimizer-only replay starts from identical
+captured FP32 weights and gradients, uses actual CPU/CUDA AdamW with identical
+hyperparameters, and reproduces each result bitwise: CPU matches veRL, CUDA
+matches the full-head TRL control. Maximum FP32 difference is2.91e-11. However,
+17 coordinates cast differently to FP16; none cast differently to BF16.
+
+One measured layer2 q-projection B coordinate `[68,3]` illustrates the boundary:
+CPU/CUDA values are0.00009998678433476016 and0.00009998679161071777. Casting
+them to FP16 gives0.00009995698928833008 and0.00010001659393310547. Thus a
+7.28e-12 FP32 difference becomes one FP16 spacing,5.96e-8, on the next forward.
+It is the same starting weight and gradient, not a different task or loss.
+
+The final diagnostic deliberately copies native exported weights into the TRL
+model before the second forward, while retaining its own Adam moments. Both
+updates' preclip gradients now match veRL bitwise; second-update parameter
+error falls from1.72e-4 to1.86e-9. This control breaks the unconstrained
+trajectory by design and tests causation, rather than claiming natural backend
+identity. It confirms that optimizer-device rounding at half-cast boundaries
+can alter the subsequent forward, active clipping and gradients even after an
+identical first backward. Both native optimizers still satisfy independent Adam
+equations; this is not evidence of an incorrect optimizer formula.
+
+For qualification, compare identical logical objectives at matched starting
+states, then measure unconstrained trajectory divergence separately. Exact
+long-horizon parameter equality across CPU-offloaded and GPU optimizers is not
+supported by these controls. A stable precision policy and task-quality
+consequences still need broader model/algorithm and fresh-rollout evidence.
+
+External evidence adds `lfm-backend-precision-isolation-summary.json`,
+`lfm-adam-device-rounding-summary.json`, six native TRL diagnostic receipts,
+gradient/adapter exports and exact runner snapshots. No experimental runner,
+raw tensor or receipt enters the repository; production pins remain unchanged.
