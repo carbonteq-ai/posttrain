@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Isolate the output head in two full LFM BF16/FP16 arms: exact half-weight values promoted into a separate frozen FP32 head, native embedding/base preserved,24 more shared-coordinate finite differences. Finite analytical gradients shift0.368–0.445% FP16/0.624–2.12% BF16, but FD agreement improves only at some coordinates and remains unstable overall. BF16 upper crossings7→3/12; FP16 stays2/12. Exact baseline repeats and3.25/3.31GiB peaks hold. Reject head-only promotion as a demonstrated remedy; upstream precision, larger coordinate coverage and broader native backend algorithms remain open.
+
 - [x] (2026-10-01) Execute full pretrained LFM backward on the real1018-token prompt plus8 sampled tokens, with FP32 LoRA masters and gradient checkpointing. Check four shared q-projection A/B coordinates with three finite-difference sizes in FP32/BF16/FP16. Best FP32 errors per coordinate are0.0284–0.0647%, all12 range0.0284–1.092%; diagnostic peak5.05GiB fits8GB. Half analytical gradients differ from FP32 by1.90–3.33% FP16/0.514–6.18% BF16, but native half finite differences do not give stable slopes. Unperturbed no-grad/grad repeats are exact. Preserve half rounding/boundary crossings and failed initial probes; full-coordinate Jacobians, LM-head isolation and broader native algorithms remain open.
 
 - [x] (2026-10-01) Run the actual1,890-token LFM task branch through native BF16 with identical FP32 LoRA weights, then validate six layers/18 full-key-support arms against independent reverse equations. Native BF16 gradient relative error max1.60%; reference finite differences within2.14e-12. Paired native FP16 capture repeats bitwise. With common FP32 temperature arithmetic,128 selected-token log probabilities differ by mean absolute0.0122932/max0.142080; this is not KL or quality evidence. Native BF16 forward is now measured on this branch; complete nonlinear model backward and optimizer/backend trajectory agreement remain open.
@@ -123,6 +125,12 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+Promoting only the output head improves one late-layer FP16 coordinate's best
+FD error56.4%→6.35% but worsens early-layer errors. The model backward changes
+less than0.45% at those FP16 coordinates. A single output-precision ablation
+cannot explain the full native finite-difference staircase or justify a
+production recipe change.
 
 A fixed tiny parameter perturbation is not a reliable full-model derivative
 oracle: weak LoRA A coupling and forward rounding can overwhelm its loss
@@ -338,6 +346,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Decision: test head-only FP32 arithmetic using a separate frozen head copied from native half weights; preserve the tied token embedding's dtype and all LoRA weights. Record adverse coordinate results and clipping crossings rather than presenting isolated improvement as qualification. Do not change production head precision from this experiment. Date/Author:2026-10-01/Codex.
+
 - Decision: check full-model LoRA coordinates using a common real prompt and fixed-old interior SAMPO surrogate; retain three perturbation sizes and shared coordinates, calibrate by functional loss change, record repeatability and directional clipping crossings, and do not treat failed tiny half finite differences as proof of a backward defect. Keep FP32 diagnostic and all experiment sources/receipts external. Date/Author:2026-10-01/Codex.
 
 - Decision: close the native BF16 forward gap with a paired actual task branch and exact FP32 adapter handoff; isolate temperature arithmetic with common FP32 division and retain selected-token score differences separately from KL, generation quality and full-model backward claims. Preserve original receipts by saving parameterized runner snapshots under new names. Date/Author:2026-10-01/Codex.
@@ -438,6 +448,11 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 head-isolation milestone:24 additional full-model finite differences
+bound the output head's contribution. Selected FP16 slopes improve, but the
+control does not rescue overall agreement; broader upstream rounding and
+backend trajectory checks remain necessary. Experimental tools remain external.
 
 2026-10-01 full-backward milestone: selected full-model FP32 derivatives agree
 with independent outer-objective finite differences, extending beyond local
@@ -875,3 +890,6 @@ differences under common temperature arithmetic without interpreting them as KL.
 Revision 34: compare four full-model LoRA derivative coordinates over three
 perturbation sizes and three precisions; preserve native half rounding/crossing
 failures, functional calibration and exact baseline-repeat evidence.
+Revision 35: isolate FP32 head arithmetic while preserving the native embedding
+and weight values; retain improved/adverse coordinate slopes and reject the
+head-only control as a demonstrated general remedy.

@@ -782,3 +782,46 @@ clipping or a diagnosis of the larger real run.
 External receipts: `lfm-full-model-lora-fd-{float32,float16,bfloat16}.json` and
 logs, the initial FP32 grid, the initial FP16 interval-gate failure and exact
 runner snapshots. No source/runtime recipe was changed by this slice.
+
+## FP32 output-head isolation control
+
+Two additional full-model arms repeat the same four coordinates and12
+perturbation pairs per precision with only the output head promoted to FP32.
+The original tied embedding stays in native BF16/FP16. A separate frozen
+head receives an exact FP32 copy of the existing half weight values and casts
+its input to FP32. This isolates head arithmetic without recovering the
+original higher-precision pretrained weights or changing LoRA parameters.
+Gradient checkpointing, eight selected tokens, old-policy definition and
+perturbation sizes remain as in the preceding experiment.
+
+All gradients/slopes are finite, and unperturbed no-grad/grad repeats still
+match exactly. Peak Torch allocation increases by0.50GiB to3.25GiB FP16 and
+3.31GiB BF16. Analytical gradients at the four shared coordinates shift only
+0.368–0.445% in FP16 and0.624–2.12% in BF16 relative to their native-head arms.
+Finite-difference agreement does not improve consistently:
+
+| Coordinate | Best FP16 relative FD error, native head | Best FP16 relative FD error, FP32 head |
+| --- | ---: | ---: |
+| Layer2 A `[2,101]` | 99.0% | 201% |
+| Layer2 B `[1845,1]` | 34.2% | 142% |
+| Layer14 A `[1,1293]` | 56.4% | 6.35% |
+| Layer14 B `[1405,0]` | 46.8% | 20.6% |
+
+These explicitly report the best of three sizes; they do not establish stable
+convergence. BF16 remains unstable across all four coordinates. Positive-credit
+upper-bound crossings fall from7/12 to3/12 in BF16, but stay2/12 in FP16.
+Finite differences across those crossings still concern the unclipped smooth
+extension and cannot validate the clipped objective there.
+
+The head contributes to selected discrepancies, but it is not a sufficient
+explanation. Upstream rounding remains in every control, and the continuous
+backward derivative must still be distinguished from finite differences of
+the rounded forward program. This slice rejects promoting only the head as a
+demonstrated remedy; it makes no production change or task-quality claim.
+Next gates include larger coordinate/direction coverage, upstream precision
+isolation and matching native backend updates across more algorithms.
+
+External receipts are `lfm-full-model-lora-fd-float16-fp32-head.json` and
+`lfm-full-model-lora-fd-bfloat16-fp32-head.json`, with logs and a separate
+`lfm_full_model_lora_fd_head_control.py` runner snapshot. Native-head receipts
+and their exact runner remain unchanged.
