@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Execute private real Ray/SimpleStorage TransferQueue and native bridge: BF16/FP16/FP32 CPU scores, masks and opposing credit retain exact row values/dtypes/order/tags. Execute Qwen BF16 actual native worker/model/optimizer through the queue for three applied updates; six loss,72 matrix and288 scalar checks pass. Steps0–3 parameters/scores and all three preclip gradients match local-worker controls bitwise; peak3.991GB, loss2.20e-10, score derivative8.63e-12, Adam4.02e-9. Fifteen successful inference calls plus one intentional reference-loss exception restore actor/base exactly. Preserve socket-path, API/equality and padded-layout harness failures. The queue reconstructs dense row columns as nested tensors; correct unpadded response fields and remove padded max_response_len hints before transport. No product fix inferred from the invalid harness layout. Full controller/Ray worker dispatch, FP16/LFM model transport, admission/refill and fresh learning remain open; tools/raw receipts stay external.
+
 - [x] (2026-10-01) Execute actual local TrainingWorker constructor/reset/infer/train/bound-loss methods with real Torch/NCCL/FSDP2/model/optimizer on Qwen/LFM×BF16/FP16. Twelve applied updates pass24 losses,288 matrices,1,152 dots; every step0–3 parameter/score and three preclip gradients match direct-engine controls bitwise. Independent worker aggregate loss max1.04e-7, Adam4.04e-9, peakQwen3.992GB/LFM2.440GB. Sixty successful native inference calls plus four intentional reference-loss exceptions verify CPU return, defaults/flag consumption and exact base/actor restoration; training deliberately ignores inference-only flags and reproduces bound-loss updates. Preserve initial failed zero-inference-loss expectation/source/log; native sentinel1 per microbatch sums2, retry checks2. Both classic/v1 TQ scoring controllers discard placeholder loss by source inspection, not live queue proof. No product math bug in this bounded path. Cached Qwen fixture bypasses equal-reward admission deliberately; no fresh/refill/quality claim. Runtime/queue/distributed/TRL-equivalence/algorithm/family gates remain open; tools/raw evidence external.
 
 - [x] (2026-10-01) Isolate bias-correction counter and update magnitude with both Adam moments retained. Counter-only reset keeps moments bitwise, yields L2update0.038342/cosine0.999994 with retained; reduced-LR4.9154e-5 control yields0.010938270, matching first-moment-clear norm within2.44e-7 relative while retaining direction(cosine0.99999999985). Both first fresh gradients/losses and step0–3 policies are exact controls. Eight applied updates(six replays/two fresh) pass16 losses,192 matrices,768 dots and independent temporal Adam(max2.17e-9), peak3.006GB. Four fresh episodes: both new arms[0,0], both seeds truncate2048;14 independent episode world checks across seven arms pass. Thus global norm/counter alone does not recover the first-moment-clear/full-reset outcomes. No product change. Inspect actual TrainingWorker construction/reference/train source for the next integration slice; live execution remains unproven. Broader algorithms/precision/family/worker/refill/runtime gates remain open; tools/raw evidence external.
@@ -181,6 +183,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Real SimpleStorage materializes per-row tensor columns as nested tensors even when the supplied column was dense. A local padded fixture cannot be passed unchanged into the nested controller contract: padding becomes apparent response length. The first Qwen transport training attempt rejected inconsistent sequence offsets before optimizer application. Trimming all response-aligned fields to actual lengths and dropping the local padded width hint restores exact local-worker agreement. This is a reproduced harness-layout issue, not evidence that the production controller sends invalid lengths.
 
 - Real local worker execution, including metric reduction and exceptional reference contexts, introduces no parameter/gradient differences versus direct-engine controls. Its forward-only loss is an engine sentinel, not a measured objective; expecting0 was an external harness mistake. Native controller scoring methods discard it. Training ignores inference-only adapter/loss flags even when explicitly supplied, now verified with actual updates rather than an instrumented engine. Local worker success cannot prove transport/refill or release readiness.
 
@@ -462,6 +466,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- (2026-10-01) Treat local TensorDict and controller TransferQueue layouts as distinct representations of the same logical batch. Validate row values and lengths plus independent updates, preserve failed attempts, and do not classify harness contract violations as product defects. Qualify transport separately from worker Ray dispatch, controller admission and rollout synchronization.
+
 - Replace fake-engine/AST evidence for this path with the actual registered TrainingWorker and real model/optimizer while keeping controllers/queues outside the claim. Preserve the failed external inference-loss assumption and retry under new source/output names; no fork change because sentinel behavior is documented by implementation and excluded by controller selection. Own only plan/findings. Reproduce external run_actual_worker_matrix_retry1.py and analyze_actual_worker_matrix.py using recorded native runtime/PYTHONPATH; actual singleton worker uses RANK/WORLD_SIZE metadata with an existing file-rendezvous process group. Retry safely into new artifacts after hash/idle checks. Next live TransferQueue/controller lifecycle, other algorithm paths/native TRL equivalence and runtime/family gates; do not count cached equal-reward Qwen updates as normal admission or fresh learning.
 
 - Hold both moments fixed for counter-only and reduced-LR controls, record actual LR/counter at each update, and require matched parameter magnitude/direction measurements before interpreting behavior. Own plan/findings only; no baseline amendment, fork edit or pin update. Reproduce external run_fresh_counter_size_controls.py, run_fresh_counter_size_quality.py and analyze_fresh_counter_size_controls.py with recorded runtime/PYTHONPATH; retry into new artifacts after hash/idle checks. Do not adopt counter resets or infer a lower-LR remedy from failed controls. Next actual native TrainingWorker reference/train GPU execution, Qwen/BF16 companions and broader algorithm gates instead of treating this one-task suite as the full objective.
@@ -620,6 +626,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+The first live TransferQueue slice now covers a real private queue and actual Qwen BF16 worker/model/optimizer. Three updates and fifteen inference calls reproduce the previous local worker bitwise; reference exception restoration also passes. CPU transport additionally preserves FP16/BF16/FP32 row values and metadata ordering. This closes a bounded transport gap, while FP16/LFM GPU transport, controller orchestration, admitted fresh groups, vLLM synchronization and the broader algorithm/family campaign remain incomplete.
 
 - The local native-worker model/optimizer/reference gate now has actual four-arm GPU evidence and exact direct-engine agreement. No confirmed math defect appears here; the isolated harness expectation was repaired without changing production. Real transport/refill, held-out/fresh quality, distributed paths, compatible runtime adoption, broader algorithms and Gemma remain incomplete. Keep the full objective active; tools/raw receipts are never committed.
 
@@ -1238,3 +1246,6 @@ actual native worker execution and broader coverage beyond the single task.
 Revision 63: execute actual native worker/model/optimizer/reference methods
 across both models/precisions, verify exact direct-engine agreement and exception
 restoration, preserve the inference-sentinel correction and transport limits.
+Revision 64: execute real private queue/native bridge and Qwen BF16 model updates,
+verify bitwise local-worker agreement, preserve failed padded-layout expectations,
+and retain full controller/other precision/family/fresh-learning gates.

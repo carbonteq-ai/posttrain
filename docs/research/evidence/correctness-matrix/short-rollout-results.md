@@ -969,3 +969,43 @@ fd967075bdb2bb4cc7a49781720a1b330bf27e31edfb078f982e4d290783a8dc at
 published d8e472db822f2916ed81a408b8d28192be95e678. All runners, failed logs,
 raw receipts and checkpoints remain outside Git. Only findings and the living
 plan change in the repository.
+
+## Real TransferQueue transport and Qwen BF16 worker updates
+
+A private local Ray cluster with one SimpleStorage unit now exercises genuine
+TransferQueue serialization and the native veRL bridge, without attaching to
+production services. CPU controls preserve BF16, FP16 and FP32 scores, boolean
+masks and opposing credit row-for-row, including unequal lengths, episode key
+order and tags. The bridge materializes inference flags correctly, replaces
+returned metadata with worker output metadata, and leaves the input handle's
+metadata unchanged. This is transport evidence; the CPU control uses Torch
+2.13.0+cpu and Ray2.56.1, not a GPU precision qualification.
+
+Qwen BF16 then executes actual native TrainingWorker inference and training
+through that queue with Torch2.13.0+cu130 and the existing published veRL d8
+source. Three optimizer updates pass six independent loss/score checks,
+72 matrix-gradient checks and288 scalar dot checks. Every parameter and score
+at steps0–3, and all three preclip gradients, match the previous local-worker
+control bitwise. Maximum loss error is2.20e-10, score-derivative error8.63e-12,
+worker aggregate-loss error2.01e-10 and independent Adam error4.02e-9. Peak tensor
+allocation is3,991,360,000 bytes. Fifteen successful inference calls and an
+intentional reference-loss exception preserve exact actor/base restoration.
+
+Failed attempts are retained. The first CPU attempt exceeded the Unix socket
+path limit; subsequent CPU harness corrections handled nested return columns
+and the helper's required default argument. The first GPU attempt passed a
+local-worker padded fixture through a queue that reconstructs columns as nested
+rows. Its response widths then counted padding as sequence length, and the loss
+rejected inconsistent offsets before an optimizer step. Native controller code
+uses real nested lengths. The retry trims response-aligned fields to those
+lengths and removes the local padded max_response_len hint; it passes without
+changing product or fork code. This does not establish a production layout bug.
+
+Receipts live externally: live-tq-transport-probe-retry3.json,
+qwen-live-tq-worker-bfloat16-retry1.json and live-tq-worker-summary.json.
+This slice uses cached native task traces; Qwen's equal-reward group deliberately
+bypasses admission. It runs a local GPU worker whose decorated methods use the
+real queue, not a Ray-dispatched GPU actor or full training controller. FP16/LFM
+model transport, controller admission/refill, fresh rollout/weight synchronization,
+held-out behavior and broader algorithm/family coverage remain open. No new
+product math defect or production recipe recommendation follows from this slice.
