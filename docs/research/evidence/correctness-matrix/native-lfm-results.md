@@ -674,3 +674,46 @@ External receipts/runners: `lfm-gated-conv-block-oracle.json`,
 `lfm-actual-attention-full-support.json`. The initial unsupported BF16-to-NumPy
 mask conversion failed in the experiment runner; its source/log are retained,
 and explicit float conversion repairs the runner without modifying the model.
+
+## Native BF16 forward, paired with FP16
+
+The same1,890-token branch and exactly copied FP32 LoRA adapter now execute
+through a native BF16 HF model forward. This closes the recast-only limitation
+for this particular forward capture. All six layers are captured after native
+normalization/RoPE; the three-query/full1,890-key reference retains native
+BF16 values, actual masks and the full denominator. The18 full-support arms
+also include FP16/FP32 recasts of this BF16 capture as diagnostic controls.
+Reference finite differences agree within2.14e-12; all measured outputs and
+gradients are finite and masked native probabilities remain exactly zero.
+
+| Maximum relative L2 error, native BF16 capture | BF16 kernel | FP16 recast | FP32 diagnostic |
+| --- | ---: | ---: | ---: |
+| Output | 0.866% | 0.131% | 3.39e-7 |
+| Query derivative | 1.12% | 0.151% | 5.06e-7 |
+| Key derivative | 1.60% | 0.225% | 5.85e-7 |
+| Value derivative | 1.58% | 0.204% | 6.55e-7 |
+
+A paired native FP16 forward uses the same checkpoint, token IDs and adapter.
+Its captured Q/K/V and masks match the earlier FP16 capture bitwise, including
+all full-key tensors. Keeping129 final logits instead of only one does not
+alter those upstream tensors in this probe. Both full-model forwards retain
+128 selected next-token log probabilities, with logits promoted to FP32 before
+division by the same0.8 temperature. This controls the previously measured
+temperature-rounding discrepancy rather than conflating it with model precision.
+BF16 versus FP16 differences are mean absolute0.0122932, maximum absolute
+0.142080 and mean signed−0.0021965 (BF16 minus FP16). Both arms are finite.
+
+These are chosen-token conditional scores on one teacher-forced trace, not
+distribution KL or task-quality measurements. Different base-weight rounding
+and accumulated activation arithmetic both contribute; the probe does not
+attribute the result to one kernel. It does not prove native BF16 full-model
+backward, optimizer trajectory agreement or generation-quality equivalence.
+The kernel comparisons check gradients conditional on each captured input;
+they do not backpropagate through the complete model that produced it.
+
+External receipts: `lfm-actual-attention-native-bf16.json`/`.pt`,
+`lfm-actual-attention-native-bf16-full-support.json`,
+`lfm-actual-attention-native-fp16.json`/`.pt`, and
+`lfm-native-forward-precision-comparison.json`. Parameterized runner snapshots
+and the comparison script are retained outside Git; previous FP16 receipts
+and their original runner snapshots remain intact.

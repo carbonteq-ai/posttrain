@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Run the actual1,890-token LFM task branch through native BF16 with identical FP32 LoRA weights, then validate six layers/18 full-key-support arms against independent reverse equations. Native BF16 gradient relative error max1.60%; reference finite differences within2.14e-12. Paired native FP16 capture repeats bitwise. With common FP32 temperature arithmetic,128 selected-token log probabilities differ by mean absolute0.0122932/max0.142080; this is not KL or quality evidence. Native BF16 forward is now measured on this branch; complete nonlinear model backward and optimizer/backend trajectory agreement remain open.
+
 - [x] (2026-10-01) Independently audit full gated LFM short-conv forward and all parameter/input derivatives in60 bias/mask/precision cases. Seven finite differences agree within5.29e-11; native FP32 absolute error max5.37e-7; masked input gradients are exactly zero. Capture all six attention layers on an actual1,890-token FP16 task path, then check18 masked subsets and18 selected-query/full-key-support arms against scalar/NumPy reverse equations. Full-support reference finite differences agree within2.35e-12; maximum gradient relative differences are1.57% BF16 recast,0.214% FP16,7.29e-7 FP32 diagnostic. Native BF16 capture, full nonlinear model backward, packed/fused boundaries and task-learning consequences remain open.
 
 - [x] (2026-10-01) Independently check LFM eager attention and unfused causal convolution outputs and reverse derivatives:54 paired BF16/FP16/FP32-diagnostic cases plus three native-head-dimension normalized controls. Six scalar finite differences agree within5.69e-11. All masks/cache-state/prefix-causality checks pass; convolution cached/full outputs match exactly. Stress attention gradients expose precision/saturation sensitivity, with FP32 rounded-input controls isolating it; normalized32-query/8-KV-head,64-dimension errors max0.335% BF16/0.0416% FP16. Do not claim trained-model or fused-kernel qualification; actual activation ranges and nonlinear block Jacobians remain open.
@@ -119,6 +121,12 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+Even after controlling temperature division, native BF16/FP16 model forwards
+differ by up to0.142 in selected-token log probability on the paired task
+branch. This combines model-weight and activation rounding, not only the
+attention-kernel derivative discrepancy. A repeated FP16 capture is bitwise
+exact here; bounded precision differences must not be called execution drift.
 
 Bias-enabled short-conv padded positions need not output zero despite exact
 zero masked-input gradients; later biases still act. The current pretrained
@@ -320,6 +328,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Decision: close the native BF16 forward gap with a paired actual task branch and exact FP32 adapter handoff; isolate temperature arithmetic with common FP32 division and retain selected-token score differences separately from KL, generation quality and full-model backward claims. Preserve original receipts by saving parameterized runner snapshots under new names. Date/Author:2026-10-01/Codex.
+
 - Decision: check the whole gated-convolution reverse chain, then capture actual task-path Q/K/V and preserve every key for selected-query attention checks. Use independent NumPy reverse equations to keep full support affordable; distinguish BF16 recasts from a native BF16 forward and kernel gradients from full-model parameter gradients. Retain experiment failures and keep all runners/receipts external. Date/Author:2026-10-01/Codex.
 
 - Decision: use explicit scalar grouped-attention and causal-convolution equations for expected derivatives, validate the scalar reference with finite differences, retain paired rounded-input controls and report absolute as well as relative errors. Check native LFM head dimensions and normalization separately; do not modify production precision based on artificial saturated logits. Date/Author:2026-10-01/Codex.
@@ -416,6 +426,12 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 native precision milestone: actual BF16 and FP16 model forward
+captures now exist for the same task branch. Independent full-support attention
+gradients hold within measured rounding differences; FP16 repeatability holds.
+The last128-token score comparison quantifies precision sensitivity, while
+full-model backward, live learning behavior and backend update parity stay open.
 
 2026-10-01 actual-activation milestone:60 full gated-convolution cases and
 36 attention arms on captured task-path activations extend the numerical
@@ -835,3 +851,6 @@ dimensions without claiming actual trained activation or fused-kernel coverage.
 Revision 32: check the full gated-convolution reverse chain and padding/bias
 semantics; capture real FP16 task-path attention and compare selected queries
 with full causal key support, preserving native-BF16/full-backward limitations.
+Revision 33: capture a native BF16 forward, check its full-key-support attention
+derivatives, repeat FP16 exactly, and quantify paired chosen-token score
+differences under common temperature arithmetic without interpreting them as KL.
