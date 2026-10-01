@@ -695,3 +695,72 @@ External receipts: `lfm-fresh-iteration-float16.json`,
 inherited generic scope sentence; its transition record and companion summary
 define the expanded two-group scope. All runners, checkpoints and raw receipts
 remain under the external experiment directory and are excluded from Git.
+
+## Adam history control: matched gradients, different behavior
+
+Clearing AdamW history at the second-group boundary changes this small result
+substantially. Retaining history produces two failed/truncated episodes after
+either one or two fresh-group updates; clearing it produces two partial-success
+episodes without truncation after either update count. This isolates a concrete
+optimizer-state sensitivity, not an incorrect Adam implementation or a general
+recommendation to reset state during training.
+
+The new arm replays the original three updates and reproduces every step0–3
+adapter parameter/native score exactly. It clears only optimizer moments and
+the bias-correction counter immediately before update4. Parameters, model,
+scaler1024, LR0.0001, weight decay0.01, loss, fresh training group, sampler
+correction, reference, precision and sampling settings are unchanged. The
+first fresh loss checks and all captured preclip LoRA gradients are bitwise
+identical between arms. The reset counter sequence is1/2/3/1/2; retained is
+1/2/3/4/5. Five new native updates include three replay controls and two
+fresh-group updates, with no skips. Ten loss checks,120 linear matrices and
+480 scalar-dot controls pass, at the same3,005,776,384-byte peak allocation.
+
+Six additional fresh episodes complete the comparison, using the same native
+Verifiers training client, seeds39400/40400, initial prompts,2048 per-turn
+tokens and six-turn ceiling. Every adapter handoff reproduces native fixture
+scores exactly. Exact sampled-token/logprob/excluded-mask checks and ten
+independent plain-JSON final-state reward checks across the five arms pass.
+
+| Policy / fresh-group updates | Rewards | Truncation |
+| --- | --- | --- |
+| Step3 starting policy /0 | [0,0.5] | [true,false] |
+| Retained Adam /1 | [0,0] | [true,true] |
+| Retained Adam /2 | [0,0] | [true,true] |
+| Reset Adam /1 | [0.5,0.5] | [false,false] |
+| Reset Adam /2 | [0.5,0.5] | [false,false] |
+
+Independent complete-gradient reconstruction uses the actual saved gradients,
+`m = 0.9*m_prev + 0.1*g`, `v = 0.999*v_prev + 0.001*g*g`, bias correction,
+epsilon1e-8 and decoupled weight decay. It reproduces all ten parameter steps
+across both arms within2.15e-9 maximum absolute error. All gradient norms are
+below1, so norm clipping is inactive in this reconstruction. At the first new
+update, the retained first-moment history contribution has norm0.0268349,
+versus0.00702921 for the current gradient contribution:3.8176 times larger.
+Their sum has cosine0.2418 with the current contribution. This is a
+reconstruction of the unpreconditioned moment, not the final update direction.
+
+The actual first-update displacement norms are0.0222530 retained and0.0395709
+reset, with cosine0.4391. Their difference is161.26% of the retained displacement
+norm, and58,434 coordinates move with opposite signs. After two updates,
+cosine is0.6019 and the displacement difference is129.60%. Thus the same current
+gradient can produce markedly different policy changes through correct optimizer
+arithmetic. The earlier fully ratio-clipped update did not erase prior moments.
+
+Reducing this fresh group's reuse from two updates to one does not recover
+these retained-history episodes. Clearing history does, but it simultaneously
+changes first/second moments and the counter; this experiment cannot attribute
+the outcome to first momentum alone. Nor does it show that resetting history
+is useful across tasks, seeds, precisions or the production recipe. Next isolate
+moment components/decay and update size from the same state, expand task/seed
+coverage, and compare a more diverse rollout population before adopting defaults.
+Both reset episodes still fail the Sheets assertion and pass only the email
+assertion. Their equal rewards also mean this next population is rejected by
+current SAMPO spread admission; successful refill remains necessary.
+
+External sources/receipts: `native_verl_fresh_reset_adam_run.py`,
+`lfm-fresh-reset-adam-float16.json`, three `lfm-fresh-adam-quality-*` collections
+and `fresh-adam-matrix-summary.json`. All tools, checkpoints and raw data stay
+outside Git. No product defaults, immutable runtime pins or training semantics
+change in this slice; broader correctness and native-worker qualification remain
+incomplete.
