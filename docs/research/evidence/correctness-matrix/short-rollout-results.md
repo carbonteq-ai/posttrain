@@ -1110,3 +1110,75 @@ qwen-controller-scoring-entropy-fixed-bfloat16.json and
 controller-entropy-repair-summary.json. The unchunked failed source/log and
 all intermediate checkpoints remain preserved. Broader entropy/model/precision,
 distributed, full controller and fresh-learning gates remain open.
+
+## GRPO, GSPO and DAPO with native LFM outcome credit
+
+The real LFM worker/model/queue path now tests three policy objectives in BF16
+and FP16. The cached weekly-report episodes have observed rewards[1,0]. Native
+TRL-compatible GRPO advantage generation agrees with independent sample-standard
+deviation arithmetic: std0.7071067812, epsilon1e-4 and advantages±0.7070067953.
+Each episode receives constant outcome credit on its sampled positions rather
+than SAMPO's turn credit. The fixture generator reproduces the derived input
+byte-for-byte. Unequal sampled-token counts1,317/1,024 make normalization
+differences observable. The truncated row is deliberately retained in this
+controlled comparison; host admission and production truncation policy are
+not qualified by it.
+
+GRPO uses Posttrain's token_clip loss and seq-mean-token-mean reduction. DAPO
+uses token_clip with a global active-token denominator2,341. The GSPO arm
+exercises veRL's native gspo branch, including its detached sequence ratio and
+local token derivative; it is a research comparison, not a new framework
+selection or an assertion of full paper/recipe equivalence. All arms use
+matched initialization, rank4/alpha8 q/v LoRA, LR1e-4, beta.02 sampled k3,
+two accumulated microbatches, fixed old/reference scores and three updates
+on the same population. Clipping bounds.003/.004 and FP16 scale1024 are
+diagnostic settings, not adopted production recommendations.
+
+All18 updates apply without skips. Thirty-six independent loss/score cases,
+432 linear matrix gradients and1,728 scalar dots pass. Maximum loss error is
+6.24e-8, score derivative error7.48e-11, worker aggregate-loss error5.46e-8 and
+independent Adam error2.14e-9. Peak tensor allocation is2.440GB. Ninety
+successful inference calls plus six intentional reference-loss exceptions
+retain exact initial-base identity and actor restoration.
+
+| Objective / precision | Clipped sampled tokens: update1 | Update2 | Update3 |
+| --- | ---: | ---: | ---: |
+| GRPO BF16 | 0 | 337 | 338 |
+| GRPO FP16 | 0 | 336 | 507 |
+| GSPO BF16 | 0 | 0 | 0 |
+| GSPO FP16 | 0 | 0 | 2,341 |
+| DAPO BF16 | 0 | 318 | 337 |
+| DAPO FP16 | 0 | 343 | 473 |
+
+Each denominator is2,341 sampled tokens. GRPO/GSPO initial parameters and
+scores match exactly, and their first gradients are bitwise equal in either
+precision, as expected at ratio1 with constant episode credit. DAPO's first
+gradient differs from GRPO by12.38% BF16 and12.33% FP16 in relative L2, with
+cosines0.992445/0.992532. This agrees with the independently checked change
+from equal episode weighting to token weighting. The different later clipping
+patterns are measured outcomes, not evidence that the initial normalization
+or clipping arithmetic failed. GSPO's fully clipped FP16 policy term still
+allows KL gradients and optimizer history to affect the parameter update.
+
+Twelve additional scalar controls check clipping signs, sampler weighting,
+unequal lengths, the GSPO ratio cap and both reductions. Maximum relative
+loss error is1.33e-7; the largest absolute derivative error occurs at a very
+large exponential ratio and passes the stated relative tolerance. Initial
+control attempts omitted required native rollout/microbatch configuration;
+those harness failures and sources remain external. No new product defect
+is established in this slice.
+
+External receipts: lfm-headroom-outcome-credit-fixture.json,
+lfm-native-{grpo,gspo,dapo}-{bfloat16,float16}-outcome-credit.json,
+policy-algorithm-scalar-controls-retry2.json and
+native-policy-algorithms-summary.json. The per-arm static scope prose retains
+older runner wording; explicit algorithm/loss_agg_mode fields and the combined
+summary describe these arms. Raw receipts were preserved without rewriting.
+No correctness runners or raw data enter Git.
+
+Qwen's cached equal-reward group would give zero outcome advantages, so it
+cannot supply a meaningful observed outcome-credit comparison here. Genuine
+Qwen mixed-reward groups, native TRL logical equivalence, complete DAPO/GSPO
+recipes, full controller admission/refill, fresh task behavior and broader
+algorithm/family coverage remain open. These successful arithmetic checks
+do not establish that any of the three objectives improves task performance.
