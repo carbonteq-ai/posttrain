@@ -60,7 +60,7 @@ To see it working, open Observatory's Evaluations page for the suite `eval/lfm2.
 - Observation: Doris run deletion never removed `trace_reward_components` rows.
   Evidence: `delete_run`, `purge_runs` and `delete_project` in `trackio/doris_storage.py` listed the tables to clean without `trace_reward_components`, so every deleted run left orphaned component rows. The change that adds `trace_environment_metrics` fixes both and a unit test covers them.
 
-- Observation: the shared ai-infra checkout carried another session\'s uncommitted changes (a devpi setting, a Caddy cache mount and Caddyfile edits) that were already deployed to the control host. The Trackio playbook installs `compose.yml` from the repository, so deploying from the committed tree showed a diff that would have reverted the live devpi and Caddy configuration.
+- Observation: the shared ai-infra checkout carried another session's uncommitted changes (a devpi setting, a Caddy cache mount and Caddyfile edits) that were already deployed to the control host. The Trackio playbook installs `compose.yml` from the repository, so deploying from the committed tree showed a diff that would have reverted the live devpi and Caddy configuration.
   Evidence: the planned diff for "Install the pinned control composition" removed `DEVPISERVER_ENABLE_CORE_METADATA` and the `python-mirror-cache` mount, and the host file was byte-identical to the working copy. The deploy ran from a clean worktree of the committed deployment branch with the control compose file preserved as deployed; the plan then changed only the wheel and the service environment.
 
 ## Outcomes & Retrospective
