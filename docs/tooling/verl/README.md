@@ -1264,3 +1264,10 @@ qualification. No extreme offsets have been observed in actual model traces.
 Native optimizer/controller and production asset/pin adoption gates remain open;
 fork ledger owns generic regressions and rebase procedure. Detailed matched
 clipping/scalar evidence is in the correctness campaign findings.
+
+Actual-model qualification (2026-10-01) exercises both repaired backend source
+utilities on Qwen/LFM BF16/FP16 full-response fixtures:16 detached-logit backwards
+and80 independent full-vocabulary scalar checks pass. Max score3.39e-7 and
+checked derivative5.97e-10; peaks3.152GB Qwen/4.545GB LFM. Actual unshifted scaled
+logits stay within[-28.44,48.75]. This closes a detached-scoring memory gate;
+model/optimizer backward, throughput and task-quality attribution remain open.

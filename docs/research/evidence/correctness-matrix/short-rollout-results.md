@@ -1540,3 +1540,42 @@ External receipts:temperature-rowwise-update-summary.json,
 lfm-native-{grpo,gspo,dapo}-{bfloat16,float16}-temperature-rowwise.json,
 selected-logprob-offset-baseline.json and selected-logprob-offset-corrected.json.
 Runners and raw artifacts remain outside Git.
+
+## Actual-model selected-score qualification
+
+Both repaired source utility bodies were exercised on represented FP32 logits
+from actual Qwen3.5-0.8B and LFM2.5-1.2B-Thinking forwards in BF16 and FP16.
+Use the existing first recorded AutomationBench response with the complete
+shared prompt:1,119 prompt/289 response tokens for Qwen and1,573/1,675 for LFM.
+SDPA forward, temperature.8, immutable model/fixture revisions are retained.
+Each backend completes backward for the mean selected score at offsets0 and
+10000. Offset10000 is artificial stress; oracle inputs preserve its FP32 rounding.
+
+| Model / forward dtype | Response × vocabulary | Peak allocated bytes | Maximum scalar score error | Maximum checked derivative error |
+| --- | --- | --- | --- | --- |
+| Qwen BF16 | 289 × 248320 | 3151080960 | 1.290e-7 | 2.151e-10 |
+| Qwen FP16 | 289 × 248320 | 3151080960 | 1.202e-7 | 5.968e-10 |
+| LFM BF16 | 1675 × 65536 | 4544710656 | 3.386e-7 | 1.369e-10 |
+| LFM FP16 | 1675 × 65536 | 4544710656 | 1.186e-7 | 9.964e-11 |
+
+All16 scorer backwards pass. Eighty independent Python full-vocabulary scalar
+score checks also verify selected, adjacent and maximum-logit gradient coordinates;
+maximum per-row vocabulary gradient mass is1.514e-9. The mean-score derivative
+includes the explicit1/response_length factor. Model parameters remain on GPU,
+but logits are detached before backward: this does not qualify model derivatives,
+optimizer updates, retained training activations or full-model backward memory.
+The recorded peak is allocated tensor memory, not total device use or throughput.
+
+Observed unshifted scaled logits range Qwen BF16[-28.4375,48.75], Qwen FP16
+[-28.3984375,48.59375], LFM BF16[-24.53125,47.5], and LFM FP16
+[-24.58984375,47.5390625]. These traces do not show the large offsets that drove
+the synthetic cancellation failure. A model's logits can legitimately differ
+across precision/forward kernels; no fresh-quality inference follows.
+
+The first audit fails before forward because the external harness assumed a
+nested prompt list. Preserve failed-fixture-shape source snapshots and original
+Qwen BF16 log; the corrected flat-prompt retry uses distinct filenames. Four
+retry arms terminate successfully. External receipts:
+{qwen,lfm}-{bfloat16,float16}-selected-score-model-audit-retry1.json/.log.
+Tools/raw data are excluded from Git; full model/optimizer backward, throughput,
+full controller and native TRL optimizer qualification stay open.

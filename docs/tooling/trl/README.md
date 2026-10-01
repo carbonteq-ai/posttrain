@@ -786,3 +786,10 @@ regressions fail on the original source; Ruff/diff checks pass. Larger-context
 FP32 backward memory/throughput, native TRL optimizer equivalence and production
 assets remain open. This is not a wheel/pin update or evidence of task-quality
 causation. Generic regressions and rebase obligations live in CARBONTEQ_FORK.md.
+
+Actual-model qualification (2026-10-01) exercises both repaired backend source
+utilities on Qwen/LFM BF16/FP16 full-response fixtures:16 detached-logit backwards
+and80 independent full-vocabulary scalar checks pass. Max score3.39e-7 and
+checked derivative5.97e-10; peaks3.152GB Qwen/4.545GB LFM. Actual unshifted scaled
+logits stay within[-28.44,48.75]. This closes a detached-scoring memory gate;
+model/optimizer backward, throughput and task-quality attribution remain open.
