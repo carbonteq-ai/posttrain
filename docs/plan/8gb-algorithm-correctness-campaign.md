@@ -22,6 +22,7 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Verify native Qwen BF16/FP16 active sampling rejects an unmasked recorded equal-reward[1,1] group despite104 nonzero sampled-token SAMPO credits. Two rounds per arm, no loss/optimizer/state changes, peak2.998GB. Independently compare24 rational discounted-return/centering cases with production Posttrain credit construction and48 exact veRL source-function metadata cases. Equal episode rewards can produce nonzero hierarchical credit with different remaining turn counts or explicit step rewards; the native scalar-spread predicate rejects these. This is a measured sampling-policy limitation, not yet a demonstrated implementation defect or current-run cause.
 - [x] (2026-10-01) Execute native active-sampling rejection/recovery for DAPO and supplied-credit SAMPO in BF16/FP16. Four rejection arms exhaust two rounds with no loss calls, no optimizer events/state and unchanged parameters. Four recovery arms reject the first masked singleton, deliberately make the second candidate scorable, then apply one independently verified update each: eight loss/mask checks, maximum loss error2.50e-8, exact scaled accumulation, Adam2.67e-11, peak6.090GB. Cached tokens/repeated prompt metadata and controlled truncation override exclude fresh-generation/host task-uniqueness qualification.
 - [x] (2026-10-01) Execute actual native GRPO warm-Adam/zero-signal controls in BF16/FP16: one informative retained group then two singleton masked groups, beta0, one iteration per supplied population. Six optimizer events/twelve loss-mask checks pass. Later current loss/gradients are exactly0 but parameter changes6.70057e-5/5.17956e-5 follow Adam history; independent update error2.43e-11, peak6.093GB. Recorded truncation flags are deliberately overridden for the first control group; no actual live-run/fresh generation claim.
 - [x] (2026-10-01) Preserve stale inherited raw metadata(beta.01/iterations3) and reconstruct exact compiled source without executing model code; hash matches both receipts and AST confirms effective beta0/iterations1. Companion settings/summary receipts make the correction explicit. Repair future external metadata extraction from compiled GRPOConfig literals; archive old and corrected harness separately without changing immutable receipts.
@@ -235,6 +236,14 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Equal episode rewards do not imply zero SAMPO token credit. At gamma.95,
+  two successful sparse trajectories with two versus three turns and shared
+  first/second anchors yield turn credits +/-.02375 and +/-.025 despite zero
+  episode credit. Same-length trajectories with different explicit step rewards
+  can also carry turn credit. Scalar-spread filtering discards both. Repeated
+  Qwen recorded groups confirm actual native rejection with104 credited tokens.
+  This distinction survives agreement between both credit implementations.
 
 - Native active-sampling configuration accepts DAPO or precomputed advantages;
   ordinary GRPO control is rejected before training. The first supported control
@@ -537,6 +546,13 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- (2026-10-01) Keep total-reward-spread active sampling as the observed selected
+  recipe and record its hierarchical-signal exclusion explicitly. Do not silently
+  replace retention with token-credit magnitude: that changes the training
+  population and needs a deliberate cross-backend experiment. Next measure
+  equal-reward/nonzero-credit groups in fresh host collection, compare retention
+  policies on matched candidates, and assess outcome quality before adoption.
+
 - (2026-10-01) Qualify native rejection and bounded recovery using supported
   DAPO/SAMPO controls before extending claims to the host. Recovery changes only
   the second candidate's truncation metadata; supplied SAMPO credit is unchanged.
@@ -709,6 +725,14 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+Revision81 verifies a real separation between sampler admission and the SAMPO
+objective: both primary-precision Qwen native controls reject equal totals with
+nonzero supplied hierarchical credit. Rational controls reproduce the mechanism
+through Posttrain and exact veRL function slices. This can explain why some
+available SAMPO signal is unused, but no live-run frequency or quality effect is
+established. Production retention settings remain unchanged; broader work stays
+active. Preserve two external-script errors and dependency-path startup failures.
 
 Revision80 adds eight actual native active-sampling controls. All four exhaustion
 arms prevent loss and optimizer work; all four recovery arms reach one audited
@@ -1394,3 +1418,6 @@ repair external metadata provenance and retain host/current-run causation gates.
 Revision 80: execute actual native active-sampling rejection and recovery in
 both primary precisions, preserve supported-selection and undersized-pool failures,
 verify scaled gradients/Adam and retain fresh host task-uniqueness gates.
+Revision 81: verify actual native equal-reward Qwen rejection despite hierarchical
+credit, compare independent rational math with both credit implementations,
+and distinguish selected retention policy from objective correctness.

@@ -1887,3 +1887,57 @@ unsupported GRPO attempt; neither establishes a production numerical defect.
 External artifacts:lfm-native-active-masked-{dapo,sampo}-{bfloat16,float16}
 -rejection-retry1.json/-recovery.json and native-trl-active-sampling-summary.json.
 Tools and raw receipts remain external; no production recipe change is adopted.
+
+## SAMPO signal discarded by total-reward-spread sampling
+
+Actual Qwen BF16/FP16 Trainer active-sampling controls use the recorded unmasked
+AutomationBench group: rewards[1,1], neither response truncated,104 sampled tokens
+with nonzero supplied SAMPO credit. Both arms exhaust two candidate rounds with
+zero retained rows, no loss calls, no optimizer events/state and unchanged model
+parameters. Peak2.998GB. This is the selected sampler criterion in action; it
+does not show that the supplied credit is zero or that the loss is incorrect.
+
+Independently construct24 cases with rational discounted returns and centering:
+gamma.5/.95/1, mean/mean_std normalization, equal sparse rewards with equal or
+different turn counts, equal episode rewards with differing explicit step
+rewards, and mixed episode rewards as a retained control. Compare production
+Posttrain credit construction and exact veRL function-source slices in FP32/FP64
+metadata arithmetic. FP64 here is the scalar reference, not model training.
+
+For two successful sparse trajectories with two versus three turns, gamma.95,
+and shared first/second anchors, first-anchor returns are.95 and.9025. Their
+centered turn credits are +/-.02375. Second-anchor returns1 and.95 yield +/-.025.
+The third anchor is a singleton with zero relative credit. Episode credit is0,
+yet eight toy sampled tokens have nonzero credit. Equal-length, equal-return
+trajectories provide the contrasting zero-credit control. Differing explicit
+step rewards can also give nonzero turn credit at equal episode totals.
+
+At gamma.95 with mean normalization:
+
+| Group | Maximum absolute token credit | Scalar-spread sampler keeps it? |
+| --- | --- | --- |
+| Equal sparse rewards, same turn count | 0 | No |
+| Equal sparse rewards, different turn counts | .025 | No |
+| Equal totals, different explicit step rewards | .5 | No |
+| Mixed episode rewards | 1 | Yes |
+
+Both credit implementations agree with the independent reference within their
+tested numeric bounds: maximum error1.666e-15 Posttrain/FP64 metadata and8.345e-7
+FP32 veRL metadata. Ten of the24 toy cases have nonzero credit and zero total
+reward spread; this is a designed test matrix, not a live frequency estimate.
+The exact veRL active-sampling predicate likewise rejects
+equal totals; this is predicate qualification, not full veRL runtime execution.
+The complete Qwen controls execute TRL's actual sampling loop/model scoring.
+Repeated cached traces exclude fresh host task uniqueness or live-run prevalence.
+
+The sampling policy therefore can discard usable hierarchical credit. This is
+a recipe limitation requiring an explicit decision, rather than proof of a
+formula bug. Before adopting a credit-aware filter, measure the frequency of
+these groups in fresh collection and compare matched candidate populations and
+task outcomes across both backends. Neither current-run causation nor a superior
+replacement recipe is established. Retention settings remain unchanged.
+
+External artifacts:qwen-native-active-equal-reward-sampo-{bfloat16,float16}.json
+and sampo-equal-reward-signal-summary.json. Preserve external harness failures
+(list concatenation and missing isolated-source math namespace) and corrected
+source separately. No tools/raw receipts are committed.
