@@ -1803,3 +1803,53 @@ lfm12-trl-recorded-{grpo,dapo}-bfloat16-native-truncation-baseline-retry1.json,
 native-trl-masked-baseline-summary.json and masked-group-information.json,
 plus original oracle-failure receipts. No production/pin changes; tools/raw
 data remain outside Git.
+
+## Native zero-signal groups with retained Adam history
+
+Repeat actual GRPO Trainer.train in BF16 and FP16 with beta0 and one iteration
+per supplied population. First override the recorded truncation flags to keep
+both responses and obtain one informative[1,0] group. Subsequent populations
+restore the recorded truncation flags, leaving one scorable reward and zero
+group-relative advantage. Tokens/rewards are supplied fixtures, not freshly
+sampled policy trajectories. FP16 scale1024 remains controlled.
+
+| Current step | Current gradient norm | BF16 maximum parameter change | FP16 maximum parameter change |
+| --- | --- | --- | --- |
+| 1, informative | .132428 BF16 / .131861 FP16 | 9.999989e-5 | 9.999987e-5 |
+| 2, singleton masked group | 0 | 6.700571e-5 | 6.700571e-5 |
+| 3, singleton masked group | 0 | 5.179560e-5 | 5.179560e-5 |
+
+Both later microbatches at each zero-signal step have exactly zero loss and
+score gradients. Actual pre-optimizer gradients are zero; KL and weight decay
+are absent. Adam retains the previous first/second moments, so parameters still
+move. All twelve scalar loss/mask checks pass; six actual optimizer events agree
+with independent per-step Adam equations within2.424e-11. Peak6.093GB. The
+inherited successful-update counter reports3 because it tests finite parameter
+movement; only the first population supplies nonzero current policy credit.
+
+For one nonzero scalar gradient followed by zeros, with negligible epsilon,
+the update magnitude relative to the first is approximately
+
+R_t=[b1^(t-1)(1-b1)/(1-b1^t)] /
+sqrt[b2^(t-1)(1-b2)/(1-b2^t)].
+
+With b1=.9,b2=.999, this gives about.670058 at step2 and.517957 at step3,
+consistent with the measured displacement. The independent checks retain actual
+epsilon, observed prior state and every coordinate. This is normal Adam history,
+not a demonstrated optimizer defect. Native/static dead-group execution can
+therefore produce movement without fresh policy signal; production host
+admission/filtering/refill and any current-run occurrence need direct evidence.
+
+The original raw settings dictionary has inherited hard-coded beta.01 and
+num_iterations3. Preserve it; effective control settings are beta0/iterations1.
+Reconstruct the exact compiled native source without running the model: its hash
+bcbfcc54f80a3155c2c05a92c6d58a5683487d17de95399ddfde58748d92b90d matches both
+receipts, and AST literals verify those settings. Companion effective-settings
+and summary receipts carry the correction. Future external harness output resolves
+literal overrides from its compiled GRPOConfig. This repair changes metadata,
+not model/loss/optimizer behavior or production source. Old and corrected harness
+snapshots are archived separately; original receipts remain immutable.
+
+External artifacts:lfm12-trl-recorded-grpo-{bfloat16,float16}-native-warm-zero-beta0.json,
+native-trl-warm-zero-summary.json and native-trl-warm-zero-effective-settings.json.
+All tools/raw data remain outside Git; broader qualification is ongoing.
