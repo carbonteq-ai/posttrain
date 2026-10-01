@@ -25,6 +25,19 @@ all matrix/score/optimizer checks; its four fresh episodes all truncate/fail.
 The small sample strengthens the need for fresh-loop qualification, not a
 general efficacy conclusion.
 
+### Native FP16 checkpoint state
+
+Checkpoint source candidate `d0d7804795dc1254f7309916fce69898387a2a8a`
+persists the native FSDP engine's enabled FP16 scaler in per-rank extra state.
+A full restore rejects missing scaler state before loading model/optimizer;
+explicit model-only loading, BF16 and disabled-scaler legacy state remain
+compatible. The checkpoint/cleanup/scaler slice passes34 tests. Actual
+LFM1.2B FP16 LoRA-only/full-optimizer checkpoints replay the next update
+exactly in the same engine and a fresh process, including parameters,
+moments, scaler, scheduler and RNG. Production wheels/pins, distributed
+native replay, other families and fresh-population update continuity remain
+open. [Native checkpoint evidence](../../research/evidence/correctness-matrix/native-lfm-results.md).
+
 ## Native padded Qwen engine source candidate
 
 Source `8778c5d6e2ddd847d5098a24f4dc882f11ac57b4` repairs optional

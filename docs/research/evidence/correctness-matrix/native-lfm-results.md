@@ -434,3 +434,58 @@ a recipe solely from clip fractions.
 Additional receipts: `lfm-chain-fp16-fixed3.json`,
 `lfm-fixed-step3-fresh.json`, `lfm-fixed-step3-analysis.json`,
 `lfm-fixed3-fresh-comparison.json`, `lfm-fixed3-likelihood-ratios.json`.
+
+## Native FP16 checkpoint continuity
+
+The native engine constructed `FSDPCheckpointManager` with optimizer and
+scheduler, but did not pass its scaler. Extra state saved RNG and scheduler
+only. That omitted the FP16 loss scale, growth tracker and growth/backoff
+configuration needed to reproduce the next update. This is separate from
+the asynchronous CPU unscale race.
+
+Source `d0d7804795dc1254f7309916fce69898387a2a8a` binds the optional scaler
+and adds its state to per-rank extra state. An enabled-scaler full restore
+checks for scaler state before loading model/optimizer and fails clearly if
+it is absent. Explicit model-only loading preserves the fresh scaler;
+BF16 and disabled-scaler legacy extra state remain compatible. Five new
+checkpoint tests cover those cases and exact scale/growth-counter restore.
+Checkpoint, cleanup and scaler slices pass34 tests together. Production
+runtime pins remain unchanged.
+
+The real collected-LFM fixture now executes a native checkpoint experiment:
+apply update1, deliberately set scale512 with growth tracker1 and interval2,
+save LoRA-only model weights with full optimizer and extra state, and apply
+update2 uninterrupted. Restore step1 and replay update2. The intentionally
+nondefault scale exposes omission rather than relying on default settings
+coincidentally matching. This is a controlled scale change, not an injected
+native model overflow. Both restore and replay are bitwise exact for all
+trainable parameters, native AdamW state, scaler, scheduler and RNG.
+
+A second, fresh process constructs the same model/engine, loads the saved
+checkpoint and computes update2 with the same frozen population/old scores.
+It matches the uninterrupted result exactly across the same five state
+categories. Independent score/loss/context-mask checks pass and AdamW errors
+remain below2.14e-9. Peak Torch allocation is2.06GiB; the native checkpoint
+with tokenizer/config is6,712,369 bytes. LoRA-only saving assumes the same
+immutable pretrained base; this does not test restoring a changed base model.
+
+The control omitting scaler binding reproduces the prior semantics. It
+restores parameters, optimizer, scheduler and RNG exactly but keeps
+scale1,024/tracker0 instead of512/tracker1, and fails the restore gate. This
+verifies the scaler omission independently of task reward or clipping.
+
+The producer performs two logical updates and a replay of update2, then a
+fresh process replays update2 again; instrumentation attempt numbers must
+not be interpreted as four distinct training updates. Actual save/load is
+used, not a hand-copied adapter or fake checkpoint manager. Full-weight,
+distributed native replay, BF16/native other-family checkpoints and complete
+fresh collection/refill/update continuity remain open; this closes the
+single-rank LFM FP16 native checkpoint gate only.
+
+External receipts: `lfm-native-checkpoint-final.json`,
+`lfm-native-fresh-process-replay.json`, `lfm-native-checkpoint-negative.json`
+and their logs. `lfm-native-checkpoint-final/` contains the native checkpoint;
+`lfm-expected-update2-state.pt` is the uninterrupted reference. The runner is
+`native_verl_checkpoint_replay_run.py`. Initial runs and their exact runner
+snapshot are retained separately. Final receipts hash the executed engine,
+checkpoint manager, fixture and runner sources.
