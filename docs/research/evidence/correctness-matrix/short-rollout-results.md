@@ -2101,3 +2101,64 @@ fresh-qwen-native-loss-control-summary.json; receipts:
 qwen-fresh-weekly-native-{sampo,grpo,dapo}-float16-auditcpu.json and
 qwen-fresh-weekly-native-grpo-float16-loss64-auditcpu.json. Tools/raw data stay
 external; no production source, pin or recipe change is adopted here.
+
+## Full BF16 execution and KL-free fully clipped updates
+
+Release external captured head/logit references before full-model VJPs and
+disable audit recapture until the next loss forward. Preserve CPU diagnostic
+cotangents and pinned saved tensors. A first unchanged BF16 SAMPO attempt now
+completes two loss checks/one verified update, then OOMs on step2. Preserve it.
+Retry with PYTORCH_ALLOC_CONF=expandable_segments:True: all three full-trace
+updates complete. Its first loss checks/optimizer event exactly match the prior
+partial attempt. GRPO/DAPO complete under the same memory controls too.
+
+| Native BF16 objective | Qualification | Independent accumulated-gradient errors | Maximum Adam error |
+| --- | --- | --- | --- |
+| SAMPO | Fail | [0,0,.010549745] | 1.861e-9 |
+| GRPO | Pass | [0,0,0] | 1.852e-9 |
+| DAPO | Pass | [0,0,0] | 1.857e-9 |
+
+Peak6.078GB; complete original BF16 responses960/484 remain unchanged. SAMPO's
+last microbatch parameter-gradient comparison fails at.010548760; other five
+microbatches pass. Loss error2.898e-8, score derivative5.821e-11; actual-loss VJP
+accumulation is0 in all cases. Memory execution success does not override the
+independent precision failure. This is the thirteenth terminal memory failure
+including the additional lifetime-only partial control, followed by successful
+full execution; recoverable allocator warnings are not separate failed runs.
+
+Matched BF16 SAMPO loss-only precision control applies three further updates
+with model/backward still BF16 and identical fixture/input/settings hashes.
+Independent scaled accumulation becomes0; all six loss/mask/model-gradient
+checks pass; loss1.333e-15, score1.085e-18 and Adam1.840e-9. This extends the
+arithmetic-sensitivity diagnosis beyond FP16.
+Do not adopt FP64 production loss or relax the raw gate from this control alone.
+Next quantify update/behavior impact and precision-aware error conditioning.
+
+The first two lifetime attempts used the producer before added output metadata.
+Preserve successful raw receipts; archive a reconstructed pre-metadata producer
+snapshot and companion launch/allocator provenance. Later producers record
+capture lifetime and allocator environment directly. This changes provenance,
+not compiled model/loss/update arithmetic.
+
+Separately run the fresh FP16 SAMPO fixture with beta0 and native weight-decay
+default0, keeping the same3-update reuse/clip bounds/scaler. All three updates
+pass independent model gradients, scaled accumulation and Adam(1.855e-9).
+Clipping is[0,.5,1]. Current gradient norms are.0795472,.0612201,0; parameter
+changes9.999982e-5,1.001352e-4,7.740468e-5. The final two clipped microbatch
+losses(-.219799846,+.194894075) remain nonzero constants, with score/model
+gradients0. Adam history alone moves parameters at the final update.
+
+This experimentally distinguishes loss values, current gradients and parameter
+movement. PPO-style clipping stops the clipped current policy gradient; it
+does not constrain an Adam update inherited from earlier gradients. Beta.01
+and beta0 first optimizer events agree exactly, but their states diverge at
+step2, so the difference between final displacements is not a pure current-KL
+effect. These diagnostic observations do not prove a current-run cause or
+recommend resetting moments/stopping updates without a matched quality study.
+
+External summaries:fresh-qwen-bf16-memory-summary.json,
+fresh-qwen-lifetime-momentum-summary.json and fresh-qwen-bf16-loss-control-summary.json.
+Receipts:qwen-fresh-weekly-native-{sampo,grpo,dapo}-bfloat16-lifetime-expandable.json,
+qwen-fresh-weekly-native-sampo-bfloat16-loss64-lifetime-expandable.json and
+qwen-fresh-weekly-native-sampo-float16-beta0-auditcpu.json. All processes are
+terminal; tools/raw receipts remain external and the campaign stays active.
