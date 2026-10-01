@@ -1189,3 +1189,33 @@ defect does not by itself explain poor training behavior.
 Runtime assets, production pin adoption, distributed entropy and fresh-task
 quality remain gates. Exact evidence and the actual controller-scoring boundary
 are recorded in [the short rollout findings](../../research/evidence/correctness-matrix/short-rollout-results.md).
+
+## Candidate temperature-scaling precision correction
+
+Published source:
+`f5333c4f647494e497896eaed14160e2cd7186c4` on
+`carbonteq-ai/verl`, branch `codex/posttrain-math-parity`.
+Runtime images and dependency pins remain unchanged.
+
+The source candidate promotes BF16/FP16 model logits before temperature
+division in both non-fused FSDP packed/unpacked scoring routes. CUDA autocast
+already returns FP32 fallback log-probabilities, but cannot recover prior
+half-division rounding. Four real Qwen/LFM fixture controls reproduce saved
+native scores exactly and measure maximum sampled-score differences0.080662/
+0.011010 and0.153319/0.021459 for BF16/FP16 respectively. Independent scalar
+checks validate the FP32 controls within1.36e-6.
+
+The original scaling expression fails8/15 new CPU score/derivative/overflow/floor
+regressions; the candidate passes15/15 and the complete focused CPU/CUDA suite
+passes17/17. Six LFM native queue/model/optimizer arms apply18/18 updates and
+pass36 independent losses/score derivatives,432 matrices and1,728 scalar dots.
+Maximum loss error4.59e-8, derivative7.42e-11 and Adam2.14e-9; peak3.714GB.
+First-gradient changes are3.07–3.13% BF16 and0.397–0.402% FP16. Later
+GRPO/DAPO clipping counts change modestly; GSPO counts do not. First-update
+ratios still equal1. Production pin adoption is not claimed.
+Fused scoring, other engine types, larger-memory workloads and task-quality
+impact remain gates. Model/head forward arithmetic and policy/KL definitions
+are unchanged; resume qualification must recompute old/current scores together.
+
+The generic implementation and regression ownership are recorded in the fork's
+CARBONTEQ_FORK.md; experiment runners and raw receipts remain outside Git.

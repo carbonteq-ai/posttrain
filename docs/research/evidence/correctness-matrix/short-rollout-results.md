@@ -1368,3 +1368,32 @@ analysis awaits the still-running DAPO arms. Candidate source, tests, ledger
 and consumer documentation remain unpublished; production pins are unchanged.
 Raw receipts and runners remain external. Partial comparison receipt:
 temperature-repaired-update-partial-summary.json.
+
+The complete six-arm native matrix subsequently finishes:18/18 updates,
+36 independent loss/score-gradient cases,432 linear matrix checks and1,728
+scalar dots pass. Max errors are loss4.59e-8, score derivative7.42e-11,
+worker aggregate5.08e-8 and Adam2.14e-9. Peak3.714GB. Seventeen focused
+CPU/CUDA temperature regressions pass, alongside the62 CPU utility and10
+route/distillation cases already recorded. No FP16 update is skipped; scale1024
+remains a diagnostic setting rather than default-scale qualification.
+
+| Objective / precision | Baseline clipped tokens, updates1/2/3 | Corrected clipped tokens | First-gradient relative L2 change |
+| --- | --- | --- | ---: |
+| GRPO BF16 | 0 / 337 / 338 | 0 / 327 / 332 | 3.070% |
+| GRPO FP16 | 0 / 336 / 507 | 0 / 354 / 501 | 0.402% |
+| GSPO BF16 | 0 / 0 / 0 | 0 / 0 / 0 | 3.070% |
+| GSPO FP16 | 0 / 0 / 2,341 | 0 / 0 / 2,341 | 0.402% |
+| DAPO BF16 | 0 / 318 / 337 | 0 / 308 / 347 | 3.128% |
+| DAPO FP16 | 0 / 343 / 473 | 0 / 345 / 484 | 0.397% |
+
+Every clipping denominator is2,341 sampled tokens. These results support the
+correction's numeric/update consistency while showing that it does not explain
+zero first-update clipping: old/current scores are both recomputed through the
+same corrected scorer. Keep model/head rounding, sampler mismatch and recipe
+reuse separate. No corrected fresh-task efficacy comparison has run yet.
+
+Published source candidate: f5333c4f647494e497896eaed14160e2cd7186c4 in
+carbonteq-ai/verl, codex/posttrain-math-parity. Production pins/images are
+unchanged. Fused/other engines, actual-model SAMPO replay, full admission/refill,
+distributed/large-context memory and task-quality attribution remain open.
+External complete receipt: temperature-repaired-update-summary.json.
