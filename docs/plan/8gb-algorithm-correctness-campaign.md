@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Run six native TRL/scorer-controlled Qwen SAMPO loops,12 applied updates on complete tasks, with loss/score/Adam maxima1.06e-9/1.26e-11/2.31e-9. Actual scorer trajectories differ; exact veRL helper/full head plus common next-forward weights gives bitwise-identical native gradients at both updates in BF16/FP16. Native capture replays match all original adapters,96 matrix/384 scalar-dot checks pass. CPU/CUDA first-step rounding crosses4 BF16 or22 FP16 boundaries in corresponding arms. Native scale65536 baseline/FP32-delta-region arms apply four finite updates;144 actual gated-norm references pass, maxordinaryFP16 error0.03925%, maxderivative35597<65504. Repair external diagnostic OOM with bounded reductions; untraced repeat matches step0–2 exactly. Loss-scale1024→65536 causes0.8445% normalized-gradient L2 difference,295 sign flips and7.95% first-update L2 difference, with Adam sensitivity prediction error3.37e-11. Underlying half-backward scale sensitivity, default-scale TRL, wider algorithms and quality remain open.
+
 - [x] (2026-10-01) Publish singleton FSDP sync repaird8e472db822f2916ed81a408b8d28192be95e678. A complete Qwen task population first fails in FSDP2 no-sync backward; eight minimal controls isolate unused-branch plus deferred-sync interaction. Six new regressions fail before repair; all12 sync tests pass afterward, including CUDA BF16/FP16 offload/device accumulation and two-rank Gloo equivalence. Three full collected-Qwen SAMPO arms apply six updates: ordinary FP16 atscale1024, FP32-delta diagnostic FP16 and BF16, maxloss9.93e-10/scoregrad1.36e-11/Adam2.24e-9,3.67GiB peak. Real traces preserve rewards[1,1] and104 nonzero local credits; direct math bypasses production constant-reward admission. LFM FP16 two-update regression passes48 matrix/192 scalar-dot checks andAdam2.14e-9. Pins unchanged; multi-rank unused branches, full worker/admission, fresh learning and broader algorithms remain open.
 
 - [x] (2026-10-01) Run12 further native LFM scoring/head/alignment diagnostic updates. Matched BF16 scoring closes GRPO/DAPO parameter differences to1.86e-9. FP16 actual veRL row-wise helper plus full head gives bitwise-identical first gradients; CPU/CUDA AdamW differ only2.91e-11 but17 coordinates cast differently to FP16, zero to BF16. Optimizer-only replay reproduces each backend bitwise. Enforcing common native weights before second forward restores bitwise-identical FP16 gradients and1.86e-9 update difference while retaining own moments. These controls isolate numerical path and rounding-boundary causes, not a new formula bug or task-quality gain; wider model/algorithm/default recipe gates remain open.
@@ -133,6 +135,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- (2026-10-01) Qwen BF16 also crosses CPU/CUDA first-step rounding boundaries; the earlier LFM BF16 result does not generalize across models. Matched-state native SAMPO gradients can agree bitwise despite later naturally divergent trajectories. Default-scale65536 is finite on these real traces, yet lowering it to1024 changes normalized gradients by0.8445% and flips295 coordinates. Exact traced/untraced replay excludes the diagnostic hook as the cause; finite updates alone do not establish loss-scale invariance or recipe quality.
 
 - (2026-10-01) Complete1,119-prompt-token Qwen AutomationBench FP16 traces apply two scale1024 updates without the FP32 delta-region control, despite earlier short supplied-token failures at that scale. Overflow evidence is data-dependent; length or successful native score checks alone do not predict it. The distinct runtime failure is unnecessary singleton no-sync accumulation with unused sharded branches, reproduced independently of CPU offload and trainable/frozen status.
 
@@ -366,6 +370,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Decision: preserve loss-scale sensitivity as an unresolved half-backward numerical issue, separately from matched-state backend objective agreement and optimizer-device rounding. Compare actual conditional Qwen SAMPO model/optimizer paths, validate native defaults on real traces, and keep failed diagnostic OOM/source plus bounded trace recovery external. Do not declare a universal precision fix or prefer the lower scale because it avoids overflow elsewhere. No production source, pins or frozen baseline change. Date/Author:2026-10-01/Codex.
+
 - Decision: fix unnecessary single-rank synchronization deferral in the published veRL candidate, based on a real collected-Qwen FSDP2 backward failure and eight minimal native GPU controls. Four synchronized unused-branch cases pass; the same four deferred-sync cases fail with missing `_unsharded_param`, independently of frozen/trainable status or CPU offload. Ownership: `/home/hammad/projects/verl-posttrain-parity` edits `verl/workers/engine/fsdp/transformer_impl.py`, `tests/workers/test_fsdp_gradient_accumulation_sync_on_cpu.py` and `CARBONTEQ_FORK.md`; Posttrain maintains this plan, native evidence and `docs/tooling/verl/README.md`. Base source isd0d7804795dc1254f7309916fce69898387a2a8a. Keep sync enabled for data-parallel size1, retain multi-rank deferral. Validate CPU context cases, actual unused-branch GPU accumulated gradients and existing two-rank Gloo equivalence, then repeat complete1,119-token-prompt Qwen task updates serially. Preserve baseline failure and raw tools externally; no pins or frozen product meaning change. Commit/push the validated fork before recording reproducible consumer source. Rollback is the prior fork commit; multi-rank conditional-unused behavior remains an explicit gate. Date/Author:2026-10-01/Codex.
 
 - Decision: distinguish matched-state gradient correctness from unconstrained backend trajectory reproducibility. Preserve actual helper/head and CPU/CUDA Adam controls plus a deliberately weight-aligned causal test; do not call tiny optimizer-device rounding a formula error or adopt weight snapping in product code. Keep precision-policy/default-recipe changes pending broader evidence. No baseline or dependency-pin change. Date/Author:2026-10-01/Codex.
@@ -476,6 +482,15 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+Matched-state native SAMPO model gradients now agree bitwise across TRL/veRL
+in both Qwen precisions on complete task traces. Both actual TRL scorer arms
+apply updates and pass independent references, while scoring/device-rounding
+differences produce different trajectories. Default native FP16 scale65536
+also applies finite updates and matches actual norm derivatives. A new measured
+loss-scale sensitivity remains: identical initial weights/source/data/optimizer
+device but0.8445% unscaled gradient difference and295 sign flips. This supports
+continued precision isolation rather than a blanket correctness or quality claim.
 
 The native Qwen gate now covers complete observed tool-task traces through
 FSDP2 CPU offload in BF16/FP16, with six applied updates and12 independent
@@ -963,3 +978,6 @@ matched next-step weights; preserve unconstrained trajectory and quality gates.
 Revision 39: reproduce and repair singleton FSDP2 no-sync unused-branch failure,
 validate complete collected Qwen task updates and an LFM gradient regression,
 publish the fork before documenting candidate qualification without pin adoption.
+Revision 40: compare native TRL Qwen SAMPO gradients, isolate device half-cast
+boundaries, qualify default loss-scale gated-norm derivatives and retain a
+measured scale-sensitive gradient/update gap with exact instrumentation controls.

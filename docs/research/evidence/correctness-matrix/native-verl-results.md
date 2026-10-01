@@ -330,3 +330,99 @@ within2.14e-9 at2.06GiB peak allocation. The new native receipts were produced
 before the source commit and record its then-parent plus the corrected engine
 hash; the external publication mapping verifies that hash against the published
 commit. This distinguishes the failed original source from the corrected runs.
+
+## Native TRL SAMPO comparison on the same Qwen tasks
+
+Six two-update TRL loops execute actual SAMPO loss, conditional Qwen backward
+and AdamW on the complete shared task population and exact native initial
+adapters. Two use actual TRL scoring; four substitute veRL's exact row-wise
+score helper/full head, with or without deliberate next-forward weight alignment.
+The bounded external loop is not the full Trainer/worker lifecycle. Beta is0,
+local credits and masks are unchanged, and reward-constant admission is bypassed.
+
+| Qwen SAMPO arm | Initial score mean/max absolute difference from veRL | Parameter max difference after update1 /update2 |
+| --- | ---: | ---: |
+| Actual TRL BF16 | 0.00384128 /0.0811722 | 1.99446e-4 /3.94702e-4 |
+| Actual TRL FP16 | 0.000415897 /0.00711083 | 1.92980e-4 /2.29952e-4 |
+| BF16, veRL helper/full head | Exact | 2.91e-11 /1.52242e-4 |
+| FP16, veRL helper/full head | Exact | 2.91e-11 /7.49298e-5 |
+| BF16, helper/full head/common next-forward weights | Exact | 2.91e-11 /1.86e-9 |
+| FP16, helper/full head/common next-forward weights | Exact | 2.91e-11 /1.86e-9 |
+
+All twelve applied TRL/control updates pass independent loss/score/mask and
+Adam checks: maximum errors1.06e-9/1.26e-11/2.31e-9, with excluded score
+gradients exactly zero. Native veRL gradient-capture reruns reproduce all three adapter
+snapshots bitwise in both precisions, with96 aggregated LoRA matrix checks and
+384 scalar dots. When the helper, full head and next-forward weights match,
+both updates' entire unscaled preclip gradient snapshots are bitwise identical
+between TRL and veRL, in BF16 and FP16. This extends matched-state model-gradient
+agreement to complete Qwen task traces with sparse SAMPO local credit.
+
+An optimizer-only replay again isolates CPU/CUDA rounding: identical captured
+initial parameters and gradients reproduce each first optimizer result bitwise.
+The maximum FP32 difference is2.91e-11. Here it crosses four BF16 rounding
+boundaries in the BF16 arm and22 FP16 boundaries in the FP16 arm. Unlike the
+earlier LFM BF16 example, Qwen BF16 is not exempt from this effect. Copying
+native weights before the next forward removes the resulting gradient mismatch
+while retaining the control's own Adam moments. These are causal controls,
+not naturally identical trajectories or task-quality evidence.
+
+The full-head helper controls peak at about4.54GiB Torch allocation. One
+allocation-pressure warning recovers and both updates complete; do not treat
+an allocator retry as a failed training result. Exact sources remain TRL
+`5d4f9ad3c5f5d51b1ea50b827d82fdd379231dbf` and veRL
+`d8e472db822f2916ed81a408b8d28192be95e678`. No production scoring policy is changed.
+
+## Default FP16 loss scale and measured sensitivity
+
+The tested veRL scaler uses native initial scale65,536 and growth interval400;
+the earlier bounded successful probes explicitly used1,024. Two complete-task
+default-scale arms now apply both updates: ordinary FP16 and the diagnostic
+FP32 delta region. All eight independent score/loss/mask checks pass, with
+maximum AdamW error2.27e-9. Each arm traces1,620 backward outputs and72 actual
+gated-normalization input gradients, with no nonfinite values or predicted
+FP16 overflows. Native scale stays65,536 on both updates.
+
+| Default-scale Qwen arm | Maximum independent norm-input derivative | Maximum native/reference relative error | Norm-input dtype |
+| --- | ---: | ---: | --- |
+| Ordinary FP16 | 35,597.37 | 0.0392493% | FP16 |
+| Diagnostic FP32 delta region | 36,734.90 | 0.00000923% | FP32 |
+
+The reference uses actual represented inputs, weights and incoming cotangents
+in the independently evaluated gated-RMS derivative described above. CPU
+reference arithmetic does not change model training precision. Both maxima
+are below FP16's65,504 limit; the earlier short-fixture prediction above1e6
+remains a real, data-dependent overflow case. This is not arbitrary-context
+or automatic-scale-growth qualification.
+
+The first tracing attempt runs out of memory inside diagnostic boolean indexing
+of the full LM-head gradient, requesting7.82GiB. It is preserved as a failed
+instrumentation attempt. Bounded million-element reductions remove that
+allocation. A separate untraced default-scale rerun matches the traced adapter
+exports bitwise at steps0,1,2; peak Torch allocation remains3.67GiB. Thus these
+measurements do not rely on an unverified assumption that hooks are harmless.
+
+Despite finite updates at both scales, changing1,024 to65,536 changes the first
+normalized gradient by0.844489% relative L2. There are295 sign flips among
+159,744 coordinates; four coordinates are zero only at1,024 and two only at
+65,536. The sign-flipping magnitudes are at most8.65e-7. First-update parameter
+L2 difference is7.94874%, and the maximum coordinate difference is1.96619e-4;
+after two updates the maximum reaches3.41969e-4. Starting weights are exact.
+The high-scale gradient-capture rerun also matches the traced first-update
+parameters exactly and passes24 more matrix/96 scalar-dot checks.
+
+The independent first-step Adam equation predicts all parameter differences
+within3.37e-11. This establishes a material loss-scale sensitivity within native
+half backward, amplified by Adam at small coordinates; it is not an optimizer
+formula defect or an instrumentation artifact. Both optimizers pass their own
+reference. The origin of the normalized-gradient difference inside half backward
+still needs isolation; these checks alone do not identify underflow versus other
+rounding or establish which scale improves learning. Lower scale is not shown
+to be a harmless substitute merely because it prevents overflow elsewhere.
+
+External receipts include `qwen-native-sampo-parity-summary.json`,
+`qwen-defaultscale-norm-summary.json`,
+`qwen-defaultscale-gradient-sensitivity.json`, native/TRL arm receipts,
+gradient/adapter snapshots and exact executed runners. Raw correctness tools
+remain outside Git. Default-scale TRL execution, upstream backward-precision
+isolation, broader algorithms/families and fresh held-out learning remain open.
