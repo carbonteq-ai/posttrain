@@ -1853,3 +1853,37 @@ snapshots are archived separately; original receipts remain immutable.
 External artifacts:lfm12-trl-recorded-grpo-{bfloat16,float16}-native-warm-zero-beta0.json,
 native-trl-warm-zero-summary.json and native-trl-warm-zero-effective-settings.json.
 All tools/raw data remain outside Git; broader qualification is ongoing.
+
+## Native active sampling: rejection and controlled recovery
+
+Run actual LFM Trainer.train with active_sampling enabled, maximum two rounds,
+group size2 and truncated completion masking. DAPO and supplied-credit SAMPO
+are supported selections; ordinary GRPO without precomputed credit is rejected
+by native configuration. BF16 and FP16 each exercise exhaustion and recovery.
+
+| Control | Arms | Collection rounds per arm | Optimizer updates per arm | Maximum Adam error |
+| --- | --- | --- | --- | --- |
+| Both candidates masked to one scorable reward | 4 | 2 | 0 | No optimizer state created |
+| First candidate masked, second made fully scorable | 4 | 2 | 1 | 2.661e-11 |
+
+Every exhaustion arm raises the expected bounded-refill error before loss calls,
+leaves parameters bitwise unchanged and creates no Adam state. Every recovery
+arm passes two scalar loss/mask checks and one real update. Maximum scalar loss
+error2.493e-8; score derivative and excluded-token errors0; independently scaled
+optimizer accumulation error0. FP16 scale remains1024 with no skipped update.
+Unscaled-versus-scaled gradient differences4.901% DAPO/4.011% SAMPO are preserved;
+the scaled reference matches exactly. Peaks3.698GB rejection/6.090GB recovery.
+
+This executes native active-sampling selection and model scoring over cached
+recorded tokens. Recovery deliberately changes only the second candidate's
+truncation flags to both scorable, while token/reward bytes and supplied SAMPO
+credit remain unchanged. Dataset rows duplicate prompt metadata. Consequently
+these controls do not qualify fresh generation, host admission/task uniqueness,
+or SAMPO credit recomputation. The native pool must contain two dataset rows for
+this control: the original one-row attempt yielded zero batches, then failed
+the audit's expected-rejection assertion. Preserve that failure and the earlier
+unsupported GRPO attempt; neither establishes a production numerical defect.
+
+External artifacts:lfm-native-active-masked-{dapo,sampo}-{bfloat16,float16}
+-rejection-retry1.json/-recovery.json and native-trl-active-sampling-summary.json.
+Tools and raw receipts remain external; no production recipe change is adopted.

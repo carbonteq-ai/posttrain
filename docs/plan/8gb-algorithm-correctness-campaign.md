@@ -22,6 +22,7 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Execute native active-sampling rejection/recovery for DAPO and supplied-credit SAMPO in BF16/FP16. Four rejection arms exhaust two rounds with no loss calls, no optimizer events/state and unchanged parameters. Four recovery arms reject the first masked singleton, deliberately make the second candidate scorable, then apply one independently verified update each: eight loss/mask checks, maximum loss error2.50e-8, exact scaled accumulation, Adam2.67e-11, peak6.090GB. Cached tokens/repeated prompt metadata and controlled truncation override exclude fresh-generation/host task-uniqueness qualification.
 - [x] (2026-10-01) Execute actual native GRPO warm-Adam/zero-signal controls in BF16/FP16: one informative retained group then two singleton masked groups, beta0, one iteration per supplied population. Six optimizer events/twelve loss-mask checks pass. Later current loss/gradients are exactly0 but parameter changes6.70057e-5/5.17956e-5 follow Adam history; independent update error2.43e-11, peak6.093GB. Recorded truncation flags are deliberately overridden for the first control group; no actual live-run/fresh generation claim.
 - [x] (2026-10-01) Preserve stale inherited raw metadata(beta.01/iterations3) and reconstruct exact compiled source without executing model code; hash matches both receipts and AST confirms effective beta0/iterations1. Companion settings/summary receipts make the correction explicit. Repair future external metadata extraction from compiled GRPOConfig literals; archive old and corrected harness separately without changing immutable receipts.
 - [x] (2026-10-01) Run native BF16 truncated-response masking for SAMPO/GRPO/DAPO, then correct the external scalar oracle to exclude truncated rewards from the baseline as the maintained source already does. Final18 loss/mask/Adam checks pass their intended classifications: supplied-credit SAMPO applies3 updates; GRPO/DAPO are zero-signal negative controls with zero loss/gradients/displacement and three no-op optimizer attempts each. Preserve original oracle failures and qualification_status fail for no productive updates rather than relabel them release qualification. Peak6.092GB.
@@ -234,6 +235,14 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Native active-sampling configuration accepts DAPO or precomputed advantages;
+  ordinary GRPO control is rejected before training. The first supported control
+  supplied one dataset row and produced zero batches because the active candidate
+  pool needed two rows. Preserve both failures; repair only the external harness.
+  Recovery FP16 unscaled-versus-scaled gradients differ by4.90% DAPO/4.01% SAMPO,
+  while independently reconstructed scaled gradients agree exactly. This is not
+  the previously unresolved scalar-oracle gradient precision failure.
 
 - (2026-10-01) A zero current gradient does not imply a zero Adam update after an earlier informative group. Native loops move parameters on both later masked, zero-loss groups with beta0 and no decay. The inherited successful-update counter counts parameter movement, not fresh policy signal. Raw beta/iteration output literals were stale in this controlled variant; compiled-source hash/AST reconstruction establishes actual settings and preserves original receipts.
 - (2026-10-01) Truncation masking also sets the affected reward row to NaN before normalization. The first oracle incorrectly retained both rewards[1,0]; actual GRPO/DAPO correctly leave one scorable reward and zero advantages. Their training loops execute zero-gradient Adam attempts with unchanged parameters because initial moments/decay are zero. SAMPO's supplied credit is not recomputed after masking and survives on the valid row. Native std is undefined for a singleton; dynamic/active predicate std>epsilon excludes NaN, whereas static native loops used here do not refill.
@@ -528,6 +537,12 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- (2026-10-01) Qualify native rejection and bounded recovery using supported
+  DAPO/SAMPO controls before extending claims to the host. Recovery changes only
+  the second candidate's truncation metadata; supplied SAMPO credit is unchanged.
+  This tests native selection/control flow and resulting loss/update, not whether
+  the actual credit builder or fresh task sampler supplies such a candidate.
+
 - (2026-10-01) Retain the chosen independent-gradient tolerance and default LFM fail status. Use a bounded diagnostic score/loss precision control with the model still FP16 to isolate rounding sensitivity; do not adopt FP64 loss or change production policy/scaler from one task. Keep episode-normalization telemetry meaning distinct from sampled-token credit. No production or fork changes.
 - (2026-10-01) Reuse actual Trainer.train rather than a hand-written optimizer loop for recorded SAMPO updates; supply native recorded token masks, credits and rewards and use constant LR1e-4/rank4/alpha8/accumulation2/beta.01. Qwen's equal episode rewards still bypass host admission here; LFM truncation is retained diagnostically. Enable supported fused SDPA after a math-attention memory failure, and bound only external instrumentation after its independent allocation failure. Independent Adam reconstruction uses each step's actual prior moments/gradient, so it verifies update equations rather than an independent optimizer-history implementation. No production/fork source change or pin adoption.
 - (2026-10-01) Repair stable selected normalization in both maintained forks while preserving batch-row processing, dtype and half semantics. No frozen baseline meaning changes. Source commits TRL4020c122e4ba2147829ecc0bbaddf6b566a0c8b5 and veRL661bbf395e90a060acde0ec0bbed84ef67b5cee3 are published before consumer documentation. Stable FP32/FP64 log_softmax retains normalized vocabulary buffers; full-model memory/throughput is an open adoption gate. Do not replace half token-row scoring or update production runtime pins from these scalar checks.
@@ -694,6 +709,13 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+Revision80 adds eight actual native active-sampling controls. All four exhaustion
+arms prevent loss and optimizer work; all four recovery arms reach one audited
+update. This closes the native cached-fixture refill gate, while normalized host
+admission/refill, distinct task enforcement, fresh rollout quality and broader
+algorithm/backend qualification remain open. No production code or recipe change
+follows from this passing control. External tools and raw receipts stay out of Git.
 
 - (2026-10-01) Actual native Adam confirms the cold-negative-control conclusion must be qualified by optimizer history: zero-signal groups can produce momentum-only parameter movement. Six native events match independent Adam arithmetic; no production optimizer bug or current-run attribution. Effective settings are verified despite corrected external metadata. Host filtering/refill, actual current-run signal counts, broader algorithms and learning quality remain open.
 - (2026-10-01) Masking/reward-baseline/model/optimizer behavior is coherent in the tested BF16 trace. Group collapse offers a concrete recipe mechanism for absent policy signal under small masked groups, but no live-run causal claim is established. Preserve the failed oracle controls, proper negative-control classification, supplied-credit limitation and untested FP16/host behavior. No production repair or recipe adoption follows.
@@ -1369,3 +1391,6 @@ and verify exact group-information math without claiming live-run causation.
 Revision 79: demonstrate native warm-Adam movement at zero current loss in
 both precisions, verify effective control settings by exact compiled-source hash,
 repair external metadata provenance and retain host/current-run causation gates.
+Revision 80: execute actual native active-sampling rejection and recovery in
+both primary precisions, preserve supported-selection and undersized-pool failures,
+verify scaled gradients/Adam and retain fresh host task-uniqueness gates.
