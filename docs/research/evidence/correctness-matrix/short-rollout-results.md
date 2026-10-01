@@ -627,3 +627,71 @@ distributed/packed paths, fresh iterative learning and broader family/algorithm
 qualification remain open. External worker-body source/receipt
 `native-worker-reference-training-audit.json` stays outside Git; repository
 changes contain product selection/gates, regression tests and findings only.
+
+## Second fresh SAMPO group: correct local updates, worse sampled behavior
+
+The FP16 LFM policy regressed on the two controlled weekly-report seeds after
+training on its own next rollout group. This result preserves the adverse
+behavior rather than treating passing derivative checks as learning success.
+
+Replayed the original three updates with the same deterministic native veRL
+FSDP2 engine, LoRA rank4/alpha8, FP32 adapter masters, FP16 scale1024,
+LR0.0001, AdamW weight decay0.01, gradient norm cap1, beta0.02 and SAMPO
+ratio bounds0.997/1.004. Every step0–3 adapter parameter and recorded native
+score reproduced exactly. Then loaded the complete fresh step3 group with
+unchanged rewards[0,0.5], retained the live Adam moments/counter3, and applied
+two more updates. The old-policy scores were refreshed for this new group;
+the reference remained the original base policy through native adapter disabling.
+No optimizer, scaler or reference reset occurred at the group transition.
+
+The group has prompt1573, response lengths2048/2409 and sampled-token
+counts2048/2072. Exact trace projection and independent hierarchical credits
+agree with error0, including zero credit on tool/user response coordinates.
+Default unmasked truncation admission retains it; enabling truncation masking
+rejects it because only one eligible episode remains. The prior BF16 fresh
+group[0.5,0.5] is rejected by the current reward-spread rule and was not forced
+through training in this slice.
+
+| Evidence | Result |
+| --- | --- |
+| Native updates | Five applied, none skipped; counters1→5 |
+| Independent loss / score-gradient checks | Ten pass; fresh-group maximum errors1.72e-8 /2.10e-11 |
+| LoRA linear derivatives / scalar dot references | 120 matrices /480 dots |
+| Independent Adam maximum error | 2.15e-9 |
+| Peak CUDA allocation | 3,005,776,384 bytes |
+| Step3 fresh rewards, same seeds39400/40400 | [0,0.5]; truncation[true,false] |
+| Step5 fresh rewards, same seeds/budget | [0,0]; truncation[true,true] |
+
+Clipping and KL refer to different policies. At old-group update3 both
+credited populations were clipped and their policy score-gradient norms were
+zero. At new-group update4 both ratios reset to exactly1 and clipping was0,
+while sampled-k3 proxies against the unchanged base were already8.39e-5 and
+7.55e-5. Update5 ratios were0.9993274/1.0004862 and remained unclipped;
+the proxies rose to1.45e-4/1.38e-4. The beta-weighted KL score-gradient norms
+were roughly0.08–0.12% of policy score-gradient norms on this new group. These
+are sampled surrogates and score derivatives, not full-vocabulary KL or model
+gradient ratios; they do not establish an optimal beta.
+
+Step5 inference loads the exact adapter keys/values and reproduces its fresh
+fixture native scores with error0. Both fresh episodes consume2048 sampled
+tokens in one turn and truncate; the earlier partial-success seed no longer
+sends the required email. Four independent plain-JSON final-state checks agree
+with the benchmark rewards at steps3/5. The resulting[0,0] population is
+rejected and has zero hierarchical credit, so it cannot supply another ordinary
+SAMPO update without collecting an eligible replacement group.
+
+This is a second genuinely sampled group with uninterrupted native optimizer
+state, not a full native worker/queue/refill or vLLM synchronization test. It
+reuses two training seeds on one task and establishes no held-out efficacy.
+The adverse behavior does not isolate whether credit structure, Adam history,
+update size, reference strength, numerical precision or their interaction is
+responsible. Next compare controlled one-update/reuse and optimizer-history
+arms from the same step3 state before recommending a recipe change. Published
+runtime adoption, Qwen/Gemma companions and broader algorithm gates remain open.
+
+External receipts: `lfm-fresh-iteration-float16.json`,
+`fresh-iteration-summary.json`, fresh group and quality group audits, and
+`lfm-fresh-iteration-quality-float16-step5.json`. The native receipt retains an
+inherited generic scope sentence; its transition record and companion summary
+define the expanded two-group scope. All runners, checkpoints and raw receipts
+remain under the external experiment directory and are excluded from Git.
