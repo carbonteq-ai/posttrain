@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Capture actual Qwen vocabulary-projection backward in three native FP16/BF16 updates, reproducing original step0/1 adapters/scores bitwise. All six loss/score checks,72 LoRA matrix checks,288 scalar dots and Adam(max1.34e-9) pass. Independent full-vocabulary projection references over four hidden coordinates pass72 scalar fsum controls(max1.70e-21). Six-position scale discrepancy increases0.0002676% raw-logit→0.0041967% hidden L2; saturated-coordinate projection underflow has large relative but tiny absolute errors. Peak3.95GB. Expand to all104 credited positions before explaining global LoRA sensitivity; no production correction adopted.
+
 - [x] (2026-10-01) Execute stable selected-score backward through three complete native Qwen SAMPO updates (FP16 scales1024/65536, BF16). Initial scores/weights remain bitwise native; six loss/score/mask checks,72 matrix checks,288 scalar dots and Adam(max1.34e-9) pass at2.44GB peak. FP16 scale gradient gap remains0.87175%/296 sign flips and update gap7.902%, rejecting the control as a demonstrated scale-sensitivity remedy. BF16 gradients differ2.046% and updates10.526% from native, not a quality verdict. Next isolate frozen vocabulary projection accumulation and residual model backward.
 
 - [x] (2026-10-01) Capture six real credited Qwen token positions at FP16 scales1024/65536. Identical logits/cotangents, native head-gradient bitwise replay and exact original adapter controls isolate local underflow/rounding. Independent finite differences agree within2.24e-14. A saturated token is entirely zero at1024 but recovers six coordinates at65536; FP32 cast removal still exhibits target cancellation. Stable FP32 non-target-mass derivative agrees with the F64 oracle within1.97e-7 relative L2. Full-model corrective backward, BF16 companion and quality attribution remain open; no production precision policy changes.
@@ -139,6 +141,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Actual output projection amplifies the scale discrepancy at the six captured positions, while projection-only relative errors can be dominated by subnormal hidden gradients around1e-13. Already-zero input gradients must be distinguished from an accurately computed nonzero derivative. Selected-token evidence cannot explain the whole-population LoRA gap.
 
 - A stable selected-softmax derivative alone leaves the full FP16 scale gap essentially unchanged. Local target cancellation is real but insufficient to explain the global discrepancy; replacing it also changes BF16 gradients substantially despite identical forward scores.
 
@@ -378,6 +382,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Expand capture to all104 nonzero-credit token positions with bounded hidden-coordinate oracles. Preserve native forward and bitwise instrumentation controls; do not infer whole-model causation from six selected positions or adopt FP32 projection accumulation without testing it.
+
 - Reject stable selected-score backward as a demonstrated loss-scale remedy. Retain its native-forward controlled evidence and move to output-projection accumulation; no production defaults/pins are changed by an isolated local improvement.
 
 - Retain the stable FP32 distribution derivative as an independent reference/candidate. Require real projection/model backward and BF16/FP16 validation before changing scoring or gradient policy. Keep the original represented temperature fixed when comparing equivalent-forward derivatives.
@@ -494,6 +500,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Independent actual-value projection references establish local rounding/underflow and scale amplification, with exact-repeat instrumentation evidence in both primary precisions. The next available action is full credited-population capture and controlled accumulation/backward experiments, not a production recipe change.
 
 - Three full native candidate updates narrow the causal explanation: all downstream linear/optimizer references pass, but head-score stabilization does not resolve scale sensitivity. Full frozen-projection and model-backward references remain necessary, alongside broader algorithms and held-out quality gates.
 
@@ -1003,3 +1011,6 @@ and retain full-model/precision/quality qualification before adopting a remedy.
 Revision 42: execute stable selected-score backward in native Qwen FP16/BF16
 updates, quantify its Adam-amplified changes and reject it as a demonstrated
 scale-gap remedy before isolating output-projection accumulation.
+Revision 43: measure actual full-vocabulary projection derivatives at selected
+credited tokens in FP16/BF16, quantify local scale amplification and require
+whole-population capture before attributing the global LoRA discrepancy.

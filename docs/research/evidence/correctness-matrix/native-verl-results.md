@@ -526,3 +526,55 @@ executed wrappers and inherited runners are retained in the external manifest.
 No framework source, precision defaults or dependency pins change. Next compare
 the actual frozen output projection's half versus FP32 gradient accumulation
 while preserving represented forward scores and retaining both primary dtypes.
+
+## Actual frozen vocabulary-projection derivative references
+
+Three further complete-task native SAMPO updates capture the output projection
+in FP16 at scales1,024/65,536 and BF16. For six selected credited positions,
+retain the actual raw-logit cotangent, all1,024 hidden-state cotangent
+coordinates, and four selected weight columns with all248,320 vocabulary rows.
+The corresponding step0/1 adapters and scores reproduce the original native
+arms bitwise. All six loss/score/mask checks,72 LoRA matrix checks,288 scalar
+dots and independent AdamW(max1.34e-9) pass. Peak Torch allocation is3.95GB
+(decimal); instrumentation remains within the8GB card.
+
+The independent projection oracle computes `d_hidden = d_logits @ W` in
+CPU float64 over the complete vocabulary. Seventy-two independent scalar
+`math.fsum` dots agree with these references within1.70e-21 absolute error.
+This reference starts from the actual represented raw-logit gradient, thereby
+isolating projection rounding from the preceding score derivative. A separate
+whole-head reference uses the stable distribution derivative at represented
+tempered logits and actual half-weight values. Neither is an unrounded
+full-model gradient reference.
+
+| Selected position | Projection relative L2 error, FP16 scale1,024 | FP16 scale65,536 | BF16 |
+| --- | ---: | ---: | ---: |
+| Row0, index0 | 0.0343704% | 0.0345619% | 0.0777771% |
+| Row0, index29 | 11.8897% | 0.195884% | 0.441773% |
+| Row1, index3 | Already-zero input gradient | 189.949% | 0.143477% |
+| Row1, index6 | 0.0230884% | 0.0234437% | 0.102990% |
+
+Row1/index3's ideal whole-head hidden-gradient norm over the four selected
+coordinates is3.92e-13. Its high-scale projection maximum absolute error is
+6.39e-13, so a large relative error here does not establish a material learning
+effect. At scale1,024 all its input and hidden gradients are zero; reporting
+projection relative error0 would misleadingly suggest accuracy. The other two
+most saturated FP16 positions likewise have zero input/hidden gradients at
+both scales and whole-head relative error100%, with ideal norms below1.85e-14.
+BF16 retains tiny gradients but preceding score cancellation still causes
+whole-head relative errors44.86–99.68% at these saturated positions.
+
+For these same six positions, the paired FP16 scale difference is0.000267627%
+relative L2 in the raw-logit gradients (1,489,920 coordinates), increasing to
+0.00419668% in hidden gradients (6,144 coordinates). Thus the actual projection
+amplifies the local scale-dependent discrepancy. It remains much smaller than
+the full-population LoRA gradient gap0.844489%; different populations and
+gradient spaces prevent assigning the remainder to a specific downstream layer.
+Expand capture to all104 credited tokens before attributing the global gap.
+
+External evidence: `qwen-projection-scale1024.json`,
+`qwen-projection-scale65536.json`, `qwen-projection-bf16.json`, selected projection
+tensors and exact adapter/score controls, `qwen-projection-gradient-oracle.json`,
+and exact executed runner/controller snapshots. No production source or
+precision/default changes. Whole-population projection sensitivity, corrective
+accumulation controls and model-backward isolation remain open.
