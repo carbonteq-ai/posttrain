@@ -1095,3 +1095,26 @@ is [verl-qwen35-grpo-distillation.md](../../plan/verl-qwen35-grpo-distillation.m
 - [vLLM release notes: TurboQuant hybrid-model and uniform-quantization support](https://github.com/vllm-project/vllm/releases)
 - [TurboQuant paper, ICLR 2026](https://openreview.net/pdf/86df3c70aa9b7035c407e886e8238951a5d6ec23.pdf)
 - [vLLM TurboQuant follow-up tracker](https://github.com/vllm-project/vllm/issues/40069)
+
+## Singleton FSDP accumulation qualification
+
+Published candidate source
+[`d8e472db822f2916ed81a408b8d28192be95e678`](https://github.com/carbonteq-ai/verl/commit/d8e472db822f2916ed81a408b8d28192be95e678)
+keeps synchronization enabled for a one-rank data-parallel group. Deferred sync
+has no communication benefit there and triggers a Torch2.13 FSDP2 backward
+failure for unused independently sharded branches, including vision modules
+in text-only Qwen execution. Multi-rank deferral remains unchanged.
+
+The12-test synchronization suite passes, including BF16/FP16 CUDA accumulation
+against closed-form gradients and existing two-rank Gloo equivalence. Six new
+regressions fail against the previous source. Complete collected Qwen
+AutomationBench traces now apply six SAMPO updates across ordinary FP16,
+diagnostic FP32-delta-region FP16 and ordinary BF16. A two-update native LFM
+FP16 regression also passes48 matrix-gradient and192 scalar-dot checks.
+
+This is candidate-source correctness evidence. Rewards are constant in the
+Qwen population, and direct updates deliberately bypass production admission.
+Fresh learning, multi-rank unused branches, packed/fused paths and published
+runtime adoption remain open; dependency pins and images are unchanged. See
+[the native Qwen findings](../../research/evidence/correctness-matrix/native-verl-results.md)
+and the fork's `CARBONTEQ_FORK.md` for the failure, controls and rebase gates.

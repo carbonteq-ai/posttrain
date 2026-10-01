@@ -258,3 +258,75 @@ through both native backends; native LFM/Gemma and intended contexts/modules;
 packed and distributed paths; FP16 overflow/underflow boundary checks; and
 release assets with immutable runtime adoption. The broader campaign remains
 active. See the [living plan](../../../plan/8gb-algorithm-correctness-campaign.md).
+
+## Complete collected Qwen task population and singleton synchronization
+
+The next native FSDP2 probe uses complete observed Qwen AutomationBench traces,
+without changing rewards or supplied tokens:1,119 shared prompt tokens,289/420
+response tokens and133/165 sampled assistant actions. Both observed task rewards
+are1; Posttrain's SAMPO credit computation still produces104 nonzero local
+token credits. This direct math probe deliberately bypasses reward-constant
+group admission. It does not show that the production worker would train this
+population, or measure new task quality.
+
+The first run fails inside native FSDP2 backward before an optimizer result:
+`FSDPParam` lacks `_unsharded_param`. Independent minimal GPU controls isolate
+an interaction between unused separately sharded branches and synchronization
+deferral. Four ordinary-sync cases pass; the same four deferred-sync cases
+fail, covering frozen/trainable branches and CPU-offloaded/device parameters.
+An unused branch alone is insufficient to cause the failure. The native
+no-sync post-backward path is the failing combination in this Torch2.13 runtime.
+
+The veRL candidate keeps ordinary synchronization enabled for a singleton
+data-parallel group, where no cross-rank communication can be saved. Multi-rank
+deferral remains unchanged. Six new regressions fail before repair and pass
+afterward; the entire12-test synchronization suite passes. Four real GPU tests
+verify BF16/FP16, offload/device and two-microbatch gradients against a separate
+closed-form linear derivative, preserving zero unused-branch gradients. Existing
+two-rank Gloo FSDP1/FSDP2 update equivalence also passes. Multi-rank conditional
+unused-branch execution remains a separate gate.
+
+With the repair, all three full-task Qwen arms execute two applied updates.
+Each uses FSDP2 CPU offload, gradient checkpointing, FP32 LoRA masters,
+rank4/alpha8 q/v targets, LR1e-4, microbatch1 accumulated over two rows,
+SAMPO bounds0.003/0.004, beta0 and frozen per-token sampler corrections.
+
+| Complete task arm | Applied updates | Maximum loss /score-gradient error | Maximum AdamW error | Active clipping on update2, row1 /row2 |
+| --- | ---: | ---: | ---: | ---: |
+| Ordinary FP16, scale1024 | 2/2 | 9.93e-10 /7.50e-12 | 2.20e-9 | 66.165% /0% |
+| FP16, scale1024, diagnostic FP32 delta region | 2/2 | 8.39e-10 /6.35e-12 | 2.23e-9 | 66.165% /0% |
+| Ordinary BF16 | 2/2 | 1.75e-10 /1.36e-11 | 2.24e-9 | 0% /0% |
+
+All12 independent loss/score checks pass; context and excluded response-score
+gradients are exactly zero. Peak Torch allocation is3.67GiB; device reservations,
+desktop and driver memory are additional. First-update ratios are1 in every arm.
+Second-update first-row geometric ratios are1.006149/1.004889/0.997912 for the
+three rows in the table respectively. The FP16 upper crossing clips only
+positive local-credit positions,88/133, rather than every token in the row.
+BF16 gives a different policy movement and no active clipping on this update;
+that is not independently a failed mathematical check or a quality result.
+
+Ordinary FP16 now applies updates at scale1024 on this real population, whereas
+the earlier short supplied-token populations overflowed at the same scale.
+This does not invalidate those failures or qualify arbitrary contexts: it
+demonstrates their data dependence and rejects a blanket claim that Qwen FP16
+always fails. The explicit FP32 delta-region control also passes here but is
+not required to avoid overflow on these particular traces. Its score/update
+trajectory differs, so adoption still needs broader derivative and learning
+evidence. No production precision policy or dependency pin changes.
+
+The original FSDP2 failure log and step0 adapter, eight minimal sync controls,
+the full-task fixture/source traces, three applied-update receipts and exact
+runner snapshots remain under the external correctness archive. Runtime repairs
+and production regressions belong in the fork; experimental tools and raw
+receipts are not committed.
+
+The synchronization repair is published as
+[`d8e472db822f2916ed81a408b8d28192be95e678`](https://github.com/carbonteq-ai/verl/commit/d8e472db822f2916ed81a408b8d28192be95e678).
+The three Qwen arms have bitwise-identical initial FP32 adapters. A native LFM
+FP16 SAMPO regression applies two updates, passes48 aggregated matrix-gradient
+and192 scalar-dot checks, matches native manual gradients exactly and AdamW
+within2.14e-9 at2.06GiB peak allocation. The new native receipts were produced
+before the source commit and record its then-parent plus the corrected engine
+hash; the external publication mapping verifies that hash against the published
+commit. This distinguishes the failed original source from the corrected runs.
