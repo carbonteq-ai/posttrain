@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Execute actual TRL scoring/loss, HF backward and AdamW for collected LFM GRPO/DAPO in BF16/FP16: eight applied updates,16 independent loss/score/mask checks, maximum errors2.28e-8/8.78e-11/2.13e-9. Native backend score arithmetic differs. FP16 matched-arithmetic controls reduce initial score difference below4.77e-7 but first preclip gradients still differ0.125–0.128% L2;18–22 small sign flips produce3.36–3.73% update L2 differences. Independent first-step Adam sensitivity predicts all parameter differences within3.76e-11. Full-head projection does not resolve residual backward differences. Native capture rerun matches all adapter snapshots exactly. All tools/raw receipts remain external; broader families, BF16/DAPO isolation and full lifecycle/quality remain open.
+
 - [x] (2026-10-01) Extend native collected-LFM updates to GRPO/DAPO in BF16/FP16: all8 final updates apply;16 independent loss/score/mask checks,192 LoRA matrix gradients and768 scalar dots pass. Maximum loss/score/Adam errors2.23e-8/6.85e-11/2.13e-9. First updates do not clip; second reused-population token clipping12.146–19.531%. Global token versus row normalization is checked on unequal741/512 sampled lengths. Actual TRL loss replay on exported scores agrees within2.99e-8 across16 cases. Initial adapters match exactly; native TRL model/optimizer trajectories, live advantage production and full worker/default-recipe qualification remain open.
 
 - [x] (2026-10-01) Isolate the output head in two full LFM BF16/FP16 arms: exact half-weight values promoted into a separate frozen FP32 head, native embedding/base preserved,24 more shared-coordinate finite differences. Finite analytical gradients shift0.368–0.445% FP16/0.624–2.12% BF16, but FD agreement improves only at some coordinates and remains unstable overall. BF16 upper crossings7→3/12; FP16 stays2/12. Exact baseline repeats and3.25/3.31GiB peaks hold. Reject head-only promotion as a demonstrated remedy; upstream precision, larger coordinate coverage and broader native backend algorithms remain open.
@@ -127,6 +129,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- (2026-10-01) Closely matching initial token scores does not guarantee identical half-precision gradients. In FP16 GRPO,18–22 sign flips among159,744 LoRA coordinates occur despite0.125–0.128% gradient L2 discrepancy. With eps1e-8, first-step Adam nearly normalizes gradients larger than epsilon to their sign, explaining near2*LR maximum coordinate differences. Completion-only versus full-head projection changes few flips but barely reduces the discrepancy; preserve this failed isolation hypothesis.
 
 GRPO and DAPO legitimately yield different native updates on unequal-length
 rows: DAPO/GRPO token weights are1.18276 on the longer successful row and
@@ -354,6 +358,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Decision: retain backend score-temperature differences and native trajectory discrepancies as measured qualification gaps. Use external matched-arithmetic/full-head controls and independent first-step Adam equations to locate causes; do not alter product precision policy merely to force parity. Both native optimizers pass their own mathematical references. No frozen baseline or dependency-pin change. Date/Author:2026-10-01/Codex.
+
 - Decision: extend the published native veRL engine probe to Posttrain's token-clipped GRPO/DAPO actor mappings, using explicit group-mean/std-disabled episode credits and unchanged native task masks. Audit each normalization with global counts and replay actual TRL loss methods on exported scores; do not call that a native TRL model/optimizer or live admission qualification. Preserve exact initial adapter equality, exploratory receipts and external-only tools. Date/Author:2026-10-01/Codex.
 
 - Decision: test head-only FP32 arithmetic using a separate frozen head copied from native half weights; preserve the tied token embedding's dtype and all LoRA weights. Record adverse coordinate results and clipping crossings rather than presenting isolated improvement as qualification. Do not change production head precision from this experiment. Date/Author:2026-10-01/Codex.
@@ -458,6 +464,15 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+Native TRL model/optimizer coverage now includes collected LFM GRPO/DAPO in
+BF16/FP16, beyond the earlier score-only replay. Eight applied updates pass
+independent loss/mask/Adam checks, but backend trajectories differ. FP16 gradient
+capture explains first-update parameter sensitivity quantitatively; full-head
+projection does not resolve the underlying small backward discrepancy. This
+does not establish task-quality improvement or full framework-worker parity.
+Exact runners and receipts stay outside Git, with source hashes and preserved
+initial exploratory controls.
 
 2026-10-01 broader native-objective milestone: GRPO/DAPO losses, sampled-token
 normalization, matrix gradients and AdamW pass actual LFM engine updates in
@@ -912,3 +927,6 @@ head-only control as a demonstrated general remedy.
 Revision 36: run native GRPO/DAPO updates on collected LFM task traces in
 BF16/FP16, check unequal-length normalization and active token clipping, and
 replay actual TRL losses on native scores while preserving model/optimizer gates.
+Revision 37: execute actual TRL model/optimizer arms, isolate half-temperature
+scoring, capture preclip native gradients and test full-head projection; explain
+first-update Adam sign sensitivity without treating bounded checks as full parity.

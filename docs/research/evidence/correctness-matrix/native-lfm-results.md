@@ -883,3 +883,77 @@ adapter exports/logs, `native-episode-policy-trl-score-parity.json` and
 retained an inherited SAMPO scope sentence; its exact source/receipts remain
 separate. The final GRPO BF16 rerun has corrected metadata and is the arm
 reported here. No correctness runner or raw receipt is committed.
+
+## Native TRL trajectories and first-update Adam sensitivity
+
+The next comparison executes actual TRL scoring and loss methods, HF model
+backward and AdamW on the same collected population and exact initial native
+veRL adapters. A bounded external loop orchestrates two microbatches per update;
+this is not the complete TRL Trainer or production-worker lifecycle. GRPO FP16
+applies both updates, checks excluded-token score gradients are zero, and matches
+independent AdamW within2.11e-9. Its initial sampled-token scores differ from
+veRL by mean absolute0.000774801/max0.0119468. Source inspection identifies a
+real arithmetic difference: TRL promotes half logits before temperature division,
+whereas the tested native veRL branch divides in half precision first.
+
+All four actual-TRL arms now complete, with eight applied updates and16
+independent microbatch loss/score/mask checks. Maximum loss error is2.28e-8,
+score-gradient error8.78e-11 and AdamW error2.13e-9; excluded score gradients
+are exactly zero. FP16/BF16 peak Torch allocations are3.88/4.09GiB.
+
+| Actual TRL arm | Initial score mean/max absolute difference from veRL | Parameter max difference after update2 | Active token clipping on update2, successful/failed rows |
+| --- | ---: | ---: | ---: |
+| GRPO FP16 | 0.000774801 /0.0119468 | 3.68126e-4 | 12.146% /17.383% |
+| GRPO BF16 | 0.00637141 /0.0908465 | 3.96150e-4 | 14.035% /14.063% |
+| DAPO FP16 | 0.000774801 /0.0119468 | 3.72368e-4 | 13.090% /15.820% |
+| DAPO BF16 | 0.00637141 /0.0908465 | 3.86733e-4 | 13.630% /19.141% |
+
+Each backend recomputes its own frozen old-policy scores and sampler corrections
+from the shared initial model. Thus native-scoring trajectories include that
+measured arithmetic difference; they are not an isolated common-score backward
+comparison. First-update clipping is zero in all four arms. Nonzero reuse
+clipping demonstrates the mechanism on these deliberately narrow bounds,
+without qualifying the default recipe or making clipping a learning-quality target.
+
+A diagnostic scorer substitutes veRL's half-temperature/log-softmax arithmetic
+while preserving actual TRL loss, model backward and AdamW. Dummy entropy is
+logging-only: entropy bonuses and beta are disabled. Initial score differences
+fall to mean6.42e-8/max4.77e-7, but parameter trajectories still differ. Capturing
+both implementations' unscaled gradients before clipping isolates this effect.
+The instrumented native veRL rerun matches original adapter exports bitwise at
+steps0,1,2, so the capture did not alter its measured trajectory.
+
+| FP16 GRPO diagnostic | First-gradient relative L2 difference | Sign flips /159,744 coordinates | First-update relative L2 difference | Maximum parameter difference |
+| --- | ---: | ---: | ---: | ---: |
+| Matched score arithmetic, completion head | 0.127723% | 22 | 3.73437% | 1.98573e-4 |
+| Matched score arithmetic, full-sequence head | 0.124994% | 18 | 3.35575% | 1.97598e-4 |
+
+The full-head control tests the difference between TRL's completion-only output
+projection and veRL's full-sequence projection; it does not explain most of the
+residual. Native gradient norm is0.12366544; control norms are0.12367366 and
+0.12366810. Sign-flipping native gradients range from2.24e-8 to1.19e-6 in the
+completion-head control, and2.98e-8 to2.86e-6 in the full-head control.
+
+At the first Adam step, bias correction simplifies the gradient-dependent
+update to `-lr*g/(abs(g)+eps)`. With LR1e-4 and eps1e-8, gradients several
+times larger than epsilon can receive nearly opposite full-size updates after
+a small sign change. Common decoupled weight decay cancels in the backend
+difference. This independent equation predicts every first-step parameter
+difference within3.76e-11 in both controls; the largest differences occur at
+sign flips. Each backend's optimizer also matches its own independent reference.
+These observations support numerical-gradient sensitivity as the cause of this
+bounded first-update mismatch, rather than an AdamW formula error. They do not
+locate every residual backward difference or establish a better training recipe.
+
+The full-head control applies both updates, with maximum Adam error2.11e-9,
+second-update parameter difference3.26292e-4 and3.88GiB peak Torch allocation.
+The actual TRL scorer has not been replaced in product code. Matching arithmetic
+is a diagnostic control; precision-policy adoption requires broader evidence.
+
+External receipts include `lfm-trl-native-grpo-fp16.json`,
+`lfm-trl-native-grpo-fp16-verl-score-control.json`,
+`lfm-trl-native-grpo-fp16-verl-score-control-full-head.json`,
+`lfm-native-grpo-fp16-gradient-control.json` and
+`lfm-native-gradient-controls-summary.json`, plus gradient/adapter exports and
+exact runner snapshots. BF16/DAPO matched-arithmetic gradient isolation, other model families,
+full lifecycle agreement and held-out task effects remain separate gates.
