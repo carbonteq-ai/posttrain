@@ -1009,3 +1009,50 @@ real queue, not a Ray-dispatched GPU actor or full training controller. FP16/LFM
 model transport, controller admission/refill, fresh rollout/weight synchronization,
 held-out behavior and broader algorithm/family coverage remain open. No new
 product math defect or production recipe recommendation follows from this slice.
+
+## Completed Qwen/LFM precision matrix through the real queue
+
+Three additional arms extend the preceding Qwen BF16 queue result to Qwen FP16
+and LFM BF16/FP16. Across the four arms, twelve updates apply successfully with
+no skips. All24 independent loss/score checks,288 matrix-gradient checks and
+1,152 scalar dot checks pass. Parameters and scores at every step0–3, and all
+three preclip gradients in each arm, match the corresponding local-worker
+controls bitwise. Sixty successful inference calls and four intentional
+reference-loss exceptions preserve exact actor/base restoration. Both FP16
+arms retain diagnostic scale1024 throughout; production default-scale
+qualification remains open.
+
+| Model / precision | Peak tensor allocation, GB | Maximum loss error | Maximum score derivative error | Clipped active tokens at update3 |
+| --- | ---: | ---: | ---: | ---: |
+| Qwen BF16 | 3.991 | 2.20e-10 | 8.63e-12 | 104 / 298 |
+| Qwen FP16 | 3.990 | 6.19e-10 | 9.23e-12 | 88 / 298 |
+| LFM BF16 | 2.439 | 5.83e-8 | 1.13e-10 | 1,024 / 2,341 |
+| LFM FP16 | 2.439 | 5.40e-8 | 7.51e-11 | 2,341 / 2,341 |
+
+GB here means decimal bytes divided by1e9, and excludes GPU allocations outside
+Torch's tensor allocator. Maximum independent worker aggregate-loss error is
+1.04e-7 and Adam error4.04e-9. Clipping uses the deliberate diagnostic bounds
+1−.003 and1+.004 on a reused population. Update1 starts with exact current/old
+ratio1 and clips no active token. Update2 clips88 Qwen tokens in either
+precision and none for LFM; update3 gives the counts above. These measurements
+verify clipping behavior across transported inputs. They do not establish
+production clipping frequency or recommend these tight thresholds. A fully
+clipped policy term also does not imply an unchanged optimizer: KL gradients
+and accumulated Adam moments remain relevant.
+
+The first LFM BF16 attempt exposed another external audit edge case: a genuinely
+unpadded response had all positions active, leaving no excluded-gradient values.
+The native loss completed, but the oracle's max reduction over the empty set
+failed. The new retry reports0 for this empty set and passes without any product
+or fork changes. Failed source/log/checkpoint artifacts remain external and
+unchanged. The combined receipt is live-tq-matrix-summary.json; final arms are
+qwen-live-tq-worker-float16-retry1.json and lfm-live-tq-worker-*-retry2.json.
+
+This establishes a bounded native-worker/transport result for both architectures
+and primary precisions. It does not run a Ray-dispatched GPU worker, the full
+controller, admission/refill or fresh rollout synchronization. The Qwen fixture
+still bypasses equal-reward admission deliberately; LFM's cached group has mixed
+episode rewards, but host admission was not executed here. Fresh-task learning,
+default FP16 scale, broader algorithms, TRL equivalence and Gemma remain separate
+campaign gates. The new evidence does not explain the production run's poor
+performance by itself.
