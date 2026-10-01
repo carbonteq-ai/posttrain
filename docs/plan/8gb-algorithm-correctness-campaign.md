@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Execute eight exact TrainingWorker inference/training bodies with real TensorDict helpers and an instrumented engine, plus one exceptional-exit control. Reference inference consumes its adapter flag; training always uses the bound loss and enabled adapter. Fresh training inputs get training microbatch defaults; explicit same-input reuse retains supplied inference engineering fields. Revalidate the production mapping mismatch: SAMPO still selected GSPO while native qualification used dedicated sampo_token_credit. Repair Posttrain launcher/worker to select that loss, admit published d8e472db822f2916ed81a408b8d28192be95e678 explicitly, and reject old post8 before planning/again before native startup. New legacy rejection regression fails before repair;120 backend tests pass(8 dependency skips), two actual candidate TRL/veRL score-gradient parity cases pass; targeted Ruff/Pyright and nine import contracts pass. Native parity setup required correcting dependency ordering and adding the environment workspace path, not dependency mutation. No frozen baseline amendment: unsupported implementations must already reject. Runtime pins/images stay old and cannot run corrected SAMPO until adoption; no broad goal completion.
+
 - [x] (2026-10-01) Add eight matched2048-token fresh LFM episodes against previous1024 controls; all eight pairs preserve first1024 IDs/logprobs exactly and verify native adapter scores/token transport/independent world rewards. BF16 starting/trained rewards at2048 are[0,0]/[.5,.5]; FP16 [1,0]/[0,.5], preserving an adverse trained pair. Peak3.461GB. Per-turn and derived total output budgets change together; no optimal/default/efficacy claim. Six exact-source native reference route/projection CPU cases check unequal lengths, next-token shift, retained excluded coordinates and both worker routes with transport doubles. Fix only external empty-mask dtype fixture, preserve failure. No optimizer/product updates; real queue/worker, fresh iterative training and broader gates remain open.
 
 - [x] (2026-10-01) Compare eight fresh LFM weekly-report episodes under matched seeds39400/40400, starting versus three-update adapters in BF16/FP16. All four loaded adapters reproduce their recorded native scores exactly; token/logprob/excluded-mask and independent final-state reward checks pass. All eight remain reward0, truncate at1024 inside unclosed thinking, and make no tool action; changed first-turn prefixes establish inference sees the updates, not efficacy. Actual native FSDP2 LoRA-disable probes in both precisions recover initial base scores exactly and restore trained scores exactly after normal and exceptional exit; no optimizer steps in those probes. Full reference-worker/TransferQueue transport remains open. Next paired budget/reasoning controls and real fresh iterative worker behavior, preserving broader algorithm/family gates.
@@ -169,6 +171,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Worker training ignores inference-only loss/adapter flags as intended. Engineering microbatch fields persist only when explicitly reusing the same input object; a fresh input resolves training defaults. More materially, production SAMPO selection had not adopted the qualified dedicated objective. Historical GSPO mapping was only an intermediate repair and preserves an extra cap; correct the normalizer and fail closed on incompatible released runtimes rather than claiming probe-only agreement.
 
 - Identical1024-token prefixes can hide different later actions: larger budgets reveal trained BF16 partial reward and an adverse trained FP16 pair. Thus a truncation-floor evaluation conceals useful behavioral distinctions while correct local updates remain insufficient for robust quality. Reference projection preserves excluded token coordinates and applies a one-token shift; the tested routes agree with independent coordinate labels, without validating live queue/concurrency.
 
@@ -438,6 +442,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Repair Posttrain selection/gating now without advancing runtime pins or silently redefining GSPO. Canonical SAMPO semantics and reject-unsupported requirements already authorize this repair; no product baseline change. Own launcher/worker, their SAMPO regressions and consumer documentation. The generic fork loss is already published at d8e472db822f2916ed81a408b8d28192be95e678; no sibling edit/commit or pin update in this slice. Preserve unrelated release edits when staging; use focused root backend tests and actual fork score-gradient parity plus static/import checks. Recover failed parity collection by runtime path ordering, never by weakening assertions.
+
 - Retain both positive and adverse fresh outcomes, require exact prefix controls for budget attribution, and report that per-turn and total output allowances change together. Expand seeds/tasks before adopting budget or precision settings. Source-body routing/projection checks with explicit transport doubles complement native GPU context checks, but cannot replace real worker/queue integration.
 
 - Require adapter identity and exact cached-score reproduction before interpreting fresh before/after behavior. Match seeds, initial prompts, attention, deterministic flags, precision and budgets within pairs. Keep reward-floor outcomes descriptive; do not label them lack of task headroom or infer quality from changed text. Reference-only native probes execute zero optimizer updates and must be reported separately.
@@ -584,6 +590,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- The normalizer now concretely selects qualified SAMPO math and rejects declared legacy sources early. This closes a configuration gap beyond the isolated native probes, while intentionally exposing incompatible default runtime pins. Two real-library loss-gradient parity cases support the selection; eight worker-body metadata cases support flag lifecycle only. Full runtime adoption, actual worker/queue integration, fresh iterative learning and broader algorithm/model gates remain open. Correctness tools/raw receipts remain external; the broad goal stays active.
 
 - Eight longer-budget episodes change the behavioral evidence: some previously truncated runs act later, yet trained quality is mixed across precisions. Six CPU projection/routing seams pass and introduce no confirmed product fix. Exact transport, rewards and updates narrow several hypotheses without proving global mathematical correctness or explaining an active production run. The broad goal stays active; tools/raw evidence remain external.
 
@@ -1172,3 +1180,6 @@ disable/restore checks without inflating them into optimizer or worker proof.
 Revision 57: compare matched token budgets with exact sampled prefixes, preserve
 mixed precision-specific fresh quality, and extend native reference routing/
 projection seams without adopting a recipe or claiming live worker qualification.
+Revision 58: exercise worker inference/training flag lifecycle, repair the
+production SAMPO objective selection with early compatibility rejection,
+validate actual candidate-library parity and preserve runtime adoption gates.

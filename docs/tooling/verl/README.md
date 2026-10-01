@@ -981,6 +981,24 @@ separate qualification gates.
 
 ### SAMPO operating configuration
 
+The correctness audit replaces the historical `sequence_clip` and intermediate
+GSPO mappings with dedicated `sampo_token_credit`. This preserves a geometric
+sequence-ratio value with token-local credit and avoids GSPO's additional
+log-ratio cap. Legacy post8 (`ef1c37715fa75de5973ae5b3c398383cd7e0093d`)
+lacks this loss and is rejected for SAMPO at plan construction and again at
+worker override construction. Pins/images remain unchanged pending adoption.
+
+Executing the exact pinned GSPO, sequence-clip, aggregation, and masked helper
+bodies shows zero opposing-credit gradients for `sequence_clip`, and
+approximately [-0.5, 0, +0.5] for GSPO. The signed clipping cases also preserve
+local credit. The retained correctness runners and raw receipts are external
+under `/home/hammad/experiments/posttrain-correctness/2026-10-01`. This isolates
+the actual objective math without importing Ray; full V1 worker, KL integration,
+and distributed parity qualification remain open. The existing GSPO path caps
+sequence log ratios at 10 for stability, unlike TRL's uncapped sequence ratio;
+do not substitute it for the corrected SAMPO objective. Historical qualification
+below does not certify runtime-image adoption of the newly selected composition.
+
 The framework's typed SAMPO manifest maps to:
 
 ```text
@@ -988,7 +1006,7 @@ algorithm.adv_estimator=sampo
 algorithm.sampo.discount_gamma=<SAMPOSettings.discount_gamma>
 algorithm.sampo.step_advantage_weight=<SAMPOSettings.step_advantage_weight>
 algorithm.sampo.advantage_normalization=<mean|mean_std>
-actor_rollout_ref.actor.policy_loss.loss_mode=gspo
+actor_rollout_ref.actor.policy_loss.loss_mode=sampo_token_credit
 actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean
 ```
 
@@ -1092,11 +1110,32 @@ is [verl-qwen35-grpo-distillation.md](../../plan/verl-qwen35-grpo-distillation.m
 
 ## References
 
+The published math parity candidate adds stable small-delta k3,
+early excluded-score masking in the PPO loss wrapper, and opt-in
+`sampo_token_credit` without changing native GSPO. Its130 focused fork CPU
+checks and48 prior Posttrain math checks pass. The current normalizer selects
+the corrected loss with an explicit source gate; runtime pins/images and
+production recipes still require separate adoption qualification. See
+[the current parity audit](../../research/evidence/correctness-matrix/posttrain-cross-backend-parity.md)
+and the fork's `CARBONTEQ_FORK.md`; model/distributed and artifact gates remain
+open.
+
 - [vLLM release notes: TurboQuant hybrid-model and uniform-quantization support](https://github.com/vllm-project/vllm/releases)
 - [TurboQuant paper, ICLR 2026](https://openreview.net/pdf/86df3c70aa9b7035c407e886e8238951a5d6ec23.pdf)
 - [vLLM TurboQuant follow-up tracker](https://github.com/vllm-project/vllm/issues/40069)
 
 ## Singleton FSDP accumulation qualification
+
+Posttrain SAMPO now selects `sampo_token_credit`, the uncapped geometric
+sequence-ratio loss with token-local credit used by the qualified math probes.
+The compatibility gate accepts published candidate
+`d8e472db822f2916ed81a408b8d28192be95e678` for that loss and rejects legacy
+post8 SAMPO launches instead of substituting GSPO. Historical fork capability
+sets do not gain the new loss. GRPO/GDPO/CAPO mappings remain unchanged.
+This is a launcher correctness repair, not runtime-image adoption: existing
+post8 pins/images need separate publication and release qualification before
+SAMPO can run through those defaults. Corrected native-source parity and
+real model/optimizer evidence live in the correctness campaign plan.
 
 Published candidate source
 [`d8e472db822f2916ed81a408b8d28192be95e678`](https://github.com/carbonteq-ai/verl/commit/d8e472db822f2916ed81a408b8d28192be95e678)

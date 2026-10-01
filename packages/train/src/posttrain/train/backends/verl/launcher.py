@@ -198,6 +198,19 @@ def build_sampo_launch_plan(request: SAMPORequest, output_dir: Path) -> VerlLaun
         raise ValueError(problem)
     _validate_adapter_continuation(request.policy, request.training.update)
     _validate_active_sampling_capacity(request)
+    from .worker import fork_native_names
+
+    options = request.training.backend_options
+    revision = options.get("source_revision")
+    if (
+        isinstance(revision, str)
+        and "sampo_token_credit" not in fork_native_names(revision)
+        and options.get("source_dirty") is not True
+    ):
+        raise ValueError(
+            f"selected veRL source revision {revision} does not register sampo_token_credit, "
+            "which SAMPO requires; select a source with the token-local sequence-ratio loss"
+        )
     return _plan(
         request,
         output_dir,

@@ -578,3 +578,52 @@ defect is found in these tested valid layouts. Exact sources and
 `native-reference-projection-audit.json` remain outside Git. This slice adds
 eight fresh episodes and six CPU routing/projection cases, with zero optimizer
 updates; the broader correctness campaign remains incomplete.
+
+## Worker flag lifecycle and production SAMPO selection repair
+
+1 October 2026. Execute the exact undecorated `TrainingWorker.infer_batch`
+and `train_batch` bodies with real TensorDict/native metadata helpers and an
+instrumented engine. Eight cases vary reference disabling, inference loss
+calculation and fresh versus explicitly reused input objects. Inference consumes
+`no_lora_adapter`; subsequent training uses its bound loss with the adapter
+enabled, regardless of inference-only flags. An intentional inference exception
+restores its contexts. Fresh training inputs get the configured training
+microbatch size; explicit reuse retains the engineering fields already supplied
+by inference. These are worker-method/metadata checks, not native model
+derivatives, optimizer updates or proof of production input-object reuse.
+
+The source review also confirms a configuration gap: the production normalizer
+still selected `gspo`, while the qualified native experiments selected
+`sampo_token_credit`. GSPO already avoids the historical sequence-clip
+gradient-cancellation problem, but retains an extra sequence-log-ratio cap.
+The dedicated loss preserves the required uncapped sequence-ratio value and
+token-local credit without redefining GSPO. Earlier probe results alone had
+not repaired this production selection.
+
+Repair Posttrain's SAMPO launcher and worker to require that dedicated loss.
+Register the published candidate source
+`d8e472db822f2916ed81a408b8d28192be95e678` for the new capability without
+adding it to historical revision capability sets. Reject a declared clean
+legacy post8 source at plan construction and again at override construction.
+The explicit existing dirty-candidate opt-in remains available to its owner.
+This satisfies the frozen contract's existing requirement to reject unsupported
+SAMPO implementations; it does not change the algorithm's product meaning.
+
+The new legacy-runtime regression fails before the repair because no error is
+raised. Afterward,120 backend tests pass with8 optional-dependency skips. Two
+actual candidate TRL/veRL tests agree on Posttrain-normalized advantages, loss
+and sampled-score gradients using the generated corrected Hydra settings.
+The first parity collection attempt exposed older tokenizers shadowing the
+isolated runtime; moving supplemental dependencies to the end of the path
+and adding the environment workspace source resolves setup without installing
+packages or weakening assertions. Targeted Ruff/Pyright and all nine import
+contracts pass. Earlier native model/optimizer evidence remains the GPU gate;
+this slice adds zero optimizer updates.
+
+Runtime pins and images remain post8. Those defaults cannot launch corrected
+SAMPO until a compatible runtime is separately published/adopted and qualified.
+GRPO/GDPO/CAPO selections are unchanged. Full live worker/TransferQueue,
+distributed/packed paths, fresh iterative learning and broader family/algorithm
+qualification remain open. External worker-body source/receipt
+`native-worker-reference-training-audit.json` stays outside Git; repository
+changes contain product selection/gates, regression tests and findings only.

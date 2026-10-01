@@ -1315,7 +1315,7 @@ def test_pinned_verl_fork_registers_every_native_name_posttrain_requests(monkeyp
     assert requested <= fork_native_names(revision), f"pinned veRL {revision} lacks {sorted(requested)}"
 
 
-SAMPO_REVISION = FULL_REVISION
+SAMPO_REVISION = "d8e472db822f2916ed81a408b8d28192be95e678"
 
 
 def _verl_sampo_request(revision: str = SAMPO_REVISION, **changes: object):
@@ -1332,7 +1332,7 @@ def test_verl_maps_sampo_to_trl_semantics(monkeypatch: pytest.MonkeyPatch, tmp_p
 
     for expected in (
         "algorithm.adv_estimator=sampo",
-        "actor_rollout_ref.actor.policy_loss.loss_mode=sequence_clip",
+        "actor_rollout_ref.actor.policy_loss.loss_mode=sampo_token_credit",
         "actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean",
         "actor_rollout_ref.actor.clip_ratio_low=0.003",
         "actor_rollout_ref.actor.clip_ratio_high=0.004",
@@ -1403,7 +1403,18 @@ def test_verl_sampo_requires_a_fork_with_its_objective(monkeypatch: pytest.Monke
     older = VerlLaunchManifest.model_validate(
         {**plan.model_dump(), "backend_source_revision": ACTIVE_SAMPLING_REVISION}
     )
-    with pytest.raises(ValueError, match="does not register sequence_clip"):
+    with pytest.raises(ValueError, match="does not register sampo_hierarchy, sampo_token_credit"):
+        build_hydra_overrides(older, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+
+
+def test_verl_sampo_rejects_legacy_runtime_instead_of_using_gspo(monkeypatch, tmp_path):
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    revision = "ef1c37715fa75de5973ae5b3c398383cd7e0093d"
+    with pytest.raises(ValueError, match="does not register sampo_token_credit"):
+        build_sampo_launch_plan(_verl_sampo_request(revision), tmp_path)
+    plan = build_sampo_launch_plan(_verl_sampo_request(), tmp_path)
+    older = VerlLaunchManifest.model_validate({**plan.model_dump(), "backend_source_revision": revision})
+    with pytest.raises(ValueError, match="does not register sampo_token_credit"):
         build_hydra_overrides(older, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
 
 

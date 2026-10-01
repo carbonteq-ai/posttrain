@@ -45,10 +45,14 @@ _TRL_SETTING_NAMES = frozenset(
 _TRL_DAPO_NAMES = frozenset({"candidate_batches"})
 _FORK_ONLY_NATIVE_NAMES = (
     _OLMO3_OBJECTIVE_NAMES
-    | {"active_sampling", "prompt_selector", "sequence_clip"}
+    | {"active_sampling", "prompt_selector", "sequence_clip", "sampo_hierarchy"}
     | _TRL_SETTING_NAMES
     | _TRL_DAPO_NAMES
 )
+# Keep historical capability sets unchanged: older revisions do not implement
+# the uncapped, token-local sequence-ratio gradient required by SAMPO.
+_SAMPO_TOKEN_CREDIT_NAMES = frozenset({"sampo_token_credit"})
+_REQUESTABLE_NATIVE_NAMES = _FORK_ONLY_NATIVE_NAMES | _SAMPO_TOKEN_CREDIT_NAMES
 # The version is recorded for release commits only; a development commit shares
 # its parent release's version string without its content.
 _FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str | None, frozenset[str]]] = {
@@ -89,6 +93,8 @@ _FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str | None, frozenset[str]]] = {
     # defaults) and its asset receipt.
     "ef1c37715fa75de5973ae5b3c398383cd7e0093d": ("0.9.0.post8", _FORK_ONLY_NATIVE_NAMES),
     "be582879e2efd45a7206be49010ab6e6fcd868e9": ("0.9.0.post8", _FORK_ONLY_NATIVE_NAMES),
+    # Published math/precision candidate; runtime image adoption is separate.
+    "d8e472db822f2916ed81a408b8d28192be95e678": (None, _REQUESTABLE_NATIVE_NAMES),
 }
 # Every recorded fork commit descends from post2, which added bounded rollout execution.
 _ROLLOUT_EXECUTION_FORK_REVISIONS = _ROLLOUT_EXECUTION_FORK_REVISIONS_BASE | frozenset(_FORK_NATIVE_NAME_REVISIONS)
@@ -400,8 +406,8 @@ def build_hydra_overrides(
                 )
             overrides.extend(
                 [
-                    # TRL's sequence-level ratio with gradient through the mean log ratio.
-                    "actor_rollout_ref.actor.policy_loss.loss_mode=sequence_clip",
+                    # A shared sequence-ratio value with token-local credit, matching corrected TRL SAMPO.
+                    "actor_rollout_ref.actor.policy_loss.loss_mode=sampo_token_credit",
                     f"algorithm.gamma={algorithm.discount_gamma}",
                     f"algorithm.sampo.discount_gamma={algorithm.discount_gamma}",
                     f"algorithm.sampo.step_advantage_weight={algorithm.step_advantage_weight}",
@@ -554,6 +560,8 @@ def requested_fork_native_names(overrides: list[str]) -> frozenset[str]:
     selected = {value.split("=", 1)[1] for value in plain if value.startswith(keys)}
     if "algorithm.active_sampling.enable=true" in plain:
         selected.add("active_sampling")
+    if "algorithm.adv_estimator=sampo" in plain:
+        selected.add("sampo_hierarchy")
     if any(value.startswith("data.prompt_selector.class_path=") and not value.endswith("=null") for value in plain):
         selected.add("prompt_selector")
     if any(value.startswith("algorithm.rollout_correction.rollout_is_log_ratio_bound=") for value in plain):
@@ -568,7 +576,7 @@ def requested_fork_native_names(overrides: list[str]) -> frozenset[str]:
         selected.add("linear_lr")
     if "algorithm.filter_groups.candidate_batches=true" in plain:
         selected.add("candidate_batches")
-    return frozenset(selected & _FORK_ONLY_NATIVE_NAMES)
+    return frozenset(selected & _REQUESTABLE_NATIVE_NAMES)
 
 
 def fork_native_names(revision: str) -> frozenset[str]:
@@ -589,7 +597,7 @@ def _validate_fork_native_names(manifest: VerlLaunchManifest, overrides: list[st
     raise ValueError(
         f"selected veRL source revision {manifest.backend_source_revision} does not register "
         f"{', '.join(sorted(missing))}, which the {manifest.operation} objective requires; select CarbonTeq "
-        "veRL 0.9.0.post8 (ef1c37715fa75de5973ae5b3c398383cd7e0093d) or a later qualified revision"
+        "veRL source that registers these names; legacy post8 lacks sampo_token_credit"
     )
 
 

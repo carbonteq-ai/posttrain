@@ -23,8 +23,8 @@ import pytest
 torch = pytest.importorskip("torch")
 pytest.importorskip("trl.trainer.grpo_trainer", reason="requires CarbonTeq TRL 1.12.0.post12")
 core_algos = pytest.importorskip("verl.trainer.ppo.core_algos", reason="requires the CarbonTeq veRL fork")
-if "sequence_clip" not in getattr(core_algos, "POLICY_LOSS_REGISTRY", {}):
-    pytest.skip("installed veRL has no sequence_clip loss", allow_module_level=True)
+if "sampo_token_credit" not in getattr(core_algos, "POLICY_LOSS_REGISTRY", {}):
+    pytest.skip("installed veRL has no qualified sampo_token_credit loss", allow_module_level=True)
 
 from posttrain.common import ExecutionTarget, InferenceBinding, TraceObservation  # noqa: E402
 from posttrain.common.variants import QWEN_35_2B  # noqa: E402
@@ -55,7 +55,7 @@ PROMPT = 4
 RESPONSE = 12
 MICRO_BATCHES = 2
 BETA = 0.005
-REVISION = "ce8e0430018204b03c009b72bfba3b58968696c7"
+REVISION = "d8e472db822f2916ed81a408b8d28192be95e678"
 
 
 @dataclass(frozen=True)
@@ -322,7 +322,7 @@ def test_sampo_batch_gives_identical_advantages_evidence_loss_and_gradient(tmp_p
         config = compose(config_name="ppo_trainer", overrides=overrides)
     actor = omega_conf_to_dataclass(config.actor_rollout_ref.actor)
     algorithm = omega_conf_to_dataclass(config.algorithm)
-    assert actor.policy_loss.loss_mode == "sequence_clip" and actor.kl_loss_type == "k3_unclipped"
+    assert actor.policy_loss.loss_mode == "sampo_token_credit" and actor.kl_loss_type == "k3_unclipped"
 
     token_level_rewards = torch.zeros(ROWS, RESPONSE, dtype=torch.float64)
     for row, shaped in enumerate(verl_shaped):
