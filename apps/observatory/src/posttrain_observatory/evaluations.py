@@ -75,11 +75,31 @@ from rollouts o
 group by o.run_id, o.ending
 """.strip()
 
+# The environment's own per-episode numbers (an agent benchmark's tool mistakes, ...), recorded once
+# per trace. Per run and metric name: the mean per episode and the share of episodes where it was
+# positive, over the same attempts the score uses. Names and meaning belong to the environment.
+ENVIRONMENT_METRICS_SQL = """
+select o.run_id as run_id, m.name as name, avg(m.value) as mean,
+       avg(case when m.value > 0 then 1.0 else 0.0 end) as positive_rate, count(*) as episodes
+from rollouts o join trace_environment_metrics m on m.external_id = o.trace
+where not coalesce(o.failed, false)
+group by o.run_id, m.name
+""".strip()
+
 BEHAVIOUR_DEFINITION = (
     "Per-episode means over attempts that did not fail: turns are model calls; turns (completed) counts only "
     "episodes that ended on their own; tool calls, output and thinking tokens come from the recorded trace facts. "
-    "A missing value means no attempt recorded it."
+    "A missing value means no attempt recorded it. Environment metrics are the environment's own per-episode "
+    "numbers (for example its tool mistakes); the share is the fraction of episodes where one was positive."
 )
+
+
+class EvaluationEnvironmentMetric(ObservatoryModel):
+    """One environment-defined per-episode number, summarised over a run's episodes."""
+
+    mean: float | None = None
+    positive_rate: float | None = None
+    episodes: int = 0
 
 
 class EvaluationRecord(ObservatoryModel):
@@ -106,6 +126,7 @@ class EvaluationRecord(ObservatoryModel):
     output_tokens: float | None = None
     thinking_tokens: float | None = None
     endings: dict[str, int] = Field(default_factory=dict)
+    environment_metrics: dict[str, EvaluationEnvironmentMetric] = Field(default_factory=dict)
 
 
 class EvaluationIndex(ObservatoryModel):
@@ -178,6 +199,15 @@ async def evaluation_index(source_id: str, query: Query) -> EvaluationIndex:
         run_id, ending, count = _text(row.get("run_id")), _text(row.get("ending")), _int(row.get("episodes"))
         if run_id is not None and ending is not None and count:
             endings.setdefault(run_id, {})[ending] = count
+    environment: dict[str, dict[str, EvaluationEnvironmentMetric]] = {}
+    for row in _rows(await query(SqlQuery(sql=ENVIRONMENT_METRICS_SQL, runs={"run.job_kind": "eval.*"}))):
+        run_id, name = _text(row.get("run_id")), _text(row.get("name"))
+        if run_id is not None and name is not None:
+            environment.setdefault(run_id, {})[name] = EvaluationEnvironmentMetric(
+                mean=_float(row.get("mean")),
+                positive_rate=_float(row.get("positive_rate")),
+                episodes=_int(row.get("episodes")) or 0,
+            )
     records = []
     for row in _rows(result):
         run_id = _text(row.get("run_id"))
@@ -203,6 +233,7 @@ async def evaluation_index(source_id: str, query: Query) -> EvaluationIndex:
                 failed=_int(row.get("failed")) or 0,
                 **_behaviour(row),
                 endings=endings.get(run_id, {}),
+                environment_metrics=environment.get(run_id, {}),
             )
         )
     return EvaluationIndex(source_id=source_id, records=tuple(records))

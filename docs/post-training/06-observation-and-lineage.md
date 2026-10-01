@@ -236,6 +236,23 @@ Throughput and latency percentiles are **computed** from measured traces +
 | `eval/rollout/num_model_calls` | |
 | `eval/environment/*` | Env-native diagnostics worth indexing |
 
+The `eval/environment/*` diagnostics are realized as **environment metrics**: the
+numeric per-episode values a Verifiers environment reports in its native trace
+(`metrics`; AutomationBench reports `tool_mistakes`, `tool_unknown_id`,
+`tool_invalid_arguments`, `tool_missing_arguments`, `tool_unknown_tool` and
+`tool_empty_results`). The integration projects them once per trace, at the
+episode grain, as name and finite-number rows beside the trace facts (fact
+calculator `verifiers-trace-facts.v11`; the tracking provider stores one row per
+trace, projection and name and exposes the current ones to readers). The
+environment owns every name and its meaning; the framework never classifies raw
+tool results or interprets a name. Whether a tool call failed is therefore the
+environment's judgment, not a rule of the framework. Views compute means and
+rates (for example the mean mistakes per episode and the share of episodes with
+at least one) from these rows; they are not persisted as a second copy. A trace
+projected before this field existed has no environment metrics, and a view
+shows that as missing, never as zero. A projection keeps at most 128 metrics
+per trace and records in the fact provenance when it dropped any.
+
 **On the run (`eval/run/*`):**
 
 | Metric | Notes |

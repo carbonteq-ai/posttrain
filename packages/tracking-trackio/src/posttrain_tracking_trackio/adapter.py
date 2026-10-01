@@ -249,6 +249,14 @@ def _trackio_trace_facts(
             "the configured Trackio build does not support trace facts; "
             "install the declared Trackio trace-facts release before logging this run"
         )
+    extra: dict[str, Any] = {}
+    if facts.environment_metrics:
+        if "environment_metrics" not in getattr(update_type, "__dataclass_fields__", {}):
+            raise ContractError(
+                "the configured Trackio build cannot store environment metrics; "
+                "install Trackio 0.31.5.post14.dev33 or newer before logging traces with them"
+            )
+        extra["environment_metrics"] = dict(facts.environment_metrics)
     return update_type(
         trace_type=trace_type,
         external_id=external_id,
@@ -271,6 +279,7 @@ def _trackio_trace_facts(
         provenance=dict(facts.provenance),
         state=facts.state,
         replace_reward_components=replace_reward_components,
+        **extra,
     )
 
 

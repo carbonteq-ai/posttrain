@@ -1002,6 +1002,21 @@ export interface components {
             /** Samples */
             samples: number;
         };
+        /**
+         * EvaluationEnvironmentMetric
+         * @description One environment-defined per-episode number, summarised over a run's episodes.
+         */
+        EvaluationEnvironmentMetric: {
+            /**
+             * Episodes
+             * @default 0
+             */
+            episodes: number;
+            /** Mean */
+            mean?: number | null;
+            /** Positive Rate */
+            positive_rate?: number | null;
+        };
         /** EvaluationEstimatorResult */
         EvaluationEstimatorResult: {
             /** Available Case Value */
@@ -1084,7 +1099,7 @@ export interface components {
         EvaluationIndex: {
             /**
              * Behaviour Definition
-             * @default Per-episode means over attempts that did not fail: turns are model calls; turns (completed) counts only episodes that ended on their own; tool calls, output and thinking tokens come from the recorded trace facts. A missing value means no attempt recorded it.
+             * @default Per-episode means over attempts that did not fail: turns are model calls; turns (completed) counts only episodes that ended on their own; tool calls, output and thinking tokens come from the recorded trace facts. A missing value means no attempt recorded it. Environment metrics are the environment's own per-episode numbers (for example its tool mistakes); the share is the fraction of episodes where one was positive.
              */
             behaviour_definition: string;
             /**
@@ -1246,6 +1261,10 @@ export interface components {
             };
             /** Environment */
             environment?: string | null;
+            /** Environment Metrics */
+            environment_metrics?: {
+                [key: string]: components["schemas"]["EvaluationEnvironmentMetric"];
+            };
             /**
              * Failed
              * @default 0
@@ -2644,7 +2663,8 @@ export interface components {
          *     (its attributes); it serves labels Trackio has no fact column for yet. A
          *     ``trace_fact`` may name a ``fallback_attribute``: the metadata key read when
          *     the fact column is empty, for traces whose facts were projected before the
-         *     fact existed.
+         *     fact existed. A ``trace_column`` is an identity column of the trace itself
+         *     (its ``external_id``), which other evidence tables join on.
          */
         Source: {
             /** Fallback Attribute */
@@ -2660,7 +2680,7 @@ export interface components {
             transform: "identity" | "one_minus";
         };
         /** @enum {string} */
-        SourceKind: "run_field" | "setting" | "event" | "metric_series" | "trace_fact" | "trace_attribute" | "derived";
+        SourceKind: "run_field" | "setting" | "event" | "metric_series" | "trace_fact" | "trace_attribute" | "trace_column" | "derived";
         /** SourceRefreshStatus */
         SourceRefreshStatus: {
             /** @default [] */

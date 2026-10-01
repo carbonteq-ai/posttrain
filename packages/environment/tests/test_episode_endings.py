@@ -39,7 +39,7 @@ def test_real_automationbench_episodes_get_their_ending(case: dict[str, Any]) ->
     assert facts.measures["task_reward"] is not None
     # The ending is also a fact dimension, so Trackio stores it in its own column.
     assert facts.dimensions["episode_ending"] == expected
-    assert facts.calculator_version == "verifiers-trace-facts.v10"
+    assert facts.calculator_version == "verifiers-trace-facts.v11"
 
 
 def test_context_rejection_keeps_the_scored_reward() -> None:
@@ -154,3 +154,50 @@ def test_thinking_counted_from_reply_text_keeps_its_provenance() -> None:
     assert partial.provenance["thinking_tokens"] == "renderer_retokenized_text_partial"
     provider = project_verifiers_trace_facts(record([{"completion_tokens": 10, "reasoning_tokens": 6}]))
     assert provider.provenance["thinking_tokens"] == "provider_reasoning_usage"
+
+
+def test_native_numeric_metrics_become_environment_metrics_without_interpretation() -> None:
+    from posttrain.environment import project_verifiers_trace_facts
+
+    record = {
+        "id": "t",
+        "version": 3,
+        "agent": {"model": "models/m"},
+        "calls": [{"node": 0, "usage": {"prompt_tokens": 1, "completion_tokens": 1}}],
+        "nodes": [{"message": {"role": "assistant", "content": "a"}}],
+        "rewards": {"task": 1.0},
+        "metrics": {
+            "tool_mistakes": 3.0,
+            "tool_unknown_id": 1,
+            "tool_empty_results": 0.0,
+            "task_completed_correctly": True,
+            "note": "text",
+            "bad": float("nan"),
+            "": 2.0,
+        },
+    }
+    facts = project_verifiers_trace_facts(record)
+    assert dict(facts.environment_metrics) == {"tool_empty_results": 0.0, "tool_mistakes": 3.0, "tool_unknown_id": 1.0}
+    assert facts.provenance["environment_metrics"] == "verifiers_native_metrics"
+    # A record without metrics projects exactly as before: no metrics and no provenance entry.
+    bare = project_verifiers_trace_facts({k: v for k, v in record.items() if k != "metrics"})
+    assert dict(bare.environment_metrics) == {}
+    assert "environment_metrics" not in bare.provenance
+
+
+def test_environment_metrics_are_bounded_and_say_when_some_were_dropped() -> None:
+    from posttrain.environment import project_verifiers_trace_facts
+    from posttrain.environment.verifiers_evidence import MAX_ENVIRONMENT_METRICS
+
+    record = {
+        "id": "t",
+        "version": 3,
+        "agent": {"model": "models/m"},
+        "calls": [{"node": 0, "usage": {"prompt_tokens": 1, "completion_tokens": 1}}],
+        "nodes": [{"message": {"role": "assistant", "content": "a"}}],
+        "rewards": {"task": 1.0},
+        "metrics": {f"m{index:04d}": float(index) for index in range(MAX_ENVIRONMENT_METRICS + 5)},
+    }
+    facts = project_verifiers_trace_facts(record)
+    assert len(facts.environment_metrics) == MAX_ENVIRONMENT_METRICS
+    assert facts.provenance["environment_metrics"] == "verifiers_native_metrics_truncated"
