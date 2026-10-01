@@ -1636,3 +1636,54 @@ External final receipts:qwen08-trl-recorded-sampo-{bfloat16,float16}-adam-sdpa-r
 lfm12-trl-recorded-sampo-{bfloat16,float16}-adam-sdpa-bounded-retry2.json,
 native-trl-recorded-adam-summary.json plus original terminal logs. Scripts/raw
 results remain outside Git.
+
+## Default FP16 scaler and the independent-gradient precision gate
+
+Repeat actual recorded SAMPO Trainer.train at initial scale65536, retaining
+the same model precisions, supplied traces, masks, configured seed, optimizer
+settings and bounded audit. Both families apply three finite optimizer updates
+without scale backoff or skipped steps. Qualification has a split result:
+
+| FP16 model | Qualification | Max loss error | Max scalar score derivative error | Max independent scaled-gradient relative error | Max Adam error | Peak bytes |
+| --- | --- | --- | --- | --- | --- | --- |
+| Qwen | pass | 1.179e-9 | 1.456e-11 | 0 | 1.832e-9 | 5037937152 |
+| LFM | fail | 7.026e-8 | 2.911e-11 | .000842657 | 9.429e-10 | 6091454976 |
+
+The gate is relative error below.0001. LFM update errors are[0,.000842657,
+.000513361]. All twelve loss/mask checks pass and excluded gradients remain0.
+VJPs seeded by the actual native loss gradient reproduce accumulated optimizer
+gradients exactly. Seeding them with the independently computed scalar gradient
+does not meet the chosen LFM precision gate. Tiny score-derivative differences
+can cross FP16 rounding boundaries and accumulate through model backward; this
+is numerical sensitivity beyond tolerance, not demonstrated incorrect loss math.
+Unscaled-versus-scaled gradient discrepancies remain.805754 Qwen/1.157424 LFM.
+
+The first status interpretation incorrectly treated applied updates/exit0 as
+full qualification. Reading qualification_status and each accumulated-gradient
+field corrects it. Preserve the LFM fail, the original analyzer assertion and
+source; thresholds are not relaxed. A Qwen allocator warning during the run is
+not a terminal OOM: all three updates and the final receipt completed.
+
+A diagnostic LFM control promotes only selected scores/loss arithmetic to
+FP64 while retaining FP16 model/backward, scaler65536 and the same recorded
+input hash. Its three updates pass with all independent scaled-gradient errors0;
+loss error2.665e-15, score derivative2.169e-19, Adam9.429e-10, peak6091594752.
+This is a small loss-arithmetic reference, not FP64 model training or a recipe
+recommendation. It is consistent with FP32 loss-rounding amplification in half
+backward. It does not prove equivalent parameter trajectories, current-run
+causation, task quality or stability across larger credit ranges. No source/pin
+changes follow; broader default-scale precision qualification remains open.
+
+The native logs also reveal an observability distinction. advantages statistics
+are calculated over episode reward baselines before supplied SAMPO token credit
+replaces advantages. On these Qwen rewards[1,1], logged episode abs mean is0,
+but104 of298 active sampled tokens have nonzero credit, with active-token abs
+mean.0082885906. LFM episode abs mean.707006812 differs from token-credit abs
+mean.9031717215 over2,341 nonzero tokens. Every captured loss credit tensor
+agrees with its recorded fixture within1e-7. Episode telemetry is insufficient
+to infer absence or magnitude of the token signal; report the two separately.
+
+External receipts:{qwen08,lfm12}-trl-recorded-sampo-float16-default-scale65536.json,
+lfm12-trl-recorded-sampo-float16-default-scale65536-loss64-control.json,
+native-trl-default-scale-summary.json and native-trl-loss-precision-control-summary.json.
+Tools/raw receipts remain outside Git; the full campaign remains active.
