@@ -900,3 +900,72 @@ External receipts: `fresh-counter-size-controls-summary.json`, two
 `lfm-fresh-counter-size-*-float16.json` native arms and two matched fresh
 collections. Runners/checkpoints/raw outputs remain external; only this
 findings document and living plan enter Git.
+
+## Actual native TrainingWorker: Qwen/LFM in both primary precisions
+
+The real local worker now reproduces the direct-engine controls exactly. This
+replaces the earlier instrumented-engine/body checks for this bounded path;
+it does not qualify Ray dispatch, TransferQueue storage or the full training
+controller.
+
+Constructed the actual published native TrainingWorker with a real singleton
+Torch process group, FSDP2 engine, GPU model and optimizer. Its reset,
+set_loss_fn, infer_batch and train_batch methods run through their native
+decorators; no AST-extracted body, fake engine or dispatch implementation is
+used. Three SAMPO updates per arm retain the existing rank4/alpha8, LR0.0001,
+beta0.02, ratio bounds0.997/1.004, native half forward, FP32 adapter masters,
+FP16 scale1024 and deterministic SDPA controls. The worker supplies default
+engineering fields, including microbatch1, rather than the external runner
+pre-filling them.
+
+| Actual worker arm | Applied updates | Peak CUDA allocation | Independent aggregate-loss maximum error |
+| --- | --- | --- | --- |
+| Qwen3.5-0.8B BF16 | 3 | 3,991,337,984 bytes | 2.01e-10 |
+| Qwen3.5-0.8B FP16 | 3 | 3,990,352,896 bytes | 6.29e-10 |
+| LFM2.5-1.2B BF16 | 3 | 2,439,047,680 bytes | 1.04e-7 |
+| LFM2.5-1.2B FP16 | 3 | 2,438,800,384 bytes | 4.40e-8 |
+
+All step0–3 parameter matrices and scores are bitwise equal to the appropriate
+previous direct-engine run. All three captured preclip gradients per arm are
+also bitwise equal. Twelve updates apply without skips;24 independent loss
+checks,288 linear-matrix checks and1,152 scalar-dot references pass. Maximum
+loss/score-gradient errors are5.83e-8/1.13e-10; independent Adam maximum error
+is4.04e-9. Worker aggregate loss is checked against the sum of independent
+microbatch loss references, including its native metric reduction and CPU return.
+
+Sixty successful native worker inference calls return CPU scores, consume the
+inference adapter flag and use resolved microbatch1. Before/after every exported
+adapter, reference inference disables LoRA and reproduces the original base
+scores exactly; actor inference after it restores trained scores exactly.
+Four additional reference calls deliberately throw from a bound inference loss
+inside the actual engine. The worker consumes the flag and restores actor scores
+exactly afterward. Training inputs deliberately carry compute_loss=False and
+no_lora_adapter=True: native train_batch still uses its bound loss and enabled
+adapter, and reproduces the direct-engine updates. These are execution checks,
+not conclusions based solely on reading its branches.
+
+The first Qwen BF16 attempt failed an incorrect external expectation that
+forward-only inference loss would be0. Native FSDP forward_step uses sentinel1
+per microbatch when no loss function is supplied; the worker sums it to2 here.
+The failed source/log remain external, and a new retry source checks2 explicitly
+without changing the fork. Source inspection of classic and v1 TransferQueue
+old/reference-logprob methods confirms they select scoring/entropy fields and
+do not forward this placeholder as actor training-loss telemetry. That conclusion
+is source-backed; the live TransferQueue path was not executed in this slice.
+
+This tests cached real task traces with actual local worker/model/optimizer
+execution. Qwen's original equal-episode-reward fixture intentionally bypasses
+the host's spread admission; LFM uses the previously observed mixed-reward
+weekly-report fixture. No fresh episodes, active-group refills or task-quality
+claims are added. Ray transport, real TransferQueue lifecycle, vLLM weight
+synchronization, distributed/packed execution, native TRL equivalence and
+published runtime adoption remain separate gates, as do broader algorithms and
+Gemma qualification. No confirmed product math defect appears in this path.
+
+External receipt `actual-worker-matrix-summary.json` records hashes and
+per-arm comparisons; `*-actual-worker-sampo-*-retry1.json` records actual method
+execution and exception restoration. Native worker source hash is
+fd967075bdb2bb4cc7a49781720a1b330bf27e31edfb078f982e4d290783a8dc at
+published d8e472db822f2916ed81a408b8d28192be95e678. All runners, failed logs,
+raw receipts and checkpoints remain outside Git. Only findings and the living
+plan change in the repository.
