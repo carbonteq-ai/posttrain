@@ -1738,3 +1738,68 @@ lfm12-trl-recorded-{grpo,dapo}-{bfloat16,float16}-native-adam-retry1.json,
 lfm12-trl-recorded-{grpo,dapo}-float16-native-adam-loss64-control.json,
 native-trl-recorded-policies-summary.json and native-trl-policy-loss-controls-summary.json.
 Tools and raw results remain outside Git.
+
+## Truncation masking can remove the entire group-relative policy signal
+
+Enable mask_truncated_completions in actual BF16 native Trainer on the recorded
+LFM group:1,317 active tokens in the valid response and1,024 in the truncated
+response before masking, stored rewards[1,0]. The maintained source excludes
+the truncated row from both attention/loss masks and reward normalization.
+The first external oracle expected both rewards to remain and failed; preserve
+those original receipts and correct only the oracle to respect scorable rows.
+
+| Objective | Final mathematical classification | Productive updates | Masked-row zero-loss cases | Maximum loss error | Adam error |
+| --- | --- | --- | --- | --- | --- |
+| SAMPO, supplied credit | masked-loss checks pass | 3 | 3 | 4.578e-8 | 9.412e-10 |
+| GRPO | expected zero-signal negative control | 0 | 3 | 0 | 0 |
+| DAPO | expected zero-signal negative control | 0 | 3 | 0 | 0 |
+
+There are18 final loss/mask checks. All excluded gradients are0. GRPO/DAPO
+retain one scorable reward, whose centered advantage is0; the singleton's
+unbiased std is undefined and native NaN sanitization yields zero advantages.
+Both objectives therefore have zero losses and model gradients. Three optimizer
+attempts per objective leave parameters unchanged: these begin with zero
+moments and zero weight decay. Their inherited productive-update qualification
+remains fail; this is an intended mathematical negative control, not a trainer
+bug or release qualification. Existing optimizer momentum could behave differently.
+SAMPO retains supplied nonzero token credit on the valid row. It does not
+recompute anchor/group credit after masking, so do not infer the production
+credit builder or host admission would retain this group. Peaks6.092GB.
+
+The source dynamic/active retention predicate compares group std to a positive
+epsilon; NaN fails that comparison. Those sampler modes would exclude the
+singleton group. The static native loops used here disable them. Logged
+frac_reward_zero_std remains0 for the undefined std, while actual policy signal
+is0; that metric alone is insufficient to diagnose uninformative groups.
+
+An independent exact Fraction calculation enumerates all three-state groups
+(valid success, valid failure, unscorable/truncated) for27 conditional IID cases.
+Let G be completions per prompt, p the probability a completion is scorable and
+q its conditional binary success probability. A group has both reward outcomes
+with probability:
+
+P(informative)=1-(1-pq)^G-(1-p(1-q))^G+(1-p)^G.
+
+This follows by inclusion-exclusion: subtract groups with no valid success and
+no valid failure, then restore their overlap, where every completion is unscorable.
+All27 exact enumeration checks match the formula.
+
+| G | Hypothetical p=.5, q=.5 | Hypothetical p=.8, q=.5 |
+| --- | --- | --- |
+| 2 | 12.5% informative | 32% |
+| 4 | 42.96875% | 74.24% |
+| 8 | 80.36804% | 96.641024% |
+
+For G2/p.5,75% of groups have at most one scorable completion even before
+same-reward filtering. These are toy conditional probabilities, not estimates
+from two observed traces. Correlated generations, prompt difficulty, fractional
+rewards, host admission, sampling costs and actual truncation policy matter.
+Do not adopt a larger group or attribute the current run's poor learning/no
+clipping from this table. Measure actual scorable group counts and retention
+first. FP16 masked controls, live refill/admission and fresh quality remain open.
+
+External artifacts:lfm12-trl-recorded-sampo-bfloat16-native-truncation-mask.json,
+lfm12-trl-recorded-{grpo,dapo}-bfloat16-native-truncation-baseline-retry1.json,
+native-trl-masked-baseline-summary.json and masked-group-information.json,
+plus original oracle-failure receipts. No production/pin changes; tools/raw
+data remain outside Git.
