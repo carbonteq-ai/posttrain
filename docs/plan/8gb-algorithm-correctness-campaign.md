@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Extend native veRL model/optimizer coverage to GDPO/CAPO on both recorded Qwen/LFM task pairs in BF16/FP16. Actual outcomes plus explicitly controlled effort/spans normalize within4.45e-16 of Decimal references. Final eight-arm matrix applies24 updates in27 attempts,54 loss/mask checks,576 matrices,2,472 scalar dots and Adam(max4.10e-9), peaks3.992GB Qwen/1.450GB LFM. Actual TRL loss replay at common scores matches scalar loss/derivatives within1.42e-15/3.47e-18; native loss difference max6.79e-8. Qwen sparse CAPO credit−8.55 triggers FP16 overflow; preserve failed audit assertion, correct only external instrumentation to allow native skip/backoff, verify three exact unchanged skips1024→512→256 then three applied updates at128 with Adam counters1→2→3. Separate extra zero-update control from final matrix. No new production repair/default/pin; live evidence/admission, nonzero KL, precision repeatability/native TRL optimizer parity and full worker/fresh learning remain open.
+
 - [x] (2026-10-01) Capture native deterministic SDPA layer23 forward/cotangents in both FP16 scales/BF16, preserving original adapters/scores/gradients bitwise. Independent full causal/GQA NumPy references cover27,159,552 Q/K/V coordinates and18,106,368 output coordinates; full-reference finite differences agree within6.24e-11, selected actual-query checks within7.94e-17. Native query errors reach0.13367% FP16/0.90953% BF16, beyond final-half rounding; diagnostic saved-output reduction lowers them. Three all-six-block FP32 reverse-equation updates preserve forward/represented layer23 upstream cotangents and approach local final-rounding floors, but full FP16 gradient scale gap remains0.29553% versusnative0.29532%; update gap3.357%→2.901%. BF16 update changes12.15%, without quality evidence. Six total new updates remain within3.99GB; tools/raw archives external. Next isolate residual numerical sensitivity, broaden native algorithms and harder task/fresh-worker qualification.
 
 - [x] (2026-10-01) Run15 native Torch SDPA arms/21 applied updates on both primary precisions:42 loss checks,504 matrix checks,2,016 scalar dots and Adam(max4.05e-9), peak3.99GB. Uncontrolled first-update repeats differ0.23553%/1.82980% in FP16/BF16 gradients and2.11023%/10.26202% in updates despite exact initial weights/scores. Global deterministic controls yield bitwise paired repeats in FP16 scales1024/65536 and BF16. Deterministic profiler controls retain actual Torch FlashAttention and reproduce unprofiled gradients/adapters/scores exactly. Repeat-controlled FP16 scale gap remains0.295324% gradient/3.357149% update with89 sign changes, independently explained by first-step AdamW within3.71e-11. Preserve failed profiler repeatability gate and avoid attributing all noise to attention. Next independently audit fused attention derivatives, harder tasks and wider campaign gates.
@@ -155,6 +157,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Sparse CAPO whitening can amplify four controlled errors among298 sampled tokens to−8.5514, despite equal actual outcome rewards. Qwen FP16 overflows at scales1024/512/256 but applies at128; BF16 and both LFM precision paths apply normally. An audit assertion initially intercepted overflow before the native scaler could handle it. Fixing the external harness reveals safe native skips with exact unchanged adapters/scores and unadvanced Adam counters; it does not prove a symbolic CAPO defect or justify a recipe change.
 
 - Full-coordinate native FlashAttention errors exceed final-half derivative rounding at layer23, especially BF16 query gradients. Replacing the ideal softmax reduction with a diagnostic native-rounded-output reduction explains much of the discrepancy. Corrective FP32 reverse equations approach the local rounding floor yet leave the full FP16 gradient scale gap unchanged; local fidelity alone cannot support a model-level stability or quality claim.
 
@@ -410,6 +414,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Broaden native coverage using production-selected structured token clipping and0.2 bounds, retaining actual recorded outcome rewards and labeling extra effort/spans as controlled audit evidence. Test Posttrain normalization independently and replay actual TRL loss at common native scores. Report skipped attempts separately from applied updates. Preserve the original failed-hook arm, permit native backoff in a distinct external runner, and keep repeatability/live worker/native TRL model parity as separate gates.
+
 - Retain the native-forward/FP32-backward SDPA control only as an external diagnostic. It qualifies the observed causal/zero-dropout GQA equations and captured layer23 cotangents, not every supported mask/path, all nonlinear layers, candidate repeats or learning quality. Native BF16 updates change materially; no production kernel/default adoption. Continue residual-operation isolation and wider native algorithm coverage instead of presenting local rounding-floor agreement as campaign completion.
 
 - Use global deterministic controls for native SDPA precision comparisons after preserving the failed repeat gate and uncontrolled repeats. Record actual native dispatch and forward-score changes; SDPA versus eager is not a forward-preserving backward ablation. Do not adopt production determinism/defaults/pins or call a quality improvement from these controls. Keep all executed tools and raw receipts external.
@@ -542,6 +548,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Native GDPO/CAPO now have24 applied updates across both families/primary precisions and common-score TRL/veRL logical-loss agreement. CAPO sparse-credit scaling exposes a real FP16 backward limitation handled by existing native scaler backoff; scale128 permits three updates after three safe skips. Only experimental instrumentation changes, with all sources/raw evidence external. First overflowing nonlinear operation, default-scale qualification, nonzero KL, full structured-evidence worker/judge transport and fresh held-out learning remain unproven. The wider campaign is still incomplete.
 
 - Six further native/corrective SDPA updates pass local seam checks. Full layer23 derivatives now have independent full-coordinate references and capture-neutrality proof; a forward-preserving backward improves local derivatives without resolving the global scale-sensitive gradient. The finding narrows a numerical mechanism while contradicting a general-remedy claim. Production defaults/pins remain unchanged; tools and raw receipts stay external. Full-model derivatives, harder-task learning and broad native algorithm/worker gates remain open.
 
@@ -1092,3 +1100,7 @@ Revision 50: capture full native layer23 fused-attention derivatives, check
 independent causal/GQA equations and finite differences, isolate rounded-output
 reduction effects, and reject local FP32 reverse-equation improvement as a
 demonstrated global scale-sensitivity or training-quality remedy.
+Revision 51: qualify native GDPO/CAPO BF16/FP16 updates on both recorded model
+families, independently normalize structured credits and replay TRL loss,
+preserve a failed overflow audit hook, and verify native sparse-CAPO scaler
+backoff with exact skip safety and three subsequent optimizer updates.

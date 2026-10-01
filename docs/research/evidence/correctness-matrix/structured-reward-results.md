@@ -131,3 +131,120 @@ final model arms, source/input hashes, and direct checkpoint hashes. Checkpoint
 payloads remain machine-local. Full Trainer/Verifiers integration, native
 multi-turn masks, distributed/fused paths, nonzero KL combinations, rank/alpha
 comparisons, and controlled task-learning runs remain open.
+
+## Native veRL GDPO/CAPO updates on recorded task trajectories
+
+1 October 2026. Extend the direct BF16 checks to the native veRL FSDP2 loader,
+CPU offload, checkpointed model backward, accumulation and AdamW in both
+primary precisions. The qualified matrix covers Qwen3.5-0.8B and
+LFM2.5-1.2B-Thinking, each with GDPO and CAPO. This is native engine coverage
+on recorded trajectories, not the complete production worker or fresh learning.
+The candidate fork remains `d8e472db822f2916ed81a408b8d28192be95e678`;
+production dependency pins do not change.
+
+Use the previously audited native AutomationBench trajectories and masks.
+Qwen has1119 prompt tokens, response lengths289/420, sampled counts133/165,
+and actual task outcomes `[1,1]`. LFM has1018 prompt tokens, response
+lengths872/512, sampled counts741/512, and actual outcomes `[1,0]`; the
+second LFM response is truncated. Preserve those observed outcomes rather
+than inventing a success/failure pair for Qwen.
+
+The added evidence is deliberately controlled: GDPO combines actual outcome
+with negative sampled-token count as an effort component, weights2/1. CAPO
+uses actual outcome weight2 and process weight1, with four sampled positions
+at the end of the second response marked as error spans. Each span is
+duplicated to check union semantics. Those effort rewards and spans are audit
+inputs, not live judge results or an adopted reward recipe. Posttrain's actual
+`compute_gdpo_advantages`/`compute_capo_advantages` outputs agree with the
+independent Decimal100 equations within4.45e-16 over all four fixtures;
+excluded positions remain zero.
+
+The native actor selects `token_clip`, consistent with Posttrain's structured
+RL mapping, rather than SAMPO's sequence-valued stop-gradient ratio. Settings:
+token ratios, row-mean/token-mean reduction, bounds0.2/0.2 (the structured
+RL defaults), beta0, rank4/alpha8 q/v LoRA with FP32 masters, LR1e-4,
+weight decay0.01, norm cap1, seed42, microbatch1 and global batch2.
+The old policy and capped sampler-correction weights are frozen from the
+initial model on each fixture. FP16 starts at explicitly selected scale1024;
+this does not qualify the native default initial scale65536. Torch SDPA is
+used; these runners do not explicitly enable global deterministic algorithms,
+so candidate repeatability and cross-precision trajectory equivalence are not
+established here.
+
+### Applied updates, masking and actual TRL loss agreement
+
+The final eight-arm matrix completes24 applied updates in27 attempts. It
+passes54 independent loss/score/mask checks,576 LoRA matrix checks,
+2,472 scalar-dot checks and detached AdamW checks (maximum4.10e-9).
+Some scalar checks occur on finite portions of skipped backward attempts;
+they are not proof that those attempts had finite complete gradients.
+Peak Torch allocation is3.992GB for Qwen and1.450GB for LFM.
+
+| Model / algorithm | BF16 applied updates | FP16 applied updates | Last-update BF16 clipped fractions, row1/row2 | Last-update FP16 clipped fractions, row1/row2 |
+| --- | ---: | ---: | ---: | ---: |
+| Qwen / GDPO | 3 | 3 | 2.256% /0.606% | 6.015% /1.212% |
+| Qwen / CAPO | 3 | 3 after backoff | 1.504% /0.606% | 1.504% /1.212% |
+| LFM / GDPO | 3 | 3 | 1.080% /0.391% | 0.135% /0% |
+| LFM / CAPO | 3 | 3 | 0.540% /0.195% | 0.135% /0.195% |
+
+Clipping is inactive at the first unchanged-policy forward and becomes active
+on some sampled tokens during reuse. These are token-clip fractions at0.2
+bounds, not directly comparable with SAMPO's tight sequence-ratio clipping.
+All independent score-gradient checks give exactly zero excluded-response and
+prompt-score gradients. Prompt hidden states can still receive legitimate
+conditioning gradients upstream; masking their loss positions does not remove
+their causal contribution to an assistant token's probability.
+
+Replay the actual TRL `GRPOTrainer._compute_loss` on exported native scores,
+the exact normalized token credits and reconstructed FP32 frozen correction
+weights. Compare both loss and derivatives with an independent scalar token
+PPO equation, including signs, clipping and row/accumulation denominators.
+Across27 attempt states, TRL's maximum reference loss error is1.42e-15,
+gradient error3.47e-18, and excluded gradients are exactly zero. The native
+veRL microbatch-loss sum differs from this replay by at most6.79e-8,
+within the explicit1e-6 gate. This proves agreement of the tested logical
+loss at common scores/credits, not native TRL model/scorer/optimizer parity.
+
+### Sparse CAPO whitening and FP16 backoff
+
+Qwen's two actual outcomes are equal. Four controlled error positions among
+298 sampled tokens nevertheless produce distinct CAPO credits: ordinary
+tokens receive0.11634556 and marked tokens−8.55139886. This is expected
+token-population whitening, not an incorrect normalization sign. With
+`p=4/298` and `n=298`, raw scores are2 or1, and the sample standard deviation
+is `sqrt(n/(n-1)*p*(1-p)) = 0.11527027`. Dividing positive deviation `p`
+and negative deviation `-(1-p)` by `std+1e-4` reproduces both credits exactly.
+Sparse process penalties can therefore yield much larger standardized credit
+than GDPO's approximately±0.707 row credit in these fixtures.
+
+The initial Qwen CAPO FP16 run stops in an experimental linear-hook assertion
+when a backward cotangent becomes non-finite. That hook prevents GradScaler
+from finishing, so retain it as a failed harness attempt, not a demonstrated
+production loss defect. The corrected external instrumentation records
+non-finite cotangents and permits the native scaler's existing skip/backoff
+path. A first three-attempt control safely skips at scales1024/512/256;
+this control passes skip-safety checks but applies no optimizer updates.
+
+A fresh bounded continuation repeats those skips, then applies three updates
+at scale128. All three skipped adapter exports and native scores remain
+bitwise initial, as does the aborted harness's initial state. Adam state
+stays uninitialized on skips, then its counters advance1→2→3 on applied
+updates. The initial three-attempt control and aborted hook attempt remain
+separate raw evidence outside the27-attempt qualification matrix. The finite
+score-level derivatives and later valid scaled updates distinguish this
+backward overflow from a demonstrated symbolic policy-loss error. They do
+not yet isolate the first overflowing nonlinear operation or qualify every
+precision setting. No learning-rate, advantage or production scaler recipe
+is changed from this result.
+
+Retain the fixtures/provenance, failed hook log, native/overflow/backoff
+receipts, all adapter/gradient exports, actual TRL replay summaries and exact
+executed sources under the external `results/native-collection` archive.
+Key summaries: `native-structured-matrix-summary.json` (including the
+three-attempt zero-update CAPO control),
+`native-structured-backoff-matrix-summary.json` (final eight-arm matrix),
+and `native-structured-backoff-recovery-audit.json`.
+All tools and raw receipts stay outside Git. Live judge integration, actual
+structured-evidence worker transport/admission, nonzero KL, repeatability,
+native TRL model/optimizer parity, checkpoint continuity and fresh held-out
+task learning remain open.
