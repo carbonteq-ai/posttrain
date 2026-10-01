@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Capture144 internal cotangent records in blocks19/23 with exact original-gradient/adapter/score and prior-boundary replay. Attention query scale gaps0.293%/0.915% exceed output gaps0.039%/0.158%. Two native-forward-preserving FP32 internal attention-VJP updates pass four loss checks,48 matrix checks,192 scalar dots and Adam(max1.34e-9) at3.95GB; full LoRA scale gap decreases0.84449%→0.76569%, update gap7.9487%→7.2013%, sign flips295→256. Exact candidate independently checked in six CPU FP16/BF16 causal GQA cases plus four ideal-equation finite differences. Partial causal reduction only; no quality verdict or production adoption. Next remaining full-attention blocks and operation-specific backward ablations/native BF16.
+
 - [x] (2026-10-01) Trace all24 Qwen decoder-output gradients over both complete trajectories in native FP16 scales1024/65536 (96 boundary records). Original unscaled LoRA gradients, adapter steps0/1 and scores reproduce bitwise. Four loss checks,48 matrix checks,192 scalar dots and Adam(max1.34e-9) pass. Boundary discrepancy grows0.01015% atlayer23→0.16947% at19→0.82099% at0; largest jumps traverse full-attention blocks23/19, without isolating their attention/MLP/norm components. Prefix hidden gradients are correctly nonzero upstream despite zero prompt-score gradients. Preserve the rejected FSDP-class instrumentation lookup; next inspect internal boundaries of23/19.
 
 - [x] (2026-10-01) Expand native projection capture to all104 credited Qwen tokens in FP16(scale1024/65536)/BF16. Three updates pass six loss checks,72 matrix checks,288 scalar dots and Adam(max1.34e-9); original adapters/scores and previous six-position captures remain bitwise exact. Full population scale discrepancy is0.0007697% raw-logit→0.0090455% hidden versus0.84449% LoRA. Four-column/full-vocabulary references cover1,248 scalar dots(max2.97e-21); native projection differs from exact-dot final-half rounding at66/115/102 coordinates. FP16 complete hidden-zero tokens39→16, but lost ideal four-column norm is only0.0008896%→0.00000551%. Keep quality attribution and accumulation/downstream-cancellation causes open.
@@ -145,6 +147,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Query-gradient sensitivity rises inside full attention, while corresponding query-normalization and post-rotary gradients remain nearly aligned in relative gap. FP32 internal attention backward at two blocks reduces the global scale discrepancy modestly without changing forward scores; remaining blocks and other backward operations still contribute.
 
 - Complete boundary gradients locate progressive scale divergence inside model backward, with large jumps traversing blocks23/19. These contain full attention plus MLP/norm/residual paths; component-level attribution remains unproven. Hidden prefix gradients reflect legitimate conditioning and must not be confused with prompt-score masking failures.
 
@@ -390,6 +394,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Keep the two-block FP32 VJP as a corrective experiment, not a production replacement. Its attention-weight diagnostic output lacks a gradient contract, and its partial scale-gap reduction does not establish learning quality. Extend operation/block ablations and native BF16 before recommending policy.
+
 - Capture attention, normalization and MLP boundaries in blocks23/19 under exact native-forward/update controls before selecting a numerical correction. Keep activation-gradient and parameter-gradient norm comparisons distinct; no source formula defect is established by their different relative gaps.
 
 - Inspect projection accumulation and downstream parameter-gradient cancellation/aggregation over the complete credited population. Report norm-space limitations and gradient mass beside zero counts; do not attribute poor task quality to large relative errors on negligible derivatives.
@@ -512,6 +518,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Internal traces and a forward-preserving corrective control provide causal evidence for part of the FP16 attention-backward sensitivity. Independent candidate equations pass bounded primary-precision references; the larger campaign still needs remaining-backward isolation, multiple algorithms/families and quality qualification.
 
 - Decoder-boundary evidence moves the scale-gap investigation beyond the output head and narrows the next measurement to two high-amplification blocks. Exact native-gradient replay confirms instrumentation fidelity; an independent full-model derivative reference and a demonstrated corrective control remain open.
 
@@ -1036,3 +1044,6 @@ retain accumulation/downstream-cancellation isolation before adopting changes.
 Revision 45: trace complete decoder-boundary cotangents, identify backward
 amplification across blocks23/19, distinguish legitimate prefix conditioning
 from masked prompt scores and require internal-block isolation before correction.
+Revision 46: capture full-attention internals, isolate query-gradient sensitivity
+and test native-forward FP32 internal VJP at blocks19/23 with independent
+primary-precision references and a measured partial global-gap reduction.

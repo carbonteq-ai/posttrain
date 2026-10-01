@@ -681,3 +681,71 @@ External receipts: `qwen-layer-scale1024.json`,
 snapshots. No production source/default/pin changes. Next capture the internal
 attention, normalization and MLP backward boundaries of blocks23/19 before
 selecting a correction, while retaining the broader algorithm/quality gates.
+
+## Internal full-attention block trace and corrective backward control
+
+Two more exact native FP16 updates capture complete internal gradients in
+blocks19/23 at scales1,024 and65,536:144 records over both trajectories,
+including attention query/key/value inputs and outputs, projection outputs,
+normalizations and MLP outputs. All original LoRA gradients, adapter steps0/1
+and scores match bitwise; decoder-output captures also match the preceding
+layer trace exactly. Four independent loss checks,48 matrix checks,192 scalar
+dots and AdamW(max1.34e-9) pass at3.95GB peak allocation.
+
+| Internal cotangent | Block23 scale gap, relative L2 | Block19 scale gap, relative L2 |
+| --- | ---: | ---: |
+| Decoder output / MLP down-projection output | 0.0101537% | 0.169466% |
+| Post-attention normalization output | 0.0285014% | 0.172041% |
+| Attention output after output projection | 0.0333351% | 0.175865% |
+| Attention output before gating/output projection | 0.0392223% | 0.157954% |
+| Attention value input | 0.0401948% | 0.181800% |
+| Attention key input | 0.0872843% | 0.417062% |
+| Attention query input | 0.292873% | 0.915311% |
+| Query normalization output | 0.292959% | 0.915484% |
+| Combined query/gate projection output | 0.229385% | 0.957634% |
+| Input normalization output | 0.149993% | 0.756499% |
+
+The attention query-gradient route is more sensitive than the incoming
+attention-output cotangent. Query normalization output and post-rotary query
+gradients have nearly the same gap, narrowing this specific increase to the
+attention backward route rather than rotary alone. Norm ratios still do not
+prove a formula error or identify a single multiplication/softmax operation.
+
+A research-only custom backward at blocks19/23 preserves native eager
+attention forward outputs. Recompute the same represented half logits and
+native FP32 softmax distribution; perform internal gradient matrix products,
+softmax VJP and grouped-key/value reductions in FP32; cast final query/key/value
+gradients back to their native half dtype. The value-gradient branch uses the
+actual half probability values, preserving that forward multiplication's
+represented inputs. Attention weights are diagnostic outputs with no gradient
+contract in this control; it is not a general production attention replacement.
+
+Two controlled native FP16 updates pass all four loss checks,48 matrix checks,
+192 scalar dots and AdamW(max1.34e-9), with initial parameters/scores bitwise
+native and unchanged3.95GB peak. Scale sensitivity decreases from0.844489%
+to0.765690% relative gradient L2 and from7.94874% to7.20128% update L2;
+sign flips decrease295→256. This gives causal evidence that internal half
+attention backward contributes to the gap, but the two-block control is only
+a partial reduction. It does not establish a task-quality improvement.
+
+Against each original arm, the control changes gradients by0.509517% at
+scale1,024 and0.249216% at65,536; update differences are5.52681% and2.78135%.
+Independent first-Adam sensitivity predicts these parameter differences within
+3.96e-11. These are measured changes, not error against a full-model oracle.
+
+The exact candidate class is separately extracted from its executed source
+and tested on six small CPU causal/grouped-query cases (FP16/BF16 times three
+scales) against independent NumPy distribution/gradient equations at native
+represented values. Native forward outputs/probabilities match bitwise;
+final-half q/k/v derivatives pass the recorded precision bounds. Four central
+finite differences validate the independent ideal float64 equations, not the
+discrete half-forward derivative. That oracle remains separate from supported
+half training and full-model quality claims.
+
+External evidence: `qwen-block-gradient-comparison.json`, native block captures,
+`qwen-attention-vjp-comparison.json`, both control receipts/adapter/gradient
+exports, `qwen-attention-vjp-independent-reference.json` and exact executed
+sources. No production precision/default/pin changes. Next isolate the remaining
+attention blocks and distinguish internal softmax casts, matrix-product
+underflow and subsequent model/parameter-gradient cancellation; include native
+BF16 and broader algorithm/family/quality qualification before adoption.
