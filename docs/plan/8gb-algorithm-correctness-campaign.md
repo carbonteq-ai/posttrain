@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Expand native projection capture to all104 credited Qwen tokens in FP16(scale1024/65536)/BF16. Three updates pass six loss checks,72 matrix checks,288 scalar dots and Adam(max1.34e-9); original adapters/scores and previous six-position captures remain bitwise exact. Full population scale discrepancy is0.0007697% raw-logit→0.0090455% hidden versus0.84449% LoRA. Four-column/full-vocabulary references cover1,248 scalar dots(max2.97e-21); native projection differs from exact-dot final-half rounding at66/115/102 coordinates. FP16 complete hidden-zero tokens39→16, but lost ideal four-column norm is only0.0008896%→0.00000551%. Keep quality attribution and accumulation/downstream-cancellation causes open.
+
 - [x] (2026-10-01) Capture actual Qwen vocabulary-projection backward in three native FP16/BF16 updates, reproducing original step0/1 adapters/scores bitwise. All six loss/score checks,72 LoRA matrix checks,288 scalar dots and Adam(max1.34e-9) pass. Independent full-vocabulary projection references over four hidden coordinates pass72 scalar fsum controls(max1.70e-21). Six-position scale discrepancy increases0.0002676% raw-logit→0.0041967% hidden L2; saturated-coordinate projection underflow has large relative but tiny absolute errors. Peak3.95GB. Expand to all104 credited positions before explaining global LoRA sensitivity; no production correction adopted.
 
 - [x] (2026-10-01) Execute stable selected-score backward through three complete native Qwen SAMPO updates (FP16 scales1024/65536, BF16). Initial scores/weights remain bitwise native; six loss/score/mask checks,72 matrix checks,288 scalar dots and Adam(max1.34e-9) pass at2.44GB peak. FP16 scale gradient gap remains0.87175%/296 sign flips and update gap7.902%, rejecting the control as a demonstrated scale-sensitivity remedy. BF16 gradients differ2.046% and updates10.526% from native, not a quality verdict. Next isolate frozen vocabulary projection accumulation and residual model backward.
@@ -141,6 +143,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Capturing every credited token confirms that the head-level relative scale gap is much smaller than the final LoRA gap. Many FP16 hidden derivatives vanish, but their four-column ideal gradient mass is tiny. Native projection outputs also differ from exact-dot final rounding, motivating an accumulation control without declaring a formula bug.
 
 - Actual output projection amplifies the scale discrepancy at the six captured positions, while projection-only relative errors can be dominated by subnormal hidden gradients around1e-13. Already-zero input gradients must be distinguished from an accurately computed nonzero derivative. Selected-token evidence cannot explain the whole-population LoRA gap.
 
@@ -382,6 +386,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Inspect projection accumulation and downstream parameter-gradient cancellation/aggregation over the complete credited population. Report norm-space limitations and gradient mass beside zero counts; do not attribute poor task quality to large relative errors on negligible derivatives.
+
 - Expand capture to all104 nonzero-credit token positions with bounded hidden-coordinate oracles. Preserve native forward and bitwise instrumentation controls; do not infer whole-model causation from six selected positions or adopt FP32 projection accumulation without testing it.
 
 - Reject stable selected-score backward as a demonstrated loss-scale remedy. Retain its native-forward controlled evidence and move to output-projection accumulation; no production defaults/pins are changed by an isolated local improvement.
@@ -500,6 +506,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Complete credited-token evidence closes the selected-population coverage gap for head scale sensitivity. It strengthens the next causal question—where the larger LoRA discrepancy arises—while leaving full-model derivative truth, corrective controls, broader algorithms and learning quality unqualified.
 
 - Independent actual-value projection references establish local rounding/underflow and scale amplification, with exact-repeat instrumentation evidence in both primary precisions. The next available action is full credited-population capture and controlled accumulation/backward experiments, not a production recipe change.
 
@@ -1014,3 +1022,6 @@ scale-gap remedy before isolating output-projection accumulation.
 Revision 43: measure actual full-vocabulary projection derivatives at selected
 credited tokens in FP16/BF16, quantify local scale amplification and require
 whole-population capture before attributing the global LoRA discrepancy.
+Revision 44: capture all104 credited-token head/projection gradients, validate
+full-vocabulary selected-coordinate oracles, quantify lost gradient mass and
+retain accumulation/downstream-cancellation isolation before adopting changes.

@@ -578,3 +578,54 @@ tensors and exact adapter/score controls, `qwen-projection-gradient-oracle.json`
 and exact executed runner/controller snapshots. No production source or
 precision/default changes. Whole-population projection sensitivity, corrective
 accumulation controls and model-backward isolation remain open.
+
+## Complete credited-population head and projection capture
+
+Expand the same native projection instrumentation to all104 nonzero-credit
+tokens in the observed Qwen SAMPO population. Three one-update arms again pass
+in FP16(scale1,024/65,536) and BF16: six independent loss/score/mask checks,
+72 LoRA matrix checks,288 scalar dots and AdamW(max1.34e-9). Original native
+step0/1 parameters and scores remain bitwise identical. All earlier selected
+logits, raw/hidden gradients and weight columns also reproduce exactly.
+Peak Torch allocation remains3.95GB; raw capture files remain external.
+
+Across all104 positions, FP16 scale sensitivity is0.000769745% relative L2
+at the raw-logit gradient (25,825,280 coordinates) and0.00904551% at the hidden
+gradient (106,496 coordinates). This establishes amplification through the
+projection over the complete credited population, yet remains much smaller
+than the final159,744-coordinate LoRA gap0.844489%. Relative norms inhabit
+different spaces: this does not quantitatively assign the remainder to one
+layer or distinguish model-backward rounding from parameter-gradient
+cancellation/aggregation. Those are the next causal boundaries to inspect.
+
+The four-coordinate/full-vocabulary references now cover416 hidden coordinates
+per arm. All1,248 scalar `math.fsum` dots agree with independent float64 matrix
+references within2.97e-21. Aggregate errors use concatenated vectors rather
+than averaging per-token relative errors, which would overweight tiny gradients.
+
+| Arm | Projection-only reference error, relative L2 | Whole-head reference error, relative L2 | Complete raw-gradient zero tokens | Complete1,024-coordinate hidden-gradient zero tokens |
+| --- | ---: | ---: | ---: | ---: |
+| FP16, scale1,024 | 0.0380959% | 0.0434018% | 21/104 | 39/104 |
+| FP16, scale65,536 | 0.0387537% | 0.0429953% | 6/104 | 16/104 |
+| BF16 | 0.133143% | 0.310289% | 0/104 | 0/104 |
+
+Higher FP16 scaling retains more tiny derivatives. However, the ideal gradient
+L2 norm lost at tokens with all four referenced hidden coordinates zero is only
+0.000889621% at scale1,024 and0.00000550768% at65,536. This mass calculation
+covers four referenced coordinates, not the complete hidden vector. Zero-token
+counts alone would overstate the gradient importance; neither count proves
+task-quality damage or improvement.
+
+The actual projection is not always equal to the exact represented-input dot
+rounded once to its native half output:66/416 coordinates differ at scale1,024,
+115/416 at65,536 and102/416 in BF16. Maximum differences are1.87e-9 for FP16
+normalized gradients and7.46e-9 in BF16. This motivates testing accumulation
+precision/ordering; it does not identify a formula defect or establish that a
+different matrix multiplication improves the full update.
+
+External evidence: `qwen-allcredit-{scale1024,scale65536,bf16}.json`,
+all credited-token tensors, `qwen-allcredit-gradient-oracle.json`,
+`qwen-allcredit-zero-summary.json`, and exact executed runner/controller sources.
+No production source, precision defaults or dependency pins change. Next isolate
+projection accumulation controls and downstream backward/cancellation over the
+complete population, then return to broader algorithm/family and quality gates.
