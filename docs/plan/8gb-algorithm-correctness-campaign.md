@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Qualify nonzero beta0.02 sampled-k3 on native SAMPO/GDPO/CAPO×Qwen/LFM×BF16/FP16:36 updates,72 loss/mask checks,864 matrices,3,456 scalar dots and Adam(max4.13e-9), excluded reference NaNs neutralized. Actual TRL replay matches independent value/gradient within2.14e-15/1.30e-17 and native losses within6.79e-8. Add12 deterministic Qwen SAMPO updates at beta0/.02 with identical initial and first updated states/gradients. Common-state step2 parameter gradients differ116.46% BF16/125.53% FP16, updates61.22%/81.01%; final cached k3 proxy reduces40.22%/48.62%. Score-space smallness did not imply parameter-space irrelevance after clipping. No source defect, production beta/pin change or task-quality/active-run verdict; all48 updates/tool receipts external. Next real structured/admission/reference worker paths and harder fresh-task behavior, preserving broader algorithm/model gates.
+
 - [x] (2026-10-01) Trace native sparse-CAPO FP16 overflow to layer22 gated-norm input: ideal scaled maxima347,692/173,846/86,923 at1024/512/256 each predict one overflow matching actual;128 yields43,461 and applies. Preserve tracing OOM from vocabulary-wide gradient indexing; bounded trace keeps144 norm/3,232 module records within3.991GB. Six actual-class BF16/FP16 CPU cases distinguish avoidable intermediate overflow from final-range overflow, with12 oracle finite differences(max6.90e-9 relative). Existing FP32 delta-rule control applies three updates at1024 with108 finite norm references(max1.17e-7), still carrying348,280 in FP32. Native forward changes(mean/max sampled-score delta0.000718/0.01656); no backward-only or quality claim/adoption. Four additional applied updates; raw sources/receipts external. Next broader nonzero-KL/worker qualification, residual precision and harder fresh-task behavior.
 
 - [x] (2026-10-01) Extend native veRL model/optimizer coverage to GDPO/CAPO on both recorded Qwen/LFM task pairs in BF16/FP16. Actual outcomes plus explicitly controlled effort/spans normalize within4.45e-16 of Decimal references. Final eight-arm matrix applies24 updates in27 attempts,54 loss/mask checks,576 matrices,2,472 scalar dots and Adam(max4.10e-9), peaks3.992GB Qwen/1.450GB LFM. Actual TRL loss replay at common scores matches scalar loss/derivatives within1.42e-15/3.47e-18; native loss difference max6.79e-8. Qwen sparse CAPO credit−8.55 triggers FP16 overflow; preserve failed audit assertion, correct only external instrumentation to allow native skip/backoff, verify three exact unchanged skips1024→512→256 then three applied updates at128 with Adam counters1→2→3. Separate extra zero-update control from final matrix. No new production repair/default/pin; live evidence/admission, nonzero KL, precision repeatability/native TRL optimizer parity and full worker/fresh learning remain open.
@@ -159,6 +161,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Beta0.02 remains an active score derivative when policy credit clips to zero, and in deterministic common-state controls changes actual LoRA gradients by more than the beta-zero gradient norm. Initial and first updated states match exactly, so step2 isolates the coefficient effect; later clipping/history diverge. Cached sampled-k3 reductions are40–49%, but neither those proxies nor small score-space gradients establish true KL or production-run quality.
 
 - The live CAPO fixture's first norm overflow is expected from its ideal scaled derivative, unlike a synthetic intermediate-cast case whose ideal final derivative fits FP16. One non-finite norm-input coordinate propagates widely upstream. FP32 delta-rule state permits the still-large derivative and1024-scale updates, but also changes forward/sampler weights, so it is not an isolated backward remedy. Large-logit tracing itself can exceed8GB via boolean-index materialization; bound trace shapes and retain separate score-gradient audits.
 
@@ -418,6 +422,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Validate the current uncorrected sampled-k3 definition and its independent masking/aggregation/sampler-weight placement without relabeling it full-vocabulary KL. Treat broad native/TRL loss replay as common-score logical agreement only. Use deterministic paired common-state controls before attributing beta effects, and keep production settings unchanged pending fresh/held-out and real worker qualification.
+
 - Keep representability, premature intermediate-cast overflow and symbolic objective correctness distinct. Use norm references at actual inputs/cotangents to explain the captured native failure, and retain the FP32 delta-rule control as external evidence with measured forward changes. Preserve failed wide tracing and bound instrumentation to smaller tensors. Do not adopt a production norm patch, fixed loss scale or FP32 island solely from this fixture.
 
 - Broaden native coverage using production-selected structured token clipping and0.2 bounds, retaining actual recorded outcome rewards and labeling extra effort/spans as controlled audit evidence. Test Posttrain normalization independently and replay actual TRL loss at common native scores. Report skipped attempts separately from applied updates. Preserve the original failed-hook arm, permit native backoff in a distinct external runner, and keep repeatability/live worker/native TRL model parity as separate gates.
@@ -554,6 +560,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Forty-eight further native updates cover combined KL/policy/mask/Adam seams in both model families/primary precisions and deterministic beta controls. No new symbolic seam defect is found. KL measurably changes cached-fixture updates and reduces its reference proxy despite a small score-gradient impression, but worker reference transport, real admission, fresh harder tasks, held-out quality and full algorithm/architecture coverage remain incomplete. Correctness tools/raw artifacts remain external; the goal stays active.
 
 - Native CAPO's layer22 overflow now has a concrete mathematical explanation: the scaled ideal derivative exceeds FP16 range before upstream propagation. A wider delta-rule/norm intermediate path applies three1024-scale updates without skips and matches local references, while changing forward arithmetic. This resolves the captured range question, not the full objective, current-run quality, universal precision stability or production release gates. Nonzero KL, repeatability, live worker/evidence/admission and fresh harder-task consequences remain open.
 
@@ -1116,3 +1124,7 @@ Revision 52: locate native sparse-CAPO gradient range overflow at layer22,
 preserve/fix bounded tracing, distinguish intermediate-cast versus final-range
 failures with independent references, and qualify a forward-changing FP32
 delta-rule control without claiming production or learning-quality adoption.
+Revision 53: qualify nonzero sampled-k3 native updates and common-score TRL
+agreement, test excluded reference NaNs, isolate deterministic beta effects
+from a common state, and distinguish cached reference proxies from true KL
+and fresh-task or production-run conclusions.

@@ -1125,3 +1125,98 @@ No production precision or kernel default changes.
 
 Retain `qwen-sdpa-corrective-reference.json`, three native candidate receipts,
 attention/adapter/gradient archives and exact experimental sources outside Git.
+
+## Nonzero sampled-k3 KL, masking and controlled beta comparisons
+
+1 October 2026. Extend the native model/optimizer checks to beta0.02 for
+SAMPO, GDPO and CAPO in Qwen/LFM and BF16/FP16:12 arms,36 applied updates,
+72 independent loss/score/mask checks,864 LoRA matrix checks,3,456 scalar
+dots and detached AdamW checks (maximum4.13e-9). Every attempt applies.
+Keep the preceding recorded task fixtures, credit provenance, rank4/alpha8
+FP32 LoRA masters and fixed initial reference scores. The reference equals
+the initial model on these cached trajectories; it is not freshly sampled
+or re-scored after every optimizer update. FP16 starts at1024 except sparse
+Qwen CAPO, which uses its measured safe scale128. Default-scale65536 and
+full live reference-model transport remain unqualified.
+
+SAMPO uses its sequence-valued/token-local ratio and0.003/0.004 bounds;
+GDPO/CAPO use token clipping at0.2/0.2. All use row-mean/token-mean aggregation.
+Frozen capped rollout-correction weights multiply the policy term only;
+the k3 term is added separately, without policy-ratio bias correction,
+matching the current Posttrain selections in both backends. Every excluded
+reference position is deliberately NaN. Native veRL and actual TRL loss replay
+neutralize those positions before exponentiation and produce exactly zero
+excluded/prompt-score derivatives.
+
+At sampled score `s`, frozen reference `q`, and `d=q-s`, the independent
+penalty value is `k3=expm1(d)-d`; its score derivative is `-expm1(d)`.
+Multiply that derivative by beta and the same row/accumulation denominator
+as the loss. This independently checks the sign, normalization and separation
+from sampler weights. It is the implemented sampled surrogate. Its fixed-data
+value is not full-vocabulary KL(actor||reference), and it need not have that
+KL's gradient without a corresponding density correction.
+
+Actual TRL `_compute_loss` replay on the common exported native scores agrees
+with independent scalar equations within2.14e-15 for value and1.30e-17 for
+derivatives. Native veRL microbatch-loss sums differ from that replay by at
+most6.79e-8, within the explicit1e-6 gate. This establishes the tested logical
+loss agreement; it does not establish native TRL model/optimizer parity.
+No confirmed source defect is found in these combined policy/KL/mask seams.
+
+### A small score-space contribution can matter after clipping
+
+The harness records policy and beta-weighted KL gradient norms separately
+with respect to sampled log probabilities. In the uncontrolled Qwen SAMPO
+third-update row1, the policy norm is zero after all88 credited positions
+clip, while the KL norm is about4.10e-5. All133 sampled positions contribute
+to the KL term, including positions with zero policy credit. LFM FP16's
+third-update row2 similarly has a zero clipped-policy norm and KL norm9.83e-6.
+Thus clipping the policy term does not imply a zero total derivative when
+reference regularization remains active.
+
+These are score-space norms, not isolated parameter-gradient contributions.
+Jacobians, cancellation, adaptive optimization and model coupling can amplify
+or suppress their effect. Uncontrolled SDPA repeat noise also prevents a
+causal beta verdict from simply comparing the broad matrix with older beta-zero
+arms.
+
+### Deterministic beta-zero versus beta0.02 native SAMPO controls
+
+Run four additional three-update Qwen arms (two precisions×two beta values)
+with `CUBLAS_WORKSPACE_CONFIG=:4096:8` and
+`torch.use_deterministic_algorithms(True)`. They add12 applied updates,
+24 loss checks,288 matrix checks and1,152 scalar dots, with AdamW maximum
+error4.04e-9. Initial weights/scores and the first updated weights/scores/
+gradients are bitwise identical across beta settings in each precision,
+because initial current and reference scores match and KL has zero gradient.
+The second update therefore starts from a common model/optimizer/data state;
+the coefficient is the changed input. Later comparisons include the resulting
+changed weights, clipping and optimizer history.
+
+| Precision | Common-state step2 gradient difference / beta-zero norm | Step2 update difference / beta-zero displacement norm | Final cached k3 proxy, beta0 | Final cached k3 proxy, beta0.02 | Proxy reduction |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| BF16 | 116.455% | 61.219% | 0.001628503 | 0.000973563 | 40.217% |
+| FP16 | 125.529% | 81.005% | 0.002100196 | 0.001079066 | 48.621% |
+
+The gradient differences include49,079 BF16 and72,137 FP16 sign changes
+across159,744 LoRA coordinates; coordinate magnitudes matter, so sign counts
+alone are not an error verdict. Model-level differences are much larger than
+the earlier score-norm impression. The final proxy averages each row's k3
+over its sampled cached tokens, then averages rows equally, matching the
+loss aggregation. It is measured after the third update, not a newly sampled
+evaluation or full-vocabulary KL measurement. In deterministic BF16 beta0.02,
+both credited policy populations clip at update3, yet the combined derivative
+remains active through KL.
+
+In this bounded fixture beta0.02 is consequential and reduces the cached
+reference-distance proxy. That does not establish an optimal beta, explain
+the active production run, prove better task reward/generalization, or resolve
+fresh-data/admission/worker correctness. All twelve broad arms and four paired
+arms remain within the existing approximately4GB Torch allocation envelope.
+No production beta/default/pin changes.
+
+External evidence: twelve `*-native-*-kl02.json` receipts and exports,
+`native-nonzero-kl-matrix-summary.json`, four deterministic native receipts,
+`native-kl-causal-pair-analysis.json`, exact executed scalar/harness/replay
+sources and controller logs. All48 newly applied updates are native veRL
+model/optimizer execution. Tools, snapshots and raw receipts stay outside Git.
