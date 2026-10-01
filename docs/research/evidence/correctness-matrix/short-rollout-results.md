@@ -2226,3 +2226,69 @@ its state files and fresh-qwen-adam-sensitivity-auditcpu-summary.json preserve
 the original instrumentation result. All processes are terminal and GPU idle.
 These measurements justify retaining the numerical failure for investigation;
 they do not yet demonstrate poorer task success or justify relaxing the gate.
+
+## FP32 analytical-backward control: precision-specific results
+
+Revision87 tests a concrete FP32 arithmetic hypothesis without changing model
+precision or feeding the independent oracle into training. Retain the native
+forward loss value; supply a separately derived score derivative through an
+external surrogate whose forward contribution is zero. In the selected setup,
+derive (-A*r*I_unclipped-beta*expm1(reference-score))/(N*B*accumulation), then
+zero excluded tokens. SAMPO uses its sequence ratio and token-local credit;
+GRPO uses token ratios. Combine normalization into one denominator and use
+expm1 for the KL derivative. This is an external analytical-backward control,
+not a production implementation or general support for other objective options.
+The assertions exclude bias-corrected KL, off-policy/entropy masking, vLLM and
+delta clipping; these fixtures use unmasked trajectory truncation.
+
+| Fresh Qwen control | Applied updates | Independent accumulated-gradient errors | Conditional update effect at failing step | Qualification |
+| --- | --- | --- | --- | --- |
+| SAMPO BF16 | 3 | 0,0,0.012827142 | 1.002827%; max7.59063e-5;157 reversals | Fail |
+| GRPO FP16 | 3 | 0,0,0 | 0 at all three steps | Pass |
+
+Independent NumPy Adam replay confirms all six conditional updates from CPU
+state snapshots. Actual native Adam maximum errors remain1.840e-9 BF16 and
+1.865e-9 FP16; peak allocations6.077GB/5.668GB. Loss errors are at most
+2.898e-8/2.981e-8. First optimizer events exactly reproduce the corresponding
+ordinary controls. More strongly, all24 LoRA matrices' prior parameters,
+first/second Adam moments and effective optimizer options match exactly at
+SAMPO step3 and GRPO step2, the earlier failing states. The FP16 pass therefore
+does not merely start from an easier policy. Later FP16 trajectory differences
+are expected after changing the step2 derivative.
+
+Independently reconstruct every selected score derivative in scalar Python
+double using exp/expm1, clipping predicates and explicit sampled-token counts,
+then round it to FP32. Neither candidate nor native derivative is uniformly
+closer in every SAMPO case. At the failing BF16 microbatch5, native and candidate
+maximum score errors are both5.821e-11, but21 versus89 sampled coordinates
+differ from the reference. The candidate's score relative error is5.299e-8
+versus native2.574e-8 on the same scores. Only175 raw-head gradient coordinates
+differ, with the existing FP32-norm diagnostic reporting6.579e-11 relative
+error, yet the full-model parameter-gradient error is1.282594%. These norms
+span different stages; they do not by themselves locate the amplification or
+prove which operation is defective. Low-magnitude norm underflow/rounding also
+needs an accurately accumulated diagnostic before interpreting tiny head norms.
+
+For FP16 GRPO the candidate's scalar derivative is still not bit-identical to
+the rounded independent reference: maximum errors1.165e-10 to2.329e-10 after
+step1. Nevertheless, all six full-model gradient checks and three actual
+scaler-aware accumulated gradients agree exactly; native losses/masks remain
+qualified. Thus bitwise score agreement is unnecessary in this fixture, while
+a similar-sized BF16 score discrepancy can accompany a measurable update error.
+Do not infer a universally stable formula or relax the BF16 failure. The FP32
+candidate reconciles this FP16 case but worsens BF16 from1.054974% gradient/
+0.804452% update error to1.282714%/1.002827%.
+
+Next localize the discrepancy through intermediate backward tensors, verify
+same-cotangent repeatability and measure half-precision rounding thresholds
+with accurate diagnostic norms. Preserve successful and failed controls before
+choosing a production correction. A task-quality/longer-trajectory study and
+coverage of remaining objective options are still required for adoption.
+
+All source, twelve score snapshots, six Adam-state snapshots, native receipts
+qwen-fresh-weekly-native-{sampo-bfloat16,grpo-float16}-fp32-derivative.json,
+fresh-qwen-fp32-derivative-summary.json,
+fresh-qwen-fp32-derivative-adam-summary.json and exact prior-state provenance
+remain external. Session71346 is terminal(exit0 for both arms, with qualification
+fail/pass respectively); GPU idle. Production code and dependency pins are
+unchanged by this experiment; the broad campaign remains active.

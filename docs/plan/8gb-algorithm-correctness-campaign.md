@@ -22,6 +22,9 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] Revision87 tests an external FP32 analytical-backward control retaining native forward loss values, with separately derived expm1 KL gradients/combined denominators. Six further native Qwen updates and independent scalar/NumPy state replay. FP16 GRPO passes exact independent scaled accumulation; BF16 SAMPO fails/worsens to1.282714% gradient and1.002827% conditional update difference. Exact prior parameters/Adam history/options match earlier failing states. No production adoption; preserve both outcomes and all external snapshots.
+- [ ] Localize BF16 propagation using intermediate backward tensors, same-cotangent repeatability and accurate accumulated norms; distinguish rounding thresholds from an implementation defect before choosing a correction. Continue broad native algorithm, host/fresh-policy and behavioral-quality qualification.
+
 - [x] Revision86 measures conditional Adam sensitivity from identical observed prior parameters/moments for six native updates; independent NumPy replay confirms exported states. SAMPO BF16 step3 gradient1.054974% changes update0.804452%, max6.79751e-5,130 coordinate reversals; exact reproduction of previous BF16 checks/optimizer fields. FP16 GRPO with additional memory instrumentation measures gradient0.076836%, update0.319717%,13 reversals, but does not reproduce earlier FP16 trajectory. Preserve raw failures and two external callback-state bookkeeping failures.
 - [x] Complete original CPU-cotangent-only FP16 GRPO sensitivity control under terminal session63517(exit0, qualification fail). Three more native updates; all original loss checks/optimizer fields/input hash/fixture/settings match exactly. Step2 gradient0.161014% changes conditional update0.564001%, max5.05991e-5,28 reversals; independent NumPy confirms. All three sensitivity arms terminal/GPU idle. Keep numerical conditioning, instrumentation-dependent trajectory differences, behavioral impact and broad native algorithm/host qualification gates open.
 
@@ -248,6 +251,13 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- A separately derived FP32 backward formula resolves the fresh FP16 GRPO
+  discrepancy but worsens BF16 SAMPO at identical prior model/Adam states.
+  The small score-error bound does not predict full-model or Adam error.
+  Existing tiny raw-head FP32 norm diagnostics can lose very small squared
+  differences, so accurate intermediate diagnostics are a prerequisite to
+  locating the amplification; do not assume the loss formula is the root cause.
 
 - Adam need not attenuate gradient error: the new FP16 conditional update
   difference exceeds its gradient discrepancy; BF16 differences are concentrated
@@ -593,6 +603,13 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Keep the FP32 analytical-backward experiment external. Retaining the native
+  forward value while replacing its derivative tests a narrow arithmetic
+  hypothesis, not the complete production loss/option contract. Do not adopt
+  the passing FP16 candidate across precisions or feed reference gradients into
+  training. Preserve the BF16 counterexample and investigate deeper backward
+  stages and norm measurement before choosing a correction.
+
 - Reconstruct counterfactual gradients only from the same observed Adam history;
   do not conflate conditional sensitivity with a counterfactual training run.
   Export CPU moments/options/gradients for an independent NumPy reference.
@@ -804,6 +821,14 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+Revision87 adds six native updates with a mixed experimental verdict: the FP32
+analytical-backward control passes FP16 GRPO, but BF16 SAMPO's raw failure gets
+worse. Independent scalar score reconstruction and NumPy Adam replay confirm
+the measurements; identical observed prior model/optimizer states make the
+critical comparisons meaningful. No general correction is yet justified.
+Intermediate backward localization and behavioral/native coverage gates remain
+open; all experiment code/raw data stay external and the goal remains active.
 
 Revision86 adds nine completed native updates and independent conditional Adam
 state replay. BF16 raw precision failure has a measurable0.804% update effect
@@ -1555,3 +1580,6 @@ control, and demonstrate KL-free momentum movement after full policy clipping.
 Revision 86: independently reconstruct conditional Adam update sensitivity from
 exported native history, quantify concentrated coordinate effects, preserve
 audit failures and separate FP16 instrumentation drift from matched evidence.
+Revision 87: test separately derived FP32 backward arithmetic at matched prior
+states, preserve the passing FP16/worsening BF16 outcomes and advance accurate
+intermediate-gradient localization without premature production adoption.
