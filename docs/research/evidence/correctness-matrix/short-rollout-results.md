@@ -764,3 +764,75 @@ and `fresh-adam-matrix-summary.json`. All tools, checkpoints and raw data stay
 outside Git. No product defaults, immutable runtime pins or training semantics
 change in this slice; broader correctness and native-worker qualification remain
 incomplete.
+
+## Separate moment controls: recovery is not a momentum-only story
+
+Clearing either Adam moment changes these two-seed outcomes, but the numerical
+effects are very different. First-moment clearing preserves the starting
+partial-success pair. Second-moment clearing produces partial successes on both
+seeds while amplifying the parameter update dramatically. This revises the
+simple hypothesis that only stale momentum explains the full-reset recovery.
+
+Two new native FP16 arms preserve the exact step3 policy, sampler correction,
+fresh[0,0.5] group, base reference, scale1024, LR0.0001 and Adam counter3.
+One zeros only exp_avg; the other zeros only exp_avg_sq. The other moment is
+verified bitwise unchanged. Both reproduce step0–3 parameters/native scores and
+the first fresh loss checks/gradients exactly. Eight applied native updates
+include six replay controls and two fresh updates;16 loss checks,192 linear
+matrices and768 scalar-dot checks pass, with no skips. Peak remains
+3,005,776,384 bytes. A preflight initially omitted the renderer import paths;
+restoring the existing PYTHONPATH resolved it without changing dependencies.
+
+| One fresh update from the same step3 policy | Rewards | Truncation | Parameter displacement L2 |
+| --- | --- | --- | --- |
+| Retain all state | [0,0] | [true,true] | 0.0222530 |
+| Clear first moment only, retain counter | [0,0.5] | [true,false] | 0.0109383 |
+| Clear second moment only, retain counter | [0.5,0.5] | [false,false] | 6.4064561 |
+| Clear both moments and counter | [0.5,0.5] | [false,false] | 0.0395709 |
+
+Four additional fresh episodes use the same two training seeds,2048-token
+per-turn allowance and six-turn ceiling. Exact adapter score reproduction,
+token/logprob/excluded-mask transport and ten independent episode final-state
+checks across the starting/control arms pass. First-moment clearing preserves
+the email-only partial success. With second-moment clearing, seed39400 passes
+only email, while seed40400 passes only Sheets. Equal reward0.5 therefore does
+not mean equal behavior or complete task success.
+
+Independent saved-gradient Adam reconstruction checks all eight new parameter
+steps. Maximum error is2.13e-9 in the first-moment arm and2.20e-7 in the
+second-moment arm, whose weights move much farther. All raw gradient norms
+remain below1. The first-moment displacement has cosine0.5267 with the retained
+update; the second-moment displacement has cosine0.05688. Their magnitudes
+also differ, so this does not isolate direction from update size.
+
+The largest second-moment coordinate is layer8 q_proj LoRA-B, flat index6257.
+Its recorded unscaled gradients at steps1–4 are−0.0011119843,
+−0.0011405945,+0.0000036461,0. The retained first moment after step3 is
+−0.0001923596. On update4 it decays to−0.0001731237 even though the new gradient
+is zero. After clearing the second moment, its new value is0 and the entire
+denominator is epsilon1e-8. With counter4 bias correction, independent scalar
+Adam predicts parameter5.03440501 versus native5.03440523, error2.20e-7;
+the previous value was0.00027725. Thus a zero current gradient does not imply a
+zero optimizer update. This does not establish why that gradient was zero or
+show that production discards its second moment.
+
+All resulting native scores remain finite. In the second-moment arm, maximum
+chosen-token logprob differences from recorded sampler scores reach13.90/13.91
+on the two trajectories; mean differences are−0.16563/−0.15659. These are
+post-update actor-versus-sampler scores, with known scoring-path mismatch,
+not PPO ratios against refreshed old-policy scores or true KL. The first fresh
+loss had ratio1 before the update in both arms: clipping that loss is not a
+bound on an optimizer-state-induced parameter displacement.
+
+The large-denominator-reset control improves this narrow partial reward, so
+calling its behavior a task-quality collapse would be wrong. It remains a
+diagnostic intervention, not evidence for a safe/default recipe. Both moment
+components influence the observed result; full-reset recovery cannot be
+attributed solely to first momentum. Next isolate counter bias correction and
+displacement size, then expand tasks, seeds, precisions and real worker/refill
+coverage. No production settings, semantics or pins change here.
+
+External receipts: `fresh-moment-controls-summary.json`,
+`fresh-second-moment-max-coordinate.json`, two native moment controls and two
+matched fresh collections. All runners, checkpoints and raw results remain
+outside Git; repository changes contain findings and the living plan only.

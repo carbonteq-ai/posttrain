@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Separate first/second Adam moments while retaining counter3 at the common second-group boundary. Exact policy/loss/first-gradient controls pass; eight applied updates include six replays and two fresh updates, with16 losses,192 matrices,768 dots, peak3.006GB. Independent temporal Adam errors2.13e-9/2.20e-7. Four fresh episodes: first-moment-only clear[0,0.5], second-only[0.5,0.5], versus retained[0,0] and prior full reset[0.5,0.5]. Displacement L2first0.010938/second6.406456 versus retained0.022253. Largest second-clear coordinate moves5.034128 with current gradient0 and carried momentum divided solely by epsilon; scalar reference agrees2.20e-7. Exact adapters/transport and10 final-state checks pass; second-clear equal rewards hide email-only versus Sheets-only successes. Correct omitted renderer PYTHONPATH in preflight; no dependency mutation. Revise momentum-only hypothesis, do not adopt resets; counter/size/generalization/full-worker gates remain open. Tools/raw artifacts external.
+
 - [x] (2026-10-01) Isolate Adam history at the second fresh FP16 LFM group: exact step0–3 parameter/score replay, then clear moments/counter only. First fresh loss checks and preclip gradients remain bitwise identical. Five applied updates pass10 losses,120 matrices,480 dots; independent saved-gradient Adam reconstruction across both arms matches10 parameter steps within2.15e-9, all norm caps inactive. Six new matched fresh episodes complete one/two-update controls: retained[0,0] with both truncating after either count; reset[0.5,0.5] with neither truncating after either count. Exact adapters, token transport and10 independent world checks pass. Retained first-moment history/current contribution norm ratio3.8176; first displacement cosine0.4391 and relative difference161.26%. This implicates optimizer-state sensitivity in this two-seed fixture, not broken Adam or a justified reset default. Both reset episodes still fail Sheets; equal next-group rewards require refill. Record findings only; tools/raw evidence external, broader gates open.
 
 - [x] (2026-10-01) Advance native FP16 LFM SAMPO onto its second fresh weekly-report group[0,0.5]. Replay step0–3 parameters/scores exactly, retain live Adam counter/moments and original base reference, refresh old-policy scores, then apply updates4/5. Five finite applied updates pass10 loss checks,120 LoRA matrices,480 dots and Adam(max2.15e-9); fresh loss/score errors1.72e-8/2.10e-11, peak3.006GB. New-group ratios reset1 while reference k3 remains nonzero; updates4/5 remain unclipped. Exact adapter/score transport and four independent final-state rewards support a negative same-seed behavior result:[0,0.5]→[0,0], both post-update episodes truncate2048. Next population has zero credit and is rejected. BF16 equal-reward population was not forced through admission. No product bug confirmed in this slice; optimizer-history/reuse/precision causation, held-out quality and full worker/queue gates remain open. Keep all tools/raw evidence external.
@@ -175,6 +177,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Second-moment clearing yields an enormous but finite, independently correct update and still improves narrow partial rewards; numerical displacement is not a task-quality verdict. At the maximum coordinate, current gradient0 coexists with a5.0 change because carried momentum survives while cleared variance leaves epsilon as denominator. First-moment clearing preserves one partial success, so both optimizer components matter; direction/size and counter effects remain coupled. Equal0.5 rewards hide different assertion successes.
 
 - Identical current gradients do not imply similar updates under different Adam histories. Retained history dominates the new first-moment contribution and the independently correct displacements differ strongly. One fresh update already loses the partial-success episode; clearing history instead produces partial successes on both seeds after one/two updates. Reset changes both moments and counter, so first-momentum-only causation and general recipe suitability remain unproven.
 
@@ -450,6 +454,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Isolate moment components with the bias-correction counter retained and verify the untouched component exactly. Preserve extreme updates and partial-success distinctions rather than classifying numerical amplification as observed task collapse. Own only this plan/findings; no product or fork edit, baseline amendment or pin update. Reproduce external run_fresh_moment_controls.py, run_fresh_moment_quality.py, analyze_fresh_moment_controls.py and audit_fresh_second_moment_max_coordinate.py with the recorded native runtime/PYTHONPATH. Require finite exported scores before sampling; rerun safely into new names after hash/idle checks. Next counter-only and displacement-size controls, followed by broader task/precision/family coverage.
+
 - Use optimizer-state clearing as a controlled diagnostic, not a product default. Hold weights, scaler, LR, reference, sampler correction, credits, precision and matched sampling seeds/budgets constant, require identical first gradient, and verify all parameter steps independently from saved gradients. Own this plan and short-rollout findings only; no frozen baseline amendment, sibling edit or pin adoption. Reproduce with external native_verl_fresh_reset_adam_run.py, run_fresh_adam_quality_matrix.py and analyze_fresh_adam_matrix.py using the documented runtime/PYTHONPATH. Retry into new artifacts after hash/idle checks. Next isolate moments/counter/decay and update size, then broader tasks/seeds before recommending a recipe.
 
 - Preserve optimizer/reference continuity at the fresh-group boundary and require exact replay of the policy that sampled it. Run only the admitted FP16 group here; do not force equal-reward BF16 data into training. Record the adverse fresh outcome and use controlled update-count/optimizer-history ablations before changing recipes. No baseline amendment or production edit; own this plan and short-rollout findings only. Reproduce with external native_verl_fresh_iteration_run.py and run_fresh_iteration_quality.py using the documented native runtime/PYTHONPATH; five updates include three replay controls and two fresh-group updates. Safe retry uses new output names, verifies prior source/receipt hashes and checks the GPU has no compute process.
@@ -602,6 +608,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- The optimizer-history explanation is now more precise: both moments alter matched-seed behavior, and independently valid Adam can move a zero-gradient coordinate through stored momentum. Neither symbolically correct updates nor partial rewards prove a sound general recipe. Keep state clearing diagnostic, investigate counter/size components, and retain full worker/refill, runtime adoption and broad coverage gates. The broad goal stays active and correctness tools/raw receipts remain outside Git.
 
 - The matched control now identifies a concrete behavioral sensitivity to optimizer history while rejecting an Adam arithmetic defect within tested coordinates/steps. Reset removes these two truncations but does not solve Sheets or justify production changes. Full worker/refill, causal moment/size ablations, runtime adoption, BF16/Qwen/Gemma companions and broader algorithms remain open. The original goal stays active; correctness tooling/raw receipts remain external.
 
@@ -1205,3 +1213,6 @@ matched-seed fresh outcome before controlled recipe/optimizer-history ablations.
 Revision 60: isolate Adam history and one/two-update behavior with identical
 first fresh gradients, independent temporal optimizer reconstruction and matched
 episodes; preserve partial-success, admission and generalization limitations.
+Revision 61: separate first/second moments with counter retained, reconstruct
+zero-gradient extreme displacement, preserve differing partial successes and
+revise the momentum-only interpretation without adopting a reset recipe.
