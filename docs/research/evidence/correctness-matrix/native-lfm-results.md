@@ -223,3 +223,54 @@ External receipts are `lfm-adapter-step0-fresh.json`,
 Next controls should distinguish intermediate-step behavior, repeated rollout
 reproducibility, temperature precision and token-budget effects before
 attributing this sample to an algorithm defect or changing the recipe.
+
+### Reproducibility and clipping controls
+
+A separate process repeats adapter-step3/seed6200. Its prompt IDs, all512
+generated IDs and every sampling log-probability are exactly equal to the
+original failing request. This excludes seed drift or run-to-run variation
+for that request under this provider; it does not prove broad determinism.
+
+The export audit now also evaluates sequence ratios from matched step0
+baselines under FP32 temperature division and native FP16 division. Across
+four states/two trajectories, the largest absolute ratio difference is
+0.00015034. All eight directional clipping classifications agree at the
+selected upper1.004/lower0.997 bounds. After step1 the successful training
+trajectory is below its upper bound and the failed trajectory is below its
+lower bound; after steps2 and3 both directions clip. Export states are
+measured after optimizer steps, so these classifications describe the next
+evaluation with frozen old scores, not the gradient used to create that state.
+
+Thirty-two selected log-softmax positions additionally agree with an
+independent Python `math.fsum` softmax denominator within2.17e-7. The FP16
+temperature discrepancy is real but does not explain different clipping
+classifications on this population. This control does not qualify BF16,
+packed/fused implementations or the gradients of a proposed arithmetic change.
+
+Intermediate adapters1 and2 also fail seed6200. Their512 generated IDs are
+identical to adapter3's, although selected log-probabilities change (maximum
+absolute1→2 change0.0424;2→3 change0.0806). All three diverge from the baseline
+after416 common first-response tokens. Native masks, selected scores and final
+branch reconstruction pass for each intermediate collection. The behavior
+change occurs after update1, whose two training evaluations used current/old
+ratio1 with no active clipping. Later reuse/clipping is therefore not required
+to produce this particular change; that does not establish the cause or rule
+out effects of reuse elsewhere.
+
+A separate adapter3/seed6200 control raises the per-request budget from512
+to1,024 tokens. Its first512 token IDs **and** sampling log-probabilities are
+exactly equal to the shorter run. The first response now ends at625 tokens,
+and the environment returns `error: unknown tool 'slaychannels_args'`.
+The model then generates a second1,024-token response and truncates. Reward
+remains0; total sampled work is1,649 tokens. Thus the larger budget exposes an
+actual invalid tool invocation rather than repairing this case. Environment
+execution being `ok` means the harness completed, not that the tool or task
+succeeded. Native trace invariants pass for this two-turn budget control too.
+
+Receipts: `lfm-temperature-ratio-audit.json` (including32 independent softmax
+positions), `lfm-repeat-audit.json`, `lfm-intermediate-control-summary.json`
+and `lfm-budget-control-audit.json`, plus their input collections. The new
+intermediate summary runner is `lfm_intermediate_control_summary.py`.
+These controls justify prioritizing token-level behavior and the full fresh
+collection/update loop over another clipping-only diagnostic. They do not
+justify declaring SAMPO wrong or selecting a new recipe from one held-out seed.

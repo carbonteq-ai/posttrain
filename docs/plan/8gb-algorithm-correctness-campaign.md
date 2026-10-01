@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Reproduce LFM adapter3's held-out failure exactly; intermediate adapters1/2 already produce identical failing512-token outputs. Larger1,024-token budget preserves the first512 IDs/logprobs, exposes unknown-tool error at625 tokens and still fails after a second truncated response. Native trace audits pass. Matched temperature ratio differences stay below0.000151 with identical eight clipping classifications;32 independent softmax checks stay below2.17e-7. The first-update behavior change precedes reuse clipping; retain full fresh-loop, parameter-Jacobian and broader algorithm gates.
+
 - [x] (2026-10-01) Export native LFM FP16 adapters at steps0–3, verify exact parameter handoff and isolate teacher-forced score differences to temperature precision: matched native arithmetic agrees within4.77e-7 across eight row/state checks. Fresh matched-seed AutomationBench collections give2/4 versus1/4 success and2/4 versus3/4 truncations before/after training. All eight native token/mask/projection/independent-credit audits pass. Preserve this adverse small sample and the open shared FP32-temperature/backward, intermediate-step, reproducibility and full fresh-update/refill gates; raw tools and exports remain external.
 
 - [x] (2026-10-01) Extend native LFM collection to BF16/FP16 and a1024-token BF16 budget control. All six native episodes pass exact token/log-probability/mask/projection checks; preserve reasoning truncations and a completed invalid tool call. Use the unchanged mixed FP16 reward group for native FSDP2 CPU-offload/checkpointed updates at1018 prompt/872 response tokens: BF16 applies2/2, FP16(scale1024)3/3; ten independent loss/score checks and AdamW references pass. All sampled tokens clip on FP16 update3 while optimizer momentum still moves parameters. Fresh updated-policy generation/admission and cross-backend trajectory parity remain open.
@@ -103,6 +105,13 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+The LFM held-out behavior change appears after the first unclipped training
+update and repeats exactly. More rollout budget reveals an invalid tool name
+without rescuing the task. Absolute temperature-related score differences do
+not change the measured directional clipping classifications on this fixture.
+These observations constrain the explanation; they do not establish general
+reward regression or a defect in the SAMPO equations.
 
 - (2026-10-01) LFM's zero executed-tool failures can hide invalid or unfinished calls: all three collection arms retain actual reward/truncation separately from harness completion. A real mixed task population activates clipping under frozen reuse; the third FP16 update has zero policy score gradient on all1253 sampled tokens yet Adam's stored state still produces a verified step. This is compatible with the optimizer equations, not evidence that clipping failed.
 
@@ -732,3 +741,6 @@ retain optimizer-history effects and fresh-learning/backend parity gates.
 Revision 25: exact native adapter export, isolated temperature-rounding scores
 and matched fresh pre/post behavior; retain the adverse small-sample outcome,
 full learning-loop and shared numerical-policy gates.
+Revision 26: intermediate-state, exact-repeat and larger-budget controls;
+independent softmax denominator and matched temperature clipping ratios;
+separate the first-update tool error from later reuse and budget truncation.
