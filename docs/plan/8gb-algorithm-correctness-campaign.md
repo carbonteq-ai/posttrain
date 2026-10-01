@@ -22,6 +22,10 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] Revision89 completes nine native updates and six direct head VJPs. Direct expected/native head gradients reproduce score-path gradients bitwise. Each single adjacent BF16 coordinate change produces1.035–1.068% parameter-gradient difference; all four reproduce1.054876%. Sum of single deltas differs from joint by2.664785 times joint norm; NumPy verifies. Source/receipt lifetime-caption clarification is explicit; no production defect inferred from finite-precision nonadditivity alone.
+- [x] Shared-input native FP16 SAMPO matches BF16 fixture/input/counts/credits, but final scaled-gradient error.941425% persists despite zero unscaled and actual-loss VJP errors. Matched Adam replay reproduces all fields exactly; independent NumPy finds only.0695017% conditional update difference, three reversals. All processes terminal/GPU idle. Preserve raw fails; do not rank precision or assign task-quality causation from gradient percentages.
+- [ ] Isolate backward rounding thresholds/precision regions and validate correction candidates beyond one fixture. Continue broader algorithm/native-host/fresh-policy and task-quality gates. User clarified claim discipline: separate confirmed source defects, numerical sensitivity, recipe choices and our harness errors; do not describe all audit findings as framework bugs.
+
 - [x] Revision88 completes three native BF16 SAMPO updates with last-microbatch backward tracing; every original loss/optimizer/settings/input field matches. Four raw-head differences are adjacent BF16 values, accurate relative norm2.942e-11. Trace210 labels; all identical-cotangent repeats bitwise equal and parameter-repeat error0. Adjoint relative differences reach.00080996 at layer22 attention input and.0174288 at layer3 output. Preserve same raw qualification fail and unchanged6.077GB peak; no isolated kernel defect/adoption claim.
 - [x] Verify eight CPU norm cases against NumPy: FP32 norm reports0 for4096 changed BF16 values near1e-23, while accurate norm3.309e-24. Preserve failed equal-hook-count analyzer; checkpoint input-hook duplicates3/4/5 are identical within phases and collapse only after verification. Correct external diagnostics without production changes.
 - [ ] Isolate four-coordinate head-adjoint perturbation on the native graph and quantify intermediate BF16 rounding thresholds; distinguish model Jacobian conditioning, discrete rounding and an implementation defect before selecting a correction. Continue broad native algorithm/host/fresh-policy and quality gates.
@@ -615,6 +619,14 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- User challenges the breadth of "issues/fixes" claims. Reserve a framework bug
+  for a reproduced invariant violation in the tested version with independent
+  evidence and regression coverage. Popularity does not settle correctness, but
+  precision noise, failing diagnostic tolerances, recipe choices and our harness
+  errors must not be conflated with defective algorithm implementations. Require
+  realistic active-run reproduction before attributing poor quality. The latest
+  FP16 .941% gradient discrepancy changes Adam only.0695%, reinforcing this rule.
+
 - Keep observed adjoint relative growth distinct from an operator condition
   number or causal kernel ablation. Verify identical-cotangent repeatability,
   exact prior-run reconciliation and phase-duplicate equality before interpreting
@@ -839,6 +851,15 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+Revision89 causally reproduces BF16 sensitivity through four isolated head
+cotangent changes and verifies finite-precision nonadditivity. Shared-input FP16
+also fails numerical qualification but its measured Adam impact is much smaller
+than its gradient percentage. Nine updates, independent CPU references and
+exact prior-control reconciliation are complete. These findings narrow the
+diagnosis rather than establish a new algorithm bug or active-run quality cause.
+Claim categories and adoption requirements are now explicit. Broad work remains
+active; tools/raw receipts stay external and production code is unchanged.
 
 Revision88 adds three native updates,210 exact repeat controls and an eight-case
 CPU norm audit. The BF16 discrepancy is deterministic in this fixture and grows
@@ -1612,3 +1633,6 @@ intermediate-gradient localization without premature production adoption.
 Revision 88: trace ordinary BF16 adjoints, verify exact repeated backward and
 prior-run reconciliation, correct checkpoint-hook analysis and measure tiny
 norm underflow while retaining isolated-causation and broad qualification gates.
+Revision 89: isolate head perturbations and nonadditivity, compare shared-input
+FP16 with scaled/Adam evidence and make framework-bug versus precision/recipe/
+harness claim boundaries explicit after the user's challenge.

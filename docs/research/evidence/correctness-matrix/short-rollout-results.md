@@ -2375,3 +2375,97 @@ its -backward-trace.pt CPU adjoints, fresh-qwen-backward-trace-summary.json,
 fresh-qwen-backward-amplification-summary.json and
 half-gradient-norm-underflow.json. Native session75674 and corrected CPU
 session1369 are terminal; GPU idle. Tools/raw data remain outside Git.
+
+## Direct head perturbations, shared-input FP16 and claim boundaries
+
+Revision89 completes nine more native updates: three for direct BF16 head
+perturbation, three FP16 replays of the identical BF16-collected group, and
+three matched FP16 Adam-sensitivity replays. The broad audit remains active.
+
+On the final ordinary BF16 SAMPO microbatch, start backward directly from the
+head with the independently derived and native head cotangents. Both reproduce
+their corresponding score-to-parameter gradients bitwise, with zero changed
+parameter coordinates. Thus the four observed adjacent-value head changes
+are sufficient to reproduce the entire1.054876% microbatch parameter-gradient
+discrepancy on this native graph; the earlier trace was not merely a correlation
+between unrelated gradients. Every original loss/optimizer/input/settings field
+still matches the ordinary control. Peak allocation remains6,077,364,224 bytes.
+
+The head has shape[1,485,248320]. All four changes are at head position4,
+vocabulary coordinates1095,21076,84408,93260. Flip each separately from the
+reference to the native BF16 value, leaving every other cotangent unchanged:
+
+| Changed vocabulary coordinate | Parameter-gradient relative difference | Changed parameter coordinates |
+| --- | --- | --- |
+| 1095 | 1.034911% | 91013 |
+| 21076 | 1.052718% | 92521 |
+| 84408 | 1.048705% | 91655 |
+| 93260 | 1.068329% | 91517 |
+| All four together | 1.054876% | 91391 |
+
+For an exact fixed-graph vector-Jacobian product, the four perturbation effects
+would add linearly. In this finite-precision native backward, their summed
+parameter-gradient deltas differ from the joint delta by norm.0016817174,
+versus joint-delta norm.0006310893: residual ratio2.664785. Independent NumPy
+reconstruction confirms the norms, changed counts and summed deltas. This is
+direct evidence of finite-precision sensitivity/nonadditivity on this graph,
+not proof that the symbolic algorithm or a particular kernel is incorrect.
+The source of the individual rounding thresholds still requires isolation.
+The saved CPU companion accurately records that the final head tensor is
+retained for six extra head VJPs; the raw receipt inherits the generic lifetime
+caption from the earlier runner. Preserve both source/receipt and that explicit
+provenance clarification rather than implying all head references were released.
+
+The native FP16 comparison now uses exactly the BF16 group's tokens, rewards,
+advantages and masks: fixture hash, input hash, six sampled/context counts and
+credit arrays match. It applies three updates at scale1024 but fails the final
+independent scaled-gradient check(.009414251), while all six unscaled parameter
+checks and actual-loss VJP accumulation comparisons agree exactly. BF16 on this
+group also fails(.010549745). Therefore changing precision does not universally
+remove this group's numerical sensitivity; earlier FP16 success on a different
+generated group does not establish that result.
+
+Both precisions have maximum score-gradient discrepancies5.821e-11 and native
+Adam errors below1.861e-9. Their trajectories differ: BF16 clipping[0,0,.5],
+FP16[0,.5,1]. Final expected unscaled gradient norms are.05982034 and.00038750,
+respectively; the FP16 policy is fully clipped, leaving the KL signal. Do not
+compare gradient-relative errors as if they had equal signal magnitude or
+optimizer history. The matched FP16 sensitivity rerun exactly reproduces every
+original check/optimizer/input/settings field. NumPy independently reconstructs
+its conditional final Adam update difference as.0695017%, max3.50956e-6,
+three reversed coordinates. The .941425% gradient discrepancy therefore has
+a much smaller update effect in this case. It still does not establish task
+quality harm or a cause of poor active-run performance.
+
+User clarification: audit findings must not all be described as framework bugs.
+Use these explicit evidence categories:
+
+- A confirmed implementation/numerical defect needs a minimal reproducer,
+  violated invariant, independent reference and a regression-tested correction
+  in the exact tested version. The earlier selected-score common-offset
+  cancellation meets that standard as a numerical edge case; its stress range
+  has not been shown to occur in the active run.
+- Precision sensitivity, such as these BF16/FP16 backward discrepancies, is
+  a measured numerical qualification concern. It alone does not prove a wrong
+  GRPO/SAMPO formula, defective autodiff or production-quality degradation.
+- Recipe choices, including rollout reuse, minibatching, clipping exposure and
+  scalar-spread retention, need matched outcome evidence and rationale. An
+  undesirable configuration or intentional tradeoff is not automatically a bug.
+- External harness/parser/metadata/analyzer failures are our diagnostic errors,
+  not defects in TRL or veRL. Preserve them and correct their claims explicitly.
+
+Most independently checked loss, token-mask, accumulation and Adam seams in
+this campaign pass. A failing arbitrary full-model tolerance is evidence to
+investigate, not an automatic reason to patch a popular framework. Attribute
+an active-run cause only after reproduction in its actual settings/data;
+production adoption needs the broader regression and model/option coverage.
+Reserve "fix" for a demonstrated defect and distinguish external experimental
+controls from production changes in future summaries.
+
+All experiment tools and raw outputs remain external. New evidence includes
+qwen-fresh-weekly-native-sampo-bfloat16-head-perturbation.json and CPU VJPs,
+fresh-qwen-head-perturbation-summary.json,
+qwen-fresh-weekly-native-sampo-float16-shared-bf16-fixture{,-adam}.json,
+fresh-qwen-shared-fixture-precision-summary.json and
+fresh-qwen-shared-fixture-fp16-adam-summary.json. Sessions14797,48881,10555 and
+16735 are terminal; GPU idle. No production source or pins changed here.
