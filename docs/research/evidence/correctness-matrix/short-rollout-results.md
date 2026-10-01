@@ -1056,3 +1056,57 @@ episode rewards, but host admission was not executed here. Fresh-task learning,
 default FP16 scale, broader algorithms, TRL equivalence and Gemma remain separate
 campaign gates. The new evidence does not explain the production run's poor
 performance by itself.
+
+## Native controller score storage and entropy correction
+
+Actual veRL v1 controller old/reference scoring method bodies now run against
+the real private TransferQueue and Qwen BF16 worker after three updates.
+A forwarding facade calls the actual GPU worker; no synthesized scores are
+supplied. The controller's stored response scores match independent per-row
+causal slices at prompt_length−1 exactly, including tool positions. Masks are
+unchanged. Old scores equal the current actor, while reference scores equal
+the original base. Their largest response-score difference is1.03025, so the
+reference identity check distinguishes trained actor and base. Actor scoring
+is restored exactly afterward. Controller metrics contain only actor/entropy,
+not the worker's forward-only placeholder loss2.
+
+The first unchunked controller attempt exceeded8GB memory while allocating
+full-vocabulary entropy temporaries. The existing engine's chunked entropy
+option with chunk_size64 succeeds on the same real traces. The passing control
+uses Posttrain's SAMPO seq-mean-token-mean aggregation, checked independently
+with a scalar mean of each episode's sampled-token mean. Full controller
+construction, Ray GPU dispatch and admission/refill were not executed.
+
+Independent represented-logit probes expose a separate numerical defect:
+BF16 logits[10,11] produce entropy0.5625 instead of0.582203, and uniform logits
+with a large common offset can produce0 instead oflog(vocabulary size).
+The chunked float32 formula also fails for a common offset1e8. These references
+use the actual represented logits, so the error is not input quantization.
+The old formula subtracts two large values; half arithmetic makes cancellation
+visible at ordinary logit scales.
+
+Published veRL sourcec1e477d7d83badb4be6742c9efde483956698f01 computes entropy
+from normalized log probabilities, promotes half arithmetic to float32 and
+handles zero-probability contributions without nonfinite values/gradients.
+Unchunked half entropy now returns float32; gradients retain input dtype.
+Twenty-four of36 CPU regressions fail before repair and all36 pass afterward;
+six CUDA BF16/FP16/FP32 derivative controls pass too. The related utility slice
+passes53 tests. Seventeen external scalar cases have max repaired value error
+1.87e-8. Float64 is used only for CPU oracle/compatibility checks, not model
+training. Production runtime pins and chunking defaults are unchanged.
+
+The repaired kernel passes the real normalized Qwen controller path, with
+entropy aggregation error5.41e-9. The actual metric changes from0.2021292150
+to0.2021293342, only1.19e-7. Step0–3 parameters/scores and all three preclip
+gradients remain bitwise identical to the pre-repair control; policy updates
+in this fixture do not include an entropy bonus. Peak tensor allocation remains
+3,991,360,000 bytes. This confirms a kernel defect and a bounded repair,
+without attributing the production learning problem to it.
+
+External receipts include native-entropy-translation-probe.json,
+native-entropy-translation-after.json, before/after regression logs,
+qwen-controller-scoring-seqmean-chunk64-bfloat16.json,
+qwen-controller-scoring-entropy-fixed-bfloat16.json and
+controller-entropy-repair-summary.json. The unchunked failed source/log and
+all intermediate checkpoints remain preserved. Broader entropy/model/precision,
+distributed, full controller and fresh-learning gates remain open.

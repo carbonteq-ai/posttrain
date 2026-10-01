@@ -1157,3 +1157,35 @@ Fresh learning, multi-rank unused branches, packed/fused paths and published
 runtime adoption remain open; dependency pins and images are unchanged. See
 [the native Qwen findings](../../research/evidence/correctness-matrix/native-verl-results.md)
 and the fork's `CARBONTEQ_FORK.md` for the failure, controls and rebase gates.
+
+## Entropy precision source candidate
+
+Published source `c1e477d7d83badb4be6742c9efde483956698f01` repairs
+entropy cancellation in `verl/utils/torch_functional.py`. BF16 logits[10,11]
+previously returned0.5625 instead of0.582203; uniform large-offset logits could
+return0 instead oflog(vocabulary size), including the chunked float32 path.
+The kernel now uses normalized log probabilities, promotes half arithmetic to
+float32, and handles zero-probability terms with finite values and derivatives.
+Unchunked half entropy now returns float32; input gradients retain input dtype.
+This changes neither the policy/KL formulas nor the default chunking selection.
+
+The regression baseline fails24 of36 CPU cases; all36 pass after repair, as
+do six CUDA BF16/FP16/FP32 controls. The related utility slice passes53 tests.
+Independent represented-logit scalar cases have maximum repaired error1.87e-8.
+On an8GB GPU, Qwen's full-trace controller entropy calculation exceeded memory
+without chunking; the existing engine settings
+`entropy_from_logits_with_chunking=True` and
+`entropy_from_logits_chunk_size=64` provide the bounded qualification path.
+These are probe settings, not a changed framework production default.
+
+The repaired source passes actual Qwen BF16 controller scoring method bodies
+with genuine queue/GPU worker execution and Posttrain's seq-mean-token-mean
+aggregation. Score shifts, masks, initial-base reference and actor restoration
+are exact; independent entropy aggregation error is5.41e-9. Three updates and
+step0–3 parameters/scores/preclip gradients match the pre-repair control bitwise.
+The actual entropy metric changes only1.19e-7 on this trace, so the kernel
+defect does not by itself explain poor training behavior.
+
+Runtime assets, production pin adoption, distributed entropy and fresh-task
+quality remain gates. Exact evidence and the actual controller-scoring boundary
+are recorded in [the short rollout findings](../../research/evidence/correctness-matrix/short-rollout-results.md).
