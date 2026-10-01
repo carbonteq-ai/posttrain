@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Collect12 fresh native training-client episodes across Qwen/LFM and two harder AutomationBench tasks, with exact token/logprob/branch/excluded-mask projection and per-task independent credit audits. Independent plain-JSON world-state checks reproduce all12 task rewards. Initial512-token LFM episodes all truncate; follow-up1024-token weekly-report pair has observed rewards[1,0], but seeds differ so no isolated budget-effect claim. Preserve an audit identity-mismatch failure and correct only its external requested task IDs. Three deterministic native SAMPO updates per precision on the complete LFM pair pass12 loss checks,144 matrices,576 scalar dots and Adam(max2.13e-9), peak2.440GB. Third-update clipping reaches both FP16 populations and BF16's failure row. No live refill, post-update task-quality, production pin/default or full-worker qualification. Next fresh adapter task comparisons and actual worker reference/admission transport, alongside broader algorithm/model gates.
+
 - [x] (2026-10-01) Revalidate the earlier TRL admission result and add exact-source veRL active-group/Posttrain native-statistic seam agreement across seven observed/controlled cases. Equal-success Qwen has104 credited tokens but rejects under the canonical episode-spread rule. Observed LFM [1,0] retains by default; conditional truncation masking leaves one finite reward and rejects. This is a contract-consistent policy tradeoff, not a new loss defect or full worker/refill qualification. Correct a superseded source-prediction sentence; preserve runners/receipts externally. Next obtain fresh admitted populations with task headroom and qualify reference/evidence/refill in the real worker.
 
 - [x] (2026-10-01) Qualify nonzero beta0.02 sampled-k3 on native SAMPO/GDPO/CAPO×Qwen/LFM×BF16/FP16:36 updates,72 loss/mask checks,864 matrices,3,456 scalar dots and Adam(max4.13e-9), excluded reference NaNs neutralized. Actual TRL replay matches independent value/gradient within2.14e-15/1.30e-17 and native losses within6.79e-8. Add12 deterministic Qwen SAMPO updates at beta0/.02 with identical initial and first updated states/gradients. Common-state step2 parameter gradients differ116.46% BF16/125.53% FP16, updates61.22%/81.01%; final cached k3 proxy reduces40.22%/48.62%. Score-space smallness did not imply parameter-space irrelevance after clipping. No source defect, production beta/pin change or task-quality/active-run verdict; all48 updates/tool receipts external. Next real structured/admission/reference worker paths and harder fresh-task behavior, preserving broader algorithm/model gates.
@@ -163,6 +165,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Native rollout `ok` and empty harness errors do not mean task success: Qwen's report tools return invalid-cell payloads while traces remain `ok`. Equal partial-credit pairs are also filtered despite nonzero discounted turn credit. An independently checked mixed-outcome LFM group now exercises longer3248-token native trajectories without changing rewards; clipping appears by its third reuse in both precisions. Larger-budget follow-up changed seeds, so its success cannot be attributed to budget alone.
 
 - Nonzero hierarchical credit is insufficient for current SAMPO admission by design. Both backend seams reject the observed equal-success Qwen pair; optional truncation exclusion can also remove the reward spread from LFM's mixed-outcome pair. This limits what the frozen-fixture optimizer results say about production updates. The earlier TRL result already existed; this turn extends backend/boundary coverage rather than counting it as a newly discovered defect.
 
@@ -426,6 +430,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Keep task populations separate during credit construction and use authoritative example IDs; retain the failed external audit as evidence that identity guards work. Verify sampled transport and final world-state rewards before using a fresh task fixture. Treat screening and fixed-group native updates as separate from held-out/post-update quality, and retain current admission/truncation policy while testing a group it would admit by predicate.
+
 - Keep SAMPO's frozen episode-spread admission contract unchanged during this audit. Any token-credit-based admission proposal needs a baseline amendment and controlled fresh-task evidence, including whether discounted length preferences are useful. Default unmasked LFM admission and conditional masked admission are separate selections; do not attribute either to an uninspected active run.
 
 - Validate the current uncorrected sampled-k3 definition and its independent masking/aggregation/sampler-weight placement without relabeling it full-vocabulary KL. Treat broad native/TRL loss replay as common-score logical agreement only. Use deterministic paired common-state controls before attributing beta effects, and keep production settings unchanged pending fresh/held-out and real worker qualification.
@@ -566,6 +572,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Twelve fresh baseline episodes and six native updates broaden behavior evidence beyond the office-closure ceiling. Measured failures include clarification instead of action, invalid tool payloads and truncation; tested transport/credit/reward/update seams pass. This narrows some hypotheses without proving that math is globally correct or explaining the active production run. Full worker/fresh iterative training, post-update quality and broad algorithm/family coverage remain incomplete; all tools/raw evidence stay external.
 
 - Seven source-seam admission checks establish current cross-backend logical agreement and an important evidence boundary: cached objective updates may use groups that active sampling would reject. Full worker/refill, admitted harder tasks, held-out learning, reference transport and broader algorithm coverage remain open. No product repair is justified by this contract-consistent result; correctness tools remain external.
 
@@ -1139,3 +1147,6 @@ and fresh-task or production-run conclusions.
 Revision 54: extend prior admission replay to veRL/native-reward statistic
 seams and observed LFM truncation-policy effects, preserve the frozen
 episode-spread contract, and clarify cached-objective versus live-update evidence.
+Revision 55: screen harder real tasks, independently verify transport/group
+credit/final-state reward, qualify longer native LFM updates in both precisions,
+and preserve seed, admission, clipping and fresh-quality evidence boundaries.

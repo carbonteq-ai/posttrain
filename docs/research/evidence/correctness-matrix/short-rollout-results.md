@@ -367,3 +367,86 @@ The executed external runners are `native_group_admission_replay.py` and
 the receipts. No source fix or production recipe change follows from this
 slice; native collection-to-update, LFM fresh collection and matched backend
 learning remain pending.
+
+## Harder task screening and longer native updates
+
+1 October 2026. Collect twelve fresh baseline episodes using the native
+Verifiers training client, renderers and pinned AutomationBench environment.
+The tasks are `simple.email_sf_contact_phone_update` and
+`simple.weekly_report_sheets_email`. They require retrieving/updating a contact
+or writing spreadsheet cells and sending an email. Keep the benchmark prompts,
+tools, world assertions and rewards; only select an explicit six-turn budget.
+These are screening tasks, not held-out evidence of trained-model improvement.
+
+| Model / collection | Contact rewards | Report rewards | Per-turn token limit |
+| --- | --- | --- | ---: |
+| Qwen initial screen | 0, 0 | 0.5, 0.5 | 512 |
+| Qwen additional seed pair | — | 0, 0 | 512 |
+| LFM initial screen | 0, 0 | 0, 0 | 512 |
+| LFM follow-up | — | 1, 0 | 1024 |
+
+Each collection has two independent repetitions per selected task. Qwen's
+initial base seed is19400; its additional pair uses29400. LFM's follow-up
+also uses19400 but selects only the report task, changing its episode-index
+seed offset relative to the initial report screen. Therefore the LFM change
+is an exploratory follow-up with a larger budget and different seeds, not a
+paired causal budget ablation. Every initial LFM episode hits the512-token
+limit. Its follow-up success uses963 and354 generated tokens across two turns;
+the failure hits1024 on its first turn.
+
+All twelve episode audits check exact sampled IDs and log probabilities,
+finite log probabilities, zero masks on nonsampled nodes, final-branch token
+reconstruction and Posttrain projection. Compute SAMPO credit separately for
+each task's two-rollout population. Independent sparse-return/anchor centering
+and token-span assignment agree exactly in these fixtures; excluded positions
+have zero credit. The initial audit passed invented group IDs instead of
+the authoritative task IDs and correctly failed the framework identity guard.
+Preserve that external runner/log, correct its requested IDs, and rerun. This
+was an instrumentation error, not a product repair.
+
+An additional oracle reads plain JSON final states without calling the
+benchmark scorer: check the contact's exact phone, report-sheet cell values
+containing `Feb 23`, and sent-email recipient/subject/body criteria. Its flags
+and arithmetic mean reproduce all twelve native partial-credit rewards. This
+oracle covers these task instances, not the general benchmark assertion engine.
+
+Qwen sometimes asks for clarification instead of acting. Its initial report
+episodes contain tool payload errors (`Invalid cells JSON format`) even though
+the native trace is `ok` and has no harness errors. One later row places the
+summary in a dictionary key rather than a cell value, so the row assertion
+still fails. These distinctions matter: successful transport, successful tool
+execution and task completion are different evidence. Equal partial rewards
+also produce239/219 nonzero credited tokens yet fail current spread admission.
+The screen does not show a transport, reward arithmetic or credit defect.
+
+### Native updates on the observed LFM success/failure group
+
+Use the complete observed follow-up pair `[1, 0]` without reward edits. It has
+1573 prompt tokens, completion lengths1675/1024, and1317/1024 sampled positions.
+Both initial prompts match exactly. The default unmasked-truncation selection
+would admit this population by reward-spread predicate; excluding the truncated
+failure would reject it. This remains a collection-to-native-engine fixture,
+not execution of live worker admission/refill or reference-model transport.
+
+Run three deterministic native veRL SAMPO updates per precision, retaining
+rank4/alpha8 FP32 LoRA masters, learning rate1e-4, sequence-valued/token-local
+clipping0.003/0.004, beta0.02, fixed initial reference scores and frozen capped
+sampler correction. FP16 scale1024 applies every update. Independent checks
+cover12 combined loss/score/mask seams,144 LoRA matrices,576 scalar dot products
+and AdamW updates. Maximum loss error is5.83e-8, score derivative error1.13e-10,
+and AdamW error2.13e-9. Prompt/excluded derivatives are exactly zero. Peak Torch
+allocation is2,439,343,616 bytes (approximately2.44GB); all six updates apply.
+
+By update3, BF16 clips all policy credit on the failed rollout; FP16 clips both
+rollouts. The nonzero reference penalty still supplies score derivatives.
+Clipping therefore does activate on this longer observed group. This does not
+establish fresh-task improvement or justify changing the recipe. Fresh adapter
+rollouts, held-out comparisons, real worker/refill, production selections and
+broader algorithm/model qualification remain open.
+
+External evidence: `*-headroom-screen-*`, `*-headroom-followup-*`, detailed
+token/credit audits, `headroom-world-reward-audit.json`,
+`lfm-headroom-native-fixture.json`, the two native precision receipts/adapter
+exports and `headroom-native-update-summary.json`. Exact executed sources and
+the identity-failure attempt remain outside Git. No product code, default or
+dependency pin changed.
