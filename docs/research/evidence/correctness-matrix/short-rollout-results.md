@@ -1294,3 +1294,44 @@ and checked adapter handoff against the original receipts.
 External receipt: temperature-score-precision-audit.json; source hash identifies
 the extracted native fallback body. This test uses a scalar reference rather
 than an FP64 training runtime.
+
+### Actual model logits under CUDA autocast
+
+Run both model families and both primary precisions on their two cached native
+AutomationBench trace rows, using exact saved step-zero q/v LoRA parameters.
+Extract the native fallback function body and execute it under the same CUDA
+autocast context as FSDP forward_step. Every arm reproduces its saved native
+fixture scores with maximum error zero. Chunk64 FP32 controls fit easily on
+8GB: peak tensor allocation2.835GB LFM and2.632GB Qwen.
+
+| Model / precision | Maximum sampled-token log-probability difference | Mean absolute difference, row1 / row2 |
+| --- | ---: | --- |
+| LFM BF16 | 0.153319 | 0.006847 / 0.007397 |
+| LFM FP16 | 0.021459 | 0.000819 / 0.000991 |
+| Qwen BF16 | 0.080662 | 0.005237 / 0.002369 |
+| Qwen FP16 | 0.011010 | 0.000588 / 0.000348 |
+
+Differences compare the native original-dtype temperature division with
+promotion before division on the same represented model logits, not two model
+forwards. Eight independent full-vocabulary scalar checks per arm verify the
+promoted scores within1.36e-6. For LFM BF16 row1, native-versus-promoted token
+probability ratios range0.857856–1.131417. These are score-path ratios, not
+the optimizer's actual current-versus-old ratios.
+
+Important correction to interpretation of the CPU slice: CUDA autocast makes
+the native fallback log_softmax return FP32 in these actual model runs. The
+model logits and their temperature division remain BF16/FP16, so the loss
+of precision happens before normalization. The earlier CPU test correctly
+describes its outside-autocast path, but its half output dtype does not describe
+the actual FSDP CUDA path. Moving promotion ahead of temperature division is
+the correction to qualify; promoting the final score cannot recover lost bits.
+
+This confirms a scoring difference on real sampled-token inputs in both model
+families, while retaining native model-forward rounding. Gradient/update replay,
+actual old/current ratio and clipping changes, fused scoring, memory at larger
+batch sizes and runtime adoption remain open. No improvement in task rewards
+has been attributed to this correction.
+
+External receipts: {lfm,qwen}-model-score-precision-{bfloat16,float16}.json.
+All runners and raw evidence remain external; source hashes and exact native
+score agreement tie these measurements to the candidate implementation.

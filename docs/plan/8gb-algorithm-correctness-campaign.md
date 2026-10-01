@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Measure original-dtype temperature division on real cached LFM/Qwen logits in BF16/FP16. Four arms reproduce saved native step-zero scores exactly and pass32 independent full-vocabulary scalar checks for FP32 controls(max1.36e-6); sampled score differences max LFM.153319/.021459 and Qwen.080662/.011010, peaks2.835/2.632GB. Correct the CPU-only dtype inference: actual CUDA autocast returns FP32 scores but temperature division already rounded half logits. Generic correction qualification, gradient/update replay, old/current clipping effects, fused paths and production adoption remain open.
+
 - [x] (2026-10-01) Complete all five fresh matched BF16 adapters: base[1,.5], GRPO[1,0], GSPO[0,.5], DAPO[0,.5], SAMPO[1,1], with truncations0/1/1/0/0 of two. Exact adapter/fixture-score/token/logprob/mask/projection and independent world rewards pass all ten episodes; native parser replay confirms malformed DAPO syntax and unclosed GSPO block. Peak3.461GB; SAMPO/base step-zero parameters/scores match bitwise. The contrasting FP16 outcomes are descriptive precision sensitivity, not recipe superiority or identified poor-run cause. In24 separate CPU native score controls, original-dtype temperature scaling/log_softmax differs from scalar oracle(max BF16 score error.0455992 versus3.78e-7 after promotion). Actual-model scoring, fused paths and correction qualification remain open. Sources/raw receipts stay external.
 
 - [x] (2026-10-01) Audit ten fresh matched-seed FP16 LFM episodes after base/GRPO/GSPO/DAPO/SAMPO checkpoints. Exact parameter/fixture-score/token/mask/logprob/projection checks and independent world rewards pass. Rewards are base[0,1], GRPO[1,1], GSPO[.5,0], DAPO[0,0], SAMPO[0,0]; truncations1/0/1/1/2 of two. Native parser replay identifies a complete malformed DAPO block and an unfinished SAMPO block despite empty trace.errors. Record semantic versus format versus budget failures, UUID4 post-action context confound, peak3.460GB and small-sample limits. No new loss defect or production recipe adoption; tools/raw receipts stay external.
@@ -1278,3 +1280,6 @@ format failures invisible to trace.errors, and retain broader efficacy gates.
 Revision 69: complete the fresh BF16 matrix and independent audits, record
 precision-dependent task outcomes and repeated malformed DAPO syntax, and
 quantify an unresolved half-score normalization difference on controlled logits.
+Revision 70: reproduce the scoring difference on actual sampled model logits
+in both families/precisions, correct the autocast interpretation, and retain
+gradient/update/ratio/fused/adoption gates before claiming a complete repair.
