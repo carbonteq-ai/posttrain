@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Extend native LFM collection to BF16/FP16 and a1024-token BF16 budget control. All six native episodes pass exact token/log-probability/mask/projection checks; preserve reasoning truncations and a completed invalid tool call. Use the unchanged mixed FP16 reward group for native FSDP2 CPU-offload/checkpointed updates at1018 prompt/872 response tokens: BF16 applies2/2, FP16(scale1024)3/3; ten independent loss/score checks and AdamW references pass. All sampled tokens clip on FP16 update3 while optimizer momentum still moves parameters. Fresh updated-policy generation/admission and cross-backend trajectory parity remain open.
+
 - [x] (2026-10-01) Execute actual TRL/adaptive admission method bodies on observed equal-reward native group: both discard two rows despite104 nonzero discounted-credit tokens. Check298 native Qwen sampled tokens through actual TRL temperature scoring, direct softmax and30 independent BF16/FP32 selected-position checks. Cached BF16 replay matches every sampling score exactly; teacher-forcing discrepancy falls from weighted mean0.00713942 BF16 to1.947e-6 FP32. Keep sampling-correction ratios separate from optimizer policy ratios and native worker/refill learning open.
 
 - [x] (2026-10-01) Collect fresh Qwen BF16 AutomationBench episodes through native Verifiers null harness/MCP and native training-client token transport. Scripted controls pass twice; real evaluation episodes expose duplicate-post reward blindness. Native training-client episodes project into Posttrain as133/165 sampled tokens and2/3 turns. Derive sparse-return SAMPO credit at discount0.95 versus1; preserve external adapter/serialization failures and keep full learning/admission acceptance open.
@@ -99,6 +101,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- (2026-10-01) LFM's zero executed-tool failures can hide invalid or unfinished calls: all three collection arms retain actual reward/truncation separately from harness completion. A real mixed task population activates clipping under frozen reuse; the third FP16 update has zero policy score gradient on all1253 sampled tokens yet Adam's stored state still produces a verified step. This is compatible with the optimizer equations, not evidence that clipping failed.
 
 - (2026-10-01) A fixed Qwen model has nontrivial BF16 cached-versus-teacher-forced score differences without any update. Exact cached replay rules out lost sampling log probabilities on this fixture; FP32 greatly reduces the execution gap. Matching temperature does not remove half-precision path differences. Observed sampler/trainer ratios must not be reported as PPO update clipping.
 
@@ -264,6 +268,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Decision: preserve native observed LFM rewards and token spans, compute framework SAMPO credit without relabeling outcomes, and include the selected per-token sampler correction before testing two/three frozen-population native updates. Use beta0 matching the default for this slice; make no new KL claim. Separate collection and veRL research dependency environments after a confirmed ANTLR grammar conflict. Date/Author: 2026-10-01 / Codex.
+
 - Decision: measure score discrepancies using identical native token paths and an independent cached replay before attributing them to temperature, optimizer movement or a loss bug. Preserve FP32 solely as a diagnostic and treat equal-reward discounted-credit rejection as a measured recipe tradeoff. Keep runners/receipts external and retain production inference and native lifecycle gaps. Date/Author: 2026-10-01 / Codex.
 
 - Decision: exercise the pinned native chat harness and MCP task tools locally with an external HF token provider. Preserve native traces and exact sampling evidence, distinguish evaluation transport from training transport, and retain duplicate-action reward limitations without changing the environment's reward contract. No frozen product amendment or production pin change is required for these experiments. Date/Author: 2026-10-01 / Codex.
@@ -348,6 +354,13 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+2026-10-01 LFM collected-population milestone: six fresh native episodes expose
+reasoning-budget and tool-grammar failures, while all retained token/projection
+invariants hold. Five native updates on real task traces validate masks,
+hierarchical credit, sampler correction, clipping and Adam arithmetic within
+the8GB budget. Updated-policy task learning and matched native backend
+trajectories remain unproven.
 
 2026-10-01 admission/scoring milestone: both admission method bodies reject
 the observed reward-constant group. Actual TRL temperature scoring agrees with
@@ -711,3 +724,6 @@ runner failures and full learning/admission gates. Experiments remain external.
 Revision 23: observed-group admission replay, independent temperature scores,
 exact cached replay and FP32 path-sensitivity control; keep sampler correction
 and optimizer policy clipping distinct, with full native learning still open.
+Revision 24: native LFM BF16/FP16 collection, budget/grammar observations and
+actual collected-population updates with sampler correction and active clipping;
+retain optimizer-history effects and fresh-learning/backend parity gates.
