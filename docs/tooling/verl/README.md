@@ -1,6 +1,7 @@
 # veRL training backend
 
 ## CPU-offload FP16 scalar ordering candidate
+
 Published source candidate `269fde84d1769469f6b02b186170f420ec353d9e`
 uses `CPUOffloadShardedGradScaler` in the FSDP engine to stage inverse
 scale and overflow scalars synchronously when gradients reside on CPU. A
@@ -11,6 +12,18 @@ independent matrix equations across two updates each. This source candidate
 does not change the selected runtime pin. Distributed overflow/recovery,
 production release assets and nonlinear model-gradient oracles remain gates.
 See [native LFM evidence](../../research/evidence/correctness-matrix/native-lfm-results.md).
+
+Lifecycle regression source `dc08945ddecf0693ea42bfb1bf0b11312aa2a0b4`
+retains the same scaler implementation and expands validation to eight tests.
+CPU/CUDA scaler save/restore after overflow matches uninterrupted AdamW
+exactly; a two-rank Gloo test verifies shared skip/backoff and the next finite
+update. This does not qualify native-model checkpoint recovery or multi-GPU
+offload. Corrected fresh LFM step2 still succeeds on1/4 matched episodes
+versus2/4 before training, so the numerical repair is not a task-quality claim.
+Corrected update3 retains the expected positive policy derivative and passes
+all matrix/score/optimizer checks; its four fresh episodes all truncate/fail.
+The small sample strengthens the need for fresh-loop qualification, not a
+general efficacy conclusion.
 
 ## Native padded Qwen engine source candidate
 

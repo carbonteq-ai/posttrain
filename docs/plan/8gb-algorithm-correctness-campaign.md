@@ -22,6 +22,9 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Corrected native LFM step2 handoff matches scores within4.77e-7; fresh matched seeds still give1/4 success versus2/4 at step0, with all four new native token/mask/projection/credit audits passing. Publish scaler lifecycle tests atdc08945ddecf0693ea42bfb1bf0b11312aa2a0b4: eight tests pass, including exact CPU/CUDA scaler/AdamW restore after overflow and two-rank Gloo shared skip/backoff. Corrected update3 retains a positive policy derivative, applies successfully and passes72 matrix/288 scalar-dot checks across all three updates. Fresh corrected-step3 succeeds0/4 with four truncations and zero group credit; all native trace/projection audits pass. Fixed-token positive conditional likelihood ratio grows18.32→153.35 after updates2→3 while the geometric ratios are1.003932→1.006815. Preserve the adverse sample and distinguish length normalization, surrogate clipping and full trajectory likelihood.
+- [ ] Close native checkpoint and fresh-collection/update continuity: `FSDPCheckpointManager` currently receives no scaler and persists optimizer/scheduler/RNG without an explicit scaler field. Verify and repair exact FP16 scaler recovery through engine save/load before claiming native resumability, then retain optimizer/scaler state across fresh groups. Scalar-unit restore success does not close this engine gate. Multi-GPU ordering remains open.
+
 - [x] (2026-10-01) Native LoRA chain-rule audit exposed a timing-sensitive CPU-offload unscale race in Torch2.13: delayed scalar-only control multiplies instead of divides in3/4 plain CPU cases, while synchronous controls pass. Publish veRL `CPUOffloadShardedGradScaler` source269fde84d1769469f6b02b186170f420ec353d9e: five CPU/GPU regressions pass, native BF16/FP16 each apply2/2 updates,96 total matrix gradients match exactly and384 scalar dot checks pass. Correct the earlier unconditional FP16 qualification; post-fix fresh learning, distributed overflow/recovery and production adoption remain open. No runtime pin changes.
 
 - [x] (2026-10-01) Reproduce LFM adapter3's held-out failure exactly; intermediate adapters1/2 already produce identical failing512-token outputs. Larger1,024-token budget preserves the first512 IDs/logprobs, exposes unknown-tool error at625 tokens and still fails after a second truncated response. Native trace audits pass. Matched temperature ratio differences stay below0.000151 with identical eight clipping classifications;32 independent softmax checks stay below2.17e-7. The first-update behavior change precedes reuse clipping; retain full fresh-loop, parameter-Jacobian and broader algorithm gates.
@@ -758,3 +761,6 @@ separate the first-update tool error from later reuse and budget truncation.
 Revision 27: native linear chain-rule checks reveal a CPU-offload scalar-copy
 race; publish the synchronous-host-staging source fix and five regressions,
 qualify BF16/FP16 matrix gradients, and narrow earlier FP16 conclusions.
+Revision 28: scaler lifecycle/two-rank skip regressions, corrected third-step
+gradient and fresh rollout outcomes, geometric versus full conditional
+likelihood ratios, and the remaining native checkpoint/scaler continuity gate.

@@ -350,3 +350,87 @@ chain/unscale logs. Runners are `native_verl_lora_chain_run.py`,
 Distributed overflow, restart/scaler state, production runtime adoption,
 other Torch versions and nonlinear-gradient oracles remain open. The broad
 campaign is incomplete; this repair closes a specific demonstrated race.
+
+### Scaler recovery and corrected fresh collection
+
+Lifecycle regression commit `dc08945ddecf0693ea42bfb1bf0b11312aa2a0b4`
+retains the same scaler source and extends its tests from five to eight.
+CPU/Gloo and CUDA/NCCL scaling with CPU parameters each exercise a
+finite/overflow/finite/finite sequence. The overflow update leaves parameters
+and AdamW step count unchanged. Restoring the parameter, optimizer moments
+and scaler state after that skip reproduces uninterrupted parameters and
+scaler state after each following update, and final AdamW moments exactly.
+The CUDA arm deliberately delays the scalar copy. A separate two-rank Gloo
+control injects infinity on rank0 only; both ranks skip, back off1,024→512
+and apply the following finite update. All eight tests pass. These controls
+use FP32 master tensors, not an independently trained FP32 model. They do
+not prove native engine checkpoint round trips or multi-GPU offload ordering.
+
+Corrected adapter-step2 is loaded into the same HF provider for four fresh
+matched seeds. Task success is1/4, truncations3/4 and sampled work2,277 tokens,
+against baseline step0's2/4,2/4 and2,410. Seed6200 still takes the invalid-tool
+branch after416 shared baseline tokens. All four new episodes pass exact
+native IDs/scores/final-branch, masks, Posttrain projection and independently
+computed credit checks. The fixed adapter handoff passes six row/state score
+comparisons within4.77e-7 and24 independent softmax positions within1.46e-7.
+Fixing numerical correctness has not yielded a learning improvement in this
+small sample. The two-update corrected comparison must not be presented as
+a same-step comparison against the old three-update population.
+
+After update2, the corrected positive sequence ratio is1.003932007 and the
+negative ratio0.993365688. The earlier faulty trajectory's corresponding
+ratios were1.004292754 and0.994566187. At the selected1.004/0.997 bounds,
+only the negative trajectory clips in the corrected next evaluation; both
+clip in the faulty one. The repair therefore changes whether update3 can
+receive a positive policy gradient, even though update1's exported state and
+the first held-out failure are unchanged. Fresh data and full collect/update
+training remain separate requirements.
+
+Receipts: `lfm-fixed-step2-fresh.json`, `lfm-fixed-step2-analysis.json`,
+`lfm-fixed-fresh-comparison.json` and `lfm-fixed-adapter-handoff.json`.
+
+The corrected run is also extended through update3. All72 matrix-gradient
+comparisons match exactly,288 scalar dots pass, all six score/loss checks
+pass and all three optimizer steps apply with AdamW error below2.14e-9.
+During update3, the positive trajectory remains unclipped with nonzero
+policy derivative; the negative trajectory clips with zero policy derivative.
+This differs from the faulty run, where both derivatives were zero.
+
+Fresh corrected-step3 collection on the same four matched seeds succeeds0/4,
+truncates4/4 and samples2,048 tokens. No tool executes. Seed4200 now diverges
+from baseline after238 common tokens and starts malformed
+`slab_send_channel_message`; seed6200 diverges after268 tokens and reaches a
+correct tool name with an overlong argument list before truncating. Other
+samples also exhaust the request budget. All four new native/projection/credit
+audits pass; every episode, anchor and token advantage is zero in this
+observed equal-reward one-turn group. No actual scheduler/refill is run here.
+The sample provides no improvement evidence, and cannot estimate general
+expected task quality. Lower sampled work again reflects lost successful
+second turns. A correct numerical update is insufficient for useful learning.
+
+The clipping ratio also needs careful interpretation. For N sampled actions,
+the geometric ratio is `r = exp(sum(new_logp - old_logp) / N)`; the product
+of their conditional likelihood ratios is `R = r**N`. Independent Python
+`math.fsum` accumulation over recorded native scores gives:
+
+| Exported state | Positive geometric ratio, N=741 | Positive conditional product ratio | Negative geometric ratio, N=512 | Negative conditional product ratio |
+| --- | ---: | ---: | ---: | ---: |
+| After update1 | 1.001199 | 2.43 | 0.996364 | 0.1549 |
+| After update2 | 1.003932 | 18.32 | 0.993366 | 0.0331 |
+| After update3 | 1.006815 | 153.35 | 0.991719 | 0.0142 |
+
+These are fixed-token native-training-distribution conditional likelihoods,
+not measured KL, sampling-provider ratios or fresh success probabilities.
+The reduction deliberately normalizes by length. A narrow geometric clipping
+interval therefore does not directly bound the total trajectory likelihood
+ratio. Also, clipping truncates a surrogate derivative; it does not project
+the AdamW update into a hard probability constraint. Update3 still moves the
+negative trajectory after its policy derivative is zero, through optimizer
+history. Neither observation alone establishes an incorrect objective.
+The large total ratios and adverse fresh sample justify evaluating update
+reuse, task grammar and fresh-data admission jointly rather than selecting
+a recipe solely from clip fractions.
+
+Additional receipts: `lfm-chain-fp16-fixed3.json`,
+`lfm-fixed-step3-fresh.json`, `lfm-fixed-step3-analysis.json`,
+`lfm-fixed3-fresh-comparison.json`, `lfm-fixed3-likelihood-ratios.json`.
