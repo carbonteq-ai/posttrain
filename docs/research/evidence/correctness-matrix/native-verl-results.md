@@ -483,3 +483,46 @@ and `qwen-head-precision-stages.json`, with exact executed runner snapshots.
 Next: evaluate a stable derivative through the real frozen output projection
 and model backward, check both primary precisions, and measure how much of the
 full normalized-gradient and Adam sensitivity it explains before adoption.
+
+## Stable selected-score backward through native Qwen updates
+
+Three new complete-task native SAMPO arms apply one update each: FP16 at
+scales1,024 and65,536, plus BF16. An external custom-autograd control preserves
+the native row-wise log-softmax forward exactly and computes the selected-score
+derivative using FP32 non-target probability mass. The derivative returns to the
+native half dtype; the temperature division and model backward remain native.
+Initial weights and all exported initial token scores match the corresponding
+original arms bitwise. This deliberately changes only the scoring backward.
+
+All three updates apply without overflow or skipping. Six independent
+loss/score/mask checks,72 LoRA linear-gradient checks and288 scalar-dot checks
+pass. Independent AdamW maximum error is1.34e-9. Peak Torch allocation is
+2.44GB (decimal), within the local8GB card.
+
+| Arm | Gradient difference from native, relative L2 | Sign flips | Update difference, relative L2 |
+| --- | ---: | ---: | ---: |
+| FP16, scale1,024 | 0.285196% | 78 | 3.08441% |
+| FP16, scale65,536 | 0.241620% | 78 | 2.79333% |
+| BF16 | 2.04642% | 454 | 10.5256% |
+
+These are differences, not error against a full-model high-precision oracle.
+The independent first-step Adam sensitivity equation predicts every changed
+parameter coordinate within3.71e-11. BF16's larger changes reinforce that a
+mathematically sound local derivative can materially change a half-precision
+update; they do not show which update improves task quality.
+
+The stable control's FP16 scale1,024→65,536 gradient gap is0.871751% with296
+sign flips, compared with the original0.844489%/295. Its update gap is7.90205%,
+compared with original7.94874%. Thus fixing local selected-target cancellation
+does not remove the overall scale sensitivity. Do not adopt this control as a
+demonstrated remedy or attribute the entire gap to saturated-token cancellation.
+Final half-gradient casts, temperature backward, vocabulary projection
+accumulation and the remaining model backward still need isolation.
+
+Receipts: `qwen-stable-head-scale1024.json`,
+`qwen-stable-head-scale65536.json`, `qwen-stable-head-bf16.json`, corresponding
+gradient/adapter snapshots, and `qwen-stable-head-comparison.json`. Exact
+executed wrappers and inherited runners are retained in the external manifest.
+No framework source, precision defaults or dependency pins change. Next compare
+the actual frozen output projection's half versus FP32 gradient accumulation
+while preserving represented forward scores and retaining both primary dtypes.

@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Execute stable selected-score backward through three complete native Qwen SAMPO updates (FP16 scales1024/65536, BF16). Initial scores/weights remain bitwise native; six loss/score/mask checks,72 matrix checks,288 scalar dots and Adam(max1.34e-9) pass at2.44GB peak. FP16 scale gradient gap remains0.87175%/296 sign flips and update gap7.902%, rejecting the control as a demonstrated scale-sensitivity remedy. BF16 gradients differ2.046% and updates10.526% from native, not a quality verdict. Next isolate frozen vocabulary projection accumulation and residual model backward.
+
 - [x] (2026-10-01) Capture six real credited Qwen token positions at FP16 scales1024/65536. Identical logits/cotangents, native head-gradient bitwise replay and exact original adapter controls isolate local underflow/rounding. Independent finite differences agree within2.24e-14. A saturated token is entirely zero at1024 but recovers six coordinates at65536; FP32 cast removal still exhibits target cancellation. Stable FP32 non-target-mass derivative agrees with the F64 oracle within1.97e-7 relative L2. Full-model corrective backward, BF16 companion and quality attribution remain open; no production precision policy changes.
 
 - [x] (2026-10-01) Run six native TRL/scorer-controlled Qwen SAMPO loops,12 applied updates on complete tasks, with loss/score/Adam maxima1.06e-9/1.26e-11/2.31e-9. Actual scorer trajectories differ; exact veRL helper/full head plus common next-forward weights gives bitwise-identical native gradients at both updates in BF16/FP16. Native capture replays match all original adapters,96 matrix/384 scalar-dot checks pass. CPU/CUDA first-step rounding crosses4 BF16 or22 FP16 boundaries in corresponding arms. Native scale65536 baseline/FP32-delta-region arms apply four finite updates;144 actual gated-norm references pass, maxordinaryFP16 error0.03925%, maxderivative35597<65504. Repair external diagnostic OOM with bounded reductions; untraced repeat matches step0–2 exactly. Loss-scale1024→65536 causes0.8445% normalized-gradient L2 difference,295 sign flips and7.95% first-update L2 difference, with Adam sensitivity prediction error3.37e-11. Underlying half-backward scale sensitivity, default-scale TRL, wider algorithms and quality remain open.
@@ -137,6 +139,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- A stable selected-softmax derivative alone leaves the full FP16 scale gap essentially unchanged. Local target cancellation is real but insufficient to explain the global discrepancy; replacing it also changes BF16 gradients substantially despite identical forward scores.
 
 - Actual Qwen output-head derivatives expose both half-gradient underflow and FP32 selected-target cancellation. Promoting logits alone can worsen local derivative error. A direct non-target-mass complement avoids cancellation, but the highest relative errors occur at extremely small absolute gradients; their contribution to full-model sensitivity is unproven.
 
@@ -374,6 +378,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Reject stable selected-score backward as a demonstrated loss-scale remedy. Retain its native-forward controlled evidence and move to output-projection accumulation; no production defaults/pins are changed by an isolated local improvement.
+
 - Retain the stable FP32 distribution derivative as an independent reference/candidate. Require real projection/model backward and BF16/FP16 validation before changing scoring or gradient policy. Keep the original represented temperature fixed when comparing equivalent-forward derivatives.
 
 - Decision: preserve loss-scale sensitivity as an unresolved half-backward numerical issue, separately from matched-state backend objective agreement and optimizer-device rounding. Compare actual conditional Qwen SAMPO model/optimizer paths, validate native defaults on real traces, and keep failed diagnostic OOM/source plus bounded trace recovery external. Do not declare a universal precision fix or prefer the lower scale because it avoids overflow elsewhere. No production source, pins or frozen baseline change. Date/Author:2026-10-01/Codex.
@@ -488,6 +494,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Three full native candidate updates narrow the causal explanation: all downstream linear/optimizer references pass, but head-score stabilization does not resolve scale sensitivity. Full frozen-projection and model-backward references remain necessary, alongside broader algorithms and held-out quality gates.
 
 - The loss-scale gap is now localized partly to the actual output head, with bitwise native replay and independent derivative evidence. This narrows the next experiment to corrective backward controls; it does not close the broad correctness campaign or establish a task-quality remedy.
 
@@ -992,3 +1000,6 @@ measured scale-sensitive gradient/update gap with exact instrumentation controls
 Revision 41: capture native Qwen output-head gradients, separate half underflow
 from saturated-target cancellation, validate a stable FP32 distribution reference
 and retain full-model/precision/quality qualification before adopting a remedy.
+Revision 42: execute stable selected-score backward in native Qwen FP16/BF16
+updates, quantify its Adam-amplified changes and reject it as a demonstrated
+scale-gap remedy before isolating output-projection accumulation.
