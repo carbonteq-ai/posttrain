@@ -1182,3 +1182,55 @@ Qwen mixed-reward groups, native TRL logical equivalence, complete DAPO/GSPO
 recipes, full controller admission/refill, fresh task behavior and broader
 algorithm/family coverage remain open. These successful arithmetic checks
 do not establish that any of the three objectives improves task performance.
+
+## Fresh FP16 task behavior after the matched native updates
+
+Replay the base and step-three LFM adapters on two fresh generation seeds,
+71400 and 72400, for simple.weekly_report_sheets_email. All five arms use
+matched initial parameters, identical first prompts per seed, temperature0.8,
+2,048 output tokens per turn and at most six turns. The SAMPO step-zero
+parameters and fixture scores also match the outcome-credit base exactly.
+This is ten native Verifiers/MCP episodes, not a complete admission/refill
+training loop or an efficacy trial.
+
+| Adapter | Rewards, seeds71400 / 72400 | Full successes | Truncated episodes |
+| --- | --- | ---: | ---: |
+| Base, step0 | 0 / 1 | 1/2 | 1/2 |
+| GRPO, step3 | 1 / 1 | 2/2 | 0/2 |
+| Native GSPO, step3 | 0.5 / 0 | 0/2 | 1/2 |
+| DAPO, step3 | 0 / 0 | 0/2 | 1/2 |
+| SAMPO, step3 | 0 / 0 | 0/2 | 2/2 |
+
+All ten episodes pass exact adapter handoff, fixture-score, sampled-token,
+log-probability, excluded-node mask and actual Posttrain projection checks.
+Independent final-world checks agree with both native assertions and rewards.
+Peak tensor allocation is3,459,928,064 bytes. These checks support the transport
+and reward accounting; they do not explain away poor task behavior.
+
+Replay every sampled response through the pinned LFM parser, with an additional
+independent AST syntax check that never executes sampled code. DAPO seed71400
+emits a complete tool block containing `spreadsheet: 'ss_reports'` inside a
+function call. Native parsing reports malformed_structure, executes no tool,
+and the episode earns zero without truncating. SAMPO seed71400 reaches an
+unclosed_block after lengthy reasoning and truncates; its other seed truncates
+before any tool block. GSPO seed71400 executes two parseable calls but earns
+only the email assertion; the sheet row does not satisfy the task. GRPO executes
+both tools and satisfies both assertions in both seeds.
+
+Every episode has empty trace.errors and no recognized tool-failure response.
+Those fields therefore cannot serve as a complete tool-format failure counter:
+parser rejection happens before tool execution. This is an observed diagnostic
+limitation, not evidence that the parser should execute malformed calls or that
+the loss arithmetic is wrong. Retain parser status, truncation, tool execution
+and semantic assertions as separate measurements.
+
+Matched generation seeds and initial prompts do not fully isolate later
+trajectory differences: pinned AutomationBench creates Gmail and Sheets object
+IDs with UUID4 after tool actions. First-response differences precede this
+confound. Two seeds on one task cannot justify replacing SAMPO with GRPO or
+selecting a production recipe; fresh BF16 checks, more seeds/tasks and a full
+iterative admission/refill run remain required.
+
+External receipts: lfm-outcome-fresh-{base,grpo,gspo,dapo,sampo}-float16.json,
+outcome-policy-fresh-fp16-summary.json and fresh-tool-grammar-audit.json.
+Runners, raw traces and checkpoints remain outside Git.
