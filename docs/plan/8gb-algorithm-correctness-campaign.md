@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Export native LFM FP16 adapters at steps0–3, verify exact parameter handoff and isolate teacher-forced score differences to temperature precision: matched native arithmetic agrees within4.77e-7 across eight row/state checks. Fresh matched-seed AutomationBench collections give2/4 versus1/4 success and2/4 versus3/4 truncations before/after training. All eight native token/mask/projection/independent-credit audits pass. Preserve this adverse small sample and the open shared FP32-temperature/backward, intermediate-step, reproducibility and full fresh-update/refill gates; raw tools and exports remain external.
+
 - [x] (2026-10-01) Extend native LFM collection to BF16/FP16 and a1024-token BF16 budget control. All six native episodes pass exact token/log-probability/mask/projection checks; preserve reasoning truncations and a completed invalid tool call. Use the unchanged mixed FP16 reward group for native FSDP2 CPU-offload/checkpointed updates at1018 prompt/872 response tokens: BF16 applies2/2, FP16(scale1024)3/3; ten independent loss/score checks and AdamW references pass. All sampled tokens clip on FP16 update3 while optimizer momentum still moves parameters. Fresh updated-policy generation/admission and cross-backend trajectory parity remain open.
 
 - [x] (2026-10-01) Execute actual TRL/adaptive admission method bodies on observed equal-reward native group: both discard two rows despite104 nonzero discounted-credit tokens. Check298 native Qwen sampled tokens through actual TRL temperature scoring, direct softmax and30 independent BF16/FP32 selected-position checks. Cached BF16 replay matches every sampling score exactly; teacher-forcing discrepancy falls from weighted mean0.00713942 BF16 to1.947e-6 FP32. Keep sampling-correction ratios separate from optimizer policy ratios and native worker/refill learning open.
@@ -727,3 +729,6 @@ and optimizer policy clipping distinct, with full native learning still open.
 Revision 24: native LFM BF16/FP16 collection, budget/grammar observations and
 actual collected-population updates with sampler correction and active clipping;
 retain optimizer-history effects and fresh-learning/backend parity gates.
+Revision 25: exact native adapter export, isolated temperature-rounding scores
+and matched fresh pre/post behavior; retain the adverse small-sample outcome,
+full learning-loop and shared numerical-policy gates.

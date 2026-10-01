@@ -150,3 +150,76 @@ grammar. A separate `/tmp/posttrain-native-verl-update-runtime` selects
 ANTLR4.9.3 and borrows the existing research libraries; both successful update
 arms use it. The failed log is retained. No production dependency or recipe
 was changed, and no runner/raw receipt is committed.
+
+## Exported adapter handoff and temperature arithmetic
+
+The collected FP16 update was repeated with exports before training and after
+each of its three native optimizer steps. All three updates applied, and the
+independent AdamW checks again stayed below2.12e-9. Copying every trainable
+LoRA parameter into ordinary HF PEFT reproduces the exported FP32 values
+exactly; parameter names and sets are asserted equal.
+
+An initial teacher-forced score comparison was deliberately kept at FP32
+temperature division. Across the two collected trajectories and four adapter
+states, its sampled mean absolute log-probability discrepancy was0.000699–
+0.000893, with maximum0.021009. Matching native veRL's temperature division
+instead reduces the largest discrepancy to4.77e-7 and every sampled mean to
+below6.7e-8. This isolates the difference to temperature arithmetic on these
+fixtures, rather than an incorrect adapter export or different model weights.
+
+The padded unfused veRL path casts temperature to the logits' FP16 dtype and
+divides before the score operation. FP16 represents0.8 as0.7998046875 and also
+rounds the divided logits. The HF generation provider promotes its scores
+before its temperature warper. Thus identical model weights can still produce
+slightly different distributions. These are absolute score discrepancies;
+they are not measurements of PPO current/old drift or evidence that clipping
+is incorrectly activated. Sampler correction remains relevant. A shared
+FP32-temperature policy and its backward/optimizer regressions are still an
+open normalization gate; no production arithmetic was changed in this probe.
+
+Raw exports, audit receipts and runner snapshots remain in the external
+`results/native-collection` directory. The export runner is
+`native_verl_export_lfm_run.py`, and the audit is
+`audit_native_lfm_adapter_export.py`. The independent comparison uses ordinary
+HF PEFT teacher forcing, with the same FP16 autocast and selected token labels.
+
+## Fresh behavior after the verified native updates
+
+Four fresh episodes per arm compare exported adapter steps0 and3 on the same
+office-closure task, initial prompt, FP16 autocast provider, temperature0.8
+and512-token request budget. Seeds4200,5200,6200,7200 are matched by episode;
+each later turn adds its turn index, so extra turns cannot shift the next
+episode's seed. These are fresh collections after a fixed-population training
+experiment, not a complete collect/update/refill training loop.
+
+| Observation | Before updates | After three updates |
+| --- | ---: | ---: |
+| Successful tasks | 2/4 | 1/4 |
+| Truncated episodes | 2/4 | 3/4 |
+| Executed tool calls | 2 | 1 |
+| Total sampled tokens | 2,410 | 2,277 |
+
+Seed4200 remains successful with the same433-token first response; seed5200
+remains a512-token truncation with identical first-response IDs. At seed6200,
+the first416 generated tokens agree. The baseline then emits a valid
+`slack_send_channel_message` call and succeeds. The updated adapter instead
+emits nonexistent `slaychannels_args` and exhausts512 tokens before closing
+the tool block; no tool executes. Seed7200 diverges after278 common tokens,
+but both arms truncate and fail. Reduced token total reflects the lost
+second turn of a successful task, not an efficiency improvement.
+
+All eight episodes pass exact sampled-ID/log-probability/final-branch checks,
+zero masks on nonsampled nodes, actual Posttrain projection and independent
+episode/discounted-anchor credit calculations. The sampled outcome is worse;
+four paired seeds cannot establish expected reward regression or general
+model quality. The evidence does show that applied, mathematically checked
+updates and active clipping are insufficient to demonstrate better tool use.
+The collection remains a research HF provider, not production vLLM.
+
+External receipts are `lfm-adapter-step0-fresh.json`,
+`lfm-adapter-step3-fresh.json`, both `*-analysis.json` files and
+`lfm-fresh-adapter-comparison.json`. Runners are
+`native_adapter_collection.py` and `compare_native_lfm_fresh_adapters.py`.
+Next controls should distinguish intermediate-step behavior, repeated rollout
+reproducibility, temperature precision and token-budget effects before
+attributing this sample to an algorithm defect or changing the recipe.
