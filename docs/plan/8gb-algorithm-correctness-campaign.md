@@ -22,6 +22,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] (2026-10-01) Capture native deterministic SDPA layer23 forward/cotangents in both FP16 scales/BF16, preserving original adapters/scores/gradients bitwise. Independent full causal/GQA NumPy references cover27,159,552 Q/K/V coordinates and18,106,368 output coordinates; full-reference finite differences agree within6.24e-11, selected actual-query checks within7.94e-17. Native query errors reach0.13367% FP16/0.90953% BF16, beyond final-half rounding; diagnostic saved-output reduction lowers them. Three all-six-block FP32 reverse-equation updates preserve forward/represented layer23 upstream cotangents and approach local final-rounding floors, but full FP16 gradient scale gap remains0.29553% versusnative0.29532%; update gap3.357%→2.901%. BF16 update changes12.15%, without quality evidence. Six total new updates remain within3.99GB; tools/raw archives external. Next isolate residual numerical sensitivity, broaden native algorithms and harder task/fresh-worker qualification.
+
 - [x] (2026-10-01) Run15 native Torch SDPA arms/21 applied updates on both primary precisions:42 loss checks,504 matrix checks,2,016 scalar dots and Adam(max4.05e-9), peak3.99GB. Uncontrolled first-update repeats differ0.23553%/1.82980% in FP16/BF16 gradients and2.11023%/10.26202% in updates despite exact initial weights/scores. Global deterministic controls yield bitwise paired repeats in FP16 scales1024/65536 and BF16. Deterministic profiler controls retain actual Torch FlashAttention and reproduce unprofiled gradients/adapters/scores exactly. Repeat-controlled FP16 scale gap remains0.295324% gradient/3.357149% update with89 sign changes, independently explained by first-step AdamW within3.71e-11. Preserve failed profiler repeatability gate and avoid attributing all noise to attention. Next independently audit fused attention derivatives, harder tasks and wider campaign gates.
 
 - [x] (2026-10-01) Qualify six three-update native/candidate trajectories in FP16(two scales)/BF16:18 applied updates,36 loss checks,432 matrix checks,1,728 scalar dots and Adam(max4.11e-9), exact earlier step0/1 replay. Retained FP16 endpoint scale gaps2.896%→2.062%→1.877% versusnative7.948%→5.760%→5.144%. At third reuse all104 credited positions clip in four FP16 arms/candidate BF16, leaving zero current gradients but valid momentum updates; native BF16 retains row2 signal. Twelve fresh conditional-Qwen episodes under exact native adapters/scores pass all trace/projection/credit audits, each arm2/2 reward/no truncation/errors. Baseline ceiling prevents a quality claim. Restore exact environment11f4 outside Git after import failure, verify499 Git blobs. Next native kernels/harder tasks/residual precision and wider campaign gates.
@@ -153,6 +155,8 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 - [ ] Audit the full original objective against authoritative artifacts before marking the goal complete.
 
 ## Surprises & Discoveries
+
+- Full-coordinate native FlashAttention errors exceed final-half derivative rounding at layer23, especially BF16 query gradients. Replacing the ideal softmax reduction with a diagnostic native-rounded-output reduction explains much of the discrepancy. Corrective FP32 reverse equations approach the local rounding floor yet leave the full FP16 gradient scale gap unchanged; local fidelity alone cannot support a model-level stability or quality claim.
 
 - Native SDPA's uncontrolled repeat noise is material: BF16 first updates differ10.26% relative L2 with405 gradient sign changes. The earlier profiler mismatch also occurs without profiling, so profiling alone cannot explain it. Deterministic flags make paired repeats exact but leave FP16 scale sensitivity. These are separate issues; finite local seam checks do not prove ideal nonlinear derivatives or learning stability.
 
@@ -406,6 +410,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
 
 ## Decision Log
 
+- Retain the native-forward/FP32-backward SDPA control only as an external diagnostic. It qualifies the observed causal/zero-dropout GQA equations and captured layer23 cotangents, not every supported mask/path, all nonlinear layers, candidate repeats or learning quality. Native BF16 updates change materially; no production kernel/default adoption. Continue residual-operation isolation and wider native algorithm coverage instead of presenting local rounding-floor agreement as campaign completion.
+
 - Use global deterministic controls for native SDPA precision comparisons after preserving the failed repeat gate and uncontrolled repeats. Record actual native dispatch and forward-score changes; SDPA versus eager is not a forward-preserving backward ablation. Do not adopt production determinism/defaults/pins or call a quality improvement from these controls. Keep all executed tools and raw receipts external.
 
 - Report first-step scale error separately from later different-weight trajectories, normalize relative comparisons consistently, and distinguish momentum-only updates from fresh policy gradients. Use harder tasks/native kernels next; restore immutable environment dependencies outside the dirty sibling and require exact adapter-score qualification before behavioral comparisons.
@@ -536,6 +542,8 @@ preserved, including unrelated `.claude/` and `.release/` files.
   Date/Author: 2026-09-30 / Codex.
 
 ## Outcomes & Retrospective
+
+- Six further native/corrective SDPA updates pass local seam checks. Full layer23 derivatives now have independent full-coordinate references and capture-neutrality proof; a forward-preserving backward improves local derivatives without resolving the global scale-sensitive gradient. The finding narrows a numerical mechanism while contradicting a general-remedy claim. Production defaults/pins remain unchanged; tools and raw receipts stay external. Full-model derivatives, harder-task learning and broad native algorithm/worker gates remain open.
 
 - Native SDPA controls separate uncontrolled repeat noise from remaining FP16 loss-scale sensitivity. All three deterministic repeat pairs are bitwise equal; scale1024/65536 still differ0.2953% in gradients and3.3571% in the first displacement, which the independent Adam equation reproduces. Full fused-attention derivative truth, harder-task learning consequences and broad native algorithm qualification remain unproven. Existing published repairs and production pins are unchanged.
 
@@ -1080,3 +1088,7 @@ handoffs and twelve fresh native episodes, and retain baseline-ceiling limits.
 Revision 49: run native SDPA controls, preserve failed repeatability checks,
 measure uncontrolled BF16/FP16 noise, establish exact deterministic repeats
 and quantify the remaining repeat-controlled FP16 gradient/update scale gap.
+Revision 50: capture full native layer23 fused-attention derivatives, check
+independent causal/GQA equations and finite differences, isolate rounded-output
+reduction effects, and reject local FP32 reverse-equation improvement as a
+demonstrated global scale-sensitivity or training-quality remedy.

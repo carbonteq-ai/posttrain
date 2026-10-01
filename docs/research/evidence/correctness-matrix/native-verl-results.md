@@ -20,7 +20,12 @@ issue: identical uncontrolled runs differ in gradients and first updates.
 Paired deterministic runs reproduce exactly in both primary precisions, and
 the deterministic FP16 scale comparison still differs by0.295% in gradients
 and3.36% in the first update. This distinguishes loss-scale sensitivity from
-repeat noise; it does not establish a production remedy.
+repeat noise; it does not establish a production remedy. A full-coordinate
+layer23 attention audit now measures excess backward error beyond final-half
+rounding. An ideal FP32 reverse-equation control improves those local
+derivatives while preserving forward values, but does not reduce the full
+FP16 gradient scale gap. Local accuracy and model-level stability remain
+separate qualification questions.
 
 ## Repairs
 
@@ -1005,3 +1010,118 @@ or raw artifact belongs in Git. Native fused-attention derivative references,
 harder tasks, wider algorithms/families and full worker qualification remain
 open; no production attention default, determinism setting or dependency pin
 is adopted from these bounded controls.
+
+## Full-coordinate native fused-attention derivative audit
+
+Capture the final full-attention block23 during the first native deterministic
+update at FP16 scales1024/65536 and BF16. Each arm captures the two complete
+task trajectories (1408/1539 positions), including represented Q/K/V,
+native output, output cotangent and input cotangents. Nonreentrant checkpointing
+creates four capture records, but only two receive all backward hooks; retain
+the complete records and report the count rather than treating recomputation
+as an additional training example. Initial/final adapter weights, scores and
+all LoRA gradients match the earlier uninstrumented deterministic arms bitwise.
+Capture is therefore measured to preserve these native updates.
+
+The independent NumPy oracle uses full causal support, all query positions,
+and all GQA head contributions. It computes `P=softmax(QKᵀ/sqrt(d))`,
+`O=PV`, `dP=D Vᵀ`, `dS=P*(dP-sum(P*dP))`, `dQ=dS K/sqrt(d)`,
+`dK=dSᵀ Q/sqrt(d)` and `dV=Pᵀ D`. The K/V derivatives sum the four
+query-head contributions sharing each KV head. FP64 is only detached oracle
+arithmetic; native training remains BF16/FP16. Upstream cotangents are the
+represented native values, unscaled independently for FP16, so this tests
+the local attention Jacobian rather than asserting the upstream cotangent
+itself is ideal.
+
+Selected full-support reference checks pass six synthetic GQA finite
+differences within1.33e-10 and twelve actual-input query-coordinate finite
+differences within7.94e-17. Expand beyond those selected derivatives: the
+full-coordinate oracle covers27,159,552 Q/K/V gradient coordinates and
+18,106,368 output coordinates across six captured records. Its separate six
+finite-difference checks agree within6.24e-11. This is the complete captured
+layer23 attention operation, not all six layers or the full nonlinear model.
+
+| Precision / scale | Trajectory | Output relative L2 error | Q-gradient error | K-gradient error | V-gradient error |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| FP16 /1024 | 0 | 0.02106% | 0.13367% | 0.08926% | 0.03399% |
+| FP16 /1024 | 1 | 0.02106% | 0.04505% | 0.06454% | 0.06856% |
+| FP16 /65536 | 0 | 0.02106% | 0.12967% | 0.08990% | 0.03369% |
+| FP16 /65536 | 1 | 0.02106% | 0.03591% | 0.03973% | 0.03799% |
+| BF16 | 0 | 0.16644% | 0.90953% | 0.59677% | 0.26121% |
+| BF16 | 1 | 0.16644% | 0.35327% | 0.33173% | 0.29683% |
+
+Each denominator is the ideal local reference norm at represented native
+inputs/cotangents. No arbitrary tolerance turns these measurements into a
+universal pass/fail claim. Rounding an otherwise exact derivative to final
+half precision alone gives Q-gradient errors0.01934–0.02075% in FP16 and
+0.16972–0.17388% in BF16. Thus some native error exceeds final representation
+rounding; that does not by itself establish a wrong symbolic loss.
+
+A diagnostic arithmetic variant substitutes `sum(D*native_saved_output)`
+for the ideal softmax reduction `sum(P*dP)`. For trajectory0, Q-gradient
+error drops0.13367%→0.04235% at FP16 scale1024,0.12967%→0.02790% at
+scale65536, and0.90953%→0.30589% in BF16. K-gradient errors also decrease;
+V-gradient arithmetic is unchanged. This is consistent with error from
+reusing a rounded saved output in the backward reduction. The diagnostic
+variant is not the ideal Jacobian and does not eliminate every accumulation
+or representation effect. The calculation narrows the numerical hypothesis;
+it does not identify a production source defect or prove a quality effect.
+
+External receipts: `qwen-sdpa-derivative-capture-control.json`, three native
+receipts and attention archives, `qwen-sdpa-derivative-reference.json`,
+`qwen-sdpa-full-derivative-reference.json`, retained logs and executed sources.
+The three native capture updates fit3.99GB peak Torch allocation and preserve
+all loss/mask/linear/Adam checks. All raw artifacts and correctness tools stay
+outside Git.
+
+### Forward-preserving FP32 reverse-equation control
+
+An external custom autograd control keeps the original Torch SDPA forward
+output and uses FP32 ideal causal/GQA reverse equations for all six
+full-attention blocks. Q/K/V cotangents convert to the native half dtype
+only after the matrix products and shared-KV-head reductions. This is a
+bounded experimental backward, not a production fused kernel. It explicitly
+supports the observed unmasked causal, zero-dropout GQA path; other masks,
+dropout, cache shapes and distributed execution are not qualified by it.
+
+Three actual native first updates (both FP16 scales and BF16) pass the
+independent loss, score-mask, LoRA-linear and AdamW checks at3.99GB peak.
+Initial adapters/scores remain bitwise native. In both captured layer23
+trajectories, Q/K/V, attention outputs and represented upstream cotangents
+also remain bitwise native, so the local derivative comparison uses identical
+inputs rather than a changed forward or changed upstream signal.
+
+Across all coordinates of both trajectories, corrected Q-gradient error
+is0.01934–0.02075% in FP16 and0.16972–0.17388% in BF16, essentially the
+measured final-half-rounding floor. Corrected K/V errors likewise approach
+their final representation floors, including0.04067%/0.04315% for the small
+scale1024 second-trajectory K/V cotangents. The same independent full-coordinate
+NumPy oracle is used, with its exact source hash and separate finite-difference
+checks retained. This establishes improved local derivative fidelity at
+layer23; it does not prove every nonlinear layer is correct.
+
+The model-level result is less favorable than a local-only verdict suggests:
+
+| FP16 first-step scale1024 versus65536 | Gradient relative L2 gap | Update relative L2 gap | Gradient sign changes |
+| --- | ---: | ---: | ---: |
+| Deterministic native SDPA | 0.295324% | 3.357149% | 89 |
+| Native forward / FP32 reverse-equation control | 0.295532% | 2.900791% | 79 |
+
+Both denominators are the low-scale arm's gradient or displacement norm.
+The full LoRA gradient scale gap does not decrease, even though the update
+gap decreases modestly. Its first-step AdamW difference is independently
+explained within3.41e-11. Residual sensitivity elsewhere in the model and
+final half cotangents remain possible contributors; do not attribute the
+remaining global gap to a specific operation without another controlled test.
+
+Relative to the corrective arm's norm, replacing native backward changes
+FP16 gradients/updates by0.3003%/3.3075% atscale1024 and0.2611%/2.9116%
+atscale65536. BF16 changes2.0085% in gradients and12.1501% in the first
+update, with603 sign changes. More accurate local derivatives can therefore
+produce materially different adapter updates; neither arm has demonstrated
+better reward, generalization or learning stability. Candidate repeatability,
+multi-update/fresh-task behavior and broader supported paths are still open.
+No production precision or kernel default changes.
+
+Retain `qwen-sdpa-corrective-reference.json`, three native candidate receipts,
+attention/adapter/gradient archives and exact experimental sources outside Git.
