@@ -3,7 +3,7 @@ name = "posttrain-awq-runtime"
 version = "0.1.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/78e/3ecf207c074c4/carbonteq_trackio-0.31.5.post14.dev32-py3-none-any.whl#sha256=78e3ecf207c074c43281edff75343086bf379a22cc281308cc12436e5a5260a3",
+    "carbonteq-trackio @ https://pypi.lan/carbonteq/dev/+f/431/e452b29a59c5d/carbonteq_trackio-0.31.5.post14.dev33-py3-none-any.whl#sha256=431e452b29a59c5d0b78f7b01c7c888c15ecdc0ef5a74c3ad974fcf881534df3",
     "datasets>=4.8.4,<5",
     # Qwen3.5 calibration forward passes use these Triton Gated DeltaNet kernels.
     "fla-core>=0.5.2,<0.6",

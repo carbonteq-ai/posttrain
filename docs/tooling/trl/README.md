@@ -42,7 +42,7 @@ is unchanged, and so is the `vllm` extra. Wheel SHA-256
 and LM-head upcast stay in place and are no-ops on post12
 (`packages/train/tests/test_trl_precision.py` checks they leave the loss
 unchanged). The catalog lock `trl-fork@current` is
-`f18308d1af3fbfe72c9be17344762ae83dbbeaeb23a6d736767f166c763aed80`.
+`fe6b1ec5fe0f16323df62d161f6368de7bb0ee35e39b96f00d05887dcf91800f`.
 
 Previously selected: `1.12.0.post11`, tag `carbonteq-v1.12.0.post11` (GitHub
 prerelease https://github.com/carbonteq-ai/trl/releases/tag/carbonteq-v1.12.0.post11,

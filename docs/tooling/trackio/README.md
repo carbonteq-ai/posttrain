@@ -1,11 +1,52 @@
 # Trackio fork and maintenance
 
-The framework pin on branch `codex/trackio-next` is `0.31.5.post14.dev32`, fork
-commit `d71cf2a5cbcc561bd72e3932d8032200a791d79c` on fork branch
-`codex/next-release` (dev31 plus f3be77d7 and the episode-ending change), tag
-`carbonteq-v0.31.5.post14.dev32` (GitHub prerelease), published unchanged to
-`carbonteq/dev` by Posttrain workflow `36432505907` on 2026-09-28. The shared
-server was migrated and upgraded on 2026-09-28 (see below). A clean clone of that commit built with
+The framework pin on branch `codex/eval-behaviour-metrics` is `0.31.5.post14.dev33`,
+fork commit `68222ffd6b64c1b0d3a540e29adcc90236416cd5` on fork branch
+`codex/next-release` (dev32 plus the environment-metrics change), tag
+`carbonteq-v0.31.5.post14.dev33` (GitHub prerelease), wheel
+`431e452b29a59c5d0b78f7b01c7c888c15ecdc0ef5a74c3ad974fcf881534df3` and sdist
+`1b8ef0db089ca966aacf0953a0535b56eebd6a3bbac7e8702b05e78ae0360749` (the
+retained GitHub assets and the fresh-clone `uv build` hash identically),
+published unchanged to `carbonteq/dev` by Posttrain workflow `36935243585` on
+2026-10-01.
+
+dev33 adds environment metrics: a source projection may supply the
+environment's own numeric per-episode diagnostics, stored per trace in the table
+`trace_environment_metrics` (Doris schema version 6, migration
+`trackio storage migrate-doris --to 6`: one
+`CREATE TABLE IF NOT EXISTS trace_environment_metrics`) and exposed to readers
+as the logical `project_sql` table `trace_environment_metrics`. Fact calculator
+`verifiers-trace-facts.v11` supplies them from the native trace's `metrics`, so a
+job image with it must not write to a server older than dev33: the older server
+cannot recompute the projection identity and rejects the write. Deploy order:
+publish dev33, back up Doris, migrate to v6, switch the server to dev33 at once
+(a dev33 server refuses a v5 database and an older server refuses v6 on restart;
+a running older server keeps working against the migrated database until it is
+switched), then release job images and Observatory, then backfill.
+
+The shared server runs dev33 since 2026-10-01 22:36 UTC (production `:7860` and
+the candidate service `:7862`, ai-infra branch `deploy/trackio-dev33`, commit
+`6015dd0`, `scripts/deploy-trackio`). Before it, both Doris databases were backed
+up with a restore check and exact row counts, keeping the snapshots
+(`trackio_pre_v6_20261002`, 2,630,548 rows; `trackio_candidate_pre_v6_20261002`,
+29,238 rows; receipts
+`ai-infra/.state/artifacts/trackio-doris-{production,candidate}/pre-v6-backup-receipt.json`,
+taken with `--allow-live-writes` because jobs may write during the window), and
+migrated at 22:34 UTC with `trackio storage migrate-doris --to 6 --apply`, run
+with the dev33 CLI from a workstation. The migration had first been exercised on
+an isolated Doris database (the fresh-install schema, the real 5-to-6 step and the
+real-Doris integration test). ai-infra's write/read qualification
+(`scripts/qualify_trackio.py`) passed on dev33. The deploy ran from a clean
+ai-infra worktree of the committed deployment branch, with the control compose
+file preserved as deployed, because the shared checkout carried another
+session's uncommitted but already deployed compose and Caddy changes that the
+Trackio playbook would otherwise have reverted.
+
+Before dev33, the pin was `0.31.5.post14.dev32` (fork commit
+`d71cf2a5cbcc561bd72e3932d8032200a791d79c`, tag
+`carbonteq-v0.31.5.post14.dev32`; the same fork branch), published to
+`carbonteq/dev` by Posttrain workflow `36432505907` on 2026-09-28; the shared
+server was migrated and upgraded to it on 2026-09-28 (see below). A clean clone of that commit built with
 `uv build` gives wheel
 `78e3ecf207c074c43281edff75343086bf379a22cc281308cc12436e5a5260a3` and sdist
 `94d3f3bb7084346f441ce39b8e9d4cd775d1197d07ca6e5fba87726dfbddddc0` (the same
