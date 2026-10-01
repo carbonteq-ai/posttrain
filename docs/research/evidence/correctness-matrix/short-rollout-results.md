@@ -1687,3 +1687,54 @@ External receipts:{qwen08,lfm12}-trl-recorded-sampo-float16-default-scale65536.j
 lfm12-trl-recorded-sampo-float16-default-scale65536-loss64-control.json,
 native-trl-default-scale-summary.json and native-trl-loss-precision-control-summary.json.
 Tools/raw receipts remain outside Git; the full campaign remains active.
+
+## Native TRL GRPO/DAPO on unequal recorded LFM responses
+
+Actual Trainer.train now runs GRPO row-mean and DAPO global-token reductions on
+the same recorded LFM AutomationBench group, native rewards[1,0],1,317/1,024
+active sampled tokens, BF16 and FP16. Each arm applies three finite updates from
+two accumulated microbatches. Model/LoRA, checkpointing, fused SDPA, LR1e-4,
+beta.01, bounds.003/.004 and diagnostic truncation retention match the earlier
+native audit. FP16 scale1024 is controlled, not the default-scale gate.
+
+The native episode advantages±.707006812 agree with independently normalized
+observed rewards using unbiased std and epsilon1e-4 within1.677e-8. This external
+oracle replaces the original synthetic[0,1] assumption; no trainer change.
+
+| Algorithm / dtype | Qualification | Max loss error | Scalar-oracle accumulated-gradient relative error | Max Adam error | Peak bytes |
+| --- | --- | --- | --- | --- | --- |
+| GRPO BF16 | pass | 2.981e-8 | 0 | 9.460e-10 | 6091442688 |
+| GRPO FP16 | fail | 2.981e-8 | .000627623 | 9.441e-10 | 6091443712 |
+| DAPO BF16 | pass | 2.493e-8 | 0 | 9.432e-10 | 6091442688 |
+| DAPO FP16 | fail | 2.577e-8 | .000588603 | 9.441e-10 | 6091443712 |
+
+All12 optimizer updates apply and24 scalar loss/mask/credit cases pass. Maximum
+score-derivative error5.821e-11; excluded score gradients remain0. Actual-loss
+VJP accumulation reproduces every pre-optimizer gradient exactly, but the
+independently rounded scalar-gradient VJP exceeds the.0001 FP16 gate. Preserve
+that failed qualification rather than infer success from finite steps.
+
+Native logged clipping-region means, steps1/2/3: GRPO BF16[0,.134744,.147873],
+GRPO FP16[0,.151399,.217798], DAPO BF16[0,.140658,.148850], DAPO
+FP16[0,.154870,.207001]. These are native aggregate fractions, not independent
+token counts or a quality claim. Different denominators are verified directly
+by the scalar loss reference on unequal active row lengths.
+
+Two FP16 loss-only precision controls each apply three further updates. Both
+pass with all scalar-oracle accumulated-gradient errors0, while retaining the
+FP16 model/backward and scale1024. Same recorded input hash/configured seed;
+loss arithmetic is a diagnostic higher-precision reference. This extends the
+SAMPO rounding-sensitivity observation to GRPO/DAPO. It does not prove a wrong
+loss formula or justify FP64 model/loss adoption, a tolerance relaxation, or
+attributing poor training quality to this small gradient discrepancy. Complete
+native backend trajectory equivalence, conditioning/rounding analysis, default
+scale, host admission/refill and fresh quality remain separate.
+
+The first external wrapper fails before model forward because textual insertion
+matches its own quoted needle. Preserve failed-policy-wrapper sources and the
+original GRPO BF16 log. Correcting the external insertion yields terminal retry
+receipts. No production/fork/pin changes. External artifacts:
+lfm12-trl-recorded-{grpo,dapo}-{bfloat16,float16}-native-adam-retry1.json,
+lfm12-trl-recorded-{grpo,dapo}-float16-native-adam-loss64-control.json,
+native-trl-recorded-policies-summary.json and native-trl-policy-loss-controls-summary.json.
+Tools and raw results remain outside Git.
