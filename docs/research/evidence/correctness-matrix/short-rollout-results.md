@@ -1397,3 +1397,31 @@ carbonteq-ai/verl, codex/posttrain-math-parity. Production pins/images are
 unchanged. Fused/other engines, actual-model SAMPO replay, full admission/refill,
 distributed/large-context memory and task-quality attribution remain open.
 External complete receipt: temperature-repaired-update-summary.json.
+
+### Qwen SAMPO memory gate after the scoring correction
+
+Replay the unchanged full Qwen native trace population under the corrected
+scorer. The initial BF16 arm fails in backward while requesting1.30GiB.
+Expandable allocator segments do not solve it: retry1 requests1.42GiB when
+only1.23GiB is free, with4.41GiB allocated and126MiB reserved-unused. Preserve
+both failures and step-zero adapters. The LFM correction qualification does
+not establish that Qwen's corrected update fits this8GB desktop GPU.
+
+Native enable_activation_offload=True also fails: a CUDA mapping allocation
+warning precedes AsyncDoubleBufferGroupOffloadHandler.tensor_pop's assertion
+that a saved state must no longer be a tuple. This is an observed offload
+recovery failure; its independence from memory exhaustion is unproven.
+Do not remove that assertion or silently return an unrestored state.
+
+A synchronous reference around prepare_model_outputs using PyTorch save_on_cpu
+fails when packing a jagged tensor with symbolic dimensions. Retry4 narrows
+the saved-tensor hooks to dense scoring tensors and leaves jagged tensors on
+their original device. It retains full traces, model precision, FP32 scoring,
+objective, optimizer and native queue; execution and independent derivative/
+Adam checks are pending. This is an experimental memory reference, not a
+production offload design or a completed Qwen qualification. Production pins
+remain unchanged.
+
+External failed receipts: qwen-live-tq-sampo-bfloat16-temperature-repaired
+and retry1/retry2/retry3 logs plus step-zero adapters. Active retry4 is recorded
+in the campaign plan; all tools/raw evidence remain outside Git.
