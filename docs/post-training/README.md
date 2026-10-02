@@ -1,6 +1,17 @@
 # Post-training docs (canonical baseline)
 
 **Status: FROZEN — 2026-07-21** (implementation checkpoint)
+**Amendment — resolved policy updates (2026-10-02):** synchronous text-policy
+training may select an explicit optimizer schedule independently of execution
+packing. Complete native populations determine credit; selected contributions
+determine updates; packs preserve their objective, context and global weights.
+Qualified supplied semantic spans may select policy and KL support independently.
+Scorer evidence is distinct from prepared advantages. Fresh task uniqueness applies
+within collection/refills of one population; declared reuse is not regeneration.
+Existing selections retain their semantics during migration. This accepts the
+contract, not backend qualification. See [ADR 0020](../decisions/0020-resolved-policy-updates.md)
+and the [implementation plan](../plan/hierarchical-policy-update-engine.md).
+
 **Amendment — native turn rewards and episodes (2026-09-06):** optional
 turn-addressed reward evidence preserves original policy-token provenance.
 Rubrics remain custom Verifiers judge/scoring-plugin concerns; composition

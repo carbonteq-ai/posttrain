@@ -83,6 +83,17 @@ Every run snapshot MUST include:
 
 ## Measurement grain
 
+Resolved policy-update evidence distinguishes collected population, epoch,
+minibatch occurrence, optimizer attempt, applied update and skipped attempt.
+Receipts retain objective/credit/schedule/selector digests, policy score versions,
+selected/scored/gradient action coverage, declared denominators, execution packs
+and dependency cost. Membership and span identities belong in immutable artifacts,
+not metric tags. Overflow and all-zero/omitted updates cannot count as applied
+learning. Resume retains admitted evidence, permutation/cursor, model/optimizer,
+scheduler, RNG and scaler state at committed update boundaries. Observatory reads
+these records; it never reconstructs training credit or owns a correctness store.
+
+
 | Scope | Persist or compute | Examples |
 | --- | --- | --- |
 | **Trace** | Persist | Per-request TTFT; per-rollout reward; truncation/error flags |

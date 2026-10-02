@@ -21,12 +21,12 @@ upstream_revision = "483b8a009ba3a97563edee3a19887e4862b8094a"
 # runtime, including two-step distillation run
 # verl-distill-shared-pool-retentionfix-20260730 on the 96 GB worker. The
 # 2026-07-30 release decision promotes this profile into the publication graph.
-fork_revision = "ef1c37715fa75de5973ae5b3c398383cd7e0093d"
-release_tag = "carbonteq-v0.9.0.post8"
-release_wheel_sha256 = "9da6fb77815d66aa424ab71adfed4862be5291dd12f7a15df4da81d8ffcc0d08"
-release_sdist_sha256 = "ea34395aea7121f45e43045161830245e4239b0dd08495c9bf2a8f3438725cb1"
-dependency_lock_sha256 = "cdd614f2ab442c655ee211ab433030dcddf6367c2b27eaae801a89495807dbdd"
-backend_constraints_sha256 = "afa46a88c76ad6add9cba481983fdb514433960769f90c4bff6f521eb3c15ba1"
+fork_revision = "8e513f3bf3bfccb4c413846b5eb184e0b42ea9d8"
+release_tag = "carbonteq-v0.9.0.post9"
+release_wheel_sha256 = "13930e0f7699fd043beeb2ab2c0b4814499fa195611b4d08f93a798a5fd89c40"
+release_sdist_sha256 = "726f02c69bbbc6ad8e182cd599ff81a3df946ab02f9510a9a3a7da4abe730587"
+dependency_lock_sha256 = "fba7a3783a0fd0200bda893c19edc2d9bcdc83f8eebbfcf704f9a1a456477b28"
+backend_constraints_sha256 = "d902a6fe88544a9997572d5cac711ccd2f1bc7f1fbb6998a299cb690436d65b2"
 [dependencies]
 torch = "2.13.0+cu130"
 transformers = "5.14.1"

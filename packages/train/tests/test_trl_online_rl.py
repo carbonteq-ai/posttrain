@@ -148,6 +148,25 @@ def test_trl_policy_generator_reuses_loaded_trainer_and_preserves_exact_tokens(m
     }
 
 
+def test_resolved_generator_requires_native_sampler_scores_and_opts_in(monkeypatch) -> None:
+    monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: FakeRenderer())
+    profile = replace(QWEN35_GRPO_SMOKE, max_completion_length=2)
+    with pytest.raises(ValueError, match="cannot retain native sampled"):
+        TrlPolicyGenerator(FakeTrainer(), object(), QWEN_35_2B, profile, _training(), retain_generation_logprobs=True)
+
+    class ReceiptTrainer(FakeTrainer):
+        def _generate_single_turn(self, prompt_ids, generation_config, extra, *, return_generation_logprobs=False):
+            assert return_generation_logprobs is True
+            return super()._generate_single_turn(prompt_ids, generation_config, extra)
+
+    generator = TrlPolicyGenerator(ReceiptTrainer(), object(), QWEN_35_2B, profile, _training(),
+                                   retain_generation_logprobs=True)
+    result = asyncio.run(generator.generate(PolicyTurnRequest(
+        messages=({"role": "user", "content": "hello"},),
+        sampling=PolicySampling(max_tokens=2, temperature=.7, top_p=.9))))
+    assert result.completion_logprobs == (-.1, -.2)
+
+
 def test_trl_lfm_tool_cycle_keeps_sampled_prefix_and_appends_only_new_tool_messages(monkeypatch) -> None:
     from renderers import RenderedTokens
     from renderers.catalog_models import bridge_lfm25_tool_cycle
@@ -247,6 +266,38 @@ def test_trl_policy_generator_preserves_rejected_call_in_native_message(monkeypa
     raw_response = cast(dict[str, Any], result.raw_response)
     choices = cast(list[dict[str, Any]], raw_response["choices"])
     assert choices[0]["message"] == result.message
+    assert result.completion_ids == (3, 4)
+    assert result.completion_logprobs == (-0.1, -0.2)
+
+
+def test_resolved_trl_preserves_native_train_client_admission(monkeypatch) -> None:
+    from posttrain.train.update_plan import PolicyExecutionBudget, PolicyUpdateSchedule, PolicyUpdateSettings
+
+    renderer = FakeRenderer()
+    renderer.parse_response = lambda *args, **kwargs: SimpleNamespace(
+        content="", reasoning_content="Check the task.", tool_calls=[SimpleNamespace(
+            name="asana_get_task", arguments={"task_id": "bad"}, id="call_0",
+            status=SimpleNamespace(value="invalid_json"), token_span=(0, 1))])
+    monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: renderer)
+    tokenizer = SimpleNamespace(decode=lambda ids, **kwargs: "<tool_call>invalid attempt</tool_call>")
+    settings = replace(QWEN35_GRPO_SMOKE, max_completion_length=2,
+                       loop=replace(QWEN35_GRPO_SMOKE.loop, per_device_batch_size=1,
+                                    gradient_accumulation_steps=1),
+                       policy_updates=PolicyUpdateSettings(PolicyUpdateSchedule("episode", 2),
+                                                           PolicyExecutionBudget(2, 8192, 100000)))
+    generator = TrlPolicyGenerator(FakeTrainer(), tokenizer, QWEN_35_2B, settings, _training())
+    result = asyncio.run(generator.generate(PolicyTurnRequest(
+        messages=({"role": "user", "content": "hello"},),
+        sampling=PolicySampling(max_tokens=2, temperature=0.7, top_p=0.9))))
+
+    assert result.message["tool_calls"] == [{"id": "call_0", "name": "asana_get_task",
+                                           "arguments": '{"task_id": "bad"}'}]
+    evidence = cast(list[dict[str, Any]], result.message["provider_state"])
+    assert evidence[0]["type"] == "posttrain.nonconforming_tool_call"
+    assert evidence[0]["raw"] == "<tool_call>invalid attempt</tool_call>"
+    assert result.raw_response is not None
+    choices = cast(list[dict[str, Any]], result.raw_response["choices"])
+    assert choices[0]["finish_reason"] == "stop"
     assert result.completion_ids == (3, 4)
     assert result.completion_logprobs == (-0.1, -0.2)
 

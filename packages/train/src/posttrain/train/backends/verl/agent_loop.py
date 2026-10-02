@@ -307,6 +307,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         overlong_penalty_factor: float | None = None,
         truncation_penalty: float | None = None,
         emit_sampo_metadata: bool = False,
+        retain_policy_update_evidence: bool = False,
         structured_algorithm: str | None = None,
         reward_component_names: list[str] | None = None,
         **kwargs: Any,
@@ -325,6 +326,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         self._overlong_penalty_factor = overlong_penalty_factor
         self._truncation_penalty = truncation_penalty
         self._emit_sampo_metadata = emit_sampo_metadata
+        self._retain_policy_update_evidence = retain_policy_update_evidence
         self._structured_algorithm = structured_algorithm
         self._reward_component_names = tuple(reward_component_names or ())
         trainer_v1 = getattr(getattr(self.config, "trainer", None), "v1", None)
@@ -343,7 +345,7 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
         started = perf_counter()
         groups: tuple[str, ...] = ()
         identities: tuple[str, ...] = ()
-        if self._structured_algorithm is not None:
+        if self._structured_algorithm is not None or self._retain_policy_update_evidence:
             if "uid" not in kwargs or "session_id" not in kwargs:
                 raise ValueError("structured veRL rollouts require native prompt-occurrence and session identities")
             groups = (f"{self._bridge.run_id}/{step}/{kwargs['uid']}",)
@@ -402,6 +404,12 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             "min_global_steps": behavior_policy.start,
             "max_global_steps": behavior_policy.end,
         }
+        if self._retain_policy_update_evidence:
+            from .policy_rollouts import retain_episode_receipt
+
+            extra_fields["posttrain_native_episode_receipt"] = retain_episode_receipt(
+                self._bridge, rollout, sampler_step=step,
+            )
         if self._emit_sampo_metadata:
             # The native prompt occurrence identifies the group even if a task repeats in one batch.
             extra_fields.update(_sampo_metadata(rollout, str(kwargs.get("uid", rollout.example_id))))

@@ -601,7 +601,36 @@ and unambiguous before admission; missing evidence is not zero. SAMPO retains it
 explicit-turn and all-absent sparse-terminal paths. CAPO's `assistant-turns@1`
 error projection maps to eligible original policy positions; GDPO reduces turn
 scores to trajectory components under explicit selection before normalization.
-Neither projection changes the algorithm loss. Semantic segmentation is deferred.
+Neither projection changes the algorithm loss. Qualified supplied semantic spans
+are supported as a separate versioned annotation contract; automatic segmentation
+remains plugin-owned. Existing `assistant-turns@1` retains its exact meaning.
+
+Optional online `policy_updates` settings resolve a schedule independently of GPU
+execution packing. SAMPO additionally accepts `objective_variant: turn-rows`,
+resolving `sampo-turns@1` with turn-wide geometric ratios, local token gradients
+and equal-turn token means. This changes the named objective rather than the
+meaning of the optimizer's scheduling unit; existing selections are preserved.
+
+Episode/turn/token budgets preserve atomic objective contributions and
+dependency closure. Policy, KL, ratio and reduction support are distinct.
+Overlapping spans use declared set selection; credit composition is separately
+defined. Empty selections declare rejection, omission/renormalization or zero.
+The engine supports qualified versioned definitions, not arbitrary combinations.
+
+Span assessments identify retained evidence, span, scorer revision/snapshot,
+observed input and prefix/current-step/full-trajectory scope. Supplied advantages
+also identify estimator, detached meaning, complete required populations and
+normalization. Missing evidence cannot become zero. Conditioning views identify
+the actual model input for each sampled action, including rolling windows and
+branch continuations; final transcript reconstruction cannot substitute for it.
+
+Updates retain sampler, frozen old-score, current and reference policy versions.
+Only a committed applied optimizer update advances current-policy version and
+the applied-update cursor. FP16 overflow retains the occurrence for bounded retry;
+checkpoint recovery restores complete boundaries and rejects changed identities.
+Explicit applied limits must agree with any supplied legacy `loop.max_steps`.
+Existing settings without `policy_updates` keep their legacy execution semantics
+during one release of migration. New capabilities require native qualification.
 
 ### `EvaluationPlan`
 

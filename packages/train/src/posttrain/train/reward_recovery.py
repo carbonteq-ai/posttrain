@@ -20,6 +20,9 @@ def reward_contract_digest(request: GDPORequest | CAPORequest | SAMPORequest) ->
     if not isinstance(projection, RewardProjection):
         raise ValueError("structured training bridge must declare its versioned reward_projection")
     settings = asdict(request.settings)
+    # An absent additive schedule must preserve pre-engine checkpoint identity.
+    if settings.get("policy_updates") is None:
+        settings.pop("policy_updates", None)
     # Extending a run's step budget is allowed; changing learning/credit semantics is not.
     settings["loop"].pop("max_steps", None)
     # The KL reference changes what is learned, so it is part of the contract. "start"

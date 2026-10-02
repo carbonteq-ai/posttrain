@@ -90,6 +90,7 @@ def admit_rollout_groups(
                 model_id=batch.model_id,
                 prompt_group_ids=tuple(batch.prompt_group_ids[i] for i in positions),
                 rollout_ids=tuple(f"{batch.rollout_ids[i]}/attempt/{attempt}" for i in positions),
+                behavior_policy=batch.behavior_policy,
             )
             attempted += len(positions)
 

@@ -10,6 +10,7 @@ from typing import Any, Literal, Protocol, cast
 
 from posttrain.common import InferenceBinding, JsonValue, MetricBatchObservation, ProducedArtifact, TraceObservation
 from posttrain.data import MessageRecord, RolloutDataset
+from posttrain.environment.verifiers_conditioning import NativeConditioningRecord
 
 from .reward_evidence import InvalidRewardEvidence, RewardEvidence
 
@@ -225,6 +226,7 @@ class RolloutBatch:
     model_id: str
     prompt_group_ids: tuple[str, ...] = ()
     rollout_ids: tuple[str, ...] = ()
+    behavior_policy: BehaviorPolicySpan | None = None
 
     def __post_init__(self) -> None:
         if not self.example_ids:
@@ -233,6 +235,8 @@ class RolloutBatch:
             raise ValueError("online-RL batch step cannot be negative")
         if not self.model_id.strip():
             raise ValueError("online-RL batch model id cannot be empty")
+        if self.behavior_policy is not None and not isinstance(self.behavior_policy, BehaviorPolicySpan):
+            raise ValueError("rollout batch behavior policy requires a validated policy span")
         if bool(self.prompt_group_ids) != bool(self.rollout_ids):
             raise ValueError("explicit rollout identity requires both group and response IDs")
         if self.prompt_group_ids:
@@ -263,6 +267,9 @@ class EnvironmentRollout:
     turns: tuple[AgenticTurn, ...] = ()
     reward_evidence: RewardEvidence | None = None
     behavior_policy: BehaviorPolicySpan | None = None
+    conditioning_records: tuple[NativeConditioningRecord, ...] = ()
+    selected_branch_id: str | None = None
+    conditioning_completion_indices: tuple[tuple[int, ...], ...] = ()
 
     def __post_init__(self) -> None:
         if not self.prompt_ids or not self.completion_ids:
@@ -275,6 +282,18 @@ class EnvironmentRollout:
             raise ValueError("sampling logprobs must be finite when provided")
         if not any(self.env_mask):
             raise ValueError("training rollouts require at least one model-sampled token")
+        if self.conditioning_records:
+            if not self.selected_branch_id or len(self.conditioning_records) != len(self.conditioning_completion_indices):
+                raise ValueError("conditioning records require selected branch and exact completion coordinate maps")
+            covered = tuple(index for indices in self.conditioning_completion_indices for index in indices)
+            expected = tuple(index for index, eligible in enumerate(self.env_mask) if eligible)
+            if covered != expected:
+                raise ValueError("conditioning maps must cover every original eligible completion token exactly once")
+            for record, indices in zip(self.conditioning_records, self.conditioning_completion_indices, strict=True):
+                if record.trace_id != self.trace.external_id or len(indices) != len(record.sampled_token_indices):
+                    raise ValueError("conditioning records lost original trace or sampled token alignment")
+        elif self.conditioning_completion_indices or self.selected_branch_id is not None:
+            raise ValueError("conditioning coordinates require retained native views")
         if self.reward_evidence is not None:
             if self.reward_evidence.trace_id != self.trace.external_id:
                 raise InvalidRewardEvidence("reward evidence must reference the rollout's native trace")

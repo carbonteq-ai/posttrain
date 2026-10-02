@@ -43,6 +43,14 @@ def _request(settings: SAMPOSettings, form: str) -> Any:
     )
 
 
+@pytest.mark.parametrize("enabled", [False, True])
+def test_native_determinism_selection_reaches_trainer_arguments(tmp_path, enabled) -> None:
+    request = _request(_settings(), "adapter")
+    request.training.backend_options = {"full_determinism": enabled}
+    arguments = _online_rl_arguments(request, tmp_path, {})
+    assert arguments["full_determinism"] is enabled
+
+
 def test_kl_reference_defaults_to_the_base_model_and_is_validated() -> None:
     assert _settings().kl_reference == "base"
     assert _settings(kl_reference="start").kl_reference == "start"
@@ -157,6 +165,8 @@ def test_reward_contract_digest_changes_with_the_kl_reference() -> None:
     legacy = asdict(_settings(kl_reference="start"))
     legacy["loop"].pop("max_steps")
     legacy.pop("kl_reference")
+    # Pre-engine checkpoints did not contain the additive selection field.
+    legacy.pop("policy_updates")
     legacy["active_sampling"] = {"max_candidate_batches": legacy["active_sampling"]["max_candidate_batches"]}
     payload = {
         "schema": "posttrain.reward-contract.v1",

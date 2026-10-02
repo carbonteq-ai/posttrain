@@ -1,10 +1,10 @@
 # Recipe candidate for the correctness campaign
 
-2026-09-30. Choose **two optimizer updates over one frozen rollout group** as
-the first SAMPO schedule candidate, against a one-update control. This is an
-experiment selection, not a validated production winner. The objective is to
-learn from useful trajectories more effectively while preserving correct
-credit and measuring the resulting policy movement.
+Updated2026-10-01. **Use published agentic-RL ablations and author implementations
+as the primary basis for the recipe.** Small-card runs qualify implementation
+and estimate local numerical effects; they cannot reproduce the learning
+evidence of large training runs. The earlier two-update proposal is a bounded
+mechanics probe, not a research-established optimal production schedule.
 
 Three authorized research reviews checked primary papers, author code and
 ablations: [update schedules](update-recipe-research.md),
@@ -13,6 +13,92 @@ ablations: [update schedules](update-recipe-research.md),
 are recorded separately so future recipe changes have an inspectable rationale.
 
 ## Candidate and controls
+
+### 2026-10-01 correction: research selects; local checks qualify
+
+The user clarified that recipe selection must rely primarily on research and
+ablations, not small-card learning comparisons. Apply the following evidence
+hierarchy: task-relevant controlled ablations, complete reported recipes and
+author code, broader framework examples, then local implementation checks.
+Distinguish a measured ablation result from a published setting with no isolated
+ablation, and from our transfer assumption. A production-scale local replication
+is not a prerequisite for recommending a research-backed recipe.
+
+The recommended direction is SAMPO's sequence-level control with fine-grained
+environment credit and its documented agentic training schedule. Preserve
+behavior scores across optimizer minibatches, compute credit over complete
+groups before splitting, and take an optimizer step after each complete
+optimizer minibatch. Accumulation is a memory mechanism, not a substitute for
+that schedule. Author turn-row training and our packed episodes have different
+ratios/reductions: adopting the former requires an explicit objective amendment,
+not silently translating its row counts into episode counts.
+
+Revision 24 (2026-10-02) adds that explicit amendment and `sampo-turns@1`,
+selected through `policy_updates.objective_variant: turn-rows`. It combines
+turn-wide geometric ratios with equal-turn token-mean reduction and local token
+derivatives, retaining complete-group Posttrain SAMPO credit. Episode-wide
+`sampo@1` remains unchanged. This targets the inspected ARL-Arena collection/GSPO
+kernel shape, not full author-run reproduction: the available script names a
+SAMPO estimator absent from the inspected Python registry, and its GSPO kernel
+caps log weights at 10 whereas our engine rejects nonfinite uncapped ratios.
+Clipping coefficients, credit normalization and filtering retain their separate
+provenance and qualification requirements below.
+
+Use group8, gamma.95 and reference beta.01 as author-recipe starting values for
+agentic tasks. These are published choices, not independently proven optima for
+our LoRA setup. The inspected actor uses one PPO epoch containing multiple
+minibatches; no reviewed reuse-count ablation establishes exactly two whole-
+population passes. Clipping and advantage normalization remain provenance gaps:
+the WebShop script selects .003/.004 and mean normalization, while the paper's
+table lists .03/.04 and mean/std normalization. Preserve both sources explicitly
+rather than presenting one as an unambiguous paper default.
+
+The research rationale is stronger for sequence control than for stronger KL:
+ARLArena's ALFWorld tolerant-clipping ablation reports SAPO success25.16%,
+48.05% with KL.05, and76.92% with sequence masking. This is an ablation of
+SAPO stabilization, not proof of an optimal SAMPO KL or optimizer batch size.
+The paper also finds filtering's format-learning effect depends on credit
+design. Retaining equal-return groups with nonzero local credit is a Posttrain
+transfer proposal, not an author-validated filtering rule.
+
+| Dimension | Recommended first comparison | Reason and boundary |
+| --- | --- | --- |
+| Update schedule | One versus two complete optimizer updates per frozen rollout population | Preserve whole-episode SAMPO credit/reduction and freeze behavior scores for both passes. This isolates reuse; it does not reproduce the author's turn-row objective. |
+| Group size | Four episodes per prompt for the small pilot; test eight separately | Increase the chance of mixed outcomes without confusing a two-episode numerical fixture with a learning batch. Hold episode and prompt budgets explicit. |
+| Admission | Existing episode-spread gate versus a separately defined valid-token-credit gate | Equal final returns can retain nonzero local SAMPO advantages. Record rejected credit before proposing a contract change; include format-invalid and truncated cases separately. |
+| LR and LoRA | Keep rank, alpha, scaling, target modules and LR identical initially; then test half LR for two updates | Two Adam steps are not equivalent to one step at twice LR. Compare adapter increments and policy drift; do not normalize by rank alone. |
+| Clipping | Retain the selected sequence bounds initially | Do not copy DAPO token bounds or tune LR merely to produce a clipping percentage. Measure useful unclipped credit and post-update behavior drift. |
+| Reference KL | Retain the selected coefficient and estimator initially; then compare beta zero against the retained coefficient | Separate policy and penalty gradients. Avoid conflating a changed KL convention with a schedule experiment. |
+| Precision | BF16 first; FP16 as a separately measured candidate with explicit scaler history | Preserve raw numerical alerts, but no universal 0.01% full-model gradient threshold establishes a framework defect or a safe training recipe. |
+| Response budget | Collection-only budget check before learning comparisons | Determine whether tool syntax and task completion fit. Changing the budget or dropping truncated episodes changes the learning population. |
+
+Fresh primary-source review strengthens the admission concern.
+[ARLArena section4.3 and Appendix G](https://arxiv.org/html/2602.21534v3#S4.SS3)
+find that dynamic filtering can impair format learning with GRPO, while its
+interaction with richer GIGPO advantages is more favorable. This is evidence
+to test admission carefully, not evidence to remove filtering universally.
+The author's reported effects involve their reward/format penalties and models;
+identically zero Posttrain advantages supply no policy-gradient signal.
+[DAPO Table1](https://arxiv.org/html/2503.14476v2#S4.T1) shows gains along a
+cumulative math-recipe ablation; those gains do not independently validate each
+change for multi-turn tool learning.
+
+The comparison table above now defines optional local checks and transfer
+diagnostics, not a learning leaderboard or prerequisites for recipe selection.
+Do not use four-episode pilots or two/three-step clipping rates to overrule the
+published group8 recipe or claim a winning schedule. Local acceptance checks
+are correct masks/credit, frozen behavior scores, intended optimizer-step count,
+finite scaled updates and agreement between normalized backend settings.
+Calculations can estimate useful-signal retention, reuse exposure, ratio drift,
+memory and cost. Their scope must remain explicit. Subsequent production
+monitoring should track tool/task quality and cost; recommending the research
+recipe does not require proving its superiority on8GB first. Admission or
+objective changes require the canonical baseline amendment and public/backend
+normalization before production adoption.
+
+This follow-up introduces no CLI setting, production pin, recipe default or
+new experiment result. Older precision controls below remain historical evidence
+for their exact fixtures; they are not the current universal FP16 verdict.
 
 Keep ordinary LoRA, rank4/alpha8, dropout0, FP32 trainable adapters and Adam
 state. Hold target modules, initialization, LR, reward projection, reference
@@ -40,7 +126,7 @@ at half LR. This depends on optimizer, initialization and coverage; measure
 merged adapter increments and policy drift rather than treating the formula
 as an exact normalization.
 
-## Why this candidate
+## Research rationale and historical mechanics probes
 
 [ARLArena/SAMPO](https://arxiv.org/html/2602.21534v3) is closest to multi-turn
 tool agents. Its released actor takes steps over turn minibatches, so one epoch
@@ -68,7 +154,7 @@ rank/alpha conventions matter. Neither directly qualifies these model families,
 our initialization or SAMPO tool learning. Test ordinary LoRA first, then LoRA+
 or rsLoRA as separate challenger arms.
 
-## Acceptance and deployment boundary
+## Historical local evidence and implementation boundary
 
 The controlled one/two-update BF16 probes both pass for Qwen0.8B and LFM1.2B.
 Each model's paired arms have identical input hashes and identical recorded

@@ -1,5 +1,88 @@
 # TRL
 
+Selected: `1.12.0.post14`, published as
+[carbonteq-v1.12.0.post14](https://github.com/carbonteq-ai/trl/releases/tag/carbonteq-v1.12.0.post14)
+at immutable source `09312dd1d96603587d1a24c3b714836cf67400f1`, based on
+maintained source d97a2cf619f94c7076a720116d75f85dfd62382b. It is post13 plus one
+commit: opt-in preservation of sampled generation scores on the regular
+Transformers generation path, and mixed PEFT checkpoint adapter restoration.
+Retained wheel SHA256 `ef77a1f07154d3958d9f32eb90d2ce01e16048ff5d7e33bbf5be9e215666dc40`;
+sdist SHA256 `ed6a99c71f950af7147367ec582fda65f7cf22933460c86b73b7aadeabbac2dd`.
+
+Qualification evidence: retained-asset publisher
+[run36988812519](https://github.com/carbonteq-ai/posttrain/actions/runs/36988812519)
+passes development storage, hash readback and clean install; the installed
+candidate passes all 5 focused regressions in the qualification image; R132
+installs it from the index and passes BF16 and FP16 two-update execution,
+independent objective/gradient/clipping verification and full checkpoint
+continuation. Stable promotion
+[run36990000110](https://github.com/carbonteq-ai/posttrain/actions/runs/36990000110)
+transfers the unchanged bytes to `carbonteq/stable` with byte-identical readback.
+
+Consumer adoption (2026-10-02): `packages/train/pyproject.toml`, `uv.lock`,
+`release/forks.toml`, the generated job-kind locks
+(`posttrain-release lock-runtime-dependencies`), the base catalog
+`trl-fork@current` lock digest and the CI wheel identity select post14. Kind
+images must be rebuilt from these locks before jobs use post14; existing
+containers retain their immutable runtime. Previously selected post13 is
+recorded below.
+
+## Candidate mixed PEFT checkpoint restoration
+
+The unpublished generation-receipt candidate also repairs the mixed PEFT
+checkpoint layout in native `_BaseTrainer._load_from_checkpoint`. In the
+qualified runtime (Transformers5.14.1/PEFT0.19.1), the native loader reloads
+`ref/` but skips the trainable root `default` adapter. R125 resumed ratios
+therefore reset to1 while the uninterrupted second update had drift and clipping.
+An offline tiny GPT2 regression verifies exact restoration of both adapters and
+their trainability. The supplement preserves native optimizer/RNG loading and
+excludes FSDP, DeepSpeed and full-model checkpoints. Its source and regression
+belong to `/home/hammad/projects/trl-engine-generation`; the fork ledger records
+the delta. R126 tests the repair against retained R124 evidence without new
+rollouts; it exits0 with132 tensors and retained evidence exactly matching the
+uninterrupted second boundary. Posttrain's subsequent recovery identity now includes inherited
+trainer source, so final qualification requires a matched pair under that
+identity; historical checkpoints are not silently migrated. Publication and
+immutable pin/runtime adoption remain open.
+All5 focused fork regressions pass in the qualification image with offline CPU
+pytest. Strengthened-identity matched native qualification is R129: BF16 packing,
+BF16/FP16 actor execution, one versus two minibatches per population epoch and
+full continuation under each branch's exact source identity. It reuses R124
+native evidence and supplies nonzero KL; it does not qualify fresh FP16 collection.
+All four branches pass two applied updates, independent objective/gradient/
+clipping references and full checkpoint continuation. BF16 packing produces
+exactly identical saved adapters at both boundaries. The suite exits0; R128's
+earlier rejected resumes remain negative evidence, superseded by this repair.
+
+## Candidate native Transformers generation receipts
+
+The resolved job collector needs sampled probabilities in native Verifiers
+traces. The selected TRL post13 regular Transformers generation path returns
+`None` for these probabilities. Candidate worktree
+`/home/hammad/projects/trl-engine-generation`, branch
+`codex/hf-sampled-policy-scores`, starts at exact maintained commit
+`d97a2cf619f94c7076a720116d75f85dfd62382b` and adds opt-in processed generation
+score retention. The framework enables this only for resolved native collection;
+legacy generation stays unchanged. A trainer lacking the keyword rejects before
+generation rather than inventing sampler scores from a later actor forward.
+
+Four fork regressions pass for BF16/FP16/FP32 normalization and EOS alignment.
+Continuous Transformers batching cannot supply these receipts and rejects.
+Fresh native GPU collection/training and generation score-memory budgets remain
+open; this is unpublished source, not a reproducible runtime release. Commit and
+push the fork, publish and verify its retained distribution, then update consumer
+pins/lockfiles/runtime under docs/tooling/forks.md after qualification. The normal
+job's capability guard remains. See the hierarchical-engine plan and fork ledger.
+
+Revision 36 fresh ordinary candidate jobs exercise the new receipts on native
+AutomationBench: BF16 Thinking and FP16 Instruct each finish three optimizer
+slots and save three verified checkpoints. All group outcomes are uniform (0
+for truncated Thinking, 1 for successful Instruct), so advantages and gradients
+are zero. Native generation transport passes; productive updates, reference
+scoring/resume, publication and runtime adoption remain open. Model variants
+differ, so this is not a BF16/FP16 parity control. Exact evidence lives in the
+hierarchical-engine plan; raw runners/receipts remain outside Git.
+
 ## Sampled KL boundary and matched kernel qualification
 
 Published source candidate `5d4f9ad3c5f5d51b1ea50b827d82fdd379231dbf`
@@ -9,7 +92,6 @@ SAMPO tests pass. Matched Qwen, LFM and tiny Gemma4 BF16/FP16 loss kernels
 pass 12 updates and 24 microbatch comparisons. TRL applies those updates;
 native veRL engines and production wheel/runtime adoption remain open.
 See [matched-kernel evidence](../../research/evidence/correctness-matrix/matched-kernel-results.md).
-
 
 ## Preference divergence numerical qualification
 
@@ -69,7 +151,58 @@ resume checkpoint 1 to matching uninterrupted weights, and generate from the
 export. This is deterministic full-parameter fixture evidence, not live Verifiers,
 judge, LoRA, vLLM or pilot-model qualification. Main pins remain unchanged.
 
-Selected candidate: `1.12.0.post12`, tag `carbonteq-v1.12.0.post12`, release
+Unreleased numerical follow-on under local qualification, source commit
+`18e89c58bee70d25f1231cbe0dc4a865540d6fe5` on
+`codex/sampo-local-credit`: promote BF16 logits
+before temperature/log-softmax and scores before GRPO ratio/KL arithmetic.
+Native BF16 scoring differed from FP32 probability math by 0.017236 nats on
+Qwen0.8B and 0.044215 on LFM1.2B. This is numerical correction, not a KL
+estimator change. The fork's precision/SAMPO/reference/padding slice passes 29 cases;
+real-model and short-rollout evidence is maintained in
+`docs/research/evidence/correctness-matrix/`. Existing runtime pins remain post13
+until this follow-on is published and qualified. Full production transport,
+distributed/fused paths, and convergence are still open gates.
+
+The follow-on also neutralizes excluded old-policy log ratios before
+exponentiation and promotes sampled IW-OPD half logits before probability math.
+All 248 independent policy cases and 66 distillation cases pass; focused gates
+pass 30 SAMPO/precision and 73 IW-OPD tests (one optional Liger skip). Both IW-OPD
+precision regressions fail on the isolated original post13 wheel. Nine fresh
+real-model updates match independent sampled-score credit gradients. LFM
+Thinking completes 0/6 at 32 tokens and 5/6 at 256; this is a diagnostic budget
+comparison, not a convergence claim. Details:
+[loss and distillation evidence](../../research/evidence/correctness-matrix/loss-kernels-and-distillation.md).
+Alternative JSD half paths and full teacher transport remain unqualified.
+
+Further source DPO qualification repairs half policy/reference probability
+math and near-certain-token gradient cancellation, using row-wise stable
+log-softmax for policy and cached/online references. Sixty independent cases
+and twelve real-model SFT/DPO updates pass. Qwen's approximately 2% DPO
+parameter-gradient discrepancy after half promotion alone disappears with
+stable scoring; double probabilities support the correction. Ten focused
+precision/collator tests pass. The separate LFM renderer SFT assistant-header
+mask failure remains open. Evidence:
+[preference and supervised audit](../../research/evidence/correctness-matrix/preference-and-supervised-results.md).
+
+Previously selected: [1.12.0.post13](https://github.com/carbonteq-ai/trl/releases/tag/carbonteq-v1.12.0.post13),
+source `d97a2cf619f94c7076a720116d75f85dfd62382b`, branch
+`codex/sampo-local-credit`, based on the exact post12 release below. Post13 fixes
+token-local sequence gradients for precomputed turn advantages, excludes masked
+reference ratios before KL exponentiation, preserves tiny KL values with
+`expm1`, and counts sampled action tokens after active/dynamic sampling refills.
+These restore existing objective contracts; they do not change update scheduling,
+KL recipe settings, or rollout row boundaries. The retained wheel SHA-256 is
+`d5530d28b16a4a16ffed1f786356caa9c68a2ad40bdfa6c1b2ab67d03d0d355a`; sdist
+`bf075f003c5134240bbddf7195b93c71ee01ff95f142b68ce200146c20e03510`.
+[Publisher 36727590142](https://github.com/carbonteq-ai/posttrain/actions/runs/36727590142)
+passed development publication, exact-byte readback, and clean installation.
+The focused source suite passes 59 tests with four PEFT dependency skips; 42
+isolated installed-wheel regressions pass. Stable promotion and live LFM training
+qualification remain open. Existing containers retain their immutable runtime;
+this pin is for newly built runtimes. Audit and proposed schedule experiments:
+[objective measurement plan](../../plan/sampo-post-update-measurement.md).
+
+Earlier selected: `1.12.0.post12`, tag `carbonteq-v1.12.0.post12`, release
 commit `c4d0db051a7839fe1b1d587185fac33ba88c784f` (branch
 `codex/fp16-loss-fp32`, feature commit `9aa833ae`, on the post11 release
 commit). It is post11 plus float16-safe GRPO and RLOO: float16 logits are
@@ -590,6 +723,22 @@ replace SFT, DPO, or GRPO acceptance for the two foundation profiles.
 
 ## Trainer and rollout precision
 
+Online-RL bindings may opt into native Transformers reproducibility controls
+with `backend_options.full_determinism: true` (default false). The adapter
+configures the native helper before CUDA model loading and passes the same
+selection to Trainer. This enables deterministic kernels and native workspace
+controls and can reduce throughput; it does not change the objective or precision.
+Resolved checkpoint identity includes effective deterministic, TF32 and workspace
+settings, so a recovery mode change rejects rather than silently continuing.
+Ordinary BF16 Thinking diagnostics restore all 24 adapter tensors exactly in both
+modes; their next gradients and updates match exactly only in deterministic mode.
+The production option passes ordinary LFM Thinking retained-population
+continuation in BF16 (four episodes) and FP16 (eight episodes), with three
+nonzero-gradient updates per control. Both remaining updates reproduce all 24
+adapter tensors, optimizer/scheduler state and FP16 scaler exactly. This is a
+bounded single-GPU check; see the hierarchical engine plan, revision 45, for
+remaining production and release gates.
+
 The trainer and the colocated vLLM sampler compute the same policy's token
 log-probabilities with different kernels, and rounding in their compute dtype
 makes the two disagree; the truncated importance-sampling (IS) correction then
@@ -793,3 +942,75 @@ and80 independent full-vocabulary scalar checks pass. Max score3.39e-7 and
 checked derivative5.97e-10; peaks3.152GB Qwen/4.545GB LFM. Actual unshifted scaled
 logits stay within[-28.44,48.75]. This closes a detached-scoring memory gate;
 model/optimizer backward, throughput and task-quality attribution remain open.
+
+### Resolved policy-update engine candidate (2026-10-02)
+
+Posttrain's private backends/trl/policy_updates.py now feeds pre-resolved optimizer
+minibatches through the existing pinned GRPOTrainer training_step/optimizer loop.
+It bypasses native generation repetition for those payloads and keeps old scores
+frozen across declared reuse. Four optional native CPU loop tests pass at exact
+consumer source d97a2cf619f94c7076a720116d75f85dfd62382b. This requires no generic
+fork source change or pin update.
+
+Bounded Qwen3.5-0.8B LoRA BF16/FP16 runs over retained AutomationBench trajectories
+apply two updates in each one/two-minibatch arm. Full-population second updates
+clip88/104 actions respectively; old-score digests remain unchanged. The default
+allocator full-population BF16 backward OOM is retained; expandable allocator
+segments permit the identical graph to complete, peak5.215GB allocated. Counts,
+exposure differences, exact identities, raw external receipts and retry commands
+are in docs/plan/hierarchical-policy-update-engine.md revision7.
+
+These are fixed-evidence candidate results. Public policy_updates launch remains
+gated. Fresh collection wiring, sampler correction, independent real-model
+gradient equivalence, overflow retry, broader atomic resume, veRL parity, distributed
+normalization and additional model-family gates remain open. Existing selections
+and fork release qualification claims remain unchanged.
+
+Native checkpoint qualification now includes a two-update Qwen3.5-0.8B control
+that saves update 1 and continues, plus a fresh process restoring that exact
+boundary. FP16 matches all 24 LoRA matrices, frozen scores, loss/clipping,
+optimizer counters and scaler state exactly. BF16 also matches exactly with
+torch deterministic algorithms enabled and CUBLAS_WORKSPACE_CONFIG=:4096:8.
+Default BF16 produced a maximum parameter difference of 6.7978e-5; this remains
+an observed discrepancy without an accepted margin or diagnosed kernel cause.
+These are within-backend fixed-evidence checks, not cross-backend parity or a
+performance recommendation. Exact runtime/source identities and external
+receipts are recorded in the engine plan, revision 10. Public launch remains gated.
+
+Revision 11 adds explicit bounded single-process overflow retries using native
+training/backward, clipping, optimizer and scaler hooks before LR/global-step
+advancement. Qwen FP16 skips eight attempts at a deliberately high startup scale,
+then applies two updates at scale 65536. Its accepted-scale control and a fresh
+process resumed after retry match all 24 LoRA matrices, frozen scores, losses,
+clipping, successful gradients and scaler exactly. Attempts (10) remain separate
+from applied updates (2). CPU tests additionally check stochastic replay,
+exhaustion and unscaled nonfinite rejection before parameter mutation. Later
+source guards have CPU evidence; GPU receipts retain their exact earlier source
+identities and do not certify final release assets. No trainer fork patch was
+needed. Full qualification and public composition remain open in the engine plan.
+
+Current-source LFM2.5-1.2B fixed-evidence qualification also completes two applied
+updates in each BF16/FP16 full/split arm. Initial parameters and frozen old scores
+match across schedules within each precision. Full arms use 2506 sampled-action
+exposures versus 1253 in split arms; second full updates clip 512/1253 actions,
+while split arms clip zero. This is correctness evidence, not a matched-work
+recipe comparison. Fresh-process checkpoint continuation matches all 24 LoRA
+matrices, final events, counters and scaler exactly in both precisions under the
+recorded deterministic CUDA profile. These receipts cover the current adapter
+guards (source hash e1a7b618133809854a6cb1990367e90bba5b28e4bbc92f871f57703f44f3ba60).
+Model/runtime identities, resource/cache failure logs and external receipts are
+recorded in the engine plan revision 13. Public launch and release gates remain open.
+
+The explicit private `sampo-turns@1` variant now has bounded LFM BF16/FP16
+mid-population recovery evidence (engine plan revision 26). Three-update native
+controls checkpoint after update 1; fresh processes restore the sealed resolved
+objective, prepared credit and frozen scores. Their two remaining events and all
+24 final adapter matrices match exactly, including FP16 scaler/counters and
+the fully clipped second update. This uses consumer source
+`d97a2cf619f94c7076a720116d75f85dfd62382b` and adds no fork patch. Revision 25
+also establishes exact cross-backend BF16 scores and adapter transitions for
+the bounded fixture when both paths receive identical initial adapter tensors.
+Equal random seeds alone did not establish that equality. Raw receipts and
+diagnostic tools remain outside Git; the [engine plan](../../plan/hierarchical-policy-update-engine.md)
+records exact identities and validation commands. Public launch, distributed
+execution, informative Gemma updates and full runtime/release adoption remain gated.

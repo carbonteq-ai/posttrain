@@ -37,10 +37,60 @@ from .profiles import (
     TrainingRenderer,
 )
 from .reward_projection import RewardComponentProjection, RewardProjection
+from .update_plan import PolicyExecutionBudget, PolicyUpdateSchedule, PolicyUpdateSettings
+from .update_records import ActionSelection
 
 
 class TrainCatalogSchema(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class ActionSelectionSchema(TrainCatalogSchema):
+    mode: Literal["all", "spans"] = "all"
+    span_ids: tuple[str, ...] = ()
+
+
+class PolicyUpdateScheduleSchema(TrainCatalogSchema):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    unit: Literal["episode", "turn", "selected-token"]
+    budget: int = Field(gt=0)
+    epochs: int = Field(default=1, gt=0)
+    order: Literal["native", "shuffle"] = "native"
+    seed: int = 42
+    final_policy: Literal["include", "drop", "error"] = "include"
+    max_applied_updates: int | None = Field(default=None, gt=0)
+
+
+class PolicyExecutionBudgetSchema(TrainCatalogSchema):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    records: int = Field(gt=0)
+    context_tokens: int = Field(gt=0)
+    statistic_bytes: int = Field(gt=0)
+    oversized_policy: Literal["error"] = "error"
+
+
+class PolicyUpdateSettingsSchema(TrainCatalogSchema):
+    schedule: PolicyUpdateScheduleSchema
+    execution: PolicyExecutionBudgetSchema
+    objective_variant: Literal["algorithm", "semantic-spans", "turn-rows"] = "algorithm"
+    policy_selection: ActionSelectionSchema = Field(default_factory=ActionSelectionSchema)
+    kl_selection: ActionSelectionSchema = Field(default_factory=ActionSelectionSchema)
+    denominator: Literal["selected", "original-eligible"] = "selected"
+    empty_policy: Literal["reject", "omit", "zero"] = "reject"
+    revision: Literal["1"] = "1"
+
+
+def _decode_policy_updates(payload: PolicyUpdateSettingsSchema | None) -> PolicyUpdateSettings | None:
+    if payload is None:
+        return None
+    return PolicyUpdateSettings(
+        schedule=PolicyUpdateSchedule(**payload.schedule.model_dump()),
+        execution=PolicyExecutionBudget(**payload.execution.model_dump()),
+        objective_variant=payload.objective_variant,
+        policy_selection=ActionSelection(**payload.policy_selection.model_dump()),
+        kl_selection=ActionSelection(**payload.kl_selection.model_dump()),
+        denominator=payload.denominator, empty_policy=payload.empty_policy, revision=payload.revision,
+    )
 
 
 class RendererSchema(TrainCatalogSchema):
@@ -199,6 +249,7 @@ class GRPOSettingsSchema(TrainCatalogSchema):
     id: str
     revision: str = "1"
     loop: TrainingLoopSchema
+    policy_updates: PolicyUpdateSettingsSchema | None = None
     num_prompts_per_step: int = Field(default=1, gt=0)
     num_generations: int = Field(default=2, ge=2)
     max_prompt_length: int = Field(default=256, gt=0)
@@ -248,6 +299,7 @@ class SAMPOSettingsSchema(TrainCatalogSchema):
     id: str
     revision: str = "1"
     loop: TrainingLoopSchema
+    policy_updates: PolicyUpdateSettingsSchema | None = None
     num_prompts_per_step: int = Field(default=1, gt=0)
     num_generations: int = Field(default=2, ge=2)
     max_prompt_length: int = Field(default=256, gt=0)
@@ -284,6 +336,7 @@ class StructuredRLSettingsSchema(TrainCatalogSchema):
     id: str
     revision: str = "1"
     loop: TrainingLoopSchema
+    policy_updates: PolicyUpdateSettingsSchema | None = None
     num_prompts_per_step: int = Field(default=1, gt=0)
     num_generations: int = Field(default=2, ge=2)
     max_prompt_length: int = Field(default=256, gt=0)
@@ -388,8 +441,9 @@ def decode_training_selection(
     if isinstance(payload, GDPOSettingsSchema | CAPOSettingsSchema):
         settings_type = GDPOSettings if isinstance(payload, GDPOSettingsSchema) else CAPOSettings
         return settings_type(
-            **payload.model_dump(exclude={"selection_type", "loop"}),
+            **payload.model_dump(exclude={"selection_type", "loop", "policy_updates"}),
             loop=TrainingLoop(**payload.loop.model_dump()),
+            policy_updates=_decode_policy_updates(payload.policy_updates),
         )
     if isinstance(payload, SFTSettingsSchema):
         validation = (
@@ -411,6 +465,7 @@ def decode_training_selection(
         )
     if isinstance(payload, GRPOSettingsSchema):
         values = payload.model_dump(exclude={"selection_type", "id", "revision", "loop"})
+        values["policy_updates"] = _decode_policy_updates(payload.policy_updates)
         dynamic_sampling = values.pop("dynamic_sampling")
         if dynamic_sampling is not None:
             values["dynamic_sampling"] = DynamicGroupSampling(**dynamic_sampling)
@@ -436,6 +491,7 @@ def decode_training_selection(
         )
     if isinstance(payload, SAMPOSettingsSchema):
         values = payload.model_dump(exclude={"selection_type", "id", "revision", "loop"})
+        values["policy_updates"] = _decode_policy_updates(payload.policy_updates)
         values["active_sampling"] = ActiveGroupSampling(**values["active_sampling"])
         adaptive_curriculum = values.pop("adaptive_curriculum")
         if adaptive_curriculum is not None:

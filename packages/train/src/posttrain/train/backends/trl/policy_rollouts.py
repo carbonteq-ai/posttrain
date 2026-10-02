@@ -18,14 +18,59 @@ from posttrain.common import (
 )
 
 from ...grpo_observations import episode_ending_counts
-from ...online_rl import EnvironmentRollout, RolloutBatch, run_observed_rollouts
+from ...online_rl import BehaviorPolicySpan, EnvironmentRollout, RolloutBatch, run_observed_rollouts
 from ...profiles import shape_online_reward
 from ...requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
 from ...reward_advantages import compute_capo_advantages, compute_gdpo_advantages
 from ...sampo_advantages import compute_sampo_advantages
+from ...update_plan import ExecutionCapabilities
+from ...update_records import InvalidPolicyUpdate, PolicyVersions, SemanticSpan
+from ..policy_update_admission import AdmittedNativePopulation
 from .update_totals import RolloutUpdateTotals
 
 type PolicyTechnique = Literal["grpo", "dapo", "olmo3", "sampo", "gdpo", "capo"]
+
+
+def collect_resolved_population(
+    context: RunContext, request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
+    tokenizer: Any, trainer: Any, rows: list[dict[str, Any]],
+    capabilities: ExecutionCapabilities, *, population_id: str,
+    template_revision: str, versions: PolicyVersions, selector_digest: str,
+    attempt_offset: int, spans: tuple[SemanticSpan, ...] = (),
+    max_overflow_retries: int = 0, totals: RolloutUpdateTotals | None = None,
+) -> AdmittedNativePopulation:
+    """Reuse ordinary collection and complete-group admission before resolution.
+
+    The caller supplies the complete logical collection rows, independently of
+    the native dataloader's single resolved-update slot. Publish the validated
+    replay artifact before returning to the native optimizer lifecycle.
+    """
+    bridge = cast(Any, request.bridge)
+    if (getattr(bridge, "policy_update_context_contract", None) != "causal-text@1"
+            or not callable(getattr(bridge, "retain_population", None))):
+        raise InvalidPolicyUpdate("resolved collection requires native conditioning and retained artifact support")
+    if request.settings.policy_updates is None:
+        raise InvalidPolicyUpdate("resolved collection requires an explicit policy update selection")
+    if trainer.accelerator.num_processes != 1 or bool(getattr(trainer, "active_sampling", False)):
+        raise InvalidPolicyUpdate("resolved production collection has not qualified distributed or native active refills")
+    applied = trainer.state.global_step
+    if type(applied) is not int:
+        raise InvalidPolicyUpdate("resolved collection requires an exact native applied counter")
+    AdmittedNativePopulation._validate_counters(applied, attempt_offset, max_overflow_retries)  # noqa: SLF001
+    collector = rollout_function(context, request, tokenizer, totals, retain_native=True)
+    rollouts = collector([row["prompt"] for row in rows], trainer, inputs=rows)
+    if not isinstance(rollouts, tuple):
+        raise InvalidPolicyUpdate("resolved collector returned flattened trainer rows")
+    artifact = bridge.retain_population(rollouts)
+    admitted = AdmittedNativePopulation.from_retained_artifact(
+        artifact, rollouts, request.settings, capabilities, population_id=population_id,
+        template_revision=template_revision, versions=versions, sampler_step=applied,
+        selector_digest=selector_digest, spans=spans,
+        applied_update_offset=applied, attempt_offset=attempt_offset,
+        max_overflow_retries=max_overflow_retries,
+    )
+    context.artifact(artifact)
+    return admitted
 
 
 def technique(request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest) -> PolicyTechnique:
@@ -41,6 +86,7 @@ def rollout_function(
     request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
     tokenizer: Any,
     totals: RolloutUpdateTotals | None = None,
+    *, retain_native: bool = False,
 ) -> Any:
     """Translate TRL generation batches into the public environment-rollout bridge contract.
 
@@ -55,6 +101,8 @@ def rollout_function(
     update_totals = totals if totals is not None else RolloutUpdateTotals(context)
 
     rollout_execution = _rollout_execution_config(request)
+    if retain_native and rollout_execution is not None:
+        raise ValueError("resolved native collection has not qualified asynchronous rollout execution")
     rollout_batch_step: int | None = None
     rollout_batch_ordinal = 0
     collection_ordinal = 0
@@ -64,7 +112,7 @@ def rollout_function(
         trainer: Any,
         *,
         inputs: list[dict[str, Any]] | None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | tuple[EnvironmentRollout, ...]:
         nonlocal collection_ordinal, rollout_batch_ordinal, rollout_batch_step
         if inputs is None or len(inputs) != len(prompts):
             raise ValueError("TRL must provide dataset rows aligned with rollout prompts")
@@ -107,6 +155,9 @@ def rollout_function(
         admission = None
         with context.phase("rollout", {"backend": "trl", "logical_step": optimizer_step}):
             batch = _rollout_batch(request, trainer, example_ids, optimizer_step, rollout_batch_ordinal)
+            if retain_native:
+                applied = trainer.state.global_step
+                batch = replace(batch, behavior_policy=BehaviorPolicySpan(applied, applied))
 
             def collect(selected: RolloutBatch) -> Sequence[EnvironmentRollout]:
                 nonlocal collection_ordinal
@@ -119,6 +170,7 @@ def rollout_function(
                         request.policy,
                         request.settings,
                         request.training,
+                        **({"retain_generation_logprobs": True} if retain_native else {}),
                     )
                     return asyncio.run(run_observed_rollouts(request.bridge, selected, generator, observe_trace))
 
@@ -275,6 +327,16 @@ def rollout_function(
                     attributes={"optimizer_step": optimizer_step},
                 )
             )
+        if retain_native:
+            # Complete admitted groups retain native conditioning and reward
+            # evidence. The resolved engine owns credit; do not compute legacy
+            # trainer advantages or flatten away the original graphs here.
+            if trainer.state.global_step != optimizer_step - 1 or any(
+                rollout.behavior_policy != BehaviorPolicySpan(optimizer_step - 1, optimizer_step - 1)
+                for rollout in rollouts
+            ):
+                raise InvalidPolicyUpdate("native collection lost its fixed applied behavior policy")
+            return tuple(rollouts)
         result = {
             "prompt_ids": [list(rollout.prompt_ids) for rollout in rollouts],
             "completion_ids": [list(rollout.completion_ids) for rollout in rollouts],
@@ -391,6 +453,7 @@ def _sampo_update_means(advantages: Any, settings: Any) -> dict[str, tuple[float
             len(advantages.used_sparse_rewards),
         ),
         **advantages.hierarchy_evidence(settings.step_advantage_weight),
+        **advantages.policy_credit_evidence(),
     }
 
 

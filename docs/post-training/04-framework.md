@@ -236,6 +236,17 @@ secrets.
 
 ## Layers of ownership
 
+For resolved policy updates, `posttrain.train` owns pure immutable action/context
+references, derived spans, named population validation, credit preparation,
+deterministic schedules and versioned objective contracts. Private adapters own
+tensors, autograd and execution through native scheduling wherever faithful.
+Common gains no ML dependency. Native Verifiers evidence remains replay authority;
+derived annotations and update receipts do not create a parallel trajectory store.
+Composition owns scorer lifecycle. Backend capability validation rejects missing
+statistics, unsupported derivatives or capacity before optimization; backend-native
+options cannot override the resolved objective or schedule.
+
+
 For GDPO/CAPO, `posttrain.train` owns backend-neutral structured reward
 transport, group admission, normalization, and token-credit validation.
 Environment/project code owns outcome checks, rubric, and critique meaning.

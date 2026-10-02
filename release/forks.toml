@@ -17,14 +17,14 @@ required = true
 id = "trl"
 scope = "direct-package"
 repository = "https://github.com/carbonteq-ai/trl"
-release_tag = "carbonteq-v1.12.0.post12"
+release_tag = "carbonteq-v1.12.0.post14"
 required = true
 
 [[fork]]
 id = "carbonteq-renderers"
 scope = "direct-package"
 repository = "https://github.com/carbonteq-ai/renderers"
-release_tag = "carbonteq-v0.1.12.post1.dev2"
+release_tag = "carbonteq-v0.1.12.post1.dev3"
 required = true
 
 # Wheel-only: a CUDA-extension rebuild of an unmodified upstream tag whose
@@ -40,7 +40,7 @@ required = true
 id = "verl"
 scope = "runtime-kind"
 repository = "https://github.com/carbonteq-ai/verl"
-release_tag = "carbonteq-v0.9.0.post8"
+release_tag = "carbonteq-v0.9.0.post9"
 required = true
 
 [[fork]]

@@ -37,6 +37,7 @@ from posttrain.environment import (
     verifiers_trace_has_error,
     verifiers_trace_is_truncated,
 )
+from posttrain.environment.verifiers_conditioning import native_conditioning_records
 
 from ..grpo_observations import episode_ending_metrics
 from ..online_rl import (
@@ -253,6 +254,7 @@ class VerifiersBridgeSnapshot:
     model_identity: Mapping[str, JsonValue] = field(default_factory=dict)
     reward_component_sources: Mapping[str, SignalSource] = field(default_factory=dict)
     reward_projection: RewardProjection | None = None
+    policy_update_context_contract: str | None = None
 
     def create(self) -> VerifiersEnvironmentRolloutBridge:
         return VerifiersEnvironmentRolloutBridge(
@@ -271,6 +273,7 @@ class VerifiersBridgeSnapshot:
             model_identity=self.model_identity,
             reward_component_sources=self.reward_component_sources,
             reward_projection=self.reward_projection,
+            policy_update_context_contract=self.policy_update_context_contract,
         )
 
 
@@ -336,6 +339,7 @@ def create_verifiers_training_bridge(
     tasks: Mapping[int, Any] | None = None,
     model_identity: Mapping[str, JsonValue] | None = None,
     reward_projection: RewardProjection | None = None,
+    policy_update_context_contract: str | None = None,
 ) -> VerifiersEnvironmentRolloutBridge:
     """Build the existing native bridge from a public environment selection."""
 
@@ -367,6 +371,7 @@ def create_verifiers_training_bridge(
         model_identity=dict(model_identity or {}),
         reward_component_sources=dict(environment.reward_component_sources),
         reward_projection=reward_projection,
+        policy_update_context_contract=policy_update_context_contract,
     )
 
 
@@ -717,6 +722,7 @@ class VerifiersEnvironmentRolloutBridge:
     model_identity: Mapping[str, JsonValue] = field(default_factory=dict)
     reward_component_sources: Mapping[str, SignalSource] = field(default_factory=dict)
     reward_projection: RewardProjection | None = None
+    policy_update_context_contract: str | None = None
     _write_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _trace_count: int = field(default=0, init=False)
     _live_observed_trace_ids: set[str] = field(default_factory=set, init=False, repr=False)
@@ -864,7 +870,7 @@ class VerifiersEnvironmentRolloutBridge:
                         rollout_ordinal=rollout_ordinal,
                         group_id=(batch.prompt_group_ids[rollout_ordinal] if batch.prompt_group_ids else None),
                         rollout_id=(batch.rollout_ids[rollout_ordinal] if batch.rollout_ids else None),
-                        behavior_policy=None,
+                        behavior_policy=batch.behavior_policy,
                         on_completed=on_completed,
                     )
                 except InvalidNativeEpisode as error:
@@ -883,6 +889,10 @@ class VerifiersEnvironmentRolloutBridge:
                 task_index=task_index,
                 example_id=example_id,
             )
+            if batch.behavior_policy is not None:
+                trace.info["posttrain_run"]["policy"] = {
+                    "start": batch.behavior_policy.start, "end": batch.behavior_policy.end,
+                }
             if batch.prompt_group_ids:
                 trace.info.update(
                     posttrain_prompt_group_id=batch.prompt_group_ids[rollout_ordinal],
@@ -916,7 +926,7 @@ class VerifiersEnvironmentRolloutBridge:
                     self.mark_live_observed(observation.external_id)
             if enrichment_error is not None:
                 raise VerifiersRolloutFailure("native trace retained after enrichment failure") from enrichment_error
-            return rollout_ordinal, self._project(trace, observation)
+            return rollout_ordinal, replace(self._project(trace, observation), behavior_policy=batch.behavior_policy)
 
         occurrences = [example_id for example_id in batch.example_ids]
 
@@ -1151,6 +1161,13 @@ class VerifiersEnvironmentRolloutBridge:
         if _trace_has_error(observation.payload):
             raise VerifiersRolloutFailure("Verifiers trace terminated with a harness or environment error")
         branch = _project_training_branch(trace)
+        conditioning = ()
+        if self.policy_update_context_contract is not None:
+            original_positions = {id(node): index for index, node in enumerate(trace.nodes)}
+            conditioning = native_conditioning_records(
+                trace, sampled_node_indices=tuple(original_positions[id(node)] for node in branch.nodes if node.sampled),
+                context_contract=self.policy_update_context_contract,
+            )
         token_ids = tuple(int(value) for value in branch.token_ids)
         sampled_mask = tuple(bool(value) for value in branch.sampled_mask)
         if len(token_ids) != len(sampled_mask):
@@ -1162,13 +1179,24 @@ class VerifiersEnvironmentRolloutBridge:
         prompt_ids = token_ids[:first_sampled]
         completion_ids = token_ids[first_sampled:]
         env_mask = sampled_mask[first_sampled:]
+        conditioning_completion_indices = []
+        if conditioning:
+            offset = 0
+            for node in branch.nodes:
+                if node.sampled:
+                    conditioning_completion_indices.append(
+                        tuple(offset + index - first_sampled for index, eligible in enumerate(node.mask) if eligible)
+                    )
+                offset += len(node.token_ids)
         logprobs = tuple(float(value) for value in branch.logprobs[first_sampled:])
         if len(logprobs) != len(completion_ids):
             raise ValueError("Verifiers branch logprobs are not aligned to the training sequence")
         if not math.isfinite(float(trace.reward)):
             raise VerifiersRolloutFailure("Verifiers trace has a non-finite scalar reward")
         is_truncated = bool(observation.attributes["is_truncated"])
-        turns = _agentic_turns(branch, first_sampled) if self.technique == "sampo" else ()
+        turns = _agentic_turns(branch, first_sampled) if (
+            self.technique == "sampo" or self.policy_update_context_contract is not None
+        ) else ()
         native_turns = (
             native_turn_map(branch)
             if self.reward_projection is not None and self.reward_projection.turns_info_key is not None
@@ -1202,6 +1230,9 @@ class VerifiersEnvironmentRolloutBridge:
             reward=float(trace.reward),
             is_truncated=is_truncated,
             trace=observation,
+            conditioning_records=conditioning,
+            selected_branch_id=str(branch.index) if conditioning else None,
+            conditioning_completion_indices=tuple(conditioning_completion_indices),
             turns=turns,
             reward_evidence=(
                 self.reward_projection.project(
@@ -1286,10 +1317,28 @@ class VerifiersEnvironmentRolloutBridge:
             model_identity=self.model_identity,
             reward_component_sources=self.reward_component_sources,
             reward_projection=self.reward_projection,
+            policy_update_context_contract=self.policy_update_context_contract,
         )
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("wb") as stream:
             pickle.dump(snapshot, stream, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def retain_population(self, rollouts: Sequence[EnvironmentRollout]) -> ProducedArtifact:
+        """Seal admitted native episodes before any resolved update consumes them.
+
+        This does not finalize the collector or publish through an observer.
+        The host publishes the returned artifact and admits its retained bytes.
+        """
+        from .verifiers_population_artifact import retain_native_population
+
+        with self._write_lock:
+            episodes_path = self.trace_path.with_name("episodes.jsonl")
+            episodes = episodes_path.is_file()
+            return retain_native_population(
+                episodes_path if episodes else self.trace_path,
+                self.trace_path.parent / "populations",
+                tuple(rollout.trace.external_id for rollout in rollouts), episodes=episodes,
+            )
 
     def finalize(self) -> tuple[ProducedArtifact, ...]:
         """Publish the replay authority, compressed, once per run.
@@ -1430,11 +1479,13 @@ def _trace_has_tool_failure(record: Mapping[str, Any]) -> bool:
         content = message.get("content")
         if not isinstance(content, str):
             continue
+        if content.lstrip().startswith("Error executing tool"):
+            return True
         try:
             value = json.loads(content)
         except json.JSONDecodeError:
             continue
-        if isinstance(value, Mapping) and value.get("success") is False:
+        if isinstance(value, Mapping) and (value.get("success") is False or bool(value.get("error"))):
             return True
     return False
 
@@ -1498,7 +1549,7 @@ def _agentic_turns(branch: Any, first_sampled: int) -> tuple[AgenticTurn, ...]:
 
     turns: list[AgenticTurn] = []
     offset = 0
-    latest_observation: Mapping[str, JsonValue] | None = None
+    observations: list[Mapping[str, JsonValue]] = []
     for node in branch.nodes:
         record = _record(node.message)
         role = record.get("role")
@@ -1513,7 +1564,7 @@ def _agentic_turns(branch: Any, first_sampled: int) -> tuple[AgenticTurn, ...]:
             expected = list(range(sampled_positions[0], sampled_positions[-1] + 1))
             if sampled_positions != expected:
                 raise ValueError("SAMPO requires each sampled assistant turn to be one contiguous token span")
-            if latest_observation is None:
+            if not observations:
                 raise ValueError("SAMPO sampled assistant turns require a preceding user or tool observation")
             start = offset + sampled_positions[0] - first_sampled
             end = offset + sampled_positions[-1] + 1 - first_sampled
@@ -1521,32 +1572,38 @@ def _agentic_turns(branch: Any, first_sampled: int) -> tuple[AgenticTurn, ...]:
                 AgenticTurn(
                     completion_start=start,
                     completion_end=end,
-                    anchor_state_key=_anchor_state_key(latest_observation),
+                    anchor_state_key=_observation_bundle_key(observations),
                 )
             )
+            observations = []
         elif role in {"user", "tool"}:
-            latest_observation = record
+            observations.append(record)
         offset += len(node_ids)
     if not turns:
         raise ValueError("SAMPO Verifiers trace has no sampled assistant turns")
     return tuple(turns)
 
 
+def _anchor_state_key(observation: Mapping[str, JsonValue]) -> str:
+    """Compatibility helper for a single observation proxy, not environment state."""
+    return _observation_bundle_key([observation])
+
+
 _SAMPLE_IDENTIFIER = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
 
-def _anchor_state_key(observation: Mapping[str, JsonValue]) -> str:
-    """Identify an observation by its content, not by per-attempt identifiers.
+def _observation_bundle_key(observations: Sequence[Mapping[str, JsonValue]]) -> str:
+    """Hash the complete ordered observation bundle preceding an assistant action.
 
-    The tool-call id and UUIDs a tool mints for each call differ between attempts that
-    reached the same state; keeping them hid 9 points of matches on AutomationBench
-    (41% to 50% of turns in VORTEX v5 traces).
+    Transport tool-call IDs and minted UUIDs retain the existing AutomationBench
+    normalization. Repeated observations remain a proxy for state equality;
+    the prefix versions this changed grouping contract for retained native rows.
     """
 
-    content = {key: value for key, value in observation.items() if key != "tool_call_id"}
+    content = [{key: value for key, value in observation.items() if key != "tool_call_id"} for observation in observations]
     encoded = json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     encoded = _SAMPLE_IDENTIFIER.sub("<id>", encoded)
-    return hashlib.sha256(encoded.encode()).hexdigest()
+    return "observation-bundle@2:" + hashlib.sha256(encoded.encode()).hexdigest()
 
 
 __all__ = [

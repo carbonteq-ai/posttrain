@@ -290,6 +290,15 @@ _VERL_METRICS: Mapping[str, str] = MappingProxyType(
 
 _CANONICAL_PASSTHROUGH = frozenset(
     {
+        "train/rl/loss",
+        "train/rl/kl_loss",
+        "train/rl/applied_optimizer_updates",
+        "train/rl/optimizer_attempts",
+        "train/rl/selected_policy_actions",
+        "train/rl/selected_kl_actions",
+        "train/rl/advantage_nonzero_fraction",
+        "train/loss_scale",
+        "train/optimizer_step_skipped",
         "train/rl/reward_mean",
         "train/rl/reward_std",
         "train/rl/group_zero_variance_fraction",
@@ -376,6 +385,7 @@ _CANONICAL_PASSTHROUGH = frozenset(
 
 _RATIO_METRICS = frozenset(
     {
+        "train/rl/advantage_nonzero_fraction",
         "train/rl/group_zero_variance_fraction",
         "train/optimizer_step_skipped",
         "train/rl/clip_fraction",
@@ -404,6 +414,10 @@ _RATIO_METRICS = frozenset(
 
 _NON_NEGATIVE_METRICS = frozenset(
     {
+        "train/rl/applied_optimizer_updates",
+        "train/rl/optimizer_attempts",
+        "train/rl/selected_policy_actions",
+        "train/rl/selected_kl_actions",
         "train/loss_scale",
         "train/optimizer_steps_skipped",
         "train/rl/sampling_prob_delta_mean",

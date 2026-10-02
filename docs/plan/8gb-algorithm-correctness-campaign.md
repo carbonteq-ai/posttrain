@@ -22,6 +22,10 @@ meaning. Any future semantic change requires its own recorded baseline amendment
 
 ## Progress
 
+- [x] Revision92 broadens primary research to GiGPO, SimpleTIR, Dr.GRPO and ProRL. Record published schedule/credit/KL/filtering settings, direct ablation signals and unresolved author-code/batch-unit reconciliation in `update-recipe-research.md`. Prioritize expressive schedules, credit/reduction and filtering controls; no new experiments, optimal-setting claim or production adoption.
+- [x] Revision91 corrects the evidence hierarchy per the user: task-relevant research/ablations and author code select the recipe;8GB runs qualify implementation and quantify bounded effects. `recipe-selection.md` recommends the author-backed agentic direction, distinguishes reported settings from ablation winners and downgrades two-update/four-episode pilots to mechanics probes. No production-scale local replication requirement or newly selected public default.
+- [x] Revision90 prioritizes recipe selection at the user's request. Refresh primary ARLArena format/filtering evidence, DAPO progressive ablations and TRL reuse defaults; update `recipe-selection.md` with the bounded two-update candidate, admission challenger, controlled order and task-quality acceptance. No new training result, production setting or baseline amendment is claimed.
+- [ ] Complete the research-to-Posttrain mapping of row unit, optimizer minibatches, behavior-score lifetime, filtering and LoRA geometry. Use bounded local runs for implementation checks; recipe recommendations follow primary research, with transfer assumptions explicit. Optional local learning comparisons cannot establish or overturn large-training ablation findings.
 - [x] Revision89 completes nine native updates and six direct head VJPs. Direct expected/native head gradients reproduce score-path gradients bitwise. Each single adjacent BF16 coordinate change produces1.035–1.068% parameter-gradient difference; all four reproduce1.054876%. Sum of single deltas differs from joint by2.664785 times joint norm; NumPy verifies. Source/receipt lifetime-caption clarification is explicit; no production defect inferred from finite-precision nonadditivity alone.
 - [x] Shared-input native FP16 SAMPO matches BF16 fixture/input/counts/credits, but final scaled-gradient error.941425% persists despite zero unscaled and actual-loss VJP errors. Matched Adam replay reproduces all fields exactly; independent NumPy finds only.0695017% conditional update difference, three reversals. All processes terminal/GPU idle. Preserve raw fails; do not rank precision or assign task-quality causation from gradient percentages.
 - [ ] Isolate backward rounding thresholds/precision regions and validate correction candidates beyond one fixture. Continue broader algorithm/native-host/fresh-policy and task-quality gates. User clarified claim discipline: separate confirmed source defects, numerical sensitivity, recipe choices and our harness errors; do not describe all audit findings as framework bugs.
@@ -1636,3 +1640,11 @@ norm underflow while retaining isolated-causation and broad qualification gates.
 Revision 89: isolate head perturbations and nonadditivity, compare shared-input
 FP16 with scaled/Adam evidence and make framework-bug versus precision/recipe/
 harness claim boundaries explicit after the user's challenge.
+Revision 90: prioritize schedule/admission learning experiments, refresh primary
+format-filtering evidence and record a concrete controlled recipe recommendation
+without presenting it as a validated winner or changing production contracts.
+Revision 91: supersede local-learning recipe selection with a research-first
+hierarchy, author-backed schedule/group settings and explicit provenance gaps;
+retain small-card checks for correctness and bounded calculations only.
+Revision 92: broaden recipe evidence beyond SAMPO/DAPO, distinguish ablations
+from reported settings and rank capabilities with paper/code reconciliation open.

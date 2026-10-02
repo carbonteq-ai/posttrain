@@ -932,6 +932,15 @@ def test_terminal_error_reward_is_never_folded_into_learning_aggregates() -> Non
     assert "train/rl/reward_std" not in metrics
 
 
+def test_tool_failure_frequency_counts_validation_errors_per_episode() -> None:
+    records = []
+    for messages in (("Error executing tool: invalid argument", '{"success": false}'), ("ok",)):
+        records.append({
+            "nodes": [{"sampled": False, "message": {"role": "tool", "content": content}} for content in messages],
+        })
+    assert _trace_metrics(records)["train/rl/tool_failure_frequency"] == 0.5
+
+
 def test_replayed_step_metrics_count_every_episode_ending() -> None:
     def record(trace_id: str, stop: str, last_call: dict[str, object]) -> dict[str, object]:
         return {

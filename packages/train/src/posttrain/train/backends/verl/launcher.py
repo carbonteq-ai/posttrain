@@ -44,6 +44,7 @@ from .contracts import (
     VerlLocalArtifact,
     VerlModel,
     VerlPayload,
+    VerlRunContext,
     VerlTarget,
     VerlWorkerResult,
 )
@@ -147,6 +148,7 @@ def grpo_algorithm_payload(settings: GRPOSettings) -> dict[str, Any]:
 
     payload: dict[str, Any] = {
         "advantage_estimator": "grpo",
+        "policy_updates": settings.policy_updates,
         "beta": settings.beta,
         "num_prompts_per_step": settings.num_prompts_per_step,
         "num_generations": settings.num_generations,
@@ -230,6 +232,7 @@ def sampo_algorithm_payload(settings: SAMPOSettings) -> dict[str, Any]:
 
     payload: dict[str, Any] = {
         "advantage_estimator": "sampo",
+        "policy_updates": settings.policy_updates,
         "online_rl_algorithm": "sampo",
         "beta": settings.beta,
         "num_prompts_per_step": settings.num_prompts_per_step,
@@ -284,6 +287,7 @@ def build_structured_launch_plan(request: GDPORequest | CAPORequest, output_dir:
     settings = request.settings
     algorithm: dict[str, Any] = {
         "advantage_estimator": technique,
+        "policy_updates": settings.policy_updates,
         "reward_contract_digest": reward_contract_digest(request),
         "online_rl_algorithm": technique,
         "shuffle_prompts": settings.shuffle_prompts,
@@ -418,16 +422,27 @@ def _plan(
     world_size = request.training.target.placement.get("world_size", 1)
     if not isinstance(world_size, int):
         raise ValueError("veRL training target world_size must be an integer")
-    loop_problem = verl_training_loop_problem(
-        loop,
-        rows_per_update=request.settings.num_prompts_per_step * request.settings.num_generations,
-        world_size=world_size,
-    )
-    if loop_problem is not None:
-        raise ValueError(loop_problem)
+    selected_updates = getattr(request.settings, "policy_updates", None)
+    if selected_updates is None:
+        loop_problem = verl_training_loop_problem(
+            loop,
+            rows_per_update=request.settings.num_prompts_per_step * request.settings.num_generations,
+            world_size=world_size,
+        )
+        if loop_problem is not None:
+            raise ValueError(loop_problem)
+    else:
+        # The resolved scheduler owns boundaries; legacy group-size equality
+        # would incorrectly force a complete population into one optimizer step.
+        # Worker admission still refuses the unqualified legacy execution path.
+        selected_updates.validate_legacy_loop(max_steps=loop.max_steps,
+            per_device_batch_size=loop.per_device_batch_size,
+            gradient_accumulation_steps=loop.gradient_accumulation_steps)
     payload = VerlPayload.model_validate(
         {
             **operation_payload,
+            "resolved_settings": ({"kind": operation, "settings": request.settings}
+                                  if selected_updates is not None else None),
             "training": {
                 "binding_id": request.training.id,
                 "renderer": _renderer_payload(
@@ -503,6 +518,11 @@ def _launch(
     output_dir: Path,
 ) -> BackendTrainingResult:
     manifest = output_dir / "posttrain-verl-launch.json"
+    # Detached planning has no runtime identity. Inject the actual host context
+    # at launch rather than deriving fake identities from an output directory.
+    plan = plan.model_copy(update={"run_context": VerlRunContext.model_validate({
+        **context.identity_attributes, "workspace": context.workspace,
+    })})
     snapshot_path = plan.payload.environment.bridge_snapshot
     snapshot_writer = getattr(request.bridge, "write_portable_snapshot", None)
     if not callable(snapshot_writer):
@@ -524,6 +544,11 @@ def _launch(
         context.event("grpo_runtime_resolved", _grpo_runtime_attributes(request, plan))
     timeout = _runtime_timeout(request)
     trace_tailer = _verifiers_trace_tailer(context, request)
+    resolved_tailer = None
+    if plan.payload.resolved_settings is not None:
+        from .policy_observer import JOURNAL_NAME, observation_tailer
+
+        resolved_tailer = observation_tailer(context, output_dir / JOURNAL_NAME)
     try:
         with context.phase("backend_execution", {"backend": "verl", "operation": plan.operation}):
             with log_file.open("w", encoding="utf-8") as stream:
@@ -538,6 +563,7 @@ def _launch(
                         timeout=timeout,
                         tailer=trace_tailer,
                         context=context,
+                        observation_tailer=resolved_tailer,
                     )
                 except subprocess.TimeoutExpired as error:
                     os.killpg(process.pid, signal.SIGTERM)
@@ -578,6 +604,10 @@ def _launch(
         raise RuntimeError(
             f"isolated veRL {plan.operation} process exited with code {returncode}; log tail follows:\n{log_tail}"
         )
+    if resolved_tailer is not None:
+        stats = resolved_tailer.poll()
+        if not stats.complete or not stats.emitted_records:
+            raise RuntimeError("veRL resolved worker observations were not synchronized to the host")
     result_path = plan.result_file
     if not result_path.is_file():
         _record_failure_artifacts_best_effort(context, plan, output_dir)
@@ -689,6 +719,7 @@ def _wait_for_isolated_worker(
     timeout: float | None,
     tailer: AppendOnlyJsonlTailer | None,
     context: RunContext,
+    observation_tailer: AppendOnlyJsonlTailer | None = None,
 ) -> int:
     """Poll the worker and its native journal without exposing credentials to Ray."""
 
@@ -697,6 +728,8 @@ def _wait_for_isolated_worker(
         context.cancellation.raise_if_cancelled()
         if tailer is not None:
             tailer.poll()
+        if observation_tailer is not None:
+            observation_tailer.poll()
         returncode = process.poll()
         if returncode is not None:
             return returncode

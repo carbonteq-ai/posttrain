@@ -57,6 +57,21 @@ def _resolved_precision(request: GRPORequest | SAMPORequest | GDPORequest | CAPO
     )
 
 
+def _full_determinism(options: Mapping[str, object]) -> bool:
+    value = options.get("full_determinism", False)
+    if type(value) is not bool:
+        raise ValueError("TRL full_determinism must be a boolean")
+    return value
+
+
+def _configure_training_determinism(request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest) -> None:
+    """Apply the native deterministic controls before loading CUDA weights."""
+    if _full_determinism(request.training.backend_options):
+        from transformers.trainer_utils import enable_full_determinism
+
+        enable_full_determinism(request.settings.loop.seed)
+
+
 def _online_rl_arguments(
     request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
     output_dir: Path,
@@ -68,6 +83,7 @@ def _online_rl_arguments(
         request.settings.loop, output_dir, precision=training_precision(request.training.backend_options)
     )
     arguments["trust_remote_code"] = request.policy.provenance.get("trust_remote_code") is True
+    arguments["full_determinism"] = _full_determinism(request.training.backend_options)
     arguments.pop("max_length")
     settings = request.settings
     if isinstance(settings, GDPOSettings | CAPOSettings):
@@ -435,9 +451,11 @@ def _online_rl_runtime_attributes(
         "rollout_gpu_memory_utilization": engine.get("gpu_memory_utilization"),
         "update_kind": request.training.update.kind,
         "world_size": request.training.target.placement.get("world_size", 1),
+        "post_update_probe_rows": request.training.backend_options.get("post_update_probe_rows", 0),
         "rollout_precision": precision.rollout_dtype,
         "rollout_precision_source": precision.rollout_dtype_source,
         "training_precision": precision.training,
+        "full_determinism": _full_determinism(request.training.backend_options),
         "training_model_load_dtype": precision.model_load_dtype,
         "training_loss_scaling": precision.loss_scaling,
         "logits_float32": precision.logits_float32,

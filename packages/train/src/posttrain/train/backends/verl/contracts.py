@@ -5,8 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated, Literal, Self
 
-from posttrain.common import JsonValue
+from posttrain.common import JsonValue, RunContext
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from ...backend_support import verl_warmup_steps
+from ...profiles import CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings
+from ...update_plan import PolicyUpdateSettings
 
 
 class VerlContract(BaseModel):
@@ -152,6 +156,9 @@ class VerlTraining(VerlContract):
 
 
 class VerlAlgorithm(VerlContract):
+    # Preserve the normalizer's selection across the isolated-process boundary.
+    # This field is not an instruction to reinterpret it as native PPO settings.
+    policy_updates: PolicyUpdateSettings | None = None
     advantage_estimator: Literal["grpo", "sampo", "gdpo", "capo"] = "grpo"
     num_prompts_per_step: int = Field(gt=0)
     num_generations: int = Field(gt=0)
@@ -203,12 +210,39 @@ class VerlAlgorithm(VerlContract):
     process_weight: float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
 
+class VerlResolvedGRPOSettings(VerlContract):
+    kind: Literal["grpo"] = "grpo"
+    settings: GRPOSettings
+
+
+class VerlResolvedSAMPOSettings(VerlContract):
+    kind: Literal["sampo"] = "sampo"
+    settings: SAMPOSettings
+
+
+class VerlResolvedGDPOSettings(VerlContract):
+    kind: Literal["gdpo"] = "gdpo"
+    settings: GDPOSettings
+
+
+class VerlResolvedCAPOSettings(VerlContract):
+    kind: Literal["capo"] = "capo"
+    settings: CAPOSettings
+
+
+type VerlResolvedSettings = Annotated[
+    VerlResolvedGRPOSettings | VerlResolvedSAMPOSettings | VerlResolvedGDPOSettings | VerlResolvedCAPOSettings,
+    Field(discriminator="kind"),
+]
+
+
 class VerlPayload(VerlContract):
     policy: VerlModel | None = None
     reference: VerlModel | None = None
     student: VerlModel | None = None
     teacher: VerlModel | None = None
     algorithm: VerlAlgorithm
+    resolved_settings: VerlResolvedSettings | None = None
     rollout: VerlInference
     teacher_scoring: VerlInference | None = None
     environment: VerlEnvironment
@@ -216,6 +250,22 @@ class VerlPayload(VerlContract):
     resume_from: Path | None = None
     # Another run's adaptive-curriculum-state directory for a curriculum warm start.
     curriculum_from: Path | None = None
+
+
+class VerlRunContext(VerlContract):
+    """Host identity transported to native workers; observers stay host-owned."""
+
+    project_id: str
+    work_package_id: str
+    run_id: str
+    job_kind: str
+    job_definition_version: str
+    workspace: Path
+
+    @model_validator(mode="after")
+    def valid_context(self) -> Self:
+        RunContext(**self.model_dump())
+        return self
 
 
 class VerlLaunchManifest(VerlContract):
@@ -230,6 +280,7 @@ class VerlLaunchManifest(VerlContract):
     output_directory: Path
     result_file: Path
     payload: VerlPayload
+    run_context: VerlRunContext | None = None
 
     @field_validator(
         "python_executable",
@@ -246,11 +297,40 @@ class VerlLaunchManifest(VerlContract):
     @model_validator(mode="after")
     def _operation_roles(self) -> Self:
         payload = self.payload
+        if self.operation == "distill" and (payload.resolved_settings is not None
+                                            or payload.algorithm.policy_updates is not None):
+            raise ValueError("resolved policy update settings are not qualified for veRL distillation")
         if not self.result_file.is_relative_to(self.output_directory):
             raise ValueError("veRL result_file must remain inside output_directory")
         if not payload.environment.bridge_snapshot.is_relative_to(self.output_directory):
             raise ValueError("veRL bridge_snapshot must remain inside output_directory")
         if self.operation in {"grpo", "sampo", "gdpo", "capo"}:
+            if payload.algorithm.policy_updates is not None:
+                retained = payload.resolved_settings
+                if retained is None or retained.kind != self.operation:
+                    raise ValueError("resolved veRL manifest requires complete typed settings for its operation")
+                selected = retained.settings
+                algorithm = payload.algorithm
+                if selected.policy_updates != algorithm.policy_updates or any(
+                    getattr(selected, name) != getattr(algorithm, name) for name in (
+                        "beta", "num_prompts_per_step", "num_generations", "max_prompt_length", "max_completion_length",
+                    )
+                ):
+                    raise ValueError("resolved veRL settings differ from native algorithm launch fields")
+                high = getattr(selected, "resolved_clip_epsilon_high", selected.clip_epsilon_high)
+                if selected.clip_epsilon_low != algorithm.clip_epsilon_low or high != algorithm.clip_epsilon_high:
+                    raise ValueError("resolved veRL settings differ from native clipping launch fields")
+                loop = payload.training.loop
+                if any(getattr(selected.loop, name) != getattr(loop, name) for name in (
+                    "max_steps", "per_device_batch_size", "gradient_accumulation_steps", "learning_rate",
+                    "lr_scheduler_type", "max_grad_norm", "checkpoint_steps", "checkpoint_limit", "seed",
+                    "gradient_checkpointing",
+                )):
+                    raise ValueError("resolved veRL settings differ from native loop launch fields")
+                if loop.warmup_steps != verl_warmup_steps(selected.loop):
+                    raise ValueError("resolved veRL settings differ from native warmup launch fields")
+            elif payload.resolved_settings is not None:
+                raise ValueError("resolved veRL settings require an explicit policy update selection")
             if payload.policy is None or payload.student is not None or payload.teacher is not None:
                 raise ValueError("online-RL manifest requires policy and forbids student and teacher")
             if payload.teacher_scoring is not None:

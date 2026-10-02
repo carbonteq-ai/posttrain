@@ -24,6 +24,7 @@ class SAMPOAdvantages:
     turn_advantages: tuple[tuple[float, ...], ...]
     anchor_group_sizes: tuple[tuple[int, ...], ...]
     used_sparse_rewards: tuple[bool, ...]
+    sampled_token_advantages: tuple[float, ...]
 
     def hierarchy_evidence(self, step_advantage_weight: float) -> dict[str, tuple[float, int]]:
         """Per-update (mean, count) pairs that show where SAMPO's credit comes from.
@@ -65,6 +66,18 @@ class SAMPOAdvantages:
         if episode_credit + turn_credit > 0:
             evidence["train/rl/turn_credit_share"] = (turn_credit / (episode_credit + turn_credit), count)
         return evidence
+
+    def policy_credit_evidence(self) -> dict[str, tuple[float, int]]:
+        """Pool actual supplied advantages over sampled actions, excluding tool/padding tokens."""
+        tokens = self.sampled_token_advantages
+        count = len(tokens)
+        return {
+            "train/rl/advantage_mean": (math.fsum(tokens) / count, count),
+            "train/rl/advantage_abs_mean": (math.fsum(abs(value) for value in tokens) / count, count),
+            "train/rl/advantage_positive_fraction": (sum(value > 0 for value in tokens) / count, count),
+            "train/rl/advantage_negative_fraction": (sum(value < 0 for value in tokens) / count, count),
+            "train/rl/advantage_zero_fraction": (sum(value == 0 for value in tokens) / count, count),
+        }
 
 
 def compute_sampo_advantages(
@@ -164,6 +177,12 @@ def compute_sampo_advantages(
         turn_advantages=tuple(tuple(values) for values in turn_advantages),
         anchor_group_sizes=tuple(tuple(values) for values in anchor_group_sizes),
         used_sparse_rewards=tuple(sparse_flags),
+        sampled_token_advantages=tuple(
+            value
+            for values, rollout in zip(token_advantages, rollouts, strict=True)
+            for value, selected in zip(values, rollout.env_mask, strict=True)
+            if selected
+        ),
     )
 
 

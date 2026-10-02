@@ -44,6 +44,10 @@ wandb/
 # Local agent tooling
 .agents/
 .codex/
+.claude/
+
+# Machine-local release build receipts (release manifests stay versioned)
+/.release/image-receipts/
 
 # Local correctness experiments: keep runners and raw receipts out of Git.
 /tools/correctness/
@@ -58,6 +62,15 @@ wandb/
 /docs/research/evidence/sampo-native-action-mask-audit.json
 /docs/research/evidence/sampo-opposing-credit-cuda-canary.json
 /docs/research/evidence/verl-sequence-credit-math.json
+
+# SAMPO investigation scratch tools and generated evidence/report renders.
+# Keep authored Markdown findings; maintained framework tests live in packages/.
+/docs/research/sampo-multirun-analysis/*.py
+/docs/research/sampo-multirun-analysis/*.json
+/docs/research/sampo-multirun-analysis/*.html
+/docs/research/sampo-multirun-analysis/*-preview.jpg
+/docs/research/sampo-multirun-analysis/design-evidence/
+/docs/research/sampo-multirun-analysis/evidence/
 
 # Local-only secrets and host dumps (never commit)
 ops/ops-server.txt

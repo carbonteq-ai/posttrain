@@ -4,6 +4,9 @@ import threading
 import time
 
 import pytest
+
+pytest.importorskip("trl")
+
 from posttrain.train.backends.trl.async_worker import AsyncGroupRejected, TrlAsyncRolloutWorker
 from trl.experimental.async_grpo.async_rollout_worker import RolloutSample
 

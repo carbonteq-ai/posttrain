@@ -20,6 +20,28 @@ def test_missing_changed_or_corrupt_contract_cannot_resume(tmp_path):
         retain_reward_contract(tmp_path, "b" * 64)
 
 
+def test_absent_update_settings_preserve_pre_engine_recovery_digest() -> None:
+    from posttrain.train.profiles import TrainingLoop
+    from posttrain.train.reward_recovery import reward_contract_digest
+
+    @dataclass
+    class LegacySettings:
+        loop: TrainingLoop
+
+    @dataclass
+    class AdditiveSettings:
+        loop: TrainingLoop
+        policy_updates: object | None = None
+
+    loop = TrainingLoop(max_steps=3, per_device_batch_size=2)
+    projection = RewardProjection("test", "1", (RewardComponentProjection("outcome", "scalar"),))
+    request: Any = SimpleNamespace(settings=LegacySettings(loop), environment={"id": "env@1"},
+                                   bridge=SimpleNamespace(reward_projection=projection))
+    before = reward_contract_digest(request)
+    request.settings = AdditiveSettings(loop)
+    assert reward_contract_digest(request) == before
+
+
 def test_changed_native_judge_config_invalidates_resume_even_with_same_package_revision(tmp_path):
     from posttrain.train.reward_recovery import reward_contract_digest
 

@@ -173,6 +173,13 @@ def _validate_online_rl(
     if isinstance(engine_limit, int) and sequence_length > engine_limit:
         raise ValueError("rollout model length must cover prompt and completion limits")
     _validate_rollout_max_tokens(inference, settings.max_completion_length)
+    if settings.policy_updates is not None:
+        # Removed per backend only after native execution and release gates pass.
+        # Catalog support must never silently fall through to the legacy trainer.
+        raise ValueError(
+            f"{training.backend} has no qualified resolved policy update executor yet; "
+            "policy_updates requires the native integration gates in the engine plan"
+        )
     expected_batch = settings.num_prompts_per_step * settings.num_generations
     if isinstance(settings, GDPOSettings | CAPOSettings) and training.backend.split("@", 1)[0] == "trl":
         world_size = training.target.placement.get("world_size", 1)

@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ...bindings import _peft_target_modules
 from ...online_rl import policy_sampling_from_mapping
 from ...precision import training_precision, verl_mixed_precision_overrides, verl_rollout_dtype
 from ...rollout_execution import RolloutExecutionConfig, validate_execution_config
@@ -95,6 +96,20 @@ _FORK_NATIVE_NAME_REVISIONS: dict[str, tuple[str | None, frozenset[str]]] = {
     "be582879e2efd45a7206be49010ab6e6fcd868e9": ("0.9.0.post8", _FORK_ONLY_NATIVE_NAMES),
     # Published math/precision candidate; runtime image adoption is separate.
     "d8e472db822f2916ed81a408b8d28192be95e678": (None, _REQUESTABLE_NATIVE_NAMES),
+    # Published engine/TaskRunner recipe extension candidate; no release adoption.
+    "70baba82c0b2b0a8981089ca62c5ab474efe1816": (None, _REQUESTABLE_NATIVE_NAMES),
+    "ef5aac6ff92d5a69f72cfe222f0a409af4220314": (None, _REQUESTABLE_NATIVE_NAMES),
+    "076072b92baf336c2e18e9f38bf7434e4a5f3cb7": (None, _REQUESTABLE_NATIVE_NAMES),
+    "77fe49a9de909f036aa72d8568cc957d226b1e7c": (None, _REQUESTABLE_NATIVE_NAMES),
+    "8f0de2365f1041954b67f74df5a14c7ba0532755": (None, _REQUESTABLE_NATIVE_NAMES),
+    "7cf687284ba054e836b8ce34475a3e695b3dd22b": (None, _REQUESTABLE_NATIVE_NAMES),
+    # Published scoped-arithmetic candidate; inherits registered objective names.
+    # This is source compatibility, not ordinary multi-record qualification.
+    "c45392d22df0c1ab2258e9c0675d3a03093094af": (None, _REQUESTABLE_NATIVE_NAMES),
+    # carbonteq-v0.9.0.post9 release commit (post8 plus the scoped-arithmetic
+    # candidate above) and its asset receipt.
+    "8e513f3bf3bfccb4c413846b5eb184e0b42ea9d8": ("0.9.0.post9", _REQUESTABLE_NATIVE_NAMES),
+    "6b3ceef7fe00045d3a8909dc74104d372def7162": ("0.9.0.post9", _REQUESTABLE_NATIVE_NAMES),
 }
 # Every recorded fork commit descends from post2, which added bounded rollout execution.
 _ROLLOUT_EXECUTION_FORK_REVISIONS = _ROLLOUT_EXECUTION_FORK_REVISIONS_BASE | frozenset(_FORK_NATIVE_NAME_REVISIONS)
@@ -103,11 +118,29 @@ _TOKEN_CLIP_FORK_REVISIONS = frozenset(
 )
 
 
+def validate_policy_update_entrypoint(payload: VerlPayload) -> None:
+    """Do not silently run a resolved selection through the legacy PPO host."""
+    if payload.algorithm.policy_updates is not None:
+        from ...update_records import InvalidPolicyUpdate
+
+        raise InvalidPolicyUpdate(
+            "resolved veRL job requires the resolved native population host; "
+            "legacy main_ppo cannot consume policy_updates"
+        )
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: python -m posttrain.train.backends.verl.worker MANIFEST.json")
     manifest_path = Path(sys.argv[1]).resolve()
     manifest = VerlLaunchManifest.read(manifest_path)
+    resolved = manifest.payload.algorithm.policy_updates is not None
+    if resolved:
+        from .policy_native import validate_native_selection
+
+        validate_native_selection(manifest)
+    else:
+        validate_policy_update_entrypoint(manifest.payload)
     _validate_runtime(manifest)
     output_dir = manifest.output_directory
     payload = manifest.payload
@@ -128,15 +161,26 @@ def main() -> None:
         # that starts the engine; the veRL subprocess inherits it.
         os.environ["VLLM_BATCH_INVARIANT"] = "1"
     trainer_module = "verl.trainer.main_ppo"
+    trainer_arguments = overrides
+    if resolved:
+        trainer_module = "posttrain.train.backends.verl.policy_native"
+        trainer_arguments = [str(manifest_path), *overrides]
     started = time.perf_counter()
     completed = _run_tee(
-        [sys.executable, "-m", trainer_module, *overrides],
+        [sys.executable, "-m", trainer_module, *trainer_arguments],
         native_log,
     )
     runtime = time.perf_counter() - started
     if completed != 0:
         raise SystemExit(completed)
-    latest = _latest_checkpoint(checkpoint_dir)
+    if resolved:
+        from .policy_checkpoint import latest_driver_checkpoint
+
+        latest = latest_driver_checkpoint(checkpoint_dir)
+        if latest is None:
+            raise RuntimeError("resolved native job did not retain a complete terminal checkpoint")
+    else:
+        latest = _latest_checkpoint(checkpoint_dir)
     if payload.algorithm.adaptive_curriculum is not None:
         from .curriculum import final_snapshot_from_checkpoint
 
@@ -169,6 +213,7 @@ def main() -> None:
     observed_step = metrics.get("training/global_step")
     steps = int(observed_step) if isinstance(observed_step, int | float) else records[-1].step
     loss_names = (
+        "train/rl/loss",
         "distillation/loss",
         "actor/pg_loss",
         "actor/policy_loss",
@@ -478,7 +523,7 @@ def build_hydra_overrides(
             [
                 f"actor_rollout_ref.model.lora_rank={update.rank}",
                 f"actor_rollout_ref.model.lora_alpha={update.alpha}",
-                f"actor_rollout_ref.model.target_modules={json.dumps(update.target_modules)}",
+                f"actor_rollout_ref.model.target_modules={json.dumps(_peft_target_modules(update.target_modules))}",
             ]
         )
         if model.base is not None:
@@ -548,6 +593,29 @@ def build_hydra_overrides(
                 f"{str(bool(teacher_engine['enable_chunked_prefill'])).lower()}"
             )
     overrides.extend(_backend_hydra_overrides(backend_options))
+    if payload.algorithm.policy_updates is not None:
+        # The normalizer admits complete native groups. Stock PPO admission
+        # retries/drop rules must not mutate that population before it sees it.
+        overrides = [value for value in overrides if not value.startswith("trainer.v1.sampler.failed_group_attempts=")]
+        overrides.extend([
+            "trainer.use_v1=True", "trainer.v1.trainer_mode=sync",
+            "actor_rollout_ref.actor.strategy=fsdp",
+            "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1",
+            "actor_rollout_ref.actor.use_dynamic_bsz=False",
+            "actor_rollout_ref.actor.use_fused_kernels=False",
+            "+actor_rollout_ref.actor.ppo_infer_micro_batch_size_per_gpu=1",
+            "trainer.v1.sampler.failed_group_attempts=0",
+        ])
+        if (backend_options.get("resolved_context_layout") == "dense-population"
+                and training_precision(backend_options) == "bf16"):
+            # Expose the selected native default explicitly for the checked dense
+            # profile. Half reductions remain FP32; callers cannot override this
+            # selected precision through raw Hydra fields.
+            policy = "{param_dtype:bf16,reduce_dtype:fp32,buffer_dtype:fp32}"
+            overrides.extend([
+                f"+actor_rollout_ref.actor.fsdp_config.mixed_precision={policy}",
+                f"+actor_rollout_ref.ref.fsdp_config.mixed_precision={policy}",
+            ])
     _validate_fork_native_names(manifest, overrides)
     return overrides
 
@@ -738,13 +806,14 @@ def _write_curriculum_selector_config(manifest: VerlLaunchManifest) -> None:
 def _active_sampling_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
     """Round-based active sampling with TRL post11's semantics (fork ``algorithm.active_sampling``).
 
-    The groups' spread is measured on ``seq_reward``, the shaped reward the agent
-    loop reports (truncation penalty included), with TRL's zero epsilon.
+    The groups' spread is measured on ``group_reward``, the shaped reward the agent
+    loop reports (truncation penalty included, NaN only for trajectories TRL
+    excludes), with TRL's zero epsilon.
     """
 
     algorithm = manifest.payload.algorithm
     assert algorithm.active_sampling_max_candidate_batches is not None
-    return [
+    overrides = [
         "algorithm.active_sampling.enable=true",
         f"algorithm.active_sampling.max_candidate_batches={algorithm.active_sampling_max_candidate_batches}",
         f"algorithm.active_sampling.oversample={algorithm.active_sampling_oversample or 0}",
@@ -752,6 +821,11 @@ def _active_sampling_hydra_overrides(manifest: VerlLaunchManifest) -> list[str]:
         "algorithm.active_sampling.reward_std_epsilon=0.0",
         "algorithm.active_sampling.metric=group_reward",
     ]
+    if getattr(algorithm, "adaptive_curriculum", None) is None:
+        # Without a selector, native group observation only feeds collection
+        # evidence; observe the same value the spread check uses.
+        overrides.append("data.prompt_selector.metric=group_reward")
+    return overrides
 
 
 def _uses_turboquant(payload: VerlPayload) -> bool:
@@ -884,6 +958,14 @@ def _write_dataset(payload: VerlPayload, path: Path) -> None:
         }
         for example in payload.environment.examples
     ]
+    if payload.algorithm.policy_updates is not None:
+        identities = [row["example_id"] for row in rows]
+        if any(not isinstance(identity, str) or not identity for identity in identities):
+            raise ValueError("resolved collection inventory requires nonempty task identities")
+        if len(set(identities)) != len(identities):
+            raise ValueError("resolved collection inventory contains duplicate tasks")
+        if len(rows) < payload.algorithm.num_prompts_per_step:
+            raise ValueError("resolved collection inventory cannot fill distinct complete groups")
     # veRL's v1 trainer drops incomplete prompt batches and derives
     # steps_per_epoch from dataset_size // train_batch_size even when an exact
     # total_training_steps is supplied. Small qualification datasets may
@@ -911,6 +993,7 @@ def _write_agent_config(payload: VerlPayload, path: Path) -> None:
             "overlong_penalty_factor": algorithm.overlong_penalty_factor,
             "truncation_penalty": algorithm.truncation_penalty,
             "emit_sampo_metadata": algorithm.advantage_estimator == "sampo",
+            "retain_policy_update_evidence": algorithm.policy_updates is not None,
             "structured_algorithm": (
                 algorithm.advantage_estimator if algorithm.advantage_estimator in {"gdpo", "capo"} else None
             ),
@@ -929,9 +1012,19 @@ def _write_agent_config(payload: VerlPayload, path: Path) -> None:
 def _model_path(artifact: VerlModelArtifact) -> str:
     if artifact.kind == "hub":
         try:
-            from huggingface_hub import snapshot_download
+            from huggingface_hub import constants, snapshot_download
+            from huggingface_hub.file_download import repo_folder_name
         except ImportError as error:
             raise RuntimeError("the isolated veRL environment must include huggingface-hub") from error
+        revision = artifact.revision
+        if constants.HF_HUB_OFFLINE and re.fullmatch(r"[0-9a-f]{40}", revision):
+            # Offline snapshot_download requires every repository file, including
+            # unused ones such as README.md. A pinned commit's local snapshot is
+            # immutable, so use it directly when the model files are present.
+            local = (Path(constants.HF_HUB_CACHE) / repo_folder_name(repo_id=artifact.repo_id, repo_type="model")
+                     / "snapshots" / revision)
+            if (local / "config.json").is_file():
+                return str(local)
         return snapshot_download(repo_id=artifact.repo_id, revision=artifact.revision)
     return str(artifact.path)
 

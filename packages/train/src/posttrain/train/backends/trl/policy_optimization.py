@@ -35,6 +35,7 @@ from .policy_config import (
     _configure_batch_invariance,
     _configure_liger_loss,
     _configure_torch_compile,
+    _configure_training_determinism,
     _online_rl_arguments,
     _online_rl_runtime_attributes,
     _resolved_precision,
@@ -46,6 +47,7 @@ from .policy_curriculum import (
 from .policy_curriculum import (
     adaptive_curriculum_trainer_type as _adaptive_curriculum_trainer_type,
 )
+from .policy_probe import PostUpdateProbe
 from .policy_rollouts import (
     reward_functions as _reward_functions,
 )
@@ -107,6 +109,11 @@ def _run_online_rl(
     request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest,
     output_dir: Path,
 ) -> BackendTrainingResult:
+    resolved_selection = request.settings.policy_updates is not None
+    if resolved_selection:
+        from .policy_job import validate_resolved_job
+
+        validate_resolved_job(request)
     reward_contract = None
     if isinstance(request, GDPORequest | CAPORequest) or (
         isinstance(request, SAMPORequest) and getattr(request.bridge, "reward_projection", None) is not None
@@ -132,6 +139,11 @@ def _run_online_rl(
         raise RuntimeError("install posttrain-train with the trl extra") from error
 
     imports = framework_imports()
+    _configure_training_determinism(request)
+    if resolved_selection:
+        # Native Trainer initialization happens after loading/attaching PEFT.
+        # Seed that earlier random adapter initialization as part of this job.
+        imports["set_seed"](request.settings.loop.seed)
     emit_runtime_versions(context, imports)
     precision = _resolved_precision(request)
     with context.phase("model_loading", {"backend": "trl"}):
@@ -176,9 +188,13 @@ def _run_online_rl(
     )
     context.event("grpo_runtime_resolved", _online_rl_runtime_attributes(request))
     actor_update = _ActorUpdateTelemetry(context)
+    probe_rows = request.training.backend_options.get("post_update_probe_rows", 0)
+    if isinstance(probe_rows, bool) or not isinstance(probe_rows, int) or not 0 <= probe_rows <= 16:
+        raise ValueError("post_update_probe_rows must be an integer between 0 and 16")
+    probe = PostUpdateProbe(context, probe_rows) if probe_rows else None
     loss_scale = LossScaleMonitor(context)
     rollout_totals = RolloutUpdateTotals(context)
-    trainer_type = _actor_update_trainer_type(GRPOTrainer, actor_update)
+    trainer_type = GRPOTrainer if resolved_selection else _actor_update_trainer_type(GRPOTrainer, actor_update, probe)
     if precision.training == "fp16":
         trainer_type = float32_logprob_trainer_type(trainer_type)
     curriculum = None
@@ -199,6 +215,27 @@ def _run_online_rl(
     # update is saved as a checkpoint before the run finalizes as cancelled.
     update_boundary = UpdateBoundary(controller_state=curriculum.capture_state if curriculum is not None else None)
     trainer_type = update_boundary_trainer_type(trainer_type, update_boundary)
+    resolved_job = None
+    if resolved_selection:
+        from .policy_job import ResolvedTRLJob, job_identity
+        from .policy_updates import resolved_policy_trainer_type
+
+        runtime_identity, template_revision = job_identity(request, tokenizer, GRPOTrainer)
+        retries = request.training.backend_options.get("resolved_max_overflow_retries", 0)
+        if type(retries) is not int or retries < 0:
+            raise ValueError("resolved_max_overflow_retries must be a nonnegative integer")
+        resolved_job = ResolvedTRLJob(context, request, tokenizer, rows, runtime_identity,
+                                     template_revision, arguments["temperature"], rollout_totals, retries)
+        dataset = imports["Dataset"].from_list([
+            {"resolved_update": index} for index in range(request.settings.loop.max_steps)
+        ])
+        trainer_type = resolved_policy_trainer_type(trainer_type, resolved_job.run,
+                                                   recovery_runtime_identity=runtime_identity)
+        context.event("resolved_policy_job_configured", {
+            "backend": "trl", "runtime_identity": runtime_identity,
+            "template_revision": template_revision, "score_contract": "posttrain.causal-text-tempered-logsoftmax-fp32@1",
+            "max_overflow_retries": retries,
+        })
     checkpoint_publisher = CheckpointPublisher(
         context,
         model=request.policy,
@@ -230,15 +267,19 @@ def _run_online_rl(
             metric_normalizer=loss_scale.finite_grad_norm(
                 lambda step, native: _normalize_live_grpo_metrics(
                     step,
-                    native,
+                    ({key: value for key, value in native.items() if key != "loss"}
+                     if resolved_job is not None else native),
                     observation_features,
                 )
             ),
         )(),
-        _actor_update_callback_type(imports, actor_update)(),
         update_totals_callback_type(imports, rollout_totals)(),
         checkpoint_callback,
     ]
+    if resolved_job is None:
+        callbacks.insert(-2, _actor_update_callback_type(imports, actor_update, probe)())
+    else:
+        callbacks.insert(-2, resolved_job.observation_callback(imports))
 
     failure: BaseException | None = None
     try:
@@ -246,12 +287,15 @@ def _run_online_rl(
             trainer = trainer_type(
                 model=model,
                 reward_funcs=_reward_functions(request),
-                rollout_func=cast(Any, _rollout_function(context, request, tokenizer, rollout_totals)),
+                rollout_func=(None if resolved_job is not None else
+                              cast(Any, _rollout_function(context, request, tokenizer, rollout_totals))),
                 args=_trainer_arguments(config_type, arguments, request),
                 train_dataset=dataset,
                 processing_class=tokenizer,
                 callbacks=callbacks,
             )
+            if resolved_job is not None:
+                resolved_job.trainer = trainer
             _configure_liger_loss(trainer, request)
             apply_initial_loss_scale(trainer, precision.initial_loss_scale)
             # Re-check with the engine's resolved limit before the first rollout.

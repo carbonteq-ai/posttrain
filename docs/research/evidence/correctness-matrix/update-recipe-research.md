@@ -37,6 +37,36 @@ not a quality ranking or a recommended clipping target.
 
 ## Primary research and implementation evidence
 
+### 2026-10-01 broader paper review: signals for configurable capabilities
+
+Research is the primary selection evidence. The rows below distinguish direct
+ablations from reported settings. This review inspects primary paper versions;
+newly listed author-code schedules still need immutable-source reconciliation.
+Do not infer optimizer counts from a batch-size quotient without checking row
+units, generations, backend normalization and filtering.
+
+| Source and setting evidence | Importance signal for Posttrain | Evidence boundary |
+| --- | --- | --- |
+| [GiGPO v3, Appendix E](https://arxiv.org/html/2505.10978v3): ALFWorld/WebShop16 groups ×8 episodes, gamma.95, beta.01, actor LR1e-6; reported minibatches256/64 respectively. Section5.4 removes episode or step credit; Appendix E.5 varies their mixing weight. | High priority: independently configurable episode/turn credit weight and normalization, with anchor-state coverage telemetry. Both credit components matter more than the std-normalization difference in these experiments. | The settings are not a minibatch-size or LR optimum. WebShop mixing-weight sensitivity peaks at.8; the recipe uses1. Paper minibatch rows must be reconciled with author code before deriving steps. Full-model LR is not a normalized LoRA recommendation. |
+| [SimpleTIR v1, Table2 and Appendix C.2](https://arxiv.org/html/2509.02479v1): group16, gamma1, beta0, clip.2/.28, actor LR1e-6, PPO epochs4. Main text lists rollout512/mini-update128; appendix lists sampling1280/train512. | High priority: distinct invalid/void-turn admission and loss-masking policies; explicit epochs and optimizer minibatches. Void-turn filtering beats low-probability/high-ratio filtering and stopping generation alone in its ablation. | Multi-turn Python math differs from AutomationBench. Four epochs are a reported choice, not an epoch-count ablation. Conflicting batch descriptions prevent an exact update-count claim; do not transplant token clip bounds into sequence SAMPO. |
+| [Dr. GRPO v1, sections3.1–3.2](https://arxiv.org/html/2503.20783v1): removes group-std scaling and uses constant rather than response-length loss normalization; compares online Qwen2.5-1.5B math training. Numeric optimizer settings are delegated to author code. | High priority: name reward normalization and loss denominator explicitly. Length weighting changes the optimized objective, not merely logging or batch execution. | Single-turn outcome credit. Do not silently replace SAMPO's defined reduction or claim today's frameworks retain every historical implementation bias. Numeric recipe extraction remains open. |
+| [ProRL v1, section3.2](https://arxiv.org/html/2505.24864v1): group16, batch256/minibatch64, explicitly four gradient updates per rollout step; token clip.2/.4, temperature1.2, AdamW LR2e-6. Reference and optimizer resets occur when validation stagnates/degrades. | Strong implementation precedent for decoupling collection from optimizer minibatches. Later capability: explicit reference/optimizer lifecycle and checkpoint lineage. | Prolonged math/reasoning training. Four updates are reported settings, not an isolated schedule optimum. Reset behavior changes training state; the reviewed paper supplies no isolated reset ablation establishing a universal policy. |
+
+Capability priority from this review: (1) population/minibatch/epoch separation,
+because it is necessary to express published schedules; (2) credit weighting,
+normalization and explicitly named loss reductions, supported by agentic and
+math ablations; (3) separate filtering criteria and masking semantics, supported
+by task-dependent ablations; (4) optional drift stopping and reference/optimizer
+resets, whose recipe-selection evidence is weaker here. Keep algorithm identity
+and the frozen contract explicit when adding objective-changing controls.
+
+Settings recurring across papers are useful starting ranges, not votes proving
+an optimum. Neither zero nor nonzero KL dominates universally. No reviewed
+ablation establishes an optimal LoRA rank-normalized LR, optimizer minibatch or
+reuse count for our models. Remaining work: pin author implementations for the
+new papers, reconcile row units/batch discrepancies, inspect narrower schedule
+ablations and map research-backed profiles into equivalent TRL/veRL contracts.
+
 ### 2026-10-01 follow-up: defaults are not paper recipes
 
 Fresh inspection of upstream configuration and the immutable ARL-Arena source
