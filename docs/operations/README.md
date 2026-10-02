@@ -40,3 +40,6 @@ submission/status/result contract; they do not deploy or configure the cluster.
 No secret, private key, password, service token, or raw environment dump belongs
 in this directory. Checked-in examples must use placeholders and document how
 the real value is injected.
+
+Cleanup of caches, worktrees, images, old runs, registries, backups and logs
+follows [`cleanup-playbook.md`](cleanup-playbook.md).
