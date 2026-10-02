@@ -27,13 +27,24 @@ def resolved(identity):
     snapshot, source, actions = score_population()
     second = tuple(ActionRef("episode-b", "branch", "turn-b", action.token_index) for action in actions)
     view = replace(snapshot.conditioning[0], id="context-b")
-    snapshot = replace(snapshot, actions=snapshot.actions + tuple(ActionRecord(action, view.id, "native")
-                                                                for action in second),
-                       conditioning=snapshot.conditioning + (view,))
-    credit = PreparedCredit(snapshot.digest, "external-fixture@1",
-                            tuple(ActionCredit(record.action, value)
-                                  for record, value in zip(snapshot.actions, (1, -0.5, 0.25, 0.75), strict=True)),
-                            (), (), "fixture@1", "prefix", ("evidence",))
+    snapshot = replace(
+        snapshot,
+        actions=snapshot.actions + tuple(ActionRecord(action, view.id, "native") for action in second),
+        conditioning=snapshot.conditioning + (view,),
+    )
+    credit = PreparedCredit(
+        snapshot.digest,
+        "external-fixture@1",
+        tuple(
+            ActionCredit(record.action, value)
+            for record, value in zip(snapshot.actions, (1, -0.5, 0.25, 0.75), strict=True)
+        ),
+        (),
+        (),
+        "fixture@1",
+        "prefix",
+        ("evidence",),
+    )
     spec = ObjectiveSpec(identity)
     objective = objective_population(snapshot, spec, credit)
     update = resolve_updates(snapshot, PolicyUpdateSchedule("episode", 2), objective)[0]
@@ -56,6 +67,7 @@ def test_two_applied_transitions_match_monolithic_oracle_across_packs(identity, 
         return logits[:, [4, 5]].diagonal() - torch.logsumexp(logits, dim=1)
 
     old_reference = reference_logps(reference).detach()
+
     def reference_loss(model):
         current = reference_logps(model)
         delta = current - old_reference
@@ -84,8 +96,18 @@ def test_two_applied_transitions_match_monolithic_oracle_across_packs(identity, 
         for index in range(2):
             optimizer.zero_grad()
             term = resolve_objective_term(update, spec, credit, parameter_version=f"current@{index + 1}")
-            actual = compute_resolved_loss(model, update, term, credit, packs, old=old, reference=None,
-                                           score_contract="causal@1", sampler_correction=None, **kwargs)
+            actual = compute_resolved_loss(
+                model,
+                update,
+                term,
+                credit,
+                packs,
+                old=old,
+                reference=None,
+                score_contract="causal@1",
+                sampler_correction=None,
+                **kwargs,
+            )
             # Loss arithmetic is compared at identical parameters. Independent
             # half-parameter optimizer histories can differ by rounding after
             # separate graph accumulation; gradients and states are compared below.
@@ -107,5 +129,15 @@ def test_missing_dependency_pack_rejected_before_model_execution():
     packs = plan_packs(update, PolicyExecutionBudget(1, 100, 10000), capabilities)
     term = resolve_objective_term(update, spec, credit)
     with pytest.raises(InvalidPolicyUpdate, match="each resolved dependency"):
-        compute_resolved_loss(model, update, term, credit, packs[:1], old=old, reference=None,
-                              score_contract="causal@1", sampler_correction=None, **kwargs)
+        compute_resolved_loss(
+            model,
+            update,
+            term,
+            credit,
+            packs[:1],
+            old=old,
+            reference=None,
+            score_contract="causal@1",
+            sampler_correction=None,
+            **kwargs,
+        )

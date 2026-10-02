@@ -36,19 +36,31 @@ class AdmittedNativePopulation:
 
     def __post_init__(self) -> None:
         self._validate_counters(self.applied_update_offset, self.attempt_offset, self.max_overflow_retries)
-        if hashlib.sha256(self.read_input.retained_evidence).hexdigest() != self.resolved.snapshot.native_evidence_digest:
+        if (
+            hashlib.sha256(self.read_input.retained_evidence).hexdigest()
+            != self.resolved.snapshot.native_evidence_digest
+        ):
             raise InvalidPolicyUpdate("admitted input reader lost its original native evidence bytes")
         for view in self.resolved.snapshot.conditioning:
             self.read_input(view)
 
     @classmethod
     def from_retained_artifact(
-        cls, artifact: ProducedArtifact, rollouts: tuple[EnvironmentRollout, ...],
+        cls,
+        artifact: ProducedArtifact,
+        rollouts: tuple[EnvironmentRollout, ...],
         settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
-        capabilities: ExecutionCapabilities, *, population_id: str,
-        template_revision: str, versions: PolicyVersions, sampler_step: int,
-        selector_digest: str, spans: tuple[SemanticSpan, ...] = (), process_credit: Any = None,
-        applied_update_offset: int = 0, attempt_offset: int = 0,
+        capabilities: ExecutionCapabilities,
+        *,
+        population_id: str,
+        template_revision: str,
+        versions: PolicyVersions,
+        sampler_step: int,
+        selector_digest: str,
+        spans: tuple[SemanticSpan, ...] = (),
+        process_credit: Any = None,
+        applied_update_offset: int = 0,
+        attempt_offset: int = 0,
         max_overflow_retries: int = 0,
     ) -> AdmittedNativePopulation:
         """Consume the bridge's durable local native artifact before promotion.
@@ -62,33 +74,55 @@ class AdmittedNativePopulation:
         cls._validate_counters(applied_update_offset, attempt_offset, max_overflow_retries)
         reference = artifact.reference
         format = artifact.metadata.get("format")
-        if (not isinstance(reference, LocalArtifactRef) or artifact.kind != "evaluation-traces"
-                or not artifact.required or artifact.metadata.get("replay_authority") is not True
-                or format not in ("verifiers-native-episodes", "verifiers-native-traces")):
+        if (
+            not isinstance(reference, LocalArtifactRef)
+            or artifact.kind != "evaluation-traces"
+            or not artifact.required
+            or artifact.metadata.get("replay_authority") is not True
+            or format not in ("verifiers-native-episodes", "verifiers-native-traces")
+        ):
             raise InvalidPolicyUpdate("native admission requires a retained native replay artifact")
         evidence = reference.path.read_bytes()
         if hashlib.sha256(evidence).hexdigest() != reference.digest:
             raise InvalidPolicyUpdate("retained native artifact differs from its declared digest")
         return cls.from_rollouts(
-            rollouts, settings, capabilities, population_id=population_id,
-            native_evidence_ref=artifact.name, read_evidence=lambda _: evidence,
+            rollouts,
+            settings,
+            capabilities,
+            population_id=population_id,
+            native_evidence_ref=artifact.name,
+            read_evidence=lambda _: evidence,
             decode=lambda raw: decode_native_population(raw, format=format),
-            template_revision=template_revision, versions=versions, sampler_step=sampler_step,
-            selector_digest=selector_digest, spans=spans, process_credit=process_credit,
-            applied_update_offset=applied_update_offset, attempt_offset=attempt_offset,
+            template_revision=template_revision,
+            versions=versions,
+            sampler_step=sampler_step,
+            selector_digest=selector_digest,
+            spans=spans,
+            process_credit=process_credit,
+            applied_update_offset=applied_update_offset,
+            attempt_offset=attempt_offset,
             max_overflow_retries=max_overflow_retries,
         )
 
     @classmethod
     def from_rollouts(
-        cls, rollouts: tuple[EnvironmentRollout, ...],
+        cls,
+        rollouts: tuple[EnvironmentRollout, ...],
         settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
-        capabilities: ExecutionCapabilities, *,
-        population_id: str, native_evidence_ref: str,
-        read_evidence: Callable[[str], bytes], decode: Callable[[bytes], Mapping[str, Any]],
-        template_revision: str, versions: PolicyVersions, sampler_step: int,
-        selector_digest: str, spans: tuple[SemanticSpan, ...] = (), process_credit: Any = None,
-        applied_update_offset: int = 0, attempt_offset: int = 0,
+        capabilities: ExecutionCapabilities,
+        *,
+        population_id: str,
+        native_evidence_ref: str,
+        read_evidence: Callable[[str], bytes],
+        decode: Callable[[bytes], Mapping[str, Any]],
+        template_revision: str,
+        versions: PolicyVersions,
+        sampler_step: int,
+        selector_digest: str,
+        spans: tuple[SemanticSpan, ...] = (),
+        process_credit: Any = None,
+        applied_update_offset: int = 0,
+        attempt_offset: int = 0,
         max_overflow_retries: int = 0,
     ) -> AdmittedNativePopulation:
         """Resolve complete groups against bytes already retained by the host.
@@ -109,11 +143,17 @@ class AdmittedNativePopulation:
 
             spans = reasoning_answer_spans(rollouts, decode(evidence))
         resolved = resolve_rollout_population(
-            rollouts, settings, capabilities, population_id=population_id,
+            rollouts,
+            settings,
+            capabilities,
+            population_id=population_id,
             native_evidence_ref=native_evidence_ref,
             native_evidence_digest=hashlib.sha256(evidence).hexdigest(),
-            template_revision=template_revision, versions=versions, sampler_step=sampler_step,
-            selector_digest=selector_digest, spans=spans,
+            template_revision=template_revision,
+            versions=versions,
+            sampler_step=sampler_step,
+            selector_digest=selector_digest,
+            spans=spans,
         )
         reader = NativePopulationInputs.from_evidence(resolved.snapshot, evidence, decode)
         selected_estimator = updates.credit_estimator if updates is not None else None
@@ -126,23 +166,33 @@ class AdmittedNativePopulation:
                 raise InvalidPolicyUpdate("injected process credit differs from the selected estimator")
             credit = process_credit.prepare(resolved.snapshot, reader)
             if credit.estimator_id != selected_estimator or credit.population_digest != resolved.snapshot.digest:
-                raise InvalidPolicyUpdate("process credit provider returned credit for a different estimator or population")
+                raise InvalidPolicyUpdate(
+                    "process credit provider returned credit for a different estimator or population"
+                )
             resolved = resolve_policy_population(resolved.snapshot, credit, settings, capabilities)
         views = {view.id: view for view in resolved.snapshot.conditioning}
         for rollout in rollouts:
-            for record, indices in zip(rollout.conditioning_records, rollout.conditioning_completion_indices, strict=True):
+            for record, indices in zip(
+                rollout.conditioning_records, rollout.conditioning_completion_indices, strict=True
+            ):
                 inputs = reader(views[f"{record.trace_id}/node-{record.node_index}"])
                 targets = {index: inputs.token_ids[position] for index, position in inputs.action_positions}
-                if any(rollout.completion_ids[completion] != targets[native]
-                       for native, completion in zip(record.sampled_token_indices, indices, strict=True)):
+                if any(
+                    rollout.completion_ids[completion] != targets[native]
+                    for native, completion in zip(record.sampled_token_indices, indices, strict=True)
+                ):
                     raise InvalidPolicyUpdate("native rollout sampled tokens differ from retained original inputs")
         return cls(resolved, reader, applied_update_offset, attempt_offset, max_overflow_retries)
 
     @classmethod
     def from_checkpoint(
-        cls, checkpoint: Path, identity: UpdateRecoveryIdentity, *,
+        cls,
+        checkpoint: Path,
+        identity: UpdateRecoveryIdentity,
+        *,
         sampler_correction: Mapping[ActionRef, float] | None,
-        read_evidence: Callable[[str], bytes] | None = None, decode: Callable[[bytes], Mapping[str, Any]],
+        read_evidence: Callable[[str], bytes] | None = None,
+        decode: Callable[[bytes], Mapping[str, Any]],
     ) -> AdmittedNativePopulation:
         """Verify the native seal, restore frozen credit, then admit original inputs.
 
@@ -158,15 +208,20 @@ class AdmittedNativePopulation:
         resolved = retained.resolved
         if read_evidence is None:
             state = load_update_recovery(checkpoint, identity)
-            if not any(component.role == "native-rollout-evidence"
-                       and component.relative_path == NATIVE_EVIDENCE_FILENAME for component in state.components):
-                raise InvalidPolicyUpdate("checkpoint lacks sealed native evidence; supply a retained artifact resolver")
+            if not any(
+                component.role == "native-rollout-evidence" and component.relative_path == NATIVE_EVIDENCE_FILENAME
+                for component in state.components
+            ):
+                raise InvalidPolicyUpdate(
+                    "checkpoint lacks sealed native evidence; supply a retained artifact resolver"
+                )
             evidence = (checkpoint / NATIVE_EVIDENCE_FILENAME).read_bytes()
         else:
             evidence = cls._read_evidence(read_evidence, resolved.snapshot.native_evidence_ref)
         reader = NativePopulationInputs.from_evidence(resolved.snapshot, evidence, decode)
-        return cls(resolved, reader, retained.applied_update_offset,
-                   retained.attempt_offset, retained.max_overflow_retries)
+        return cls(
+            resolved, reader, retained.applied_update_offset, retained.attempt_offset, retained.max_overflow_retries
+        )
 
     @staticmethod
     def _read_evidence(read_evidence: Callable[[str], bytes], reference: str) -> bytes:

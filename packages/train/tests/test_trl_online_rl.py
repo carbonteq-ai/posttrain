@@ -159,12 +159,18 @@ def test_resolved_generator_requires_native_sampler_scores_and_opts_in(monkeypat
             assert return_generation_logprobs is True
             return super()._generate_single_turn(prompt_ids, generation_config, extra)
 
-    generator = TrlPolicyGenerator(ReceiptTrainer(), object(), QWEN_35_2B, profile, _training(),
-                                   retain_generation_logprobs=True)
-    result = asyncio.run(generator.generate(PolicyTurnRequest(
-        messages=({"role": "user", "content": "hello"},),
-        sampling=PolicySampling(max_tokens=2, temperature=.7, top_p=.9))))
-    assert result.completion_logprobs == (-.1, -.2)
+    generator = TrlPolicyGenerator(
+        ReceiptTrainer(), object(), QWEN_35_2B, profile, _training(), retain_generation_logprobs=True
+    )
+    result = asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=({"role": "user", "content": "hello"},),
+                sampling=PolicySampling(max_tokens=2, temperature=0.7, top_p=0.9),
+            )
+        )
+    )
+    assert result.completion_logprobs == (-0.1, -0.2)
 
 
 def test_trl_lfm_tool_cycle_keeps_sampled_prefix_and_appends_only_new_tool_messages(monkeypatch) -> None:
@@ -277,23 +283,39 @@ def test_resolved_trl_preserves_native_train_client_admission(monkeypatch) -> No
 
     renderer = FakeRenderer()
     renderer.parse_response = lambda *args, **kwargs: SimpleNamespace(
-        content="", reasoning_content="Check the task.", tool_calls=[SimpleNamespace(
-            name="asana_get_task", arguments={"task_id": "bad"}, id="call_0",
-            status=SimpleNamespace(value="invalid_json"), token_span=(0, 1))])
+        content="",
+        reasoning_content="Check the task.",
+        tool_calls=[
+            SimpleNamespace(
+                name="asana_get_task",
+                arguments={"task_id": "bad"},
+                id="call_0",
+                status=SimpleNamespace(value="invalid_json"),
+                token_span=(0, 1),
+            )
+        ],
+    )
     monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: renderer)
     tokenizer = SimpleNamespace(decode=lambda ids, **kwargs: "<tool_call>invalid attempt</tool_call>")
-    settings = replace(QWEN35_GRPO_SMOKE, max_completion_length=2,
-                       loop=replace(QWEN35_GRPO_SMOKE.loop, per_device_batch_size=1,
-                                    gradient_accumulation_steps=1),
-                       policy_updates=PolicyUpdateSettings(PolicyUpdateSchedule("episode", 2),
-                                                           PolicyExecutionBudget(2, 8192, 100000)))
+    settings = replace(
+        QWEN35_GRPO_SMOKE,
+        max_completion_length=2,
+        loop=replace(QWEN35_GRPO_SMOKE.loop, per_device_batch_size=1, gradient_accumulation_steps=1),
+        policy_updates=PolicyUpdateSettings(PolicyUpdateSchedule("episode", 2), PolicyExecutionBudget(2, 8192, 100000)),
+    )
     generator = TrlPolicyGenerator(FakeTrainer(), tokenizer, QWEN_35_2B, settings, _training())
-    result = asyncio.run(generator.generate(PolicyTurnRequest(
-        messages=({"role": "user", "content": "hello"},),
-        sampling=PolicySampling(max_tokens=2, temperature=0.7, top_p=0.9))))
+    result = asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=({"role": "user", "content": "hello"},),
+                sampling=PolicySampling(max_tokens=2, temperature=0.7, top_p=0.9),
+            )
+        )
+    )
 
-    assert result.message["tool_calls"] == [{"id": "call_0", "name": "asana_get_task",
-                                           "arguments": '{"task_id": "bad"}'}]
+    assert result.message["tool_calls"] == [
+        {"id": "call_0", "name": "asana_get_task", "arguments": '{"task_id": "bad"}'}
+    ]
     evidence = cast(list[dict[str, Any]], result.message["provider_state"])
     assert evidence[0]["type"] == "posttrain.nonconforming_tool_call"
     assert evidence[0]["raw"] == "<tool_call>invalid attempt</tool_call>"
@@ -461,8 +483,11 @@ def test_trl_generator_attributes_prefilled_lfm_thought_with_real_renderer(monke
 
     transformers = pytest.importorskip("transformers")
     pytest.importorskip("renderers")
-    snapshot = (Path.home() / ".cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B/snapshots"
-                / "654f9463ce32b05d0429d76fe1f580b27d4c1ac0")
+    snapshot = (
+        Path.home()
+        / ".cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B/snapshots"
+        / "654f9463ce32b05d0429d76fe1f580b27d4c1ac0"
+    )
     if not snapshot.exists():
         pytest.skip("requires the cached immutable LFM2.5-2.6B tokenizer")
     tokenizer = transformers.AutoTokenizer.from_pretrained(snapshot, local_files_only=True)
@@ -475,11 +500,21 @@ def test_trl_generator_attributes_prefilled_lfm_thought_with_real_renderer(monke
             return [sampled], [[-0.1] * len(sampled)]
 
     generator = TrlPolicyGenerator(
-        ThinkingTrainer(), tokenizer, LFM_25_26B, replace(QWEN35_GRPO_SMOKE, max_completion_length=len(sampled)),
+        ThinkingTrainer(),
+        tokenizer,
+        LFM_25_26B,
+        replace(QWEN35_GRPO_SMOKE, max_completion_length=len(sampled)),
         replace(_training(), renderer=LFM25_RENDERER),
     )
-    result = asyncio.run(generator.generate(PolicyTurnRequest(
-        messages=({"role": "user", "content": "Two plus two?"},),
-        sampling=PolicySampling(max_tokens=len(sampled), temperature=0.7, top_p=0.9))))
-    assert result.reasoning_tokens == len(tokenizer.encode("I should answer briefly.</think>", add_special_tokens=False))
+    result = asyncio.run(
+        generator.generate(
+            PolicyTurnRequest(
+                messages=({"role": "user", "content": "Two plus two?"},),
+                sampling=PolicySampling(max_tokens=len(sampled), temperature=0.7, top_p=0.9),
+            )
+        )
+    )
+    assert result.reasoning_tokens == len(
+        tokenizer.encode("I should answer briefly.</think>", add_special_tokens=False)
+    )
     assert "</think>" not in str(result.message.get("content"))

@@ -21,10 +21,19 @@ from .policy_update_scoring import FrozenPopulationScores, score_actions
 
 
 def compute_resolved_loss(
-    model: Any, update: ResolvedUpdate, term: ResolvedObjectiveTerm, credit: PreparedCredit,
-    packs: tuple[ExecutionPack, ...], *, old: FrozenPopulationScores, reference: FrozenPopulationScores | None,
-    read_input: Callable[[ConditioningView], NativeConditioningInput], device: torch.device,
-    score_temperature: float, score_contract: str, sampler_correction: Mapping[ActionRef, float] | None,
+    model: Any,
+    update: ResolvedUpdate,
+    term: ResolvedObjectiveTerm,
+    credit: PreparedCredit,
+    packs: tuple[ExecutionPack, ...],
+    *,
+    old: FrozenPopulationScores,
+    reference: FrozenPopulationScores | None,
+    read_input: Callable[[ConditioningView], NativeConditioningInput],
+    device: torch.device,
+    score_temperature: float,
+    score_contract: str,
+    sampler_correction: Mapping[ActionRef, float] | None,
 ) -> ObjectiveEvaluation:
     """Score all dependency packs at fixed parameters, then form one true loss.
 
@@ -35,16 +44,26 @@ def compute_resolved_loss(
     """
     if term.update_digest != update.digest or term.credit_digest != credit.digest:
         raise InvalidPolicyUpdate("native loss received a different resolved update or prepared credit")
-    old.validate(update.population, policy_version=update.population.versions.old_score,
-                 score_contract=score_contract, score_temperature=score_temperature)
+    old.validate(
+        update.population,
+        policy_version=update.population.versions.old_score,
+        score_contract=score_contract,
+        score_temperature=score_temperature,
+    )
     if term.kl_weights:
         if reference is None or update.population.versions.reference is None:
             raise InvalidPolicyUpdate("resolved KL requires frozen reference scores and identity")
-        reference.validate(update.population, policy_version=update.population.versions.reference,
-                           score_contract=score_contract, score_temperature=score_temperature)
+        reference.validate(
+            update.population,
+            policy_version=update.population.versions.reference,
+            score_contract=score_contract,
+            score_temperature=score_temperature,
+        )
     addressed = tuple(action for pack in packs for action in pack.actions)
-    if len(set(addressed)) != len(addressed) or set(addressed) != set(update.dependencies) or any(
-        pack.update_digest != update.digest or pack.index != index for index, pack in enumerate(packs)
+    if (
+        len(set(addressed)) != len(addressed)
+        or set(addressed) != set(update.dependencies)
+        or any(pack.update_digest != update.digest or pack.index != index for index, pack in enumerate(packs))
     ):
         raise InvalidPolicyUpdate("native score packs must cover each resolved dependency exactly once in order")
     records = {record.action: record for record in update.population.actions}
@@ -57,8 +76,21 @@ def compute_resolved_loss(
             raise InvalidPolicyUpdate("native pack lost its resolved original conditioning footprint")
     current = {}
     for pack in packs:
-        current.update(score_actions(model, update.population, pack.actions, read_input=read_input,
-                                     device=device, score_temperature=score_temperature))
-    scores = ScoreBundle(current, old.values, term.parameter_version,
-                         reference.values if reference is not None else {}, sampler_correction)
+        current.update(
+            score_actions(
+                model,
+                update.population,
+                pack.actions,
+                read_input=read_input,
+                device=device,
+                score_temperature=score_temperature,
+            )
+        )
+    scores = ScoreBundle(
+        current,
+        old.values,
+        term.parameter_version,
+        reference.values if reference is not None else {},
+        sampler_correction,
+    )
     return evaluate(term, credit, scores)

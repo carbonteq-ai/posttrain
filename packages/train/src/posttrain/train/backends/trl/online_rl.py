@@ -35,7 +35,8 @@ class TrlPolicyGenerator:
         self._max_completion_length = settings.max_completion_length
         self._retain_generation_logprobs = retain_generation_logprobs
         self._tool_call_admission: ToolCallAdmission = (
-            "verifiers-train-client" if getattr(settings, "policy_updates", None) is not None else "strict")
+            "verifiers-train-client" if getattr(settings, "policy_updates", None) is not None else "strict"
+        )
         if retain_generation_logprobs:
             import inspect
 
@@ -91,8 +92,9 @@ class TrlPolicyGenerator:
         sampled_logprobs = () if logprobs is None else tuple(float(value) for value in logprobs)
         # The prompt may prefill an open thought (LFM2.5-2.6B ends its generation
         # prompt with <think>); the renderer needs it to attribute reasoning.
-        parsed = self._renderer.parse_response(list(token_ids), tools=tools or None,
-                                               prompt_ids=list(rendered.token_ids))
+        parsed = self._renderer.parse_response(
+            list(token_ids), tools=tools or None, prompt_ids=list(rendered.token_ids)
+        )
         message = parsed_policy_message(
             parsed,
             token_ids,
@@ -108,8 +110,11 @@ class TrlPolicyGenerator:
         finish_reason = _finish_reason(
             token_ids,
             frozenset(self._renderer.get_stop_token_ids()),
-            (any(item.status.value == "ok" for item in parsed.tool_calls)
-             if self._tool_call_admission == "verifiers-train-client" else bool(message.get("tool_calls"))),
+            (
+                any(item.status.value == "ok" for item in parsed.tool_calls)
+                if self._tool_call_admission == "verifiers-train-client"
+                else bool(message.get("tool_calls"))
+            ),
             self._max_completion_length,
         )
         raw_response = _openai_response(message, finish_reason)

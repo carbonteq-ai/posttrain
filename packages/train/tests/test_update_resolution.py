@@ -26,16 +26,19 @@ from .test_update_objectives import resolved
 
 def settings():
     return SAMPOSettings(
-        id="resolution-test", loop=TrainingLoop(max_steps=2, per_device_batch_size=1),
+        id="resolution-test",
+        loop=TrainingLoop(max_steps=2, per_device_batch_size=1),
         policy_updates=PolicyUpdateSettings(
-            PolicyUpdateSchedule("episode", 1), PolicyExecutionBudget(2, 100, 1000),
+            PolicyUpdateSchedule("episode", 1),
+            PolicyExecutionBudget(2, 100, 1000),
         ),
     )
 
 
 def capabilities():
-    return ExecutionCapabilities(("sampo@1", "sampo-spans@1", "grpo@1", "dapo@1"),
-                                 ("sampled-logp", "old-logp", "reference-logp"), 100, True)
+    return ExecutionCapabilities(
+        ("sampo@1", "sampo-spans@1", "grpo@1", "dapo@1"), ("sampled-logp", "old-logp", "reference-logp"), 100, True
+    )
 
 
 def test_typed_selection_preserves_credit_and_episode_dependencies():
@@ -53,9 +56,12 @@ def test_typed_selection_preserves_credit_and_episode_dependencies():
 def test_every_occurrence_is_capacity_checked_before_return():
     snapshot, credit, _, _ = resolved()
     # Only episode B exceeds this backend's qualified context capacity.
-    snapshot = replace(snapshot, conditioning=tuple(
-        replace(view, context_tokens=101) if view.id == "B2" else view for view in snapshot.conditioning
-    ))
+    snapshot = replace(
+        snapshot,
+        conditioning=tuple(
+            replace(view, context_tokens=101) if view.id == "B2" else view for view in snapshot.conditioning
+        ),
+    )
     credit = replace(credit, population_digest=snapshot.digest)
     with pytest.raises(InvalidPolicyUpdate, match="context capacity"):
         resolve_policy_population(snapshot, credit, settings(), capabilities())
@@ -64,25 +70,43 @@ def test_every_occurrence_is_capacity_checked_before_return():
 def test_legacy_and_unsupported_selections_do_not_fall_through():
     snapshot, credit, _, _ = resolved()
     with pytest.raises(InvalidPolicyUpdate, match="explicit policy_updates"):
-        resolve_policy_population(snapshot, credit, SAMPOSettings(
-            id="legacy", loop=TrainingLoop(max_steps=2, per_device_batch_size=2),
-        ), capabilities())
+        resolve_policy_population(
+            snapshot,
+            credit,
+            SAMPOSettings(
+                id="legacy",
+                loop=TrainingLoop(max_steps=2, per_device_batch_size=2),
+            ),
+            capabilities(),
+        )
     with pytest.raises(InvalidPolicyUpdate, match="qualified objective"):
         resolve_policy_population(snapshot, credit, settings(), replace(capabilities(), definition_ids=()))
     selected = settings()
     assert selected.policy_updates is not None
     with pytest.raises(InvalidPolicyUpdate, match="semantic spans"):
-        resolve_policy_population(snapshot, credit, GRPOSettings(
-            id="unsupported-spans", loop=selected.loop,
-            policy_updates=replace(selected.policy_updates, objective_variant="semantic-spans"),
-        ), capabilities())
+        resolve_policy_population(
+            snapshot,
+            credit,
+            GRPOSettings(
+                id="unsupported-spans",
+                loop=selected.loop,
+                policy_updates=replace(selected.policy_updates, objective_variant="semantic-spans"),
+            ),
+            capabilities(),
+        )
 
 
 @pytest.mark.parametrize("algorithm,high", [("grpo", 0.2), ("dapo", 0.28)])
 def test_grpo_recipe_coefficients_are_not_replaced_by_sampo_defaults(algorithm, high):
     snapshot, credit, _, _ = resolved()
-    selected = GRPOSettings(id="recipe", algorithm=algorithm, loop=settings().loop,
-                            clip_epsilon_high=high, beta=0.15, policy_updates=settings().policy_updates)
+    selected = GRPOSettings(
+        id="recipe",
+        algorithm=algorithm,
+        loop=settings().loop,
+        clip_epsilon_high=high,
+        beta=0.15,
+        policy_updates=settings().policy_updates,
+    )
     result = resolve_policy_population(snapshot, credit, selected, capabilities())
     assert result.spec.definition_id == f"{algorithm}@1"
     assert result.spec.clip_high == high
@@ -94,15 +118,34 @@ def test_grpo_recipe_coefficients_are_not_replaced_by_sampo_defaults(algorithm, 
 def test_structured_credit_is_transported_without_renormalizing_minibatches(algorithm):
     snapshot, credit, _, _ = resolved()
     if algorithm == "gdpo":
-        selected = GDPOSettings(id="structured", loop=settings().loop, beta=0.25,
-            clip_epsilon_low=0.13, clip_epsilon_high=0.24, policy_updates=settings().policy_updates,
-            component_names=("outcome",), component_weights=(1.0,))
+        selected = GDPOSettings(
+            id="structured",
+            loop=settings().loop,
+            beta=0.25,
+            clip_epsilon_low=0.13,
+            clip_epsilon_high=0.24,
+            policy_updates=settings().policy_updates,
+            component_names=("outcome",),
+            component_weights=(1.0,),
+        )
     else:
-        selected = CAPOSettings(id="structured", loop=settings().loop, beta=0.25,
-            clip_epsilon_low=0.13, clip_epsilon_high=0.24, policy_updates=settings().policy_updates)
-    result = resolve_policy_population(snapshot, credit, selected, replace(
-        capabilities(), definition_ids=(f"{algorithm}@1",),
-    ))
+        selected = CAPOSettings(
+            id="structured",
+            loop=settings().loop,
+            beta=0.25,
+            clip_epsilon_low=0.13,
+            clip_epsilon_high=0.24,
+            policy_updates=settings().policy_updates,
+        )
+    result = resolve_policy_population(
+        snapshot,
+        credit,
+        selected,
+        replace(
+            capabilities(),
+            definition_ids=(f"{algorithm}@1",),
+        ),
+    )
     assert result.credit is credit
     assert result.spec.definition_id == f"{algorithm}@1"
     assert (result.spec.clip_low, result.spec.clip_high, result.spec.beta) == (0.13, 0.24, 0.25)
@@ -111,15 +154,21 @@ def test_structured_credit_is_transported_without_renormalizing_minibatches(algo
 def test_reasoning_selection_keeps_unselected_episode_ratio_dependencies():
     snapshot, credit, _, _ = resolved()
     action = snapshot.actions[0].action
-    snapshot = replace(snapshot, spans=(SemanticSpan("thinking", "reasoning", "fixture@1",
-                                                     (ActionInterval(action, 1),)),))
+    snapshot = replace(
+        snapshot, spans=(SemanticSpan("thinking", "reasoning", "fixture@1", (ActionInterval(action, 1),)),)
+    )
     credit = replace(credit, population_digest=snapshot.digest)
     selected = settings()
     assert selected.policy_updates is not None
-    selected = replace(selected, policy_updates=replace(
-        selected.policy_updates, objective_variant="semantic-spans",
-        policy_selection=ActionSelection("spans", ("thinking",)), empty_policy="zero",
-    ))
+    selected = replace(
+        selected,
+        policy_updates=replace(
+            selected.policy_updates,
+            objective_variant="semantic-spans",
+            policy_selection=ActionSelection("spans", ("thinking",)),
+            empty_policy="zero",
+        ),
+    )
     result = resolve_policy_population(snapshot, credit, selected, capabilities())
     assert result.spec.definition_id == "sampo-spans@1"
     assert result.spec.policy_selection.resolve(snapshot) == (action,)
@@ -128,9 +177,15 @@ def test_reasoning_selection_keeps_unselected_episode_ratio_dependencies():
 
 def native_resolution(rollouts, selected):
     return resolve_rollout_population(
-        rollouts, selected, capabilities(), population_id="admitted", native_evidence_ref="native:receipts",
-        native_evidence_digest="native-receipt-digest", template_revision="native-template@1",
-        versions=PolicyVersions("sampler@3", "old@3", "current@3", None), sampler_step=3,
+        rollouts,
+        selected,
+        capabilities(),
+        population_id="admitted",
+        native_evidence_ref="native:receipts",
+        native_evidence_digest="native-receipt-digest",
+        template_revision="native-template@1",
+        versions=PolicyVersions("sampler@3", "old@3", "current@3", None),
+        sampler_step=3,
         selector_digest="original-actions@1",
     )
 
@@ -139,12 +194,17 @@ def test_native_collection_credit_shapes_before_group_statistics_without_changin
     rollouts = (native_rollout("a", 0, 1.0), replace(native_rollout("a", 1, 1.0), is_truncated=True))
     selected = replace(settings(), truncation_penalty=0.5)
     result = native_resolution(rollouts, selected)
-    expected = compute_sampo_advantages(selected, [row.example_id for row in rollouts],
-                                       [rollouts[0], replace(rollouts[1], reward=0.5)])
-    assert [value.advantage for value in result.credit.values] == pytest.approx([
-        value for rollout, row in zip(rollouts, expected.token_advantages, strict=True)
-        for value, eligible in zip(row, rollout.env_mask, strict=True) if eligible
-    ])
+    expected = compute_sampo_advantages(
+        selected, [row.example_id for row in rollouts], [rollouts[0], replace(rollouts[1], reward=0.5)]
+    )
+    assert [value.advantage for value in result.credit.values] == pytest.approx(
+        [
+            value
+            for rollout, row in zip(rollouts, expected.token_advantages, strict=True)
+            for value, eligible in zip(row, rollout.env_mask, strict=True)
+            if eligible
+        ]
+    )
     assert any(value.advantage != 0 for value in result.credit.values)
     assert rollouts[1].reward == 1.0
     assert result.snapshot.native_evidence_digest == "native-receipt-digest"
@@ -157,9 +217,16 @@ def test_native_collection_normalizes_complete_groups_before_optimizer_slicing()
     split = native_resolution(rollouts, settings())
     selected = settings()
     assert selected.policy_updates is not None
-    full = native_resolution(rollouts, replace(selected, policy_updates=replace(
-        selected.policy_updates, schedule=PolicyUpdateSchedule("episode", 2),
-    )))
+    full = native_resolution(
+        rollouts,
+        replace(
+            selected,
+            policy_updates=replace(
+                selected.policy_updates,
+                schedule=PolicyUpdateSchedule("episode", 2),
+            ),
+        ),
+    )
     assert [value.advantage for value in split.credit.values] == [value.advantage for value in full.credit.values]
     assert len(split.updates) == 2 and len(full.updates) == 1
     with pytest.raises(InvalidPolicyUpdate, match="complete prompt groups"):
@@ -169,14 +236,17 @@ def test_native_collection_normalizes_complete_groups_before_optimizer_slicing()
 def test_unqualified_truncation_mask_does_not_silently_keep_all_actions():
     snapshot, credit, _, _ = resolved()
     with pytest.raises(InvalidPolicyUpdate, match="truncation masking"):
-        resolve_policy_population(snapshot, credit, replace(settings(), mask_truncated_completions=True), capabilities())
+        resolve_policy_population(
+            snapshot, credit, replace(settings(), mask_truncated_completions=True), capabilities()
+        )
 
 
 def test_resolved_population_cannot_replace_a_later_objective_or_pack():
     snapshot, credit, _, _ = resolved()
     prepared = resolve_policy_population(snapshot, credit, settings(), capabilities())
-    changed = replace(prepared.updates[-1], objective=replace(prepared.updates[-1].objective,
-                                                            contract_digest="different-objective"))
+    changed = replace(
+        prepared.updates[-1], objective=replace(prepared.updates[-1].objective, contract_digest="different-objective")
+    )
     with pytest.raises(InvalidPolicyUpdate, match="objective differs"):
         replace(prepared, updates=(*prepared.updates[:-1], changed))
     with pytest.raises(InvalidPolicyUpdate, match="execution plans changed"):
@@ -184,33 +254,55 @@ def test_resolved_population_cannot_replace_a_later_objective_or_pack():
 
 
 def test_native_capo_process_credit_stays_on_original_positions_before_minibatching():
-    evidence = tuple(RewardEvidence(
-        "a", f"occurrence-a-{index}", f"trace-a-{index}", "7", "fixture@1",
-        (RewardValue("outcome", "valid", float(index == 0)),),
-        ProcessCredit("valid", "assistant-turns@1", f"critique:{index}", ((0, 1),)),
-    ) for index in range(2))
-    rollouts = tuple(replace(native_rollout("a", index, float(index == 0)), reward_evidence=evidence[index])
-                     for index in range(2))
+    evidence = tuple(
+        RewardEvidence(
+            "a",
+            f"occurrence-a-{index}",
+            f"trace-a-{index}",
+            "7",
+            "fixture@1",
+            (RewardValue("outcome", "valid", float(index == 0)),),
+            ProcessCredit("valid", "assistant-turns@1", f"critique:{index}", ((0, 1),)),
+        )
+        for index in range(2)
+    )
+    rollouts = tuple(
+        replace(native_rollout("a", index, float(index == 0)), reward_evidence=evidence[index]) for index in range(2)
+    )
     selected = CAPOSettings(id="native-capo", loop=settings().loop, policy_updates=settings().policy_updates)
     result = resolve_rollout_population(
-        rollouts, selected, replace(capabilities(), definition_ids=("capo@1",)),
-        population_id="admitted", native_evidence_ref="native:receipts", native_evidence_digest="native-digest",
-        template_revision="native-template@1", versions=PolicyVersions("sampler@3", "old@3", "current@3", None),
-        sampler_step=3, selector_digest="original-actions@1",
+        rollouts,
+        selected,
+        replace(capabilities(), definition_ids=("capo@1",)),
+        population_id="admitted",
+        native_evidence_ref="native:receipts",
+        native_evidence_digest="native-digest",
+        template_revision="native-template@1",
+        versions=PolicyVersions("sampler@3", "old@3", "current@3", None),
+        sampler_step=3,
+        selector_digest="original-actions@1",
     )
-    expected = compute_capo_advantages(evidence,
-                                       [row.env_mask for row in rollouts], group_size=2)
-    assert [value.advantage for value in result.credit.values] == pytest.approx([
-        value for rollout, row in zip(rollouts, expected.token_advantages, strict=True)
-        for value, eligible in zip(row, rollout.env_mask, strict=True) if eligible
-    ])
+    expected = compute_capo_advantages(evidence, [row.env_mask for row in rollouts], group_size=2)
+    assert [value.advantage for value in result.credit.values] == pytest.approx(
+        [
+            value
+            for rollout, row in zip(rollouts, expected.token_advantages, strict=True)
+            for value, eligible in zip(row, rollout.env_mask, strict=True)
+            if eligible
+        ]
+    )
     assert len(result.updates) == 2
     assert result.credit.observation_scope == "full-trajectory"
     with pytest.raises(InvalidPolicyUpdate, match="nontruncated"):
         resolve_rollout_population(
-            (replace(rollouts[0], is_truncated=True), rollouts[1]), selected,
+            (replace(rollouts[0], is_truncated=True), rollouts[1]),
+            selected,
             replace(capabilities(), definition_ids=("capo@1",)),
-            population_id="admitted", native_evidence_ref="native:receipts", native_evidence_digest="native-digest",
-            template_revision="native-template@1", versions=PolicyVersions("sampler@3", "old@3", "current@3", None),
-            sampler_step=3, selector_digest="original-actions@1",
+            population_id="admitted",
+            native_evidence_ref="native:receipts",
+            native_evidence_digest="native-digest",
+            template_revision="native-template@1",
+            versions=PolicyVersions("sampler@3", "old@3", "current@3", None),
+            sampler_step=3,
+            selector_digest="original-actions@1",
         )

@@ -37,7 +37,9 @@ class ObjectiveEvaluation:
     parameter_version: str
 
 
-def _score(values: Mapping[ActionRef, torch.Tensor], action: ActionRef, role: str, *, detached: bool = False) -> torch.Tensor:
+def _score(
+    values: Mapping[ActionRef, torch.Tensor], action: ActionRef, role: str, *, detached: bool = False
+) -> torch.Tensor:
     value = values.get(action)
     if value is None or value.ndim != 0 or not value.is_floating_point() or not bool(torch.isfinite(value)):
         raise InvalidPolicyUpdate(f"missing or non-finite scalar {role} score for {action}")
@@ -65,8 +67,10 @@ def evaluate(term: ResolvedObjectiveTerm, credit: PreparedCredit, scores: ScoreB
     advantages = {value.action: value.advantage for value in credit.values}
     ratios: dict[ActionRef, torch.Tensor] = {}
     for support in term.ratio_support:
-        deltas = tuple(_score(scores.current, action, "current") - _score(scores.old, action, "old", detached=True)
-                       for action in support)
+        deltas = tuple(
+            _score(scores.current, action, "current") - _score(scores.old, action, "old", detached=True)
+            for action in support
+        )
         log_ratio = deltas[0] if definition.ratio == "token" else torch.stack(deltas).mean()
         ratio = log_ratio.exp()
         if not bool(torch.isfinite(ratio)):
@@ -99,15 +103,20 @@ def evaluate(term: ResolvedObjectiveTerm, credit: PreparedCredit, scores: ScoreB
         correction = 1.0
         if scores.sampler_correction is not None:
             correction_value = scores.sampler_correction.get(action)
-            if correction_value is None or isinstance(correction_value, bool) or (
-                not math.isfinite(correction_value) or correction_value < 0
+            if (
+                correction_value is None
+                or isinstance(correction_value, bool)
+                or (not math.isfinite(correction_value) or correction_value < 0)
             ):
                 raise InvalidPolicyUpdate("sampler correction requires detached finite nonnegative action weights")
             correction = correction_value
         policy_terms.append(loss * (weighted.weight * correction))
     kl_terms = [
-        _sampled_k3(_score(scores.reference, item.action, "reference", detached=True)
-                    - _score(scores.current, item.action, "current")) * (term.spec.beta * item.weight)
+        _sampled_k3(
+            _score(scores.reference, item.action, "reference", detached=True)
+            - _score(scores.current, item.action, "current")
+        )
+        * (term.spec.beta * item.weight)
         for item in term.kl_weights
     ]
     # Empty terms retain a zero carrier when another term has a live device graph.
@@ -118,5 +127,6 @@ def evaluate(term: ResolvedObjectiveTerm, credit: PreparedCredit, scores: ScoreB
     loss = policy_loss + kl_loss
     if not bool(torch.isfinite(loss)):
         raise InvalidPolicyUpdate("non-finite resolved objective")
-    return ObjectiveEvaluation(loss, policy_loss, kl_loss, ratios, tuple(clipped_actions), term.digest,
-                               scores.parameter_version)
+    return ObjectiveEvaluation(
+        loss, policy_loss, kl_loss, ratios, tuple(clipped_actions), term.digest, scores.parameter_version
+    )

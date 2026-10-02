@@ -26,8 +26,14 @@ from ...update_records import InvalidPolicyUpdate
 from .contracts import VerlRunContext
 
 JOURNAL_NAME = "posttrain-resolved-observations.jsonl"
-_TYPES = {"event": EventObservation, "metric": MetricObservation, "metrics": MetricBatchObservation,
-          "trace": TraceObservation, "trace_fact_update": TraceFactUpdateObservation, "artifact": ProducedArtifact}
+_TYPES = {
+    "event": EventObservation,
+    "metric": MetricObservation,
+    "metrics": MetricBatchObservation,
+    "trace": TraceObservation,
+    "trace_fact_update": TraceFactUpdateObservation,
+    "artifact": ProducedArtifact,
+}
 
 
 class ResolvedWorkerObserver:
@@ -49,8 +55,13 @@ class ResolvedWorkerObserver:
         if kind == "artifact" and not isinstance(observation.reference, LocalArtifactRef):
             raise InvalidPolicyUpdate("resolved worker artifact transport requires a local retained artifact")
         encoded = TypeAdapter(_TYPES[kind]).dump_json(observation, fallback=dict, warnings=False)
-        payload = {"id": str(uuid4()), "schema": "posttrain.resolved-worker-observation@1", "kind": kind,
-                   "context": self.context.model_dump(mode="json"), "value": json.loads(encoded)}
+        payload = {
+            "id": str(uuid4()),
+            "schema": "posttrain.resolved-worker-observation@1",
+            "kind": kind,
+            "context": self.context.model_dump(mode="json"),
+            "value": json.loads(encoded),
+        }
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("ab") as stream:
             stream.write(json.dumps(payload, sort_keys=True, allow_nan=False).encode() + b"\n")
@@ -78,11 +89,15 @@ class ResolvedWorkerObserver:
 
 def observation_tailer(context: RunContext, path: Path) -> AppendOnlyJsonlTailer:
     def forward(record: Mapping[str, Any]) -> None:
-        if (set(record) != {"id", "schema", "kind", "context", "value"}
-                or record["schema"] != "posttrain.resolved-worker-observation@1"
-                or record["kind"] not in _TYPES
-                or record["context"] != VerlRunContext.model_validate({**context.identity_attributes,
-                                                                       "workspace": context.workspace}).model_dump(mode="json")):
+        if (
+            set(record) != {"id", "schema", "kind", "context", "value"}
+            or record["schema"] != "posttrain.resolved-worker-observation@1"
+            or record["kind"] not in _TYPES
+            or record["context"]
+            != VerlRunContext.model_validate(
+                {**context.identity_attributes, "workspace": context.workspace}
+            ).model_dump(mode="json")
+        ):
             raise InvalidPolicyUpdate("worker observation differs from the actual host run")
         kind = record["kind"]
         value = TypeAdapter(_TYPES[kind]).validate_json(json.dumps(record["value"]))

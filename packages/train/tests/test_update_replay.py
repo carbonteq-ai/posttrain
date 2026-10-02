@@ -26,8 +26,9 @@ def test_replay_model_gradients_match_graph_retention_with_clipping(identity, dt
     kwargs = dict(read_input=lambda view: source, device=torch.device("cpu"), score_temperature=0.7)
     current = score_actions(full, snapshot, update.dependencies, **kwargs)
     # Deliberately exercise clipping and mixed signs, independent of LR/recipe.
-    old = {action: value.detach() - (0.4 if index < 2 else -0.4)
-           for index, (action, value) in enumerate(current.items())}
+    old = {
+        action: value.detach() - (0.4 if index < 2 else -0.4) for index, (action, value) in enumerate(current.items())
+    }
     term = resolve_objective_term(update, spec, credit)
     direct = evaluate(term, credit, ScoreBundle(current, old, term.parameter_version))
     direct.loss.backward()
@@ -48,12 +49,19 @@ def test_replay_model_gradients_match_graph_retention_with_clipping(identity, dt
 def test_replay_rejects_changed_parameters_or_scores_before_backward():
     snapshot, source, credit, spec, update, _ = resolved("sampo@1")
     model = CausalModel()
-    scores = score_actions(model, snapshot, update.dependencies, read_input=lambda view: source,
-                           device=torch.device("cpu"), score_temperature=1)
+    scores = score_actions(
+        model,
+        snapshot,
+        update.dependencies,
+        read_input=lambda view: source,
+        device=torch.device("cpu"),
+        score_temperature=1,
+    )
     term = resolve_objective_term(update, spec, credit)
     adjoints = prepare_score_adjoints(term, credit, ScoreBundle(scores, scores, term.parameter_version))
     with pytest.raises(InvalidPolicyUpdate, match="parameter version changed"):
         adjoints.carrier(scores, parameter_version="later")
     with pytest.raises(InvalidPolicyUpdate, match="drift exceeds"):
-        adjoints.carrier({action: value + 0.01 for action, value in scores.items()},
-                         parameter_version=term.parameter_version)
+        adjoints.carrier(
+            {action: value + 0.01 for action, value in scores.items()}, parameter_version=term.parameter_version
+        )

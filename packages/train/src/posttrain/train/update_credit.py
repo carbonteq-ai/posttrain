@@ -186,10 +186,16 @@ class ScalarGroupCreditEstimator:
             identity = next(iter(memberships))
             assert identity is not None
             groups.setdefault(identity, []).append(index)
-        if set(groups) != set(relations) or any(len(group) != self.settings.num_generations for group in groups.values()):
+        if set(groups) != set(relations) or any(
+            len(group) != self.settings.num_generations for group in groups.values()
+        ):
             raise InvalidPolicyUpdate("scalar credit requires exactly num_generations episodes per prompt group")
-        rewards = [shape_online_reward(self.settings, rollout.reward, len(rollout.completion_ids),
-                   is_truncated=rollout.is_truncated) for rollout in self.rows.rollouts]
+        rewards = [
+            shape_online_reward(
+                self.settings, rollout.reward, len(rollout.completion_ids), is_truncated=rollout.is_truncated
+            )
+            for rollout in self.rows.rollouts
+        ]
         if not all(math.isfinite(value) for value in rewards):
             raise InvalidPolicyUpdate("scalar credit requires finite admitted native rewards")
         batch_std = statistics.stdev(rewards) if self.settings.advantage_scaling == "batch" else None
@@ -197,16 +203,27 @@ class ScalarGroupCreditEstimator:
         for group in groups.values():
             values = [rewards[index] for index in group]
             mean = math.fsum(values) / len(values)
-            divisor = 1.0 if self.settings.advantage_scaling == "none" else (
-                (batch_std if batch_std is not None else statistics.stdev(values)) + 1e-4
+            divisor = (
+                1.0
+                if self.settings.advantage_scaling == "none"
+                else ((batch_std if batch_std is not None else statistics.stdev(values)) + 1e-4)
             )
             for index in group:
                 advantages[index] = (rewards[index] - mean) / divisor
-        tokens = tuple(tuple(advantage if action is not None else 0.0 for action in actions)
-                       for advantage, actions in zip(advantages, self.rows.actions, strict=True))
-        return PreparedCredit(snapshot.digest, self.id, self.rows.project(tokens), self.required_relations,
-                              (), f"grpo-trl-{self.settings.advantage_scaling}-sample-std-eps1e-4@1",
-                              "full-trajectory", self.rows.evidence_digests)
+        tokens = tuple(
+            tuple(advantage if action is not None else 0.0 for action in actions)
+            for advantage, actions in zip(advantages, self.rows.actions, strict=True)
+        )
+        return PreparedCredit(
+            snapshot.digest,
+            self.id,
+            self.rows.project(tokens),
+            self.required_relations,
+            (),
+            f"grpo-trl-{self.settings.advantage_scaling}-sample-std-eps1e-4@1",
+            "full-trajectory",
+            self.rows.evidence_digests,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,15 +244,31 @@ class SampoCreditEstimator:
         return f"sampo-credit@2:{record_digest(self.settings)}"
 
     def prepare(self, snapshot: PopulationSnapshot) -> PreparedCredit:
-        shaped_rollouts = tuple(replace(rollout, reward=shape_online_reward(
-            self.settings, rollout.reward, len(rollout.completion_ids), is_truncated=rollout.is_truncated,
-        )) for rollout in self.rows.rollouts)
-        result = compute_sampo_advantages(self.settings, tuple(rollout.example_id for rollout in shaped_rollouts),
-                                         shaped_rollouts)
-        return PreparedCredit(snapshot.digest, self.id, self.rows.project(result.token_advantages),
-                              self.required_relations, (("episode", 1.0), ("turn", self.settings.step_advantage_weight)),
-                              f"sampo-{self.settings.advantage_normalization}@1", "full-trajectory",
-                              self.rows.evidence_digests)
+        shaped_rollouts = tuple(
+            replace(
+                rollout,
+                reward=shape_online_reward(
+                    self.settings,
+                    rollout.reward,
+                    len(rollout.completion_ids),
+                    is_truncated=rollout.is_truncated,
+                ),
+            )
+            for rollout in self.rows.rollouts
+        )
+        result = compute_sampo_advantages(
+            self.settings, tuple(rollout.example_id for rollout in shaped_rollouts), shaped_rollouts
+        )
+        return PreparedCredit(
+            snapshot.digest,
+            self.id,
+            self.rows.project(result.token_advantages),
+            self.required_relations,
+            (("episode", 1.0), ("turn", self.settings.step_advantage_weight)),
+            f"sampo-{self.settings.advantage_normalization}@1",
+            "full-trajectory",
+            self.rows.evidence_digests,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -257,16 +290,33 @@ class StructuredCreditEstimator:
             evidence.append(rollout.reward_evidence)
         masks = tuple(rollout.env_mask for rollout in self.rows.rollouts)
         if isinstance(self.settings, GDPOSettings):
-            result = compute_gdpo_advantages(evidence, masks, component_names=self.settings.component_names,
-                                             component_weights=self.settings.component_weights,
-                                             group_size=self.settings.num_generations, epsilon=self.settings.epsilon)
+            result = compute_gdpo_advantages(
+                evidence,
+                masks,
+                component_names=self.settings.component_names,
+                component_weights=self.settings.component_weights,
+                group_size=self.settings.num_generations,
+                epsilon=self.settings.epsilon,
+            )
             weights = tuple(zip(self.settings.component_names, self.settings.component_weights, strict=True))
         else:
-            result = compute_capo_advantages(evidence, masks, group_size=self.settings.num_generations,
-                                             outcome_component=self.settings.outcome_component,
-                                             outcome_weight=self.settings.outcome_weight,
-                                             process_weight=self.settings.process_weight, epsilon=self.settings.epsilon)
+            result = compute_capo_advantages(
+                evidence,
+                masks,
+                group_size=self.settings.num_generations,
+                outcome_component=self.settings.outcome_component,
+                outcome_weight=self.settings.outcome_weight,
+                process_weight=self.settings.process_weight,
+                epsilon=self.settings.epsilon,
+            )
             weights = (("outcome", self.settings.outcome_weight), ("process", self.settings.process_weight))
-        return PreparedCredit(snapshot.digest, self.id, self.rows.project(result.token_advantages),
-                              self.required_relations, weights, self.settings.numerical_profile,
-                              "full-trajectory", self.rows.evidence_digests)
+        return PreparedCredit(
+            snapshot.digest,
+            self.id,
+            self.rows.project(result.token_advantages),
+            self.required_relations,
+            weights,
+            self.settings.numerical_profile,
+            "full-trajectory",
+            self.rows.evidence_digests,
+        )

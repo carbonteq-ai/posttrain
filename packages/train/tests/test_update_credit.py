@@ -34,11 +34,16 @@ class ExternalEstimator:
 
     def prepare(self, snapshot: PopulationSnapshot) -> PreparedCredit:
         return PreparedCredit(
-            snapshot.digest, self.id,
-            tuple(ActionCredit(record.action, (-1.0, 0.0, 1.0)[index])
-                  for index, record in enumerate(snapshot.actions)),
-            self.required_relations, (("step-return", 1.0),), "externally-prepared@1",
-            "prefix", ("retained-step-assessment-digest",),
+            snapshot.digest,
+            self.id,
+            tuple(
+                ActionCredit(record.action, (-1.0, 0.0, 1.0)[index]) for index, record in enumerate(snapshot.actions)
+            ),
+            self.required_relations,
+            (("step-return", 1.0),),
+            "externally-prepared@1",
+            "prefix",
+            ("retained-step-assessment-digest",),
         )
 
 
@@ -80,23 +85,40 @@ def test_scorer_quality_cannot_be_relabelled_as_advantage() -> None:
 
 def native_rows() -> tuple[PopulationSnapshot, NativeCreditRows]:
     rollouts = tuple(
-        replace(_rollout(float(index == 0), str(index)), reward_evidence=RewardEvidence(
-            "prompt", f"episode-{index}", f"trace-{index}", "branch", "fixture@1",
-            (RewardValue("outcome", "valid", float(index == 0)),),
-            ProcessCredit("valid", "assistant-turns@1", f"critique:{index}", ((0, 1),)),
-        )) for index in range(2)
+        replace(
+            _rollout(float(index == 0), str(index)),
+            reward_evidence=RewardEvidence(
+                "prompt",
+                f"episode-{index}",
+                f"trace-{index}",
+                "branch",
+                "fixture@1",
+                (RewardValue("outcome", "valid", float(index == 0)),),
+                ProcessCredit("valid", "assistant-turns@1", f"critique:{index}", ((0, 1),)),
+            ),
+        )
+        for index in range(2)
     )
-    coordinates = tuple(tuple(
-        ActionRef(f"episode-{index}", "branch", "first" if position < 2 else "second", position) if eligible else None
-        for position, eligible in enumerate(rollout.env_mask)
-    ) for index, rollout in enumerate(rollouts))
+    coordinates = tuple(
+        tuple(
+            ActionRef(f"episode-{index}", "branch", "first" if position < 2 else "second", position)
+            if eligible
+            else None
+            for position, eligible in enumerate(rollout.env_mask)
+        )
+        for index, rollout in enumerate(rollouts)
+    )
     actions = tuple(action for row in coordinates for action in row if action is not None)
     snapshot = PopulationSnapshot(
-        "native-fixture", "native:fixture", "native-fixture-digest",
+        "native-fixture",
+        "native:fixture",
+        "native-fixture-digest",
         tuple(ActionRecord(action, "context", "native:node") for action in actions),
         (ConditioningView("context", "native:fixture", "tokens", "attention", "positions", "template@1", "digest", 8),),
-        (), (PopulationRelation("prompt", "prompt-group", actions, "complete", actions),),
-        PolicyVersions("sampler@1", "old@1", "current@1", None), "selector@1",
+        (),
+        (PopulationRelation("prompt", "prompt-group", actions, "complete", actions),),
+        PolicyVersions("sampler@1", "old@1", "current@1", None),
+        "selector@1",
     )
     return snapshot, NativeCreditRows(rollouts, coordinates, ("native-fixture-digest",))
 
@@ -104,8 +126,9 @@ def native_rows() -> tuple[PopulationSnapshot, NativeCreditRows]:
 def test_sampo_adapter_preserves_existing_sparse_terminal_credit() -> None:
     snapshot, rows = native_rows()
     credit = prepare_credit(snapshot, SampoCreditEstimator(_settings(), rows, ("prompt",)))
-    assert [value.advantage for value in credit.values] == pytest.approx([0.975, 0.975, 1.0, 1.0,
-                                                                       -0.975, -0.975, -1.0, -1.0])
+    assert [value.advantage for value in credit.values] == pytest.approx(
+        [0.975, 0.975, 1.0, 1.0, -0.975, -0.975, -1.0, -1.0]
+    )
     assert credit.normalization == "sampo-mean@1"
 
 
@@ -113,8 +136,9 @@ def test_sampo_native_adapter_applies_truncation_recipe_before_centering():
     snapshot, rows = native_rows()
     # Equal raw rewards must become unequal algorithm rewards when one native
     # rollout is truncated. Previously this adapter returned all-zero credit.
-    rows = replace(rows, rollouts=(replace(rows.rollouts[0], reward=1.0),
-                                  replace(rows.rollouts[1], reward=1.0, is_truncated=True)))
+    rows = replace(
+        rows, rollouts=(replace(rows.rollouts[0], reward=1.0), replace(rows.rollouts[1], reward=1.0, is_truncated=True))
+    )
     selected = _settings(truncation_penalty=0.5)
     credit = prepare_credit(snapshot, SampoCreditEstimator(selected, rows, ("prompt",)))
     assert [value.advantage for value in credit.values] == pytest.approx(
@@ -134,17 +158,28 @@ def test_structured_adapter_delegates_without_changing_existing_estimator(algori
         evidence.append(rollout.reward_evidence)
     masks = [rollout.env_mask for rollout in rows.rollouts]
     if algorithm == "gdpo":
-        settings = GDPOSettings(id="fixture-gdpo", loop=loop, max_prompt_length=2, max_completion_length=6,
-                                component_names=("outcome",), component_weights=(1.0,))
-        expected = compute_gdpo_advantages(evidence, masks, component_names=("outcome",), component_weights=(1.0,),
-                                            group_size=2)
+        settings = GDPOSettings(
+            id="fixture-gdpo",
+            loop=loop,
+            max_prompt_length=2,
+            max_completion_length=6,
+            component_names=("outcome",),
+            component_weights=(1.0,),
+        )
+        expected = compute_gdpo_advantages(
+            evidence, masks, component_names=("outcome",), component_weights=(1.0,), group_size=2
+        )
     else:
         settings = CAPOSettings(id="fixture-capo", loop=loop, max_prompt_length=2, max_completion_length=6)
         expected = compute_capo_advantages(evidence, masks, group_size=2)
     credit = prepare_credit(snapshot, StructuredCreditEstimator(settings, rows, ("prompt",)))
     assert [value.advantage for value in credit.values] == pytest.approx(
-        [value for row, mask in zip(expected.token_advantages, masks, strict=True)
-         for value, eligible in zip(row, mask, strict=True) if eligible]
+        [
+            value
+            for row, mask in zip(expected.token_advantages, masks, strict=True)
+            for value, eligible in zip(row, mask, strict=True)
+            if eligible
+        ]
     )
 
 

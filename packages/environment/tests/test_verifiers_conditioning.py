@@ -17,7 +17,9 @@ def graph():
         SimpleNamespace(parent=0, sampled=True, message={"role": "assistant"}, token_ids=[3, 4], mask=[False, True]),
         SimpleNamespace(parent=None, sampled=False, message={"role": "system"}, token_ids=[10], mask=[False]),
         SimpleNamespace(parent=2, sampled=False, message={"role": "tool"}, token_ids=[11, 12], mask=[False, False]),
-        SimpleNamespace(parent=3, sampled=True, message={"role": "assistant"}, token_ids=[13, 14, 15], mask=[False, True, True]),
+        SimpleNamespace(
+            parent=3, sampled=True, message={"role": "assistant"}, token_ids=[13, 14, 15], mask=[False, True, True]
+        ),
     ]
     return SimpleNamespace(id="trace-original", nodes=nodes, calls=[SimpleNamespace(node=1), SimpleNamespace(node=4)])
 
@@ -37,13 +39,16 @@ def test_rolling_context_uses_original_physical_path() -> None:
     assert replace(later, trace_id="another-trace").input_digest == later.input_digest
 
 
-@pytest.mark.parametrize("mutation,message", [
-    (lambda trace: setattr(trace.nodes[3], "parent", 4), "cycle"),
-    (lambda trace: setattr(trace.nodes[4], "mask", [False, 1, True]), "boolean"),
-    (lambda trace: setattr(trace.nodes[4], "sampled", False), "sampled assistant"),
-    (lambda trace: trace.calls.append(SimpleNamespace(node=4)), "sampled assistant"),
-    (lambda trace: setattr(trace.nodes[3], "multi_modal_data", {}), "multimodal"),
-])
+@pytest.mark.parametrize(
+    "mutation,message",
+    [
+        (lambda trace: setattr(trace.nodes[3], "parent", 4), "cycle"),
+        (lambda trace: setattr(trace.nodes[4], "mask", [False, 1, True]), "boolean"),
+        (lambda trace: setattr(trace.nodes[4], "sampled", False), "sampled assistant"),
+        (lambda trace: trace.calls.append(SimpleNamespace(node=4)), "sampled assistant"),
+        (lambda trace: setattr(trace.nodes[3], "multi_modal_data", {}), "multimodal"),
+    ],
+)
 def test_unproven_native_conditioning_is_rejected(mutation, message) -> None:
     trace = graph()
     mutation(trace)
@@ -84,10 +89,15 @@ def test_reasoning_partition_splits_sampled_actions_at_renderer_count(reasoning,
     assert native_reasoning_partition(trace, record) == expected
 
 
-@pytest.mark.parametrize("usage", [
-    None, SimpleNamespace(completion_tokens=2, reasoning_tokens=None),
-    SimpleNamespace(completion_tokens=3, reasoning_tokens=1), SimpleNamespace(completion_tokens=2, reasoning_tokens=3),
-])
+@pytest.mark.parametrize(
+    "usage",
+    [
+        None,
+        SimpleNamespace(completion_tokens=2, reasoning_tokens=None),
+        SimpleNamespace(completion_tokens=3, reasoning_tokens=1),
+        SimpleNamespace(completion_tokens=2, reasoning_tokens=3),
+    ],
+)
 def test_reasoning_partition_rejects_missing_or_inconsistent_accounting(usage) -> None:
     trace = graph()
     trace.calls[1].usage = usage

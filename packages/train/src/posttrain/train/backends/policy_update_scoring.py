@@ -15,7 +15,11 @@ from ..update_records import ActionRef, ConditioningView, InvalidPolicyUpdate, P
 
 
 def sampled_logprobs(
-    logits: torch.Tensor, inputs: NativeConditioningInput, *, sampled_indices: tuple[int, ...], score_temperature: float,
+    logits: torch.Tensor,
+    inputs: NativeConditioningInput,
+    *,
+    sampled_indices: tuple[int, ...],
+    score_temperature: float,
 ) -> Mapping[int, torch.Tensor]:
     """Score selected original actions at their preceding causal positions.
 
@@ -52,15 +56,25 @@ def sampled_logprobs(
         selected = selected.float()
     if not bool(torch.isfinite(selected).all()):
         raise InvalidPolicyUpdate("non-finite native logits at a required causal position")
-    values = (selected / score_temperature).log_softmax(dim=-1).gather(
-        1, torch.tensor(targets, dtype=torch.long, device=logits.device).unsqueeze(1),
-    ).squeeze(1)
+    values = (
+        (selected / score_temperature)
+        .log_softmax(dim=-1)
+        .gather(
+            1,
+            torch.tensor(targets, dtype=torch.long, device=logits.device).unsqueeze(1),
+        )
+        .squeeze(1)
+    )
     return dict(zip(sampled_indices, values.unbind(), strict=True))
 
 
 def score_actions(
-    model: Any, snapshot: PopulationSnapshot, actions: tuple[ActionRef, ...], *,
-    read_input: Callable[[ConditioningView], NativeConditioningInput], device: torch.device,
+    model: Any,
+    snapshot: PopulationSnapshot,
+    actions: tuple[ActionRef, ...],
+    *,
+    read_input: Callable[[ConditioningView], NativeConditioningInput],
+    device: torch.device,
     score_temperature: float,
 ) -> Mapping[ActionRef, torch.Tensor]:
     """Retain full-context model graphs for exactly the requested score support.
@@ -82,17 +96,29 @@ def score_actions(
         view = contexts[context_id]
         inputs = read_input(view)
         record = inputs.record
-        if record.context_contract != "causal-text@1" or record.input_digest != view.digest or (
-            len(inputs.token_ids) != view.context_tokens or record.context_tokens != view.context_tokens
+        if (
+            record.context_contract != "causal-text@1"
+            or record.input_digest != view.digest
+            or (len(inputs.token_ids) != view.context_tokens or record.context_tokens != view.context_tokens)
         ):
             raise InvalidPolicyUpdate("materialized model input differs from the frozen conditioning view")
-        if len({action.turn_id for action in members}) != 1 or len({action.token_index for action in members}) != len(members):
+        if len({action.turn_id for action in members}) != 1 or len({action.token_index for action in members}) != len(
+            members
+        ):
             raise InvalidPolicyUpdate("one native conditioning view must identify one original sampled turn")
         token_ids = torch.tensor([inputs.token_ids], dtype=torch.long, device=device)
-        output = model(input_ids=token_ids, attention_mask=torch.ones_like(token_ids),
-                       position_ids=torch.arange(token_ids.shape[1], device=device).unsqueeze(0), use_cache=False)
-        values = sampled_logprobs(output.logits, inputs, sampled_indices=tuple(action.token_index for action in members),
-                                 score_temperature=score_temperature)
+        output = model(
+            input_ids=token_ids,
+            attention_mask=torch.ones_like(token_ids),
+            position_ids=torch.arange(token_ids.shape[1], device=device).unsqueeze(0),
+            use_cache=False,
+        )
+        values = sampled_logprobs(
+            output.logits,
+            inputs,
+            sampled_indices=tuple(action.token_index for action in members),
+            score_temperature=score_temperature,
+        )
         scores.update((action, values[action.token_index]) for action in members)
     return scores
 
@@ -107,29 +133,53 @@ class FrozenPopulationScores:
     score_temperature: float
     values: Mapping[ActionRef, torch.Tensor]
 
-    def validate(self, snapshot: PopulationSnapshot, *, policy_version: str, score_contract: str,
-                 score_temperature: float) -> None:
+    def validate(
+        self, snapshot: PopulationSnapshot, *, policy_version: str, score_contract: str, score_temperature: float
+    ) -> None:
         if (self.population_digest, self.policy_version, self.score_contract, self.score_temperature) != (
-            snapshot.digest, policy_version, score_contract, score_temperature,
+            snapshot.digest,
+            policy_version,
+            score_contract,
+            score_temperature,
         ):
             raise InvalidPolicyUpdate("frozen policy scores belong to different evidence, policy or score contract")
         if set(self.values) != {record.action for record in snapshot.actions}:
             raise InvalidPolicyUpdate("frozen policy scores must cover the complete admitted population")
-        if any(value.ndim != 0 or value.requires_grad or not bool(torch.isfinite(value)) for value in self.values.values()):
+        if any(
+            value.ndim != 0 or value.requires_grad or not bool(torch.isfinite(value)) for value in self.values.values()
+        ):
             raise InvalidPolicyUpdate("frozen policy scores must remain detached finite scalars")
 
 
 def freeze_population_scores(
-    model: Any, snapshot: PopulationSnapshot, *, read_input: Callable[[ConditioningView], NativeConditioningInput],
-    device: torch.device, policy_version: str, score_contract: str, score_temperature: float,
+    model: Any,
+    snapshot: PopulationSnapshot,
+    *,
+    read_input: Callable[[ConditioningView], NativeConditioningInput],
+    device: torch.device,
+    policy_version: str,
+    score_contract: str,
+    score_temperature: float,
 ) -> FrozenPopulationScores:
     """Prepare old/reference probabilities before any update on this population."""
     require_identity(policy_version, score_contract)
     with torch.no_grad():
-        values = score_actions(model, snapshot, tuple(record.action for record in snapshot.actions),
-                               read_input=read_input, device=device, score_temperature=score_temperature)
-    frozen = FrozenPopulationScores(snapshot.digest, policy_version, score_contract, score_temperature,
-                                    MappingProxyType({action: value.detach().clone() for action, value in values.items()}))
-    frozen.validate(snapshot, policy_version=policy_version, score_contract=score_contract,
-                    score_temperature=score_temperature)
+        values = score_actions(
+            model,
+            snapshot,
+            tuple(record.action for record in snapshot.actions),
+            read_input=read_input,
+            device=device,
+            score_temperature=score_temperature,
+        )
+    frozen = FrozenPopulationScores(
+        snapshot.digest,
+        policy_version,
+        score_contract,
+        score_temperature,
+        MappingProxyType({action: value.detach().clone() for action, value in values.items()}),
+    )
+    frozen.validate(
+        snapshot, policy_version=policy_version, score_contract=score_contract, score_temperature=score_temperature
+    )
     return frozen

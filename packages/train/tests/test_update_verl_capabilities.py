@@ -23,30 +23,62 @@ def dense_manifest(tmp_path, records=2, precision="bf16"):
     settings = resolved.settings
     updates = settings.policy_updates
     assert updates is not None
-    settings = replace(settings, policy_updates=replace(updates,
-        execution=replace(updates.execution, records=records)))
-    return selected.model_copy(update={"payload": selected.payload.model_copy(update={
-        "resolved_settings": resolved.model_copy(update={"settings": settings}),
-        "algorithm": selected.payload.algorithm.model_copy(update={"policy_updates": settings.policy_updates}),
-        "training": selected.payload.training.model_copy(update={"backend_options": {
-            **selected.payload.training.backend_options, "resolved_context_layout": "dense-population",
-            "training_precision": precision,
-        }, "update": VerlLoRAUpdate(kind="lora", rank=8, alpha=16, dropout=0., target_modules="q_proj,v_proj")}),
-    })})
+    settings = replace(settings, policy_updates=replace(updates, execution=replace(updates.execution, records=records)))
+    return selected.model_copy(
+        update={
+            "payload": selected.payload.model_copy(
+                update={
+                    "resolved_settings": resolved.model_copy(update={"settings": settings}),
+                    "algorithm": selected.payload.algorithm.model_copy(
+                        update={"policy_updates": settings.policy_updates}
+                    ),
+                    "training": selected.payload.training.model_copy(
+                        update={
+                            "backend_options": {
+                                **selected.payload.training.backend_options,
+                                "resolved_context_layout": "dense-population",
+                                "training_precision": precision,
+                            },
+                            "update": VerlLoRAUpdate(
+                                kind="lora", rank=8, alpha=16, dropout=0.0, target_modules="q_proj,v_proj"
+                            ),
+                        }
+                    ),
+                }
+            )
+        }
+    )
 
 
 def profile(selected):
     from verl.workers.config.engine import FSDPEngineConfig
 
     update = selected.payload.training.update
-    model = {"lora_rank": update.rank, "lora_alpha": update.alpha, "lora_dropout": 0.,
-             "use_remove_padding": False, "override_config": {"attn_implementation": "sdpa"}}
-    engine = FSDPEngineConfig(strategy="fsdp", use_orig_params=True, full_determinism=True,
-        use_torch_compile=False, use_dynamic_bsz=False, use_fused_kernels=False,
-        lora_fp32_compute=True, lora_rowwise_compute=True,
-        contiguous_linear_output_gradients=True, full_precision_matmul=True, math_sdpa=True,
-        mixed_precision={"param_dtype": selected.payload.training.backend_options["training_precision"],
-                         "reduce_dtype": "fp32", "buffer_dtype": "fp32"})
+    model = {
+        "lora_rank": update.rank,
+        "lora_alpha": update.alpha,
+        "lora_dropout": 0.0,
+        "use_remove_padding": False,
+        "override_config": {"attn_implementation": "sdpa"},
+    }
+    engine = FSDPEngineConfig(
+        strategy="fsdp",
+        use_orig_params=True,
+        full_determinism=True,
+        use_torch_compile=False,
+        use_dynamic_bsz=False,
+        use_fused_kernels=False,
+        lora_fp32_compute=True,
+        lora_rowwise_compute=True,
+        contiguous_linear_output_gradients=True,
+        full_precision_matmul=True,
+        math_sdpa=True,
+        mixed_precision={
+            "param_dtype": selected.payload.training.backend_options["training_precision"],
+            "reduce_dtype": "fp32",
+            "buffer_dtype": "fp32",
+        },
+    )
     return model, engine
 
 
@@ -85,15 +117,26 @@ def test_multi_record_selection_rejects_unqualified_or_implicit_layout(tmp_path,
         validate_native_selection(selected)
 
 
-@pytest.mark.parametrize("field,value", [
-    ("use_orig_params", False), ("full_determinism", False), ("lora_fp32_compute", False),
-    ("lora_rowwise_compute", False), ("contiguous_linear_output_gradients", False),
-    ("full_precision_matmul", False), ("math_sdpa", False), ("use_torch_compile", True),
-    ("use_dynamic_bsz", True), ("use_fused_kernels", True), ("model_dtype", "bf16"),
-    ("strategy", "fsdp2"), ("ulysses_sequence_parallel_size", 2),
-    ("mixed_precision", {"param_dtype": "bf16", "reduce_dtype": "bf16", "buffer_dtype": "fp32"}),
-    ("mixed_precision", {"param_dtype": "fp16", "reduce_dtype": "fp32", "buffer_dtype": "fp32"}),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("use_orig_params", False),
+        ("full_determinism", False),
+        ("lora_fp32_compute", False),
+        ("lora_rowwise_compute", False),
+        ("contiguous_linear_output_gradients", False),
+        ("full_precision_matmul", False),
+        ("math_sdpa", False),
+        ("use_torch_compile", True),
+        ("use_dynamic_bsz", True),
+        ("use_fused_kernels", True),
+        ("model_dtype", "bf16"),
+        ("strategy", "fsdp2"),
+        ("ulysses_sequence_parallel_size", 2),
+        ("mixed_precision", {"param_dtype": "bf16", "reduce_dtype": "bf16", "buffer_dtype": "fp32"}),
+        ("mixed_precision", {"param_dtype": "fp16", "reduce_dtype": "fp32", "buffer_dtype": "fp32"}),
+    ],
+)
 def test_effective_engine_profile_rejects_each_unqualified_configuration(tmp_path, field, value):
     pytest.importorskip("verl")
     selected = dense_manifest(tmp_path)
@@ -104,10 +147,17 @@ def test_effective_engine_profile_rejects_each_unqualified_configuration(tmp_pat
         validate_native_execution_profile(selected, model, changed)
 
 
-@pytest.mark.parametrize("field,value", [
-    ("lora_dropout", .1), ("lora_rank", 0), ("use_remove_padding", True), ("use_fused_kernels", True),
-    ("override_config", {"attn_implementation": "flash_attention_2"}), ("bitsandbytes", {"enable": True}),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("lora_dropout", 0.1),
+        ("lora_rank", 0),
+        ("use_remove_padding", True),
+        ("use_fused_kernels", True),
+        ("override_config", {"attn_implementation": "flash_attention_2"}),
+        ("bitsandbytes", {"enable": True}),
+    ],
+)
 def test_effective_model_profile_rejects_unqualified_configuration(tmp_path, field, value):
     pytest.importorskip("verl")
     selected = dense_manifest(tmp_path)
@@ -124,12 +174,16 @@ def test_invalid_dense_profile_rejects_before_ray_dispatch(tmp_path, monkeypatch
     assert selected.payload.resolved_settings is not None
     settings = selected.payload.resolved_settings.settings
     with initialize_config_module(config_module="verl.trainer.config", version_base=None):
-        config = compose(config_name="ppo_trainer", overrides=[
-            "algorithm.adv_estimator=grpo", f"trainer.total_training_steps={settings.loop.max_steps}",
-            f"data.train_batch_size={settings.num_prompts_per_step}",
-            f"actor_rollout_ref.rollout.n={settings.num_generations}",
-            f"actor_rollout_ref.rollout.temperature={selected.payload.rollout.sampling.get('temperature', 1.)}",
-        ])
+        config = compose(
+            config_name="ppo_trainer",
+            overrides=[
+                "algorithm.adv_estimator=grpo",
+                f"trainer.total_training_steps={settings.loop.max_steps}",
+                f"data.train_batch_size={settings.num_prompts_per_step}",
+                f"actor_rollout_ref.rollout.n={settings.num_generations}",
+                f"actor_rollout_ref.rollout.temperature={selected.payload.rollout.sampling.get('temperature', 1.0)}",
+            ],
+        )
     called = []
     monkeypatch.setattr("verl.trainer.main_ppo.run_ppo", lambda *args: called.append(args))
     with pytest.raises(InvalidPolicyUpdate, match="qualified explicit"):
@@ -150,13 +204,24 @@ def test_worker_composed_dense_profile_is_accepted_before_dispatch(tmp_path, pre
         "actor_rollout_ref.actor.fsdp_config.use_orig_params=true",
         "actor_rollout_ref.actor.fsdp_config.use_torch_compile=false",
         "actor_rollout_ref.actor.fsdp_config.full_determinism=true",
-        *[f"++actor_rollout_ref.actor.fsdp_config.{field}=true" for field in (
-            "lora_fp32_compute", "lora_rowwise_compute", "contiguous_linear_output_gradients",
-            "full_precision_matmul", "math_sdpa")],
+        *[
+            f"++actor_rollout_ref.actor.fsdp_config.{field}=true"
+            for field in (
+                "lora_fp32_compute",
+                "lora_rowwise_compute",
+                "contiguous_linear_output_gradients",
+                "full_precision_matmul",
+                "math_sdpa",
+            )
+        ],
     ]
     overrides = build_hydra_overrides(selected, tmp_path / "data.parquet", tmp_path / "agents.yaml", tmp_path / "model")
     with initialize_config_module(config_module="verl.trainer.config", version_base=None):
         config = compose(config_name="ppo_trainer", overrides=overrides)
-    validate_native_execution_profile(selected, config.actor_rollout_ref.model,
-        config.actor_rollout_ref.actor.fsdp_config, actor_config=config.actor_rollout_ref.actor)
+    validate_native_execution_profile(
+        selected,
+        config.actor_rollout_ref.model,
+        config.actor_rollout_ref.actor.fsdp_config,
+        actor_config=config.actor_rollout_ref.actor,
+    )
     assert config.actor_rollout_ref.actor.fsdp_config.mixed_precision.param_dtype == precision

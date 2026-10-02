@@ -47,7 +47,13 @@ def publish_collection_snapshot(context: RunContext, destination: Path, state: M
             os.close(descriptor)
     if path.read_bytes() != content:
         raise InvalidPolicyUpdate("native collection snapshot differs from retained content")
-    context.artifact(ProducedArtifact(f"training/collection/{digest}", "training-collection",
-        LocalArtifactRef(path, digest), role="collection-evidence", metadata={
-            "sampler_step": state["sampler_step"], "status": state["status"], "schema": state["schema"]}))
+    context.artifact(
+        ProducedArtifact(
+            f"training/collection/{digest}",
+            "training-collection",
+            LocalArtifactRef(path, digest),
+            role="collection-evidence",
+            metadata={"sampler_step": state["sampler_step"], "status": state["status"], "schema": state["schema"]},
+        )
+    )
     return digest

@@ -597,25 +597,32 @@ def build_hydra_overrides(
         # The normalizer admits complete native groups. Stock PPO admission
         # retries/drop rules must not mutate that population before it sees it.
         overrides = [value for value in overrides if not value.startswith("trainer.v1.sampler.failed_group_attempts=")]
-        overrides.extend([
-            "trainer.use_v1=True", "trainer.v1.trainer_mode=sync",
-            "actor_rollout_ref.actor.strategy=fsdp",
-            "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1",
-            "actor_rollout_ref.actor.use_dynamic_bsz=False",
-            "actor_rollout_ref.actor.use_fused_kernels=False",
-            "+actor_rollout_ref.actor.ppo_infer_micro_batch_size_per_gpu=1",
-            "trainer.v1.sampler.failed_group_attempts=0",
-        ])
-        if (backend_options.get("resolved_context_layout") == "dense-population"
-                and training_precision(backend_options) == "bf16"):
+        overrides.extend(
+            [
+                "trainer.use_v1=True",
+                "trainer.v1.trainer_mode=sync",
+                "actor_rollout_ref.actor.strategy=fsdp",
+                "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1",
+                "actor_rollout_ref.actor.use_dynamic_bsz=False",
+                "actor_rollout_ref.actor.use_fused_kernels=False",
+                "+actor_rollout_ref.actor.ppo_infer_micro_batch_size_per_gpu=1",
+                "trainer.v1.sampler.failed_group_attempts=0",
+            ]
+        )
+        if (
+            backend_options.get("resolved_context_layout") == "dense-population"
+            and training_precision(backend_options) == "bf16"
+        ):
             # Expose the selected native default explicitly for the checked dense
             # profile. Half reductions remain FP32; callers cannot override this
             # selected precision through raw Hydra fields.
             policy = "{param_dtype:bf16,reduce_dtype:fp32,buffer_dtype:fp32}"
-            overrides.extend([
-                f"+actor_rollout_ref.actor.fsdp_config.mixed_precision={policy}",
-                f"+actor_rollout_ref.ref.fsdp_config.mixed_precision={policy}",
-            ])
+            overrides.extend(
+                [
+                    f"+actor_rollout_ref.actor.fsdp_config.mixed_precision={policy}",
+                    f"+actor_rollout_ref.ref.fsdp_config.mixed_precision={policy}",
+                ]
+            )
     _validate_fork_native_names(manifest, overrides)
     return overrides
 
@@ -1021,8 +1028,12 @@ def _model_path(artifact: VerlModelArtifact) -> str:
             # Offline snapshot_download requires every repository file, including
             # unused ones such as README.md. A pinned commit's local snapshot is
             # immutable, so use it directly when the model files are present.
-            local = (Path(constants.HF_HUB_CACHE) / repo_folder_name(repo_id=artifact.repo_id, repo_type="model")
-                     / "snapshots" / revision)
+            local = (
+                Path(constants.HF_HUB_CACHE)
+                / repo_folder_name(repo_id=artifact.repo_id, repo_type="model")
+                / "snapshots"
+                / revision
+            )
             if (local / "config.json").is_file():
                 return str(local)
         return snapshot_download(repo_id=artifact.repo_id, revision=artifact.revision)

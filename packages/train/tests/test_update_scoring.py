@@ -21,12 +21,18 @@ from posttrain.train.backends.policy_update_scoring import (  # noqa: E402
 
 
 def inputs():
-    trace = SimpleNamespace(id="trace", calls=[SimpleNamespace(node=1)], nodes=[
-        SimpleNamespace(parent=None, sampled=False, message={"role": "system"},
-                        token_ids=[1, 2], mask=[False, False]),
-        SimpleNamespace(parent=0, sampled=True, message={"role": "assistant"},
-                        token_ids=[3, 4, 5], mask=[False, True, True]),
-    ])
+    trace = SimpleNamespace(
+        id="trace",
+        calls=[SimpleNamespace(node=1)],
+        nodes=[
+            SimpleNamespace(
+                parent=None, sampled=False, message={"role": "system"}, token_ids=[1, 2], mask=[False, False]
+            ),
+            SimpleNamespace(
+                parent=0, sampled=True, message={"role": "assistant"}, token_ids=[3, 4, 5], mask=[False, True, True]
+            ),
+        ],
+    )
     record = native_conditioning_records(trace, sampled_node_indices=(1,), context_contract="causal-text@1")[0]
     return materialize_native_conditioning(trace, record)
 
@@ -36,10 +42,12 @@ def inputs():
 def test_original_coordinates_use_previous_logit_and_exclude_context_gradient(dtype, temperature):
     logits = torch.arange(35, dtype=torch.float32).reshape(1, 5, 7).div(13).to(dtype).requires_grad_()
     actual = sampled_logprobs(logits, inputs(), sampled_indices=(1, 2), score_temperature=temperature)
-    expected = torch.stack([
-        logits[0, 2].float()[4] / temperature - torch.logsumexp(logits[0, 2].float() / temperature, 0),
-        logits[0, 3].float()[5] / temperature - torch.logsumexp(logits[0, 3].float() / temperature, 0),
-    ])
+    expected = torch.stack(
+        [
+            logits[0, 2].float()[4] / temperature - torch.logsumexp(logits[0, 2].float() / temperature, 0),
+            logits[0, 3].float()[5] / temperature - torch.logsumexp(logits[0, 3].float() / temperature, 0),
+        ]
+    )
     torch.testing.assert_close(torch.stack(tuple(actual.values())), expected, rtol=1e-6, atol=1e-6)
     (-torch.stack(tuple(actual.values())).sum()).backward()
     gradient = logits.grad.float()
@@ -98,11 +106,27 @@ class CausalModel(torch.nn.Module):
 def score_population():
     source = inputs()
     actions = tuple(ActionRef("episode", "branch", "turn", local) for local, _ in source.action_positions)
-    view = ConditioningView("context", "native", "tokens", "causal", "positions", "template@1",
-                            source.record.input_digest, len(source.token_ids))
-    snapshot = PopulationSnapshot("population", "native", "native-digest",
-                                  tuple(ActionRecord(action, view.id, "native") for action in actions),
-                                  (view,), (), (), PolicyVersions("sample@1", "old@1", "current@1", None), "all@1")
+    view = ConditioningView(
+        "context",
+        "native",
+        "tokens",
+        "causal",
+        "positions",
+        "template@1",
+        source.record.input_digest,
+        len(source.token_ids),
+    )
+    snapshot = PopulationSnapshot(
+        "population",
+        "native",
+        "native-digest",
+        tuple(ActionRecord(action, view.id, "native") for action in actions),
+        (view,),
+        (),
+        (),
+        PolicyVersions("sample@1", "old@1", "current@1", None),
+        "all@1",
+    )
     return snapshot, source, actions
 
 
@@ -111,8 +135,9 @@ def test_model_scoring_retains_full_prefix_gradients_and_frozen_old_scores():
     model = CausalModel()
     snapshot, source, actions = score_population()
     kwargs = dict(read_input=lambda view: source, device=torch.device("cpu"), score_temperature=0.7)
-    old = freeze_population_scores(model, snapshot, policy_version="old@1", score_contract="causal-temperature@1",
-                                   **kwargs)
+    old = freeze_population_scores(
+        model, snapshot, policy_version="old@1", score_contract="causal-temperature@1", **kwargs
+    )
     before = {action: value.clone() for action, value in old.values.items()}
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
     for _ in range(2):
@@ -127,8 +152,9 @@ def test_model_scoring_retains_full_prefix_gradients_and_frozen_old_scores():
         optimizer.step()
     refreshed = score_actions(model, snapshot, actions, **kwargs)
     assert any(not torch.equal(refreshed[action], before[action]) for action in actions)
-    assert all(torch.equal(old.values[action], before[action]) and not old.values[action].requires_grad
-               for action in actions)
+    assert all(
+        torch.equal(old.values[action], before[action]) and not old.values[action].requires_grad for action in actions
+    )
     old.validate(snapshot, policy_version="old@1", score_contract="causal-temperature@1", score_temperature=0.7)
     with pytest.raises(InvalidPolicyUpdate, match="different evidence, policy or score contract"):
         old.validate(snapshot, policy_version="old@1", score_contract="causal-temperature@1", score_temperature=1)
@@ -140,5 +166,11 @@ def test_model_scoring_rejects_mismatched_materialized_input_before_forward():
     snapshot, source, actions = score_population()
     source = replace(source, record=replace(source.record, input_digest="other-context"))
     with pytest.raises(InvalidPolicyUpdate, match="frozen conditioning view"):
-        score_actions(CausalModel(), snapshot, actions, read_input=lambda view: source,
-                      device=torch.device("cpu"), score_temperature=1)
+        score_actions(
+            CausalModel(),
+            snapshot,
+            actions,
+            read_input=lambda view: source,
+            device=torch.device("cpu"),
+            score_temperature=1,
+        )

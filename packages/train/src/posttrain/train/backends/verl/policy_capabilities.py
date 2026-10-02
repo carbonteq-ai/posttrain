@@ -23,7 +23,11 @@ def native_context_layout(manifest: VerlLaunchManifest) -> Literal["ragged", "de
 
 
 def validate_native_execution_profile(
-    manifest: VerlLaunchManifest, model_config: Any, engine_config: Any, *, actor_config: Any = None,
+    manifest: VerlLaunchManifest,
+    model_config: Any,
+    engine_config: Any,
+    *,
+    actor_config: Any = None,
 ) -> None:
     """Check composed config before dispatch and effective config before allocation.
 
@@ -38,25 +42,43 @@ def validate_native_execution_profile(
     mixed = engine_config.get("mixed_precision") or {}
     expected = "bf16" if training_precision(manifest.payload.training.backend_options) == "bf16" else "fp16"
     param_names = {"bf16": ("bf16", "bfloat16"), "fp16": ("fp16", "float16")}
-    if (update.kind != "lora" or update.dropout != 0
-            or model_config.get("lora_rank") != update.rank or model_config.get("lora_alpha") != update.alpha
-            or model_config.get("lora_dropout", 0.) != 0
-            or model_config.get("use_remove_padding", False)
-            or model_config.get("use_fused_kernels", False)
-            or model_config.get("bitsandbytes", {}).get("enable", False)
-            or model_config.get("override_config", {}).get("attn_implementation") != "sdpa"
-            or actor.get("strategy") != "fsdp" or engine_config.get("strategy", "fsdp") != "fsdp"
-            or actor.get("use_torch_compile", True) or engine_config.get("use_torch_compile", True)
-            or actor.get("use_dynamic_bsz", False) or actor.get("use_fused_kernels", False)
-            or engine_config.get("ulysses_sequence_parallel_size", 1) != 1
-            or engine_config.get("model_dtype") not in ("fp32", "float32")
-            or engine_config.get("qat", {}).get("enable", False)
-            or mixed.get("param_dtype") not in param_names[expected]
-            or any(mixed.get(name) not in ("fp32", "float32") for name in ("reduce_dtype", "buffer_dtype"))
-            or any(engine_config.get(name) is not True for name in (
-                "use_orig_params", "full_determinism", "lora_fp32_compute", "lora_rowwise_compute",
-                "contiguous_linear_output_gradients", "full_precision_matmul", "math_sdpa"))):
-        raise InvalidPolicyUpdate("native dense-population layout requires the qualified explicit LoRA arithmetic profile")
+    if (
+        update.kind != "lora"
+        or update.dropout != 0
+        or model_config.get("lora_rank") != update.rank
+        or model_config.get("lora_alpha") != update.alpha
+        or model_config.get("lora_dropout", 0.0) != 0
+        or model_config.get("use_remove_padding", False)
+        or model_config.get("use_fused_kernels", False)
+        or model_config.get("bitsandbytes", {}).get("enable", False)
+        or model_config.get("override_config", {}).get("attn_implementation") != "sdpa"
+        or actor.get("strategy") != "fsdp"
+        or engine_config.get("strategy", "fsdp") != "fsdp"
+        or actor.get("use_torch_compile", True)
+        or engine_config.get("use_torch_compile", True)
+        or actor.get("use_dynamic_bsz", False)
+        or actor.get("use_fused_kernels", False)
+        or engine_config.get("ulysses_sequence_parallel_size", 1) != 1
+        or engine_config.get("model_dtype") not in ("fp32", "float32")
+        or engine_config.get("qat", {}).get("enable", False)
+        or mixed.get("param_dtype") not in param_names[expected]
+        or any(mixed.get(name) not in ("fp32", "float32") for name in ("reduce_dtype", "buffer_dtype"))
+        or any(
+            engine_config.get(name) is not True
+            for name in (
+                "use_orig_params",
+                "full_determinism",
+                "lora_fp32_compute",
+                "lora_rowwise_compute",
+                "contiguous_linear_output_gradients",
+                "full_precision_matmul",
+                "math_sdpa",
+            )
+        )
+    ):
+        raise InvalidPolicyUpdate(
+            "native dense-population layout requires the qualified explicit LoRA arithmetic profile"
+        )
 
 
 def native_execution_capabilities(manifest: VerlLaunchManifest, engine: Any) -> ExecutionCapabilities:
@@ -65,7 +87,10 @@ def native_execution_capabilities(manifest: VerlLaunchManifest, engine: Any) -> 
     selected = manifest.payload.resolved_settings
     assert selected is not None
     settings = selected.settings
-    return ExecutionCapabilities(("grpo@1", "dapo@1", "sampo@1", "sampo-turns@1", "sampo-spans@1", "gdpo@1", "capo@1"),
+    return ExecutionCapabilities(
+        ("grpo@1", "dapo@1", "sampo@1", "sampo-turns@1", "sampo-spans@1", "gdpo@1", "capo@1"),
         ("sampled-logp", "old-logp", "reference-logp"),
-        settings.max_prompt_length + settings.max_completion_length, True,
-        context_layout=native_context_layout(manifest))
+        settings.max_prompt_length + settings.max_completion_length,
+        True,
+        context_layout=native_context_layout(manifest),
+    )

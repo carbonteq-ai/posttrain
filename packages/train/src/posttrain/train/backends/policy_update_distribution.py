@@ -18,23 +18,31 @@ from .policy_update_replay import PreparedScoreAdjoints
 
 
 def gather_current_scores(
-    plan: DistributedScorePlan, local: Mapping[ActionRef, torch.Tensor], *,
-    parameter_version: str, device: torch.device, group: Any = None,
+    plan: DistributedScorePlan,
+    local: Mapping[ActionRef, torch.Tensor],
+    *,
+    parameter_version: str,
+    device: torch.device,
+    group: Any = None,
 ) -> dict[ActionRef, torch.Tensor]:
     """Gather detached FP32 scores after coordinated identity/coverage checks.
 
-Each rank joins the control collective even if its local values are malformed;
-all ranks then reject before the tensor collective. This avoids one rank raising
-while its peers wait for scores. Communication failures remain native errors.
-"""
+    Each rank joins the control collective even if its local values are malformed;
+    all ranks then reject before the tensor collective. This avoids one rank raising
+    while its peers wait for scores. Communication failures remain native errors.
+    """
     rank, size = dist.get_rank(group), dist.get_world_size(group)
     valid = isinstance(parameter_version, str) and bool(parameter_version.strip()) and size == len(plan.partitions)
     if valid:
         valid = set(local) == set(plan.partitions[rank].actions)
     if valid:
-        valid = all(isinstance(value, torch.Tensor) and value.ndim == 0
-                    and value.dtype in (torch.float16, torch.bfloat16, torch.float32)
-                    and bool(torch.isfinite(value)) for value in local.values())
+        valid = all(
+            isinstance(value, torch.Tensor)
+            and value.ndim == 0
+            and value.dtype in (torch.float16, torch.bfloat16, torch.float32)
+            and bool(torch.isfinite(value))
+            for value in local.values()
+        )
     reports = [None] * size
     dist.all_gather_object(reports, (plan.digest, parameter_version, valid), group=group)
     if any(report != (plan.digest, parameter_version, True) for report in reports):
@@ -50,27 +58,40 @@ while its peers wait for scores. Communication failures remain native errors.
 
 
 def distributed_score_carrier(
-    plan: DistributedScorePlan, prepared: PreparedScoreAdjoints,
-    scores: Mapping[ActionRef, torch.Tensor], *, rank: int, parameter_version: str,
+    plan: DistributedScorePlan,
+    prepared: PreparedScoreAdjoints,
+    scores: Mapping[ActionRef, torch.Tensor],
+    *,
+    rank: int,
+    parameter_version: str,
     empty_anchor: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Route global score derivatives to owned scores under native DDP averaging.
 
-Nonempty calls may replay one owned pack. Empty ranks supply a real native model
-graph anchor, multiplied by zero, so backward joins the native collectives. The
-adapter still owns exact replay coverage and matching collective call schedules.
-"""
-    if (type(rank) is not int or not 0 <= rank < len(plan.partitions)
-            or prepared.term_digest != plan.term_digest or prepared.parameter_version != parameter_version
-            or set(prepared.current) != set(plan.actions)):
+    Nonempty calls may replay one owned pack. Empty ranks supply a real native model
+    graph anchor, multiplied by zero, so backward joins the native collectives. The
+    adapter still owns exact replay coverage and matching collective call schedules.
+    """
+    if (
+        type(rank) is not int
+        or not 0 <= rank < len(plan.partitions)
+        or prepared.term_digest != plan.term_digest
+        or prepared.parameter_version != parameter_version
+        or set(prepared.current) != set(plan.actions)
+    ):
         raise InvalidPolicyUpdate("distributed replay identity or rank changed")
     owned = set(plan.partitions[rank].actions)
     if scores:
         if empty_anchor is not None or not set(scores) <= owned:
             raise InvalidPolicyUpdate("distributed replay exceeds owned original scores")
         return prepared.carrier(scores, parameter_version=parameter_version) * len(plan.partitions)
-    if (owned or empty_anchor is None or empty_anchor.ndim != 0 or not empty_anchor.requires_grad
-            or not bool(torch.isfinite(empty_anchor))):
+    if (
+        owned
+        or empty_anchor is None
+        or empty_anchor.ndim != 0
+        or not empty_anchor.requires_grad
+        or not bool(torch.isfinite(empty_anchor))
+    ):
         raise InvalidPolicyUpdate("empty rank requires a finite native graph anchor and no owned scores")
     return empty_anchor * 0
 

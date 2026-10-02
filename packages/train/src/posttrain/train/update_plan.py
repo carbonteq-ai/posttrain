@@ -53,7 +53,9 @@ class PolicyExecutionBudget:
     oversized_policy: Literal["error"] = "error"
 
     def __post_init__(self) -> None:
-        if any(type(value) is not int or value < 1 for value in (self.records, self.context_tokens, self.statistic_bytes)):
+        if any(
+            type(value) is not int or value < 1 for value in (self.records, self.context_tokens, self.statistic_bytes)
+        ):
             raise InvalidPolicyUpdate("execution capacity must be positive integer hard limits")
         if self.oversized_policy != "error":
             raise InvalidPolicyUpdate("unqualified oversized execution strategy")
@@ -78,19 +80,28 @@ class PolicyUpdateSettings:
 
     def __post_init__(self) -> None:
         if self.credit_estimator is not None and (
-                not isinstance(self.credit_estimator, str) or not self.credit_estimator.strip()):
+            not isinstance(self.credit_estimator, str) or not self.credit_estimator.strip()
+        ):
             raise InvalidPolicyUpdate("credit_estimator must name an explicit estimator identity")
         if self.revision != "1" or self.objective_variant not in {"algorithm", "semantic-spans", "turn-rows"}:
             raise InvalidPolicyUpdate("unsupported policy update selection revision or variant")
-        if self.denominator not in {"selected", "original-eligible"} or self.empty_policy not in {"reject", "omit", "zero"}:
+        if self.denominator not in {"selected", "original-eligible"} or self.empty_policy not in {
+            "reject",
+            "omit",
+            "zero",
+        }:
             raise InvalidPolicyUpdate("unsupported policy update reduction")
         if self.objective_variant != "semantic-spans" and (
-            self.policy_selection.mode != "all" or self.kl_selection.mode != "all"
-            or self.denominator != "selected" or self.empty_policy != "reject"
+            self.policy_selection.mode != "all"
+            or self.kl_selection.mode != "all"
+            or self.denominator != "selected"
+            or self.empty_policy != "reject"
         ):
             raise InvalidPolicyUpdate("algorithm variant retains original support; select semantic-spans explicitly")
 
-    def validate_legacy_loop(self, *, max_steps: int, per_device_batch_size: int, gradient_accumulation_steps: int) -> None:
+    def validate_legacy_loop(
+        self, *, max_steps: int, per_device_batch_size: int, gradient_accumulation_steps: int
+    ) -> None:
         if per_device_batch_size != 1 or gradient_accumulation_steps != 1:
             raise InvalidPolicyUpdate(
                 "explicit policy_updates.execution replaces loop batch/accumulation fields; leave both at 1"
@@ -178,7 +189,9 @@ def population_context_width(population: PopulationSnapshot) -> int:
 
 
 def execution_context_tokens(
-    population: PopulationSnapshot, context_ids: tuple[str, ...], capabilities: ExecutionCapabilities,
+    population: PopulationSnapshot,
+    context_ids: tuple[str, ...],
+    capabilities: ExecutionCapabilities,
 ) -> int:
     """Count physical input slots; padding never becomes sampled or objective support."""
     if not context_ids:
@@ -217,7 +230,9 @@ class UpdateCursor:
 
 
 def resolve_updates(
-    snapshot: PopulationSnapshot, schedule: PolicyUpdateSchedule, objective: ObjectivePopulation,
+    snapshot: PopulationSnapshot,
+    schedule: PolicyUpdateSchedule,
+    objective: ObjectivePopulation,
 ) -> tuple[ResolvedUpdate, ...]:
     eligible = {record.action for record in snapshot.actions}
     if any(not (set(item.dependencies) | set(item.reduction_domain)) <= eligible for item in objective.contributions):
@@ -228,7 +243,8 @@ def resolve_updates(
             key = (contribution.id,)
         else:
             keys = {
-                (action.episode_id,) if schedule.unit == "episode"
+                (action.episode_id,)
+                if schedule.unit == "episode"
                 else (action.episode_id, action.branch_id, action.turn_id)
                 for action in (contribution.actions or contribution.reduction_domain)
             }
@@ -247,7 +263,9 @@ def resolve_updates(
         pending: list[ContributionRef] = []
         cost = 0
         for atom in ordered:
-            atom_cost = len({action for item in atom for action in item.actions}) if schedule.unit == "selected-token" else 1
+            atom_cost = (
+                len({action for item in atom for action in item.actions}) if schedule.unit == "selected-token" else 1
+            )
             if pending and cost + atom_cost > schedule.budget:
                 batches.append(tuple(pending))
                 pending, cost = [], 0
@@ -267,11 +285,19 @@ def resolve_updates(
         if not batches:
             raise InvalidPolicyUpdate("schedule drops every contribution; no optimizer update remains")
         for minibatch, batch in enumerate(batches):
-            result.append(ResolvedUpdate(
-                snapshot, objective, schedule_digest, epoch, minibatch, batch,
-                tuple(f"{snapshot.id}/{epoch}/{minibatch}/{item.id}" for item in batch),
-                tuple(sorted({action for item in batch for action in item.dependencies})), discarded,
-            ))
+            result.append(
+                ResolvedUpdate(
+                    snapshot,
+                    objective,
+                    schedule_digest,
+                    epoch,
+                    minibatch,
+                    batch,
+                    tuple(f"{snapshot.id}/{epoch}/{minibatch}/{item.id}" for item in batch),
+                    tuple(sorted({action for item in batch for action in item.dependencies})),
+                    discarded,
+                )
+            )
     return tuple(result)
 
 
@@ -283,13 +309,17 @@ def validate_update(update: ResolvedUpdate, capabilities: ExecutionCapabilities)
         raise InvalidPolicyUpdate(f"backend lacks required statistics: {sorted(missing)}")
     records = {record.action: record for record in update.population.actions}
     contexts = {view.id: view for view in update.population.conditioning}
-    if any(contexts[records[action].conditioning_id].context_tokens > capabilities.max_context_tokens
-           for action in update.dependencies):
+    if any(
+        contexts[records[action].conditioning_id].context_tokens > capabilities.max_context_tokens
+        for action in update.dependencies
+    ):
         raise InvalidPolicyUpdate("actual conditioning view exceeds qualified backend context capacity")
 
 
 def plan_packs(
-    update: ResolvedUpdate, execution_budget: PolicyExecutionBudget, capabilities: ExecutionCapabilities,
+    update: ResolvedUpdate,
+    execution_budget: PolicyExecutionBudget,
+    capabilities: ExecutionCapabilities,
 ) -> tuple[ExecutionPack, ...]:
     validate_update(update, capabilities)
     if len(update.dependencies) * update.objective.statistic_bytes_per_action > execution_budget.statistic_bytes:
@@ -303,18 +333,27 @@ def plan_packs(
     count = 0
 
     def context_size(actions: list[ActionRef]) -> int:
-        return execution_context_tokens(update.population,
-            tuple(sorted({records[action].conditioning_id for action in actions})), capabilities)
+        return execution_context_tokens(
+            update.population, tuple(sorted({records[action].conditioning_id for action in actions})), capabilities
+        )
 
     def emit() -> None:
-        packs.append(ExecutionPack(update.digest, len(packs), tuple(pending),
-                                   tuple(sorted({records[action].conditioning_id for action in pending})),
-                                   context_size(pending)))
+        packs.append(
+            ExecutionPack(
+                update.digest,
+                len(packs),
+                tuple(pending),
+                tuple(sorted({records[action].conditioning_id for action in pending})),
+                context_size(pending),
+            )
+        )
 
     for actions in turns.values():
         if context_size(actions) > execution_budget.context_tokens:
             raise InvalidPolicyUpdate("atomic turn conditioning exceeds hard pack capacity")
-        if pending and (count == execution_budget.records or context_size(pending + actions) > execution_budget.context_tokens):
+        if pending and (
+            count == execution_budget.records or context_size(pending + actions) > execution_budget.context_tokens
+        ):
             emit()
             pending, count = [], 0
         pending.extend(actions)

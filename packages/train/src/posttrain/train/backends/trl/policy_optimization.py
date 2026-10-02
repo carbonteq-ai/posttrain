@@ -226,18 +226,33 @@ def _run_online_rl(
         retries = request.training.backend_options.get("resolved_max_overflow_retries", 0)
         if type(retries) is not int or retries < 0:
             raise ValueError("resolved_max_overflow_retries must be a nonnegative integer")
-        resolved_job = ResolvedTRLJob(context, request, tokenizer, rows, runtime_identity,
-                                     template_revision, arguments["temperature"], rollout_totals, retries)
-        dataset = imports["Dataset"].from_list([
-            {"resolved_update": index} for index in range(request.settings.loop.max_steps)
-        ])
-        trainer_type = resolved_policy_trainer_type(trainer_type, resolved_job.run,
-                                                   recovery_runtime_identity=runtime_identity)
-        context.event("resolved_policy_job_configured", {
-            "backend": "trl", "runtime_identity": runtime_identity,
-            "template_revision": template_revision, "score_contract": "posttrain.causal-text-tempered-logsoftmax-fp32@1",
-            "max_overflow_retries": retries,
-        })
+        resolved_job = ResolvedTRLJob(
+            context,
+            request,
+            tokenizer,
+            rows,
+            runtime_identity,
+            template_revision,
+            arguments["temperature"],
+            rollout_totals,
+            retries,
+        )
+        dataset = imports["Dataset"].from_list(
+            [{"resolved_update": index} for index in range(request.settings.loop.max_steps)]
+        )
+        trainer_type = resolved_policy_trainer_type(
+            trainer_type, resolved_job.run, recovery_runtime_identity=runtime_identity
+        )
+        context.event(
+            "resolved_policy_job_configured",
+            {
+                "backend": "trl",
+                "runtime_identity": runtime_identity,
+                "template_revision": template_revision,
+                "score_contract": "posttrain.causal-text-tempered-logsoftmax-fp32@1",
+                "max_overflow_retries": retries,
+            },
+        )
     checkpoint_publisher = CheckpointPublisher(
         context,
         model=request.policy,
@@ -269,8 +284,11 @@ def _run_online_rl(
             metric_normalizer=loss_scale.finite_grad_norm(
                 lambda step, native: _normalize_live_grpo_metrics(
                     step,
-                    ({key: value for key, value in native.items() if key != "loss"}
-                     if resolved_job is not None else native),
+                    (
+                        {key: value for key, value in native.items() if key != "loss"}
+                        if resolved_job is not None
+                        else native
+                    ),
                     observation_features,
                 )
             ),
@@ -289,8 +307,11 @@ def _run_online_rl(
             trainer = trainer_type(
                 model=model,
                 reward_funcs=_reward_functions(request),
-                rollout_func=(None if resolved_job is not None else
-                              cast(Any, _rollout_function(context, request, tokenizer, rollout_totals))),
+                rollout_func=(
+                    None
+                    if resolved_job is not None
+                    else cast(Any, _rollout_function(context, request, tokenizer, rollout_totals))
+                ),
                 args=_trainer_arguments(config_type, arguments, request),
                 train_dataset=dataset,
                 processing_class=tokenizer,
@@ -392,8 +413,11 @@ RESOLVED_REPLACED_ARGUMENTS = (
     # Resolved collection runs TRL post11's active rounds itself over explicit
     # reserved rows (collect_active_resolved_population); the dataloader-driven
     # native refill must not also filter the single resolved-update slot.
-    "active_sampling", "active_sampling_max_batches", "active_sampling_reward_std_epsilon",
-    "active_sampling_oversample", "active_sampling_oversample_refill",
+    "active_sampling",
+    "active_sampling_max_batches",
+    "active_sampling_reward_std_epsilon",
+    "active_sampling_oversample",
+    "active_sampling_oversample_refill",
     # Resolved credit is prepared before the update and evaluated by the
     # resolved loss; TRL's rollout_func advantage transport is not used.
     "use_precomputed_advantages",

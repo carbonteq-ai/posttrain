@@ -30,8 +30,9 @@ def collection(tmp_path, monkeypatch, mode, *, corrupt=False, reject_artifact=Fa
     trainer.prompt_selector = None
     trainer.on_sample_begin = trainer.on_sample_end = lambda: None
     trainer._consume_rollout_metrics = lambda: {}
-    pool = get_tensordict({"example_id": np.asarray(["a", "b", "c"], dtype=object),
-                          "uid": np.asarray(["a", "b", "c"], dtype=object)})
+    pool = get_tensordict(
+        {"example_id": np.asarray(["a", "b", "c"], dtype=object), "uid": np.asarray(["a", "b", "c"], dtype=object)}
+    )
     trainer._next_train_batch = lambda count: pool
     published, dispatches, cleared, observed = [], [], [], []
 
@@ -40,8 +41,15 @@ def collection(tmp_path, monkeypatch, mode, *, corrupt=False, reject_artifact=Fa
             raise RuntimeError("artifact observer failed")
         published.append(artifact)
 
-    context = RunContext("project", "work", "run", "train.sampo", "job@1", tmp_path,
-                         observer=cast(Observer, SimpleNamespace(artifact=emit)))
+    context = RunContext(
+        "project",
+        "work",
+        "run",
+        "train.sampo",
+        "job@1",
+        tmp_path,
+        observer=cast(Observer, SimpleNamespace(artifact=emit)),
+    )
     native = trainer.replay_buffer
     native.observe_fn = lambda groups: observed.append(groups)
     if mode == "surplus":
@@ -62,16 +70,33 @@ def collection(tmp_path, monkeypatch, mode, *, corrupt=False, reject_artifact=Fa
                 if receipt_change == "incomplete" and uid == "a" and index == 1:
                     continue
                 trace_id = f"{uid}-{index}"
-                rollout = replace(original, example_id=uid, behavior_policy=BehaviorPolicySpan(0, 0),
-                    conditioning_records=tuple(replace(record, trace_id=trace_id) for record in original.conditioning_records),
-                    trace=TraceObservation("verifiers", trace_id, {"info": {
-                        "posttrain_episode_id": trace_id, "posttrain_prompt_group_id": f"run/0/{uid}",
-                        "posttrain_rollout_id": trace_id}}))
+                rollout = replace(
+                    original,
+                    example_id=uid,
+                    behavior_policy=BehaviorPolicySpan(0, 0),
+                    conditioning_records=tuple(
+                        replace(record, trace_id=trace_id) for record in original.conditioning_records
+                    ),
+                    trace=TraceObservation(
+                        "verifiers",
+                        trace_id,
+                        {
+                            "info": {
+                                "posttrain_episode_id": trace_id,
+                                "posttrain_prompt_group_id": f"run/0/{uid}",
+                                "posttrain_rollout_id": trace_id,
+                            }
+                        },
+                    ),
+                )
                 path = tmp_path / f"{trace_id}.jsonl"
                 path.write_bytes(evidence)
-                artifact = ProducedArtifact(f"native/{trace_id}", "evaluation-traces",
-                    LocalArtifactRef(path, hashlib.sha256(evidence).hexdigest()), metadata={
-                        "format": "verifiers-native-traces", "replay_authority": True, "trace_ids": [trace_id]})
+                artifact = ProducedArtifact(
+                    f"native/{trace_id}",
+                    "evaluation-traces",
+                    LocalArtifactRef(path, hashlib.sha256(evidence).hexdigest()),
+                    metadata={"format": "verifiers-native-traces", "replay_authority": True, "trace_ids": [trace_id]},
+                )
                 receipt = NativeEpisodeReceipt(artifact=artifact, rollout=rollout).model_dump_json(fallback=dict)
                 if uid == "a" and receipt_change in {"task", "group", "policy"}:
                     altered = json.loads(receipt)
@@ -87,8 +112,10 @@ def collection(tmp_path, monkeypatch, mode, *, corrupt=False, reject_artifact=Fa
                 reward = index if uid == "b" or mode == "surplus" else 0
                 key = f"{uid}_{index}_0"
                 tags[key] = {"is_prompt": False, "seq_len": 3, "global_steps": 0}
-                fields[key] = {"reward_extra_info": {"group_reward": reward},
-                               "posttrain_native_episode_receipt": receipt}
+                fields[key] = {
+                    "reward_extra_info": {"group_reward": reward},
+                    "posttrain_native_episode_receipt": receipt,
+                }
 
     def clear(*, partition_id, keys):
         assert partition_id == "train"
@@ -105,12 +132,16 @@ def collection(tmp_path, monkeypatch, mode, *, corrupt=False, reject_artifact=Fa
     trainer._submit_batch_to_rollout = submit
     monkeypatch.setattr(tq, "kv_list", lambda: {"train": dict(tags)})
     monkeypatch.setattr(tq, "kv_clear", clear)
-    monkeypatch.setattr(tq, "kv_batch_get", lambda *, keys, partition_id, select_fields: {
-        "extra_fields": [fields[key] for key in keys]})
+    monkeypatch.setattr(
+        tq, "kv_batch_get", lambda *, keys, partition_id, select_fields: {"extra_fields": [fields[key] for key in keys]}
+    )
     commits = []
     trainer.actor_rollout_wg = SimpleNamespace(
         resolved_state=lambda: [{"applied": 0, "needs_population": True}],
-        resolved_update=lambda receipts, **kwargs: commits.append(receipts) or [{"train/rl/applied_optimizer_updates": 1}])
+        resolved_update=lambda receipts, **kwargs: (
+            commits.append(receipts) or [{"train/rl/applied_optimizer_updates": 1}]
+        ),
+    )
     return trainer, published, dispatches, cleared, observed, commits
 
 
@@ -140,8 +171,9 @@ def test_native_refill_surplus_and_unused_candidates_are_durable(tmp_path, monke
 
 @pytest.mark.parametrize("failure", ["corrupt", "observer"])
 def test_evidence_failure_prevents_native_eviction_and_optimizer(tmp_path, monkeypatch, failure):
-    trainer, _, _, cleared, _, commits = collection(tmp_path, monkeypatch, "uniform",
-        corrupt=failure == "corrupt", reject_artifact=failure == "observer")
+    trainer, _, _, cleared, _, commits = collection(
+        tmp_path, monkeypatch, "uniform", corrupt=failure == "corrupt", reject_artifact=failure == "observer"
+    )
     with pytest.raises((InvalidPolicyUpdate, RuntimeError), match="digest|observer failed"):
         trainer.step({}, {})
     assert not cleared and not commits and trainer.global_steps == 1
@@ -170,15 +202,23 @@ def test_real_driver_factory_installs_recorder_with_host_context(tmp_path):
     unobserved, config = _native_sampo_fixture()
     settings = unobserved(config).resolved_settings
     published = []
-    context = RunContext("project", "work", "run", "train.sampo", "job@1", tmp_path,
-                         observer=cast(Observer, SimpleNamespace(artifact=published.append)))
+    context = RunContext(
+        "project",
+        "work",
+        "run",
+        "train.sampo",
+        "job@1",
+        tmp_path,
+        observer=cast(Observer, SimpleNamespace(artifact=published.append)),
+    )
     config.trainer.default_local_dir = str(tmp_path / "model" / "checkpoints")
     trainer = resolved_trainer_type(type("Actor", (), {}), settings, context)(config)
     assert isinstance(trainer.replay_buffer, NativeActiveCollectionBuffer)
     trainer.global_steps = 0
     trainer._reserve_candidates = lambda count: None
-    trainer._candidate_pool = get_tensordict({"example_id": np.asarray(["a", "b", "c"], dtype=object),
-                                             "uid": np.asarray(["a", "b", "c"], dtype=object)})
+    trainer._candidate_pool = get_tensordict(
+        {"example_id": np.asarray(["a", "b", "c"], dtype=object), "uid": np.asarray(["a", "b", "c"], dtype=object)}
+    )
     trainer._prepare_resolved_collection()
     assert len(published) == 1 and published[0].metadata["status"] == "reserved"
     assert trainer.replay_buffer.native.dispatch_fn.__self__ is trainer.replay_buffer

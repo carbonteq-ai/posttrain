@@ -65,7 +65,11 @@ class ResolvedTRLPopulation:
             raise InvalidPolicyUpdate("native TRL population requires one frozen population and resolved updates")
         if len({update.digest for update in self.updates}) != len(self.updates):
             raise InvalidPolicyUpdate("native TRL occurrences must identify distinct resolved updates")
-        if isinstance(self.score_temperature, bool) or not math.isfinite(self.score_temperature) or self.score_temperature <= 0:
+        if (
+            isinstance(self.score_temperature, bool)
+            or not math.isfinite(self.score_temperature)
+            or self.score_temperature <= 0
+        ):
             raise InvalidPolicyUpdate("native TRL score temperature must be finite and positive")
         if not isinstance(self.score_contract, str) or not self.score_contract.strip():
             raise InvalidPolicyUpdate("native TRL score arithmetic requires an explicit contract identity")
@@ -75,30 +79,55 @@ class ResolvedTRLPopulation:
 
     @classmethod
     def from_resolved(
-        cls, resolved: ResolvedPolicyPopulation, *,
+        cls,
+        resolved: ResolvedPolicyPopulation,
+        *,
         read_input: Callable[[ConditioningView], NativeConditioningInput],
-        score_temperature: float, score_contract: str,
+        score_temperature: float,
+        score_contract: str,
         sampler_correction: Mapping[ActionRef, float] | None,
-        reference: Any = None, max_overflow_retries: int = 0,
-        applied_update_offset: int = 0, attempt_offset: int = 0,
+        reference: Any = None,
+        max_overflow_retries: int = 0,
+        applied_update_offset: int = 0,
+        attempt_offset: int = 0,
     ) -> ResolvedTRLPopulation:
         """Consume the shared validated population without rebuilding its recipe."""
-        return cls(resolved.updates, resolved.credit, resolved.spec, resolved.execution, resolved.capabilities,
-                   read_input, score_temperature, score_contract, sampler_correction,
-                   reference=reference, max_overflow_retries=max_overflow_retries,
-                   applied_update_offset=applied_update_offset, attempt_offset=attempt_offset)
+        return cls(
+            resolved.updates,
+            resolved.credit,
+            resolved.spec,
+            resolved.execution,
+            resolved.capabilities,
+            read_input,
+            score_temperature,
+            score_contract,
+            sampler_correction,
+            reference=reference,
+            max_overflow_retries=max_overflow_retries,
+            applied_update_offset=applied_update_offset,
+            attempt_offset=attempt_offset,
+        )
 
     @classmethod
     def from_admitted(
-        cls, admitted: AdmittedNativePopulation, *, score_temperature: float,
-        score_contract: str, sampler_correction: Mapping[ActionRef, float] | None,
+        cls,
+        admitted: AdmittedNativePopulation,
+        *,
+        score_temperature: float,
+        score_contract: str,
+        sampler_correction: Mapping[ActionRef, float] | None,
         reference: Any = None,
     ) -> ResolvedTRLPopulation:
         return cls.from_resolved(
-            admitted.resolved, read_input=admitted.read_input, score_temperature=score_temperature,
-            score_contract=score_contract, sampler_correction=sampler_correction, reference=reference,
+            admitted.resolved,
+            read_input=admitted.read_input,
+            score_temperature=score_temperature,
+            score_contract=score_contract,
+            sampler_correction=sampler_correction,
+            reference=reference,
             max_overflow_retries=admitted.max_overflow_retries,
-            applied_update_offset=admitted.applied_update_offset, attempt_offset=admitted.attempt_offset,
+            applied_update_offset=admitted.applied_update_offset,
+            attempt_offset=admitted.attempt_offset,
         )
 
     @property
@@ -120,30 +149,49 @@ class ResolvedTRLPopulation:
         update = self.updates[index]
         if self.old is None:
             self.old = freeze_population_scores(
-                model, update.population, read_input=self.read_input, device=device,
-                policy_version=update.population.versions.old_score, score_contract=self.score_contract,
+                model,
+                update.population,
+                read_input=self.read_input,
+                device=device,
+                policy_version=update.population.versions.old_score,
+                score_contract=self.score_contract,
                 score_temperature=self.score_temperature,
             )
         if self.prepare_sampler_correction is not None:
             from types import MappingProxyType
 
-            correction = self.prepare_sampler_correction({action: float(value) for action, value in self.old.values.items()})
+            correction = self.prepare_sampler_correction(
+                {action: float(value) for action, value in self.old.values.items()}
+            )
             if set(correction) != {record.action for record in update.population.actions} or any(
-                type(value) not in (float, int) or not math.isfinite(value) or value < 0 for value in correction.values()
+                type(value) not in (float, int) or not math.isfinite(value) or value < 0
+                for value in correction.values()
             ):
                 raise InvalidPolicyUpdate("prepared correction requires complete detached finite action weights")
             self.sampler_correction = MappingProxyType(dict(correction))
             self.prepare_sampler_correction = None
-        term = resolve_objective_term(update, self.spec, self.credit,
-                                      parameter_version=f"{update.population.versions.current}/applied-{self.applied_updates}")
+        term = resolve_objective_term(
+            update,
+            self.spec,
+            self.credit,
+            parameter_version=f"{update.population.versions.current}/applied-{self.applied_updates}",
+        )
         if before_current is not None:
             # The first old-score forward can consume randomness. Retries skip
             # it, so capture current-score state after freezing, not before it.
             before_current()
         self.last_evaluation = compute_resolved_loss(
-            model, update, term, self.credit, plan_packs(update, self.execution, self.capabilities),
-            old=self.old, reference=self.reference, read_input=self.read_input, device=device,
-            score_temperature=self.score_temperature, score_contract=self.score_contract,
+            model,
+            update,
+            term,
+            self.credit,
+            plan_packs(update, self.execution, self.capabilities),
+            old=self.old,
+            reference=self.reference,
+            read_input=self.read_input,
+            device=device,
+            score_temperature=self.score_temperature,
+            score_contract=self.score_contract,
             sampler_correction=self.sampler_correction,
         )
         if not self.last_evaluation.loss.requires_grad:
@@ -195,8 +243,12 @@ class ResolvedTRLRun(ResolvedPolicyRun[ResolvedTRLPopulation]):
     its returned identity is then checked against the sealed checkpoint.
     """
 
+
 def resolved_policy_trainer_type(
-    parent: type, population: ResolvedTRLPopulation | ResolvedTRLRun, *, recovery_runtime_identity: str | None = None,
+    parent: type,
+    population: ResolvedTRLPopulation | ResolvedTRLRun,
+    *,
+    recovery_runtime_identity: str | None = None,
 ) -> type:
     """Adapt native GRPOTrainer without replacing its optimizer lifecycle."""
 
@@ -208,8 +260,11 @@ def resolved_policy_trainer_type(
             import torch
 
             if getattr(optimizer, "scaler", None) is None:
-                if any(not bool(torch.isfinite(parameter.grad).all()) for parameter in self.model.parameters()
-                       if parameter.grad is not None):
+                if any(
+                    not bool(torch.isfinite(parameter.grad).all())
+                    for parameter in self.model.parameters()
+                    if parameter.grad is not None
+                ):
                     raise InvalidPolicyUpdate("native unscaled nonfinite gradients cannot mutate the resolved policy")
             active_population().before_step(optimizer)
 
@@ -222,8 +277,12 @@ def resolved_policy_trainer_type(
             if self._resolved_retry_context is None:
                 raise InvalidPolicyUpdate("native current scoring lacks a retained retry context")
             model, inputs, count, _ = self._resolved_retry_context
-            rng = (random.getstate(), np.random.get_state(), torch.get_rng_state(),
-                   torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None)
+            rng = (
+                random.getstate(),
+                np.random.get_state(),
+                torch.get_rng_state(),
+                torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+            )
             self._resolved_retry_context = (model, inputs, count, rng)
 
         def training_step(self, model, inputs, num_items_in_batch=None):
@@ -273,21 +332,32 @@ def resolved_policy_trainer_type(
 
             if recovery_runtime_identity is None:
                 raise InvalidPolicyUpdate("resolved checkpointing requires an immutable runtime identity")
-            return population_recovery_identity(active_population(), runtime_identity=recovery_runtime_identity, world_size=1)
+            return population_recovery_identity(
+                active_population(), runtime_identity=recovery_runtime_identity, world_size=1
+            )
 
         def _save_checkpoint(self, *args, **kwargs):
             from ..policy_update_recovery import save_population_recovery
 
             identity = self._recovery_identity()
             active = active_population()
-            if (self._resolved_retry_context is not None or active._pending is not None
-                    or self.state.global_step != active.global_applied_updates):
+            if (
+                self._resolved_retry_context is not None
+                or active._pending is not None
+                or self.state.global_step != active.global_applied_updates
+            ):
                 raise InvalidPolicyUpdate("native checkpoint is not at the resolved applied boundary")
             trial = kwargs.get("trial", args[1] if len(args) > 1 else None)
             checkpoint = Path(self._get_output_dir(trial)) / f"checkpoint-{self.state.global_step}"
             if (checkpoint / "posttrain-resolved-update.json").exists():
-                save_population_recovery(active, checkpoint, runtime_identity=identity.runtime_identity,
-                    world_size=1, native_applied_updates=self.state.global_step, native_components=())
+                save_population_recovery(
+                    active,
+                    checkpoint,
+                    runtime_identity=identity.runtime_identity,
+                    world_size=1,
+                    native_applied_updates=self.state.global_step,
+                    native_components=(),
+                )
                 return
             super()._save_checkpoint(*args, **kwargs)
             required = ("optimizer.pt", "scheduler.pt", "rng_state.pth", "trainer_state.json")
@@ -299,8 +369,14 @@ def resolved_policy_trainer_type(
             if not weights:
                 raise InvalidPolicyUpdate("native TRL checkpoint lacks retained model weights")
             files = tuple(sorted(str(path.relative_to(checkpoint)) for path in checkpoint.rglob("*") if path.is_file()))
-            save_population_recovery(active, checkpoint, runtime_identity=identity.runtime_identity,
-                                     world_size=1, native_applied_updates=self.state.global_step, native_components=files)
+            save_population_recovery(
+                active,
+                checkpoint,
+                runtime_identity=identity.runtime_identity,
+                world_size=1,
+                native_applied_updates=self.state.global_step,
+                native_components=files,
+            )
 
         def _load_from_checkpoint(self, resume_from_checkpoint, model=None):
             from ...update_recovery import load_update_recovery
@@ -319,12 +395,23 @@ def resolved_policy_trainer_type(
             if checkpoint is not None:
                 path = Path(checkpoint)
                 native_step = json.loads((path / "trainer_state.json").read_text())["global_step"]
-                restore_population_recovery(active_population(), path, runtime_identity=self._recovery_identity().runtime_identity,
-                    world_size=1, native_applied_updates=native_step, device=self.accelerator.device)
+                restore_population_recovery(
+                    active_population(),
+                    path,
+                    runtime_identity=self._recovery_identity().runtime_identity,
+                    world_size=1,
+                    native_applied_updates=native_step,
+                    device=self.accelerator.device,
+                )
 
         def get_train_dataloader(self):
-            return self._get_dataloader(dataset=self.train_dataset, description="Training", batch_size=1,
-                                        sampler_fn=self._get_train_sampler, is_training=True)
+            return self._get_dataloader(
+                dataset=self.train_dataset,
+                description="Training",
+                batch_size=1,
+                sampler_fn=self._get_train_sampler,
+                is_training=True,
+            )
 
         def _get_train_sampler(self, dataset=None):
             from torch.utils.data import SequentialSampler
@@ -337,21 +424,26 @@ def resolved_policy_trainer_type(
             return rows[0]
 
         def _compute_loss(self, model, inputs):
-            active, index = (population.occurrence(inputs["resolved_update"], self.state.global_step)
-                             if isinstance(population, ResolvedTRLRun)
-                             else (population, inputs["resolved_update"]))
+            active, index = (
+                population.occurrence(inputs["resolved_update"], self.state.global_step)
+                if isinstance(population, ResolvedTRLRun)
+                else (population, inputs["resolved_update"])
+            )
             if self.state.global_step != active.global_applied_updates:
                 raise InvalidPolicyUpdate("native TRL run-global counter differs from the active population boundary")
-            return active.loss(model, index, self.accelerator.device,
-                                   before_current=self._capture_current_rng)
+            return active.loss(model, index, self.accelerator.device, before_current=self._capture_current_rng)
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self._resolved_retry_context = None
             if self.args.gradient_accumulation_steps != 1 or self.num_iterations != 1:
-                raise InvalidPolicyUpdate("resolved native updates replace native accumulation and iteration scheduling")
+                raise InvalidPolicyUpdate(
+                    "resolved native updates replace native accumulation and iteration scheduling"
+                )
             if self.args.per_device_train_batch_size != 1 or self.args.remove_unused_columns:
-                raise InvalidPolicyUpdate("resolved native dataloader requires one payload per batch and retained columns")
+                raise InvalidPolicyUpdate(
+                    "resolved native dataloader requires one payload per batch and retained columns"
+                )
             if self.use_liger_kernel:
                 raise InvalidPolicyUpdate("resolved native loss does not support the Liger compute-loss bypass")
             if self.accelerator.num_processes != 1:

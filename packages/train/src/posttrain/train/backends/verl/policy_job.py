@@ -71,13 +71,20 @@ class ResolvedVeRLCollectionHost:
         snapshot = population.updates[0].population
         selected = resolve_policy_population(snapshot, population.credit, self.settings, self.capabilities)
         version = f"{self.runtime_identity}/actor-{population.applied_update_offset}"
-        versions = PolicyVersions(version, version, version,
-            f"{self.runtime_identity}/reference" if self.settings.beta else None)
-        if (population.updates != selected.updates or population.spec != selected.spec
-                or population.execution != selected.execution or population.capabilities != selected.capabilities
-                or population.max_overflow_retries != self.max_overflow_retries or snapshot.versions != versions
-                or population.score_contract != self.score_contract or population.score_temperature != self.score_temperature
-                or any(view.template_revision != self.template_revision for view in snapshot.conditioning)):
+        versions = PolicyVersions(
+            version, version, version, f"{self.runtime_identity}/reference" if self.settings.beta else None
+        )
+        if (
+            population.updates != selected.updates
+            or population.spec != selected.spec
+            or population.execution != selected.execution
+            or population.capabilities != selected.capabilities
+            or population.max_overflow_retries != self.max_overflow_retries
+            or snapshot.versions != versions
+            or population.score_contract != self.score_contract
+            or population.score_temperature != self.score_temperature
+            or any(view.template_revision != self.template_revision for view in snapshot.conditioning)
+        ):
             raise InvalidPolicyUpdate("veRL restored population differs from selected job contracts")
         return population
 
@@ -85,26 +92,36 @@ class ResolvedVeRLCollectionHost:
         if self.engine.lr_scheduler.last_epoch != applied:
             raise InvalidPolicyUpdate("veRL collection differs from the native applied boundary")
         batch = self.collect_batch(applied, attempts)
-        receipts = episode_receipts_from_batch(batch,
-            expected_rows=self.settings.num_prompts_per_step * self.settings.num_generations)
+        receipts = episode_receipts_from_batch(
+            batch, expected_rows=self.settings.num_prompts_per_step * self.settings.num_generations
+        )
         version = f"{self.runtime_identity}/actor-{applied}"
         admitted, artifact = admit_episode_receipts(
-            receipts, self.settings, self.capabilities,
+            receipts,
+            self.settings,
+            self.capabilities,
             destination=self.context.workspace / "native-populations",
             population_id=f"{self.context.run_id}/population-at-{applied}",
             template_revision=self.template_revision,
-            versions=PolicyVersions(version, version, version,
-                f"{self.runtime_identity}/reference" if self.settings.beta else None),
+            versions=PolicyVersions(
+                version, version, version, f"{self.runtime_identity}/reference" if self.settings.beta else None
+            ),
             sampler_step=applied,
             selector_digest=f"{self.runtime_identity}/native-selection-{applied}",
-            applied_update_offset=applied, attempt_offset=attempts,
+            applied_update_offset=applied,
+            attempt_offset=attempts,
             max_overflow_retries=self.max_overflow_retries,
         )
-        population = ResolvedVeRLPopulation.from_admitted(admitted,
-            score_temperature=self.score_temperature, score_contract=self.score_contract, sampler_correction=None)
+        population = ResolvedVeRLPopulation.from_admitted(
+            admitted,
+            score_temperature=self.score_temperature,
+            score_contract=self.score_contract,
+            sampler_correction=None,
+        )
         sampled = admitted.read_input.sampling_log_scores(admitted.resolved.snapshot)
         population.prepare_sampler_correction = lambda old: recipe_sampler_correction_weights(
-            self.settings, admitted.resolved.snapshot, old, sampled)
+            self.settings, admitted.resolved.snapshot, old, sampled
+        )
         if self.reference_scores is not None and population.spec.beta:
             population.reference = self.reference_scores(population)
         self.context.artifact(artifact)

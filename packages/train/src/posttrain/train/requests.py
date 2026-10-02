@@ -108,8 +108,11 @@ class SAMPORequest:
         updates = self.settings.policy_updates
         selected = updates.credit_estimator if updates is not None else None
         if (selected is None) != (self.process_credit is None) or (
-                selected is not None and getattr(self.process_credit, "estimator_id", None) != selected):
-            raise ValueError("SAMPO process credit requires a selected credit_estimator and a matching injected provider")
+            selected is not None and getattr(self.process_credit, "estimator_id", None) != selected
+        ):
+            raise ValueError(
+                "SAMPO process credit requires a selected credit_estimator and a matching injected provider"
+            )
         _validate_online_rl(
             "SAMPO",
             self.policy,
@@ -214,17 +217,20 @@ def _validate_online_rl(
 # rejects anything narrower it has not qualified (distribution, masks, vLLM).
 # Every admitted selection runs on one device.
 _QUALIFIED_RESOLVED_SELECTIONS: dict[str, frozenset[tuple[str, str]]] = {
-    "trl": frozenset({("grpo", "algorithm"), ("dapo", "algorithm"), ("sampo", "algorithm"),
-                      ("sampo", "semantic-spans")}),
+    "trl": frozenset(
+        {("grpo", "algorithm"), ("dapo", "algorithm"), ("sampo", "algorithm"), ("sampo", "semantic-spans")}
+    ),
     "verl": frozenset({("sampo", "algorithm")}),
 }
 
 
 # Injected process-credit estimators qualified in training (R139 BF16/FP16):
 # TRL resolved SAMPO semantic spans with the composition's likelihood scorer.
-_QUALIFIED_PROCESS_CREDIT: frozenset[tuple[str, str, str, str]] = frozenset({
-    ("trl", "sampo", "semantic-spans", "group-centered-likelihood@1"),
-})
+_QUALIFIED_PROCESS_CREDIT: frozenset[tuple[str, str, str, str]] = frozenset(
+    {
+        ("trl", "sampo", "semantic-spans", "group-centered-likelihood@1"),
+    }
+)
 
 
 def _resolved_selection_problem(
@@ -243,10 +249,14 @@ def _resolved_selection_problem(
             f"objective variant {updates.objective_variant!r}; policy_updates requires the native "
             "integration gates in the engine plan"
         )
-    if updates.credit_estimator is not None and (
-            backend, algorithm, updates.objective_variant, updates.credit_estimator) not in _QUALIFIED_PROCESS_CREDIT:
-        return (f"process-credit estimator {updates.credit_estimator!r} has not passed native GPU qualification "
-                f"for {training.backend} {algorithm} {updates.objective_variant!r}")
+    if (
+        updates.credit_estimator is not None
+        and (backend, algorithm, updates.objective_variant, updates.credit_estimator) not in _QUALIFIED_PROCESS_CREDIT
+    ):
+        return (
+            f"process-credit estimator {updates.credit_estimator!r} has not passed native GPU qualification "
+            f"for {training.backend} {algorithm} {updates.objective_variant!r}"
+        )
     if backend == "trl" and inference.backend.split("@", 1)[0] == "vllm":
         return "resolved TRL policy updates are qualified with transformers generation, not vLLM rollouts"
     if training.target.placement.get("world_size", 1) != 1:

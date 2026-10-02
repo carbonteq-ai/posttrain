@@ -28,9 +28,15 @@ def test_portable_bridge_preserves_conditioning_contract(tmp_path, monkeypatch, 
     # Environment activation is outside this serialization regression.
     monkeypatch.setattr(VerifiersEnvironmentRolloutBridge, "__post_init__", lambda self: None)
     bridge = VerifiersEnvironmentRolloutBridge(
-        dataset_id="tasks", revision="test@1", tasks={}, environment_factory=dict,
-        trace_path=tmp_path / "traces.jsonl", environment_id="environment", run_id="run",
-        sampling=PolicySampling(8), policy_update_context_contract=contract,
+        dataset_id="tasks",
+        revision="test@1",
+        tasks={},
+        environment_factory=dict,
+        trace_path=tmp_path / "traces.jsonl",
+        environment_id="environment",
+        run_id="run",
+        sampling=PolicySampling(8),
+        policy_update_context_contract=contract,
     )
     path = tmp_path / "bridge.pkl"
     bridge.write_portable_snapshot(path)
@@ -48,7 +54,8 @@ def test_bridge_retains_native_authority_instead_of_derived_observation(tmp_path
     bridge = SimpleNamespace(trace_path=trace_path, _write_lock=threading.Lock())
     rollout = SimpleNamespace(trace=SimpleNamespace(external_id="a"))
     artifact = VerifiersEnvironmentRolloutBridge.retain_population(
-        cast(VerifiersEnvironmentRolloutBridge, bridge), (cast(EnvironmentRollout, rollout),))
+        cast(VerifiersEnvironmentRolloutBridge, bridge), (cast(EnvironmentRollout, rollout),)
+    )
     assert isinstance(artifact.reference, LocalArtifactRef)
     assert artifact.reference.path.read_bytes() == native
     assert trace_path.read_bytes() == b'{"id":"a","derived":true}\n'
@@ -71,11 +78,14 @@ def test_native_episode_snapshot_preserves_bytes_and_survives_source_growth(tmp_
     assert not tuple((tmp_path / "populations").glob(".population-*"))
 
 
-@pytest.mark.parametrize("records,ids,message", [
-    ([{"id": "other"}], ("missing",), "lacks"),
-    ([{"id": "a"}, {"id": "a"}], ("a",), "duplicate retained"),
-    ([{"id": "a"}], ("a", "a"), "unique"),
-])
+@pytest.mark.parametrize(
+    "records,ids,message",
+    [
+        ([{"id": "other"}], ("missing",), "lacks"),
+        ([{"id": "a"}, {"id": "a"}], ("a",), "duplicate retained"),
+        ([{"id": "a"}], ("a", "a"), "unique"),
+    ],
+)
 def test_invalid_membership_creates_no_artifact(tmp_path, records, ids, message):
     source = tmp_path / "traces.jsonl"
     source.write_text("".join(json.dumps(record) + "\n" for record in records))
@@ -103,12 +113,15 @@ def test_incomplete_native_record_cannot_be_sealed(tmp_path):
         retain_native_population(source, tmp_path / "populations", ("a",), episodes=False)
 
 
-@pytest.mark.parametrize("payload,message", [
-    (b'{"traces":[{"nodes":[]}]}\n', "original identity"),
-    (b'{"traces":[{"id":"a"},{"id":"a"}]}\n', "duplicate"),
-    (b'{"traces":[]}\n', "lacks"),
-    (b'{"traces":[{"id":"a"}]}', "complete JSONL"),
-])
+@pytest.mark.parametrize(
+    "payload,message",
+    [
+        (b'{"traces":[{"nodes":[]}]}\n', "original identity"),
+        (b'{"traces":[{"id":"a"},{"id":"a"}]}\n', "duplicate"),
+        (b'{"traces":[]}\n', "lacks"),
+        (b'{"traces":[{"id":"a"}]}', "complete JSONL"),
+    ],
+)
 def test_decoder_rejects_invalid_identity_before_native_defaults(monkeypatch, payload, message):
     class NativeSchema:
         @staticmethod

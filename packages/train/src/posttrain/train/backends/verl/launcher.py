@@ -435,14 +435,17 @@ def _plan(
         # The resolved scheduler owns boundaries; legacy group-size equality
         # would incorrectly force a complete population into one optimizer step.
         # Worker admission still refuses the unqualified legacy execution path.
-        selected_updates.validate_legacy_loop(max_steps=loop.max_steps,
+        selected_updates.validate_legacy_loop(
+            max_steps=loop.max_steps,
             per_device_batch_size=loop.per_device_batch_size,
-            gradient_accumulation_steps=loop.gradient_accumulation_steps)
+            gradient_accumulation_steps=loop.gradient_accumulation_steps,
+        )
     payload = VerlPayload.model_validate(
         {
             **operation_payload,
-            "resolved_settings": ({"kind": operation, "settings": request.settings}
-                                  if selected_updates is not None else None),
+            "resolved_settings": (
+                {"kind": operation, "settings": request.settings} if selected_updates is not None else None
+            ),
             "training": {
                 "binding_id": request.training.id,
                 "renderer": _renderer_payload(
@@ -520,9 +523,16 @@ def _launch(
     manifest = output_dir / "posttrain-verl-launch.json"
     # Detached planning has no runtime identity. Inject the actual host context
     # at launch rather than deriving fake identities from an output directory.
-    plan = plan.model_copy(update={"run_context": VerlRunContext.model_validate({
-        **context.identity_attributes, "workspace": context.workspace,
-    })})
+    plan = plan.model_copy(
+        update={
+            "run_context": VerlRunContext.model_validate(
+                {
+                    **context.identity_attributes,
+                    "workspace": context.workspace,
+                }
+            )
+        }
+    )
     snapshot_path = plan.payload.environment.bridge_snapshot
     snapshot_writer = getattr(request.bridge, "write_portable_snapshot", None)
     if not callable(snapshot_writer):

@@ -56,8 +56,13 @@ class ConditioningView:
 
     def __post_init__(self) -> None:
         require_identity(
-            self.id, self.native_ref, self.token_ids_ref, self.attention_ref,
-            self.positions_ref, self.template_revision, self.digest,
+            self.id,
+            self.native_ref,
+            self.token_ids_ref,
+            self.attention_ref,
+            self.positions_ref,
+            self.template_revision,
+            self.digest,
         )
         if type(self.context_tokens) is not int or self.context_tokens < 1:
             raise InvalidPolicyUpdate("conditioning view requires its actual context size")
@@ -208,9 +213,12 @@ class ActionSelection:
     roles: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if (self.mode not in {"all", "spans", "roles"}
-                or (self.mode != "spans" and self.span_ids) or (self.mode != "roles" and self.roles)
-                or (self.mode == "roles" and not self.roles)):
+        if (
+            self.mode not in {"all", "spans", "roles"}
+            or (self.mode != "spans" and self.span_ids)
+            or (self.mode != "roles" and self.roles)
+            or (self.mode == "roles" and not self.roles)
+        ):
             raise InvalidPolicyUpdate("selector must declare all actions, supplied spans or span roles")
         if len(set(self.span_ids)) != len(self.span_ids) or len(set(self.roles)) != len(self.roles):
             raise InvalidPolicyUpdate("selector span identities and roles must be unique")

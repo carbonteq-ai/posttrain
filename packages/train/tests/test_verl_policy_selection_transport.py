@@ -22,14 +22,20 @@ def test_worker_json_roundtrip_preserves_schedule_masks_and_reduction(algorithm,
         PolicyExecutionBudget(1, 4096, 100000),
     )
     if variant == "semantic-spans":
-        selected = replace(selected, objective_variant=variant,
+        selected = replace(
+            selected,
+            objective_variant=variant,
             policy_selection=ActionSelection("spans", ("thinking-1",)),
             kl_selection=ActionSelection("spans", ("answer-1",)),
-            denominator="original-eligible", empty_policy="zero")
+            denominator="original-eligible",
+            empty_policy="zero",
+        )
     if algorithm == "grpo":
         payload = grpo_algorithm_payload(GRPOSettings("transport", TrainingLoop(max_steps=3), policy_updates=selected))
     else:
-        payload = sampo_algorithm_payload(SAMPOSettings("transport", TrainingLoop(max_steps=3), policy_updates=selected))
+        payload = sampo_algorithm_payload(
+            SAMPOSettings("transport", TrainingLoop(max_steps=3), policy_updates=selected)
+        )
     contract = VerlAlgorithm.model_validate(payload)
     restored = VerlAlgorithm.model_validate_json(contract.model_dump_json())
     assert restored.policy_updates == selected
@@ -40,8 +46,9 @@ def test_worker_json_roundtrip_preserves_schedule_masks_and_reduction(algorithm,
 
 
 def test_legacy_worker_selection_remains_absent():
-    settings = GRPOSettings("legacy", TrainingLoop(max_steps=1, gradient_accumulation_steps=2),
-                            num_prompts_per_step=1, num_generations=2)
+    settings = GRPOSettings(
+        "legacy", TrainingLoop(max_steps=1, gradient_accumulation_steps=2), num_prompts_per_step=1, num_generations=2
+    )
     contract = VerlAlgorithm.model_validate(grpo_algorithm_payload(settings))
     assert contract.policy_updates is None
     validate_policy_update_entrypoint(cast(VerlPayload, SimpleNamespace(algorithm=contract)))
@@ -68,10 +75,12 @@ def test_launcher_manifest_preserves_resolved_boundaries_without_legacy_batch_eq
     # Internal candidate selection: public launch remains guarded until native
     # host qualification, while manifest transport can be checked independently.
     request = SimpleNamespace(**{field.name: getattr(legacy, field.name) for field in fields(legacy)})
-    selection = PolicyUpdateSettings(PolicyUpdateSchedule("episode", 1, epochs=2),
-                                    PolicyExecutionBudget(1, 4096, 10000))
-    request.settings = replace(legacy.settings,
-        loop=replace(legacy.settings.loop, gradient_accumulation_steps=1), policy_updates=selection)
+    selection = PolicyUpdateSettings(
+        PolicyUpdateSchedule("episode", 1, epochs=2), PolicyExecutionBudget(1, 4096, 10000)
+    )
+    request.settings = replace(
+        legacy.settings, loop=replace(legacy.settings.loop, gradient_accumulation_steps=1), policy_updates=selection
+    )
     manifest = build_grpo_launch_plan(cast(GRPORequest, request), tmp_path)
     restored = VerlLaunchManifest.model_validate_json(manifest.model_dump_json())
     assert restored.payload.algorithm.policy_updates == selection
@@ -98,24 +107,33 @@ def test_full_settings_envelope_preserves_normalizer_values(kind):
     from posttrain.train.profiles import CAPOSettings, GDPOSettings
     from pydantic import TypeAdapter
 
-    selection = PolicyUpdateSettings(PolicyUpdateSchedule("episode", 1, epochs=2),
-                                    PolicyExecutionBudget(1, 4096, 10000))
-    loop = TrainingLoop(max_steps=3, max_length=4096, warmup_ratio=.17, seed=97)
+    selection = PolicyUpdateSettings(
+        PolicyUpdateSchedule("episode", 1, epochs=2), PolicyExecutionBudget(1, 4096, 10000)
+    )
+    loop = TrainingLoop(max_steps=3, max_length=4096, warmup_ratio=0.17, seed=97)
     if kind == "grpo":
-        settings = GRPOSettings("original-settings", loop, policy_updates=selection,
-                                algorithm="dapo", advantage_scaling="none")
+        settings = GRPOSettings(
+            "original-settings", loop, policy_updates=selection, algorithm="dapo", advantage_scaling="none"
+        )
     elif kind == "sampo":
-        settings = SAMPOSettings("original-settings", loop, policy_updates=selection,
-                                 discount_gamma=.87, step_advantage_weight=.3)
+        settings = SAMPOSettings(
+            "original-settings", loop, policy_updates=selection, discount_gamma=0.87, step_advantage_weight=0.3
+        )
     elif kind == "gdpo":
-        settings = GDPOSettings(id="original-settings", loop=loop, policy_updates=selection,
-                                component_names=("task", "format"), component_weights=(1., .25))
+        settings = GDPOSettings(
+            id="original-settings",
+            loop=loop,
+            policy_updates=selection,
+            component_names=("task", "format"),
+            component_weights=(1.0, 0.25),
+        )
     else:
-        settings = CAPOSettings(id="original-settings", loop=loop, policy_updates=selection,
-                                outcome_weight=3., process_weight=.75)
+        settings = CAPOSettings(
+            id="original-settings", loop=loop, policy_updates=selection, outcome_weight=3.0, process_weight=0.75
+        )
     adapter = TypeAdapter(VerlResolvedSettings)
     envelope = adapter.validate_python({"kind": kind, "settings": settings})
     restored = adapter.validate_json(adapter.dump_json(envelope))
     assert restored.settings == settings
     assert restored.settings.loop.max_length == 4096
-    assert restored.settings.loop.warmup_ratio == .17
+    assert restored.settings.loop.warmup_ratio == 0.17

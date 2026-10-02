@@ -24,21 +24,39 @@ def population() -> PopulationSnapshot:
     # Token index 1 is an observation, hence absent from eligible actions.
     actions = tuple(ActionRef("ep", "branch", "turn", index) for index in (0, 2, 3))
     contexts = tuple(
-        ConditioningView(name, f"native:{name}", f"tokens:{name}", f"mask:{name}",
-                         f"positions:{name}", "template@1", f"digest:{name}", size)
+        ConditioningView(
+            name,
+            f"native:{name}",
+            f"tokens:{name}",
+            f"mask:{name}",
+            f"positions:{name}",
+            "template@1",
+            f"digest:{name}",
+            size,
+        )
         for name, size in (("original", 6), ("rolling-window", 4))
     )
     return PopulationSnapshot(
-        "population", "native:episode", "native-digest",
-        tuple(ActionRecord(action, "original" if action.token_index == 0 else "rolling-window", "native:node")
-              for action in actions),
+        "population",
+        "native:episode",
+        "native-digest",
+        tuple(
+            ActionRecord(action, "original" if action.token_index == 0 else "rolling-window", "native:node")
+            for action in actions
+        ),
         contexts,
-        (SemanticSpan("thinking", "reasoning", "extract@1",
-                      (ActionInterval(actions[0], 1), ActionInterval(actions[1], 4))),
-         SemanticSpan("step-2", "reasoning", "extract@1", (ActionInterval(actions[2], 4),))),
-        (PopulationRelation("prompt", "prompt-group", actions, "complete", actions),
-         PopulationRelation("anchor", "anchor-state", actions[1:], "complete", actions[1:])),
-        PolicyVersions("sampler@1", "old@1", "current@1", "reference@1"), "selector@1",
+        (
+            SemanticSpan(
+                "thinking", "reasoning", "extract@1", (ActionInterval(actions[0], 1), ActionInterval(actions[1], 4))
+            ),
+            SemanticSpan("step-2", "reasoning", "extract@1", (ActionInterval(actions[2], 4),)),
+        ),
+        (
+            PopulationRelation("prompt", "prompt-group", actions, "complete", actions),
+            PopulationRelation("anchor", "anchor-state", actions[1:], "complete", actions[1:]),
+        ),
+        PolicyVersions("sampler@1", "old@1", "current@1", "reference@1"),
+        "selector@1",
     )
 
 
@@ -77,8 +95,16 @@ def test_complete_relation_cannot_hide_missing_members() -> None:
 
 
 def test_assessment_preserves_unavailable_score_and_observation_scope() -> None:
-    assessment = SpanAssessment("judgment:1", "thinking", (RewardValue("quality", "abstained"),),
-                                "scorer@1", "input:prefix", "prefix", "quality", "scorer-config-digest")
+    assessment = SpanAssessment(
+        "judgment:1",
+        "thinking",
+        (RewardValue("quality", "abstained"),),
+        "scorer@1",
+        "input:prefix",
+        "prefix",
+        "quality",
+        "scorer-config-digest",
+    )
     assert assessment.components[0].value is None
     assert assessment.observation_scope == "prefix"
     with pytest.raises(InvalidRewardEvidence, match="observation scope"):
@@ -103,21 +129,28 @@ def test_native_bridge_opt_in_retains_actual_paths_without_changing_legacy_rows(
         SimpleNamespace(parent=2, sampled=False, message={"role": "tool"}, token_ids=[11, 12], mask=[False, False]),
         SimpleNamespace(parent=3, sampled=True, message={"role": "assistant"}, token_ids=[13, 14], mask=[False, True]),
     ]
-    trace = SimpleNamespace(id="native-trace", reward=1.0, nodes=nodes,
-                            calls=[SimpleNamespace(node=1), SimpleNamespace(node=4)])
+    trace = SimpleNamespace(
+        id="native-trace", reward=1.0, nodes=nodes, calls=[SimpleNamespace(node=1), SimpleNamespace(node=4)]
+    )
     # Existing training projection may flatten selected sampled nodes. Its rows
     # must not be mistaken for the later call's original conditioning path.
-    branch = SimpleNamespace(index=7, nodes=[nodes[index] for index in (0, 1, 3, 4)],
-                             token_ids=[1, 2, 3, 4, 11, 12, 13, 14],
-                             sampled_mask=[False, False, False, True, False, False, False, True],
-                             logprobs=[0.0] * 8)
+    branch = SimpleNamespace(
+        index=7,
+        nodes=[nodes[index] for index in (0, 1, 3, 4)],
+        token_ids=[1, 2, 3, 4, 11, 12, 13, 14],
+        sampled_mask=[False, False, False, True, False, False, False, True],
+        logprobs=[0.0] * 8,
+    )
     monkeypatch.setattr("posttrain.train.integrations.verifiers._project_training_branch", lambda _: branch)
-    observation = TraceObservation("verifiers", "native-trace", {},
-                                   {"is_truncated": False, "example_id": "task-1"})
+    observation = TraceObservation("verifiers", "native-trace", {}, {"is_truncated": False, "example_id": "task-1"})
     bridge = SimpleNamespace(technique="grpo", reward_projection=None, policy_update_context_contract=None)
-    legacy = VerifiersEnvironmentRolloutBridge._project(cast(VerifiersEnvironmentRolloutBridge, bridge), trace, observation)
+    legacy = VerifiersEnvironmentRolloutBridge._project(
+        cast(VerifiersEnvironmentRolloutBridge, bridge), trace, observation
+    )
     bridge.policy_update_context_contract = "causal-text@1"
-    selected = VerifiersEnvironmentRolloutBridge._project(cast(VerifiersEnvironmentRolloutBridge, bridge), trace, observation)
+    selected = VerifiersEnvironmentRolloutBridge._project(
+        cast(VerifiersEnvironmentRolloutBridge, bridge), trace, observation
+    )
     assert legacy.conditioning_records == ()
     assert selected.prompt_ids == legacy.prompt_ids
     assert selected.completion_ids == legacy.completion_ids

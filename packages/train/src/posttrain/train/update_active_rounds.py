@@ -53,7 +53,8 @@ class ActiveRoundPlan:
         if self.cursor + round_size > self.pool:
             raise InvalidPolicyUpdate(
                 f"active sampling exhausted its bounded candidate pool: {missing} groups are missing but only "
-                f"{self.pool - self.cursor} of {self.pool} candidates remain")
+                f"{self.pool - self.cursor} of {self.pool} candidates remain"
+            )
         return requested, round_size
 
     def record(self, requested: int, round_size: int, retained: int) -> None:
@@ -67,7 +68,8 @@ class ActiveRoundPlan:
         if self.retained < self.target:
             raise InvalidPolicyUpdate(
                 f"active sampling exhausted {self.max_rounds} generation rounds before filling its update; "
-                f"retained {self.retained} of {self.target} prompt groups")
+                f"retained {self.retained} of {self.target} prompt groups"
+            )
 
     def metrics(self, group_size: int) -> dict[str, float]:
         """TRL post11's names and values; ``candidate_groups_*`` counters count rows."""

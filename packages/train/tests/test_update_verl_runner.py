@@ -57,5 +57,12 @@ def test_native_task_runner_keeps_manager_lifecycle_and_closes_on_failure(monkey
     if failure != "queue-init":
         assert events[-2] == ("finish", 1 if failure else 0)
     if not failure:
-        assert events == ["queue-init", "trainer-construct", "trainer-init", "manager-init", "fit",
-                          ("finish", 0), "queue-close"]
+        assert events == [
+            "queue-init",
+            "trainer-construct",
+            "trainer-init",
+            "manager-init",
+            "fit",
+            ("finish", 0),
+            "queue-close",
+        ]

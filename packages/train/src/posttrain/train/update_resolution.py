@@ -76,12 +76,15 @@ def resolve_policy_population(
     if settings.mask_truncated_completions:
         raise InvalidPolicyUpdate("resolved completion-truncation masking requires a qualified objective variant")
     if isinstance(settings, SAMPOSettings):
-        identity = {"algorithm": "sampo@1", "semantic-spans": "sampo-spans@1",
-                    "turn-rows": "sampo-turns@1"}[selection.objective_variant]
+        identity = {"algorithm": "sampo@1", "semantic-spans": "sampo-spans@1", "turn-rows": "sampo-turns@1"}[
+            selection.objective_variant
+        ]
         clip_high = settings.clip_epsilon_high
     else:
         if selection.objective_variant != "algorithm":
-            raise InvalidPolicyUpdate("selected objective variant (semantic spans or turn rows) requires an explicitly supported algorithm")
+            raise InvalidPolicyUpdate(
+                "selected objective variant (semantic spans or turn rows) requires an explicitly supported algorithm"
+            )
         if isinstance(settings, GRPOSettings):
             if settings.algorithm not in {"grpo", "dapo"}:
                 raise InvalidPolicyUpdate("resolved population does not support this GRPO recipe")
@@ -91,9 +94,14 @@ def resolve_policy_population(
             identity = "gdpo@1" if isinstance(settings, GDPOSettings) else "capo@1"
             clip_high = settings.clip_epsilon_high
     spec = ObjectiveSpec(
-        identity, clip_low=settings.clip_epsilon_low, clip_high=clip_high, beta=settings.beta,
-        policy_selection=selection.policy_selection, kl_selection=selection.kl_selection,
-        denominator=selection.denominator, empty_policy=selection.empty_policy,
+        identity,
+        clip_low=settings.clip_epsilon_low,
+        clip_high=clip_high,
+        beta=settings.beta,
+        policy_selection=selection.policy_selection,
+        kl_selection=selection.kl_selection,
+        denominator=selection.denominator,
+        empty_policy=selection.empty_policy,
     )
     objective = objective_population(snapshot, spec, credit)
     updates = resolve_updates(snapshot, selection.schedule, objective)
@@ -126,10 +134,16 @@ def resolve_rollout_population(
     if not isinstance(settings, GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings):
         raise InvalidPolicyUpdate("native rollout resolution requires a supported credit adapter")
     snapshot, rows = population_from_rollouts(
-        rollouts, population_id=population_id, native_evidence_ref=native_evidence_ref,
-        native_evidence_digest=native_evidence_digest, template_revision=template_revision,
-        versions=versions, sampler_step=sampler_step, num_generations=settings.num_generations,
-        selector_digest=selector_digest, spans=spans,
+        rollouts,
+        population_id=population_id,
+        native_evidence_ref=native_evidence_ref,
+        native_evidence_digest=native_evidence_digest,
+        template_revision=template_revision,
+        versions=versions,
+        sampler_step=sampler_step,
+        num_generations=settings.num_generations,
+        selector_digest=selector_digest,
+        spans=spans,
     )
     if isinstance(settings, GRPOSettings):
         required = tuple(relation.id for relation in snapshot.relations if relation.kind == "prompt-group")

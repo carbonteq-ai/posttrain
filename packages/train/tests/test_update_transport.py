@@ -15,9 +15,16 @@ from .test_update_resolution import native_resolution, settings
 
 def fixture(offset=0):
     resolved = native_resolution((native_rollout("a", 0, 1), native_rollout("a", 1, 0)), settings())
-    population = SimpleNamespace(updates=resolved.updates, credit=resolved.credit, spec=resolved.spec,
-                                 execution=resolved.execution, capabilities=resolved.capabilities,
-                                 max_overflow_retries=2, applied_update_offset=offset, attempt_offset=offset + 1)
+    population = SimpleNamespace(
+        updates=resolved.updates,
+        credit=resolved.credit,
+        spec=resolved.spec,
+        execution=resolved.execution,
+        capabilities=resolved.capabilities,
+        max_overflow_retries=2,
+        applied_update_offset=offset,
+        attempt_offset=offset + 1,
+    )
     return resolved, json.loads(json.dumps(population_payload(population)))
 
 
@@ -29,17 +36,20 @@ def test_typed_reconstruction_keeps_all_original_digests_and_packs():
     assert [value.digest for value in retained.resolved.updates] == [value.digest for value in expected.updates]
 
 
-@pytest.mark.parametrize("mutation", [
-    lambda x: x.update(extra_field="ignored?"),
-    lambda x: x.update(schema="future-schema"),
-    lambda x: x.update(applied_update_offset=True),
-    lambda x: x.update(attempt_offset=-1),
-    lambda x: x["credit"]["values"][0].update(advantage="1.0"),
-    lambda x: x["credit"]["values"][0]["action"].update(token_index=True),
-    lambda x: x["updates"][0].update(digest="changed"),
-    lambda x: x["updates"].append(x["updates"][0]),
-    lambda x: x["spec"].update(policy_selection={"mode": "unknown", "span_ids": []}),
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda x: x.update(extra_field="ignored?"),
+        lambda x: x.update(schema="future-schema"),
+        lambda x: x.update(applied_update_offset=True),
+        lambda x: x.update(attempt_offset=-1),
+        lambda x: x["credit"]["values"][0].update(advantage="1.0"),
+        lambda x: x["credit"]["values"][0]["action"].update(token_index=True),
+        lambda x: x["updates"][0].update(digest="changed"),
+        lambda x: x["updates"].append(x["updates"][0]),
+        lambda x: x["spec"].update(policy_selection={"mode": "unknown", "span_ids": []}),
+    ],
+)
 def test_reconstruction_rejects_malformed_or_changed_records(mutation):
     _, payload = fixture()
     mutation(payload)
@@ -65,8 +75,11 @@ def test_legacy_transport_is_only_supported_at_zero_offsets():
 def test_v3_layout_transport_preserves_logical_digests_and_physical_packs(layout):
     resolved, _ = fixture()
     capabilities = replace(resolved.capabilities, context_layout=layout)
-    expected = replace(resolved, capabilities=capabilities,
-        packs=tuple(plan_packs(update, resolved.execution, capabilities) for update in resolved.updates))
+    expected = replace(
+        resolved,
+        capabilities=capabilities,
+        packs=tuple(plan_packs(update, resolved.execution, capabilities) for update in resolved.updates),
+    )
     payload = json.loads(json.dumps(population_payload(expected)))
     assert payload["schema"] == "posttrain.resolved-population.v3"
     retained = decode_population_payload(payload)

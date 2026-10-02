@@ -25,8 +25,12 @@ class SpanAssessment:
 
     def __post_init__(self) -> None:
         identities = (
-            self.evidence_ref, self.span_id, self.scorer_revision, self.observed_input_ref,
-            self.semantic_kind, self.scorer_snapshot,
+            self.evidence_ref,
+            self.span_id,
+            self.scorer_revision,
+            self.observed_input_ref,
+            self.semantic_kind,
+            self.scorer_snapshot,
         )
         if any(not value.strip() for value in identities) or not self.components:
             raise InvalidRewardEvidence("span assessment requires scorer, input, span and retained evidence identities")

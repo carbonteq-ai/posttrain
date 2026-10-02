@@ -465,7 +465,15 @@ def test_native_turns_anchor_complete_observations_not_only_last_result() -> Non
     user = {"role": "user", "content": "task"}
     first = {"role": "tool", "content": "first"}
     last = {"role": "tool", "content": "last"}
-    branch = SimpleNamespace(nodes=[node(user), node({"role": "assistant"}, True), node(first), node(last), node({"role": "assistant"}, True)])
+    branch = SimpleNamespace(
+        nodes=[
+            node(user),
+            node({"role": "assistant"}, True),
+            node(first),
+            node(last),
+            node({"role": "assistant"}, True),
+        ]
+    )
     turns = _agentic_turns(branch, 1)
     assert turns[0].anchor_state_key == _observation_bundle_key([user])
     assert turns[1].anchor_state_key == _observation_bundle_key([first, last])
@@ -474,15 +482,24 @@ def test_native_turns_anchor_complete_observations_not_only_last_result() -> Non
 def test_tool_error_metrics_keep_episode_denominator() -> None:
     from posttrain.train.integrations.verifiers import _trace_metrics
 
-    records = [{"nodes": [{"sampled": False, "message": {"role": "tool", "content": content}} for content in messages]} for messages in (("Error executing tool: invalid argument", '{"success": false}'), ('{"error": "Spreadsheet not found"}',), ("ok",))]
+    records = [
+        {"nodes": [{"sampled": False, "message": {"role": "tool", "content": content}} for content in messages]}
+        for messages in (
+            ("Error executing tool: invalid argument", '{"success": false}'),
+            ('{"error": "Spreadsheet not found"}',),
+            ("ok",),
+        )
+    ]
     assert _trace_metrics(records)["train/rl/tool_failure_frequency"] == pytest.approx(2 / 3)
 
 
 def test_sampo_logged_advantages_use_sampled_tokens_including_zero_credit() -> None:
-    result = compute_sampo_advantages(
-        _settings(), ("task-1", "task-1"), (_rollout(1.0, "good"), _rollout(0.0, "bad"))
-    )
+    result = compute_sampo_advantages(_settings(), ("task-1", "task-1"), (_rollout(1.0, "good"), _rollout(0.0, "bad")))
     evidence = result.policy_credit_evidence()
     tokens = result.sampled_token_advantages
-    assert evidence["train/rl/advantage_abs_mean"] == pytest.approx((sum(abs(value) for value in tokens) / len(tokens), len(tokens)))
-    assert evidence["train/rl/advantage_positive_fraction"][0] + evidence["train/rl/advantage_negative_fraction"][0] + evidence["train/rl/advantage_zero_fraction"][0] == pytest.approx(1.0)
+    assert evidence["train/rl/advantage_abs_mean"] == pytest.approx(
+        (sum(abs(value) for value in tokens) / len(tokens), len(tokens))
+    )
+    assert evidence["train/rl/advantage_positive_fraction"][0] + evidence["train/rl/advantage_negative_fraction"][
+        0
+    ] + evidence["train/rl/advantage_zero_fraction"][0] == pytest.approx(1.0)

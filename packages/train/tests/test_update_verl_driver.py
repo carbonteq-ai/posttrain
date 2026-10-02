@@ -39,7 +39,7 @@ class Driver(ResolvedVeRLDriverSteps):
         assert receipts == (("receipt-a", "receipt-b") if self.applied % 2 == 0 else None)
         self.events.append(("update", expected_applied))
         self.applied += 1
-        return [{"train/rl/applied_optimizer_updates": self.applied, "train/rl/policy_loss": .2}]
+        return [{"train/rl/applied_optimizer_updates": self.applied, "train/rl/policy_loss": 0.2}]
 
     def sample(self, **kwargs):
         assert kwargs == {"global_steps": self.applied, "partition_id": "train", "batch_size": 1}
@@ -51,8 +51,12 @@ def test_native_driver_collects_at_actor_version_and_reuses_without_flattening(m
 
     def read(**kwargs):
         calls.append(kwargs)
-        return {"extra_fields": [SimpleNamespace(data={"posttrain_native_episode_receipt": value})
-                                 for value in ("receipt-a", "receipt-b")]}
+        return {
+            "extra_fields": [
+                SimpleNamespace(data={"posttrain_native_episode_receipt": value})
+                for value in ("receipt-a", "receipt-b")
+            ]
+        }
 
     monkeypatch.setattr(tq, "kv_batch_get", read)
     driver = Driver()
@@ -62,13 +66,15 @@ def test_native_driver_collects_at_actor_version_and_reuses_without_flattening(m
         batch = driver.step(metrics, {})
         assert batch.keys == (["a", "b"] if step % 2 else [])
         assert driver.global_steps == step == driver.applied
-        assert metrics["train/rl/policy_loss"] == .2
-        driver._compute_metrics(batch, metrics, {"update": .1}, step, 0)
-        assert metrics["timing_s/update"] == .1
+        assert metrics["train/rl/policy_loss"] == 0.2
+        driver._compute_metrics(batch, metrics, {"update": 0.1}, step, 0)
+        assert metrics["timing_s/update"] == 0.1
     assert len(calls) == 2
     assert all(call["select_fields"] == ["extra_fields"] for call in calls)
     assert [event for event in driver.events if isinstance(event, tuple) and event[0] == "generate"] == [
-        ("generate", 0), ("generate", 2)]
+        ("generate", 0),
+        ("generate", 2),
+    ]
     assert driver.events.count("sleep") == 2
 
 
@@ -121,13 +127,21 @@ def test_native_grpo_trainer_preserves_complete_groups_and_rejects_filters():
     from verl.trainer.ppo.v1.replay_buffer import ReplayBuffer
     from verl.trainer.ppo.v1.trainer_sync import PPOTrainerSync
 
-    settings = GRPOSettings(id="driver", loop=TrainingLoop(max_steps=4, per_device_batch_size=1),
-        policy_updates=PolicyUpdateSettings(PolicyUpdateSchedule("episode", 2), PolicyExecutionBudget(1, 100, 10000)))
+    settings = GRPOSettings(
+        id="driver",
+        loop=TrainingLoop(max_steps=4, per_device_batch_size=1),
+        policy_updates=PolicyUpdateSettings(PolicyUpdateSchedule("episode", 2), PolicyExecutionBudget(1, 100, 10000)),
+    )
     with initialize_config_module(config_module="verl.trainer.config", version_base=None):
-        config = compose(config_name="ppo_trainer", overrides=["algorithm.adv_estimator=grpo",
-            "trainer.total_training_steps=4",
-            f"data.train_batch_size={settings.num_prompts_per_step}",
-            f"actor_rollout_ref.rollout.n={settings.num_generations}"])
+        config = compose(
+            config_name="ppo_trainer",
+            overrides=[
+                "algorithm.adv_estimator=grpo",
+                "trainer.total_training_steps=4",
+                f"data.train_batch_size={settings.num_prompts_per_step}",
+                f"actor_rollout_ref.rollout.n={settings.num_generations}",
+            ],
+        )
     trainer_cls = resolved_trainer_type(type("Actor", (), {}), settings)
     trainer = trainer_cls(config)
     assert isinstance(trainer, PPOTrainerSync)
@@ -150,17 +164,33 @@ def _native_sampo_fixture():
     from posttrain.train.profiles import SAMPOSettings, TrainingLoop
     from posttrain.train.update_plan import PolicyExecutionBudget, PolicyUpdateSchedule, PolicyUpdateSettings
 
-    settings = SAMPOSettings(id="driver", loop=TrainingLoop(max_steps=4, per_device_batch_size=1),
-        policy_updates=PolicyUpdateSettings(PolicyUpdateSchedule("episode", 2), PolicyExecutionBudget(1, 100, 10000)))
+    settings = SAMPOSettings(
+        id="driver",
+        loop=TrainingLoop(max_steps=4, per_device_batch_size=1),
+        policy_updates=PolicyUpdateSettings(PolicyUpdateSchedule("episode", 2), PolicyExecutionBudget(1, 100, 10000)),
+    )
     with initialize_config_module(config_module="verl.trainer.config", version_base=None):
         # Compose the worker's own active-sampling overrides so the driver is
         # checked against the metric/epsilon the launch path actually emits.
-        algorithm = SimpleNamespace(active_sampling_max_candidate_batches=3, active_sampling_oversample=0,
-                                    active_sampling_oversample_refill=0, adaptive_curriculum=None)
-        active = _active_sampling_hydra_overrides(cast(Any, SimpleNamespace(payload=SimpleNamespace(algorithm=algorithm))))
-        config = compose(config_name="ppo_trainer", overrides=["algorithm.adv_estimator=sampo", *active,
-            "trainer.total_training_steps=4", f"data.train_batch_size={settings.num_prompts_per_step}",
-            f"actor_rollout_ref.rollout.n={settings.num_generations}"])
+        algorithm = SimpleNamespace(
+            active_sampling_max_candidate_batches=3,
+            active_sampling_oversample=0,
+            active_sampling_oversample_refill=0,
+            adaptive_curriculum=None,
+        )
+        active = _active_sampling_hydra_overrides(
+            cast(Any, SimpleNamespace(payload=SimpleNamespace(algorithm=algorithm)))
+        )
+        config = compose(
+            config_name="ppo_trainer",
+            overrides=[
+                "algorithm.adv_estimator=sampo",
+                *active,
+                "trainer.total_training_steps=4",
+                f"data.train_batch_size={settings.num_prompts_per_step}",
+                f"actor_rollout_ref.rollout.n={settings.num_generations}",
+            ],
+        )
     trainer_cls = resolved_trainer_type(type("Actor", (), {}), settings)
     return trainer_cls, config
 
@@ -195,8 +225,9 @@ def test_native_active_rounds_dispatch_reserved_tasks_and_evict_discarded_group(
     trainer.on_sample_begin = trainer.on_sample_end = lambda: None
     trainer._consume_rollout_metrics = lambda: {}
     trainer._add_batch_to_generate = lambda: pytest.fail("active sampler received duplicate initial dispatch")
-    pool = get_tensordict({"example_id": np.asarray(["a", "b", "c"], dtype=object),
-                          "uid": np.asarray(["a", "b", "c"], dtype=object)})
+    pool = get_tensordict(
+        {"example_id": np.asarray(["a", "b", "c"], dtype=object), "uid": np.asarray(["a", "b", "c"], dtype=object)}
+    )
     reservations, dispatches, tags, fields = [], [], {}, {}
 
     def reserve(count):
@@ -213,8 +244,10 @@ def test_native_active_rounds_dispatch_reserved_tasks_and_evict_discarded_group(
             for index in range(2):
                 key = f"{uid}_{index}_0"
                 tags[key] = {"is_prompt": False, "seq_len": 3, "global_steps": 0}
-                fields[key] = {"reward_extra_info": {"group_reward": index if uid == "b" else 0},
-                               "posttrain_native_episode_receipt": f"{uid}{index}"}
+                fields[key] = {
+                    "reward_extra_info": {"group_reward": index if uid == "b" else 0},
+                    "posttrain_native_episode_receipt": f"{uid}{index}",
+                }
         return len(batch)
 
     def clear(*, partition_id, keys):
@@ -226,8 +259,9 @@ def test_native_active_rounds_dispatch_reserved_tasks_and_evict_discarded_group(
     trainer._submit_batch_to_rollout = submit
     monkeypatch.setattr(tq, "kv_list", lambda: {"train": dict(tags)})
     monkeypatch.setattr(tq, "kv_clear", clear)
-    monkeypatch.setattr(tq, "kv_batch_get", lambda *, keys, partition_id, select_fields: {
-        "extra_fields": [fields[key] for key in keys]})
+    monkeypatch.setattr(
+        tq, "kv_batch_get", lambda *, keys, partition_id, select_fields: {"extra_fields": [fields[key] for key in keys]}
+    )
     commits = []
 
     def update(receipts, *, expected_applied):
@@ -237,7 +271,8 @@ def test_native_active_rounds_dispatch_reserved_tasks_and_evict_discarded_group(
 
     trainer.actor_rollout_wg = SimpleNamespace(
         resolved_state=lambda: [{"applied": 0, "needs_population": True}],
-        resolved_update=lambda *args, **kwargs: [update(*args, **kwargs)])
+        resolved_update=lambda *args, **kwargs: [update(*args, **kwargs)],
+    )
     metrics = {}
     batch = trainer.step(metrics, {})
     assert reservations == [3] and dispatches == [["a"], ["b"]]
@@ -248,8 +283,13 @@ def test_native_active_rounds_dispatch_reserved_tasks_and_evict_discarded_group(
 
 
 def test_active_driver_reserves_once_without_extra_initial_dispatch(monkeypatch):
-    monkeypatch.setattr(tq, "kv_batch_get", lambda **kwargs: {
-        "extra_fields": [{"posttrain_native_episode_receipt": value} for value in ("receipt-a", "receipt-b")]})
+    monkeypatch.setattr(
+        tq,
+        "kv_batch_get",
+        lambda **kwargs: {
+            "extra_fields": [{"posttrain_native_episode_receipt": value} for value in ("receipt-a", "receipt-b")]
+        },
+    )
     driver = Driver()
     driver._resolved_active_candidates = 3
     driver._candidate_pool = {"example_id": ["a", "b", "c"]}
@@ -295,9 +335,11 @@ def test_native_rpc_factory_retains_engine_identity_and_rejects_legacy_updates()
             events.append("native_init")
             self.actor = SimpleNamespace(engine=engine)
 
-    session = SimpleNamespace(state=lambda: {"applied": 0},
+    session = SimpleNamespace(
+        state=lambda: {"applied": 0},
         update=lambda receipts, expected_applied: {"applied": expected_applied + 1},
-        save_checkpoint=lambda path, expected_applied: (path, expected_applied))
+        save_checkpoint=lambda path, expected_applied: (path, expected_applied),
+    )
 
     def create(actual_engine, worker):
         assert actual_engine is engine and worker.actor.engine is engine
@@ -328,13 +370,21 @@ def test_native_driver_saves_and_restores_dataloader_only_after_job_seal(tmp_pat
 
     from .test_update_verl_checkpoint import actor_checkpoint
 
-    settings = SAMPOSettings(id="driver", loop=TrainingLoop(max_steps=4, per_device_batch_size=1),
-        policy_updates=PolicyUpdateSettings(PolicyUpdateSchedule("episode", 2), PolicyExecutionBudget(1, 100, 10000)))
+    settings = SAMPOSettings(
+        id="driver",
+        loop=TrainingLoop(max_steps=4, per_device_batch_size=1),
+        policy_updates=PolicyUpdateSettings(PolicyUpdateSchedule("episode", 2), PolicyExecutionBudget(1, 100, 10000)),
+    )
     with initialize_config_module(config_module="verl.trainer.config", version_base=None):
-        config = compose(config_name="ppo_trainer", overrides=["algorithm.adv_estimator=sampo",
-            "trainer.total_training_steps=4",
-            f"data.train_batch_size={settings.num_prompts_per_step}",
-            f"actor_rollout_ref.rollout.n={settings.num_generations}"])
+        config = compose(
+            config_name="ppo_trainer",
+            overrides=[
+                "algorithm.adv_estimator=sampo",
+                "trainer.total_training_steps=4",
+                f"data.train_batch_size={settings.num_prompts_per_step}",
+                f"actor_rollout_ref.rollout.n={settings.num_generations}",
+            ],
+        )
     config.trainer.default_local_dir = str(tmp_path)
     config.algorithm.active_sampling.enable = True
     config.algorithm.active_sampling.max_candidate_batches = settings.active_sampling.max_candidate_batches
@@ -362,8 +412,9 @@ def test_native_driver_saves_and_restores_dataloader_only_after_job_seal(tmp_pat
 
     restored = trainer_cls(config)
     restored.prompt_selector = None
-    restored.actor_rollout_wg = SimpleNamespace(load_checkpoint=lambda **kwargs: calls.append("actor-load"),
-                                               resolved_state=lambda: [{"applied": 1}])
+    restored.actor_rollout_wg = SimpleNamespace(
+        load_checkpoint=lambda **kwargs: calls.append("actor-load"), resolved_state=lambda: [{"applied": 1}]
+    )
     restored.train_dataloader = SimpleNamespace(load_state_dict=lambda state: calls.append(state))
     restored._load_checkpoint()
     assert restored.global_steps == 1

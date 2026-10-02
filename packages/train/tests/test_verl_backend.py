@@ -1808,12 +1808,15 @@ def test_verl_lora_rollout_loads_the_immutable_base_and_syncs_only_adapters(
     assert 'actor_rollout_ref.model.target_modules="all-linear"' in overrides
 
 
-@pytest.mark.parametrize("targets,expected", [
-    ("q_proj,v_proj", ["q_proj", "v_proj"]),
-    ("q_proj, v_proj", ["q_proj", "v_proj"]),
-    ("all-linear", "all-linear"),
-    (".*proj", ".*proj"),
-])
+@pytest.mark.parametrize(
+    "targets,expected",
+    [
+        ("q_proj,v_proj", ["q_proj", "v_proj"]),
+        ("q_proj, v_proj", ["q_proj", "v_proj"]),
+        ("all-linear", "all-linear"),
+        (".*proj", ".*proj"),
+    ],
+)
 def test_verl_lora_targets_match_trl_selection(monkeypatch, tmp_path, targets, expected):
     pytest.importorskip("hydra")
     from hydra import compose, initialize_config_module
@@ -1823,7 +1826,9 @@ def test_verl_lora_targets_match_trl_selection(monkeypatch, tmp_path, targets, e
     request = _grpo_request(update=LoRAUpdate(target_modules=targets))
     plan = build_grpo_launch_plan(request, tmp_path)
     monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/policy")
-    overrides = build_hydra_overrides(plan, tmp_path / "data.parquet", tmp_path / "agent.json", tmp_path / "checkpoints")
+    overrides = build_hydra_overrides(
+        plan, tmp_path / "data.parquet", tmp_path / "agent.json", tmp_path / "checkpoints"
+    )
     with initialize_config_module(config_module="verl.trainer.config", version_base=None):
         config = compose(config_name="ppo_trainer", overrides=overrides)
     from omegaconf import OmegaConf
@@ -2951,7 +2956,9 @@ def test_verl_online_rl_runs_record_their_trl_parity_semantics(tmp_path: Path) -
     )
 
 
-def test_verl_offline_pinned_hub_model_uses_partial_local_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_verl_offline_pinned_hub_model_uses_partial_local_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # huggingface_hub 1.x offline snapshot_download requires every repository
     # file (README.md included); a pinned commit's partial snapshot suffices.
     pytest.importorskip("huggingface_hub")

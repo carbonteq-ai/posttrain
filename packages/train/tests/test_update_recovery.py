@@ -16,11 +16,24 @@ from posttrain.train.update_recovery import (
 
 
 def boundary(path):
-    identity = UpdateRecoveryIdentity("population", "credit", "objective", ("update-0", "update-1"),
-                                      "execution", "correction", "runtime", "score@1", 0.7, 1)
+    identity = UpdateRecoveryIdentity(
+        "population",
+        "credit",
+        "objective",
+        ("update-0", "update-1"),
+        "execution",
+        "correction",
+        "runtime",
+        "score@1",
+        0.7,
+        1,
+    )
     components = []
-    for filename, role in (("native-state.bin", "native-checkpoint"), ("scores.bin", "frozen-policy-scores"),
-                           ("population.json", "resolved-population")):
+    for filename, role in (
+        ("native-state.bin", "native-checkpoint"),
+        ("scores.bin", "frozen-policy-scores"),
+        ("population.json", "resolved-population"),
+    ):
         (path / filename).write_bytes(filename.encode())
         components.append(checkpoint_component(path, filename, role=role))
     return UpdateRecoveryState(identity, 1, 1, 2, 1, "policy/applied-1", tuple(components))
@@ -55,9 +68,16 @@ def test_sealed_boundary_roundtrip_idempotence_and_component_corruption(tmp_path
         load_update_recovery(tmp_path, state.identity)
 
 
-@pytest.mark.parametrize("field,value", [("runtime_identity", "different"), ("world_size", 2),
-                                         ("credit_digest", "different"), ("update_digests", ("update-1", "update-0")),
-                                         ("sampler_correction_digest", "different")])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("runtime_identity", "different"),
+        ("world_size", 2),
+        ("credit_digest", "different"),
+        ("update_digests", ("update-1", "update-0")),
+        ("sampler_correction_digest", "different"),
+    ],
+)
 def test_changed_recovery_contract_is_rejected(tmp_path, field, value):
     state = boundary(tmp_path)
     commit_update_recovery(tmp_path, state)
@@ -67,8 +87,10 @@ def test_changed_recovery_contract_is_rejected(tmp_path, field, value):
 
 def test_interrupted_seal_never_becomes_a_resume_boundary(tmp_path, monkeypatch):
     state = boundary(tmp_path)
+
     def interrupted(*args):
         raise OSError("interrupted before atomic metadata publication")
+
     with monkeypatch.context() as context:
         context.setattr("posttrain.train.update_recovery.os.replace", interrupted)
         with pytest.raises(OSError, match="interrupted"):
@@ -79,9 +101,16 @@ def test_interrupted_seal_never_becomes_a_resume_boundary(tmp_path, monkeypatch)
     assert load_update_recovery(tmp_path, state.identity) == state
 
 
-@pytest.mark.parametrize("changes", [{"native_applied_updates": 2}, {"next_update": 2}, {"attempts": 0},
-                                     {"applied_updates": True}, {"next_update": 3, "applied_updates": 3,
-                                                                  "native_applied_updates": 3, "attempts": 3}])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"native_applied_updates": 2},
+        {"next_update": 2},
+        {"attempts": 0},
+        {"applied_updates": True},
+        {"next_update": 3, "applied_updates": 3, "native_applied_updates": 3, "attempts": 3},
+    ],
+)
 def test_incoherent_native_or_resolved_cursor_is_rejected(tmp_path, changes):
     state = boundary(tmp_path)
     with pytest.raises(InvalidPolicyUpdate):
@@ -118,8 +147,10 @@ def test_legacy_zero_offset_seal_is_readable_but_cannot_hide_prior_work(tmp_path
         load_update_recovery(tmp_path, replace(state.identity, applied_update_offset=8, attempt_offset=11))
 
 
-@pytest.mark.parametrize("changes", [{"applied_update_offset": True}, {"attempt_offset": -1},
-                                     {"applied_update_offset": 4, "attempt_offset": 3}])
+@pytest.mark.parametrize(
+    "changes",
+    [{"applied_update_offset": True}, {"attempt_offset": -1}, {"applied_update_offset": 4, "attempt_offset": 3}],
+)
 def test_invalid_prior_population_counters_are_rejected(tmp_path, changes):
     with pytest.raises(InvalidPolicyUpdate, match="offsets|prior attempts"):
         replace(boundary(tmp_path).identity, **changes)

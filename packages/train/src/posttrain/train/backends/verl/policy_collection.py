@@ -24,7 +24,9 @@ class NativeActiveCollectionBuffer:
 
     def __init__(self, native: Any, context: RunContext, destination: Path, generations: int):
         if native.active_observe_metric != native.active_metric:
-            raise InvalidPolicyUpdate("resolved native collection has not qualified a separate selector observation metric")
+            raise InvalidPolicyUpdate(
+                "resolved native collection has not qualified a separate selector observation metric"
+            )
         self.native, self.context = native, context
         self.destination, self.generations = destination.resolve(), generations
         self._dispatch = native.dispatch_fn
@@ -40,14 +42,27 @@ class NativeActiveCollectionBuffer:
     def begin(self, tasks: tuple[str, ...], uids: tuple[str, ...], sampler_step: int) -> None:
         if self._pending or (self._state is not None and self._state["status"] not in {"selected", "failed"}):
             raise InvalidPolicyUpdate("native active reservation cannot replace an unfinished collection")
-        if (len(tasks) != len(uids) or not tasks or len(set(tasks)) != len(tasks)
-                or len(set(uids)) != len(uids) or any(not uid or "_" in uid for uid in uids)
-                or type(sampler_step) is not int or sampler_step < 0):
+        if (
+            len(tasks) != len(uids)
+            or not tasks
+            or len(set(tasks)) != len(tasks)
+            or len(set(uids)) != len(uids)
+            or any(not uid or "_" in uid for uid in uids)
+            or type(sampler_step) is not int
+            or sampler_step < 0
+        ):
             raise InvalidPolicyUpdate("native active collection requires distinct reserved task/UID identities")
-        self._state = {"schema": "posttrain.native-active-collection@1", "sampler_step": sampler_step,
-            "native_metric": self.native.active_metric, "native_reward_std_epsilon": self.native.active_reward_std_epsilon,
+        self._state = {
+            "schema": "posttrain.native-active-collection@1",
+            "sampler_step": sampler_step,
+            "native_metric": self.native.active_metric,
+            "native_reward_std_epsilon": self.native.active_reward_std_epsilon,
             "reserved": [{"uid": uid, "task": task} for task, uid in zip(tasks, uids, strict=True)],
-            "rounds": [], "groups": [], "selected": None, "status": "reserved"}
+            "rounds": [],
+            "groups": [],
+            "selected": None,
+            "status": "reserved",
+        }
         self._pending = ()
         self._publish()
 
@@ -60,7 +75,7 @@ class NativeActiveCollectionBuffer:
         if self._state is None or self._pending:
             raise InvalidPolicyUpdate("native active dispatch requires a finished preceding round")
         cursor = sum(len(item["uids"]) for item in self._state["rounds"])
-        expected = [item["uid"] for item in self._state["reserved"][cursor:cursor + count]]
+        expected = [item["uid"] for item in self._state["reserved"][cursor : cursor + count]]
         if len(expected) != count:
             raise InvalidPolicyUpdate("native active dispatch exceeds the checked reservation")
         self._state["rounds"].append({"index": round_index, "uids": expected})
@@ -120,20 +135,32 @@ class NativeActiveCollectionBuffer:
                 episode = info.get("posttrain_episode_id") if isinstance(info, Mapping) else None
                 group = info.get("posttrain_prompt_group_id") if isinstance(info, Mapping) else None
                 step = self._state["sampler_step"]
-                if (rollout.example_id != tasks[uid] or group != f"{self.context.run_id}/{step}/{uid}"
-                        or not isinstance(episode, str) or not episode or episode in seen_episodes
-                        or rollout.trace.external_id in seen_traces
-                        or rollout.behavior_policy is None or rollout.behavior_policy.start != step
-                        or rollout.behavior_policy.end != step):
+                if (
+                    rollout.example_id != tasks[uid]
+                    or group != f"{self.context.run_id}/{step}/{uid}"
+                    or not isinstance(episode, str)
+                    or not episode
+                    or episode in seen_episodes
+                    or rollout.trace.external_id in seen_traces
+                    or rollout.behavior_policy is None
+                    or rollout.behavior_policy.start != step
+                    or rollout.behavior_policy.end != step
+                ):
                     raise InvalidPolicyUpdate("native active receipt changes reserved task/group/policy identity")
                 seen_episodes.add(episode)
                 seen_traces.add(rollout.trace.external_id)
                 self.context.artifact(receipt.artifact)
                 encoded.append(receipt_value)
             scores = metrics[uid] if complete else []
-            captured.append({"uid": uid, "terminal": "finished" if complete else "failed", "receipts": encoded,
-                "native_metric_values": [value if math.isfinite(value) else None for value in scores],
-                "native_spread_eligible": self.native._keeps_group(scores) if complete else False})  # noqa: SLF001
+            captured.append(
+                {
+                    "uid": uid,
+                    "terminal": "finished" if complete else "failed",
+                    "receipts": encoded,
+                    "native_metric_values": [value if math.isfinite(value) else None for value in scores],
+                    "native_spread_eligible": self.native._keeps_group(scores) if complete else False,
+                }
+            )  # noqa: SLF001
         # The native predicate/filter is still evaluated by the native buffer.
         self._state["groups"].extend(captured)
         self._state["status"] = "round-observed"

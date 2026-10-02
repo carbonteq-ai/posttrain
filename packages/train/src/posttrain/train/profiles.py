@@ -259,9 +259,11 @@ class GRPOSettings:
         expected_batch = self.num_prompts_per_step * self.num_generations
         effective_batch = self.loop.per_device_batch_size * self.loop.gradient_accumulation_steps
         if self.policy_updates is not None:
-            self.policy_updates.validate_legacy_loop(max_steps=self.loop.max_steps,
+            self.policy_updates.validate_legacy_loop(
+                max_steps=self.loop.max_steps,
                 per_device_batch_size=self.loop.per_device_batch_size,
-                gradient_accumulation_steps=self.loop.gradient_accumulation_steps)
+                gradient_accumulation_steps=self.loop.gradient_accumulation_steps,
+            )
         elif effective_batch != expected_batch:
             raise ValueError("GRPO effective batch must equal prompts per step times generations")
         if self.max_prompt_length < 1 or self.max_completion_length < 1 or self.beta < 0:
@@ -396,9 +398,11 @@ class SAMPOSettings:
         expected_batch = self.num_prompts_per_step * self.num_generations
         effective_batch = self.loop.per_device_batch_size * self.loop.gradient_accumulation_steps
         if self.policy_updates is not None:
-            self.policy_updates.validate_legacy_loop(max_steps=self.loop.max_steps,
+            self.policy_updates.validate_legacy_loop(
+                max_steps=self.loop.max_steps,
                 per_device_batch_size=self.loop.per_device_batch_size,
-                gradient_accumulation_steps=self.loop.gradient_accumulation_steps)
+                gradient_accumulation_steps=self.loop.gradient_accumulation_steps,
+            )
         elif effective_batch != expected_batch:
             raise ValueError("SAMPO effective batch must equal prompts per step times generations")
         if self.max_prompt_length < 1 or self.max_completion_length < 1 or self.beta < 0:
@@ -489,9 +493,11 @@ class _StructuredRLSettings:
             raise ValueError("structured RL requires positive integer limits and at least two generations")
         local_batch = self.loop.per_device_batch_size * self.loop.gradient_accumulation_steps
         if self.policy_updates is not None:
-            self.policy_updates.validate_legacy_loop(max_steps=self.loop.max_steps,
+            self.policy_updates.validate_legacy_loop(
+                max_steps=self.loop.max_steps,
                 per_device_batch_size=self.loop.per_device_batch_size,
-                gradient_accumulation_steps=self.loop.gradient_accumulation_steps)
+                gradient_accumulation_steps=self.loop.gradient_accumulation_steps,
+            )
         elif (self.num_prompts_per_step * self.num_generations) % local_batch:
             raise ValueError("structured RL logical batch must be divisible by the per-device accumulation batch")
         if self.max_prompt_length + self.max_completion_length > self.loop.max_length:

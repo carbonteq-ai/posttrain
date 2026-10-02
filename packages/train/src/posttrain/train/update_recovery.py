@@ -39,9 +39,16 @@ class UpdateRecoveryIdentity:
     def __post_init__(self) -> None:
         import math
 
-        require_identity(self.population_digest, self.credit_digest, self.objective_digest,
-                         self.execution_digest, self.sampler_correction_digest,
-                         self.runtime_identity, self.score_contract, *self.update_digests)
+        require_identity(
+            self.population_digest,
+            self.credit_digest,
+            self.objective_digest,
+            self.execution_digest,
+            self.sampler_correction_digest,
+            self.runtime_identity,
+            self.score_contract,
+            *self.update_digests,
+        )
         if not self.update_digests or len(set(self.update_digests)) != len(self.update_digests):
             raise InvalidPolicyUpdate("recovery requires distinct ordered resolved occurrences")
         if type(self.world_size) is not int or self.world_size < 1:
@@ -50,7 +57,11 @@ class UpdateRecoveryIdentity:
             raise InvalidPolicyUpdate("recovery population offsets must be nonnegative integers")
         if self.attempt_offset < self.applied_update_offset:
             raise InvalidPolicyUpdate("recovery prior attempts cannot be fewer than prior applied updates")
-        if isinstance(self.score_temperature, bool) or not math.isfinite(self.score_temperature) or self.score_temperature <= 0:
+        if (
+            isinstance(self.score_temperature, bool)
+            or not math.isfinite(self.score_temperature)
+            or self.score_temperature <= 0
+        ):
             raise InvalidPolicyUpdate("recovery requires a finite positive score temperature")
 
     @property
@@ -122,7 +133,8 @@ def _read_update_recovery(checkpoint: Path) -> UpdateRecoveryState:
     try:
         payload = json.loads((checkpoint / FILENAME).read_text())
         if set(payload) != {"schema", "state"} or payload["schema"] not in {
-            "posttrain.resolved-update.v1", "posttrain.resolved-update.v2",
+            "posttrain.resolved-update.v1",
+            "posttrain.resolved-update.v2",
         }:
             raise InvalidPolicyUpdate("unsupported resolved-update recovery seal")
         values = dict(payload["state"])
@@ -130,7 +142,9 @@ def _read_update_recovery(checkpoint: Path) -> UpdateRecoveryState:
         offsets = ("applied_update_offset", "attempt_offset")
         if payload["schema"] == "posttrain.resolved-update.v2" and not all(key in retained_identity for key in offsets):
             raise InvalidPolicyUpdate("recovery v2 requires explicit population offsets")
-        if payload["schema"] == "posttrain.resolved-update.v1" and any(retained_identity.get(key, 0) != 0 for key in offsets):
+        if payload["schema"] == "posttrain.resolved-update.v1" and any(
+            retained_identity.get(key, 0) != 0 for key in offsets
+        ):
             raise InvalidPolicyUpdate("legacy recovery cannot declare nonzero population offsets")
         retained_identity["update_digests"] = tuple(retained_identity["update_digests"])
         values["identity"] = UpdateRecoveryIdentity(**retained_identity)
@@ -175,8 +189,9 @@ def commit_update_recovery(checkpoint: Path, state: UpdateRecoveryState) -> None
             raise InvalidPolicyUpdate("cannot replace an already committed update boundary")
         return
     _verify_components(checkpoint, state)
-    payload = json.dumps({"schema": "posttrain.resolved-update.v2", "state": asdict(state)},
-                         sort_keys=True, allow_nan=False)
+    payload = json.dumps(
+        {"schema": "posttrain.resolved-update.v2", "state": asdict(state)}, sort_keys=True, allow_nan=False
+    )
     temporary: str | None = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", dir=checkpoint, prefix=".resolved-update-", delete=False) as stream:

@@ -254,8 +254,9 @@ class VerlPolicyGenerator:
             )
         # The prompt may prefill an open thought (LFM2.5-2.6B ends its generation
         # prompt with <think>); the renderer needs it to attribute reasoning.
-        parsed = self._renderer.parse_response(list(token_ids), tools=renderer_tools,
-                                               prompt_ids=list(rendered.token_ids))
+        parsed = self._renderer.parse_response(
+            list(token_ids), tools=renderer_tools, prompt_ids=list(rendered.token_ids)
+        )
         message = parsed_policy_message(
             parsed,
             token_ids,
@@ -412,7 +413,9 @@ class PosttrainVerifiersAgentLoop(AgentLoopBase):
             from .policy_rollouts import retain_episode_receipt
 
             extra_fields["posttrain_native_episode_receipt"] = retain_episode_receipt(
-                self._bridge, rollout, sampler_step=step,
+                self._bridge,
+                rollout,
+                sampler_step=step,
             )
         if self._emit_sampo_metadata:
             # The native prompt occurrence identifies the group even if a task repeats in one batch.

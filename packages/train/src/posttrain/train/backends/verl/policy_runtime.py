@@ -28,12 +28,16 @@ def native_job_identity(manifest: VerlLaunchManifest, engine: Any) -> tuple[str,
     tokenizer = engine.model_config.tokenizer
     if tokenizer is None or not tokenizer.chat_template:
         raise InvalidPolicyUpdate("native actor lacks the effective policy tokenizer template")
-    template_payload = {"template": tokenizer.chat_template,
-                        "renderer": manifest.payload.training.renderer.model_dump(mode="json")}
+    template_payload = {
+        "template": tokenizer.chat_template,
+        "renderer": manifest.payload.training.renderer.model_dump(mode="json"),
+    }
     template = hashlib.sha256(json.dumps(template_payload, sort_keys=True).encode()).hexdigest()
     root = Path(__file__).resolve().parents[2]
-    sources = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
-               for path in sorted(root.rglob("*.py"))}
+    sources = {
+        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(root.rglob("*.py"))
+    }
     for index, cls in enumerate(type(engine).__mro__):
         path = inspect.getsourcefile(cls) if cls is not object else None
         if path:
@@ -52,12 +56,18 @@ def native_job_identity(manifest: VerlLaunchManifest, engine: Any) -> tuple[str,
             return dict(value)
         raise TypeError(f"native runtime identity cannot serialize {type(value).__name__}")
 
-    identity = {"schema": "posttrain.resolved-verl-job@1", "payload": payload,
-        "backend_source_revision": manifest.backend_source_revision, "sources": sources, "template": template,
+    identity = {
+        "schema": "posttrain.resolved-verl-job@1",
+        "payload": payload,
+        "backend_source_revision": manifest.backend_source_revision,
+        "sources": sources,
+        "template": template,
         "versions": {name: importlib.metadata.version(name) for name in ("torch", "transformers", "verl", "peft")},
-        "engine_config": engine.engine_config, "optimizer_config": engine.optimizer_config,
+        "engine_config": engine.engine_config,
+        "optimizer_config": engine.optimizer_config,
         "model_config": engine.model_config.hf_config.to_dict(),
-        "arithmetic": {"deterministic": torch.are_deterministic_algorithms_enabled(),
+        "arithmetic": {
+            "deterministic": torch.are_deterministic_algorithms_enabled(),
             "deterministic_warn_only": torch.is_deterministic_algorithms_warn_only_enabled(),
             "matmul_precision": torch.get_float32_matmul_precision(),
             "cuda_tf32": torch.backends.cuda.matmul.allow_tf32,
@@ -70,8 +80,13 @@ def native_job_identity(manifest: VerlLaunchManifest, engine: Any) -> tuple[str,
             "sdpa_math": torch.backends.cuda.math_sdp_enabled(),
             "sdpa_cudnn": torch.backends.cuda.cudnn_sdp_enabled(),
             "sdpa_math_reduced_precision": getattr(
-                torch.backends.cuda, "fp16_bf16_reduction_math_sdp_allowed", lambda: None)()}}
-    digest = hashlib.sha256(json.dumps(identity, default=serialize, sort_keys=True, allow_nan=False).encode()).hexdigest()
+                torch.backends.cuda, "fp16_bf16_reduction_math_sdp_allowed", lambda: None
+            )(),
+        },
+    }
+    digest = hashlib.sha256(
+        json.dumps(identity, default=serialize, sort_keys=True, allow_nan=False).encode()
+    ).hexdigest()
     return f"resolved-verl-job/{digest}", f"renderer/{template}"
 
 
@@ -85,8 +100,12 @@ def base_reference_provider(manifest: VerlLaunchManifest, engine: Any):
     if not settings.beta:
         return None
     reference = resolved_kl_reference(settings.beta, getattr(settings, "kl_reference", None), policy.form)
-    if (reference != "base" or manifest.payload.training.update.kind != "lora"
-            or manifest.payload.reference is not None or not callable(getattr(engine, "disable_adapter", None))):
+    if (
+        reference != "base"
+        or manifest.payload.training.update.kind != "lora"
+        or manifest.payload.reference is not None
+        or not callable(getattr(engine, "disable_adapter", None))
+    ):
         raise InvalidPolicyUpdate("resolved native composition requires qualified adapter-disabled base reference")
 
     def score(population: ResolvedVeRLPopulation) -> FrozenPopulationScores:
@@ -95,7 +114,12 @@ def base_reference_provider(manifest: VerlLaunchManifest, engine: Any):
             raise InvalidPolicyUpdate("native KL population lacks its frozen reference identity")
         with engine.disable_adapter():
             values = population._infer(engine, population._rows(tuple(item.action for item in snapshot.actions)))  # noqa: SLF001
-        return FrozenPopulationScores(snapshot.digest, snapshot.versions.reference, population.score_contract,
-            population.score_temperature, MappingProxyType({key: value.detach().clone() for key, value in values.items()}))
+        return FrozenPopulationScores(
+            snapshot.digest,
+            snapshot.versions.reference,
+            population.score_contract,
+            population.score_temperature,
+            MappingProxyType({key: value.detach().clone() for key, value in values.items()}),
+        )
 
     return score

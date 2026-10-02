@@ -11,7 +11,10 @@ from .policy_updates import resolved_verl_engine_type
 
 
 def resolved_worker_types(
-    training_worker: type, actor_rollout_worker: type, registry: Any, *,
+    training_worker: type,
+    actor_rollout_worker: type,
+    registry: Any,
+    *,
     validate_engine: Callable[[Any, Any], None] | None = None,
 ) -> tuple[type, type]:
     """Specialize native construction through the explicit engine factory seam.
@@ -25,17 +28,25 @@ def resolved_worker_types(
 
     class ResolvedTrainingWorker(training_worker):
         def create_engine(self) -> Any:
-            if (self.engine_config.strategy != "fsdp" or self.model_config.get("use_remove_padding", False)
-                    or self.engine_config.use_fused_kernels or self.engine_config.use_dynamic_bsz
-                    or self.engine_config.micro_batch_size_per_gpu != 1):
+            if (
+                self.engine_config.strategy != "fsdp"
+                or self.model_config.get("use_remove_padding", False)
+                or self.engine_config.use_fused_kernels
+                or self.engine_config.use_dynamic_bsz
+                or self.engine_config.micro_batch_size_per_gpu != 1
+            ):
                 raise InvalidPolicyUpdate("resolved veRL worker requires qualified dense one-context FSDP execution")
             if validate_engine is not None:
                 validate_engine(self.model_config, self.engine_config)
-            native_engine = registry.get_engine_cls(model_type=self.config.model_type,
-                                                    backend=self.engine_config.strategy)
-            return resolved_verl_engine_type(native_engine)(model_config=self.model_config,
-                engine_config=self.engine_config, optimizer_config=self.optimizer_config,
-                checkpoint_config=self.checkpoint_config)
+            native_engine = registry.get_engine_cls(
+                model_type=self.config.model_type, backend=self.engine_config.strategy
+            )
+            return resolved_verl_engine_type(native_engine)(
+                model_config=self.model_config,
+                engine_config=self.engine_config,
+                optimizer_config=self.optimizer_config,
+                checkpoint_config=self.checkpoint_config,
+            )
 
     class ResolvedActorRolloutWorker(actor_rollout_worker):
         actor_worker_cls = ResolvedTrainingWorker
@@ -44,9 +55,12 @@ def resolved_worker_types(
 
 
 def resolved_actor_worker_type(
-    training_worker: type, actor_rollout_worker: type, registry: Any,
+    training_worker: type,
+    actor_rollout_worker: type,
+    registry: Any,
     session_factory: Callable[[Any, Any], Any],
-    *, validate_engine: Callable[[Any, Any], None] | None = None,
+    *,
+    validate_engine: Callable[[Any, Any], None] | None = None,
 ) -> type:
     """Attach one resolved session after native model/optimizer initialization.
 

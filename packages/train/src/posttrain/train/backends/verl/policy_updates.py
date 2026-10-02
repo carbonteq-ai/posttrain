@@ -43,7 +43,9 @@ def selected_native_outputs(output: Any, output_args: Mapping[str, Any], data: A
     from verl.utils import tensordict_utils as tu  # pyright: ignore[reportMissingImports]
 
     if tu.get_non_tensor_data(data, "use_remove_padding", default=True) or tu.get_non_tensor_data(
-        data, "use_fused_kernels", default=False,
+        data,
+        "use_fused_kernels",
+        default=False,
     ):
         raise InvalidPolicyUpdate("resolved veRL scoring requires qualified dense unfused model logits")
     if tu.get_non_tensor_data(data, "calculate_entropy", default=False):
@@ -59,9 +61,9 @@ def selected_native_outputs(output: Any, output_args: Mapping[str, Any], data: A
         if logits.shape[1] < length:
             raise InvalidPolicyUpdate("resolved veRL logits truncate original conditioning")
         mask = data["loss_mask"][index]
-        if bool(((mask != 0) & (mask != 1)).any()) or bool(mask[length - 1:].any()):
+        if bool(((mask != 0) & (mask != 1)).any()) or bool(mask[length - 1 :].any()):
             raise InvalidPolicyUpdate("resolved veRL mask exceeds eligible causal prediction positions")
-        positions = mask[:length - 1].nonzero().flatten()
+        positions = mask[: length - 1].nonzero().flatten()
         if not len(positions):
             raise InvalidPolicyUpdate("resolved veRL context has no required sampled scores")
         selected = logits[index, positions]
@@ -82,6 +84,7 @@ def selected_native_outputs(output: Any, output_args: Mapping[str, Any], data: A
 
 def resolved_verl_engine_type(native_engine_type: type) -> type:
     """Explicit engine subclass using Posttrain's resolved sampled-score contract."""
+
     class ResolvedEngine(native_engine_type):
         def prepare_model_inputs(self, micro_batch):
             import torch
@@ -154,7 +157,11 @@ class ResolvedVeRLPopulation:
             raise InvalidPolicyUpdate("dense native veRL packs require a declared physical context layout")
         if type(self.max_overflow_retries) is not int or self.max_overflow_retries < 0:
             raise InvalidPolicyUpdate("native overflow retries require an explicit nonnegative limit")
-        if isinstance(self.score_temperature, bool) or not math.isfinite(self.score_temperature) or self.score_temperature <= 0:
+        if (
+            isinstance(self.score_temperature, bool)
+            or not math.isfinite(self.score_temperature)
+            or self.score_temperature <= 0
+        ):
             raise InvalidPolicyUpdate("native veRL score temperature must be finite and positive")
         if not isinstance(self.score_contract, str) or not self.score_contract.strip():
             raise InvalidPolicyUpdate("native veRL score arithmetic requires an explicit contract identity")
@@ -166,30 +173,55 @@ class ResolvedVeRLPopulation:
 
     @classmethod
     def from_resolved(
-        cls, resolved: ResolvedPolicyPopulation, *,
+        cls,
+        resolved: ResolvedPolicyPopulation,
+        *,
         read_input: Callable[[ConditioningView], NativeConditioningInput],
-        score_temperature: float, score_contract: str,
+        score_temperature: float,
+        score_contract: str,
         sampler_correction: Mapping[ActionRef, float] | None,
-        reference: Any = None, max_overflow_retries: int = 0,
-        applied_update_offset: int = 0, attempt_offset: int = 0,
+        reference: Any = None,
+        max_overflow_retries: int = 0,
+        applied_update_offset: int = 0,
+        attempt_offset: int = 0,
     ) -> ResolvedVeRLPopulation:
         """Consume the same objective, credit and schedule as the TRL adapter."""
-        return cls(resolved.updates, resolved.credit, resolved.spec, resolved.execution, resolved.capabilities,
-                   read_input, score_temperature, score_contract, sampler_correction,
-                   reference=reference, max_overflow_retries=max_overflow_retries,
-                   applied_update_offset=applied_update_offset, attempt_offset=attempt_offset)
+        return cls(
+            resolved.updates,
+            resolved.credit,
+            resolved.spec,
+            resolved.execution,
+            resolved.capabilities,
+            read_input,
+            score_temperature,
+            score_contract,
+            sampler_correction,
+            reference=reference,
+            max_overflow_retries=max_overflow_retries,
+            applied_update_offset=applied_update_offset,
+            attempt_offset=attempt_offset,
+        )
 
     @classmethod
     def from_admitted(
-        cls, admitted: AdmittedNativePopulation, *, score_temperature: float,
-        score_contract: str, sampler_correction: Mapping[ActionRef, float] | None,
+        cls,
+        admitted: AdmittedNativePopulation,
+        *,
+        score_temperature: float,
+        score_contract: str,
+        sampler_correction: Mapping[ActionRef, float] | None,
         reference: Any = None,
     ) -> ResolvedVeRLPopulation:
         return cls.from_resolved(
-            admitted.resolved, read_input=admitted.read_input, score_temperature=score_temperature,
-            score_contract=score_contract, sampler_correction=sampler_correction, reference=reference,
+            admitted.resolved,
+            read_input=admitted.read_input,
+            score_temperature=score_temperature,
+            score_contract=score_contract,
+            sampler_correction=sampler_correction,
+            reference=reference,
             max_overflow_retries=admitted.max_overflow_retries,
-            applied_update_offset=admitted.applied_update_offset, attempt_offset=admitted.attempt_offset,
+            applied_update_offset=admitted.applied_update_offset,
+            attempt_offset=admitted.attempt_offset,
         )
 
     @property
@@ -213,14 +245,18 @@ class ResolvedVeRLPopulation:
         for context_id, members in groups.items():
             view = contexts[context_id]
             inputs = self.read_input(view)
-            if inputs.record.context_contract != "causal-text@1" or inputs.record.input_digest != view.digest or (
-                len(inputs.token_ids) != view.context_tokens or inputs.record.context_tokens != view.context_tokens
+            if (
+                inputs.record.context_contract != "causal-text@1"
+                or inputs.record.input_digest != view.digest
+                or (len(inputs.token_ids) != view.context_tokens or inputs.record.context_tokens != view.context_tokens)
             ):
                 raise InvalidPolicyUpdate("native veRL input differs from frozen original context")
             positions = dict(inputs.action_positions)
             if any(action.token_index not in positions for action in members):
                 raise InvalidPolicyUpdate("native veRL view lost original action positions")
-            if len({action.turn_id for action in members}) != 1 or len({action.token_index for action in members}) != len(members):
+            if len({action.turn_id for action in members}) != 1 or len(
+                {action.token_index for action in members}
+            ) != len(members):
                 raise InvalidPolicyUpdate("native veRL view must identify one original sampled turn")
             if any(not 1 <= positions[action.token_index] < len(inputs.token_ids) for action in members):
                 raise InvalidPolicyUpdate("native veRL action lacks its preceding causal position")
@@ -255,30 +291,50 @@ class ResolvedVeRLPopulation:
         attention = torch.zeros_like(ids)
         mask = torch.zeros((len(rows), width - 1), dtype=torch.long)
         for index, (inputs, actions) in enumerate(rows):
-            ids[index, :len(inputs.token_ids)] = torch.tensor(inputs.token_ids)
-            attention[index, :len(inputs.token_ids)] = 1
+            ids[index, : len(inputs.token_ids)] = torch.tensor(inputs.token_ids)
+            attention[index, : len(inputs.token_ids)] = 1
             for _, position in actions:
                 mask[index, position] = 1
-        values = dict(input_ids=ids, attention_mask=attention, position_ids=torch.arange(width).expand(len(rows), width),
-                      prompts=ids[:, :1], responses=ids[:, 1:], response_mask=mask,
-                      resolved_context_index=torch.arange(len(rows)).unsqueeze(1))
-        data = DataProto.from_single_dict(values, meta_info={
-            "temperature": self.score_temperature,
-        }).to_tensordict()
+        values = dict(
+            input_ids=ids,
+            attention_mask=attention,
+            position_ids=torch.arange(width).expand(len(rows), width),
+            prompts=ids[:, :1],
+            responses=ids[:, 1:],
+            response_mask=mask,
+            resolved_context_index=torch.arange(len(rows)).unsqueeze(1),
+        )
+        data = DataProto.from_single_dict(
+            values,
+            meta_info={
+                "temperature": self.score_temperature,
+            },
+        ).to_tensordict()
         # Construct native jagged views directly. Dense SDPA does not need the
         # FlashAttention unpad helper used by the generic padding converter.
         data["input_ids"] = torch.nested.as_nested_tensor(
-            [ids[index, :len(inputs.token_ids)] for index, (inputs, _) in enumerate(rows)], layout=torch.jagged,
+            [ids[index, : len(inputs.token_ids)] for index, (inputs, _) in enumerate(rows)],
+            layout=torch.jagged,
         )
         data["position_ids"] = torch.nested.as_nested_tensor(
-            [torch.arange(len(inputs.token_ids)) for inputs, _ in rows], layout=torch.jagged,
+            [torch.arange(len(inputs.token_ids)) for inputs, _ in rows],
+            layout=torch.jagged,
         )
         data["loss_mask"] = mask
-        tu.assign_non_tensor(data, max_seq_len=width, max_response_len=width - 1,
-                             indices=attention.flatten().nonzero().flatten())
-        tu.assign_non_tensor(data, global_batch_size=len(rows), use_remove_padding=False, use_dynamic_bsz=False,
-                             micro_batch_size_per_gpu=1, max_token_len_per_gpu=width, use_fused_kernels=False,
-                             calculate_entropy=False, return_model_output=True)
+        tu.assign_non_tensor(
+            data, max_seq_len=width, max_response_len=width - 1, indices=attention.flatten().nonzero().flatten()
+        )
+        tu.assign_non_tensor(
+            data,
+            global_batch_size=len(rows),
+            use_remove_padding=False,
+            use_dynamic_bsz=False,
+            micro_batch_size_per_gpu=1,
+            max_token_len_per_gpu=width,
+            use_fused_kernels=False,
+            calculate_entropy=False,
+            return_model_output=True,
+        )
         tu.assign_non_tensor(data, resolved_context_budget=self.execution.context_tokens)
         if self.capabilities.context_layout == "dense-population":
             tu.assign_non_tensor(data, resolved_dense_width=population_context_width(self.updates[0].population))
@@ -302,8 +358,12 @@ class ResolvedVeRLPopulation:
         owned, local = self._owned_rows(rows, rank, size)
         values = self._local_infer(engine, local)
         actions = {action for _, members in owned for action, _ in members}
-        return self._gather_scores({action: value for action, value in values.items() if action in actions},
-                                   group, size, device=next(iter(values.values())).device)
+        return self._gather_scores(
+            {action: value for action, value in values.items() if action in actions},
+            group,
+            size,
+            device=next(iter(values.values())).device,
+        )
 
     def _local_infer(self, engine, rows):
         with engine.eval_mode():
@@ -366,22 +426,35 @@ class ResolvedVeRLPopulation:
 
         snapshot = self.updates[0].population
         if self.old is None:
-            if self.next_update != 0 or self.applied_updates != 0 or self._pending is not None or (
-                engine.lr_scheduler.last_epoch != self.applied_update_offset
+            if (
+                self.next_update != 0
+                or self.applied_updates != 0
+                or self._pending is not None
+                or (engine.lr_scheduler.last_epoch != self.applied_update_offset)
             ):
                 raise InvalidPolicyUpdate("old scores must freeze at the initial population actor boundary")
             old = self._infer(engine, self._rows(tuple(record.action for record in snapshot.actions)))
-            self.old = FrozenPopulationScores(snapshot.digest, snapshot.versions.old_score,
-                self.score_contract, self.score_temperature,
-                MappingProxyType({action: value.detach().clone() for action, value in old.items()}))
-        self.old.validate(snapshot, policy_version=snapshot.versions.old_score,
-                          score_contract=self.score_contract, score_temperature=self.score_temperature)
+            self.old = FrozenPopulationScores(
+                snapshot.digest,
+                snapshot.versions.old_score,
+                self.score_contract,
+                self.score_temperature,
+                MappingProxyType({action: value.detach().clone() for action, value in old.items()}),
+            )
+        self.old.validate(
+            snapshot,
+            policy_version=snapshot.versions.old_score,
+            score_contract=self.score_contract,
+            score_temperature=self.score_temperature,
+        )
         return self.old
 
     def _checkpoint_contract(self, engine):
         manager = engine.checkpoint_manager
         for operation in ("save", "load"):
-            if not all(getattr(manager, f"should_{operation}_{component}") for component in ("model", "optimizer", "extra")):
+            if not all(
+                getattr(manager, f"should_{operation}_{component}") for component in ("model", "optimizer", "extra")
+            ):
                 raise InvalidPolicyUpdate("resolved veRL checkpoints require full native model/optimizer/extra state")
         scaler = getattr(engine, "scaler", None)
         if scaler is not None and getattr(manager, "grad_scaler", None) is not scaler:
@@ -401,19 +474,34 @@ class ResolvedVeRLPopulation:
             raise InvalidPolicyUpdate("native veRL checkpoint is not at a complete applied/scheduler boundary")
         if (checkpoint / "posttrain-resolved-update.json").exists():
             if rank == 0:
-                save_population_recovery(self, checkpoint, runtime_identity=runtime_identity, world_size=size,
-                    native_applied_updates=engine.lr_scheduler.last_epoch, native_components=())
+                save_population_recovery(
+                    self,
+                    checkpoint,
+                    runtime_identity=runtime_identity,
+                    world_size=size,
+                    native_applied_updates=engine.lr_scheduler.last_epoch,
+                    native_components=(),
+                )
             return self._barrier(group, size)
         engine.save_checkpoint(local_path=str(checkpoint), global_step=self.global_applied_updates)
         self._barrier(group, size)
         if rank == 0:
-            required = tuple(f"{name}_world_size_{size}_rank_{index}.pt"
-                             for name in ("model", "optim", "extra_state") for index in range(size))
+            required = tuple(
+                f"{name}_world_size_{size}_rank_{index}.pt"
+                for name in ("model", "optim", "extra_state")
+                for index in range(size)
+            )
             if any(not (checkpoint / filename).is_file() for filename in required):
                 raise InvalidPolicyUpdate("native veRL checkpoint lacks full retained state")
             files = tuple(sorted(str(path.relative_to(checkpoint)) for path in checkpoint.rglob("*") if path.is_file()))
-            save_population_recovery(self, checkpoint, runtime_identity=runtime_identity, world_size=size,
-                native_applied_updates=engine.lr_scheduler.last_epoch, native_components=files)
+            save_population_recovery(
+                self,
+                checkpoint,
+                runtime_identity=runtime_identity,
+                world_size=size,
+                native_applied_updates=engine.lr_scheduler.last_epoch,
+                native_components=files,
+            )
         return self._barrier(group, size)
 
     @staticmethod
@@ -432,8 +520,14 @@ class ResolvedVeRLPopulation:
         identity = population_recovery_identity(self, runtime_identity=runtime_identity, world_size=size)
         load_update_recovery(checkpoint, identity)
         engine.load_checkpoint(local_path=str(checkpoint), del_local_after_load=False)
-        return restore_population_recovery(self, checkpoint, runtime_identity=runtime_identity, world_size=size,
-            native_applied_updates=engine.lr_scheduler.last_epoch, device=next(engine.module.parameters()).device)
+        return restore_population_recovery(
+            self,
+            checkpoint,
+            runtime_identity=runtime_identity,
+            world_size=size,
+            native_applied_updates=engine.lr_scheduler.last_epoch,
+            device=next(engine.module.parameters()).device,
+        )
 
     def run_update(self, engine: Any, index: int) -> Any:
         from ..policy_update_math import ScoreBundle
@@ -449,9 +543,12 @@ class ResolvedVeRLPopulation:
         update = self.updates[index]
         self.freeze_old_scores(engine)
         if self.prepare_sampler_correction is not None:
-            correction = self.prepare_sampler_correction({action: float(value) for action, value in self.old.values.items()})
+            correction = self.prepare_sampler_correction(
+                {action: float(value) for action, value in self.old.values.items()}
+            )
             if set(correction) != {record.action for record in update.population.actions} or any(
-                type(value) not in (float, int) or not math.isfinite(value) or value < 0 for value in correction.values()
+                type(value) not in (float, int) or not math.isfinite(value) or value < 0
+                for value in correction.values()
             ):
                 raise InvalidPolicyUpdate("prepared correction requires complete detached finite action weights")
             self.sampler_correction = MappingProxyType(dict(correction))
@@ -463,21 +560,36 @@ class ResolvedVeRLPopulation:
         planned = plan_packs(update, self.execution, self.capabilities)
         offset = 0
         for size, pack in zip(sizes, planned, strict=True):
-            actions = tuple(action for _, members in rows[offset:offset + size] for action, _ in members)
+            actions = tuple(action for _, members in rows[offset : offset + size] for action, _ in members)
             if set(actions) != set(pack.actions):
                 raise InvalidPolicyUpdate("native context packing differs from resolved objective packs")
             offset += size
         current = self._infer(engine, rows)
-        term = resolve_objective_term(update, self.spec, self.credit,
-                                      parameter_version=f"{update.population.versions.current}/applied-{self.applied_updates}")
+        term = resolve_objective_term(
+            update,
+            self.spec,
+            self.credit,
+            parameter_version=f"{update.population.versions.current}/applied-{self.applied_updates}",
+        )
         if term.kl_weights:
             if self.reference is None or update.population.versions.reference is None:
                 raise InvalidPolicyUpdate("native veRL KL requires frozen reference evidence")
-            self.reference.validate(update.population, policy_version=update.population.versions.reference,
-                                    score_contract=self.score_contract, score_temperature=self.score_temperature)
+            self.reference.validate(
+                update.population,
+                policy_version=update.population.versions.reference,
+                score_contract=self.score_contract,
+                score_temperature=self.score_temperature,
+            )
         self.last_adjoints = prepare_score_adjoints(
-            term, self.credit, ScoreBundle(current, self.old.values, term.parameter_version,
-                                          self.reference.values if self.reference is not None else {}, self.sampler_correction),
+            term,
+            self.credit,
+            ScoreBundle(
+                current,
+                self.old.values,
+                term.parameter_version,
+                self.reference.values if self.reference is not None else {},
+                self.sampler_correction,
+            ),
         )
         self._pending = index
         for retry in range(self.max_overflow_retries + 1):
@@ -498,8 +610,12 @@ class ResolvedVeRLPopulation:
                 next_pack += 1
                 if next_context == len(rows) and seen != set(update.dependencies):
                     raise InvalidPolicyUpdate("native veRL replay lost dependency coverage before optimizer step")
-                carrier = self.last_adjoints.carrier(scores, parameter_version=term.parameter_version,
-                    absolute_tolerance=self.replay_absolute_tolerance, relative_tolerance=self.replay_relative_tolerance)
+                carrier = self.last_adjoints.carrier(
+                    scores,
+                    parameter_version=term.parameter_version,
+                    absolute_tolerance=self.replay_absolute_tolerance,
+                    relative_tolerance=self.replay_relative_tolerance,
+                )
                 return carrier, {}
 
             self.attempts += 1
@@ -510,7 +626,9 @@ class ResolvedVeRLPopulation:
             )
             if skipped:
                 if retry == self.max_overflow_retries:
-                    raise InvalidPolicyUpdate("native veRL overflow exhausted resolved retry limit without advancing policy")
+                    raise InvalidPolicyUpdate(
+                        "native veRL overflow exhausted resolved retry limit without advancing policy"
+                    )
                 continue
             # The native engine's scalar losses are VJP carriers. Expose them
             # separately so observation never reports a carrier as the objective.
@@ -526,8 +644,9 @@ class ResolvedVeRLPopulation:
             return self.last_output
         raise AssertionError("bounded native retry loop failed to return or raise")
 
-    def _run_data_parallel_update(self, engine: Any, update: ResolvedUpdate, rows: Any,
-                                  rank: int, size: int, group: Any) -> Any:
+    def _run_data_parallel_update(
+        self, engine: Any, update: ResolvedUpdate, rows: Any, rank: int, size: int, group: Any
+    ) -> Any:
         """Owned-context replay whose averaged native gradient equals the global objective.
 
         Every rank holds identical global current/old/reference scores and
@@ -548,16 +667,31 @@ class ResolvedVeRLPopulation:
         if int(coverage.item()) != len(update.dependencies):
             raise InvalidPolicyUpdate("native veRL data-parallel ownership lost dependency coverage")
         current = self._infer(engine, rows)
-        term = resolve_objective_term(update, self.spec, self.credit,
-                                      parameter_version=f"{update.population.versions.current}/applied-{self.applied_updates}")
+        term = resolve_objective_term(
+            update,
+            self.spec,
+            self.credit,
+            parameter_version=f"{update.population.versions.current}/applied-{self.applied_updates}",
+        )
         if term.kl_weights:
             if self.reference is None or update.population.versions.reference is None:
                 raise InvalidPolicyUpdate("native veRL KL requires frozen reference evidence")
-            self.reference.validate(update.population, policy_version=update.population.versions.reference,
-                                    score_contract=self.score_contract, score_temperature=self.score_temperature)
+            self.reference.validate(
+                update.population,
+                policy_version=update.population.versions.reference,
+                score_contract=self.score_contract,
+                score_temperature=self.score_temperature,
+            )
         self.last_adjoints = prepare_score_adjoints(
-            term, self.credit, ScoreBundle(current, self.old.values, term.parameter_version,
-                                          self.reference.values if self.reference is not None else {}, self.sampler_correction),
+            term,
+            self.credit,
+            ScoreBundle(
+                current,
+                self.old.values,
+                term.parameter_version,
+                self.reference.values if self.reference is not None else {},
+                self.sampler_correction,
+            ),
         )
         self._pending = self.next_update
         for retry in range(self.max_overflow_retries + 1):
@@ -573,10 +707,15 @@ class ResolvedVeRLPopulation:
                         if seen.intersection(row_scores):
                             raise InvalidPolicyUpdate("native veRL replay duplicated original action derivatives")
                         seen.update(row_scores)
-                        carriers.append(self.last_adjoints.carrier(
-                            row_scores, parameter_version=term.parameter_version,
-                            absolute_tolerance=self.replay_absolute_tolerance,
-                            relative_tolerance=self.replay_relative_tolerance) * size)
+                        carriers.append(
+                            self.last_adjoints.carrier(
+                                row_scores,
+                                parameter_version=term.parameter_version,
+                                absolute_tolerance=self.replay_absolute_tolerance,
+                                relative_tolerance=self.replay_relative_tolerance,
+                            )
+                            * size
+                        )
                     else:
                         # Matched padding forward joins native collectives with zero weight.
                         carriers.append(model_output["log_probs"][local_index].sum() * 0)
@@ -592,7 +731,9 @@ class ResolvedVeRLPopulation:
             )
             if skipped:
                 if retry == self.max_overflow_retries:
-                    raise InvalidPolicyUpdate("native veRL overflow exhausted resolved retry limit without advancing policy")
+                    raise InvalidPolicyUpdate(
+                        "native veRL overflow exhausted resolved retry limit without advancing policy"
+                    )
                 continue
             self.last_output["replay_carrier_losses"] = self.last_output.pop("loss", None)
             evaluation = self.last_adjoints.evaluation

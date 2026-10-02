@@ -23,12 +23,19 @@ def receipt_source(tmp_path):
     rollout = rollouts[0]
     path = tmp_path / "native.jsonl"
     path.write_bytes(evidence)
-    artifact = ProducedArtifact("native/episode", "evaluation-traces",
+    artifact = ProducedArtifact(
+        "native/episode",
+        "evaluation-traces",
         LocalArtifactRef(path, hashlib.sha256(evidence).hexdigest()),
-        metadata={"format": "verifiers-native-traces", "replay_authority": True,
-                  "trace_ids": [rollout.trace.external_id]})
-    bridge = SimpleNamespace(policy_update_context_contract="causal-text@1",
-                             retain_population=lambda selected: artifact)
+        metadata={
+            "format": "verifiers-native-traces",
+            "replay_authority": True,
+            "trace_ids": [rollout.trace.external_id],
+        },
+    )
+    bridge = SimpleNamespace(
+        policy_update_context_contract="causal-text@1", retain_population=lambda selected: artifact
+    )
     return bridge, rollout, artifact
 
 
@@ -50,8 +57,7 @@ def test_episode_receipt_rejects_flattened_or_mixed_version_collection(tmp_path)
     mixed = replace(rollout, behavior_policy=BehaviorPolicySpan(2, 3))
     with pytest.raises(InvalidPolicyUpdate, match="synchronous policy"):
         retain_episode_receipt(bridge, mixed, sampler_step=3)
-    flattened = replace(rollout, conditioning_records=(), selected_branch_id=None,
-                        conditioning_completion_indices=())
+    flattened = replace(rollout, conditioning_records=(), selected_branch_id=None, conditioning_completion_indices=())
     with pytest.raises(InvalidPolicyUpdate, match="original contexts"):
         retain_episode_receipt(bridge, flattened, sampler_step=3)
 
@@ -69,18 +75,35 @@ def test_receipts_resolve_complete_groups_with_shared_native_admission(tmp_path,
     for rollout, record in zip(rollouts, json.loads(evidence), strict=True):
         path = tmp_path / f"{rollout.trace.external_id}.jsonl"
         path.write_text(json.dumps(record) + "\n")
-        artifact = ProducedArtifact("native/episode", "evaluation-traces",
+        artifact = ProducedArtifact(
+            "native/episode",
+            "evaluation-traces",
             LocalArtifactRef(path, hashlib.sha256(path.read_bytes()).hexdigest()),
-            metadata={"format": "verifiers-native-traces", "replay_authority": True,
-                      "trace_ids": [rollout.trace.external_id]})
-        bridge = SimpleNamespace(policy_update_context_contract="causal-text@1",
-                                 retain_population=lambda selected, artifact=artifact: artifact)
+            metadata={
+                "format": "verifiers-native-traces",
+                "replay_authority": True,
+                "trace_ids": [rollout.trace.external_id],
+            },
+        )
+        bridge = SimpleNamespace(
+            policy_update_context_contract="causal-text@1",
+            retain_population=lambda selected, artifact=artifact: artifact,
+        )
         encoded.append(retain_episode_receipt(bridge, rollout, sampler_step=3))
-    monkeypatch.setattr("posttrain.train.integrations.verifiers_population_artifact.decode_native_population",
-        lambda raw, **kwargs: decode(json.dumps([json.loads(line) for line in raw.splitlines()]).encode()))
-    kwargs = ReceiptIdentity(destination=tmp_path / "population", population_id="complete@3", template_revision="template@1",
-                  versions=PolicyVersions("sampler@3", "old@3", "current@3", None), sampler_step=3,
-                  selector_digest="selection@1", applied_update_offset=3, attempt_offset=4)
+    monkeypatch.setattr(
+        "posttrain.train.integrations.verifiers_population_artifact.decode_native_population",
+        lambda raw, **kwargs: decode(json.dumps([json.loads(line) for line in raw.splitlines()]).encode()),
+    )
+    kwargs = ReceiptIdentity(
+        destination=tmp_path / "population",
+        population_id="complete@3",
+        template_revision="template@1",
+        versions=PolicyVersions("sampler@3", "old@3", "current@3", None),
+        sampler_step=3,
+        selector_digest="selection@1",
+        applied_update_offset=3,
+        attempt_offset=4,
+    )
     admitted, artifact = admit_episode_receipts(tuple(encoded), settings(), capabilities(), **kwargs)
     assert admitted.resolved.snapshot.native_evidence_ref == artifact.name
     assert admitted.applied_update_offset == 3 and admitted.attempt_offset == 4
@@ -121,8 +144,9 @@ def test_agent_loop_retains_episode_receipt_before_native_row_return(tmp_path, m
     bridge.run_id = "run"
     loop = object.__new__(module.PosttrainVerifiersAgentLoop)
     loop._bridge = bridge
-    loop._generator = SimpleNamespace(begin_episode=lambda: None, set_sampling_overrides=lambda value: None,
-                                      behavior_policy=BehaviorPolicySpan(3, 3))
+    loop._generator = SimpleNamespace(
+        begin_episode=lambda: None, set_sampling_overrides=lambda value: None, behavior_policy=BehaviorPolicySpan(3, 3)
+    )
     loop._structured_algorithm = None
     loop._retain_policy_update_evidence = True
     loop._trainer_mode = "sync"
@@ -130,8 +154,9 @@ def test_agent_loop_retains_episode_receipt_before_native_row_return(tmp_path, m
     loop._max_completion_tokens = 100
     loop._overlong_buffer_tokens = loop._overlong_penalty_factor = loop._truncation_penalty = None
     loop._mask_truncated_completions = loop._emit_sampo_metadata = False
-    output = asyncio.run(loop.run({}, example_id="task", global_steps=3, model_id="actor",
-                                  uid="prompt", session_id="episode"))
+    output = asyncio.run(
+        loop.run({}, example_id="task", global_steps=3, model_id="actor", uid="prompt", session_id="episode")
+    )
     assert observed[0].prompt_group_ids == ("run/3/prompt",)
     assert observed[0].rollout_ids == ("run/3/prompt/episode",)
     receipt = NativeEpisodeReceipt.model_validate_json(output.extra_fields["posttrain_native_episode_receipt"])

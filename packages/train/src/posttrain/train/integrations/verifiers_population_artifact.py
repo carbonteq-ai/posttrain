@@ -16,7 +16,9 @@ from ..update_records import InvalidPolicyUpdate
 
 
 def decode_native_population(
-    evidence: bytes, *, format: Literal["verifiers-native-episodes", "verifiers-native-traces"],
+    evidence: bytes,
+    *,
+    format: Literal["verifiers-native-episodes", "verifiers-native-traces"],
 ) -> Mapping[str, Any]:
     """Use native schema models to restore original graphs, never chat rows.
 
@@ -46,15 +48,22 @@ def decode_native_population(
                 raise InvalidPolicyUpdate("native population has duplicate trace identities")
             # Reserve all IDs before validation, including duplicates in one envelope.
             traces[raw["id"]] = None
-        restored = (Episode.model_validate(record).traces if format == "verifiers-native-episodes"
-                    else [Trace.model_validate(record)])
+        restored = (
+            Episode.model_validate(record).traces
+            if format == "verifiers-native-episodes"
+            else [Trace.model_validate(record)]
+        )
         for trace in restored:
             traces[trace.id] = trace
     return traces
 
 
 def retain_native_population(
-    source: Path, destination: Path, trace_ids: tuple[str, ...], *, episodes: bool,
+    source: Path,
+    destination: Path,
+    trace_ids: tuple[str, ...],
+    *,
+    episodes: bool,
 ) -> ProducedArtifact:
     """Copy complete native envelopes verbatim, with deterministic membership.
 
@@ -106,9 +115,13 @@ def retain_native_population(
     finally:
         os.unlink(temporary)
     return ProducedArtifact(
-        name=f"training/rollouts/populations/{digest}", kind="evaluation-traces",
+        name=f"training/rollouts/populations/{digest}",
+        kind="evaluation-traces",
         reference=LocalArtifactRef(target.resolve(), digest),
-        metadata={"format": "verifiers-native-episodes" if episodes else "verifiers-native-traces",
-                  "replay_authority": True, "trace_ids": list(trace_ids),
-                  "native_record_count": len(selected)},
+        metadata={
+            "format": "verifiers-native-episodes" if episodes else "verifiers-native-traces",
+            "replay_authority": True,
+            "trace_ids": list(trace_ids),
+            "native_record_count": len(selected),
+        },
     )

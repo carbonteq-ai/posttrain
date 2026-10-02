@@ -35,17 +35,26 @@ class NativeEpisodeReceipt(BaseModel):
     def serialize_artifact(self, artifact: ProducedArtifact) -> dict[str, Any]:
         if not isinstance(artifact.reference, LocalArtifactRef):
             raise InvalidPolicyUpdate("veRL receipt serialization requires a retained local artifact")
-        return {"name": artifact.name, "kind": artifact.kind, "required": artifact.required,
-                "role": artifact.role, "metadata": dict(artifact.metadata),
-                "reference": {"path": str(artifact.reference.path), "digest": artifact.reference.digest}}
+        return {
+            "name": artifact.name,
+            "kind": artifact.kind,
+            "required": artifact.required,
+            "role": artifact.role,
+            "metadata": dict(artifact.metadata),
+            "reference": {"path": str(artifact.reference.path), "digest": artifact.reference.digest},
+        }
 
     def verify_artifact(self) -> bytes:
         artifact = self.artifact
         reference = artifact.reference
-        if (not isinstance(reference, LocalArtifactRef) or artifact.kind != "evaluation-traces"
-                or not artifact.required or artifact.metadata.get("replay_authority") is not True
-                or artifact.metadata.get("format") not in ("verifiers-native-episodes", "verifiers-native-traces")
-                or artifact.metadata.get("trace_ids") != [self.rollout.trace.external_id]):
+        if (
+            not isinstance(reference, LocalArtifactRef)
+            or artifact.kind != "evaluation-traces"
+            or not artifact.required
+            or artifact.metadata.get("replay_authority") is not True
+            or artifact.metadata.get("format") not in ("verifiers-native-episodes", "verifiers-native-traces")
+            or artifact.metadata.get("trace_ids") != [self.rollout.trace.external_id]
+        ):
             raise InvalidPolicyUpdate("veRL episode receipt requires its retained native replay artifact")
         evidence = reference.path.read_bytes()
         if hashlib.sha256(evidence).hexdigest() != reference.digest:
@@ -56,16 +65,25 @@ class NativeEpisodeReceipt(BaseModel):
 def retain_episode_receipt(bridge: Any, rollout: EnvironmentRollout, *, sampler_step: int) -> str:
     """Freeze one completed episode before conversion to native trainer rows."""
     info = rollout.trace.payload.get("info")
-    if (getattr(bridge, "policy_update_context_contract", None) != "causal-text@1"
-            or not callable(getattr(bridge, "retain_population", None))
-            or not rollout.conditioning_records or not isinstance(info, Mapping)
-            or any(not isinstance(info.get(key), str) or not info[key] for key in (
-                "posttrain_prompt_group_id", "posttrain_episode_id", "posttrain_rollout_id"))
-            or rollout.behavior_policy is None or rollout.behavior_policy.start != sampler_step
-            or rollout.behavior_policy.end != sampler_step):
-        raise InvalidPolicyUpdate("veRL resolved collection requires original contexts, identities and synchronous policy")
+    if (
+        getattr(bridge, "policy_update_context_contract", None) != "causal-text@1"
+        or not callable(getattr(bridge, "retain_population", None))
+        or not rollout.conditioning_records
+        or not isinstance(info, Mapping)
+        or any(
+            not isinstance(info.get(key), str) or not info[key]
+            for key in ("posttrain_prompt_group_id", "posttrain_episode_id", "posttrain_rollout_id")
+        )
+        or rollout.behavior_policy is None
+        or rollout.behavior_policy.start != sampler_step
+        or rollout.behavior_policy.end != sampler_step
+    ):
+        raise InvalidPolicyUpdate(
+            "veRL resolved collection requires original contexts, identities and synchronous policy"
+        )
     receipt = NativeEpisodeReceipt(artifact=bridge.retain_population((rollout,)), rollout=rollout)
     receipt.verify_artifact()
+
     def mapping_value(value: Any) -> dict[str, Any]:
         if not isinstance(value, Mapping):
             raise TypeError(f"unsupported native receipt value: {type(value).__name__}")
@@ -75,8 +93,12 @@ def retain_episode_receipt(bridge: Any, rollout: EnvironmentRollout, *, sampler_
 
 
 def admit_episode_receipts(
-    encoded: tuple[str, ...], settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
-    capabilities: ExecutionCapabilities, *, destination: Path, **admission: Any,
+    encoded: tuple[str, ...],
+    settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
+    capabilities: ExecutionCapabilities,
+    *,
+    destination: Path,
+    **admission: Any,
 ) -> tuple[AdmittedNativePopulation, ProducedArtifact]:
     """Authenticate native receipts, then resolve complete groups through the common boundary.
 
@@ -110,9 +132,14 @@ def admit_episode_receipts(
     with tempfile.TemporaryDirectory(prefix=".native-assembly-", dir=destination) as temporary:
         source = Path(temporary) / "source.jsonl"
         source.write_bytes(b"".join(lines))
-        artifact = retain_native_population(source, destination, trace_ids,
-            episodes=next(iter(formats)) == "verifiers-native-episodes")
+        artifact = retain_native_population(
+            source, destination, trace_ids, episodes=next(iter(formats)) == "verifiers-native-episodes"
+        )
     admitted = AdmittedNativePopulation.from_retained_artifact(
-        artifact, tuple(receipt.rollout for receipt in receipts), settings, capabilities, **admission,
+        artifact,
+        tuple(receipt.rollout for receipt in receipts),
+        settings,
+        capabilities,
+        **admission,
     )
     return admitted, artifact

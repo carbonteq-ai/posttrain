@@ -596,8 +596,11 @@ class _PolicyClient:
             model=model,
             message=AssistantMessage.model_validate(result.message),
             finish_reason=result.finish_reason,
-            usage=Usage(prompt_tokens=len(result.prompt_ids), completion_tokens=len(result.completion_ids),
-                        reasoning_tokens=result.reasoning_tokens),
+            usage=Usage(
+                prompt_tokens=len(result.prompt_ids),
+                completion_tokens=len(result.completion_ids),
+                reasoning_tokens=result.reasoning_tokens,
+            ),
             tokens=TurnTokens(
                 prompt_ids=list(result.prompt_ids),
                 completion_ids=list(result.completion_ids),
@@ -892,7 +895,8 @@ class VerifiersEnvironmentRolloutBridge:
             )
             if batch.behavior_policy is not None:
                 trace.info["posttrain_run"]["policy"] = {
-                    "start": batch.behavior_policy.start, "end": batch.behavior_policy.end,
+                    "start": batch.behavior_policy.start,
+                    "end": batch.behavior_policy.end,
                 }
             if batch.prompt_group_ids:
                 trace.info.update(
@@ -1166,7 +1170,8 @@ class VerifiersEnvironmentRolloutBridge:
         if self.policy_update_context_contract is not None:
             original_positions = {id(node): index for index, node in enumerate(trace.nodes)}
             conditioning = native_conditioning_records(
-                trace, sampled_node_indices=tuple(original_positions[id(node)] for node in branch.nodes if node.sampled),
+                trace,
+                sampled_node_indices=tuple(original_positions[id(node)] for node in branch.nodes if node.sampled),
                 context_contract=self.policy_update_context_contract,
             )
         token_ids = tuple(int(value) for value in branch.token_ids)
@@ -1195,9 +1200,11 @@ class VerifiersEnvironmentRolloutBridge:
         if not math.isfinite(float(trace.reward)):
             raise VerifiersRolloutFailure("Verifiers trace has a non-finite scalar reward")
         is_truncated = bool(observation.attributes["is_truncated"])
-        turns = _agentic_turns(branch, first_sampled) if (
-            self.technique == "sampo" or self.policy_update_context_contract is not None
-        ) else ()
+        turns = (
+            _agentic_turns(branch, first_sampled)
+            if (self.technique == "sampo" or self.policy_update_context_contract is not None)
+            else ()
+        )
         native_turns = (
             native_turn_map(branch)
             if self.reward_projection is not None and self.reward_projection.turns_info_key is not None
@@ -1338,7 +1345,8 @@ class VerifiersEnvironmentRolloutBridge:
             return retain_native_population(
                 episodes_path if episodes else self.trace_path,
                 self.trace_path.parent / "populations",
-                tuple(rollout.trace.external_id for rollout in rollouts), episodes=episodes,
+                tuple(rollout.trace.external_id for rollout in rollouts),
+                episodes=episodes,
             )
 
     def finalize(self) -> tuple[ProducedArtifact, ...]:
@@ -1601,7 +1609,9 @@ def _observation_bundle_key(observations: Sequence[Mapping[str, JsonValue]]) -> 
     the prefix versions this changed grouping contract for retained native rows.
     """
 
-    content = [{key: value for key, value in observation.items() if key != "tool_call_id"} for observation in observations]
+    content = [
+        {key: value for key, value in observation.items() if key != "tool_call_id"} for observation in observations
+    ]
     encoded = json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     encoded = _SAMPLE_IDENTIFIER.sub("<id>", encoded)
     return "observation-bundle@2:" + hashlib.sha256(encoded.encode()).hexdigest()

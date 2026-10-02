@@ -12,8 +12,15 @@ from posttrain.train.backends.verl.policy_observer import ResolvedWorkerObserver
 
 
 def setup(tmp_path, emit):
-    context = RunContext("project", "work", "run", "train.grpo", "job@1", tmp_path,
-                         observer=cast(Observer, SimpleNamespace(artifact=emit, metrics=emit, event=emit)))
+    context = RunContext(
+        "project",
+        "work",
+        "run",
+        "train.grpo",
+        "job@1",
+        tmp_path,
+        observer=cast(Observer, SimpleNamespace(artifact=emit, metrics=emit, event=emit)),
+    )
     transported = VerlRunContext.model_validate({**context.identity_attributes, "workspace": context.workspace})
     path = tmp_path / "observations.jsonl"
     return context, path, ResolvedWorkerObserver(path, transported)
@@ -24,11 +31,15 @@ def test_worker_artifact_and_context_metrics_roundtrip(tmp_path):
     context, path, worker = setup(tmp_path, emitted.append)
     source = tmp_path / "population.jsonl"
     source.write_bytes(b"native population\n")
-    artifact = ProducedArtifact("population", "evaluation-traces",
-        LocalArtifactRef(source, hashlib.sha256(source.read_bytes()).hexdigest()), metadata={"replay_authority": True})
+    artifact = ProducedArtifact(
+        "population",
+        "evaluation-traces",
+        LocalArtifactRef(source, hashlib.sha256(source.read_bytes()).hexdigest()),
+        metadata={"replay_authority": True},
+    )
     worker.artifact(artifact)
     worker_context = RunContext(**worker.context.model_dump(), observer=worker)
-    worker_context.metrics({"train/rl/loss": .5}, step=1)
+    worker_context.metrics({"train/rl/loss": 0.5}, step=1)
     worker_context.event("resolved_update", {"applied": 1})
     tailer = observation_tailer(context, path)
     assert tailer.poll().emitted_records == 3

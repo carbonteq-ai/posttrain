@@ -43,19 +43,26 @@ class NativeConditioningInput:
 def materialize_native_conditioning(trace: Any, record: NativeConditioningRecord) -> NativeConditioningInput:
     """Revalidate retained graph bytes before exposing model input coordinates."""
     actual = native_conditioning_records(
-        trace, sampled_node_indices=(record.node_index,), context_contract=record.context_contract,
+        trace,
+        sampled_node_indices=(record.node_index,),
+        context_contract=record.context_contract,
     )[0]
     if actual != record:
         raise InvalidNativeConditioning("retained native conditioning differs from the frozen record")
-    tokens = tuple(value for index in (*record.prefix_node_indices, record.node_index)
-                   for value in trace.nodes[index].token_ids)
+    tokens = tuple(
+        value for index in (*record.prefix_node_indices, record.node_index) for value in trace.nodes[index].token_ids
+    )
     prefix_length = len(tokens) - len(trace.nodes[record.node_index].token_ids)
-    return NativeConditioningInput(record, tokens,
-                                  tuple((local, prefix_length + local) for local in record.sampled_token_indices))
+    return NativeConditioningInput(
+        record, tokens, tuple((local, prefix_length + local) for local in record.sampled_token_indices)
+    )
 
 
 def native_conditioning_records(
-    trace: Any, *, sampled_node_indices: tuple[int, ...], context_contract: str,
+    trace: Any,
+    *,
+    sampled_node_indices: tuple[int, ...],
+    context_contract: str,
 ) -> tuple[NativeConditioningRecord, ...]:
     if context_contract != "causal-text@1":
         raise InvalidNativeConditioning("unqualified native conditioning contract")
@@ -100,11 +107,18 @@ def native_conditioning_records(
         prefix_tokens = len(tokens) - len(node.token_ids)
         if prefix_tokens + selected[0] == 0:
             raise InvalidNativeConditioning("sampled action lacks a preceding conditioning token")
-        payload = {"tokens": tokens, "attention": "causal", "positions": "contiguous-zero-based",
-                   "context_contract": context_contract}
+        payload = {
+            "tokens": tokens,
+            "attention": "causal",
+            "positions": "contiguous-zero-based",
+            "context_contract": context_contract,
+        }
         digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-        result.append(NativeConditioningRecord(trace_id, node_index, tuple(path[:-1]), selected, len(tokens), digest,
-                                               context_contract))
+        result.append(
+            NativeConditioningRecord(
+                trace_id, node_index, tuple(path[:-1]), selected, len(tokens), digest, context_contract
+            )
+        )
     return tuple(result)
 
 
@@ -112,7 +126,8 @@ REASONING_PREFIX_REVISION = "verifiers.renderer-reasoning-prefix@1"
 
 
 def native_reasoning_partition(
-    trace: Any, record: NativeConditioningRecord,
+    trace: Any,
+    record: NativeConditioningRecord,
 ) -> tuple[tuple[int, ...], tuple[int, ...]]:
     """Split one sampled assistant call's original actions into reasoning and answer.
 
@@ -123,7 +138,9 @@ def native_reasoning_partition(
     split addresses exactly the original eligible coordinates.
     """
     actual = native_conditioning_records(
-        trace, sampled_node_indices=(record.node_index,), context_contract=record.context_contract,
+        trace,
+        sampled_node_indices=(record.node_index,),
+        context_contract=record.context_contract,
     )[0]
     if actual != record:
         raise InvalidNativeConditioning("reasoning extraction requires the retained conditioning record")

@@ -91,7 +91,9 @@ def _decode_policy_updates(payload: PolicyUpdateSettingsSchema | None) -> Policy
         objective_variant=payload.objective_variant,
         policy_selection=ActionSelection(**payload.policy_selection.model_dump()),
         kl_selection=ActionSelection(**payload.kl_selection.model_dump()),
-        denominator=payload.denominator, empty_policy=payload.empty_policy, revision=payload.revision,
+        denominator=payload.denominator,
+        empty_policy=payload.empty_policy,
+        revision=payload.revision,
         credit_estimator=payload.credit_estimator,
     )
 

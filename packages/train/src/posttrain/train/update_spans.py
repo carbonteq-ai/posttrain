@@ -37,7 +37,8 @@ def _intervals(episode: str, branch: str, view: str, indices: tuple[int, ...]) -
 
 
 def reasoning_answer_spans(
-    rollouts: tuple[EnvironmentRollout, ...], traces: Mapping[str, Any],
+    rollouts: tuple[EnvironmentRollout, ...],
+    traces: Mapping[str, Any],
 ) -> tuple[SemanticSpan, ...]:
     """One ``reasoning`` and one ``answer`` span per sampled assistant call, when nonempty."""
     spans: list[SemanticSpan] = []
@@ -57,6 +58,12 @@ def reasoning_answer_spans(
             view = f"{record.trace_id}/node-{record.node_index}"
             for role, indices in (("reasoning", reasoning), ("answer", answer)):
                 if indices:
-                    spans.append(SemanticSpan(f"{view}/{role}", role, REASONING_PREFIX_REVISION,
-                                              _intervals(episode, rollout.selected_branch_id, view, indices)))
+                    spans.append(
+                        SemanticSpan(
+                            f"{view}/{role}",
+                            role,
+                            REASONING_PREFIX_REVISION,
+                            _intervals(episode, rollout.selected_branch_id, view, indices),
+                        )
+                    )
     return tuple(spans)

@@ -22,18 +22,33 @@ from posttrain.train.update_records import (
 
 
 def five_turns() -> tuple[PopulationSnapshot, ObjectivePopulation]:
-    actions = tuple(ActionRef(episode, "branch", turn, 0)
-                    for episode, turn in (("A", "A1"), ("A", "A2"), ("A", "A3"), ("B", "B1"), ("B", "B2")))
-    snapshot = PopulationSnapshot(
-        "five-turns", "native:five-turns", "native-digest",
-        tuple(ActionRecord(action, action.turn_id, "native:node") for action in actions),
-        tuple(ConditioningView(action.turn_id, "native:node", "tokens", "attention", "positions", "template@1",
-                               action.turn_id, 10) for action in actions),
-        (), (), PolicyVersions("sampler@1", "old@1", "current@1", None), "selector@1",
+    actions = tuple(
+        ActionRef(episode, "branch", turn, 0)
+        for episode, turn in (("A", "A1"), ("A", "A2"), ("A", "A3"), ("B", "B1"), ("B", "B2"))
     )
-    objective = ObjectivePopulation("fixture-local@1", "credit-digest",
-                                    tuple(ContributionRef(action.turn_id, (action,), (action,)) for action in actions),
-                                    ("sampled-logp",), 4)
+    snapshot = PopulationSnapshot(
+        "five-turns",
+        "native:five-turns",
+        "native-digest",
+        tuple(ActionRecord(action, action.turn_id, "native:node") for action in actions),
+        tuple(
+            ConditioningView(
+                action.turn_id, "native:node", "tokens", "attention", "positions", "template@1", action.turn_id, 10
+            )
+            for action in actions
+        ),
+        (),
+        (),
+        PolicyVersions("sampler@1", "old@1", "current@1", None),
+        "selector@1",
+    )
+    objective = ObjectivePopulation(
+        "fixture-local@1",
+        "credit-digest",
+        tuple(ContributionRef(action.turn_id, (action,), (action,)) for action in actions),
+        ("sampled-logp",),
+        4,
+    )
     return snapshot, objective
 
 
@@ -93,10 +108,12 @@ def test_final_minibatch_policies_are_explicit() -> None:
 
 def test_token_budget_cannot_truncate_an_atomic_contribution() -> None:
     snapshot, objective = five_turns()
-    combined = ContributionRef("all", tuple(record.action for record in snapshot.actions),
-                               tuple(record.action for record in snapshot.actions))
-    updates = resolve_updates(snapshot, PolicyUpdateSchedule("selected-token", 2),
-                              replace(objective, contributions=(combined,)))
+    combined = ContributionRef(
+        "all", tuple(record.action for record in snapshot.actions), tuple(record.action for record in snapshot.actions)
+    )
+    updates = resolve_updates(
+        snapshot, PolicyUpdateSchedule("selected-token", 2), replace(objective, contributions=(combined,))
+    )
     assert len(updates) == 1
     assert len(updates[0].contributions[0].actions) == 5
     with pytest.raises(InvalidPolicyUpdate, match="crosses episode"):
@@ -117,15 +134,23 @@ def test_capacity_and_statistics_fail_before_execution() -> None:
             plan_packs(update, budget, capability)
 
 
-@pytest.mark.parametrize("layout,sizes,costs", [
-    ("ragged", [2, 2, 1], [12, 18, 5]),
-    ("dense-pack", [2, 1, 2], [18, 11, 14]),
-    ("dense-population", [1, 1, 1, 1, 1], [11, 11, 11, 11, 11]),
-])
+@pytest.mark.parametrize(
+    "layout,sizes,costs",
+    [
+        ("ragged", [2, 2, 1], [12, 18, 5]),
+        ("dense-pack", [2, 1, 2], [18, 11, 14]),
+        ("dense-population", [1, 1, 1, 1, 1], [11, 11, 11, 11, 11]),
+    ],
+)
 def test_physical_padding_cost_changes_only_execution_boundaries(layout, sizes, costs):
     snapshot, objective = five_turns()
-    snapshot = replace(snapshot, conditioning=tuple(replace(view, context_tokens=length)
-        for view, length in zip(snapshot.conditioning, (3, 9, 11, 7, 5), strict=True)))
+    snapshot = replace(
+        snapshot,
+        conditioning=tuple(
+            replace(view, context_tokens=length)
+            for view, length in zip(snapshot.conditioning, (3, 9, 11, 7, 5), strict=True)
+        ),
+    )
     update = resolve_updates(snapshot, PolicyUpdateSchedule("episode", 2), objective)[0]
     original_digest = update.digest
     packs = plan_packs(update, PolicyExecutionBudget(2, 18, 100), replace(capabilities(), context_layout=layout))
@@ -138,8 +163,13 @@ def test_physical_padding_cost_changes_only_execution_boundaries(layout, sizes, 
 
 def test_population_padding_includes_unselected_sampled_contexts_and_rejects_oversized_width():
     snapshot, objective = five_turns()
-    snapshot = replace(snapshot, conditioning=tuple(replace(view, context_tokens=length)
-        for view, length in zip(snapshot.conditioning, (3, 9, 11, 7, 5), strict=True)))
+    snapshot = replace(
+        snapshot,
+        conditioning=tuple(
+            replace(view, context_tokens=length)
+            for view, length in zip(snapshot.conditioning, (3, 9, 11, 7, 5), strict=True)
+        ),
+    )
     selected = replace(objective, contributions=objective.contributions[:1])
     update = resolve_updates(snapshot, PolicyUpdateSchedule("turn", 1), selected)[0]
     dense = replace(capabilities(), context_layout="dense-population")

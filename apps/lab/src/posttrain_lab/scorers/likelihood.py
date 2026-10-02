@@ -29,8 +29,9 @@ class LikelihoodSpanScorer:
     def revision(self) -> str:
         return f"likelihood-span-scorer@1/{self.model_id}@{self.model_revision}/t{self.temperature!r}"
 
-    def assess(self, snapshot: Any, spans: tuple[Any, ...],
-               read_input: Callable[[Any], Any]) -> tuple[SpanAssessment, ...]:
+    def assess(
+        self, snapshot: Any, spans: tuple[Any, ...], read_input: Callable[[Any], Any]
+    ) -> tuple[SpanAssessment, ...]:
         import torch
 
         views = {view.id: view for view in snapshot.conditioning}
@@ -51,19 +52,31 @@ class LikelihoodSpanScorer:
                 with torch.no_grad():
                     logits = self.model(input_ids=ids).logits[0].float() / self.temperature
                     rows = torch.tensor([position - 1 for position in positions.values()], device=logits.device)
-                    targets = torch.tensor([inputs.token_ids[position] for position in positions.values()],
-                                           device=logits.device)
+                    targets = torch.tensor(
+                        [inputs.token_ids[position] for position in positions.values()], device=logits.device
+                    )
                     selected = logits[rows].gather(1, targets.unsqueeze(1)).squeeze(1) - logits[rows].logsumexp(-1)
                 del logits
-                cache[view_id] = (inputs, {index: float(value) for index, value in zip(
-                    positions, selected.tolist(), strict=True)})
+                cache[view_id] = (
+                    inputs,
+                    {index: float(value) for index, value in zip(positions, selected.tolist(), strict=True)},
+                )
             inputs, logprobs = cache[view_id]
-            values = [logprobs[action.token_index] for interval in span.action_intervals for action in interval.actions()]
-            results.append(SpanAssessment(
-                snapshot.native_evidence_ref, span.id,
-                (RewardValue("mean_token_logprob", "valid", sum(values) / len(values)),),
-                self.revision, f"{view_id}@{inputs.record.input_digest}", "prefix", span.role,
-                f"{self.model_id}@{self.model_revision}"))
+            values = [
+                logprobs[action.token_index] for interval in span.action_intervals for action in interval.actions()
+            ]
+            results.append(
+                SpanAssessment(
+                    snapshot.native_evidence_ref,
+                    span.id,
+                    (RewardValue("mean_token_logprob", "valid", sum(values) / len(values)),),
+                    self.revision,
+                    f"{view_id}@{inputs.record.input_digest}",
+                    "prefix",
+                    span.role,
+                    f"{self.model_id}@{self.model_revision}",
+                )
+            )
         return tuple(results)
 
 
@@ -75,8 +88,12 @@ def group_centered_likelihood_estimate(assessments: tuple[SpanAssessment, ...], 
     group, so credit is relative quality among samples of one prompt.
     """
     spans = {span.id: span for span in snapshot.spans}
-    member_group = {action: relation.id for relation in snapshot.relations
-                    if relation.kind == "prompt-group" for action in relation.members}
+    member_group = {
+        action: relation.id
+        for relation in snapshot.relations
+        if relation.kind == "prompt-group"
+        for action in relation.members
+    }
     grouped: dict[str, list[tuple[str, float]]] = {}
     for assessment in assessments:
         groups = {member_group.get(action) for action in spans[assessment.span_id].actions()}
@@ -93,12 +110,15 @@ def group_centered_likelihood_estimate(assessments: tuple[SpanAssessment, ...], 
     return estimate
 
 
-def likelihood_process_credit(model: Any, *, model_id: str, model_revision: str, device: Any,
-                              temperature: float = 1.0) -> Any:
+def likelihood_process_credit(
+    model: Any, *, model_id: str, model_revision: str, device: Any, temperature: float = 1.0
+) -> Any:
     """Composition factory for ``credit_estimator: group-centered-likelihood@1``."""
     from posttrain.train.update_process_credit import ScoredSpanCreditProvider
 
-    scorer = LikelihoodSpanScorer(model, model_id=model_id, model_revision=model_revision, device=device,
-                                  temperature=temperature)
-    return ScoredSpanCreditProvider(scorer, ("reasoning",), "group-centered-likelihood", "1",
-                                    group_centered_likelihood_estimate)
+    scorer = LikelihoodSpanScorer(
+        model, model_id=model_id, model_revision=model_revision, device=device, temperature=temperature
+    )
+    return ScoredSpanCreditProvider(
+        scorer, ("reasoning",), "group-centered-likelihood", "1", group_centered_likelihood_estimate
+    )

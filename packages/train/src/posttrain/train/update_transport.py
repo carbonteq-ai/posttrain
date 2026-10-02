@@ -73,18 +73,32 @@ def population_payload(population: Any) -> dict[str, Any]:
     updates, objectives = [], {}
     for update in population.updates:
         objectives[record_digest(update.objective)] = asdict(update.objective)
-        updates.append({"digest": update.digest, "objective_digest": record_digest(update.objective),
-            "schedule_digest": update.schedule_digest, "epoch": update.epoch, "minibatch": update.minibatch,
-            "contributions": [asdict(value) for value in update.contributions],
-            "occurrence_ids": list(update.occurrence_ids), "dependencies": [asdict(value) for value in update.dependencies],
-            "discarded_contributions": list(update.discarded_contributions)})
-    return {"schema": "posttrain.resolved-population.v3", "population": asdict(population.updates[0].population),
-            "credit": asdict(population.credit), "spec": asdict(population.spec),
-            "execution": asdict(population.execution), "capabilities": asdict(population.capabilities),
-            "max_overflow_retries": getattr(population, "max_overflow_retries", 0),
-            "applied_update_offset": getattr(population, "applied_update_offset", 0),
-            "attempt_offset": getattr(population, "attempt_offset", 0),
-            "objectives": objectives, "updates": updates}
+        updates.append(
+            {
+                "digest": update.digest,
+                "objective_digest": record_digest(update.objective),
+                "schedule_digest": update.schedule_digest,
+                "epoch": update.epoch,
+                "minibatch": update.minibatch,
+                "contributions": [asdict(value) for value in update.contributions],
+                "occurrence_ids": list(update.occurrence_ids),
+                "dependencies": [asdict(value) for value in update.dependencies],
+                "discarded_contributions": list(update.discarded_contributions),
+            }
+        )
+    return {
+        "schema": "posttrain.resolved-population.v3",
+        "population": asdict(population.updates[0].population),
+        "credit": asdict(population.credit),
+        "spec": asdict(population.spec),
+        "execution": asdict(population.execution),
+        "capabilities": asdict(population.capabilities),
+        "max_overflow_retries": getattr(population, "max_overflow_retries", 0),
+        "applied_update_offset": getattr(population, "applied_update_offset", 0),
+        "attempt_offset": getattr(population, "attempt_offset", 0),
+        "objectives": objectives,
+        "updates": updates,
+    }
 
 
 def decode_population_payload(payload: Any) -> RetainedResolvedPopulation:
@@ -97,7 +111,9 @@ def decode_population_payload(payload: Any) -> RetainedResolvedPopulation:
     """
     try:
         if not isinstance(payload, dict) or payload.get("schema") not in {
-            "posttrain.resolved-population.v1", "posttrain.resolved-population.v2", "posttrain.resolved-population.v3",
+            "posttrain.resolved-population.v1",
+            "posttrain.resolved-population.v2",
+            "posttrain.resolved-population.v3",
         }:
             raise InvalidPolicyUpdate("unsupported retained population schema")
         data = dict(payload)
@@ -105,8 +121,19 @@ def decode_population_payload(payload: Any) -> RetainedResolvedPopulation:
             if data.get("applied_update_offset", 0) != 0 or data.get("attempt_offset", 0) != 0:
                 raise InvalidPolicyUpdate("legacy retained population cannot declare nonzero offsets")
             data.update(applied_update_offset=0, attempt_offset=0)
-        if set(data) != {"schema", "population", "credit", "spec", "execution", "capabilities",
-                         "max_overflow_retries", "applied_update_offset", "attempt_offset", "objectives", "updates"}:
+        if set(data) != {
+            "schema",
+            "population",
+            "credit",
+            "spec",
+            "execution",
+            "capabilities",
+            "max_overflow_retries",
+            "applied_update_offset",
+            "attempt_offset",
+            "objectives",
+            "updates",
+        }:
             raise InvalidPolicyUpdate("retained population fields differ from the supported schema")
         snapshot = _decode(PopulationSnapshot, data["population"])
         credit = _decode(PreparedCredit, data["credit"])
@@ -123,8 +150,9 @@ def decode_population_payload(payload: Any) -> RetainedResolvedPopulation:
         if not isinstance(data["objectives"], dict) or not isinstance(data["updates"], list):
             raise InvalidPolicyUpdate("retained objective and occurrence containers are invalid")
         objectives = {digest: _decode(ObjectivePopulation, value) for digest, value in data["objectives"].items()}
-        if not objectives or any(digest != record_digest(value) or value != expected_objective
-                                 for digest, value in objectives.items()):
+        if not objectives or any(
+            digest != record_digest(value) or value != expected_objective for digest, value in objectives.items()
+        ):
             raise InvalidPolicyUpdate("retained objective differs from its frozen resolved contract")
         updates = []
         used_objectives = set()
@@ -133,17 +161,22 @@ def decode_population_payload(payload: Any) -> RetainedResolvedPopulation:
             digest, objective_digest = values.pop("digest"), values.pop("objective_digest")
             used_objectives.add(objective_digest)
             objective = objectives[objective_digest]
-            update = _decode(ResolvedUpdate, {**values, "population": data["population"],
-                                              "objective": data["objectives"][objective_digest]})
-            if update.digest != digest or any(type(index) is not int or index < 0 for index in (update.epoch, update.minibatch)):
+            update = _decode(
+                ResolvedUpdate,
+                {**values, "population": data["population"], "objective": data["objectives"][objective_digest]},
+            )
+            if update.digest != digest or any(
+                type(index) is not int or index < 0 for index in (update.epoch, update.minibatch)
+            ):
                 raise InvalidPolicyUpdate("retained occurrence digest or cursor differs")
             if any(contribution not in objective.contributions for contribution in update.contributions):
                 raise InvalidPolicyUpdate("retained occurrence changes original contributions")
             updates.append(update)
         if used_objectives != set(objectives) or len({update.digest for update in updates}) != len(updates):
             raise InvalidPolicyUpdate("retained population has unused objectives or duplicate occurrences")
-        offsets = tuple(_decode(int, data[name]) for name in
-                        ("max_overflow_retries", "applied_update_offset", "attempt_offset"))
+        offsets = tuple(
+            _decode(int, data[name]) for name in ("max_overflow_retries", "applied_update_offset", "attempt_offset")
+        )
         if any(value < 0 for value in offsets) or offsets[2] < offsets[1]:
             raise InvalidPolicyUpdate("retained population offsets or retry limit are incoherent")
         packs = tuple(plan_packs(update, execution, capabilities) for update in updates)

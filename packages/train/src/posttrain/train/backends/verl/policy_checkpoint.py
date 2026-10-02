@@ -36,10 +36,13 @@ def seal_driver_checkpoint(checkpoint: Path) -> UpdateRecoveryState:
     actor = inspect_update_recovery(checkpoint / "actor")
     if actor.native_applied_updates != checkpoint_step(checkpoint):
         raise InvalidPolicyUpdate("driver checkpoint step differs from its native actor")
-    components = tuple(checkpoint_component(checkpoint, f"actor/{item.relative_path}", role=item.role)
-                       for item in actor.components)
-    components += (checkpoint_component(checkpoint, f"actor/{FILENAME}", role="actor-recovery-seal"),
-                   checkpoint_component(checkpoint, "data.pt", role="native-driver-state"))
+    components = tuple(
+        checkpoint_component(checkpoint, f"actor/{item.relative_path}", role=item.role) for item in actor.components
+    )
+    components += (
+        checkpoint_component(checkpoint, f"actor/{FILENAME}", role="actor-recovery-seal"),
+        checkpoint_component(checkpoint, "data.pt", role="native-driver-state"),
+    )
     # Native prompt selectors may write additional state. Bind every additional
     # driver file, rather than guessing a selector-specific serialization name.
     for path in sorted(checkpoint.rglob("*")):
@@ -58,12 +61,15 @@ def seal_driver_checkpoint(checkpoint: Path) -> UpdateRecoveryState:
 def inspect_driver_checkpoint(checkpoint: Path) -> UpdateRecoveryState:
     state = inspect_update_recovery(checkpoint)
     actor = inspect_update_recovery(checkpoint / "actor")
-    if (state.native_applied_updates != checkpoint_step(checkpoint)
-            or replace(state, components=actor.components) != actor
-            or not any(item.relative_path == "data.pt" and item.role == "native-driver-state"
-                       for item in state.components)
-            or not any(item.relative_path == f"actor/{FILENAME}" and item.role == "actor-recovery-seal"
-                       for item in state.components)):
+    if (
+        state.native_applied_updates != checkpoint_step(checkpoint)
+        or replace(state, components=actor.components) != actor
+        or not any(item.relative_path == "data.pt" and item.role == "native-driver-state" for item in state.components)
+        or not any(
+            item.relative_path == f"actor/{FILENAME}" and item.role == "actor-recovery-seal"
+            for item in state.components
+        )
+    ):
         raise InvalidPolicyUpdate("driver seal does not bind its complete native update boundary")
     return state
 
@@ -114,8 +120,9 @@ def stage_driver_checkpoint(checkpoint: Path, destination_root: Path) -> Path:
             if path.is_file():
                 with path.open("rb") as stream:
                     os.fsync(stream.fileno())
-        for directory in sorted((path for path in staged.rglob("*") if path.is_dir()),
-                                key=lambda path: len(path.parts), reverse=True) + [staged]:
+        for directory in sorted(
+            (path for path in staged.rglob("*") if path.is_dir()), key=lambda path: len(path.parts), reverse=True
+        ) + [staged]:
             descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
             try:
                 os.fsync(descriptor)
@@ -143,11 +150,22 @@ def publish_driver_checkpoint(context: RunContext, checkpoint: Path, destination
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                 digest.update(chunk)
     step = state.native_applied_updates
-    context.artifact(ProducedArtifact(f"training/checkpoint-{step:08d}/recovery", "training-checkpoint",
-        LocalArtifactRef(staged, digest.hexdigest()), role="recovery", metadata={
-            "checkpoint_view": "recovery", "checkpoint_step": step, "global_step": step,
-            "checkpoint_snapshot_id": f"{context.run_id}/step-{step:08d}",
-            "trainer_checkpoint_schema": "posttrain.resolved-update.v2", "runtime_identity": state.identity.runtime_identity}))
+    context.artifact(
+        ProducedArtifact(
+            f"training/checkpoint-{step:08d}/recovery",
+            "training-checkpoint",
+            LocalArtifactRef(staged, digest.hexdigest()),
+            role="recovery",
+            metadata={
+                "checkpoint_view": "recovery",
+                "checkpoint_step": step,
+                "global_step": step,
+                "checkpoint_snapshot_id": f"{context.run_id}/step-{step:08d}",
+                "trainer_checkpoint_schema": "posttrain.resolved-update.v2",
+                "runtime_identity": state.identity.runtime_identity,
+            },
+        )
+    )
     return staged
 
 
@@ -157,8 +175,9 @@ def prune_staged_checkpoint_sources(checkpoint_root: Path, publication_root: Pat
         raise InvalidPolicyUpdate("native checkpoint retention requires a positive limit")
     if checkpoint_root.is_symlink() or publication_root.is_symlink():
         raise InvalidPolicyUpdate("native checkpoint retention roots cannot be symlinks")
-    if (checkpoint_root.resolve().is_relative_to(publication_root.resolve())
-            or publication_root.resolve().is_relative_to(checkpoint_root.resolve())):
+    if checkpoint_root.resolve().is_relative_to(
+        publication_root.resolve()
+    ) or publication_root.resolve().is_relative_to(checkpoint_root.resolve()):
         raise InvalidPolicyUpdate("native retention and publication roots must be separate")
     candidates = []
     for checkpoint in checkpoint_root.glob("global_step_*"):

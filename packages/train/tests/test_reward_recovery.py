@@ -35,8 +35,9 @@ def test_absent_update_settings_preserve_pre_engine_recovery_digest() -> None:
 
     loop = TrainingLoop(max_steps=3, per_device_batch_size=2)
     projection = RewardProjection("test", "1", (RewardComponentProjection("outcome", "scalar"),))
-    request: Any = SimpleNamespace(settings=LegacySettings(loop), environment={"id": "env@1"},
-                                   bridge=SimpleNamespace(reward_projection=projection))
+    request: Any = SimpleNamespace(
+        settings=LegacySettings(loop), environment={"id": "env@1"}, bridge=SimpleNamespace(reward_projection=projection)
+    )
     before = reward_contract_digest(request)
     request.settings = AdditiveSettings(loop)
     assert reward_contract_digest(request) == before

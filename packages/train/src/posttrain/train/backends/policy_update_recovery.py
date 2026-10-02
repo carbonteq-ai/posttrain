@@ -39,7 +39,9 @@ def _correction_payload(correction: Mapping[ActionRef, float] | None) -> Any:
 
 
 def _correction_digest(correction: Mapping[ActionRef, float] | None) -> str:
-    return hashlib.sha256(json.dumps(_correction_payload(correction), sort_keys=True, allow_nan=False).encode()).hexdigest()
+    return hashlib.sha256(
+        json.dumps(_correction_payload(correction), sort_keys=True, allow_nan=False).encode()
+    ).hexdigest()
 
 
 def load_sampler_correction(checkpoint: Path, identity: UpdateRecoveryIdentity) -> Mapping[ActionRef, float] | None:
@@ -62,8 +64,9 @@ def load_sampler_correction(checkpoint: Path, identity: UpdateRecoveryIdentity) 
             raise ValueError("unsupported correction schema")
         pairs = [(ActionRef(**action), value) for action, value in payload["weights"]]
         correction = dict(pairs)
-        if len(correction) != len(pairs) or any(type(value) not in (float, int) or not math.isfinite(value) or value < 0
-                                               for value in correction.values()):
+        if len(correction) != len(pairs) or any(
+            type(value) not in (float, int) or not math.isfinite(value) or value < 0 for value in correction.values()
+        ):
             raise ValueError("invalid correction weights")
         retained = decode_population_payload(json.loads((checkpoint / POPULATION_FILENAME).read_text()))
         actions = {record.action for record in retained.resolved.snapshot.actions}
@@ -75,7 +78,9 @@ def load_sampler_correction(checkpoint: Path, identity: UpdateRecoveryIdentity) 
 
 
 def load_retained_population(
-    checkpoint: Path, identity: UpdateRecoveryIdentity, *,
+    checkpoint: Path,
+    identity: UpdateRecoveryIdentity,
+    *,
     sampler_correction: Mapping[ActionRef, float] | None,
 ) -> RetainedResolvedPopulation:
     """Reconstruct verified sidecar records before loading native parameters.
@@ -93,15 +98,24 @@ def load_retained_population(
     retained = decode_population_payload(payload)
     resolved = retained.resolved
     candidate = SimpleNamespace(
-        updates=resolved.updates, credit=resolved.credit, spec=resolved.spec,
-        execution=resolved.execution, capabilities=resolved.capabilities,
-        sampler_correction=sampler_correction, score_contract=identity.score_contract,
+        updates=resolved.updates,
+        credit=resolved.credit,
+        spec=resolved.spec,
+        execution=resolved.execution,
+        capabilities=resolved.capabilities,
+        sampler_correction=sampler_correction,
+        score_contract=identity.score_contract,
         score_temperature=identity.score_temperature,
         max_overflow_retries=retained.max_overflow_retries,
-        applied_update_offset=retained.applied_update_offset, attempt_offset=retained.attempt_offset,
+        applied_update_offset=retained.applied_update_offset,
+        attempt_offset=retained.attempt_offset,
     )
-    if population_recovery_identity(candidate, runtime_identity=identity.runtime_identity,
-                                    world_size=identity.world_size) != identity:
+    if (
+        population_recovery_identity(
+            candidate, runtime_identity=identity.runtime_identity, world_size=identity.world_size
+        )
+        != identity
+    ):
         raise InvalidPolicyUpdate("retained population reconstruction differs from the selected recovery identity")
     return retained
 
@@ -113,20 +127,38 @@ def population_recovery_identity(population: Any, *, runtime_identity: str, worl
     if capabilities["context_layout"] == "ragged":
         # Preserve the executable identity of legacy v1/v2 ragged checkpoints.
         capabilities.pop("context_layout")
-    execution_payload = {"budget": asdict(population.execution), "capabilities": capabilities,
-                         "max_overflow_retries": getattr(population, "max_overflow_retries", 0)}
-    execution_digest = hashlib.sha256(json.dumps(execution_payload, sort_keys=True, allow_nan=False).encode()).hexdigest()
+    execution_payload = {
+        "budget": asdict(population.execution),
+        "capabilities": capabilities,
+        "max_overflow_retries": getattr(population, "max_overflow_retries", 0),
+    }
+    execution_digest = hashlib.sha256(
+        json.dumps(execution_payload, sort_keys=True, allow_nan=False).encode()
+    ).hexdigest()
     return UpdateRecoveryIdentity(
-        population.updates[0].population.digest, population.credit.digest, record_digest(population.spec),
-        tuple(update.digest for update in population.updates), execution_digest,
-        correction_digest, runtime_identity, population.score_contract, population.score_temperature, world_size,
-        getattr(population, "applied_update_offset", 0), getattr(population, "attempt_offset", 0),
+        population.updates[0].population.digest,
+        population.credit.digest,
+        record_digest(population.spec),
+        tuple(update.digest for update in population.updates),
+        execution_digest,
+        correction_digest,
+        runtime_identity,
+        population.score_contract,
+        population.score_temperature,
+        world_size,
+        getattr(population, "applied_update_offset", 0),
+        getattr(population, "attempt_offset", 0),
     )
 
 
 def save_population_recovery(
-    population: Any, checkpoint: Path, *, runtime_identity: str, world_size: int,
-    native_applied_updates: int, native_components: tuple[str, ...],
+    population: Any,
+    checkpoint: Path,
+    *,
+    runtime_identity: str,
+    world_size: int,
+    native_applied_updates: int,
+    native_components: tuple[str, ...],
 ) -> UpdateRecoveryState:
     """Bind already saved native components and freeze scores before publication."""
     if getattr(population, "_pending", None) is not None:
@@ -138,28 +170,52 @@ def save_population_recovery(
     if (checkpoint / FILENAME).exists():
         state = load_update_recovery(checkpoint, identity)
         if (state.next_update, state.applied_updates, state.attempts, state.native_applied_updates) != (
-            population.next_update, population.applied_updates, population.attempts, native_applied_updates,
+            population.next_update,
+            population.applied_updates,
+            population.attempts,
+            native_applied_updates,
         ):
             raise InvalidPolicyUpdate("committed checkpoint differs from the current resolved boundary")
         return state
     values = {}
-    for role, frozen, version in (("old", population.old, snapshot.versions.old_score),
-                                 ("reference", population.reference, snapshot.versions.reference)):
+    for role, frozen, version in (
+        ("old", population.old, snapshot.versions.old_score),
+        ("reference", population.reference, snapshot.versions.reference),
+    ):
         if frozen is None:
             continue
         if version is None:
             raise InvalidPolicyUpdate("frozen reference has no declared policy version")
-        frozen.validate(snapshot, policy_version=version, score_contract=population.score_contract,
-                        score_temperature=population.score_temperature)
+        frozen.validate(
+            snapshot,
+            policy_version=version,
+            score_contract=population.score_contract,
+            score_temperature=population.score_temperature,
+        )
         values[role] = torch.stack([frozen.values[record.action].detach().cpu() for record in snapshot.actions])
     if population.spec.beta and "reference" not in values:
         raise InvalidPolicyUpdate("KL recovery requires retained population-frozen reference scores")
     # Check counters and native component presence before any sidecar mutation.
-    components = tuple(checkpoint_component(checkpoint, relative, role="native-checkpoint") for relative in native_components)
-    state = UpdateRecoveryState(identity, population.next_update, population.applied_updates, population.attempts,
-        native_applied_updates, f"{snapshot.versions.current}/applied-{population.applied_updates}",
-        components + (CheckpointComponent("frozen-policy-scores", SCORES_FILENAME, 0, "0" * 64),
-                      CheckpointComponent("resolved-population", POPULATION_FILENAME, 0, "0" * 64))) if components else None
+    components = tuple(
+        checkpoint_component(checkpoint, relative, role="native-checkpoint") for relative in native_components
+    )
+    state = (
+        UpdateRecoveryState(
+            identity,
+            population.next_update,
+            population.applied_updates,
+            population.attempts,
+            native_applied_updates,
+            f"{snapshot.versions.current}/applied-{population.applied_updates}",
+            components
+            + (
+                CheckpointComponent("frozen-policy-scores", SCORES_FILENAME, 0, "0" * 64),
+                CheckpointComponent("resolved-population", POPULATION_FILENAME, 0, "0" * 64),
+            ),
+        )
+        if components
+        else None
+    )
     if state is None:
         raise InvalidPolicyUpdate("resolved recovery requires saved native checkpoint components")
     from .policy_update_inputs import NativePopulationInputs
@@ -187,8 +243,9 @@ def save_population_recovery(
             stream.write(evidence)
             stream.flush()
             os.fsync(stream.fileno())
-        evidence_component = (checkpoint_component(checkpoint, NATIVE_EVIDENCE_FILENAME,
-                                                   role="native-rollout-evidence"),)
+        evidence_component = (
+            checkpoint_component(checkpoint, NATIVE_EVIDENCE_FILENAME, role="native-rollout-evidence"),
+        )
     with (checkpoint / SCORES_FILENAME).open("xb") as stream:
         torch.save(values, stream)
         stream.flush()
@@ -199,16 +256,27 @@ def save_population_recovery(
         os.fsync(stream.fileno())
     scores = checkpoint_component(checkpoint, SCORES_FILENAME, role="frozen-policy-scores")
     contract = checkpoint_component(checkpoint, POPULATION_FILENAME, role="resolved-population")
-    state = UpdateRecoveryState(identity, state.next_update, state.applied_updates, state.attempts,
-                                state.native_applied_updates, state.parameter_version,
-                                components + (scores, contract) + evidence_component + correction_component)
+    state = UpdateRecoveryState(
+        identity,
+        state.next_update,
+        state.applied_updates,
+        state.attempts,
+        state.native_applied_updates,
+        state.parameter_version,
+        components + (scores, contract) + evidence_component + correction_component,
+    )
     commit_update_recovery(checkpoint, state)
     return state
 
 
 def restore_population_recovery(
-    population: Any, checkpoint: Path, *, runtime_identity: str, world_size: int,
-    native_applied_updates: int, device: Any,
+    population: Any,
+    checkpoint: Path,
+    *,
+    runtime_identity: str,
+    world_size: int,
+    native_applied_updates: int,
+    device: Any,
 ) -> UpdateRecoveryState:
     """Restore scores/cursor after the adapter verifies native state restoration."""
     identity = population_recovery_identity(population, runtime_identity=runtime_identity, world_size=world_size)
@@ -225,12 +293,18 @@ def restore_population_recovery(
     expected = json.loads(json.dumps(_population_payload(population), allow_nan=False))
     decoded = decode_population_payload(retained)
     resolved = decoded.resolved
-    canonical = _population_payload(SimpleNamespace(
-        updates=resolved.updates, credit=resolved.credit, spec=resolved.spec,
-        execution=resolved.execution, capabilities=resolved.capabilities,
-        max_overflow_retries=decoded.max_overflow_retries,
-        applied_update_offset=decoded.applied_update_offset, attempt_offset=decoded.attempt_offset,
-    ))
+    canonical = _population_payload(
+        SimpleNamespace(
+            updates=resolved.updates,
+            credit=resolved.credit,
+            spec=resolved.spec,
+            execution=resolved.execution,
+            capabilities=resolved.capabilities,
+            max_overflow_retries=decoded.max_overflow_retries,
+            applied_update_offset=decoded.applied_update_offset,
+            attempt_offset=decoded.attempt_offset,
+        )
+    )
     if json.loads(json.dumps(canonical, allow_nan=False)) != expected:
         raise InvalidPolicyUpdate("recovery retained population/credit differs from selected resolved inputs")
     try:
@@ -243,16 +317,39 @@ def restore_population_recovery(
     frozen = {}
     for role, tensor in payload.items():
         version = snapshot.versions.old_score if role == "old" else snapshot.versions.reference
-        if version is None or not isinstance(tensor, torch.Tensor) or not tensor.is_floating_point() or tensor.shape != (len(snapshot.actions),):
+        if (
+            version is None
+            or not isinstance(tensor, torch.Tensor)
+            or not tensor.is_floating_point()
+            or tensor.shape != (len(snapshot.actions),)
+        ):
             raise InvalidPolicyUpdate("recovery scores do not align with the admitted action population")
-        scores = FrozenPopulationScores(snapshot.digest, version, population.score_contract, population.score_temperature,
-            MappingProxyType({record.action: value.detach().clone() for record, value in zip(snapshot.actions, tensor.unbind(), strict=True)}))
-        scores.validate(snapshot, policy_version=version, score_contract=population.score_contract,
-                        score_temperature=population.score_temperature)
+        scores = FrozenPopulationScores(
+            snapshot.digest,
+            version,
+            population.score_contract,
+            population.score_temperature,
+            MappingProxyType(
+                {
+                    record.action: value.detach().clone()
+                    for record, value in zip(snapshot.actions, tensor.unbind(), strict=True)
+                }
+            ),
+        )
+        scores.validate(
+            snapshot,
+            policy_version=version,
+            score_contract=population.score_contract,
+            score_temperature=population.score_temperature,
+        )
         frozen[role] = scores
     # Mutate live cursor only after every identity/file/score check succeeded.
     population.old = frozen["old"]
     population.reference = frozen.get("reference")
-    population.next_update, population.applied_updates, population.attempts = state.next_update, state.applied_updates, state.attempts
+    population.next_update, population.applied_updates, population.attempts = (
+        state.next_update,
+        state.applied_updates,
+        state.attempts,
+    )
     population._pending = None
     return state

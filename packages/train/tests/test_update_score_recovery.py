@@ -43,10 +43,14 @@ def test_recovery_reconstructs_records_before_loading_frozen_scores(tmp_path):
     identity = population_recovery_identity(original, runtime_identity=kwargs["runtime_identity"], world_size=1)
     retained = load_retained_population(tmp_path, identity, sampler_correction=None)
     rebuilt = ResolvedTRLPopulation.from_resolved(
-        retained.resolved, read_input=original.read_input, score_temperature=original.score_temperature,
-        score_contract=original.score_contract, sampler_correction=None,
+        retained.resolved,
+        read_input=original.read_input,
+        score_temperature=original.score_temperature,
+        score_contract=original.score_contract,
+        sampler_correction=None,
         max_overflow_retries=retained.max_overflow_retries,
-        applied_update_offset=retained.applied_update_offset, attempt_offset=retained.attempt_offset,
+        applied_update_offset=retained.applied_update_offset,
+        attempt_offset=retained.attempt_offset,
     )
     assert rebuilt.updates == original.updates and rebuilt.credit == original.credit
     assert rebuilt.old is None and rebuilt.next_update == 0
@@ -62,14 +66,25 @@ def test_recovery_reconstructs_records_before_loading_frozen_scores(tmp_path):
 def population(**kwargs):
     snapshot, source, credit, spec, update, capabilities = resolved("sampo@1")
     updates = resolve_updates(snapshot, PolicyUpdateSchedule("episode", 2, epochs=2), update.objective)
-    return ResolvedTRLPopulation(updates, credit, spec, PolicyExecutionBudget(1, 100, 10000), capabilities,
-                                 lambda view: source, 0.7, "score@1", None, **kwargs)
+    return ResolvedTRLPopulation(
+        updates,
+        credit,
+        spec,
+        PolicyExecutionBudget(1, 100, 10000),
+        capabilities,
+        lambda view: source,
+        0.7,
+        "score@1",
+        None,
+        **kwargs,
+    )
 
 
 def test_detached_correction_is_sealed_and_restored_without_rescoring(tmp_path):
     original = population()
-    original.sampler_correction = {record.action: (index + 1) / 4
-                                   for index, record in enumerate(original.updates[0].population.actions)}
+    original.sampler_correction = {
+        record.action: (index + 1) / 4 for index, record in enumerate(original.updates[0].population.actions)
+    }
     original.loss(CausalModel(), 0, torch.device("cpu"))
     optimizer = SimpleNamespace(step_was_skipped=False)
     original.before_step(optimizer)
@@ -109,8 +124,14 @@ def test_uncorrected_checkpoint_keeps_existing_identity_and_no_correction_file(t
     original.before_step(optimizer)
     original.complete_step(optimizer)
     (tmp_path / "native.bin").write_bytes(b"uncorrected fixture")
-    saved = save_population_recovery(original, tmp_path, native_components=("native.bin",),
-        runtime_identity="uncorrected@1", world_size=1, native_applied_updates=1)
+    saved = save_population_recovery(
+        original,
+        tmp_path,
+        native_components=("native.bin",),
+        runtime_identity="uncorrected@1",
+        world_size=1,
+        native_applied_updates=1,
+    )
     assert load_sampler_correction(tmp_path, saved.identity) is None
     assert not (tmp_path / "posttrain-sampler-correction.json").exists()
 
@@ -176,8 +197,9 @@ def test_population_cursor_and_frozen_scores_roundtrip_without_mutating_on_failu
     save_population_recovery(original, tmp_path, native_components=("native.bin",), **kwargs)
     resumed = population()
     with pytest.raises(InvalidPolicyUpdate, match="identity changed"):
-        restore_population_recovery(resumed, tmp_path, device=torch.device("cpu"),
-                                    **{**kwargs, "runtime_identity": "different"})
+        restore_population_recovery(
+            resumed, tmp_path, device=torch.device("cpu"), **{**kwargs, "runtime_identity": "different"}
+        )
     assert resumed.old is None and resumed.applied_updates == resumed.next_update == 0
     resumed.max_overflow_retries = 1
     with pytest.raises(InvalidPolicyUpdate, match="identity changed"):

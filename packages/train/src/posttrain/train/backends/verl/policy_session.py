@@ -46,9 +46,18 @@ class ResolvedVeRLActorSession:
 
     def __post_init__(self) -> None:
         self.host = ResolvedVeRLCollectionHost(
-            self.context, self.settings, self.capabilities, self.engine, self._take_receipts,
-            self.restore_population, self.runtime_identity, self.template_revision,
-            self.score_temperature, self.score_contract, self.max_overflow_retries, self.reference_scores,
+            self.context,
+            self.settings,
+            self.capabilities,
+            self.engine,
+            self._take_receipts,
+            self.restore_population,
+            self.runtime_identity,
+            self.template_revision,
+            self.score_temperature,
+            self.score_contract,
+            self.max_overflow_retries,
+            self.reference_scores,
         )
 
     def state(self) -> dict[str, int | bool]:
@@ -58,8 +67,11 @@ class ResolvedVeRLActorSession:
             raise InvalidPolicyUpdate("native actor counter lacks its resolved population state")
         if current is not None and (current.global_applied_updates != applied or current._pending is not None):
             raise InvalidPolicyUpdate("resolved actor is not at a complete native update boundary")
-        return {"applied": applied, "attempts": current.global_attempts if current is not None else 0,
-                "needs_population": current is None or current.next_update == len(current.updates)}
+        return {
+            "applied": applied,
+            "attempts": current.global_attempts if current is not None else 0,
+            "needs_population": current is None or current.next_update == len(current.updates),
+        }
 
     def _take_receipts(self, applied: int, attempts: int) -> Any:
         import numpy as np
@@ -76,9 +88,11 @@ class ResolvedVeRLActorSession:
         if type(expected_applied) is not int or before["applied"] != expected_applied or self._receipts is not None:
             raise InvalidPolicyUpdate("driver update differs from the native actor boundary")
         if before["needs_population"]:
-            if not isinstance(receipts, tuple) or len(receipts) != (
-                self.settings.num_prompts_per_step * self.settings.num_generations
-            ) or any(not isinstance(value, str) or not value for value in receipts):
+            if (
+                not isinstance(receipts, tuple)
+                or len(receipts) != (self.settings.num_prompts_per_step * self.settings.num_generations)
+                or any(not isinstance(value, str) or not value for value in receipts)
+            ):
                 raise InvalidPolicyUpdate("resolved actor requires one complete native receipt population")
             self._receipts = receipts
             self._collection_boundary = (expected_applied, int(before["attempts"]))
@@ -90,12 +104,16 @@ class ResolvedVeRLActorSession:
             raise InvalidPolicyUpdate("native actor did not commit exactly one resolved optimizer update")
         population = self.host.run.active()
         adjoints = population.last_adjoints
-        term = resolve_objective_term(population.updates[population.next_update - 1], population.spec, population.credit)
+        term = resolve_objective_term(
+            population.updates[population.next_update - 1], population.spec, population.credit
+        )
         advantages = {value.action: value.advantage for value in population.credit.values}
         selected = [advantages[value.action] for value in term.policy_weights]
         metrics = {
-            "train/rl/loss": float(output["loss"]), "train/rl/policy_loss": float(output["policy_loss"]),
-            "train/rl/kl_loss": float(output["kl_loss"]), "train/rl/applied_optimizer_updates": float(after["applied"]),
+            "train/rl/loss": float(output["loss"]),
+            "train/rl/policy_loss": float(output["policy_loss"]),
+            "train/rl/kl_loss": float(output["kl_loss"]),
+            "train/rl/applied_optimizer_updates": float(after["applied"]),
             "train/rl/optimizer_attempts": float(after["attempts"]),
             "train/rl/selected_policy_actions": float(len(term.policy_weights)),
             "train/rl/selected_kl_actions": float(len(term.kl_weights)),
@@ -103,11 +121,15 @@ class ResolvedVeRLActorSession:
         }
         if selected:
             mean = sum(selected) / len(selected)
-            metrics.update({"train/rl/advantage_mean": mean,
-                "train/rl/advantage_abs_mean": sum(abs(value) for value in selected) / len(selected),
-                "train/rl/advantage_std": (sum((value - mean) ** 2 for value in selected) / len(selected)) ** .5,
-                "train/rl/advantage_nonzero_fraction": sum(value != 0 for value in selected) / len(selected),
-                "train/rl/clip_fraction": len(adjoints.evaluation.clipped_actions) / len(selected)})
+            metrics.update(
+                {
+                    "train/rl/advantage_mean": mean,
+                    "train/rl/advantage_abs_mean": sum(abs(value) for value in selected) / len(selected),
+                    "train/rl/advantage_std": (sum((value - mean) ** 2 for value in selected) / len(selected)) ** 0.5,
+                    "train/rl/advantage_nonzero_fraction": sum(value != 0 for value in selected) / len(selected),
+                    "train/rl/clip_fraction": len(adjoints.evaluation.clipped_actions) / len(selected),
+                }
+            )
         for name, value in self.engine.last_loss_scale_metrics.items():
             metrics[f"train/{name}"] = float(value)
         return metrics
@@ -124,9 +146,16 @@ class ResolvedVeRLActorSession:
 
 
 def actor_session_from_manifest(
-    manifest: VerlLaunchManifest, engine: Any, observer: Observer, *,
-    capabilities: ExecutionCapabilities, runtime_identity: str, template_revision: str,
-    score_temperature: float, score_contract: str, max_overflow_retries: int = 0,
+    manifest: VerlLaunchManifest,
+    engine: Any,
+    observer: Observer,
+    *,
+    capabilities: ExecutionCapabilities,
+    runtime_identity: str,
+    template_revision: str,
+    score_temperature: float,
+    score_contract: str,
+    max_overflow_retries: int = 0,
     reference_scores: Callable[[ResolvedVeRLPopulation], Any] | None = None,
 ) -> ResolvedVeRLActorSession:
     """Bind the real host identity and restore sealed credit without recomputing it.
@@ -152,21 +181,37 @@ def actor_session_from_manifest(
         first = json.loads(evidence.splitlines()[0])
         if not isinstance(first, dict):
             raise InvalidPolicyUpdate("resolved actor recovery requires native record objects")
-        return decode_native_population(evidence, format=("verifiers-native-episodes" if "traces" in first
-                                                          else "verifiers-native-traces"))
+        return decode_native_population(
+            evidence, format=("verifiers-native-episodes" if "traces" in first else "verifiers-native-traces")
+        )
 
     def restore(checkpoint: Path) -> ResolvedVeRLPopulation:
         from ..policy_update_recovery import load_sampler_correction
 
         state = inspect_update_recovery(checkpoint)
-        if state.identity.runtime_identity != runtime_identity or state.identity.world_size != engine.get_data_parallel_size():
+        if (
+            state.identity.runtime_identity != runtime_identity
+            or state.identity.world_size != engine.get_data_parallel_size()
+        ):
             raise InvalidPolicyUpdate("resolved actor recovery differs from the actual native runtime")
         correction = load_sampler_correction(checkpoint, state.identity)
-        admitted = AdmittedNativePopulation.from_checkpoint(checkpoint, state.identity,
-            sampler_correction=correction, decode=decode)
-        return ResolvedVeRLPopulation.from_admitted(admitted, score_temperature=score_temperature,
-            score_contract=score_contract, sampler_correction=correction)
+        admitted = AdmittedNativePopulation.from_checkpoint(
+            checkpoint, state.identity, sampler_correction=correction, decode=decode
+        )
+        return ResolvedVeRLPopulation.from_admitted(
+            admitted, score_temperature=score_temperature, score_contract=score_contract, sampler_correction=correction
+        )
 
-    return ResolvedVeRLActorSession(context, selected.settings, capabilities, engine, restore,
-        runtime_identity, template_revision, score_temperature, score_contract,
-        max_overflow_retries, reference_scores)
+    return ResolvedVeRLActorSession(
+        context,
+        selected.settings,
+        capabilities,
+        engine,
+        restore,
+        runtime_identity,
+        template_revision,
+        score_temperature,
+        score_contract,
+        max_overflow_retries,
+        reference_scores,
+    )

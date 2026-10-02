@@ -297,8 +297,9 @@ class VerlLaunchManifest(VerlContract):
     @model_validator(mode="after")
     def _operation_roles(self) -> Self:
         payload = self.payload
-        if self.operation == "distill" and (payload.resolved_settings is not None
-                                            or payload.algorithm.policy_updates is not None):
+        if self.operation == "distill" and (
+            payload.resolved_settings is not None or payload.algorithm.policy_updates is not None
+        ):
             raise ValueError("resolved policy update settings are not qualified for veRL distillation")
         if not self.result_file.is_relative_to(self.output_directory):
             raise ValueError("veRL result_file must remain inside output_directory")
@@ -312,8 +313,13 @@ class VerlLaunchManifest(VerlContract):
                 selected = retained.settings
                 algorithm = payload.algorithm
                 if selected.policy_updates != algorithm.policy_updates or any(
-                    getattr(selected, name) != getattr(algorithm, name) for name in (
-                        "beta", "num_prompts_per_step", "num_generations", "max_prompt_length", "max_completion_length",
+                    getattr(selected, name) != getattr(algorithm, name)
+                    for name in (
+                        "beta",
+                        "num_prompts_per_step",
+                        "num_generations",
+                        "max_prompt_length",
+                        "max_completion_length",
                     )
                 ):
                     raise ValueError("resolved veRL settings differ from native algorithm launch fields")
@@ -321,11 +327,21 @@ class VerlLaunchManifest(VerlContract):
                 if selected.clip_epsilon_low != algorithm.clip_epsilon_low or high != algorithm.clip_epsilon_high:
                     raise ValueError("resolved veRL settings differ from native clipping launch fields")
                 loop = payload.training.loop
-                if any(getattr(selected.loop, name) != getattr(loop, name) for name in (
-                    "max_steps", "per_device_batch_size", "gradient_accumulation_steps", "learning_rate",
-                    "lr_scheduler_type", "max_grad_norm", "checkpoint_steps", "checkpoint_limit", "seed",
-                    "gradient_checkpointing",
-                )):
+                if any(
+                    getattr(selected.loop, name) != getattr(loop, name)
+                    for name in (
+                        "max_steps",
+                        "per_device_batch_size",
+                        "gradient_accumulation_steps",
+                        "learning_rate",
+                        "lr_scheduler_type",
+                        "max_grad_norm",
+                        "checkpoint_steps",
+                        "checkpoint_limit",
+                        "seed",
+                        "gradient_checkpointing",
+                    )
+                ):
                     raise ValueError("resolved veRL settings differ from native loop launch fields")
                 if loop.warmup_steps != verl_warmup_steps(selected.loop):
                     raise ValueError("resolved veRL settings differ from native warmup launch fields")

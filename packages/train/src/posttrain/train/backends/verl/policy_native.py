@@ -29,22 +29,28 @@ def validate_native_selection(manifest: VerlLaunchManifest) -> None:
     settings = selected.settings
     updates = settings.policy_updates
     runtime = manifest.payload.training.runtime
-    if (updates is None
-            or runtime.nodes != 1
-            or manifest.payload.training.target.world_size != (runtime.devices_per_node or 1)
-            or settings.mask_truncated_completions
-            or (updates.objective_variant == "semantic-spans" and not isinstance(settings, SAMPOSettings))
-            or any(getattr(settings, name, None) is not None for name in (
-                "adaptive_curriculum", "dynamic_sampling"))
-            or (getattr(settings, "active_sampling", None) is not None and not isinstance(settings, SAMPOSettings))):
+    if (
+        updates is None
+        or runtime.nodes != 1
+        or manifest.payload.training.target.world_size != (runtime.devices_per_node or 1)
+        or settings.mask_truncated_completions
+        or (updates.objective_variant == "semantic-spans" and not isinstance(settings, SAMPOSettings))
+        or any(getattr(settings, name, None) is not None for name in ("adaptive_curriculum", "dynamic_sampling"))
+        or (getattr(settings, "active_sampling", None) is not None and not isinstance(settings, SAMPOSettings))
+    ):
         raise InvalidPolicyUpdate("resolved native entrypoint has not qualified this execution or collection selection")
     native_context_layout(manifest)
     examples = manifest.payload.environment.examples
     if len({value.id for value in examples}) != len(examples) or len(examples) < settings.num_prompts_per_step:
         raise InvalidPolicyUpdate("resolved native collection requires enough distinct tasks for complete groups")
     sampling = policy_sampling_from_mapping(manifest.payload.rollout.sampling, settings.max_completion_length)
-    if (sampling.top_p != 1 or sampling.top_k != 0 or sampling.min_p not in (None, 0)
-            or sampling.repetition_penalty != 1 or sampling.presence_penalty != 0):
+    if (
+        sampling.top_p != 1
+        or sampling.top_k != 0
+        or sampling.min_p not in (None, 0)
+        or sampling.repetition_penalty != 1
+        or sampling.presence_penalty != 0
+    ):
         raise InvalidPolicyUpdate("resolved native entrypoint requires unwarped synchronous sampler evidence")
 
 
@@ -73,8 +79,12 @@ def build_native_trainer(manifest: VerlLaunchManifest, config: Any) -> Any:
     selected = manifest.payload.resolved_settings
     assert selected is not None
     settings = selected.settings
-    validate_native_execution_profile(manifest, config.actor_rollout_ref.model,
-        config.actor_rollout_ref.actor.fsdp_config, actor_config=config.actor_rollout_ref.actor)
+    validate_native_execution_profile(
+        manifest,
+        config.actor_rollout_ref.model,
+        config.actor_rollout_ref.actor.fsdp_config,
+        actor_config=config.actor_rollout_ref.actor,
+    )
     behavior = policy_sampling_from_mapping(manifest.payload.rollout.sampling, settings.max_completion_length)
     if config.actor_rollout_ref.rollout.temperature != behavior.temperature:
         raise InvalidPolicyUpdate("native rollout temperature differs from the selected scoring distribution")
@@ -97,22 +107,44 @@ def build_native_trainer(manifest: VerlLaunchManifest, config: Any) -> Any:
             rank = dist.get_rank(engine.get_data_parallel_group())
         observer = ResolvedWorkerObserver(manifest.output_directory / JOURNAL_NAME, context, publishing=rank == 0)
         capabilities = native_execution_capabilities(manifest, engine)
-        session = actor_session_from_manifest(manifest, engine, observer, capabilities=capabilities,
-            runtime_identity=runtime_identity, template_revision=template, score_temperature=behavior.temperature,
-            score_contract=SCORE_CONTRACT, reference_scores=base_reference_provider(manifest, engine))
-        session.context.event("resolved_actor_initialized", {"runtime_identity": runtime_identity,
-            "template_revision": template, "score_contract": SCORE_CONTRACT, "score_temperature": behavior.temperature})
+        session = actor_session_from_manifest(
+            manifest,
+            engine,
+            observer,
+            capabilities=capabilities,
+            runtime_identity=runtime_identity,
+            template_revision=template,
+            score_temperature=behavior.temperature,
+            score_contract=SCORE_CONTRACT,
+            reference_scores=base_reference_provider(manifest, engine),
+        )
+        session.context.event(
+            "resolved_actor_initialized",
+            {
+                "runtime_identity": runtime_identity,
+                "template_revision": template,
+                "score_contract": SCORE_CONTRACT,
+                "score_temperature": behavior.temperature,
+            },
+        )
         return session
 
-    actor = resolved_actor_worker_type(TrainingWorker, ActorRolloutRefWorker, EngineRegistry, session_factory,
-        validate_engine=partial(validate_native_execution_profile, manifest))
+    actor = resolved_actor_worker_type(
+        TrainingWorker,
+        ActorRolloutRefWorker,
+        EngineRegistry,
+        session_factory,
+        validate_engine=partial(validate_native_execution_profile, manifest),
+    )
     trainer = resolved_trainer_type(actor, settings, checkpoint_context)
     return trainer(config=config)
 
 
 def main() -> None:
     if len(sys.argv) < 2:
-        raise SystemExit("usage: python -m posttrain.train.backends.verl.policy_native MANIFEST.json [HYDRA_OVERRIDE...]")
+        raise SystemExit(
+            "usage: python -m posttrain.train.backends.verl.policy_native MANIFEST.json [HYDRA_OVERRIDE...]"
+        )
     manifest = VerlLaunchManifest.read(Path(sys.argv[1]).resolve())
     validate_native_selection(manifest)
     from hydra import compose, initialize_config_module

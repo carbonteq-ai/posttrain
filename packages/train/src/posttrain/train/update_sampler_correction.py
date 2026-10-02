@@ -24,8 +24,11 @@ def recipe_sampler_correction_weights(
 ) -> Mapping[ActionRef, float]:
     """Apply the normalizer's selected recipe consistently in either backend."""
     if isinstance(settings, GRPOSettings | SAMPOSettings):
-        mode, lower, upper = (settings.importance_sampling_mode,
-                              settings.importance_sampling_clip_min, settings.importance_sampling_clip_max)
+        mode, lower, upper = (
+            settings.importance_sampling_mode,
+            settings.importance_sampling_clip_min,
+            settings.importance_sampling_clip_max,
+        )
     elif isinstance(settings, GDPOSettings | CAPOSettings):
         mode, lower, upper = "token_truncate", None, 3.0
     else:
@@ -52,14 +55,19 @@ def sampler_correction_weights(
     if mode not in {"token_truncate", "token_mask", "sequence_truncate", "sequence_mask"}:
         raise InvalidPolicyUpdate("unsupported sampler correction mode")
     bounds = (lower, upper)
-    if any(value is not None and (type(value) not in (float, int) or not math.isfinite(value) or value <= 0)
-           for value in bounds) or (lower is not None and upper is not None and lower >= upper):
+    if any(
+        value is not None and (type(value) not in (float, int) or not math.isfinite(value) or value <= 0)
+        for value in bounds
+    ) or (lower is not None and upper is not None and lower >= upper):
         raise InvalidPolicyUpdate("sampler correction bounds must be positive finite and ordered")
     actions = tuple(record.action for record in snapshot.actions)
     if set(old) != set(actions) or set(sampled) != set(actions):
         raise InvalidPolicyUpdate("sampler correction requires exact complete population score support")
-    if any(type(value) not in (float, int) or not math.isfinite(value)
-           for scores in (old, sampled) for value in scores.values()):
+    if any(
+        type(value) not in (float, int) or not math.isfinite(value)
+        for scores in (old, sampled)
+        for value in scores.values()
+    ):
         raise InvalidPolicyUpdate("sampler correction requires detached finite log scores")
     deltas = {action: old[action] - sampled[action] for action in actions}
     if any(not math.isfinite(value) for value in deltas.values()):

@@ -26,8 +26,11 @@ def single_actor_result(results: Any) -> Mapping[str, Any]:
     counters, so every rank must report exactly the same state and metrics;
     any divergence is a failed distributed update, not a value to average.
     """
-    if (not isinstance(results, (list, tuple)) or not results
-            or not all(isinstance(value, Mapping) for value in results)):
+    if (
+        not isinstance(results, (list, tuple))
+        or not results
+        or not all(isinstance(value, Mapping) for value in results)
+    ):
         raise InvalidPolicyUpdate("resolved driver requires native actor results")
     if any(dict(value) != dict(results[0]) for value in results[1:]):
         raise InvalidPolicyUpdate("resolved data-parallel actor ranks report different global state")
@@ -59,8 +62,11 @@ def native_candidate_tasks(batch: Any, expected_count: int) -> tuple[str, ...]:
         values = tuple(getattr(value, "data", value) for value in batch["example_id"])
     except (KeyError, TypeError, AttributeError) as error:
         raise InvalidPolicyUpdate("native candidate reservation lacks task identities") from error
-    if (len(values) != expected_count or any(not isinstance(value, str) or not value for value in values)
-            or len(set(values)) != len(values)):
+    if (
+        len(values) != expected_count
+        or any(not isinstance(value, str) or not value for value in values)
+        or len(set(values)) != len(values)
+    ):
         raise InvalidPolicyUpdate("native candidate reservation requires distinct complete task inventory")
     return values
 
@@ -124,7 +130,8 @@ class ResolvedVeRLDriverSteps:
                 self.on_sample_begin()
                 self._prepare_resolved_collection()
                 batch, rollout_metrics = self.replay_buffer.sample(
-                    global_steps=applied, partition_id="train",
+                    global_steps=applied,
+                    partition_id="train",
                     batch_size=self.resolved_settings.num_prompts_per_step,
                 )
                 metrics.update(rollout_metrics)
@@ -132,10 +139,10 @@ class ResolvedVeRLDriverSteps:
                 metrics.update(self._consume_rollout_metrics())
             finally:
                 self.global_steps = pending_commit
-            data = tq.kv_batch_get(keys=batch.keys, partition_id=batch.partition_id,
-                                   select_fields=["extra_fields"])
-            receipts = native_receipts(data, self.resolved_settings.num_prompts_per_step
-                                       * self.resolved_settings.num_generations)
+            data = tq.kv_batch_get(keys=batch.keys, partition_id=batch.partition_id, select_fields=["extra_fields"])
+            receipts = native_receipts(
+                data, self.resolved_settings.num_prompts_per_step * self.resolved_settings.num_generations
+            )
         else:
             # Previous native on_step_end woke rollout replicas for weight sync;
             # reclaim colocated rollout memory even when no collection is needed.
@@ -154,7 +161,8 @@ class ResolvedVeRLDriverSteps:
 
 
 def resolved_trainer_type(
-    actor_worker: type, settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
+    actor_worker: type,
+    settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
     checkpoint_context: RunContext | None = None,
 ) -> type:
     """Compose the native synchronous trainer without changing global registries."""
@@ -175,36 +183,49 @@ def resolved_trainer_type(
             if bool(native_active.enable) != (active is not None):
                 raise InvalidPolicyUpdate("native driver configuration changes resolved collection semantics")
             if active is not None and (
-                    native_active.max_candidate_batches != active.max_candidate_batches
-                    or native_active.oversample != active.oversample
-                    or native_active.oversample_refill != active.oversample_refill
-                    or native_active.reward_std_epsilon != 0.0
-                    or native_active.metric != "group_reward"):
+                native_active.max_candidate_batches != active.max_candidate_batches
+                or native_active.oversample != active.oversample
+                or native_active.oversample_refill != active.oversample_refill
+                or native_active.reward_std_epsilon != 0.0
+                or native_active.metric != "group_reward"
+            ):
                 raise InvalidPolicyUpdate("native active sampling differs from selected candidate reservation")
-            if (config.trainer.v1.trainer_mode != "sync"
-                    or config.trainer.v1.get("sync", {}).get("parameter_sync_step", 1) != 1
-                    or config.data.train_batch_size != settings.num_prompts_per_step
-                    or config.actor_rollout_ref.rollout.n != settings.num_generations
-                    or config.trainer.total_training_steps != settings.loop.max_steps
-                    or config.algorithm.use_kl_in_reward
-                    or config.algorithm.filter_groups.enable
-                    or sampler.get("sync_refill_failed_groups", False)
-                    or sampler.get("refill_all_failed_groups", False)
-                    or sampler.get("failed_group_attempts", 0)
-                    or custom.get("path") or custom.get("name")
-                    or config.trainer.get("rollout_data_dir")
-                    or config.trainer.get("default_hdfs_dir")
-                    or config.trainer.get("del_local_ckpt_after_load", False)
-                    or (config.trainer.get("max_actor_ckpt_to_keep") is not None
-                        and (checkpoint_context is None or config.trainer.max_actor_ckpt_to_keep != settings.loop.checkpoint_limit))
-                    or config.trainer.get("remove_previous_ckpt_in_save", False)
-                    or config.actor_rollout_ref.actor.get("checkpoint", {}).get("async_save", False)
-                    or any(value.get("enable", False) for name, value in config.get("skip", {}).items()
-                           if not name.startswith("_"))):
+            if (
+                config.trainer.v1.trainer_mode != "sync"
+                or config.trainer.v1.get("sync", {}).get("parameter_sync_step", 1) != 1
+                or config.data.train_batch_size != settings.num_prompts_per_step
+                or config.actor_rollout_ref.rollout.n != settings.num_generations
+                or config.trainer.total_training_steps != settings.loop.max_steps
+                or config.algorithm.use_kl_in_reward
+                or config.algorithm.filter_groups.enable
+                or sampler.get("sync_refill_failed_groups", False)
+                or sampler.get("refill_all_failed_groups", False)
+                or sampler.get("failed_group_attempts", 0)
+                or custom.get("path")
+                or custom.get("name")
+                or config.trainer.get("rollout_data_dir")
+                or config.trainer.get("default_hdfs_dir")
+                or config.trainer.get("del_local_ckpt_after_load", False)
+                or (
+                    config.trainer.get("max_actor_ckpt_to_keep") is not None
+                    and (
+                        checkpoint_context is None
+                        or config.trainer.max_actor_ckpt_to_keep != settings.loop.checkpoint_limit
+                    )
+                )
+                or config.trainer.get("remove_previous_ckpt_in_save", False)
+                or config.actor_rollout_ref.actor.get("checkpoint", {}).get("async_save", False)
+                or any(
+                    value.get("enable", False)
+                    for name, value in config.get("skip", {}).items()
+                    if not name.startswith("_")
+                )
+            ):
                 raise InvalidPolicyUpdate("native driver configuration changes resolved collection semantics")
             self.resolved_settings = settings
             self._resolved_active_candidates = (
-                settings.num_prompts_per_step * active.max_candidate_batches if active is not None else 0)
+                settings.num_prompts_per_step * active.max_candidate_batches if active is not None else 0
+            )
             PPOTrainerSync.__init__(self, config)
             if self.use_critic or self.use_teacher_policy:
                 raise InvalidPolicyUpdate("resolved native driver does not support critic or teacher pipelines")
@@ -219,16 +240,22 @@ def resolved_trainer_type(
                 if checkpoint_context is not None:
                     from .policy_collection import NativeActiveCollectionBuffer
 
-                    return NativeActiveCollectionBuffer(replay, checkpoint_context,
+                    return NativeActiveCollectionBuffer(
+                        replay,
+                        checkpoint_context,
                         Path(self.config.trainer.default_local_dir).parent / "collection-evidence",
-                        settings.num_generations)
+                        settings.num_generations,
+                    )
                 return replay
             # Unfiltered selections admit original complete groups directly.
             sampler = self.config.trainer.v1.sampler
-            return ReplayBuffer(trainer_mode="sync", trainer_config=self.config.trainer.v1.get("sync", {}),
+            return ReplayBuffer(
+                trainer_mode="sync",
+                trainer_config=self.config.trainer.v1.get("sync", {}),
                 max_off_policy_threshold=sampler.max_off_policy_threshold,
                 max_off_policy_strategy=sampler.max_off_policy_strategy,
-                sampler_kwargs=sampler.sampler_kwargs)
+                sampler_kwargs=sampler.sampler_kwargs,
+            )
 
         def _init_dataloader(self):
             super()._init_dataloader()
@@ -268,8 +295,9 @@ def resolved_trainer_type(
             if checkpoint_context is not None and settings.loop.checkpoint_steps > 0:
                 publication_root = Path(self.config.trainer.default_local_dir).parent / "checkpoint-publications"
                 publish_driver_checkpoint(checkpoint_context, checkpoint, publication_root)
-                prune_staged_checkpoint_sources(Path(self.config.trainer.default_local_dir), publication_root,
-                                                settings.loop.checkpoint_limit)
+                prune_staged_checkpoint_sources(
+                    Path(self.config.trainer.default_local_dir), publication_root, settings.loop.checkpoint_limit
+                )
 
         def _load_checkpoint(self):
             config = self.config.trainer

@@ -208,7 +208,8 @@ class PolicyTurnResult:
         if not self.prompt_ids or not self.completion_ids:
             raise ValueError("policy turn results require prompt and completion token ids")
         if self.reasoning_tokens is not None and (
-                type(self.reasoning_tokens) is not int or not 0 <= self.reasoning_tokens <= len(self.completion_ids)):
+            type(self.reasoning_tokens) is not int or not 0 <= self.reasoning_tokens <= len(self.completion_ids)
+        ):
             raise ValueError("reasoning token accounting must be within the completion")
         if self.completion_logprobs and len(self.completion_logprobs) != len(self.completion_ids):
             raise ValueError("completion logprobs must align with completion ids")
@@ -288,7 +289,9 @@ class EnvironmentRollout:
         if not any(self.env_mask):
             raise ValueError("training rollouts require at least one model-sampled token")
         if self.conditioning_records:
-            if not self.selected_branch_id or len(self.conditioning_records) != len(self.conditioning_completion_indices):
+            if not self.selected_branch_id or len(self.conditioning_records) != len(
+                self.conditioning_completion_indices
+            ):
                 raise ValueError("conditioning records require selected branch and exact completion coordinate maps")
             covered = tuple(index for indices in self.conditioning_completion_indices for index in indices)
             expected = tuple(index for index, eligible in enumerate(self.env_mask) if eligible)

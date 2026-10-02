@@ -22,8 +22,9 @@ def worker_types(*, validate_engine=None, **changes):
         actor_worker_cls = NativeTrainingWorker
 
     registry = SimpleNamespace(get_engine_cls=lambda **kwargs: NativeEngine)
-    training, actor = resolved_worker_types(NativeTrainingWorker, NativeActorWorker, registry,
-        validate_engine=validate_engine)
+    training, actor = resolved_worker_types(
+        NativeTrainingWorker, NativeActorWorker, registry, validate_engine=validate_engine
+    )
     worker = object.__new__(training)
     worker.config = SimpleNamespace(model_type="language_model")
     worker.model_config = {"use_remove_padding": False}
@@ -40,12 +41,20 @@ def test_factory_selects_score_subclass_without_mutating_native_worker():
     assert hasattr(engine, "prepare_model_outputs")
     assert actor.actor_worker_cls is type(worker)
     assert original.actor_worker_cls is not type(worker)
-    assert created == [dict(model_config=worker.model_config, engine_config=worker.engine_config,
-                            optimizer_config=worker.optimizer_config, checkpoint_config=worker.checkpoint_config)]
+    assert created == [
+        dict(
+            model_config=worker.model_config,
+            engine_config=worker.engine_config,
+            optimizer_config=worker.optimizer_config,
+            checkpoint_config=worker.checkpoint_config,
+        )
+    ]
 
 
-@pytest.mark.parametrize("changes", [{"strategy": "fsdp2"}, {"use_fused_kernels": True},
-                                      {"use_dynamic_bsz": True}, {"micro_batch_size_per_gpu": 2}])
+@pytest.mark.parametrize(
+    "changes",
+    [{"strategy": "fsdp2"}, {"use_fused_kernels": True}, {"use_dynamic_bsz": True}, {"micro_batch_size_per_gpu": 2}],
+)
 def test_factory_rejects_unqualified_execution_before_engine_creation(changes):
     worker, _, _, created = worker_types(**changes)
     with pytest.raises(InvalidPolicyUpdate, match="qualified dense"):

@@ -37,7 +37,9 @@ class NativePopulationInputs:
 
     @classmethod
     def from_evidence(
-        cls, snapshot: PopulationSnapshot, evidence: bytes,
+        cls,
+        snapshot: PopulationSnapshot,
+        evidence: bytes,
         decode: Callable[[bytes], Mapping[str, Any]],
     ) -> NativePopulationInputs:
         """Verify all views before any optimizer occurrence may be executed.
@@ -62,8 +64,12 @@ class NativePopulationInputs:
             if not isinstance(coordinates, dict) or set(coordinates) != {"trace_id", "prefix_nodes", "node_index"}:
                 raise InvalidPolicyUpdate("native view coordinates have an unsupported schema")
             trace_id, node_index, prefix = (coordinates[key] for key in ("trace_id", "node_index", "prefix_nodes"))
-            if (not isinstance(trace_id, str) or type(node_index) is not int or not isinstance(prefix, list)
-                    or any(type(index) is not int for index in prefix)):
+            if (
+                not isinstance(trace_id, str)
+                or type(node_index) is not int
+                or not isinstance(prefix, list)
+                or any(type(index) is not int for index in prefix)
+            ):
                 raise InvalidPolicyUpdate("native view coordinates require exact graph identities and indices")
             trace = traces.get(trace_id)
             if trace is None or getattr(trace, "id", None) != trace_id:
@@ -71,19 +77,31 @@ class NativePopulationInputs:
             if view.attention_ref != "causal-text@1/attention" or view.positions_ref != "causal-text@1/positions":
                 raise InvalidPolicyUpdate("native input reader requires the qualified causal text context contract")
             record = native_conditioning_records(
-                trace, sampled_node_indices=(node_index,), context_contract="causal-text@1",
+                trace,
+                sampled_node_indices=(node_index,),
+                context_contract="causal-text@1",
             )[0]
-            sampled = tuple(sorted(action.action.token_index for action in snapshot.actions
-                                   if action.conditioning_id == view.id))
-            if (record.prefix_node_indices != tuple(prefix) or record.input_digest != view.digest
-                    or record.context_tokens != view.context_tokens or record.sampled_token_indices != sampled):
+            sampled = tuple(
+                sorted(action.action.token_index for action in snapshot.actions if action.conditioning_id == view.id)
+            )
+            if (
+                record.prefix_node_indices != tuple(prefix)
+                or record.input_digest != view.digest
+                or record.context_tokens != view.context_tokens
+                or record.sampled_token_indices != sampled
+            ):
                 raise InvalidPolicyUpdate("native evidence differs from frozen context or sampled action coordinates")
             views[view.id], records[view.id] = view, record
             logprobs = getattr(trace.nodes[node_index], "logprobs", None)
             if isinstance(logprobs, (list, tuple)):
                 sampled_scores[view.id] = tuple(logprobs)
-        return cls(MappingProxyType(views), MappingProxyType(records), MappingProxyType(traces), evidence,
-                   MappingProxyType(sampled_scores))
+        return cls(
+            MappingProxyType(views),
+            MappingProxyType(records),
+            MappingProxyType(traces),
+            evidence,
+            MappingProxyType(sampled_scores),
+        )
 
     def sampling_log_scores(self, snapshot: PopulationSnapshot) -> Mapping[ActionRef, float]:
         """Read compact sampled scores from authenticated original assistant nodes.
@@ -101,9 +119,13 @@ class NativePopulationInputs:
             values = self._sampled_scores.get(view.id)
             node = self._traces[record.trace_id].nodes[record.node_index]
             live = getattr(node, "logprobs", None)
-            if (values is None or not isinstance(live, (list, tuple)) or tuple(live) != values
-                    or len(values) != len(record.sampled_token_indices)
-                    or any(type(value) not in (float, int) or not math.isfinite(value) for value in values)):
+            if (
+                values is None
+                or not isinstance(live, (list, tuple))
+                or tuple(live) != values
+                or len(values) != len(record.sampled_token_indices)
+                or any(type(value) not in (float, int) or not math.isfinite(value) for value in values)
+            ):
                 raise InvalidPolicyUpdate("native sampled log scores are missing, changed or misaligned")
             scores_by_view[view.id] = dict(zip(record.sampled_token_indices, values, strict=True))
         result = {}

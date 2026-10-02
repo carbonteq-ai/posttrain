@@ -52,14 +52,24 @@ class ResolvedPolicyRun[Population: ResolvedNativePopulation]:
             raise InvalidPolicyUpdate("native run slot differs from its applied boundary")
         previous = self.current
         if previous is None or previous.next_update == len(previous.updates):
-            if previous is not None and (previous._pending is not None or previous.applied_updates != len(previous.updates)):
+            if previous is not None and (
+                previous._pending is not None or previous.applied_updates != len(previous.updates)
+            ):
                 raise InvalidPolicyUpdate("native collection cannot advance an incomplete population")
             attempts = previous.global_attempts if previous is not None else 0
             candidate = self.collect(native_applied_updates, attempts)
-            if (candidate.applied_update_offset != native_applied_updates or candidate.attempt_offset != attempts
-                    or candidate.next_update != 0 or candidate.applied_updates != 0 or candidate.attempts != 0
-                    or candidate.old is not None or candidate._pending is not None):
-                raise InvalidPolicyUpdate("new native population must start at the exact run boundary without reused scores")
+            if (
+                candidate.applied_update_offset != native_applied_updates
+                or candidate.attempt_offset != attempts
+                or candidate.next_update != 0
+                or candidate.applied_updates != 0
+                or candidate.attempts != 0
+                or candidate.old is not None
+                or candidate._pending is not None
+            ):
+                raise InvalidPolicyUpdate(
+                    "new native population must start at the exact run boundary without reused scores"
+                )
             if previous is not None and candidate.updates[0].population.digest == previous.updates[0].population.digest:
                 raise InvalidPolicyUpdate("native collection cannot regenerate a completed frozen population identity")
             self.current = candidate

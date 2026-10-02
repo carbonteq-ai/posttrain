@@ -25,25 +25,74 @@ def run_native(folder, *, overflow=False, retries=0, always=False, scaled=True):
     torch.manual_seed(31)
     snapshot, source, credit, spec, update, capabilities = resolved("sampo@1")
     updates = resolve_updates(snapshot, PolicyUpdateSchedule("episode", 2, epochs=2), update.objective)
-    population = ResolvedTRLPopulation(updates, credit, spec, PolicyExecutionBudget(1, 100, 10000), capabilities,
-        lambda view: source, 0.7, "cpu-scaled@1", None, max_overflow_retries=retries)
-    model = GPT2LMHeadModel(GPT2Config(vocab_size=7, n_positions=16, n_embd=8, n_layer=1, n_head=2,
-        resid_pdrop=0.2, embd_pdrop=0.2, attn_pdrop=0.2, bos_token_id=0, eos_token_id=6, pad_token_id=0))
+    population = ResolvedTRLPopulation(
+        updates,
+        credit,
+        spec,
+        PolicyExecutionBudget(1, 100, 10000),
+        capabilities,
+        lambda view: source,
+        0.7,
+        "cpu-scaled@1",
+        None,
+        max_overflow_retries=retries,
+    )
+    model = GPT2LMHeadModel(
+        GPT2Config(
+            vocab_size=7,
+            n_positions=16,
+            n_embd=8,
+            n_layer=1,
+            n_head=2,
+            resid_pdrop=0.2,
+            embd_pdrop=0.2,
+            attn_pdrop=0.2,
+            bos_token_id=0,
+            eos_token_id=6,
+            pad_token_id=0,
+        )
+    )
     hook_calls = []
+
     def inject(value):
         hook_calls.append(value.detach().clone())
         return torch.full_like(value, float("inf")) if overflow and (always or len(hook_calls) == 1) else value
+
     next(model.parameters()).register_hook(inject)
-    tokenizer = PreTrainedTokenizerFast(tokenizer_object=Tokenizer(WordLevel(
-        {f"t{index}": index for index in range(7)}, unk_token="t0")), pad_token="t0", eos_token="t6")
-    args = GRPOConfig(output_dir=str(folder), per_device_train_batch_size=1, gradient_accumulation_steps=1,
-        generation_batch_size=2, num_generations=2, num_iterations=1, max_steps=2, learning_rate=1e-3,
-        lr_scheduler_type="linear", optim="adamw_torch", beta=0, use_cpu=True, bf16=False, fp16=False,
-        disable_dropout=False, report_to="none", disable_tqdm=True, save_strategy="no",
-        remove_unused_columns=False, dataloader_pin_memory=False)
-    trainer = resolved_policy_trainer_type(GRPOTrainer, population)(model=model, args=args,
-        processing_class=tokenizer, train_dataset=Dataset.from_dict({"resolved_update": [0, 1]}),
-        reward_funcs=lambda completions, **kwargs: [0.] * len(completions))
+    tokenizer = PreTrainedTokenizerFast(
+        tokenizer_object=Tokenizer(WordLevel({f"t{index}": index for index in range(7)}, unk_token="t0")),
+        pad_token="t0",
+        eos_token="t6",
+    )
+    args = GRPOConfig(
+        output_dir=str(folder),
+        per_device_train_batch_size=1,
+        gradient_accumulation_steps=1,
+        generation_batch_size=2,
+        num_generations=2,
+        num_iterations=1,
+        max_steps=2,
+        learning_rate=1e-3,
+        lr_scheduler_type="linear",
+        optim="adamw_torch",
+        beta=0,
+        use_cpu=True,
+        bf16=False,
+        fp16=False,
+        disable_dropout=False,
+        report_to="none",
+        disable_tqdm=True,
+        save_strategy="no",
+        remove_unused_columns=False,
+        dataloader_pin_memory=False,
+    )
+    trainer = resolved_policy_trainer_type(GRPOTrainer, population)(
+        model=model,
+        args=args,
+        processing_class=tokenizer,
+        train_dataset=Dataset.from_dict({"resolved_update": [0, 1]}),
+        reward_funcs=lambda completions, **kwargs: [0.0] * len(completions),
+    )
     # Exercise actual torch GradScaler and AcceleratedOptimizer on CPU. This
     # explicit fixture is not a claim that CPU fp16 is a supported user profile.
     previous = trainer.accelerator.state._mixed_precision

@@ -81,8 +81,11 @@ def sealed_checkpoint(root, step):
     actor = checkpoint / "actor"
     actor.mkdir(parents=True)
     state = boundary(actor)
-    state = replace(state, identity=replace(state.identity, applied_update_offset=step - 1, attempt_offset=step - 1),
-                    native_applied_updates=step)
+    state = replace(
+        state,
+        identity=replace(state.identity, applied_update_offset=step - 1, attempt_offset=step - 1),
+        native_applied_updates=step,
+    )
     commit_update_recovery(actor, state)
     (checkpoint / "data.pt").write_bytes(f"native cursor {step}".encode())
     seal_driver_checkpoint(checkpoint)
@@ -97,8 +100,15 @@ def test_rotated_sources_leave_verified_publication_copies(tmp_path):
 
     sources, staged = tmp_path / "checkpoints", tmp_path / "publications"
     artifacts = []
-    context = RunContext("project", "work", "run", "train.grpo", "job@1", tmp_path,
-                         observer=cast(Observer, SimpleNamespace(artifact=artifacts.append)))
+    context = RunContext(
+        "project",
+        "work",
+        "run",
+        "train.grpo",
+        "job@1",
+        tmp_path,
+        observer=cast(Observer, SimpleNamespace(artifact=artifacts.append)),
+    )
     for step in range(1, 4):
         checkpoint = sealed_checkpoint(sources, step)
         retained = publish_driver_checkpoint(context, checkpoint, staged)
@@ -108,8 +118,9 @@ def test_rotated_sources_leave_verified_publication_copies(tmp_path):
     assert len(artifacts) == 3
     assert all(item.metadata["checkpoint_snapshot_id"].startswith("run/step-") for item in artifacts)
     assert all(item.role == "recovery" and item.kind == "training-checkpoint" for item in artifacts)
-    assert [inspect_driver_checkpoint(staged / f"global_step_{step}").native_applied_updates
-            for step in range(1, 4)] == [1, 2, 3]
+    assert [
+        inspect_driver_checkpoint(staged / f"global_step_{step}").native_applied_updates for step in range(1, 4)
+    ] == [1, 2, 3]
 
 
 def test_missing_or_corrupt_publication_stage_prevents_all_pruning(tmp_path):
@@ -138,8 +149,15 @@ def test_failed_host_publication_keeps_native_sources(tmp_path):
     def reject(artifact):
         raise RuntimeError("host unavailable")
 
-    context = RunContext("project", "work", "run", "train.grpo", "job@1", tmp_path,
-                         observer=cast(Observer, SimpleNamespace(artifact=reject)))
+    context = RunContext(
+        "project",
+        "work",
+        "run",
+        "train.grpo",
+        "job@1",
+        tmp_path,
+        observer=cast(Observer, SimpleNamespace(artifact=reject)),
+    )
     with pytest.raises(RuntimeError, match="host unavailable"):
         publish_driver_checkpoint(context, checkpoint, staged)
     assert checkpoint.exists()

@@ -22,9 +22,17 @@ from .update_records import (
 
 
 def population_from_rollouts(
-    rollouts: tuple[EnvironmentRollout, ...], *, population_id: str, native_evidence_ref: str,
-    native_evidence_digest: str, template_revision: str, versions: PolicyVersions, sampler_step: int,
-    num_generations: int, selector_digest: str, spans: tuple[SemanticSpan, ...] = (),
+    rollouts: tuple[EnvironmentRollout, ...],
+    *,
+    population_id: str,
+    native_evidence_ref: str,
+    native_evidence_digest: str,
+    template_revision: str,
+    versions: PolicyVersions,
+    sampler_step: int,
+    num_generations: int,
+    selector_digest: str,
+    spans: tuple[SemanticSpan, ...] = (),
 ) -> tuple[PopulationSnapshot, NativeCreditRows]:
     """Require complete admitted groups and original native conditioning maps.
 
@@ -71,8 +79,9 @@ def population_from_rollouts(
             raise InvalidPolicyUpdate("native rollout lacks retained episode/group identities")
         require_identity(episode_id, group_id)
         evidence = rollout.reward_evidence
-        if evidence is not None and (evidence.prompt_group_id != group_id
-                                     or evidence.rollout_id != info.get("posttrain_rollout_id")):
+        if evidence is not None and (
+            evidence.prompt_group_id != group_id or evidence.rollout_id != info.get("posttrain_rollout_id")
+        ):
             raise InvalidPolicyUpdate("native reward evidence disagrees with admitted group/rollout")
         if episode_id in seen_episodes:
             raise InvalidPolicyUpdate("initial native population admits one policy trajectory per episode")
@@ -86,20 +95,39 @@ def population_from_rollouts(
         row: list[ActionRef | None] = [None] * len(rollout.completion_ids)
         if rollout.turns and len(rollout.turns) != len(rollout.conditioning_records):
             raise InvalidPolicyUpdate("native turn credit and conditioning views disagree")
-        for turn_index, (record, indices) in enumerate(zip(
-            rollout.conditioning_records, rollout.conditioning_completion_indices, strict=True,
-        )):
+        for turn_index, (record, indices) in enumerate(
+            zip(
+                rollout.conditioning_records,
+                rollout.conditioning_completion_indices,
+                strict=True,
+            )
+        ):
             if rollout.turns:
                 turn = rollout.turns[turn_index]
                 if indices != tuple(range(turn.completion_start, turn.completion_end)):
                     raise InvalidPolicyUpdate("native turn credit and sampled action coordinates disagree")
             view_id = f"{record.trace_id}/node-{record.node_index}"
-            coordinates = json.dumps({"trace_id": record.trace_id, "prefix_nodes": record.prefix_node_indices,
-                                      "node_index": record.node_index}, sort_keys=True, separators=(",", ":"))
-            views.append(ConditioningView(view_id, native_evidence_ref, coordinates,
-                                          f"{record.context_contract}/attention",
-                                          f"{record.context_contract}/positions", template_revision,
-                                          record.input_digest, record.context_tokens))
+            coordinates = json.dumps(
+                {
+                    "trace_id": record.trace_id,
+                    "prefix_nodes": record.prefix_node_indices,
+                    "node_index": record.node_index,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            views.append(
+                ConditioningView(
+                    view_id,
+                    native_evidence_ref,
+                    coordinates,
+                    f"{record.context_contract}/attention",
+                    f"{record.context_contract}/positions",
+                    template_revision,
+                    record.input_digest,
+                    record.context_tokens,
+                )
+            )
             for native_index, completion_index in zip(record.sampled_token_indices, indices, strict=True):
                 action = ActionRef(episode_id, rollout.selected_branch_id, view_id, native_index)
                 row[completion_index] = action
@@ -114,10 +142,24 @@ def population_from_rollouts(
         PopulationRelation(f"prompt/{identity}", "prompt-group", tuple(members), "complete", tuple(members))
         for identity, members in prompt_members.items()
     ) + tuple(
-        PopulationRelation(json.dumps(("anchor", *identity), separators=(",", ":")), "anchor-state",
-                           tuple(members), "complete", tuple(members))
+        PopulationRelation(
+            json.dumps(("anchor", *identity), separators=(",", ":")),
+            "anchor-state",
+            tuple(members),
+            "complete",
+            tuple(members),
+        )
         for identity, members in anchor_members.items()
     )
-    snapshot = PopulationSnapshot(population_id, native_evidence_ref, native_evidence_digest, tuple(actions), tuple(views),
-                                  spans, relations, versions, selector_digest)
+    snapshot = PopulationSnapshot(
+        population_id,
+        native_evidence_ref,
+        native_evidence_digest,
+        tuple(actions),
+        tuple(views),
+        spans,
+        relations,
+        versions,
+        selector_digest,
+    )
     return snapshot, NativeCreditRows(rollouts, tuple(rows), (native_evidence_digest,))
