@@ -1,5 +1,28 @@
 # veRL training backend
 
+## 0.9.0.post9 (selected)
+
+Tag `carbonteq-v0.9.0.post9` (release commit
+`8e513f3bf3bfccb4c413846b5eb184e0b42ea9d8`, branch
+`codex/resolved-engine-worker`, asset receipt `6b3ceef7`) is post8 plus every
+candidate below through `c45392d2` (scoped arithmetic, rowwise and Linear
+LoRA precision controls, declared microbatches, strict determinism, V1
+retained-evidence and task-runner/engine-factory extension points, LoRA export
+paths, FP16 scaler persistence, half-precision logit/entropy/selected-logprob
+stability). All additions are opt-in; defaults keep post8 behaviour and there
+are no dependency changes. The 310 CPU regressions added since post8 pass.
+Posttrain R134 qualifies native SAMPO active collection on this source: real
+Ray/TransferQueue rounds with uniform-group discard, informative BF16 and FP16
+two-update runs and exact checkpoint continuation (399 tensors). Wheel SHA-256
+`13930e0f7699fd043beeb2ab2c0b4814499fa195611b4d08f93a798a5fd89c40`, sdist
+SHA-256 `726f02c69bbbc6ad8e182cd599ff81a3df946ab02f9510a9a3a7da4abe730587`.
+Published: GitHub release
+<https://github.com/carbonteq-ai/verl/releases/tag/carbonteq-v0.9.0.post9> and
+Posttrain run <https://github.com/carbonteq-ai/posttrain/actions/runs/36996695048>.
+`release/forks.toml`, the `online-rl-verl-py313` release lock and profile, and
+`_FORK_NATIVE_NAME_REVISIONS` select post9. Lab veRL bindings keep the
+published post8 image until the rebuilt kind image is published.
+
 ## Scoped native arithmetic candidate
 
 The candidate adds independent, default-off full_precision_matmul and math_sdpa
@@ -233,7 +256,7 @@ updates. Native veRL engine, normalized production mapping, release assets
 and immutable runtime adoption remain open.
 See [matched-kernel evidence](../../research/evidence/correctness-matrix/matched-kernel-results.md).
 
-## 0.9.0.post8 (selected)
+## 0.9.0.post8
 
 Tag `carbonteq-v0.9.0.post8` (release commit
 `ef1c37715fa75de5973ae5b3c398383cd7e0093d`, branch

@@ -65,7 +65,7 @@ def native_execution_capabilities(manifest: VerlLaunchManifest, engine: Any) -> 
     selected = manifest.payload.resolved_settings
     assert selected is not None
     settings = selected.settings
-    return ExecutionCapabilities(("grpo@1", "dapo@1", "sampo@1", "sampo-turns@1", "gdpo@1", "capo@1"),
+    return ExecutionCapabilities(("grpo@1", "dapo@1", "sampo@1", "sampo-turns@1", "sampo-spans@1", "gdpo@1", "capo@1"),
         ("sampled-logp", "old-logp", "reference-logp"),
         settings.max_prompt_length + settings.max_completion_length, True,
         context_layout=native_context_layout(manifest))

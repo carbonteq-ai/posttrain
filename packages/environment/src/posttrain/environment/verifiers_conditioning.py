@@ -106,3 +106,34 @@ def native_conditioning_records(
         result.append(NativeConditioningRecord(trace_id, node_index, tuple(path[:-1]), selected, len(tokens), digest,
                                                context_contract))
     return tuple(result)
+
+
+REASONING_PREFIX_REVISION = "verifiers.renderer-reasoning-prefix@1"
+
+
+def native_reasoning_partition(
+    trace: Any, record: NativeConditioningRecord,
+) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """Split one sampled assistant call's original actions into reasoning and answer.
+
+    The renderer that parsed the completion reports ``usage.reasoning_tokens``,
+    counting generated thinking markers; thinking is the leading run of sampled
+    tokens, and a reply cut off inside its thought is entirely reasoning. The
+    call's ``completion_tokens`` must equal the record's sampled actions, so the
+    split addresses exactly the original eligible coordinates.
+    """
+    actual = native_conditioning_records(
+        trace, sampled_node_indices=(record.node_index,), context_contract=record.context_contract,
+    )[0]
+    if actual != record:
+        raise InvalidNativeConditioning("reasoning extraction requires the retained conditioning record")
+    calls = [call for call in trace.calls if call.node == record.node_index]
+    usage = calls[0].usage if len(calls) == 1 else None
+    reasoning = getattr(usage, "reasoning_tokens", None)
+    completion = getattr(usage, "completion_tokens", None)
+    if type(reasoning) is not int or type(completion) is not int or reasoning < 0:
+        raise InvalidNativeConditioning("sampled call lacks renderer reasoning-token accounting")
+    sampled = record.sampled_token_indices
+    if completion != len(sampled) or reasoning > completion:
+        raise InvalidNativeConditioning("renderer reasoning accounting disagrees with sampled actions")
+    return sampled[:reasoning], sampled[reasoning:]

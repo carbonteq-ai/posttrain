@@ -402,6 +402,13 @@ METRICS = (
         formula="sum(actor_seconds) / sum(update_seconds)",
     ),
     Metric(
+        name="skipped_optimizer_attempts",
+        entity="update",
+        label="Skipped optimizer attempts",
+        description="Optimizer attempts that did not commit an update (for example FP16 overflow), from the cumulative counters.",
+        formula="max(optimizer_attempts) - max(applied_updates)",
+    ),
+    Metric(
         name="rows_per_update",
         entity="update",
         label="Rows generated per update",

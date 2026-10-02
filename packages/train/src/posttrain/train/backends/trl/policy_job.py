@@ -6,7 +6,7 @@ import hashlib
 import json
 import random
 from collections.abc import Mapping
-from dataclasses import dataclass, field, fields, is_dataclass, replace
+from dataclasses import asdict, dataclass, field, fields, is_dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -23,7 +23,7 @@ from ...update_resolution import resolve_policy_population
 from ...update_sampler_correction import recipe_sampler_correction_weights
 from ...update_transport import decode_population_payload
 from ..policy_update_admission import AdmittedNativePopulation
-from .policy_rollouts import collect_resolved_population
+from .policy_rollouts import collect_active_resolved_population, collect_resolved_population
 from .policy_updates import ResolvedTRLPopulation, ResolvedTRLRun
 from .update_totals import RolloutUpdateTotals
 
@@ -63,11 +63,12 @@ def validate_resolved_job(request: GRPORequest | SAMPORequest | GDPORequest | CA
     if (sampling.top_p != 1 or sampling.top_k != 0 or sampling.min_p not in {None, 0}
             or sampling.repetition_penalty != 1 or sampling.presence_penalty != 0):
         raise InvalidPolicyUpdate("resolved TRL job has not qualified correction for a warped sampling distribution")
-    if (getattr(settings, "active_sampling", None) is not None
+    if ((getattr(settings, "active_sampling", None) is not None and not isinstance(request, SAMPORequest))
             or getattr(settings, "dynamic_sampling", None) is not None
             or getattr(settings, "adaptive_curriculum", None) is not None):
         raise InvalidPolicyUpdate("resolved TRL job has not qualified production filtering/refill/curriculum composition")
-    if settings.mask_truncated_completions or settings.policy_updates.objective_variant == "semantic-spans":
+    if settings.mask_truncated_completions or (
+            settings.policy_updates.objective_variant == "semantic-spans" and not isinstance(request, SAMPORequest)):
         raise InvalidPolicyUpdate("resolved TRL job requires qualified native support for selected masks")
     if request.training.backend_options.get("use_liger_kernel", False):
         raise InvalidPolicyUpdate("resolved TRL job does not support the Liger loss bypass")
@@ -222,14 +223,20 @@ class ResolvedTRLJob:
         AdmittedNativePopulation._validate_counters(0, 0, self.max_overflow_retries)  # noqa: SLF001
         if len({row["example_id"] for row in self.rows}) != len(self.rows):
             raise InvalidPolicyUpdate("resolved collection inventory contains duplicate tasks")
-        if len(self.rows) < self.request.settings.num_prompts_per_step:
+        if len(self.rows) < self.reservation:
             raise InvalidPolicyUpdate("resolved collection inventory cannot fill distinct complete groups")
         self.capabilities = ExecutionCapabilities(
-            ("grpo@1", "dapo@1", "gdpo@1", "capo@1"),
+            ("grpo@1", "dapo@1", "sampo@1", "sampo-spans@1", "gdpo@1", "capo@1"),
             ("sampled-logp", "old-logp", "reference-logp"),
             self.request.settings.max_prompt_length + self.request.settings.max_completion_length, True,
         )
         self.run = ResolvedTRLRun(self.collect, self.restore)
+
+    @property
+    def reservation(self) -> int:
+        """Distinct tasks one update reserves: complete groups, times active candidate batches."""
+        active = getattr(self.request.settings, "active_sampling", None)
+        return self.request.settings.num_prompts_per_step * (active.max_candidate_batches if active else 1)
 
     def versions(self, applied: int) -> PolicyVersions:
         current = f"{self.runtime_identity}/actor-{applied}"
@@ -242,20 +249,28 @@ class ResolvedTRLJob:
         ordered = list(self.rows)
         if self.request.settings.shuffle_prompts:
             random.Random(self.request.settings.loop.seed + applied).shuffle(ordered)
-        start = applied % len(ordered)
-        selected = [ordered[(start + index) % len(ordered)]
-                    for index in range(self.request.settings.num_prompts_per_step)]
-        rows = [row for row in selected for _ in range(self.request.settings.num_generations)]
-        selector = hashlib.sha256(json.dumps({"schema": "posttrain.resolved-task-selection@1",
+        active = isinstance(self.request, SAMPORequest) and self.request.settings.active_sampling is not None
+        start = (applied * self.reservation if active else applied) % len(ordered)
+        selected = [ordered[(start + index) % len(ordered)] for index in range(self.reservation)]
+        selection: dict[str, object] = {"schema": "posttrain.resolved-task-selection@1",
             "applied": applied, "tasks": [row["example_id"] for row in selected],
-            "seed": self.request.settings.loop.seed, "shuffle": self.request.settings.shuffle_prompts},
-            sort_keys=True).encode()).hexdigest()
-        admitted = collect_resolved_population(
-            self.context, self.request, self.tokenizer, self.trainer, rows, self.capabilities,
-            population_id=f"{self.context.run_id}/population-at-{applied}",
+            "seed": self.request.settings.loop.seed, "shuffle": self.request.settings.shuffle_prompts}
+        if active:
+            assert isinstance(self.request, SAMPORequest)
+            selection["active_sampling"] = asdict(self.request.settings.active_sampling)
+        selector = hashlib.sha256(json.dumps(selection, sort_keys=True).encode()).hexdigest()
+        common: dict[str, Any] = dict(population_id=f"{self.context.run_id}/population-at-{applied}",
             template_revision=self.template_revision, versions=self.versions(applied), selector_digest=selector,
-            attempt_offset=attempts, max_overflow_retries=self.max_overflow_retries, totals=self.totals,
-        )
+            attempt_offset=attempts, max_overflow_retries=self.max_overflow_retries, totals=self.totals)
+        if active:
+            assert isinstance(self.request, SAMPORequest)
+            admitted = collect_active_resolved_population(
+                self.context, self.request, self.tokenizer, self.trainer, selected, self.capabilities,
+                evidence_directory=Path(self.trainer.args.output_dir).parent / "collection-evidence", **common)
+        else:
+            rows = [row for row in selected for _ in range(self.request.settings.num_generations)]
+            admitted = collect_resolved_population(
+                self.context, self.request, self.tokenizer, self.trainer, rows, self.capabilities, **common)
         population = ResolvedTRLPopulation.from_admitted(admitted, score_temperature=self.score_temperature,
                                                         score_contract=SCORE_CONTRACT, sampler_correction=None)
         sampled = admitted.read_input.sampling_log_scores(admitted.resolved.snapshot)

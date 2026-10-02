@@ -596,7 +596,8 @@ class _PolicyClient:
             model=model,
             message=AssistantMessage.model_validate(result.message),
             finish_reason=result.finish_reason,
-            usage=Usage(prompt_tokens=len(result.prompt_ids), completion_tokens=len(result.completion_ids)),
+            usage=Usage(prompt_tokens=len(result.prompt_ids), completion_tokens=len(result.completion_ids),
+                        reasoning_tokens=result.reasoning_tokens),
             tokens=TurnTokens(
                 prompt_ids=list(result.prompt_ids),
                 completion_ids=list(result.completion_ids),

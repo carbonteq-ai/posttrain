@@ -101,6 +101,13 @@ class AdmittedNativePopulation:
         if type(sampler_step) is not int or sampler_step != applied_update_offset:
             raise InvalidPolicyUpdate("fresh native admission requires sampling at the current applied boundary")
         evidence = cls._read_evidence(read_evidence, native_evidence_ref)
+        updates = settings.policy_updates
+        if not spans and updates is not None and updates.objective_variant == "semantic-spans":
+            # Derive environment-owned reasoning/answer spans from the retained
+            # original traces, so selection addresses exactly admitted actions.
+            from ..update_spans import reasoning_answer_spans
+
+            spans = reasoning_answer_spans(rollouts, decode(evidence))
         resolved = resolve_rollout_population(
             rollouts, settings, capabilities, population_id=population_id,
             native_evidence_ref=native_evidence_ref,

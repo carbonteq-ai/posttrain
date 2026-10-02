@@ -46,8 +46,9 @@ class TrainCatalogSchema(BaseModel):
 
 
 class ActionSelectionSchema(TrainCatalogSchema):
-    mode: Literal["all", "spans"] = "all"
+    mode: Literal["all", "spans", "roles"] = "all"
     span_ids: tuple[str, ...] = ()
+    roles: tuple[str, ...] = ()
 
 
 class PolicyUpdateScheduleSchema(TrainCatalogSchema):

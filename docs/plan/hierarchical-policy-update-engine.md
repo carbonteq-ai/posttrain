@@ -76,6 +76,92 @@ Small-GPU qualification checks correctness; research and ablations guide recipes
   `test_native_selection_admits_recorded_sampo_active_collection_only`; native
   veRL cohort (collection/driver/capabilities/inventory/runtime) passes 85 tests
   with real veRL `../verl-posttrain-parity`.
+- [x] Revision134 veRL 0.9.0.post9 released and adopted: release commit
+  8e513f3b (post8 plus the scoped-arithmetic candidate through c45392d2 and its
+  records; all additions opt-in; 310 post8-relative CPU regressions pass),
+  receipt 6b3ceef7, wheel 13930e0f..., sdist 726f02c6..., published to dev by
+  run 36996695048. `release/forks.toml`, the online-rl-verl-py313 release
+  pyproject/lock/constraints and profile digests, release tests and
+  `_FORK_NATIVE_NAME_REVISIONS` select post9; `posttrain-release check` and
+  `fork-ledger` resolve post9. Lab veRL bindings keep the published post8
+  image until the rebuilt kind image is published.
+- [x] Revision134 pushed branch `codex/hierarchical-policy-update-engine`
+  (commit 005bfae5, built from a temporary index so the shared checkout stays on
+  main with its dirty tree) and dispatched runtime-image candidate run
+  36997130090 for post14/dev3/post9 kind images.
+- [x] Revision134 TRL resolved active collection (code + CPU gates):
+  `update_active_rounds.py::ActiveRoundPlan` ports TRL post11 round arithmetic
+  and metrics, matching veRL `ActiveSamplingRounds` exactly in four parametrized
+  parity cases; `policy_rollouts.py::collect_active_resolved_population` runs
+  rounds over one reserved distinct-task pool with the shaped-reward zero-epsilon
+  spread rule, publishes content-addressed `training-collection` evidence
+  (shared `backends/policy_collection_evidence.py`, also used by veRL) for every
+  reserved candidate before admission, admits only selected groups and emits
+  active-sampling metrics. `ResolvedTRLJob` reserves
+  `num_prompts_per_step*max_candidate_batches` tasks per update; the resolved
+  guard admits SAMPO active sampling only; native TRL refill arguments are
+  removed under a resolved selection. New `test_trl_active_collection.py`
+  passes with real veRL parity; full ladder 2574 passed, 0 failed. GPU
+  qualification R135 is next.
+- [x] Revision134 semantic reasoning/answer spans (code + CPU gates). The
+  environment-owned producer `verifiers_conditioning.py::native_reasoning_partition`
+  splits each sampled assistant call's original eligible actions at the
+  renderer's `usage.reasoning_tokens` (thinking is the leading sampled run),
+  rejecting missing accounting or `completion_tokens` that disagree with the
+  retained sampled actions (revision `verifiers.renderer-reasoning-prefix@1`).
+  `update_spans.py::reasoning_answer_spans` addresses those indices as
+  `SemanticSpan`s in the population's exact action coordinates (multi-interval
+  runs). Admission derives them from the retained traces when
+  `objective_variant: semantic-spans` supplies no spans. `ActionSelection` gains
+  `mode: roles` (`roles: (reasoning, answer, ...)`) so catalogs select by role
+  across populations; policy and KL selections stay independent. TRL resolved
+  SAMPO and native veRL SAMPO now advertise/admit `sampo-spans@1`; the public
+  request guard stays closed. Regressions: 7 environment partition cases, 3
+  admission/selection cases on the real admission fixture. Full ladder 2577
+  passed, native veRL cohort 96 passed. GPU qualification of span-selected
+  updates is open.
+- [x] Revision134 resolved TRL capabilities omitted `sampo@1`, so resolved TRL
+  SAMPO would have been rejected at plan resolution; it is now advertised and
+  exercised by the R135 CPU preflight (two `sampo@1` updates resolved).
+- [x] Revision134 granular process credit (code + CPU fixture gates):
+  `update_process_credit.py` adds the composition-injected `SpanScorer`
+  protocol, `assess_population_spans` (every selected retained span scored
+  exactly once by span ID, matching scorer revision, observation scope and
+  retained evidence) and `ExternalSpanCreditEstimator`, an explicitly
+  identified estimator mapping complete assessments to detached per-span
+  advantages (zero elsewhere; overlapping assessed spans rejected without a
+  declared combination estimator) that `prepare_credit` validates like any
+  estimator. The planned fixture
+  `packages/train/tests/fixtures/policy_updates/two-episode-reasoning.json`
+  (two native episodes with renderer reasoning accounting) drives admission,
+  derived reasoning spans, a fake transport scorer, a known external estimator
+  and `sampo-spans@1` resolution; scorer evidence returned as credit, partial
+  or foreign-revision assessments and incomplete estimator output are
+  rejected. Live gate still requires a real injected local scorer.
+- [x] Revision134 fixes missing renderer reasoning accounting on in-process
+  training paths: `PolicyTurnResult.reasoning_tokens` now carries the renderer
+  parse count from the TRL and veRL generators into Verifiers call `usage`.
+  Previously every TRL/veRL training trace recorded `reasoning_tokens=None`
+  (R135 evidence), leaving thinking-token facts unsupported and blocking span
+  extraction. Regression asserts a real native Verifiers episode records it.
+- [ ] Revision134 R135 TRL active qualification attempts (all evidence kept):
+  r135-failed-precomputed-advantages (legacy `use_precomputed_advantages`
+  without rollout_func; fixed by `resolved_native_arguments`),
+  r135-failed-preflight-source-match (qualifier text check; replaced by a
+  behavior check), r135 (preflight accepted; fresh collection ran three rounds
+  with complete evidence and correctly failed: all 12 episodes reward 0, as in
+  R124's two uniform tasks). R135b uses six historically informative tasks
+  with ActiveGroupSampling(6) and is live.
+- [x] Revision134 observation gate (Observatory): metric catalog entries and
+  run aggregation for resolved counters (applied/attempts max, selected
+  actions sum, nonzero-advantage mean, loss/kl mean, loss scale last, skipped
+  sum), computed `skipped_optimizer_attempts`, resolved-updates chart and
+  conditional evidence requirement, training-collection/checkpoint artifact
+  kinds; 188 backend and 120 frontend tests pass, build passes. Open: veRL
+  emits no `resolved_policy_update_applied` denominator/digest event (TRL
+  does); scored-vs-gradient counts, mask coverage, replay drift and dependency
+  cost are not emitted by either backend; collection snapshot contents need an
+  `ArtifactLink` metadata/content reader contract in `packages/tracking`.
 - [x] Revision134 R134 native veRL SAMPO active collection passes on real
   Ray/TransferQueue: LFM2.5-2.6B 654f9463, R124's three tasks, one group x4,
   ActiveGroupSampling(3), two applied updates per run, image f0d32115, fork
@@ -3920,6 +4006,18 @@ A zero gradient is therefore not proof that a native optimizer applied no update
 Empty/omitted objectives and overflow require separate transaction semantics.
 
 ## Decision Log
+
+Decision (revision134, 2026-10-02/Claude): add role-based `ActionSelection`
+(`mode: roles`). Span IDs are population-specific, so a reusable catalog
+selection of reasoning or answer support needs roles; this selects supplied
+annotations only and preserves the canonical rule that extraction stays
+plugin-owned (here the environment's renderer-accounting producer).
+
+Decision (revision134, 2026-10-02/Claude): resolved TRL collection runs TRL
+post11 active rounds in Posttrain (`ActiveRoundPlan`) because the resolved path
+collects explicit reserved rows, bypassing the dataloader-driven native refill;
+its arithmetic is parity-tested against veRL's native implementation and the
+native TRL refill is disabled under a resolved selection to avoid nesting.
 
 Decision (revision134, 2026-10-02/Claude): adopt TRL post14 through the existing
 `carbonteq-dev` source convention used by every fork, since post14's identical

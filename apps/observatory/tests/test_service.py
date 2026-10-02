@@ -34,6 +34,7 @@ from posttrain_observatory import (
 )
 from posttrain_observatory.cli import main
 from posttrain_observatory.fixtures import FixtureRunDataSource
+from posttrain_observatory.models import EvidenceRequirement
 from pydantic import ValidationError
 
 NOW = datetime(2026, 7, 22, tzinfo=UTC)
@@ -644,7 +645,7 @@ async def test_trace_navigation_follows_job_telemetry_definition() -> None:
 async def test_grpo_projection_exposes_population_and_selection_aware_completeness() -> None:
     view = await ObservatoryService(FixtureRunDataSource()).get_run_view("runs/grpo-silver-pine")
 
-    assert view.schema_version == 3
+    assert view.schema_version == 4
     assert view.grpo is not None
     assert view.grpo.rollout_population.requested.state == "missing"
     assert view.grpo.rollout_population.attempted.value == 96
@@ -692,6 +693,66 @@ async def test_olmo3_active_sampling_is_exposed_as_conditional_evidence() -> Non
     requirement = next(item for item in view.completeness.requirements if item.key == "olmo3_active_sampling")
     assert requirement.state == "available"
     assert requirement.missing_metrics == ()
+
+
+@pytest.mark.asyncio
+async def test_resolved_policy_updates_are_conditional_evidence() -> None:
+    # Values from the native veRL SAMPO active-collection qualification (R134 BF16).
+    resolved = {
+        "train/rl/applied_optimizer_updates": (1.0, 2.0),
+        "train/rl/optimizer_attempts": (1.0, 2.0),
+        "train/rl/selected_policy_actions": (1161.0, 1406.0),
+        "train/rl/selected_kl_actions": (1161.0, 1406.0),
+        "train/rl/advantage_nonzero_fraction": (1.0, 1.0),
+        "train/rl/advantage_abs_mean": (0.298, 0.593),
+        "train/rl/loss": (0.298, -0.293),
+        "train/rl/kl_loss": (0.0, 3.2e-6),
+    }
+
+    def run(run_id: str, settings: dict[str, JsonValue], names: tuple[str, ...]) -> FakeRunDataSource:
+        details = {
+            run_id: RunDetail(
+                summary=_summary(run_id, "train.sampo"),
+                resolved_inputs={"settings": settings},
+                metric_names=names,
+            )
+        }
+        series = {
+            name: MetricSeries(
+                name=name,
+                points=tuple(MetricPoint(value=value, step=step) for step, value in enumerate(resolved[name], 1)),
+            )
+            for name in names
+        }
+        return FakeRunDataSource(details, {run_id: series})
+
+    complete = await ObservatoryService(run("runs/resolved", {}, tuple(resolved))).get_run_view("runs/resolved")
+    partial = await ObservatoryService(
+        run(
+            "runs/partial",
+            {"policy_updates": {"schedule": {"unit": "episode", "budget": 2}}},
+            ("train/rl/applied_optimizer_updates", "train/rl/optimizer_attempts"),
+        )
+    ).get_run_view("runs/partial")
+    legacy = await ObservatoryService(run("runs/legacy", {"policy_updates": None}, ())).get_run_view("runs/legacy")
+
+    def requirement(view: RunView) -> EvidenceRequirement:
+        return next(item for item in view.completeness.requirements if item.key == "resolved_updates")
+
+    # Counters alone activate the audit, even without a recorded selection.
+    assert requirement(complete).state == "available"
+    chart = next(chart for chart in complete.charts if chart.key == "resolved_updates")
+    assert {series.name for series in chart.series} >= {
+        "train/rl/applied_optimizer_updates",
+        "train/rl/selected_policy_actions",
+    }
+    assert requirement(partial).state == "missing"
+    assert set(requirement(partial).missing_metrics) == {
+        "train/rl/selected_policy_actions",
+        "train/rl/selected_kl_actions",
+        "train/rl/advantage_nonzero_fraction",
+    }
+    assert requirement(legacy).state == "not_applicable"
 
 
 @pytest.mark.asyncio

@@ -30,6 +30,7 @@ type EvidenceCondition = Literal[
     "tool_environment",
     "dapo_algorithm_enabled",
     "olmo3_algorithm_enabled",
+    "explicit_policy_updates",
 ]
 
 
@@ -158,6 +159,53 @@ def _training_artifacts() -> tuple[ArtifactRoleDefinition, ...]:
         ArtifactRoleDefinition(kind="model-weights", label="Trained weights", direction="output"),
         ArtifactRoleDefinition(kind="training-summary", label="Native training summary", direction="output"),
     )
+
+
+def _policy_training_artifacts() -> tuple[ArtifactRoleDefinition, ...]:
+    """Online policy training also publishes recovery checkpoints and, under
+    active collection, content-addressed candidate accounting snapshots."""
+    return (
+        *_training_artifacts(),
+        ArtifactRoleDefinition(kind="training-checkpoint", label="Recovery checkpoint", direction="output"),
+        ArtifactRoleDefinition(kind="training-collection", label="Active-collection evidence", direction="output"),
+    )
+
+
+# Explicit `policy_updates` engines (TRL and veRL) report one point per applied
+# update. Membership, denominators and digests stay in immutable artifacts and
+# the applied-update event; these are the counts Observatory aggregates.
+RESOLVED_UPDATE_METRICS = (
+    "train/rl/applied_optimizer_updates",
+    "train/rl/optimizer_attempts",
+    "train/rl/selected_policy_actions",
+    "train/rl/selected_kl_actions",
+    "train/rl/advantage_nonzero_fraction",
+    "train/rl/advantage_abs_mean",
+    "train/rl/loss",
+    "train/rl/kl_loss",
+)
+
+_RESOLVED_UPDATE_CHART = ChartDefinition(
+    key="resolved_updates",
+    title="Resolved policy updates",
+    question="Did every optimizer attempt commit an update, and how many selected actions carried policy, KL and nonzero credit?",
+    metrics=RESOLVED_UPDATE_METRICS,
+)
+
+_RESOLVED_UPDATE_REQUIREMENT = EvidenceRequirementDefinition(
+    key="resolved_updates",
+    label="Resolved update accounting",
+    level="conditional",
+    condition="explicit_policy_updates",
+    metrics=(
+        "train/rl/applied_optimizer_updates",
+        "train/rl/optimizer_attempts",
+        "train/rl/selected_policy_actions",
+        "train/rl/selected_kl_actions",
+        "train/rl/advantage_nonzero_fraction",
+    ),
+    reason="An explicit policy-update schedule must show applied versus attempted updates and the selected policy/KL support with its credit coverage.",
+)
 
 
 def _help_for(*metrics: str) -> tuple[MetricHelp, ...]:
@@ -585,7 +633,7 @@ DPO_TELEMETRY = JobTelemetryDefinition(
 )
 
 GRPO_TELEMETRY = JobTelemetryDefinition(
-    schema_version=3,
+    schema_version=4,
     job_kind="train.grpo",
     display_name="Group relative policy optimization",
     summary_fields=(
@@ -668,8 +716,9 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
             key="stability",
             title="Update stability",
             question="Are gradient scale and learning rate behaving as configured?",
-            metrics=("train/grad_norm", "train/learning_rate"),
+            metrics=("train/grad_norm", "train/learning_rate", "train/loss_scale", "train/optimizer_step_skipped"),
         ),
+        _RESOLVED_UPDATE_CHART,
         ChartDefinition(
             key="rollouts",
             title="Rollout population",
@@ -778,6 +827,9 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
         "train/rl/curriculum/class_candidate_groups",
         "train/grad_norm",
         "train/learning_rate",
+        "train/loss_scale",
+        "train/optimizer_step_skipped",
+        *RESOLVED_UPDATE_METRICS,
         "train/step_time_seconds",
         "train/rl/rollouts_requested",
         "train/rl/rollouts_attempted",
@@ -906,7 +958,7 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
         "failed_rollouts",
     ),
     trace_sections=(TraceSectionDefinition(trace_type="verifiers", label="Rollouts & rewards"),),
-    artifact_roles=_training_artifacts(),
+    artifact_roles=_policy_training_artifacts(),
     delta_tip_metrics=(
         "train/rl/reward_mean",
         "train/rl/policy_loss",
@@ -1014,6 +1066,7 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
             metrics=("train/rl/kl",),
             reason="KL evidence is owed whenever a non-zero reference penalty is selected.",
         ),
+        _RESOLVED_UPDATE_REQUIREMENT,
         EvidenceRequirementDefinition(
             key="policy_freshness",
             label="Rollout-policy correction",
@@ -1193,7 +1246,7 @@ def _sampo_telemetry() -> JobTelemetryDefinition:
             charts.append(_SAMPO_CREDIT_CHART)
     summary_fields = (*GRPO_TELEMETRY.summary_fields, *_SAMPO_CREDIT_SUMMARY)
     fields: dict[str, Any] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "job_kind": "train.sampo",
         "display_name": "Step-aware multi-turn policy optimization",
         "summary_fields": summary_fields,
@@ -1201,7 +1254,7 @@ def _sampo_telemetry() -> JobTelemetryDefinition:
         "health_rules": SAMPO_HEALTH_RULES,
         "comparison_keys": ("reward_mean", "turn_credit_share", "policy_loss", "failed_rollouts"),
         "trace_sections": GRPO_TELEMETRY.trace_sections,
-        "artifact_roles": _training_artifacts(),
+        "artifact_roles": _policy_training_artifacts(),
         "delta_tip_metrics": (
             "train/rl/reward_mean",
             "train/rl/turn_credit_share",
@@ -1325,6 +1378,7 @@ SAMPO_EVIDENCE_REQUIREMENTS: tuple[EvidenceRequirementDefinition, ...] = (
         metrics=("train/rl/tool_call_frequency", "train/rl/tool_failure_frequency"),
         reason="Tool environments owe invocation and failure coverage in addition to reward.",
     ),
+    _RESOLVED_UPDATE_REQUIREMENT,
 )
 
 SAMPO_TELEMETRY = _sampo_telemetry()

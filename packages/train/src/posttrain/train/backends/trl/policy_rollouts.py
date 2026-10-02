@@ -7,6 +7,7 @@ import math
 import time
 from collections.abc import Sequence
 from dataclasses import replace
+from pathlib import Path
 from typing import Any, Literal, cast
 
 from posttrain.common import (
@@ -70,6 +71,112 @@ def collect_resolved_population(
         max_overflow_retries=max_overflow_retries,
     )
     context.artifact(artifact)
+    return admitted
+
+
+def collect_active_resolved_population(
+    context: RunContext, request: SAMPORequest, tokenizer: Any, trainer: Any,
+    reserved: list[dict[str, Any]], capabilities: ExecutionCapabilities, *, evidence_directory: Path,
+    population_id: str, template_revision: str, versions: PolicyVersions, selector_digest: str,
+    attempt_offset: int, max_overflow_retries: int = 0, totals: RolloutUpdateTotals | None = None,
+) -> AdmittedNativePopulation:
+    """Run TRL post11 active rounds over one reserved task pool, then admit the selection.
+
+    The resolved path collects explicit rows rather than TRL's dataloader, so the
+    native refill cannot run here; ``ActiveRoundPlan`` applies TRL's exact round
+    arithmetic and zero-epsilon spread rule on the shaped reward that credit uses.
+    Every reserved candidate is accounted for in content-addressed evidence before
+    admission: selected, finished-but-surplus, failed or unused. Only selected
+    groups enter the retained population; every collected episode is still
+    observed as a trace by the ordinary collector.
+    """
+    from ...update_active_rounds import ActiveRoundPlan
+    from ..policy_collection_evidence import publish_collection_snapshot
+
+    bridge = cast(Any, request.bridge)
+    settings = request.settings
+    active = settings.active_sampling
+    if (getattr(bridge, "policy_update_context_contract", None) != "causal-text@1"
+            or not callable(getattr(bridge, "retain_population", None))):
+        raise InvalidPolicyUpdate("resolved collection requires native conditioning and retained artifact support")
+    if settings.policy_updates is None or active is None or settings.adaptive_curriculum is not None:
+        raise InvalidPolicyUpdate("resolved active collection requires explicit updates and no curriculum")
+    if trainer.accelerator.num_processes != 1 or bool(getattr(trainer, "active_sampling", False)):
+        raise InvalidPolicyUpdate("resolved active collection replaces, and cannot nest, native TRL refills")
+    applied = trainer.state.global_step
+    if type(applied) is not int:
+        raise InvalidPolicyUpdate("resolved collection requires an exact native applied counter")
+    AdmittedNativePopulation._validate_counters(applied, attempt_offset, max_overflow_retries)  # noqa: SLF001
+    plan = ActiveRoundPlan(settings.num_prompts_per_step, active.max_candidate_batches,
+                           active.oversample, active.oversample_refill)
+    tasks = [str(row["example_id"]) for row in reserved]
+    if len(tasks) != plan.pool or len(set(tasks)) != len(tasks):
+        raise InvalidPolicyUpdate("resolved active collection requires one distinct task per reserved candidate")
+    generations = settings.num_generations
+    state: dict[str, Any] = {
+        "schema": "posttrain.trl-active-collection@1", "sampler_step": applied,
+        "metric": "shaped_reward", "reward_std_epsilon": 0.0,
+        "reserved": [{"uid": f"candidate-{index}", "task": task} for index, task in enumerate(tasks)],
+        "rounds": [], "groups": [], "selected": None, "status": "reserved"}
+    destination = evidence_directory.resolve()
+    publish_collection_snapshot(context, destination, state)
+    collector = rollout_function(context, request, tokenizer, totals, retain_native=True)
+    retained: list[tuple[str, tuple[EnvironmentRollout, ...]]] = []
+    try:
+        while (next_round := plan.next_round()) is not None:
+            requested, size = next_round
+            batch = list(range(plan.cursor, plan.cursor + size))
+            state["rounds"].append({"index": plan.rounds + 1, "uids": [f"candidate-{index}" for index in batch]})
+            state["status"] = "dispatching"
+            publish_collection_snapshot(context, destination, state)
+            rows = [reserved[index] for index in batch for _ in range(generations)]
+            rollouts = collector([row["prompt"] for row in rows], trainer, inputs=rows)
+            if not isinstance(rollouts, tuple):
+                raise InvalidPolicyUpdate("resolved collector returned flattened trainer rows")
+            by_task: dict[str, list[EnvironmentRollout]] = {}
+            for rollout in rollouts:
+                if rollout.example_id not in {tasks[index] for index in batch}:
+                    raise InvalidPolicyUpdate("resolved active round returned an unreserved task")
+                by_task.setdefault(rollout.example_id, []).append(rollout)
+            kept = 0
+            for index in batch:
+                group = tuple(by_task.get(tasks[index], ()))
+                complete = len(group) == generations
+                rewards = [shape_online_reward(settings, rollout.reward, len(rollout.completion_ids),
+                                               is_truncated=rollout.is_truncated) for rollout in group]
+                if complete and not all(math.isfinite(value) for value in rewards):
+                    raise InvalidPolicyUpdate("resolved active classification requires finite shaped rewards")
+                eligible = complete and max(rewards) > min(rewards)
+                state["groups"].append({
+                    "uid": f"candidate-{index}", "terminal": "finished" if complete else "failed",
+                    "traces": [rollout.trace.external_id for rollout in group],
+                    "metric_values": rewards, "spread_eligible": eligible})
+                if eligible:
+                    kept += 1
+                    retained.append((f"candidate-{index}", group))
+            plan.record(requested, size, kept)
+            state["status"] = "round-observed"
+            publish_collection_snapshot(context, destination, state)
+        plan.require_full()
+        selected = retained[:settings.num_prompts_per_step]
+        state["selected"] = [uid for uid, _ in selected]
+        state["status"] = "selected"
+        publish_collection_snapshot(context, destination, state)
+    except Exception:
+        state["status"] = "failed"
+        publish_collection_snapshot(context, destination, state)
+        raise
+    population = tuple(rollout for _, group in selected for rollout in group)
+    artifact = bridge.retain_population(population)
+    admitted = AdmittedNativePopulation.from_retained_artifact(
+        artifact, population, settings, capabilities, population_id=population_id,
+        template_revision=template_revision, versions=versions, sampler_step=applied,
+        selector_digest=selector_digest, applied_update_offset=applied, attempt_offset=attempt_offset,
+        max_overflow_retries=max_overflow_retries,
+    )
+    context.artifact(artifact)
+    context.metrics(plan.metrics(generations), step=applied + 1,
+                    attributes={"measurement_scope": "resolved-active-collection"})
     return admitted
 
 

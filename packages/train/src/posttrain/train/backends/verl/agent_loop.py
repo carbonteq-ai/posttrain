@@ -290,6 +290,7 @@ class VerlPolicyGenerator:
                 ],
             },
             behavior_policy=behavior_policy,
+            reasoning_tokens=getattr(parsed, "reasoning_tokens", None),
         )
 
 

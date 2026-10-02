@@ -181,6 +181,10 @@ class PopulationSnapshot:
     def digest(self) -> str:
         return record_digest(self)
 
+    def select_roles(self, roles: tuple[str, ...]) -> tuple[ActionRef, ...]:
+        """Union every supplied annotation of the named roles (population-independent selection)."""
+        return tuple(sorted({action for span in self.spans if span.role in roles for action in span.actions()}))
+
     def select_spans(self, span_ids: tuple[str, ...]) -> tuple[ActionRef, ...]:
         """Union selected annotations without duplicating loss contributions."""
         by_id = {span.id: span for span in self.spans}
@@ -192,18 +196,30 @@ class PopulationSnapshot:
 
 @dataclass(frozen=True, slots=True)
 class ActionSelection:
-    """Population-frozen union of supplied spans, or all eligible actions."""
+    """Population-frozen union of supplied spans, or all eligible actions.
 
-    mode: Literal["all", "spans"] = "all"
+    ``spans`` names population-specific annotation IDs; ``roles`` names span
+    roles (for example ``reasoning`` or ``answer``) so a catalog selection is
+    stable across populations whose span IDs differ.
+    """
+
+    mode: Literal["all", "spans", "roles"] = "all"
     span_ids: tuple[str, ...] = ()
+    roles: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.mode not in {"all", "spans"} or (self.mode == "all" and self.span_ids):
-            raise InvalidPolicyUpdate("selector must declare all actions or supplied spans")
-        if len(set(self.span_ids)) != len(self.span_ids):
-            raise InvalidPolicyUpdate("selector span identities must be unique")
+        if (self.mode not in {"all", "spans", "roles"}
+                or (self.mode != "spans" and self.span_ids) or (self.mode != "roles" and self.roles)
+                or (self.mode == "roles" and not self.roles)):
+            raise InvalidPolicyUpdate("selector must declare all actions, supplied spans or span roles")
+        if len(set(self.span_ids)) != len(self.span_ids) or len(set(self.roles)) != len(self.roles):
+            raise InvalidPolicyUpdate("selector span identities and roles must be unique")
+        if any(not isinstance(role, str) or not role.strip() for role in self.roles):
+            raise InvalidPolicyUpdate("selector roles must be nonempty names")
 
     def resolve(self, snapshot: PopulationSnapshot) -> tuple[ActionRef, ...]:
         if self.mode == "all":
             return tuple(record.action for record in snapshot.actions)
+        if self.mode == "roles":
+            return snapshot.select_roles(self.roles)
         return snapshot.select_spans(self.span_ids)

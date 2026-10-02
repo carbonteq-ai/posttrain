@@ -1143,6 +1143,14 @@ def _condition_active(
                 "train/rl/active_sampling_generated_rows",
             )
         )
+    if condition == "explicit_policy_updates":
+        # The run selected an explicit policy-update schedule, or its engine
+        # reported resolved applied updates.
+        configured = any(value is not None for value in _config_values(dict(resolved_inputs), "policy_updates"))
+        applied = series.get(
+            "train/rl/applied_optimizer_updates", MetricSeries(name="train/rl/applied_optimizer_updates")
+        )
+        return configured or bool(applied.points)
     raise ValueError(f"unknown evidence condition: {condition}")
 
 

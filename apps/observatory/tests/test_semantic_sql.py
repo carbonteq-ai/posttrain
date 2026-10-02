@@ -109,6 +109,34 @@ def test_updates_apply_the_same_rules_as_the_python_readers(
             assert sql[1] == 136.0  # 48 + 48 + 40: batches with equal values are still separate batches
 
 
+def test_resolved_update_counters_aggregate_by_their_meaning(trackio_project: TrackioDataSource) -> None:
+    # Applied and attempt counters are cumulative (max), selected actions are per
+    # update (sum), and skipped attempts are computed rather than recorded.
+    (row,) = _rows(
+        _query(
+            trackio_project,
+            measures=(
+                "applied_updates",
+                "optimizer_attempts",
+                "skipped_optimizer_attempts",
+                "selected_policy_actions",
+                "selected_kl_actions",
+                "advantage_nonzero_share",
+            ),
+            by=("run.id",),
+            runs=("grpo-a",),
+        )
+    )
+    assert row["applied_updates"] == 3.0
+    assert row["optimizer_attempts"] == 4.0
+    assert row["skipped_optimizer_attempts"] == 1.0
+    assert row["selected_policy_actions"] == 600.0
+    assert row["selected_kl_actions"] == 300.0
+    assert row["advantage_nonzero_share"] == pytest.approx(0.5)
+    with pytest.raises(QueryError, match="sum"):
+        _query(trackio_project, measures=("applied_updates:sum",), by=("run.id",))
+
+
 def test_rollouts_are_rows_so_any_aggregation_works(trackio_project: TrackioDataSource) -> None:
     rows = _rows(
         _query(

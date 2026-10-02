@@ -181,6 +181,8 @@ def _run_online_rl(
     dataset = imports["Dataset"].from_list(rows)
     emit_parameter_counts(context, model, request.training.update)
     arguments = _online_rl_arguments(request, output_dir, template_kwargs)
+    if resolved_selection:
+        arguments = resolved_native_arguments(arguments)
     observation_features = _observation_features(request)
     technique = _technique(request)
     config_type = (
@@ -384,6 +386,23 @@ def _observation_features(
         GRPOObservationFeatures.from_request(request, tool_environment=True),
         asynchronous_rollout=False,
     )
+
+
+RESOLVED_REPLACED_ARGUMENTS = (
+    # Resolved collection runs TRL post11's active rounds itself over explicit
+    # reserved rows (collect_active_resolved_population); the dataloader-driven
+    # native refill must not also filter the single resolved-update slot.
+    "active_sampling", "active_sampling_max_batches", "active_sampling_reward_std_epsilon",
+    "active_sampling_oversample", "active_sampling_oversample_refill",
+    # Resolved credit is prepared before the update and evaluated by the
+    # resolved loss; TRL's rollout_func advantage transport is not used.
+    "use_precomputed_advantages",
+)
+
+
+def resolved_native_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Drop legacy collection/credit transport that the resolved trainer replaces."""
+    return {name: value for name, value in arguments.items() if name not in RESOLVED_REPLACED_ARGUMENTS}
 
 
 def _trainer_arguments(

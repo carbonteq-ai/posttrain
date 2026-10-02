@@ -103,6 +103,19 @@ const view = {
           provider_metadata: { run_id: 'runs/sft', job_kind: 'train.sft' },
         },
       },
+      {
+        direction: 'output',
+        logical_name: 'training/collection/5d41402abc4b2a76',
+        kind: 'training-collection',
+        artifact: {
+          provider: 'fixture',
+          namespace: 'demo',
+          name: 'collection-snapshot',
+          version: 'v1',
+          digest: 'collection-digest',
+          provider_metadata: { run_id: 'runs/sft', job_kind: 'train.sft' },
+        },
+      },
     ] },
     execution_targets: [{
       selection_id: 'targets/cuda-8gb',
@@ -780,6 +793,8 @@ describe('Observatory React product shell', () => {
     expect(within(observedRun).getByText('succeeded')).toHaveClass('text-[11px]');
     expect(screen.getByRole('region', { name: 'Produced artifacts' })).toHaveTextContent('models/sft@v2');
     expect(screen.getByRole('heading', { name: 'Artifact ledger' })).toBeVisible();
+    // Content-addressed active-collection snapshots read as their own evidence kind.
+    expect(screen.getAllByText('Active-collection evidence').length).toBeGreaterThan(0);
   });
 
   it('uses one active project and expands runs beneath their work package', async () => {

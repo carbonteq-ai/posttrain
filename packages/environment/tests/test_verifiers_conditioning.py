@@ -6,6 +6,7 @@ from posttrain.environment.verifiers_conditioning import (
     InvalidNativeConditioning,
     materialize_native_conditioning,
     native_conditioning_records,
+    native_reasoning_partition,
 )
 
 
@@ -73,3 +74,26 @@ def test_materialization_rejects_forged_action_coordinate_even_with_same_tokens(
     record = native_conditioning_records(trace, sampled_node_indices=(4,), context_contract="causal-text@1")[0]
     with pytest.raises(InvalidNativeConditioning, match="differs from the frozen"):
         materialize_native_conditioning(trace, replace(record, sampled_token_indices=(2,)))
+
+
+@pytest.mark.parametrize(("reasoning", "expected"), [(0, ((), (1, 2))), (1, ((1,), (2,))), (2, ((1, 2), ()))])
+def test_reasoning_partition_splits_sampled_actions_at_renderer_count(reasoning, expected) -> None:
+    trace = graph()
+    trace.calls[1].usage = SimpleNamespace(completion_tokens=2, reasoning_tokens=reasoning)
+    record = native_conditioning_records(trace, sampled_node_indices=(4,), context_contract="causal-text@1")[0]
+    assert native_reasoning_partition(trace, record) == expected
+
+
+@pytest.mark.parametrize("usage", [
+    None, SimpleNamespace(completion_tokens=2, reasoning_tokens=None),
+    SimpleNamespace(completion_tokens=3, reasoning_tokens=1), SimpleNamespace(completion_tokens=2, reasoning_tokens=3),
+])
+def test_reasoning_partition_rejects_missing_or_inconsistent_accounting(usage) -> None:
+    trace = graph()
+    trace.calls[1].usage = usage
+    record = native_conditioning_records(trace, sampled_node_indices=(4,), context_contract="causal-text@1")[0]
+    with pytest.raises(InvalidNativeConditioning):
+        native_reasoning_partition(trace, record)
+    trace.calls[1].usage = SimpleNamespace(completion_tokens=2, reasoning_tokens=1)
+    with pytest.raises(InvalidNativeConditioning, match="retained conditioning record"):
+        native_reasoning_partition(trace, replace(record, sampled_token_indices=(2,)))

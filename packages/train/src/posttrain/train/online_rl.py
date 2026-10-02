@@ -201,10 +201,15 @@ class PolicyTurnResult:
     prompt_is_content: tuple[bool, ...] = ()
     raw_response: Mapping[str, JsonValue] | None = None
     behavior_policy: BehaviorPolicySpan | None = None
+    # Renderer parse accounting: leading completion tokens that are thinking.
+    reasoning_tokens: int | None = None
 
     def __post_init__(self) -> None:
         if not self.prompt_ids or not self.completion_ids:
             raise ValueError("policy turn results require prompt and completion token ids")
+        if self.reasoning_tokens is not None and (
+                type(self.reasoning_tokens) is not int or not 0 <= self.reasoning_tokens <= len(self.completion_ids)):
+            raise ValueError("reasoning token accounting must be within the completion")
         if self.completion_logprobs and len(self.completion_logprobs) != len(self.completion_ids):
             raise ValueError("completion logprobs must align with completion ids")
         if self.prompt_is_content and len(self.prompt_is_content) != len(self.prompt_ids):

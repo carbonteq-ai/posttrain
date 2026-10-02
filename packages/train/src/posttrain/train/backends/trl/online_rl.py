@@ -119,6 +119,7 @@ class TrlPolicyGenerator:
             prompt_message_spans=spans,
             prompt_is_content=tuple(bool(value) for value in rendered.is_content),
             raw_response=raw_response,
+            reasoning_tokens=getattr(parsed, "reasoning_tokens", None),
         )
 
     async def _generate_tokens(

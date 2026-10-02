@@ -32,7 +32,8 @@ def validate_native_selection(manifest: VerlLaunchManifest) -> None:
     if (updates is None
             or manifest.payload.training.target.world_size != 1 or runtime.nodes != 1
             or runtime.devices_per_node not in (None, 1)
-            or settings.mask_truncated_completions or updates.objective_variant == "semantic-spans"
+            or settings.mask_truncated_completions
+            or (updates.objective_variant == "semantic-spans" and not isinstance(settings, SAMPOSettings))
             or any(getattr(settings, name, None) is not None for name in (
                 "adaptive_curriculum", "dynamic_sampling"))
             or (getattr(settings, "active_sampling", None) is not None and not isinstance(settings, SAMPOSettings))):
