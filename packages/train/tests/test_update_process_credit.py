@@ -193,6 +193,6 @@ def test_public_guard_admits_only_gpu_qualified_process_credit(estimator, varian
     updates = replace(PolicyUpdateSettings(PolicyUpdateSchedule("episode", 1), PolicyExecutionBudget(2, 100, 1000)),
                       objective_variant=variant, credit_estimator=estimator)
     problem = _resolved_selection_problem("SAMPO", replace(settings(), policy_updates=updates),
-                                          cast(Any, SimpleNamespace(backend=backend)),
+                                          cast(Any, SimpleNamespace(backend=backend, target=SimpleNamespace(placement={}))),
                                           cast(Any, SimpleNamespace(backend="transformers@1")))
     assert (problem is None) == admitted, problem

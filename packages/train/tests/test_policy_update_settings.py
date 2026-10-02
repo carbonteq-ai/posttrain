@@ -114,5 +114,20 @@ def test_public_admission_matches_the_gpu_qualified_resolved_matrix(backend, rol
         settings = SimpleNamespace(policy_updates=updates)
         assert GDPOSettings is not None
     problem = _resolved_selection_problem(technique, settings,  # pyright: ignore[reportArgumentType]
-                                          SimpleNamespace(backend=backend), SimpleNamespace(backend=rollout))  # pyright: ignore[reportArgumentType]
+                                          SimpleNamespace(backend=backend, target=SimpleNamespace(placement={})),  # pyright: ignore[reportArgumentType]
+                                          SimpleNamespace(backend=rollout))  # pyright: ignore[reportArgumentType]
     assert (problem is None) == admitted, problem
+
+
+@pytest.mark.parametrize("backend", ["trl@1", "verl@1"])
+def test_public_admission_rejects_multi_gpu_resolved_execution(backend):
+    from types import SimpleNamespace
+
+    from posttrain.train.profiles import SAMPOSettings
+    from posttrain.train.requests import _resolved_selection_problem
+
+    settings = SAMPOSettings("explicit", TrainingLoop(max_steps=3), policy_updates=update_settings())
+    training = SimpleNamespace(backend=backend, target=SimpleNamespace(placement={"world_size": 2}))
+    problem = _resolved_selection_problem("SAMPO", settings, training,  # pyright: ignore[reportArgumentType]
+                                          SimpleNamespace(backend="transformers@1"))  # pyright: ignore[reportArgumentType]
+    assert problem is not None and "single device" in problem

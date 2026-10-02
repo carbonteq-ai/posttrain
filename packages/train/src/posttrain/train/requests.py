@@ -212,6 +212,7 @@ def _validate_online_rl(
 # answer semantic spans) with transformers generation, and native veRL SAMPO
 # active collection. Each backend's own admission still
 # rejects anything narrower it has not qualified (distribution, masks, vLLM).
+# Every admitted selection runs on one device.
 _QUALIFIED_RESOLVED_SELECTIONS: dict[str, frozenset[tuple[str, str]]] = {
     "trl": frozenset({("grpo", "algorithm"), ("dapo", "algorithm"), ("sampo", "algorithm"),
                       ("sampo", "semantic-spans")}),
@@ -248,6 +249,9 @@ def _resolved_selection_problem(
                 f"for {training.backend} {algorithm} {updates.objective_variant!r}")
     if backend == "trl" and inference.backend.split("@", 1)[0] == "vllm":
         return "resolved TRL policy updates are qualified with transformers generation, not vLLM rollouts"
+    if training.target.placement.get("world_size", 1) != 1:
+        # Multi-GPU execution is out of scope for this release (engine plan R137).
+        return "resolved policy updates are qualified on a single device; multi-GPU execution is not admitted"
     return None
 
 

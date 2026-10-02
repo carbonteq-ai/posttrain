@@ -1,7 +1,7 @@
 # Implement a general policy update engine with explicit algorithm contracts
 
 This ExecPlan is a living document maintained under `docs/templates/PLAN.md`.
-Revision 135, 2026-10-02. Update Progress, Surprises & Discoveries, Decision Log and
+Revision 136, 2026-10-02. Update Progress, Surprises & Discoveries, Decision Log and
 Outcomes & Retrospective at every implementation stopping point. This revision
 replaces the earlier GSPO/SAMPO-only plan with the reviewed general-engine scope.
 Implementation is authorized by the active thread goal. Native qualification
@@ -38,6 +38,14 @@ only for demonstrated gaps such as cross-record ratio dependencies or replay.
 Small-GPU qualification checks correctness; research and ablations guide recipes.
 
 ## Progress
+
+- [x] Revision136 (2026-10-02) closes multi-GPU as out of scope (user decision)
+  and prepares release 0.4.14: public guard rejects resolved selections with
+  `world_size != 1` (tests in `packages/train/tests/test_policy_update_settings.py`),
+  `posttrain-release prepare 0.4.14`, CHANGELOG entry, and local publication of
+  the four kind images whose inputs changed (supervised, online-rl-trl-py312,
+  online-rl-verl-py313, eval). Stale unchecked boxes below record superseded
+  intermediate revisions; their final state is in Outcomes.
 
 - [x] Revision134 TRL post14 consumer adoption. Following `docs/tooling/forks.md`
   steps 11-13: `packages/train/pyproject.toml` pins `trl==1.12.0.post14` with
@@ -2384,10 +2392,12 @@ Small-GPU qualification checks correctness; research and ablations guide recipes
   truncation. Four contexts per precision match provider bytes; all 143 action
   positions exclude prompt/tool context. Complete-group SAMPO advantages are
   all zero, retained as negative coverage rather than productive-update evidence.
-- [ ] Finish informative Gemma 4 native optimizer checks;
-  preserve and diagnose setup/precision failures before accepting updates.
-- [ ] Publish necessary fork changes, qualify retained artifacts, update consumer
-  pins and runtime locks, and remove the temporary compatibility route.
+- [x] Finish informative Gemma 4 native optimizer checks (R136: BF16 informative
+  updates and exact resume; FP16 rejected before update on non-finite logits).
+- [x] Publish necessary fork changes, qualify retained artifacts, update consumer
+  pins and runtime locks (TRL post14, veRL post9, renderers dev3; kind images
+  rebuilt for release 0.4.14). Removing the temporary compatibility route is
+  deferred one release per Milestone 7.
 
 ## Surprises & Discoveries
 
@@ -4151,6 +4161,13 @@ Empty/omitted objectives and overflow require separate transaction semantics.
 
 ## Decision Log
 
+Decision (revision136, 2026-10-02/user): multi-GPU execution is out of scope,
+including single-host data parallelism. R137 is closed as out of scope rather
+than open. The data-parallel veRL code and its gloo multi-process tests stay,
+but the public guard in `packages/train/src/posttrain/train/requests.py` now
+rejects any resolved selection whose `world_size` is not 1, so no unqualified
+multi-GPU run can be admitted. Release 0.4.14 ships the single-device engine.
+
 Decision (revision134, 2026-10-02/user): multi-node distributed execution and
 distributed TRL are out of scope for this plan. Single-machine multi-GPU on
 small workstation-class cards (e.g. 2x RTX PRO 4500) is in scope for the native veRL
@@ -5047,6 +5064,11 @@ and update boundaries. Explicit sampler correction must be supplied or explicitl
 absent, never dropped by the bridge. Date/Author: 2026-10-02/Codex.
 
 ## Outcomes & Retrospective
+
+Revision136 closes the plan's in-scope work for release 0.4.14. Multi-GPU is out of
+scope by user decision (R137 closed, not open); the public guard admits only
+single-device resolved selections. Old execution route retirement remains
+deferred one release per Milestone 7.
 
 Revision135 completes the in-scope engine gates on real models: TRL post14
 adoption; native veRL SAMPO active collection (R134); TRL resolved active
