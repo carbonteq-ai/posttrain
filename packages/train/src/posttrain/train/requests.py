@@ -174,12 +174,10 @@ def _validate_online_rl(
         raise ValueError("rollout model length must cover prompt and completion limits")
     _validate_rollout_max_tokens(inference, settings.max_completion_length)
     if settings.policy_updates is not None:
-        # Removed per backend only after native execution and release gates pass.
-        # Catalog support must never silently fall through to the legacy trainer.
-        raise ValueError(
-            f"{training.backend} has no qualified resolved policy update executor yet; "
-            "policy_updates requires the native integration gates in the engine plan"
-        )
+        problem = _resolved_selection_problem(technique, settings, training, inference)
+        if problem is not None:
+            # Catalog support must never silently fall through to the legacy trainer.
+            raise ValueError(problem)
     expected_batch = settings.num_prompts_per_step * settings.num_generations
     if isinstance(settings, GDPOSettings | CAPOSettings) and training.backend.split("@", 1)[0] == "trl":
         world_size = training.target.placement.get("world_size", 1)
@@ -198,6 +196,40 @@ def _validate_online_rl(
     plan_id = inference.engine.get("quantization_plan_id")
     if plan_id is not None and (quantization is None or plan_id != quantization.id):
         raise ValueError("rollout quantization mode must reference the selected quantization plan")
+
+
+# Explicit policy_updates selections whose native execution, collection and
+# recovery passed real-model GPU qualification (engine plan R124-R138):
+# TRL GRPO/DAPO and SAMPO (active collection, and renderer-derived reasoning/
+# answer semantic spans) with transformers generation, and native veRL SAMPO
+# active collection. Each backend's own admission still
+# rejects anything narrower it has not qualified (distribution, masks, vLLM).
+_QUALIFIED_RESOLVED_SELECTIONS: dict[str, frozenset[tuple[str, str]]] = {
+    "trl": frozenset({("grpo", "algorithm"), ("dapo", "algorithm"), ("sampo", "algorithm"),
+                      ("sampo", "semantic-spans")}),
+    "verl": frozenset({("sampo", "algorithm")}),
+}
+
+
+def _resolved_selection_problem(
+    technique: str,
+    settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
+    training: TrainingBinding,
+    inference: InferenceBinding,
+) -> str | None:
+    updates = settings.policy_updates
+    assert updates is not None
+    backend = training.backend.split("@", 1)[0]
+    algorithm = settings.algorithm if isinstance(settings, GRPOSettings) else technique.lower()
+    if (algorithm, updates.objective_variant) not in _QUALIFIED_RESOLVED_SELECTIONS.get(backend, frozenset()):
+        return (
+            f"{training.backend} has no qualified resolved policy update executor for {algorithm} "
+            f"objective variant {updates.objective_variant!r}; policy_updates requires the native "
+            "integration gates in the engine plan"
+        )
+    if backend == "trl" and inference.backend.split("@", 1)[0] == "vllm":
+        return "resolved TRL policy updates are qualified with transformers generation, not vLLM rollouts"
+    return None
 
 
 @dataclass(frozen=True, slots=True)

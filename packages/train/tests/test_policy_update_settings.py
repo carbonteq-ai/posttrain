@@ -82,6 +82,37 @@ def test_native_request_rejects_unqualified_explicit_executor_before_launch() ->
     from posttrain.train import GRPORequest
 
     settings = GRPOSettings("explicit", TrainingLoop(max_steps=3), policy_updates=update_settings())
-    with pytest.raises(ValueError, match="no qualified resolved policy update executor"):
+    with pytest.raises(ValueError, match="transformers generation, not vLLM rollouts"):
         GRPORequest(QWEN_35_2B, FakeRLBridge(), settings, FakeEnvironment(), _training(),
                     _inference(QWEN_35_2B, max_tokens=settings.max_completion_length))
+
+
+@pytest.mark.parametrize(("backend", "rollout", "technique", "variant", "admitted"), [
+    ("trl@1", "transformers@1", "GRPO", "algorithm", True),
+    ("trl@1", "transformers@1", "SAMPO", "algorithm", True),
+    ("verl@1", "vllm@1", "SAMPO", "algorithm", True),
+    ("trl@1", "vllm@1", "SAMPO", "algorithm", False),
+    ("trl@1", "transformers@1", "SAMPO", "semantic-spans", True),
+    ("verl@1", "vllm@1", "SAMPO", "semantic-spans", False),
+    ("verl@1", "vllm@1", "SAMPO", "turn-rows", False),
+    ("verl@1", "vllm@1", "GRPO", "algorithm", False),
+    ("trl@1", "transformers@1", "GDPO", "algorithm", False),
+    ("other@1", "transformers@1", "SAMPO", "algorithm", False),
+])
+def test_public_admission_matches_the_gpu_qualified_resolved_matrix(backend, rollout, technique, variant, admitted):
+    from types import SimpleNamespace
+
+    from posttrain.train.profiles import GDPOSettings, SAMPOSettings
+    from posttrain.train.requests import _resolved_selection_problem
+
+    updates = replace(update_settings(), objective_variant=variant)
+    if technique == "GRPO":
+        settings = GRPOSettings("explicit", TrainingLoop(max_steps=3), policy_updates=updates)
+    elif technique == "SAMPO":
+        settings = SAMPOSettings("explicit", TrainingLoop(max_steps=3), policy_updates=updates)
+    else:
+        settings = SimpleNamespace(policy_updates=updates)
+        assert GDPOSettings is not None
+    problem = _resolved_selection_problem(technique, settings,  # pyright: ignore[reportArgumentType]
+                                          SimpleNamespace(backend=backend), SimpleNamespace(backend=rollout))  # pyright: ignore[reportArgumentType]
+    assert (problem is None) == admitted, problem

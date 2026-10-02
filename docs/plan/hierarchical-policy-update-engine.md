@@ -209,6 +209,36 @@ Small-GPU qualification checks correctness; research and ablations guide recipes
   reasoning fixture and drives scorer -> external estimator -> prepare_credit
   -> `sampo-spans@1` resolution. GPU run on a real retained population with
   nonzero reasoning spans (R137 traces carry the prompt fix) is open.
+- [x] Revision134 R138 qualifies semantic reasoning spans and the real local
+  scorer on LFM2.5-2.6B (TRL resolved SAMPO, post14 + dev3, ActiveGroupSampling(6),
+  BF16). Fresh traces: 24/24 calls report renderer reasoning (5505 tokens; the
+  prefill fix works on GPU) with no think markers in content. Retained spans
+  exactly partition every sampled call (1521 reasoning, 684 answer actions);
+  each `sampo-spans@1` term's policy actions equal the reasoning spans and KL
+  actions equal all actions; independent FP64 objective and equal-episode
+  weights match; selected group [0,1,0,1]; 2205/2205 nonzero advantages; 32
+  adapters change; checkpoint1 continuation exact (164 tensors). The
+  composition-owned `LikelihoodSpanScorer` (base LFM2.5-2.6B 654f9463, FP32,
+  weight SHA-256s recorded, prefix scope) assessed every reasoning span by ID,
+  matched an independent recomputation within 3.9e-8, and the explicitly
+  identified `group-centered-likelihood@1` estimator credited exactly the 1521
+  reasoning actions; resolution yields `sampo-spans@1`. Receipts:
+  `/var/lib/posttrain/qualifications/corrected-trl-20261002-r138/`. FP16 pair
+  also passes: 25/25 calls report reasoning (8874 tokens), spans partition
+  exactly (1977 reasoning / 741 answer actions), objective weights match in both
+  updates, 2718/2718 nonzero advantages, exact continuation (164 tensors with
+  scaler). TRL SAMPO `semantic-spans` is added to the public qualified matrix. Training with process credit inside a job (estimator selection
+  in settings) is not wired; the scorer gate is evidence, credit and resolution.
+- [x] Revision134 lifts the public `policy_updates` guard for qualified
+  selections only. `requests.py::_resolved_selection_problem` admits the GPU-
+  qualified matrix: TRL GRPO/DAPO (R124-R132) and SAMPO with active collection
+  (R135b) on the `algorithm` objective variant with transformers generation,
+  and native veRL SAMPO active collection (R134/R136). Everything else
+  (semantic spans and turn rows until their GPU gates, GDPO/CAPO, vLLM-rollout
+  TRL, other backends) is rejected with the reason; each backend's own
+  admission still rejects narrower unqualified settings (distribution beyond
+  qualified sizes, masks, curriculum). Legacy execution stays for absent
+  `policy_updates` for one release. Matrix regression covers nine cases.
 - [x] Revision134 observation gate (Observatory): metric catalog entries and
   run aggregation for resolved counters (applied/attempts max, selected
   actions sum, nonzero-advantage mean, loss/kl mean, loss scale last, skipped
@@ -4063,6 +4093,11 @@ A zero gradient is therefore not proof that a native optimizer applied no update
 Empty/omitted objectives and overflow require separate transaction semantics.
 
 ## Decision Log
+
+Decision (revision134, 2026-10-02/Claude): lift the public guard per
+(backend, algorithm, objective variant) from a declared qualified matrix rather
+than per backend wholesale, so newly built paths (spans, turn rows, GDPO/CAPO,
+vLLM TRL rollouts, distributed TRL) stay closed until their own receipts exist.
 
 Decision (revision134, 2026-10-02/Claude): add role-based `ActionSelection`
 (`mode: roles`). Span IDs are population-specific, so a reusable catalog
