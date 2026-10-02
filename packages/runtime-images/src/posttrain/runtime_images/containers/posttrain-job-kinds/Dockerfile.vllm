@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1.7
 
 ARG POSTTRAIN_BASE_IMAGE
+ARG VLLM_BINARY_WHEEL_URL="https://wheels.vllm.ai/44dd18fe0bb0f13157f97a5aa029b6604468fca6/vllm-0.29.1rc1.dev366%2Bg44dd18fe0-cp38-abi3-manylinux_2_28_x86_64.whl"
+ARG VLLM_BINARY_WHEEL_SHA256="2b8f85d32b952cb05743c2edb02c4ae5be59921445b97069a609f186fdf6c5f0"
+ARG VLLM_RUNTIME_VERSION="0.29.1.dev4"
 
 FROM ${POSTTRAIN_BASE_IMAGE} AS kind-common
 COPY containers/posttrain-job-kinds/locks/build-tools.lock.txt /opt/posttrain/locks/build-tools.lock.txt
@@ -11,9 +14,9 @@ RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locke
       --requirement /opt/posttrain/locks/build-tools.lock.txt
 
 FROM kind-common AS vllm-kind-common
-ARG VLLM_BINARY_WHEEL_URL="https://wheels.vllm.ai/44dd18fe0bb0f13157f97a5aa029b6604468fca6/vllm-0.29.1rc1.dev366%2Bg44dd18fe0-cp38-abi3-manylinux_2_28_x86_64.whl"
-ARG VLLM_BINARY_WHEEL_SHA256="2b8f85d32b952cb05743c2edb02c4ae5be59921445b97069a609f186fdf6c5f0"
-ARG VLLM_RUNTIME_VERSION="0.29.1.dev4"
+ARG VLLM_BINARY_WHEEL_URL
+ARG VLLM_BINARY_WHEEL_SHA256
+ARG VLLM_RUNTIME_VERSION
 RUN apt-get update && \
     apt-get install --yes --no-install-recommends g++ && \
     rm -rf /var/lib/apt/lists/*
@@ -40,36 +43,54 @@ RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locke
       --requirement /opt/posttrain/profiles/vllm-common.txt
 
 FROM vllm-kind-common AS online-rl-trl-py312-dependencies
+# Installed vLLM satisfies the lock, but uv may still read its Git metadata.
+ARG VLLM_BINARY_WHEEL_URL
+ARG VLLM_BINARY_WHEEL_SHA256
+ARG VLLM_RUNTIME_VERSION
 WORKDIR /opt/posttrain/profiles
 COPY containers/posttrain-job-kinds/locks/online-rl-trl-py312.lock.txt /opt/posttrain/locks/online-rl-trl-py312.lock.txt
 COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
 COPY containers/posttrain-job-kinds/profiles/supervised.txt /opt/posttrain/profiles/supervised.txt
 COPY containers/posttrain-job-kinds/profiles/online-rl-trl-py312.txt /opt/posttrain/profiles/online-rl-trl-py312.txt
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
-    SKIP_FRONTEND_BUILD=1 uv pip install --python "${VIRTUAL_ENV}" \
+    --mount=type=cache,id=posttrain-vllm-wheels,target=/opt/posttrain-wheel-cache,sharing=locked \
+    --mount=type=bind,source=containers/posttrain-job-kinds/vllm-precompiled.sh,target=/opt/posttrain/vllm-precompiled.sh \
+    sh /opt/posttrain/vllm-precompiled.sh uv pip install --python "${VIRTUAL_ENV}" \
       --index-strategy unsafe-best-match \
       --constraint /opt/posttrain/locks/online-rl-trl-py312.lock.txt \
       --requirement /opt/posttrain/profiles/common.txt \
       --requirement /opt/posttrain/profiles/online-rl-trl-py312.txt
 
 FROM vllm-kind-common AS eval-dependencies
+# Installed vLLM satisfies the lock, but uv may still read its Git metadata.
+ARG VLLM_BINARY_WHEEL_URL
+ARG VLLM_BINARY_WHEEL_SHA256
+ARG VLLM_RUNTIME_VERSION
 COPY containers/posttrain-job-kinds/locks/eval.lock.txt /opt/posttrain/locks/eval.lock.txt
 COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
 COPY containers/posttrain-job-kinds/profiles/serve.txt /opt/posttrain/profiles/serve.txt
 COPY containers/posttrain-job-kinds/profiles/eval.txt /opt/posttrain/profiles/eval.txt
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
-    SKIP_FRONTEND_BUILD=1 uv pip install --python "${VIRTUAL_ENV}" \
+    --mount=type=cache,id=posttrain-vllm-wheels,target=/opt/posttrain-wheel-cache,sharing=locked \
+    --mount=type=bind,source=containers/posttrain-job-kinds/vllm-precompiled.sh,target=/opt/posttrain/vllm-precompiled.sh \
+    sh /opt/posttrain/vllm-precompiled.sh uv pip install --python "${VIRTUAL_ENV}" \
       --index-strategy unsafe-best-match \
       --constraint /opt/posttrain/locks/eval.lock.txt \
       --requirement /opt/posttrain/profiles/common.txt \
       --requirement /opt/posttrain/profiles/eval.txt
 
 FROM vllm-kind-common AS serve-dependencies
+# Installed vLLM satisfies the lock, but uv may still read its Git metadata.
+ARG VLLM_BINARY_WHEEL_URL
+ARG VLLM_BINARY_WHEEL_SHA256
+ARG VLLM_RUNTIME_VERSION
 COPY containers/posttrain-job-kinds/locks/serve.lock.txt /opt/posttrain/locks/serve.lock.txt
 COPY containers/posttrain-job-kinds/profiles/common.txt /opt/posttrain/profiles/common.txt
 COPY containers/posttrain-job-kinds/profiles/serve.txt /opt/posttrain/profiles/serve.txt
 RUN --mount=type=cache,id=posttrain-kind-uv,target=/root/.cache/uv,sharing=locked \
-    SKIP_FRONTEND_BUILD=1 uv pip install --python "${VIRTUAL_ENV}" \
+    --mount=type=cache,id=posttrain-vllm-wheels,target=/opt/posttrain-wheel-cache,sharing=locked \
+    --mount=type=bind,source=containers/posttrain-job-kinds/vllm-precompiled.sh,target=/opt/posttrain/vllm-precompiled.sh \
+    sh /opt/posttrain/vllm-precompiled.sh uv pip install --python "${VIRTUAL_ENV}" \
       --index-strategy unsafe-best-match \
       --constraint /opt/posttrain/locks/serve.lock.txt \
       --requirement /opt/posttrain/profiles/common.txt \

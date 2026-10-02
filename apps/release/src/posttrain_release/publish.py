@@ -142,6 +142,7 @@ def _kind_source_paths(variant: str) -> tuple[Path, ...]:
             (
                 Path(KIND_DEFINITION) / "locks" / "vllm-common.lock.txt",
                 Path(KIND_DEFINITION) / "profiles" / "vllm-common.txt",
+                Path(KIND_DEFINITION) / "vllm-precompiled.sh",
             )
         )
     if variant == "online-rl-trl-py312":
