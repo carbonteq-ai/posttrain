@@ -9,6 +9,59 @@ Series overviews: [v0.4 release notes](docs/releases/v0.4.md) and
 
 ## Unreleased
 
+## 0.4.14 - 2026-10-02
+
+The resolved policy update engine: an explicit `policy_updates` selection on
+GRPO, DAPO and SAMPO training that fixes the update schedule, objective,
+credit and recovery identity before training starts, admitted only where it
+passed real-model GPU qualification (LFM2.5-2.6B and Gemma 4 E2B, BF16 and
+FP16 with exact checkpoint continuation). Ships TRL 1.12.0.post14, CarbonTeq
+veRL 0.9.0.post9 and renderers 0.1.12.post1.dev3.
+
+### Added
+
+- `policy_updates` on GRPO/DAPO/SAMPO settings. Admitted selections: TRL GRPO,
+  DAPO and SAMPO (`algorithm`), TRL SAMPO `semantic-spans`, and native veRL
+  SAMPO with active collection. Every other backend, algorithm or objective
+  variant, TRL with vLLM rollouts, and any `world_size` above 1 is rejected
+  at request construction rather than silently falling back to the legacy
+  trainer. Multi-GPU and multi-node execution are not admitted in this
+  release.
+- Active collection on the resolved TRL and veRL paths: whole candidate
+  groups are collected and retained as evidence before admission, with the
+  same `train/rl/active_sampling_*` metrics on both backends.
+- Reasoning and answer spans derived from the renderer's own reasoning
+  accounting, and role-based action selection (`mode: roles`) so a catalog can
+  select reasoning or answer support without population-specific span IDs.
+- Injected process credit: a composition-owned span scorer feeds an external
+  credit estimator (`credit_estimator: group-centered-likelihood@1`, TRL SAMPO
+  semantic spans). The lab provides `LikelihoodSpanScorer`, which scores each
+  span by the model's mean log-probability of its original tokens.
+- Observatory definitions for resolved-update evidence (population, applied
+  versus skipped updates, selected/scored/gradient actions, denominators).
+
+### Changed
+
+- TRL is CarbonTeq 1.12.0.post14; veRL is CarbonTeq 0.9.0.post9; renderers is
+  0.1.12.post1.dev3. The catalog lock `trl-fork@current` and every lab TRL
+  binding record the new lock.
+- veRL SAMPO uses the token-local sequence-ratio loss (`sampo_token_credit`),
+  matching corrected TRL SAMPO; sources that do not register it are refused.
+
+### Fixed
+
+- LFM2.5 thinking that the chat template prefills leaked into visible reply
+  content, and `reasoning_tokens` was never reported, on the TRL and veRL
+  rollout paths.
+- veRL active sampling ranked prompts by `seq_reward` while the driver
+  required `group_reward`; both now use `group_reward`.
+- veRL could not load a pinned model revision offline from the local cache.
+- The LFM renderer mask trained on earlier assistant turns' reasoning.
+- Legacy TRL active-sampling and precomputed-advantage arguments leaked into
+  resolved TRL jobs.
+- GDPO and reward normalization overflowed on large opposite finite rewards
+  instead of producing the finite normalized credit.
+
 ## 0.4.13 - 2026-09-29
 
 VORTEX and SAMPO on veRL, checked against TRL on matched Qwen3.5-0.8B and

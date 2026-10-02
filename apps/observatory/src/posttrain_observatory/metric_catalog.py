@@ -18,6 +18,9 @@ from .models import MetricHelp, ObservatoryModel
 
 type CatalogEntity = Literal["update", "run"]
 
+RESOLVED_UPDATE_KINDS = ("train.capo", "train.gdpo", "train.grpo", "train.sampo")
+"""Job kinds whose explicit `policy_updates` engines emit resolved-update evidence."""
+
 ACTIVE_SAMPLING_CATALOG_ROUNDS = 32
 """Active-sampling rounds whose per-round metrics are described (max_candidate_batches in practice is 3-10)."""
 type CatalogAggregation = Literal["last", "first", "min", "max", "mean", "sum", "count", "stddev"]
@@ -555,7 +558,8 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Candidate rows reserved by the dataloader for the bounded active-sampling window.",
         interpretation="Reserved rows that remain unused are capacity held in reserve rather than rollout work already performed.",
         entity="update",
-        job_kinds=("train.capo", "train.gdpo", "train.grpo"),
+        aggregation="sum",
+        job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
         "train/rl/active_sampling_candidate_groups_generated",
@@ -564,7 +568,8 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Candidate rows whose rollouts were generated and scored.",
         interpretation="This is the generated candidate population before filtering, not the final optimizer population.",
         entity="update",
-        job_kinds=("train.capo", "train.gdpo", "train.grpo"),
+        aggregation="sum",
+        job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
         "train/rl/active_sampling_candidate_groups_retained",
@@ -573,7 +578,8 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Generated candidate rows kept because their reward group had usable variation.",
         interpretation="This is the population from which the optimizer update is assembled after any bounded oversupply is trimmed.",
         entity="update",
-        job_kinds=("train.capo", "train.gdpo", "train.grpo"),
+        aggregation="sum",
+        job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
         "train/rl/active_sampling_candidate_groups_unused",
@@ -582,7 +588,8 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Reserved candidate rows never generated because the target population was already filled.",
         interpretation="A high value is expected when early candidate rounds are productive; it is not a failed rollout count.",
         entity="update",
-        job_kinds=("train.capo", "train.gdpo", "train.grpo"),
+        aggregation="sum",
+        job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
         "train/rl/active_sampling_oversampled_groups",
@@ -686,6 +693,152 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         interpretation="Interpret its trend with reward, entropy, clipping, and gradient norm rather than as a standalone quality score.",
         entity="update",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
+    ),
+    # Resolved policy-update evidence (explicit `policy_updates` on the TRL and
+    # veRL engines). One point per applied update; the applied and attempt
+    # counters are cumulative, so runs aggregate them with max/last, never sum.
+    _entry(
+        "train/rl/loss",
+        "resolved_loss",
+        "Resolved objective",
+        "Complete resolved objective (policy plus KL terms) evaluated for the applied update, not a native replay carrier.",
+        interpretation="Read it with policy and KL loss; a difference from policy loss is the selected KL contribution.",
+        caveat="Its scale depends on the declared reductions and selected actions, so compare only runs with the same objective digest.",
+        entity="update",
+        allowed=("last", "first", "min", "max", "mean", "stddev"),
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/rl/kl_loss",
+        "kl_loss",
+        "KL loss",
+        "Weighted KL-regularization term of the resolved objective, over the separately selected KL actions.",
+        interpretation="Zero means no KL penalty was selected (beta 0) or the policy still matches its reference.",
+        entity="update",
+        allowed=("last", "first", "min", "max", "mean", "stddev"),
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/rl/applied_optimizer_updates",
+        "applied_updates",
+        "Applied optimizer updates",
+        "Cumulative count of committed optimizer updates at this point, including updates restored from a checkpoint.",
+        interpretation="It should rise by exactly one per point; a gap or repeat means a missing or duplicated update report.",
+        caveat="Overflow-skipped, all-zero or omitted updates are not applied updates.",
+        entity="update",
+        aggregation="max",
+        allowed=("last", "first", "min", "max", "count"),
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/rl/optimizer_attempts",
+        "optimizer_attempts",
+        "Optimizer attempts",
+        "Cumulative count of optimizer attempts, including attempts skipped by FP16 overflow and later retried.",
+        interpretation="Attempts above applied updates are skipped steps; the skipped_optimizer_attempts metric computes the difference.",
+        entity="update",
+        aggregation="max",
+        allowed=("last", "first", "min", "max", "count"),
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/rl/selected_policy_actions",
+        "selected_policy_actions",
+        "Selected policy actions",
+        "Sampled action tokens carrying policy-loss weight in this applied update.",
+        interpretation="Sum across updates for total gradient-bearing action occurrences; a reused population counts each occurrence.",
+        caveat="Membership itself lives in immutable update artifacts; this is only the count.",
+        entity="update",
+        aggregation="sum",
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/rl/selected_kl_actions",
+        "selected_kl_actions",
+        "Selected KL actions",
+        "Sampled action tokens carrying KL-regularization weight in this applied update.",
+        interpretation="KL support is selected independently of policy support; equal counts mean both cover the same actions.",
+        entity="update",
+        aggregation="sum",
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/rl/advantage_mean",
+        "advantage_mean",
+        "Mean advantage",
+        "Mean prepared advantage over the policy actions of the update.",
+        interpretation="Group-relative credit is centred per group, so the population mean is near zero; minibatches of one population need not be.",
+        caveat="Resolved engines average over policy-selected actions; the legacy veRL path averages its native advantage rows.",
+        entity="update",
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/rl/advantage_abs_mean",
+        "advantage_abs_mean",
+        "Mean absolute advantage",
+        "Mean magnitude of prepared advantages over the policy actions of the update.",
+        interpretation="Zero means the update carried no policy-gradient signal, whatever the optimizer step did.",
+        caveat="Resolved engines average over policy-selected actions; the legacy veRL path averages its native advantage rows.",
+        entity="update",
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/rl/advantage_std",
+        "advantage_std",
+        "Advantage spread",
+        "Population standard deviation of prepared advantages over the policy actions of the update.",
+        interpretation="Low spread with a nonzero mean means the update pushes selected actions in one direction.",
+        caveat="Resolved engines average over policy-selected actions; the legacy veRL path averages its native advantage rows.",
+        entity="update",
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/rl/advantage_nonzero_fraction",
+        "advantage_nonzero_share",
+        "Actions with nonzero advantage",
+        "Share of policy-selected actions in the applied update whose prepared advantage is nonzero.",
+        interpretation="Zero means an uninformative update (for example a reward-constant group); one means every selected action carried credit.",
+        caveat="The run mean weights updates equally; weight by selected policy actions for an action-level share.",
+        unit="ratio",
+        entity="update",
+        allowed=("last", "first", "min", "max", "mean", "stddev"),
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/loss_scale",
+        "loss_scale",
+        "FP16 loss scale",
+        "Dynamic gradient-scaler loss scale after the optimizer step.",
+        interpretation="A falling scale records overflow back-off; a rising scale records growth after stable steps.",
+        caveat="Only FP16 training with a gradient scaler records it.",
+        entity="update",
+        aggregation="last",
+        allowed=("last", "first", "min", "max"),
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/optimizer_step_skipped",
+        "optimizer_step_skipped",
+        "Optimizer step skipped",
+        "Whether the native optimizer skipped this step because the scaled gradients were not finite (1) or applied it (0).",
+        interpretation="Sum across updates for the number of skipped steps the native scaler reported.",
+        caveat="Only FP16 training with a gradient scaler records it.",
+        entity="update",
+        aggregation="sum",
+        allowed=("sum", "max", "mean", "last", "count"),
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/optimizer_steps_skipped",
+        "optimizer_steps_skipped_total",
+        "Optimizer steps skipped (cumulative)",
+        "Cumulative native count of optimizer steps skipped for non-finite scaled gradients.",
+        interpretation="Use its maximum for the run total; it never decreases within one uninterrupted run.",
+        caveat="Only FP16 training with a gradient scaler records it.",
+        entity="update",
+        aggregation="max",
+        allowed=("last", "first", "min", "max"),
+        job_kinds=RESOLVED_UPDATE_KINDS,
     ),
     _entry(
         "train/rl/rollouts_requested",
@@ -947,7 +1100,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         interpretation="Checkpoint spikes are operational overhead, not model-learning regressions.",
         unit="s",
         entity="update",
-        job_kinds=("train.capo", "train.gdpo", "train.grpo"),
+        job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
         "serve/backend/speculative_draft_tokens",
@@ -1409,4 +1562,11 @@ def metric_help(*metrics: str) -> tuple[MetricHelp, ...]:
     return tuple(CATALOG_BY_METRIC[metric].help() for metric in metrics)
 
 
-__all__ = ["ACTIVE_SAMPLING_CATALOG_ROUNDS", "CATALOG_BY_METRIC", "METRIC_CATALOG", "MetricEntry", "metric_help"]
+__all__ = [
+    "ACTIVE_SAMPLING_CATALOG_ROUNDS",
+    "CATALOG_BY_METRIC",
+    "METRIC_CATALOG",
+    "RESOLVED_UPDATE_KINDS",
+    "MetricEntry",
+    "metric_help",
+]

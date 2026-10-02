@@ -11,6 +11,7 @@ import math
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
+from decimal import Decimal, localcontext
 
 from .reward_evidence import InvalidRewardEvidence, RewardEvidence
 
@@ -28,9 +29,28 @@ def _normalize(values: Sequence[float], epsilon: float) -> tuple[float, ...]:
     # on top of large common reward offsets.
     origin = values[0]
     offsets = [value - origin for value in values]
-    mean = math.fsum(offsets) / len(offsets)
-    centered = [value - mean for value in offsets]
-    scale = math.hypot(*centered) / math.sqrt(len(centered) - 1)
+    try:
+        if not all(math.isfinite(value) for value in offsets):
+            raise OverflowError
+        mean = math.fsum(offsets) / len(offsets)
+        centered = [value - mean for value in offsets]
+        scale = math.hypot(*centered) / math.sqrt(len(centered) - 1)
+        if not math.isfinite(scale + epsilon):
+            raise OverflowError
+    except OverflowError:
+        # Opposite finite rewards or the norm's intermediate sum can exceed
+        # float range even though dimensionless normalized credit is finite.
+        # Retain the offset path above for small differences on large offsets.
+        magnitude = max(abs(value) for value in values)
+        if not math.isfinite(magnitude):
+            raise InvalidRewardEvidence("reward normalization overflowed") from None
+        scaled = [value / magnitude for value in values]
+        origin = scaled[0]
+        offsets = [value - origin for value in scaled]
+        mean = math.fsum(offsets) / len(offsets)
+        centered = [value - mean for value in offsets]
+        scale = math.hypot(*centered) / math.sqrt(len(centered) - 1)
+        epsilon /= magnitude
     result = tuple(value / (scale + epsilon) for value in centered)
     if not all(math.isfinite(value) for value in result):
         raise InvalidRewardEvidence("reward normalization overflowed")
@@ -85,16 +105,48 @@ def compute_gdpo_advantages(
     ):
         raise InvalidRewardEvidence("GDPO requires aligned finite nonnegative weights with a positive weight")
     raw = tuple(item.require_components(component_names) for item in evidence)
-    aggregate = [0.0] * len(evidence)
-    for indices in groups.values():
-        columns = [
-            _normalize([raw[index][column] for index in indices], epsilon) for column in range(len(component_names))
-        ]
-        for local, index in enumerate(indices):
-            aggregate[index] = math.fsum(
-                weight * column[local] for weight, column in zip(component_weights, columns, strict=True)
-            )
-    normalized = _normalize(aggregate, epsilon)
+
+    def aggregate(weights: Sequence[float]) -> list[float]:
+        values = [0.0] * len(evidence)
+        for indices in groups.values():
+            columns = [
+                _normalize([raw[index][column] for index in indices], epsilon) for column in range(len(component_names))
+            ]
+            for local, index in enumerate(indices):
+                terms = [weight * column[local] for weight, column in zip(weights, columns, strict=True)]
+                if not all(math.isfinite(term) for term in terms):
+                    raise OverflowError
+                values[index] = math.fsum(terms)
+        return values
+
+    try:
+        normalized = _normalize(aggregate(component_weights), epsilon)
+    except OverflowError:
+        # A common scale can erase a small component after large opposing
+        # components cancel. Preserve the represented component scores and
+        # weights with enough precision for the full binary64 product range.
+        # This exceptional path does not change ordinary float arithmetic.
+        with localcontext() as context:
+            context.prec = 1600
+            combined = [Decimal(0)] * len(evidence)
+            for indices in groups.values():
+                columns = [
+                    _normalize([raw[index][column] for index in indices], epsilon)
+                    for column in range(len(component_names))
+                ]
+                for local, index in enumerate(indices):
+                    combined[index] = sum(
+                        (
+                            Decimal.from_float(float(weight)) * Decimal.from_float(column[local])
+                            for weight, column in zip(component_weights, columns, strict=True)
+                        ),
+                        Decimal(0),
+                    )
+            mean = sum(combined, Decimal(0)) / len(combined)
+            centered = [value - mean for value in combined]
+            sd = (sum((value * value for value in centered), Decimal(0)) / (len(combined) - 1)).sqrt()
+            denominator = sd + Decimal.from_float(epsilon)
+            normalized = tuple(float(value / denominator) for value in centered)
     return RewardAdvantages(
         tuple(
             tuple(value if sampled else 0.0 for sampled in mask) for value, mask in zip(normalized, masks, strict=True)

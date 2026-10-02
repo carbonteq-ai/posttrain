@@ -67,6 +67,7 @@ def test_native_algorithm_rewards_reach_trl_as_scalar_rows() -> None:
     )
 
     assert isinstance(rewards, torch.Tensor)
+    assert rewards is not None
     torch.testing.assert_close(rewards, torch.tensor([[0.0], [1.0], [1.0], [0.0]]))
     assert rewards.std(unbiased=False).item() == pytest.approx(0.5)
 

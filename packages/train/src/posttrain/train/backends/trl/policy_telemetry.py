@@ -11,6 +11,7 @@ from typing import Any, cast
 from posttrain.common import RunContext
 
 from ...grpo_observations import GRPOObservationFeatures, normalize_grpo_metrics
+from .policy_probe import PostUpdateProbe
 
 
 class ActorUpdateTelemetry:
@@ -101,7 +102,9 @@ class ActorUpdateTelemetry:
         return phase, started_at
 
 
-def actor_update_callback_type(imports: Mapping[str, Any], telemetry: ActorUpdateTelemetry) -> type[Any]:
+def actor_update_callback_type(
+    imports: Mapping[str, Any], telemetry: ActorUpdateTelemetry, probe: PostUpdateProbe | None = None
+) -> type[Any]:
     parent = imports["TrainerCallback"]
 
     class ActorUpdateCallback(parent):
@@ -124,6 +127,8 @@ def actor_update_callback_type(imports: Mapping[str, Any], telemetry: ActorUpdat
         def on_step_end(self, args: Any, state: Any, control: Any, **_: Any) -> Any:
             del args
             telemetry.complete(int(state.global_step))
+            if probe is not None:
+                probe.finish(skipped=bool(probe.trainer.accelerator.optimizer_step_was_skipped))
             return control
 
         def on_log(
@@ -143,7 +148,9 @@ def actor_update_callback_type(imports: Mapping[str, Any], telemetry: ActorUpdat
     return ActorUpdateCallback
 
 
-def actor_update_trainer_type(parent: type[Any], telemetry: ActorUpdateTelemetry) -> type[Any]:
+def actor_update_trainer_type(
+    parent: type[Any], telemetry: ActorUpdateTelemetry, probe: PostUpdateProbe | None = None
+) -> type[Any]:
     """Start actor telemetry after TRL prepares the retained rollout batch."""
 
     class ActorUpdateTrainer(parent):
@@ -151,7 +158,29 @@ def actor_update_trainer_type(parent: type[Any], telemetry: ActorUpdateTelemetry
 
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             self._posttrain_sampler_gap = SamplerGapAccumulator()
+            self._posttrain_probe_inputs: dict[str, Any] | None = None
             super().__init__(*args, **kwargs)
+            if probe is not None:
+                if self.accelerator.num_processes != 1 or self.args.use_liger_kernel:
+                    raise ValueError("post-update probing requires one process and use_liger_kernel=False")
+                import torch
+
+                if any(isinstance(module, torch.nn.Dropout) and module.p > 0 for module in self.model.modules()):
+                    raise ValueError("post-update probing requires dropout disabled")
+                probe.trainer = self
+
+        def _compute_loss(self, model: Any, inputs: dict[str, Any]) -> Any:
+            self._posttrain_probe_inputs = inputs if probe is not None and self.model.training else None
+            try:
+                return super()._compute_loss(model, inputs)
+            finally:
+                self._posttrain_probe_inputs = None
+
+        def _get_per_token_logps_and_entropies(self, *args: Any, **kwargs: Any) -> Any:
+            result = super()._get_per_token_logps_and_entropies(*args, **kwargs)
+            if probe is not None and self._posttrain_probe_inputs is not None:
+                probe.capture(self._posttrain_probe_inputs, result[0])
+            return result
 
         def _prepare_inputs(self, generation_batch: dict[str, Any]) -> dict[str, Any]:
             prepared = super()._prepare_inputs(generation_batch)
@@ -180,6 +209,12 @@ def actor_update_trainer_type(parent: type[Any], telemetry: ActorUpdateTelemetry
             return result
 
         def log(self, logs: dict[str, float], start_time: float | None = None) -> None:
+            if getattr(self, "use_precomputed_advantages", False):
+                # Native GRPO logs these before replacing them with supplied credit.
+                # Scorable/truncated fractions remain valid population diagnostics.
+                mode = "train" if self.model.training else "eval"
+                for statistic in ("mean", "std", "abs_mean", "positive_fraction", "negative_fraction", "zero_fraction"):
+                    self._metrics[mode].pop(f"advantages/{statistic}", None)
             if self.model.training:
                 for name, value in self._posttrain_sampler_gap.flush().items():
                     self._metrics["train"][name].append(value)

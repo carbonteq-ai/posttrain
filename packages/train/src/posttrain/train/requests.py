@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from posttrain.common import InferenceBinding, LocalArtifactRef, ModelVariant
 from posttrain.data import PreferenceDataSource, SupervisedDataSource
@@ -100,8 +100,19 @@ class SAMPORequest:
     quantization: QuantizationPlan | None = None
     reference: ModelVariant | None = None
     resume_from: LocalArtifactRef | None = None
+    # Composition-injected process-credit provider (scorer + explicit estimator)
+    # for settings.policy_updates.credit_estimator; train never imports a scorer.
+    process_credit: Any = None
 
     def __post_init__(self) -> None:
+        updates = self.settings.policy_updates
+        selected = updates.credit_estimator if updates is not None else None
+        if (selected is None) != (self.process_credit is None) or (
+            selected is not None and getattr(self.process_credit, "estimator_id", None) != selected
+        ):
+            raise ValueError(
+                "SAMPO process credit requires a selected credit_estimator and a matching injected provider"
+            )
         _validate_online_rl(
             "SAMPO",
             self.policy,
@@ -173,6 +184,11 @@ def _validate_online_rl(
     if isinstance(engine_limit, int) and sequence_length > engine_limit:
         raise ValueError("rollout model length must cover prompt and completion limits")
     _validate_rollout_max_tokens(inference, settings.max_completion_length)
+    if settings.policy_updates is not None:
+        problem = _resolved_selection_problem(technique, settings, training, inference)
+        if problem is not None:
+            # Catalog support must never silently fall through to the legacy trainer.
+            raise ValueError(problem)
     expected_batch = settings.num_prompts_per_step * settings.num_generations
     if isinstance(settings, GDPOSettings | CAPOSettings) and training.backend.split("@", 1)[0] == "trl":
         world_size = training.target.placement.get("world_size", 1)
@@ -191,6 +207,62 @@ def _validate_online_rl(
     plan_id = inference.engine.get("quantization_plan_id")
     if plan_id is not None and (quantization is None or plan_id != quantization.id):
         raise ValueError("rollout quantization mode must reference the selected quantization plan")
+
+
+# Explicit policy_updates selections whose native execution, collection and
+# recovery passed real-model GPU qualification (engine plan R124-R138):
+# TRL GRPO/DAPO and SAMPO (active collection, and renderer-derived reasoning/
+# answer semantic spans) with transformers generation, and native veRL SAMPO
+# active collection. Each backend's own admission still
+# rejects anything narrower it has not qualified (distribution, masks, vLLM).
+# Every admitted selection runs on one device.
+_QUALIFIED_RESOLVED_SELECTIONS: dict[str, frozenset[tuple[str, str]]] = {
+    "trl": frozenset(
+        {("grpo", "algorithm"), ("dapo", "algorithm"), ("sampo", "algorithm"), ("sampo", "semantic-spans")}
+    ),
+    "verl": frozenset({("sampo", "algorithm")}),
+}
+
+
+# Injected process-credit estimators qualified in training (R139 BF16/FP16):
+# TRL resolved SAMPO semantic spans with the composition's likelihood scorer.
+_QUALIFIED_PROCESS_CREDIT: frozenset[tuple[str, str, str, str]] = frozenset(
+    {
+        ("trl", "sampo", "semantic-spans", "group-centered-likelihood@1"),
+    }
+)
+
+
+def _resolved_selection_problem(
+    technique: str,
+    settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
+    training: TrainingBinding,
+    inference: InferenceBinding,
+) -> str | None:
+    updates = settings.policy_updates
+    assert updates is not None
+    backend = training.backend.split("@", 1)[0]
+    algorithm = settings.algorithm if isinstance(settings, GRPOSettings) else technique.lower()
+    if (algorithm, updates.objective_variant) not in _QUALIFIED_RESOLVED_SELECTIONS.get(backend, frozenset()):
+        return (
+            f"{training.backend} has no qualified resolved policy update executor for {algorithm} "
+            f"objective variant {updates.objective_variant!r}; policy_updates requires the native "
+            "integration gates in the engine plan"
+        )
+    if (
+        updates.credit_estimator is not None
+        and (backend, algorithm, updates.objective_variant, updates.credit_estimator) not in _QUALIFIED_PROCESS_CREDIT
+    ):
+        return (
+            f"process-credit estimator {updates.credit_estimator!r} has not passed native GPU qualification "
+            f"for {training.backend} {algorithm} {updates.objective_variant!r}"
+        )
+    if backend == "trl" and inference.backend.split("@", 1)[0] == "vllm":
+        return "resolved TRL policy updates are qualified with transformers generation, not vLLM rollouts"
+    if training.target.placement.get("world_size", 1) != 1:
+        # Multi-GPU execution is out of scope for this release (engine plan R137).
+        return "resolved policy updates are qualified on a single device; multi-GPU execution is not admitted"
+    return None
 
 
 @dataclass(frozen=True, slots=True)

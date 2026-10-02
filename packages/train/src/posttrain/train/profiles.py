@@ -7,6 +7,8 @@ import re
 from dataclasses import InitVar, dataclass, field
 from typing import Literal
 
+from .update_plan import PolicyUpdateSettings
+
 _ID = re.compile(r"^[a-z0-9][a-z0-9._/@:-]*$")
 
 
@@ -248,6 +250,7 @@ class GRPOSettings:
     # continues a trained adapter (for example `--model-from-run`); a fresh LoRA
     # adapter starts at zero, so both are the base model.
     kl_reference: Literal["base", "start"] = "base"
+    policy_updates: PolicyUpdateSettings | None = None
 
     def __post_init__(self) -> None:
         _validate_settings(self.id, self.revision)
@@ -255,7 +258,13 @@ class GRPOSettings:
             raise ValueError("GRPO requires positive prompt groups and at least two generations")
         expected_batch = self.num_prompts_per_step * self.num_generations
         effective_batch = self.loop.per_device_batch_size * self.loop.gradient_accumulation_steps
-        if effective_batch != expected_batch:
+        if self.policy_updates is not None:
+            self.policy_updates.validate_legacy_loop(
+                max_steps=self.loop.max_steps,
+                per_device_batch_size=self.loop.per_device_batch_size,
+                gradient_accumulation_steps=self.loop.gradient_accumulation_steps,
+            )
+        elif effective_batch != expected_batch:
             raise ValueError("GRPO effective batch must equal prompts per step times generations")
         if self.max_prompt_length < 1 or self.max_completion_length < 1 or self.beta < 0:
             raise ValueError("invalid GRPO length or KL settings")
@@ -380,6 +389,7 @@ class SAMPOSettings:
     # adapter starts at zero, so both are the base model.
     kl_reference: Literal["base", "start"] = "base"
     revision: str = "1"
+    policy_updates: PolicyUpdateSettings | None = None
 
     def __post_init__(self) -> None:
         _validate_settings(self.id, self.revision)
@@ -387,7 +397,13 @@ class SAMPOSettings:
             raise ValueError("SAMPO requires positive prompt groups and at least two generations")
         expected_batch = self.num_prompts_per_step * self.num_generations
         effective_batch = self.loop.per_device_batch_size * self.loop.gradient_accumulation_steps
-        if effective_batch != expected_batch:
+        if self.policy_updates is not None:
+            self.policy_updates.validate_legacy_loop(
+                max_steps=self.loop.max_steps,
+                per_device_batch_size=self.loop.per_device_batch_size,
+                gradient_accumulation_steps=self.loop.gradient_accumulation_steps,
+            )
+        elif effective_batch != expected_batch:
             raise ValueError("SAMPO effective batch must equal prompts per step times generations")
         if self.max_prompt_length < 1 or self.max_completion_length < 1 or self.beta < 0:
             raise ValueError("invalid SAMPO length or KL settings")
@@ -448,6 +464,7 @@ class _StructuredRLSettings:
     max_admission_attempts: int = 3
     shuffle_prompts: bool = False
     revision: str = "1"
+    policy_updates: PolicyUpdateSettings | None = None
 
     @property
     def dynamic_sampling(self) -> None:
@@ -475,7 +492,13 @@ class _StructuredRLSettings:
         if any(type(value) is not int or value < 1 for value in counts) or self.num_generations < 2:
             raise ValueError("structured RL requires positive integer limits and at least two generations")
         local_batch = self.loop.per_device_batch_size * self.loop.gradient_accumulation_steps
-        if (self.num_prompts_per_step * self.num_generations) % local_batch:
+        if self.policy_updates is not None:
+            self.policy_updates.validate_legacy_loop(
+                max_steps=self.loop.max_steps,
+                per_device_batch_size=self.loop.per_device_batch_size,
+                gradient_accumulation_steps=self.loop.gradient_accumulation_steps,
+            )
+        elif (self.num_prompts_per_step * self.num_generations) % local_batch:
             raise ValueError("structured RL logical batch must be divisible by the per-device accumulation batch")
         if self.max_prompt_length + self.max_completion_length > self.loop.max_length:
             raise ValueError("structured RL loop must cover prompt and completion limits")

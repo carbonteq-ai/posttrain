@@ -295,7 +295,7 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
                 is_content=(True, True),
             )
 
-        def parse_response(self, token_ids, *, tools):
+        def parse_response(self, token_ids, *, tools, prompt_ids=None):
             assert token_ids == [3, 4]
             assert tools is None
             return SimpleNamespace(content="done", reasoning_content=None, tool_calls=())
@@ -480,7 +480,7 @@ def test_verl_policy_generator_takes_lfm25_python_calls_from_the_renderer_like_t
                 is_content=(True,) * 7,
             )
 
-        def parse_response(self, token_ids, *, tools):
+        def parse_response(self, token_ids, *, tools, prompt_ids=None):
             return parsed
 
         def get_stop_token_ids(self):
@@ -601,7 +601,7 @@ def test_verl_policy_generator_reports_bridged_spans_over_the_full_message_list(
                 message_roles=["tool", "tool"],
             )
 
-        def parse_response(self, token_ids, *, tools):
+        def parse_response(self, token_ids, *, tools, prompt_ids=None):
             return SimpleNamespace(content="done", reasoning_content=None, tool_calls=())
 
         def get_stop_token_ids(self):
@@ -766,7 +766,7 @@ def test_verl_policy_generator_refuses_and_bounds_turns_at_the_rollout_context(
                 token_ids=tuple(range(10)), message_token_spans=lambda: ((0, 10),), is_content=(True,) * 10
             )
 
-        def parse_response(self, token_ids, *, tools):
+        def parse_response(self, token_ids, *, tools, prompt_ids=None):
             return SimpleNamespace(content="done", reasoning_content=None, tool_calls=())
 
         def get_stop_token_ids(self):
@@ -1315,7 +1315,7 @@ def test_pinned_verl_fork_registers_every_native_name_posttrain_requests(monkeyp
     assert requested <= fork_native_names(revision), f"pinned veRL {revision} lacks {sorted(requested)}"
 
 
-SAMPO_REVISION = FULL_REVISION
+SAMPO_REVISION = "d8e472db822f2916ed81a408b8d28192be95e678"
 
 
 def _verl_sampo_request(revision: str = SAMPO_REVISION, **changes: object):
@@ -1332,7 +1332,7 @@ def test_verl_maps_sampo_to_trl_semantics(monkeypatch: pytest.MonkeyPatch, tmp_p
 
     for expected in (
         "algorithm.adv_estimator=sampo",
-        "actor_rollout_ref.actor.policy_loss.loss_mode=sequence_clip",
+        "actor_rollout_ref.actor.policy_loss.loss_mode=sampo_token_credit",
         "actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean",
         "actor_rollout_ref.actor.clip_ratio_low=0.003",
         "actor_rollout_ref.actor.clip_ratio_high=0.004",
@@ -1403,7 +1403,18 @@ def test_verl_sampo_requires_a_fork_with_its_objective(monkeypatch: pytest.Monke
     older = VerlLaunchManifest.model_validate(
         {**plan.model_dump(), "backend_source_revision": ACTIVE_SAMPLING_REVISION}
     )
-    with pytest.raises(ValueError, match="does not register sequence_clip"):
+    with pytest.raises(ValueError, match="does not register sampo_hierarchy, sampo_token_credit"):
+        build_hydra_overrides(older, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
+
+
+def test_verl_sampo_rejects_legacy_runtime_instead_of_using_gspo(monkeypatch, tmp_path):
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/qwen35")
+    revision = "ef1c37715fa75de5973ae5b3c398383cd7e0093d"
+    with pytest.raises(ValueError, match="does not register sampo_token_credit"):
+        build_sampo_launch_plan(_verl_sampo_request(revision), tmp_path)
+    plan = build_sampo_launch_plan(_verl_sampo_request(), tmp_path)
+    older = VerlLaunchManifest.model_validate({**plan.model_dump(), "backend_source_revision": revision})
+    with pytest.raises(ValueError, match="does not register sampo_token_credit"):
         build_hydra_overrides(older, tmp_path / "r.parquet", tmp_path / "a.json", tmp_path / "c")
 
 
@@ -1795,6 +1806,37 @@ def test_verl_lora_rollout_loads_the_immutable_base_and_syncs_only_adapters(
     assert "actor_rollout_ref.rollout.load_format=safetensors" in overrides
     assert "+actor_rollout_ref.model.override_config.attn_implementation=sdpa" in overrides
     assert 'actor_rollout_ref.model.target_modules="all-linear"' in overrides
+
+
+@pytest.mark.parametrize(
+    "targets,expected",
+    [
+        ("q_proj,v_proj", ["q_proj", "v_proj"]),
+        ("q_proj, v_proj", ["q_proj", "v_proj"]),
+        ("all-linear", "all-linear"),
+        (".*proj", ".*proj"),
+    ],
+)
+def test_verl_lora_targets_match_trl_selection(monkeypatch, tmp_path, targets, expected):
+    pytest.importorskip("hydra")
+    from hydra import compose, initialize_config_module
+    from posttrain.train.bindings import _peft_target_modules
+
+    pytest.importorskip("verl")
+    request = _grpo_request(update=LoRAUpdate(target_modules=targets))
+    plan = build_grpo_launch_plan(request, tmp_path)
+    monkeypatch.setattr("posttrain.train.backends.verl.worker._model_path", lambda model: "/models/policy")
+    overrides = build_hydra_overrides(
+        plan, tmp_path / "data.parquet", tmp_path / "agent.json", tmp_path / "checkpoints"
+    )
+    with initialize_config_module(config_module="verl.trainer.config", version_base=None):
+        config = compose(config_name="ppo_trainer", overrides=overrides)
+    from omegaconf import OmegaConf
+
+    actual = config.actor_rollout_ref.model.target_modules
+    if not isinstance(actual, str):
+        actual = OmegaConf.to_container(actual)
+    assert actual == expected == _peft_target_modules(targets)
 
 
 def test_verl_rollout_passes_selected_kv_cache_dtype_to_vllm(
@@ -2912,3 +2954,29 @@ def test_verl_online_rl_runs_record_their_trl_parity_semantics(tmp_path: Path) -
     assert _grpo_runtime_attributes(sampo, build_sampo_launch_plan(sampo, tmp_path))["verl_semantics"] == (
         "trl-parity-v1"
     )
+
+
+def test_verl_offline_pinned_hub_model_uses_partial_local_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # huggingface_hub 1.x offline snapshot_download requires every repository
+    # file (README.md included); a pinned commit's partial snapshot suffices.
+    pytest.importorskip("huggingface_hub")
+    from huggingface_hub import constants
+    from posttrain.train.backends.verl.contracts import VerlHubArtifact
+    from posttrain.train.backends.verl.worker import _model_path
+
+    revision = "654f9463ce32b05d0429d76fe1f580b27d4c1ac0"
+    snapshot = tmp_path / "models--LiquidAI--LFM2.5-2.6B" / "snapshots" / revision
+    snapshot.mkdir(parents=True)
+    monkeypatch.setattr(constants, "HF_HUB_CACHE", str(tmp_path))
+    monkeypatch.setattr(constants, "HF_HUB_OFFLINE", True)
+    calls: list[str] = []
+    monkeypatch.setattr("huggingface_hub.snapshot_download", lambda **kwargs: calls.append(kwargs["revision"]) or "hub")
+    artifact = VerlHubArtifact(repo_id="LiquidAI/LFM2.5-2.6B", revision=revision)
+    assert _model_path(artifact) == "hub", "a snapshot without model files must not be trusted"
+    (snapshot / "config.json").write_text("{}", encoding="utf-8")
+    assert _model_path(artifact) == str(snapshot)
+    monkeypatch.setattr(constants, "HF_HUB_OFFLINE", False)
+    assert _model_path(artifact) == "hub"
+    assert calls == [revision, revision]

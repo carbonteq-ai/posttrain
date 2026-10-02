@@ -456,6 +456,37 @@ configuration. Do not silently reuse a screen binding for rollouts.
 
 ## Training selection
 
+### Resolved policy updates (2026-10-02 amendment)
+
+Online algorithm settings may include optional `policy_updates` selecting a
+`PolicyUpdateSchedule` (episode, turn or selected-token budget; epochs, order,
+seed, final-batch policy and applied-update limit) and `PolicyExecutionBudget`
+(record, context-token and statistic capacity). Schedule controls optimizer
+boundaries; execution capacity controls packs within each boundary. Neither
+changes the versioned algorithm's credit, ratio or reduction semantics.
+Unsupported combinations fail before execution. Absence retains legacy behavior.
+
+Credit is prepared on complete named statistical populations over native
+episode/branch/turn/token identities. Memberships may overlap. Derived semantic
+spans retain original sampled-action intervals and extraction revisions; automatic
+extraction and reward meaning remain plugin-owned. Quality scores require an
+explicit qualified estimator before becoming detached policy advantages.
+Task uniqueness applies to fresh collection and refills within one population,
+including recovery. Explicit update occurrences may reuse frozen contributions;
+they do not generate duplicate tasks. This qualifies references below to task
+uniqueness within an optimizer step when collection and update are decoupled.
+
+**Amendment — explicit SAMPO turn rows (2026-10-02):** SAMPO may opt into
+`policy_updates.objective_variant: turn-rows`. Credit is still calculated over
+complete original groups and episodes. The versioned `sampo-turns@1` objective
+uses a geometric ratio over each complete sampled assistant turn, local token
+derivatives and an equal-turn, token-mean reduction in each optimizer minibatch.
+Episode and turn scheduling remain independent of execution packs. Existing
+`sampo@1` and semantic-span variants retain their episode ratios and weighting.
+Turn-row semantic masks are initially unsupported. This accepts the explicit
+objective, not backend qualification or replication of the full author recipe.
+
+
 Training is selected **per job kind**, but **algorithm**, **how parameters
 update**, **train runtime**, and **rollout runtime** are different seats.
 

@@ -10,7 +10,7 @@ from posttrain.common import ModelVariant
 
 from ...bindings import TrainingBinding
 from ...online_rl import PolicySampling, PolicyTurnRequest, PolicyTurnResult
-from ...policy_messages import parsed_policy_message
+from ...policy_messages import ToolCallAdmission, parsed_policy_message
 from ...profiles import CAPOSettings, GDPOSettings, GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings
 from ...rendering import bridged_message_spans, create_renderer
 
@@ -25,12 +25,23 @@ class TrlPolicyGenerator:
         model: ModelVariant,
         settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings | OnPolicyDistillationSettings,
         training: TrainingBinding,
+        *,
+        retain_generation_logprobs: bool = False,
     ) -> None:
         self._trainer = trainer
         self._tokenizer = tokenizer
         self._renderer = create_renderer(tokenizer, model, training.renderer)
         self._tool_call_protocol = model.conversation.tool_calls
         self._max_completion_length = settings.max_completion_length
+        self._retain_generation_logprobs = retain_generation_logprobs
+        self._tool_call_admission: ToolCallAdmission = (
+            "verifiers-train-client" if getattr(settings, "policy_updates", None) is not None else "strict"
+        )
+        if retain_generation_logprobs:
+            import inspect
+
+            if "return_generation_logprobs" not in inspect.signature(trainer._generate_single_turn).parameters:  # noqa: SLF001
+                raise ValueError("selected TRL generator cannot retain native sampled log probabilities")
         self._lock = asyncio.Lock()
         self._pending: list[
             tuple[
@@ -79,18 +90,31 @@ class TrlPolicyGenerator:
         if not token_ids:
             raise RuntimeError("the policy generator returned an empty completion")
         sampled_logprobs = () if logprobs is None else tuple(float(value) for value in logprobs)
-        parsed = self._renderer.parse_response(list(token_ids), tools=tools or None)
+        # The prompt may prefill an open thought (LFM2.5-2.6B ends its generation
+        # prompt with <think>); the renderer needs it to attribute reasoning.
+        parsed = self._renderer.parse_response(
+            list(token_ids), tools=tools or None, prompt_ids=list(rendered.token_ids)
+        )
         message = parsed_policy_message(
             parsed,
             token_ids,
             self._tokenizer,
             tool_call_protocol=self._tool_call_protocol,
             tools=tools,
+            # Resolved policy collection must preserve the existing Verifiers
+            # train-client admission used by native veRL. Named nonconforming
+            # calls reach the tool and yield native validation evidence; their
+            # original syntax remains recorded in provider_state.
+            admission=self._tool_call_admission,
         )
         finish_reason = _finish_reason(
             token_ids,
             frozenset(self._renderer.get_stop_token_ids()),
-            bool(message.get("tool_calls")),
+            (
+                any(item.status.value == "ok" for item in parsed.tool_calls)
+                if self._tool_call_admission == "verifiers-train-client"
+                else bool(message.get("tool_calls"))
+            ),
             self._max_completion_length,
         )
         raw_response = _openai_response(message, finish_reason)
@@ -103,6 +127,7 @@ class TrlPolicyGenerator:
             prompt_message_spans=spans,
             prompt_is_content=tuple(bool(value) for value in rendered.is_content),
             raw_response=raw_response,
+            reasoning_tokens=getattr(parsed, "reasoning_tokens", None),
         )
 
     async def _generate_tokens(
@@ -147,6 +172,7 @@ class TrlPolicyGenerator:
                         [list(prompt_ids) for prompt_ids, _future in active],
                         None,
                         {},
+                        **({"return_generation_logprobs": True} if self._retain_generation_logprobs else {}),
                     )
                 if len(completion_ids) != len(active):
                     raise RuntimeError(

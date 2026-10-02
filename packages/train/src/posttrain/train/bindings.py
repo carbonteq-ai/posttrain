@@ -18,6 +18,16 @@ from .precision import effective_logits_float32, fp16_initial_loss_scale, logits
 from .profiles import TrainingRenderer
 
 
+def _peft_target_modules(value: str) -> str | list[str]:
+    """Preserve sentinels/regexes while resolving catalog CSV module lists."""
+    if "," not in value:
+        return value
+    modules = [module.strip() for module in value.split(",")]
+    if any(not module for module in modules) or len(set(modules)) != len(modules):
+        raise ValueError("LoRA target_modules CSV must contain unique non-empty module names")
+    return modules
+
+
 @dataclass(frozen=True, slots=True)
 class FullParameterUpdate:
     kind: Literal["full"] = "full"

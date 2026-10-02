@@ -303,6 +303,7 @@ function artifactLabel(kind: string): string {
     'model-adapter': 'Trained adapter',
     'model-weights': 'Trained weights',
     'training-checkpoint': 'Recovery checkpoint',
+    'training-collection': 'Active-collection evidence',
     'training-summary': 'Training summary',
   }[kind] ?? kind.replaceAll('-', ' ');
 }

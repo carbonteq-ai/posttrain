@@ -120,6 +120,8 @@ from .transform import (
     TransformRunner,
     transform,
 )
+from .update_plan import PolicyExecutionBudget, PolicyUpdateSchedule, PolicyUpdateSettings
+from .update_records import ActionSelection
 from .verifiers_requests import (
     build_verifiers_distillation_request,
     build_verifiers_grpo_request,
@@ -129,6 +131,10 @@ from .verifiers_requests import (
 )
 
 __all__ = [
+    "ActionSelection",
+    "PolicyExecutionBudget",
+    "PolicyUpdateSchedule",
+    "PolicyUpdateSettings",
     "AdaptiveCurriculum",
     "CAPORequest",
     "CAPOSettings",

@@ -23,7 +23,29 @@ None of this delta is submitted to upstream (user decision, 2026-09-25).
 
 ## Selection
 
-Posttrain selects `carbonteq-renderers==0.1.12.post1.dev2` from `carbonteq-dev`
+Posttrain selects `carbonteq-renderers==0.1.12.post1.dev3` from `carbonteq-dev`
+(`packages/train/pyproject.toml`, with its identity under
+`[tool.posttrain.renderers]`). It is built from fork commit
+`7fe5d06b9840ef0e4c7d43419cbd7f9afc1b727a` (tag `carbonteq-v0.1.12.post1.dev3`,
+branch `codex/lfm-sampled-mask`); wheel
+`57dcc6f8ba2db7bec21c75d40177059f704bb817a772558435e4d34c262ab5eb`, sdist
+`650954a172b93524e871f873fad0d5448bc9e578bd8da2fe3e46d48b9307aa39`, published to
+`carbonteq/dev` by
+[run 36996039659](https://github.com/carbonteq-ai/posttrain/actions/runs/36996039659).
+Over dev2 it fixes LFM SFT targets: the template renderer previously trained
+injected assistant headers and separators (`1aafe24`); targets now cover actual
+assistant output through the turn stop, handling 2.6B's prefilled `<think>`
+versus 1.2B Thinking's sampled marker. `7fe5d06` masks assistant turns that the
+template rewrites when a later user message follows (2.6B drops their
+reasoning) in that rewritten form; without it the 2.6B reasoning-history
+offsetless case raised. The fork's full suite passes (11,834 cases) and
+Posttrain's `test_rendering.py` LFM header/tool mask regressions now pass.
+Real LFM three-step SFT and DPO math checks pass on `1aafe24`; this does not
+establish task quality. The veRL kind's release lock selects dev3 too; its
+published image keeps dev2 until rebuilt.
+Evidence: [LFM mask repair](../../research/evidence/correctness-matrix/lfm-renderer-mask-repair.md).
+
+Previously selected: `carbonteq-renderers==0.1.12.post1.dev2` from `carbonteq-dev`
 (`packages/train/pyproject.toml`, with its identity under
 `[tool.posttrain.renderers]`). It is built from fork commit
 `6f712616fa88073919827a695af4f318b8c2d24e` (tag

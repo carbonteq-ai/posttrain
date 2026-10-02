@@ -7,7 +7,7 @@ dependencies = [
     "accelerate>=1.14,<1.15",
     # Verifiers requires the CarbonTeq renderers fork; pin the framework's exact
     # pre-release so control and backend install the same bytes.
-    "carbonteq-renderers==0.1.12.post1.dev2",
+    "carbonteq-renderers==0.1.12.post1.dev3",
     "codetiming>=1.4,<1.5",
     "datasets>=4.5,<5",
     "dill>=0.4,<0.5",
@@ -63,7 +63,7 @@ torch = { index = "pytorch-cu130" }
 torchaudio = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
 verifiers = { git = "https://github.com/carbonteq-ai/verifiers.git", rev = "e6a3d9bbfe6959b97878f451fc721793a232cd5f" }
-verl = { git = "https://github.com/carbonteq-ai/verl.git", rev = "ef1c37715fa75de5973ae5b3c398383cd7e0093d" }
+verl = { git = "https://github.com/carbonteq-ai/verl.git", rev = "8e513f3bf3bfccb4c413846b5eb184e0b42ea9d8" }
 vllm = { git = "https://github.com/carbonteq-ai/vllm.git", rev = "f09e4479123d348cee87d217c695a22f9b2daacc" }
 
 [[tool.uv.index]]

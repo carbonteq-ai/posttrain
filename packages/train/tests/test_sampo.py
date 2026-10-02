@@ -118,6 +118,11 @@ def test_trl_sampo_update_records_hierarchical_credit_evidence() -> None:
         "train/rl/turn_credit_share",
         "train/rl/turn_advantage_informative_fraction",
         "train/rl/singleton_anchor_fraction",
+        "train/rl/advantage_mean",
+        "train/rl/advantage_abs_mean",
+        "train/rl/advantage_positive_fraction",
+        "train/rl/advantage_negative_fraction",
+        "train/rl/advantage_zero_fraction",
     }
     assert means["train/rl/turn_credit_share"] == pytest.approx((1.95 / 3.95, 4))
     assert means["train/rl/anchor_group_size_mean"] == (2.0, 4)
@@ -433,4 +438,68 @@ def test_anchor_state_key_ignores_per_attempt_identifiers() -> None:
     }
 
     assert _anchor_state_key(first) == _anchor_state_key(second)
+    assert _anchor_state_key(first) == _anchor_state_key({**first, "tool_call_id": "other-call"})
     assert _anchor_state_key(first) != _anchor_state_key(different)
+
+
+def test_anchor_bundle_keeps_all_parallel_results_and_versions_proxy() -> None:
+    from posttrain.train.integrations.verifiers import _observation_bundle_key
+
+    first = {"role": "tool", "content": "first search result"}
+    last = {"role": "tool", "content": "empty"}
+    key = _observation_bundle_key([first, last])
+    assert key.startswith("observation-bundle@2:")
+    assert key != _observation_bundle_key([{**first, "content": "different"}, last])
+    assert key != _observation_bundle_key([last])
+    assert key != _observation_bundle_key([last, first])
+
+
+def test_native_turns_anchor_complete_observations_not_only_last_result() -> None:
+    from types import SimpleNamespace
+
+    from posttrain.train.integrations.verifiers import _agentic_turns, _observation_bundle_key
+
+    def node(message, sampled=False):
+        return SimpleNamespace(message=message, token_ids=[1], mask=[sampled], sampled=sampled)
+
+    user = {"role": "user", "content": "task"}
+    first = {"role": "tool", "content": "first"}
+    last = {"role": "tool", "content": "last"}
+    branch = SimpleNamespace(
+        nodes=[
+            node(user),
+            node({"role": "assistant"}, True),
+            node(first),
+            node(last),
+            node({"role": "assistant"}, True),
+        ]
+    )
+    turns = _agentic_turns(branch, 1)
+    assert turns[0].anchor_state_key == _observation_bundle_key([user])
+    assert turns[1].anchor_state_key == _observation_bundle_key([first, last])
+
+
+def test_tool_error_metrics_keep_episode_denominator() -> None:
+    from posttrain.train.integrations.verifiers import _trace_metrics
+
+    records = [
+        {"nodes": [{"sampled": False, "message": {"role": "tool", "content": content}} for content in messages]}
+        for messages in (
+            ("Error executing tool: invalid argument", '{"success": false}'),
+            ('{"error": "Spreadsheet not found"}',),
+            ("ok",),
+        )
+    ]
+    assert _trace_metrics(records)["train/rl/tool_failure_frequency"] == pytest.approx(2 / 3)
+
+
+def test_sampo_logged_advantages_use_sampled_tokens_including_zero_credit() -> None:
+    result = compute_sampo_advantages(_settings(), ("task-1", "task-1"), (_rollout(1.0, "good"), _rollout(0.0, "bad")))
+    evidence = result.policy_credit_evidence()
+    tokens = result.sampled_token_advantages
+    assert evidence["train/rl/advantage_abs_mean"] == pytest.approx(
+        (sum(abs(value) for value in tokens) / len(tokens), len(tokens))
+    )
+    assert evidence["train/rl/advantage_positive_fraction"][0] + evidence["train/rl/advantage_negative_fraction"][
+        0
+    ] + evidence["train/rl/advantage_zero_fraction"][0] == pytest.approx(1.0)

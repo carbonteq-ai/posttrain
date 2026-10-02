@@ -1,6 +1,262 @@
 # veRL training backend
 
-## 0.9.0.post8 (selected)
+## 0.9.0.post9 (selected)
+
+Tag `carbonteq-v0.9.0.post9` (release commit
+`8e513f3bf3bfccb4c413846b5eb184e0b42ea9d8`, branch
+`codex/resolved-engine-worker`, asset receipt `6b3ceef7`) is post8 plus every
+candidate below through `c45392d2` (scoped arithmetic, rowwise and Linear
+LoRA precision controls, declared microbatches, strict determinism, V1
+retained-evidence and task-runner/engine-factory extension points, LoRA export
+paths, FP16 scaler persistence, half-precision logit/entropy/selected-logprob
+stability). All additions are opt-in; defaults keep post8 behaviour and there
+are no dependency changes. The 310 CPU regressions added since post8 pass.
+Posttrain R134 qualifies native SAMPO active collection on this source: real
+Ray/TransferQueue rounds with uniform-group discard, informative BF16 and FP16
+two-update runs and exact checkpoint continuation (399 tensors). Wheel SHA-256
+`13930e0f7699fd043beeb2ab2c0b4814499fa195611b4d08f93a798a5fd89c40`, sdist
+SHA-256 `726f02c69bbbc6ad8e182cd599ff81a3df946ab02f9510a9a3a7da4abe730587`.
+Published: GitHub release
+<https://github.com/carbonteq-ai/verl/releases/tag/carbonteq-v0.9.0.post9> and
+Posttrain run <https://github.com/carbonteq-ai/posttrain/actions/runs/36996695048>.
+`release/forks.toml`, the `online-rl-verl-py313` release lock and profile, and
+`_FORK_NATIVE_NAME_REVISIONS` select post9. Lab veRL bindings keep the
+published post8 image until the rebuilt kind image is published.
+
+## Scoped native arithmetic candidate
+
+The candidate adds independent, default-off full_precision_matmul and math_sdpa
+engine settings. They cover native train/eval forward, backward and checkpoint
+recomputation and restore the caller's switches afterward. The first disables
+TF32 and reduced half-precision GEMM accumulation; the second selects math
+SDPA with full-precision intermediates. They preserve model activation dtype
+and objective semantics. Cooperating native scopes serialize because switches
+are process-global; unrelated concurrent PyTorch work is unsupported. Math
+attention may cost substantial memory and latency. Fourteen new regressions
+and46 focused native tests pass with Ruff. GPU qualification without external
+global overrides, ordinary profile admission and immutable adoption remain
+open. Published source is c45392d22df0c1ab2258e9c0675d3a03093094af on
+origin/codex/resolved-engine-worker; consumer pins are unchanged.
+The existing R98 BF16/FP16 maintained physical-budget qualification
+passes all three layouts at two updates with exact saved gradients/adapters
+and native/population resume, but still used external arithmetic setup.
+R100 maintained BF16 on publishedc45392d2 and1589 verified files removes those
+overrides and passes the same three layouts: all24 saved gradients/adapters
+match exactly at both updates;172 parameters/4482 old scores restore and
+continued update2 matches optimizer/scheduler/loss/counters exactly. One action
+clips at update2 in each layout. FP16 counterpart is live. This remains a
+retained single-rank LFM actor qualification, with ordinary driver admission,
+other families, distributed and release integration still open.
+
+The R100 FP16 counterpart now exits0: exact all24 saved gradients/adapters
+across all3 layouts at both updates, scale128 without skips,172 parameters/
+4482 old scores restored and exact optimizer/scheduler/scaler/loss/counters
+on continuation. Framework ordinary-path wiring exposes explicit
+backend_options.resolved_context_layout="dense-population" alongside the
+existing one-record ragged default. Composed and effective native configs must
+declare the qualified dropout-free FP32 LoRA/scoped-arithmetic profile before
+model allocation. BF16 mixed precision is explicitly emitted with FP32
+reductions/buffers. Native ordered pack sizes override the one-record fallback;
+optimizer schedule semantics stay unchanged. Ninety-nine focused tests pass;
+fresh ordinary-job GPU qualification and checkpoint continuation remain open.
+
+## Rowwise adapter arithmetic candidate
+
+An additional default-off lora_rowwise_compute setting requires FP32 LoRA
+compute and evaluates3D adapter activations per leading batch row. At equal
+context widths this keeps the small adapter GEMM shape constant across pack
+sizes, with extra kernel launches. It preserves2D Linear semantics and does
+not promise backbone or global-reduction invariance. R92 shared updated FP16
+control has exactly matching24 adapter gradients across records1/2 and repeats,
+where the previous controls retained a0.0746733% gap. Thirteen new CPU cases and
+40 focused native cases pass. External R93 FP16 applies two updates per layout;
+all24 saved gradients and adapter parameters match exactly at both updates,
+scale128/no skips. Published rowwise source:
+c334d02aa7950b46ee7544c53edb43d2b401a953 on
+origin/codex/resolved-engine-worker. Maintained applied-update/recovery GPU
+qualification uses1587 hashed source files. FP16 exits0: gradients and adapter
+parameters match exactly across records1/2 at both applied updates, scale128/no
+skips. Each layout restores172 named parameters and4482 frozen old scores;
+resumed update2 reproduces gradients, adapters, optimizer, scheduler, scaler,
+loss and counters exactly. BF16 counterpart also exits0, with identical saved
+gradients/parameters across layouts at both updates and exact recovery of the
+same boundary components. BF16 has one clipped action at update2. Ordinary admission and
+consumer adoption stay open.
+
+## Linear arithmetic controls candidate
+
+The maintained fork adds independent, default-off lora_fp32_compute and
+contiguous_linear_output_gradients engine fields. FP32 ordinary LoRA leaves
+retain their parameters and checkpoint keys, use native FSDP1 separate wrapping
+and disable autocast locally. It requires FP32 model initialization and original
+parameters; unsupported QAT, quantized and specialized leaves reject. Contiguous
+Linear cotangents preserve values and address the observed stride-sensitive
+backward GEMM. Neither setting alone promises batch invariance.
+
+Ten new CPU regressions and 37 focused native tests pass with Ruff/diff. External
+shared post-update probes on source7cf68728 give BF16 gradient packing relativeL2
+3.562957e-7 and FP16 7.467330e-4, with exact repeats. FP16 residual sensitivity
+remains under investigation. The maintained candidate starts at9f594d6a and
+is published at c62c4468635ac52e70598c1ae0c546676c203347 on
+origin/codex/resolved-engine-worker. Native BF16 initialization and shared
+post-update backward pass on1587 hashed staged files:24 FP32 leaves,117 hooks,
+unchanged parameters, exact repeats and packing relativeL2 3.562957e-7,
+matching the external prototype. FP16, applied-update/resume qualification
+and immutable release adoption remain gates. Consumer
+pins and ordinary admission are unchanged.
+
+## LoRA target topology candidate
+
+The exporter must preserve full trained module paths. Reducing Gemma's
+language-only targets to q_proj/v_proj makes reload select vision/audio towers
+and fail. The owning fork now retains the paths without PEFT's wrapper prefix.
+A real CPU adapter regression reproduces the previous unwanted vision adapter;
+the existing LFM2 export check also verifies full topology. All 18 focused
+export tests pass; Ruff/diff pass. Published source
+3a4812cb162a58cf8fffdd582760b2353093be61 passes actual Gemma CPU adapter reload
+from the native checkpoint: 50 language targets, 100 matching tensors at export
+dtype, and exact zero-adapter base logits. Informative Gemma training and resume
+remain gates. Pins are unchanged.
+
+## Gemma replicated-buffer export backport
+
+The ordinary Gemma candidate applied two zero-credit updates and published
+both checkpoints, then failed final export when the merger concatenated a
+scalar buffer. We adopt the existing merged upstream fix #7610 at
+ddb96db19850bf820fe0aa13e4cb71b21f285869, retaining one replicated plain tensor
+and rejecting rank disagreement. Four upstream regressions pass. Published
+backport source 62db2a41e048c21b69d8d98ae67da55448f88dd7 successfully exports
+the retained native Gemma checkpoint on CPU. Adapter reload additionally needs
+the topology repair above. Consumer pins stay unchanged.
+
+## Declared native microbatch candidate
+
+The engine helper accepts optional ordered micro_batch_sizes to preserve
+Posttrain's execution pack boundaries, including a partial final pack.
+Native backward accumulation and the single optimizer step remain unchanged.
+Declared sizes validate coverage, group integrity and cross-rank counts.
+Candidate base 83c35675fcfe3dc5d0be47a66f624b0e1024ff6c on
+codex/resolved-engine-worker. Published source:
+7cf687284ba054e836b8ce34475a3e695b3dd22b; consumer pins remain unchanged.
+Fourteen native CPU regressions pass, including real two-process Gloo rank
+validation. Twelve framework adapter tests pass, including objective and
+parameter-update equivalence under two execution layouts. Actual GPU pack
+equivalence and distributed model/runtime qualification remain gates.
+
+## Strict native determinism candidate
+
+The opt-in full_determinism helper now requests strict PyTorch deterministic
+algorithms. Its previous warn-only mode allowed SDPA Flash Attention backward
+to remain nondeterministic. An external ordinary LFM BF16 resume diagnostic
+confirms exact restoration of 247 native state tensors but unequal repeated
+gradients; strict mode makes three repeats identical across all 24 trainable
+gradient tensors. These probes stop before optimization. One native helper CPU
+regression and Ruff/diff checks pass. Candidate base:
+77fe49a9de909f036aa72d8568cc957d226b1e7c in codex/resolved-engine-worker.
+Published source: 8f0de2365f1041954b67f74df5a14c7ba0532755 on
+origin/codex/resolved-engine-worker. The correction is not yet adopted.
+Fresh BF16/FP16 full-job resume,
+distributed/runtime qualification and immutable pin adoption remain gates.
+See the [living engine plan](../../plan/hierarchical-policy-update-engine.md).
+
+## V1 retained-evidence cleanup candidate
+
+Ordinary hierarchical execution applies optimizer minibatches from retained
+evidence. Later updates do not allocate TransferQueue rows. The native V1 fit
+loop must skip kv_clear for an empty batch, while retaining its normal saves,
+logging and committed counters. A regression executes the actual fit loop over
+one allocated and one empty batch; all 15 trainer-base CPU tests pass. Published
+source: 076072b92baf336c2e18e9f38bf7434e4a5f3cb7 on
+origin/codex/resolved-engine-worker. Immutable pins and runtime adoption remain
+unqualified.
+
+## Native V1 recipe runner extension candidate
+
+The resolved driver subclasses the plain TaskRunnerV1Base and retains its native
+agent-loop manager construction. TaskRunnerV1 remains the default Ray actor
+wrapper. This avoids subclassing an already-decorated actor or accessing Ray's
+private class metadata. The candidate starts from
+8ae3500d80c1ec48179d786766afe6b4931bacc0 on codex/resolved-engine-worker.
+The fork regression verifies plain subclassing and default wrapper availability;
+consumer tests verify initialization, fit and queue/logger cleanup on failures.
+Published source: 70baba82c0b2b0a8981089ca62c5ab474efe1816 on
+origin/codex/resolved-engine-worker. Native full-job GPU
+qualification, versioned release, pins and runtime-image adoption remain open.
+
+## Resolved worker engine construction candidate
+
+The hierarchical engine uses the native TrainingWorker.create_engine extension
+to select its independently checked dense sampled-score subclass before model
+initialization. ActorRolloutRefWorker's existing actor_worker_cls hook chooses
+that training worker; native initialization, stepping and checkpoint machinery
+retain ownership. The framework rejects fused/dynamic/multiple-context execution
+until separately qualified. Candidate branch codex/resolved-engine-worker starts
+from acad5211619aef5ed80b25e9657262f08a436b03; published source is
+cad959e97471600376203d1a1d860259d32dc64d on origin/codex/resolved-engine-worker.
+Two native constructor CPU tests and six framework factory tests pass; ordinary driver/actor
+wiring, GPU qualification and immutable runtime adoption are separate gates.
+See the [living engine plan](../../plan/hierarchical-policy-update-engine.md).
+
+## CPU-offload FP16 scalar ordering candidate
+
+Published source candidate `269fde84d1769469f6b02b186170f420ec353d9e`
+uses `CPUOffloadShardedGradScaler` in the FSDP engine to stage inverse
+scale and overflow scalars synchronously when gradients reside on CPU. A
+delayed Torch2.13 scalar-copy control previously amplified gradients by
+1,048,576 at scale1024. Five finite/overflow/copy-ordering/device-only
+regressions pass, and actual LFM BF16/FP16 adapter linear gradients match
+independent matrix equations across two updates each. This source candidate
+does not change the selected runtime pin. Distributed overflow/recovery,
+production release assets and nonlinear model-gradient oracles remain gates.
+See [native LFM evidence](../../research/evidence/correctness-matrix/native-lfm-results.md).
+
+Lifecycle regression source `dc08945ddecf0693ea42bfb1bf0b11312aa2a0b4`
+retains the same scaler implementation and expands validation to eight tests.
+CPU/CUDA scaler save/restore after overflow matches uninterrupted AdamW
+exactly; a two-rank Gloo test verifies shared skip/backoff and the next finite
+update. This does not qualify native-model checkpoint recovery or multi-GPU
+offload. Corrected fresh LFM step2 still succeeds on1/4 matched episodes
+versus2/4 before training, so the numerical repair is not a task-quality claim.
+Corrected update3 retains the expected positive policy derivative and passes
+all matrix/score/optimizer checks; its four fresh episodes all truncate/fail.
+The small sample strengthens the need for fresh-loop qualification, not a
+general efficacy conclusion.
+
+### Native FP16 checkpoint state
+
+Checkpoint source candidate `d0d7804795dc1254f7309916fce69898387a2a8a`
+persists the native FSDP engine's enabled FP16 scaler in per-rank extra state.
+A full restore rejects missing scaler state before loading model/optimizer;
+explicit model-only loading, BF16 and disabled-scaler legacy state remain
+compatible. The checkpoint/cleanup/scaler slice passes34 tests. Actual
+LFM1.2B FP16 LoRA-only/full-optimizer checkpoints replay the next update
+exactly in the same engine and a fresh process, including parameters,
+moments, scaler, scheduler and RNG. Production wheels/pins, distributed
+native replay, other families and fresh-population update continuity remain
+open. [Native checkpoint evidence](../../research/evidence/correctness-matrix/native-lfm-results.md).
+
+## Native padded Qwen engine source candidate
+
+Source `8778c5d6e2ddd847d5098a24f4dc882f11ac57b4` repairs optional
+FlashAttention indexing and padded Qwen forward selection. Fifteen fork
+regressions pass. The real Qwen0.8B FSDP1 engine applies two BF16 updates
+and two FP16(scale1) updates; score masks/gradients and AdamW arithmetic
+pass independent checks. High-scale FP16, packed/distributed paths, other
+families and production release assets/pins remain open.
+See [native-engine evidence](../../research/evidence/correctness-matrix/native-verl-results.md).
+
+## Source candidate math qualification
+
+Published source candidate `10ad6babade57546139554a67bc8469118627748`
+retains the dedicated SAMPO token-credit loss and early invalid-score masking,
+and extends stable k3 arithmetic through absolute delta 0.25. The finer
+independent sweep passes all 3880 checks. Its loss/gradient kernels agree on
+real Qwen, LFM and tiny Gemma4 BF16/FP16 model outputs; TRL applies the
+updates. Native veRL engine, normalized production mapping, release assets
+and immutable runtime adoption remain open.
+See [matched-kernel evidence](../../research/evidence/correctness-matrix/matched-kernel-results.md).
+
+## 0.9.0.post8
 
 Tag `carbonteq-v0.9.0.post8` (release commit
 `ef1c37715fa75de5973ae5b3c398383cd7e0093d`, branch
@@ -920,6 +1176,24 @@ separate qualification gates.
 
 ### SAMPO operating configuration
 
+The correctness audit replaces the historical `sequence_clip` and intermediate
+GSPO mappings with dedicated `sampo_token_credit`. This preserves a geometric
+sequence-ratio value with token-local credit and avoids GSPO's additional
+log-ratio cap. Legacy post8 (`ef1c37715fa75de5973ae5b3c398383cd7e0093d`)
+lacks this loss and is rejected for SAMPO at plan construction and again at
+worker override construction. Pins/images remain unchanged pending adoption.
+
+Executing the exact pinned GSPO, sequence-clip, aggregation, and masked helper
+bodies shows zero opposing-credit gradients for `sequence_clip`, and
+approximately [-0.5, 0, +0.5] for GSPO. The signed clipping cases also preserve
+local credit. The retained correctness runners and raw receipts are external
+under `/home/hammad/experiments/posttrain-correctness/2026-10-01`. This isolates
+the actual objective math without importing Ray; full V1 worker, KL integration,
+and distributed parity qualification remain open. The existing GSPO path caps
+sequence log ratios at 10 for stability, unlike TRL's uncapped sequence ratio;
+do not substitute it for the corrected SAMPO objective. Historical qualification
+below does not certify runtime-image adoption of the newly selected composition.
+
 The framework's typed SAMPO manifest maps to:
 
 ```text
@@ -927,7 +1201,7 @@ algorithm.adv_estimator=sampo
 algorithm.sampo.discount_gamma=<SAMPOSettings.discount_gamma>
 algorithm.sampo.step_advantage_weight=<SAMPOSettings.step_advantage_weight>
 algorithm.sampo.advantage_normalization=<mean|mean_std>
-actor_rollout_ref.actor.policy_loss.loss_mode=gspo
+actor_rollout_ref.actor.policy_loss.loss_mode=sampo_token_credit
 actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean
 ```
 
@@ -1031,6 +1305,225 @@ is [verl-qwen35-grpo-distillation.md](../../plan/verl-qwen35-grpo-distillation.m
 
 ## References
 
+The published math parity candidate adds stable small-delta k3,
+early excluded-score masking in the PPO loss wrapper, and opt-in
+`sampo_token_credit` without changing native GSPO. Its130 focused fork CPU
+checks and48 prior Posttrain math checks pass. The current normalizer selects
+the corrected loss with an explicit source gate; runtime pins/images and
+production recipes still require separate adoption qualification. See
+[the current parity audit](../../research/evidence/correctness-matrix/posttrain-cross-backend-parity.md)
+and the fork's `CARBONTEQ_FORK.md`; model/distributed and artifact gates remain
+open.
+
 - [vLLM release notes: TurboQuant hybrid-model and uniform-quantization support](https://github.com/vllm-project/vllm/releases)
 - [TurboQuant paper, ICLR 2026](https://openreview.net/pdf/86df3c70aa9b7035c407e886e8238951a5d6ec23.pdf)
 - [vLLM TurboQuant follow-up tracker](https://github.com/vllm-project/vllm/issues/40069)
+
+## Singleton FSDP accumulation qualification
+
+Posttrain SAMPO now selects `sampo_token_credit`, the uncapped geometric
+sequence-ratio loss with token-local credit used by the qualified math probes.
+The compatibility gate accepts published candidate
+`d8e472db822f2916ed81a408b8d28192be95e678` for that loss and rejects legacy
+post8 SAMPO launches instead of substituting GSPO. Historical fork capability
+sets do not gain the new loss. GRPO/GDPO/CAPO mappings remain unchanged.
+This is a launcher correctness repair, not runtime-image adoption: existing
+post8 pins/images need separate publication and release qualification before
+SAMPO can run through those defaults. Corrected native-source parity and
+real model/optimizer evidence live in the correctness campaign plan.
+
+Published candidate source
+[`d8e472db822f2916ed81a408b8d28192be95e678`](https://github.com/carbonteq-ai/verl/commit/d8e472db822f2916ed81a408b8d28192be95e678)
+keeps synchronization enabled for a one-rank data-parallel group. Deferred sync
+has no communication benefit there and triggers a Torch2.13 FSDP2 backward
+failure for unused independently sharded branches, including vision modules
+in text-only Qwen execution. Multi-rank deferral remains unchanged.
+
+The12-test synchronization suite passes, including BF16/FP16 CUDA accumulation
+against closed-form gradients and existing two-rank Gloo equivalence. Six new
+regressions fail against the previous source. Complete collected Qwen
+AutomationBench traces now apply six SAMPO updates across ordinary FP16,
+diagnostic FP32-delta-region FP16 and ordinary BF16. A two-update native LFM
+FP16 regression also passes48 matrix-gradient and192 scalar-dot checks.
+
+This is candidate-source correctness evidence. Rewards are constant in the
+Qwen population, and direct updates deliberately bypass production admission.
+Fresh learning, multi-rank unused branches, packed/fused paths and published
+runtime adoption remain open; dependency pins and images are unchanged. See
+[the native Qwen findings](../../research/evidence/correctness-matrix/native-verl-results.md)
+and the fork's `CARBONTEQ_FORK.md` for the failure, controls and rebase gates.
+
+## Entropy precision source candidate
+
+Published source `c1e477d7d83badb4be6742c9efde483956698f01` repairs
+entropy cancellation in `verl/utils/torch_functional.py`. BF16 logits[10,11]
+previously returned0.5625 instead of0.582203; uniform large-offset logits could
+return0 instead oflog(vocabulary size), including the chunked float32 path.
+The kernel now uses normalized log probabilities, promotes half arithmetic to
+float32, and handles zero-probability terms with finite values and derivatives.
+Unchunked half entropy now returns float32; input gradients retain input dtype.
+This changes neither the policy/KL formulas nor the default chunking selection.
+
+The regression baseline fails24 of36 CPU cases; all36 pass after repair, as
+do six CUDA BF16/FP16/FP32 controls. The related utility slice passes53 tests.
+Independent represented-logit scalar cases have maximum repaired error1.87e-8.
+On an8GB GPU, Qwen's full-trace controller entropy calculation exceeded memory
+without chunking; the existing engine settings
+`entropy_from_logits_with_chunking=True` and
+`entropy_from_logits_chunk_size=64` provide the bounded qualification path.
+These are probe settings, not a changed framework production default.
+
+The repaired source passes actual Qwen BF16 controller scoring method bodies
+with genuine queue/GPU worker execution and Posttrain's seq-mean-token-mean
+aggregation. Score shifts, masks, initial-base reference and actor restoration
+are exact; independent entropy aggregation error is5.41e-9. Three updates and
+step0–3 parameters/scores/preclip gradients match the pre-repair control bitwise.
+The actual entropy metric changes only1.19e-7 on this trace, so the kernel
+defect does not by itself explain poor training behavior.
+
+Runtime assets, production pin adoption, distributed entropy and fresh-task
+quality remain gates. Exact evidence and the actual controller-scoring boundary
+are recorded in [the short rollout findings](../../research/evidence/correctness-matrix/short-rollout-results.md).
+
+## Candidate temperature-scaling precision correction
+
+Published source:
+`f5333c4f647494e497896eaed14160e2cd7186c4` on
+`carbonteq-ai/verl`, branch `codex/posttrain-math-parity`.
+Runtime images and dependency pins remain unchanged.
+
+The source candidate promotes BF16/FP16 model logits before temperature
+division in both non-fused FSDP packed/unpacked scoring routes. CUDA autocast
+already returns FP32 fallback log-probabilities, but cannot recover prior
+half-division rounding. Four real Qwen/LFM fixture controls reproduce saved
+native scores exactly and measure maximum sampled-score differences0.080662/
+0.011010 and0.153319/0.021459 for BF16/FP16 respectively. Independent scalar
+checks validate the FP32 controls within1.36e-6.
+
+The original scaling expression fails8/15 new CPU score/derivative/overflow/floor
+regressions; the candidate passes15/15 and the complete focused CPU/CUDA suite
+passes17/17. Six LFM native queue/model/optimizer arms apply18/18 updates and
+pass36 independent losses/score derivatives,432 matrices and1,728 scalar dots.
+Maximum loss error4.59e-8, derivative7.42e-11 and Adam2.14e-9; peak3.714GB.
+First-gradient changes are3.07–3.13% BF16 and0.397–0.402% FP16. Later
+GRPO/DAPO clipping counts change modestly; GSPO counts do not. First-update
+ratios still equal1. Production pin adoption is not claimed.
+Fused scoring, other engine types, larger-memory workloads and task-quality
+impact remain gates. Model/head forward arithmetic and policy/KL definitions
+are unchanged; resume qualification must recompute old/current scores together.
+
+The generic implementation and regression ownership are recorded in the fork's
+CARBONTEQ_FORK.md; experiment runners and raw receipts remain outside Git.
+
+### Row-wise score-only memory follow-up
+
+Published source: `7cf23e101ba70813a0b23392465b4a6eaf073731`,
+branch `codex/posttrain-math-parity`. Production pins/images remain unchanged.
+
+The published full-FP32 scaling source passes LFM updates but exhausts memory
+in Qwen's8GB SAMPO backward gate. Allocator and offload controls do not establish
+a successful full-FP32 update. The row-wise follow-up promotes each token's
+half logits before normalization and avoids a full FP32 logit-gradient buffer.
+Both non-fused FSDP routes use it for half score-only requests; entropy,
+sum-pi-squared and distillation retain the full-FP32 path and its memory gate.
+
+The candidate passes42 focused CPU/CUDA/route/distillation regressions and all
+95 combined utility/route/distillation cases(four distributed cases deselected).
+Its native qualification includes
+four native Qwen/LFM BF16/FP16 SAMPO arms:12 updates,24 loss/score derivatives,
+288 matrices and1,152 scalar dots. Thirty-two independent scalar score checks
+agree within1.54e-7. Peak allocations3.218GB Qwen /2.014GB LFM, ordinary allocator
+and no added offload. Initial parameters match; Qwen BF16 scores agree with the
+full-FP32 reference within2.27e-6. BF16 clipping changes; FP16 counts stay equal.
+No task-quality improvement follows from these arithmetic checks.
+
+This score-only path bypasses optional flash CE; throughput, fused/distributed
+integration, entropy memory and runtime asset/pin adoption remain gates.
+
+### Selected normalization stability and broader row-wise qualification
+
+Six additional native LFM GRPO/GSPO/DAPO BF16/FP16 arms qualify the published
+row-wise score-only source:18 applied updates,36 independent losses/derivatives,
+432 matrix checks and1,728 scalar dots pass; max loss4.73e-8, derivative7.33e-11,
+worker loss6.01e-8 and Adam2.14e-9, peak2.014GB. Cached diagnostic clipping differs
+by precision/algorithm; this is not a fresh quality or admission/refill claim.
+
+Published source661bbf395e90a060acde0ec0bbed84ef67b5cee3 separately repairs
+logprobs_from_logits_v2 with batch-row log_softmax before gathering in every dtype.
+Absolute selected-logit minus logsumexp loses small normalizer corrections at
+common offsets even in FP32/FP64. Native selected-score/temperature/FSDP-route
+regressions pass68 cases, with two intentional offsets outside finite FP16 skipped;
+five CPU cases fail before repair. Ruff/diff pass. Half routes/dtype remain intact.
+FP32 normalized vocabulary buffers require larger-context memory/throughput
+qualification. No extreme offsets have been observed in actual model traces.
+Native optimizer/controller and production asset/pin adoption gates remain open;
+fork ledger owns generic regressions and rebase procedure. Detailed matched
+clipping/scalar evidence is in the correctness campaign findings.
+
+Actual-model qualification (2026-10-01) exercises both repaired backend source
+utilities on Qwen/LFM BF16/FP16 full-response fixtures:16 detached-logit backwards
+and80 independent full-vocabulary scalar checks pass. Max score3.39e-7 and
+checked derivative5.97e-10; peaks3.152GB Qwen/4.545GB LFM. Actual unshifted scaled
+logits stay within[-28.44,48.75]. This closes a detached-scoring memory gate;
+model/optimizer backward, throughput and task-quality attribution remain open.
+
+### Resolved hierarchical updates: native candidate evidence (2026-10-02)
+
+The private Posttrain adapter now uses the native veRL FSDP model, microbatch
+backward, optimizer, scaler and scheduler for resolved fixed populations. An
+explicit engine subclass projects only required sampled-action probabilities
+through prepare_model_outputs, with FP32 tempered normalization. The model still
+receives each full original causal context. This is Posttrain score arithmetic,
+not qualification of veRL's stock probability kernel. Complete-score adjoints
+preserve coupled objective derivatives while original contexts are replayed;
+score drift is rejected before backward.
+
+At consumer source ef1c37715fa75de5973ae5b3c398383cd7e0093d, four Qwen3.5-0.8B
+BF16/FP16 arms each applied two updates: two episode minibatches over one epoch,
+or one full-population minibatch over two epochs. Peak allocated memory was
+about 5.05 GB on an 8 GB GPU. FP32 trainables, rank 8, alpha 16, LR 1e-4 and
+temperature 0.8 were used. The two schedules expose 298 versus 596 actions;
+these are correctness checks, not matched-work speed or quality comparisons.
+Stock probability computation OOMed even with native activation offload; failed
+logs are retained. The isolated runtime needed the locked Transformers 5.14.1
+and tokenizers 0.22.2 rather than its drifted versions.
+
+Receipts and runners remain outside Git under
+/home/hammad/experiments/posttrain-correctness/2026-10-01/results/native-collection/engine-verl-qwen-*-selected.json
+and the campaign working directory. Independent CPU objective/scoring/replay and
+native protocol checks report 55 passed. This does not close independent native
+model-gradient, exact TRL/veRL initial-state/optimizer parity, fresh collection,
+resume, distributed, process-reward or multi-family gates. Public policy_updates
+launching remains closed. See the living
+[engine plan](../../plan/hierarchical-policy-update-engine.md).
+
+Native checkpoint qualification uses published candidate
+acad5211619aef5ed80b25e9657262f08a436b03, which already retains the FP16 scaler
+in checkpoint extra state. A two-update Qwen3.5-0.8B control saves update 1 and
+continues; a fresh process restores that exact boundary. FP16 matches all 24
+LoRA matrices, loss/clipping, frozen scores, counters and scaler state exactly.
+BF16 also matches exactly under torch deterministic algorithms with
+CUBLAS_WORKSPACE_CONFIG=:4096:8. Default BF16 retains an unresolved maximum
+parameter difference of 6.2473e-5. No accepted margin or kernel diagnosis is claimed.
+The selected post8 source remains unqualified for FP16 resume until the existing
+candidate fix is adopted through release assets and immutable pins. These
+within-backend checks do not close cross-backend parity, fresh rollout,
+distributed or multi-family qualification. The engine plan revision 10 records
+runtime identities and external receipts; no new fork patch was required.
+
+The explicit private `sampo-turns@1` variant now has bounded LFM BF16/FP16
+mid-population recovery evidence at candidate
+`acad5211619aef5ed80b25e9657262f08a436b03` (engine plan revision 26).
+Three-update native controls checkpoint after update 1; fresh processes restore
+the sealed resolved objective, prepared credit, frozen scores and native
+optimizer/scaler state. Their two remaining events and all 24 final adapter
+matrices match exactly. This includes the fully clipped FP16 second update;
+optimizer momentum still changes parameters and is preserved on resume.
+Revision 25 separately verifies exact TRL/veRL BF16 scores and parameter
+transitions for this fixture under identical initial adapter tensors. Native
+initialization with equal seeds alone differed. No additional fork patch or
+consumer pin change was needed for these checks. The
+[engine plan](../../plan/hierarchical-policy-update-engine.md) records exact
+runtime/model identities and external receipts. Candidate release adoption,
+public collection/launch wiring, distributed execution, informative Gemma and
+full release validation remain open.

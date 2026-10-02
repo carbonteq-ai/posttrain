@@ -7,6 +7,37 @@ from dataclasses import dataclass
 from typing import Literal
 
 type RewardStatus = Literal["valid", "inapplicable", "abstained", "failed"]
+type ObservationScope = Literal["prefix", "current-step", "full-trajectory"]
+
+
+@dataclass(frozen=True, slots=True)
+class SpanAssessment:
+    """Scorer evidence on a retained span; this is not a prepared advantage."""
+
+    evidence_ref: str
+    span_id: str
+    components: tuple[RewardValue, ...]
+    scorer_revision: str
+    observed_input_ref: str
+    observation_scope: ObservationScope
+    semantic_kind: str
+    scorer_snapshot: str
+
+    def __post_init__(self) -> None:
+        identities = (
+            self.evidence_ref,
+            self.span_id,
+            self.scorer_revision,
+            self.observed_input_ref,
+            self.semantic_kind,
+            self.scorer_snapshot,
+        )
+        if any(not value.strip() for value in identities) or not self.components:
+            raise InvalidRewardEvidence("span assessment requires scorer, input, span and retained evidence identities")
+        if self.observation_scope not in {"prefix", "current-step", "full-trajectory"}:
+            raise InvalidRewardEvidence("span assessment requires an explicit observation scope")
+        if len({value.name for value in self.components}) != len(self.components):
+            raise InvalidRewardEvidence("span assessment component names must be unique")
 
 
 class InvalidRewardEvidence(ValueError):

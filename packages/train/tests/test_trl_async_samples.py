@@ -4,6 +4,9 @@ from dataclasses import replace
 from unittest.mock import Mock
 
 import pytest
+
+pytest.importorskip("trl")
+
 from posttrain.common import TraceObservation
 from posttrain.train.backends.trl.async_samples import (
     AsyncRolloutRecord,

@@ -109,13 +109,18 @@ def test_compatible_vllm_kinds_share_one_locked_parent_layer() -> None:
     assert "--requirement /opt/posttrain/profiles/vllm-common.txt" in shared_stage
     assert "VLLM_USE_PRECOMPILED=1" in shared_stage
     assert 'VLLM_PRECOMPILED_WHEEL_LOCATION="${wheel}"' in shared_stage
-    assert 'VLLM_BINARY_WHEEL_SHA256="2b8f85d3' in shared_stage
+    assert 'VLLM_BINARY_WHEEL_SHA256="2b8f85d3' in dockerfile[:shared_start]
     assert 'VLLM_USE_FLASHINFER_SAMPLER="0"' not in shared_stage
     assert dockerfile.count('ENV VLLM_USE_FLASHINFER_SAMPLER="0"') == 3
     assert vllm_lock.is_file()
     assert "vllm==0.29.1.dev4" in vllm_profile.read_text(encoding="utf-8")
     for stage in ("online-rl-trl-py312-dependencies", "eval-dependencies", "serve-dependencies"):
         assert f"FROM vllm-kind-common AS {stage}" in dockerfile
+        variant = dockerfile[dockerfile.index(f"AS {stage}") :]
+        variant = variant[: variant.index("\nFROM ")]
+        # Resolving the locked Git vLLM must take the precompiled path, never nvcc.
+        assert "sh /opt/posttrain/vllm-precompiled.sh uv pip install" in variant
+        assert "id=posttrain-vllm-wheels" in variant
 
 
 def test_base_accepts_a_build_secret_ca_bundle_without_disabling_tls() -> None:

@@ -5,7 +5,7 @@ from dataclasses import replace
 
 import pytest
 from posttrain.common import TraceObservation
-from posttrain.train.online_rl import EnvironmentRollout, PartialRolloutBatchError, RolloutBatch
+from posttrain.train.online_rl import BehaviorPolicySpan, EnvironmentRollout, PartialRolloutBatchError, RolloutBatch
 from posttrain.train.profiles import ActiveGroupSampling, GDPOSettings, GRPOSettings, TrainingLoop
 from posttrain.train.reward_admission import admit_reward_groups, admit_rollout_groups
 from posttrain.train.reward_evidence import InvalidRewardEvidence, RewardEvidence, RewardValue
@@ -48,10 +48,12 @@ def test_replace_whole_bad_group_but_retain_other_zero_reward_group():
             result[0] = replace(result[0], is_truncated=True)
         return result
 
-    result = admit_reward_groups(batch(), settings(), collect, lambda failures: failures)
+    selected_batch = replace(batch(), behavior_policy=BehaviorPolicySpan(7, 7))
+    result = admit_reward_groups(selected_batch, settings(), collect, lambda failures: failures)
     assert result.rounds == 2
     assert result.attempted_rollouts == 6
     assert calls[1].example_ids == ("a", "a")
+    assert all(call.behavior_policy == selected_batch.behavior_policy for call in calls)
     evidence = [row.reward_evidence for row in result.rollouts]
     assert all(item is not None for item in evidence)
     assert [item.rollout_id for item in evidence if item is not None] == [

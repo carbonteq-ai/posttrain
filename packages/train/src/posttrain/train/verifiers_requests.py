@@ -54,6 +54,7 @@ def build_verifiers_structured_request(
         tasks=tasks,
         model_identity=policy.trace_identity(),
         reward_projection=reward_projection,
+        policy_update_context_contract="causal-text@1" if settings.policy_updates is not None else None,
     )
     if isinstance(settings, GDPOSettings):
         return GDPORequest(policy, bridge, settings, environment, training, inference, quantization, reference)
@@ -84,6 +85,7 @@ def build_verifiers_grpo_request(
         purpose=settings.algorithm,
         tasks=tasks,
         model_identity=policy.trace_identity(),
+        policy_update_context_contract="causal-text@1" if settings.policy_updates is not None else None,
     )
     return GRPORequest(
         policy=policy,
@@ -167,6 +169,7 @@ def build_verifiers_sampo_request(
         tasks=tasks,
         model_identity=policy.trace_identity(),
         reward_projection=reward_projection,
+        policy_update_context_contract="causal-text@1" if settings.policy_updates is not None else None,
     )
     return SAMPORequest(
         policy=policy,

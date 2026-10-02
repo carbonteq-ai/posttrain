@@ -125,6 +125,7 @@ async def test_modern_native_episode_retains_exact_policy_tokens(tmp_path, failu
                 completion_ids=(900, 901),
                 completion_logprobs=(-0.123456789123, -0.223456789123),
                 finish_reason="stop",
+                reasoning_tokens=1,
                 prompt_message_spans=tuple((i, i + 1) for i in range(len(prompt))),
                 raw_response=cast(
                     dict[str, JsonValue],
@@ -171,6 +172,8 @@ async def test_modern_native_episode_retains_exact_policy_tokens(tmp_path, failu
     assert episode.group.id == "group"
     assert episode.traces[0].branches[0].token_ids[-2:] == [900, 901]
     assert episode.traces[0].branches[0].logprobs[-2:] == [-0.123456789123, -0.223456789123]
+    # Renderer reasoning accounting reaches native call usage (thinking facts and spans).
+    assert [call.usage.reasoning_tokens for call in episode.traces[0].calls if call.usage is not None] == [1]
     info = rollout.trace.payload["info"]
     assert isinstance(info, dict)
     assert info["posttrain_episode_id"] == episode.id

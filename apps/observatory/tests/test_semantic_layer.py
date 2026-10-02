@@ -176,3 +176,36 @@ def test_catalog_describes_trl_per_round_active_sampling_metrics() -> None:
             entry = CATALOG_BY_METRIC[f"train/rl/active_sampling_round_{round_index}_{kind}_groups"]
             assert entry.entity is None  # described, not a semantic measure: the round is in the name
             assert entry.help().label == f"Active-sampling round {round_index} {kind} groups"
+
+
+def test_catalog_describes_resolved_update_counters_with_their_aggregation() -> None:
+    from posttrain_observatory.metric_catalog import RESOLVED_UPDATE_KINDS
+
+    measures = {
+        measure.source.name: measure for measure in FRAMEWORK_MODEL.measures if measure.source.kind == "metric_series"
+    }
+    for metric in ("train/rl/applied_optimizer_updates", "train/rl/optimizer_attempts"):
+        entry = CATALOG_BY_METRIC[metric]
+        # Cumulative counters: a run total is their maximum, never a sum of points.
+        assert entry.aggregation == "max" and entry.allowed is not None and "sum" not in entry.allowed
+        assert measures[metric].aggregation == "max"
+    for metric in ("train/rl/selected_policy_actions", "train/rl/selected_kl_actions"):
+        assert CATALOG_BY_METRIC[metric].aggregation == "sum"
+    nonzero = CATALOG_BY_METRIC["train/rl/advantage_nonzero_fraction"]
+    assert nonzero.unit == "ratio" and nonzero.allowed is not None and "sum" not in nonzero.allowed
+    for kind in ("reserved", "generated", "retained", "unused"):
+        entry = CATALOG_BY_METRIC[f"train/rl/active_sampling_candidate_groups_{kind}"]
+        assert entry.aggregation == "sum" and "train.sampo" in entry.job_kinds
+    for metric in (
+        "train/rl/loss",
+        "train/rl/kl_loss",
+        "train/rl/advantage_mean",
+        "train/rl/advantage_abs_mean",
+        "train/rl/advantage_std",
+        "train/loss_scale",
+        "train/optimizer_step_skipped",
+        "train/optimizer_steps_skipped",
+    ):
+        assert CATALOG_BY_METRIC[metric].job_kinds == RESOLVED_UPDATE_KINDS, metric
+    skipped = next(metric for metric in FRAMEWORK_MODEL.metrics if metric.name == "skipped_optimizer_attempts")
+    assert skipped.formula == "max(optimizer_attempts) - max(applied_updates)"

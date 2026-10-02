@@ -21,12 +21,12 @@ trl = [
     "torch>=2.13,<2.14",
     "torchvision>=0.28,<0.29",
     "transformers>=5.14,<5.15",
-    "trl==1.12.0.post12",
+    "trl==1.12.0.post14",
     "peft>=0.19,<0.20",
     "datasets>=4.6.1,<4.7",
     "accelerate>=1.14,<1.15",
     "bitsandbytes>=0.49,<0.50",
-    "carbonteq-renderers==0.1.12.post1.dev2",
+    "carbonteq-renderers==0.1.12.post1.dev3",
     "liger-kernel>=0.8.2,<0.9",
     "sentencepiece>=0.2,<0.3",
     "protobuf>=7.35,<8",
@@ -62,18 +62,18 @@ trl = { index = "carbonteq-dev" }
 carbonteq-renderers = { index = "carbonteq-dev" }
 
 [tool.posttrain.trl]
-version = "1.12.0.post12"
-release-tag = "carbonteq-v1.12.0.post12"
-source-revision = "c4d0db051a7839fe1b1d587185fac33ba88c784f"
-wheel-sha256 = "7fb9b9c3805e65cb064a1789060d40f4ebe3b31833840f1f439c51241de0029d"
-sdist-sha256 = "81d60f035864a36d4c65b429504c58bce47beed3f9a530abec0c2dd08b4142ce"
+version = "1.12.0.post14"
+release-tag = "carbonteq-v1.12.0.post14"
+source-revision = "09312dd1d96603587d1a24c3b714836cf67400f1"
+wheel-sha256 = "ef77a1f07154d3958d9f32eb90d2ce01e16048ff5d7e33bbf5be9e215666dc40"
+sdist-sha256 = "ed6a99c71f950af7147367ec582fda65f7cf22933460c86b73b7aadeabbac2dd"
 
 [tool.posttrain.renderers]
-version = "0.1.12.post1.dev2"
-release-tag = "carbonteq-v0.1.12.post1.dev2"
-source-revision = "6f712616fa88073919827a695af4f318b8c2d24e"
-wheel-sha256 = "fdc65e9ed1a8a2f877c127a3456834d5ded996f32a4c70fe22bebe615073a87e"
-sdist-sha256 = "2c83d94bd1fd81f5fdfe95cd8390ac1d5057355bc278bf14e642ab3f8b2c26bd"
+version = "0.1.12.post1.dev3"
+release-tag = "carbonteq-v0.1.12.post1.dev3"
+source-revision = "7fe5d06b9840ef0e4c7d43419cbd7f9afc1b727a"
+wheel-sha256 = "57dcc6f8ba2db7bec21c75d40177059f704bb817a772558435e4d34c262ab5eb"
+sdist-sha256 = "650954a172b93524e871f873fad0d5448bc9e578bd8da2fe3e46d48b9307aa39"
 
 [build-system]
 requires = ["hatchling"]

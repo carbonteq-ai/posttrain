@@ -130,6 +130,21 @@ def trackio_project(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Tracki
         grpo.metrics(
             MetricBatchObservation({"train/step_time_seconds": seconds, "train/rl/entropy": entropy}, step=step)
         )
+        # Resolved policy-update counters, one point per applied update. The
+        # applied/attempt counters are cumulative; update 2 retried one overflowed attempt.
+        grpo.metrics(
+            MetricBatchObservation(
+                {
+                    "train/rl/applied_optimizer_updates": float(step),
+                    "train/rl/optimizer_attempts": float(step if step == 1 else step + 1),
+                    "train/rl/selected_policy_actions": 100.0 * step,
+                    "train/rl/selected_kl_actions": 50.0 * step,
+                    "train/rl/advantage_nonzero_fraction": (1.0, 0.5, 0.0)[step - 1],
+                },
+                step=step,
+                attributes={"measurement_scope": "resolved-applied-update"},
+            )
+        )
     # Replayed from traces when the run finished, stored at later provider steps.
     for update, value in ((1, 1.0), (2, 0.5)):
         grpo.metric(

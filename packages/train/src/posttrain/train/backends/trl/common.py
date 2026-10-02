@@ -19,7 +19,14 @@ from typing import Any, Literal
 from posttrain.common import JsonValue, LocalArtifactRef, ModelVariant, ProducedArtifact, RunContext
 
 from ...adaptive_curriculum import CURRICULUM_SNAPSHOT_NAME
-from ...bindings import FullParameterUpdate, LoRAUpdate, ParameterUpdatePlan, QLoRAUpdate, QuantizationAwareUpdate
+from ...bindings import (
+    FullParameterUpdate,
+    LoRAUpdate,
+    ParameterUpdatePlan,
+    QLoRAUpdate,
+    QuantizationAwareUpdate,
+    _peft_target_modules,
+)
 from ...precision import TrainingPrecision, rollout_dtype
 from ...profiles import TrainingLoop
 from ...results import TrainingSummary
@@ -27,17 +34,6 @@ from ..common import BackendTrainingResult
 from ..retention import validate_adapter_only_directory
 
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
-
-
-def _peft_target_modules(value: str) -> str | list[str]:
-    """Preserve PEFT sentinels/regexes while supporting catalog CSV lists."""
-
-    if "," not in value:
-        return value
-    modules = [module.strip() for module in value.split(",")]
-    if any(not module for module in modules) or len(set(modules)) != len(modules):
-        raise ValueError("LoRA target_modules CSV must contain unique non-empty module names")
-    return modules
 
 
 def framework_imports() -> dict[str, Any]:
@@ -52,6 +48,7 @@ def framework_imports() -> dict[str, Any]:
             AutoTokenizer,
             BitsAndBytesConfig,
             TrainerCallback,
+            set_seed,
         )
         from transformers.trainer_utils import get_last_checkpoint
     except ImportError as error:
@@ -68,6 +65,7 @@ def framework_imports() -> dict[str, Any]:
         "AutoTokenizer": AutoTokenizer,
         "BitsAndBytesConfig": BitsAndBytesConfig,
         "TrainerCallback": TrainerCallback,
+        "set_seed": set_seed,
         "get_last_checkpoint": get_last_checkpoint,
     }
 
@@ -660,6 +658,13 @@ def _project_checkpoint_model_view(checkpoint: Path, destination: Path) -> Path:
         "scheduler.pt",
         "scaler.pt",
         "training_args.bin",
+        # Resolved update recovery belongs to the recovery view, including
+        # original rollout bytes. Never export it with serving adapter files.
+        "posttrain-resolved-update.json",
+        "posttrain-frozen-policy-scores.pt",
+        "posttrain-update-population.json",
+        "posttrain-native-population.bin",
+        "posttrain-sampler-correction.json",
     }
     for source in checkpoint.iterdir():
         if not source.is_file() or source.name in excluded or source.name.startswith("rng_state"):

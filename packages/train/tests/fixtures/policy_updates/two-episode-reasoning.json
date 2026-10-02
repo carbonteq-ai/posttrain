@@ -1,0 +1,12 @@
+[
+  {"id": "trace-a", "calls": [{"node": 1, "usage": {"completion_tokens": 4, "reasoning_tokens": 2}}],
+   "nodes": [
+     {"parent": null, "sampled": false, "message": {"role": "user"}, "token_ids": [1, 2], "mask": [false, false]},
+     {"parent": 0, "sampled": true, "message": {"role": "assistant"}, "token_ids": [3, 10, 11, 20, 21],
+      "mask": [false, true, true, true, true]}]},
+  {"id": "trace-b", "calls": [{"node": 1, "usage": {"completion_tokens": 4, "reasoning_tokens": 3}}],
+   "nodes": [
+     {"parent": null, "sampled": false, "message": {"role": "user"}, "token_ids": [1, 2], "mask": [false, false]},
+     {"parent": 0, "sampled": true, "message": {"role": "assistant"}, "token_ids": [3, 12, 13, 14, 22],
+      "mask": [false, true, true, true, true]}]}
+]
