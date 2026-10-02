@@ -1,7 +1,7 @@
 # Implement a general policy update engine with explicit algorithm contracts
 
 This ExecPlan is a living document maintained under `docs/templates/PLAN.md`.
-Revision 134, 2026-10-02. Update Progress, Surprises & Discoveries, Decision Log and
+Revision 135, 2026-10-02. Update Progress, Surprises & Discoveries, Decision Log and
 Outcomes & Retrospective at every implementation stopping point. This revision
 replaces the earlier GSPO/SAMPO-only plan with the reviewed general-engine scope.
 Implementation is authorized by the active thread goal. Native qualification
@@ -178,7 +178,17 @@ Small-GPU qualification checks correctness; research and ablations guide recipes
   Real two- and three-process gloo DDP runs reproduce the single-rank objective
   and every parameter exactly (three ranks over two contexts include an empty
   rank). Execution packs remain one context per rank in data-parallel mode.
-  GPU qualification R137 (2x RTX PRO 6000 on RunPod) is prepared next. TRL has
+  GPU qualification R137 (two-GPU pod on RunPod) is OPEN: attempts on
+  2026-10-02 hit RunPod two-GPU capacity failures, three uniform-reward
+  collections (samples verified distinct; no defect), and three qualifier
+  staging mistakes (two-context packs rejected by the data-parallel guard, a
+  dropped variable, an empty manifest hash). On the user's cost decision the
+  run was stopped (RunPod spend for these attempts about $5; no pods remain).
+  The single-host data-parallel path stays proven only by the real gloo
+  two/three-process tests; no in-house two-GPU host exists. A later attempt on 2x RTX PRO 4500 (EU-RO-1, $1.44/h) failed at pod
+  start (`waiting_instance_limit_exceeded`; the dstack agent never connected,
+  about $0.50 billed). R137 is recorded OPEN with no further paid retries
+  without user approval; multi-node and distributed TRL are out of scope. TRL has
   no multi-process launcher in Posttrain; distributed TRL remains unsupported
   and explicitly rejected.
 - [x] Revision134 R136 BF16 qualifies native veRL SAMPO active collection on
@@ -192,7 +202,22 @@ Small-GPU qualification checks correctness; research and ablations guide recipes
   BF16 resume twice failed at Ray node registration before any training
   (`raylet` not registered within 30 s; attempts preserved as
   `*-failed-ray-startup*`); a diagnostic rerun with
-  `RAY_raylet_start_wait_time_s=120` is live. FP16 not yet run.
+  `RAY_raylet_start_wait_time_s=120` failed the same way. Root cause: the
+  workstation root disk was 100% full, so the raylet plasma store got 0 bytes
+  and aborted (raylet.out). Space was recovered without data loss: R134
+  checkpoints were relocated to the development machine
+  (`~/experiments/posttrain-correctness/2026-10-01/evidence/r134-checkpoints`,
+  106 files sha256-verified) and checkpoint-publications that were
+  byte-identical (sha256) to retained checkpoints were removed, with notes in
+  each run directory. The BF16 resume then matched uninterrupted boundary 2
+  exactly (2356 tensors, difference 0, no recollection), so Gemma 4 E2B BF16 is
+  qualified end to end. FP16 is UNSUPPORTED for Gemma 4 E2B: the first forward
+  pass at the untouched base policy (old-score freezing, before any update or
+  checkpoint) produced non-finite logits, and the resolved engine correctly
+  rejected scoring (`resolved veRL scores require finite logits`). This is FP16
+  activation overflow in the model family, not an engine defect; the production
+  launcher still rejects `gemma4`, and any future Gemma admission must exclude
+  FP16.
 - [x] Revision134 fixes renderer reasoning attribution on in-process training
   paths: TRL and veRL generators now pass the rendered prompt to
   `parse_response(prompt_ids=...)`. R135b evidence showed every LFM2.5-2.6B
@@ -229,6 +254,38 @@ Small-GPU qualification checks correctness; research and ablations guide recipes
   updates, 2718/2718 nonzero advantages, exact continuation (164 tensors with
   scaler). TRL SAMPO `semantic-spans` is added to the public qualified matrix. Training with process credit inside a job (estimator selection
   in settings) is not wired; the scorer gate is evidence, credit and resolution.
+- [x] Revision134 process credit inside training jobs (code + CPU gates):
+  `PolicyUpdateSettings.credit_estimator` (catalog schema too) names the
+  explicit external estimator whose detached credit replaces the algorithm's
+  own. The host composition injects `SAMPORequest(process_credit=provider)`;
+  request construction and admission both require a provider whose
+  `estimator_id` equals the selection (no silent fallback to SAMPO credit).
+  `AdmittedNativePopulation.from_rollouts` prepares credit through the
+  provider on the retained population reader and re-resolves; resolved TRL
+  collection paths pass it through. `ScoredSpanCreditProvider` (train) and the
+  lab factory `likelihood_process_credit` with
+  `group_centered_likelihood_estimate` (`group-centered-likelihood@1`) are the
+  first provider. Recovery restores frozen credit from the checkpoint without
+  rescoring. Tests: fixture admission replaces credit with exact values and
+  rejects missing/mismatched providers; lab admission matches independent
+  group-centered values; the public guard keeps `credit_estimator` closed until
+  GPU qualification R139 (workstation) passes.
+- [x] Revision134 R139 BF16 trains with composition-injected process credit
+  (workstation, TRL resolved SAMPO semantic spans, LFM2.5-2.6B, post14 + dev3).
+  Admitted credit is `group-centered-likelihood@1` (not SAMPO), assessed by the
+  injected `LikelihoodSpanScorer` (base 2.6B, FP32, on the training GPU) over 8
+  reasoning spans; 1647 credited actions; selected group [1,1,1,0]; 32 adapters
+  change; the objective terms use that credit digest; independent recomputation
+  (float32 forward, float64 probabilities) matches assessments within 2.9e-7
+  and credit within 3.1e-7; checkpoint1 continuation restores the frozen credit
+  without calling the scorer and matches exactly (164 tensors). First recompute
+  attempt failed only in the qualifier (LFM kernels reject float64 forward;
+  preserved as `*-failed-recompute-dtype`). FP16: first draw exhausted six
+  uniform groups (preserved as `fp16-r139-uniform-draw`); the rerun passes:
+  credit `group-centered-likelihood@1` over 2475 actions, selected group
+  [1,0,0,0], recomputation within 1.2e-6, exact continuation (164 tensors).
+  The public guard now admits exactly (TRL, SAMPO, semantic-spans,
+  `group-centered-likelihood@1`); other estimators/backends stay closed.
 - [x] Revision134 lifts the public `policy_updates` guard for qualified
   selections only. `requests.py::_resolved_selection_problem` admits the GPU-
   qualified matrix: TRL GRPO/DAPO (R124-R132) and SAMPO with active collection
@@ -4094,6 +4151,11 @@ Empty/omitted objectives and overflow require separate transaction semantics.
 
 ## Decision Log
 
+Decision (revision134, 2026-10-02/user): multi-node distributed execution and
+distributed TRL are out of scope for this plan. Single-machine multi-GPU on
+small workstation-class cards (e.g. 2x RTX PRO 4500) is in scope for the native veRL
+data-parallel qualification; prefer the free workstation for everything else.
+
 Decision (revision134, 2026-10-02/Claude): lift the public guard per
 (backend, algorithm, objective variant) from a declared qualified matrix rather
 than per backend wholesale, so newly built paths (spans, turn rows, GDPO/CAPO,
@@ -4985,6 +5047,19 @@ and update boundaries. Explicit sampler correction must be supplied or explicitl
 absent, never dropped by the bridge. Date/Author: 2026-10-02/Codex.
 
 ## Outcomes & Retrospective
+
+Revision135 completes the in-scope engine gates on real models: TRL post14
+adoption; native veRL SAMPO active collection (R134); TRL resolved active
+collection (R135b); renderer-derived reasoning spans with role selection and a
+composition-owned real scorer (R138); training with injected process credit
+(R139); Gemma 4 E2B BF16 (R136, FP16 unsupported for that model); veRL post9
+and renderers dev3 released and pinned; public admission opened only for the
+GPU-qualified matrix. Every GPU gate passed in BF16 and FP16 with exact
+checkpoint continuation unless noted. Open: R137 two-GPU single-host native
+veRL data-parallel GPU qualification (code proven by real gloo multi-process
+tests; RunPod attempts failed on capacity/startup; awaiting approval to spend
+again). Out of scope by user decision: multi-node and distributed TRL. Old
+execution route retirement remains deferred one release per Milestone 7.
 
 Revision134 closes TRL post14 consumer adoption and qualifies native veRL SAMPO
 active collection (R134: BF16/FP16 real Ray/TQ collection, informative updates,

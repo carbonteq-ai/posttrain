@@ -35,10 +35,9 @@ def _decode(raw: bytes):
         for record in json.loads(raw)}
 
 
-def _population():
-    evidence = FIXTURE.read_bytes()
-    traces = _decode(evidence)
-    rollouts = tuple(EnvironmentRollout(
+def _rollouts():
+    traces = _decode(FIXTURE.read_bytes())
+    return tuple(EnvironmentRollout(
         "task", (1, 2, 3), tuple(traces[name].nodes[1].token_ids[1:]), (-1.,) * 4, (True,) * 4, reward, False,
         TraceObservation("verifiers", name, {"info": {
             "posttrain_episode_id": f"episode-{name}", "posttrain_prompt_group_id": "group",
@@ -48,6 +47,11 @@ def _population():
                                                         context_contract="causal-text@1"),
         selected_branch_id="1", conditioning_completion_indices=((0, 1, 2, 3),),
     ) for name, reward in (("trace-a", 1.), ("trace-b", 0.)))
+
+
+def _population():
+    evidence = FIXTURE.read_bytes()
+    rollouts = _rollouts()
     selected = replace(settings(), policy_updates=PolicyUpdateSettings(
         PolicyUpdateSchedule("episode", 1), PolicyExecutionBudget(2, 100, 1000), objective_variant="semantic-spans",
         policy_selection=ActionSelection("roles", roles=("reasoning",)),
@@ -141,3 +145,54 @@ def test_quality_scores_and_incomplete_or_foreign_assessments_are_rejected():
     with pytest.raises(InvalidPolicyUpdate, match="one advantage per assessed span"):
         prepare_credit(snapshot, ExternalSpanCreditEstimator(
             "bad", "1", assessments, lambda values, population: {}, (snapshot.native_evidence_digest,)))
+
+
+def test_selected_estimator_replaces_algorithm_credit_through_injected_provider():
+    from posttrain.train.update_process_credit import ScoredSpanCreditProvider
+
+    provider = ScoredSpanCreditProvider(cast(Any, FakeStepScorer()), ("reasoning",), "known-centered-step", "1",
+                                        _known_estimator)
+    algorithm, _ = _population()
+    evidence = FIXTURE.read_bytes()
+    base = algorithm.resolved.updates[0].population
+    rollouts = _rollouts()
+    selected = replace(settings(), policy_updates=PolicyUpdateSettings(
+        PolicyUpdateSchedule("episode", 1), PolicyExecutionBudget(2, 100, 1000), objective_variant="semantic-spans",
+        policy_selection=ActionSelection("roles", roles=("reasoning",)), credit_estimator="known-centered-step@1"))
+    admitted = AdmittedNativePopulation.from_rollouts(
+        rollouts, selected, capabilities(), population_id="population@3", native_evidence_ref="artifact:fixture",
+        read_evidence=lambda reference: evidence, decode=_decode, template_revision="template@1",
+        versions=PolicyVersions("sampler@3", "old@3", "current@3", None), sampler_step=3,
+        selector_digest="fixture@1", applied_update_offset=3, attempt_offset=3, process_credit=provider)
+    assert admitted.resolved.credit.estimator_id == "known-centered-step@1"
+    assert admitted.resolved.snapshot.digest == base.digest
+    assert len(provider.last_assessments) == 1
+    by_action = {(value.action.turn_id, value.action.token_index): value.advantage for value in admitted.resolved.credit.values}
+    assert by_action[("trace-a/node-1", 1)] == -0.5 and by_action[("trace-b/node-1", 4)] == 0.0
+    for wrong, estimator in ((provider, None), (None, "known-centered-step@1"),
+                             (provider, "other-estimator@1")):
+        assert selected.policy_updates is not None
+        changed = replace(selected, policy_updates=replace(selected.policy_updates, credit_estimator=estimator))
+        with pytest.raises(InvalidPolicyUpdate, match="process credit"):
+            AdmittedNativePopulation.from_rollouts(
+                rollouts, changed, capabilities(), population_id="population@3", native_evidence_ref="artifact:fixture",
+                read_evidence=lambda reference: evidence, decode=_decode, template_revision="template@1",
+                versions=PolicyVersions("sampler@3", "old@3", "current@3", None), sampler_step=3,
+                selector_digest="fixture@1", applied_update_offset=3, attempt_offset=3, process_credit=wrong)
+
+
+@pytest.mark.parametrize(("estimator", "variant", "backend", "admitted"), [
+    ("group-centered-likelihood@1", "semantic-spans", "trl@1", True),
+    ("known-centered-step@1", "semantic-spans", "trl@1", False),
+    ("group-centered-likelihood@1", "algorithm", "trl@1", False),
+    ("group-centered-likelihood@1", "semantic-spans", "verl@1", False),
+])
+def test_public_guard_admits_only_gpu_qualified_process_credit(estimator, variant, backend, admitted):
+    from posttrain.train.requests import _resolved_selection_problem
+
+    updates = replace(PolicyUpdateSettings(PolicyUpdateSchedule("episode", 1), PolicyExecutionBudget(2, 100, 1000)),
+                      objective_variant=variant, credit_estimator=estimator)
+    problem = _resolved_selection_problem("SAMPO", replace(settings(), policy_updates=updates),
+                                          cast(Any, SimpleNamespace(backend=backend)),
+                                          cast(Any, SimpleNamespace(backend="transformers@1")))
+    assert (problem is None) == admitted, problem

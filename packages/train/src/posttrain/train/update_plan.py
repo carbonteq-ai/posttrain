@@ -71,8 +71,15 @@ class PolicyUpdateSettings:
     denominator: Literal["selected", "original-eligible"] = "selected"
     empty_policy: Literal["reject", "omit", "zero"] = "reject"
     revision: Literal["1"] = "1"
+    # Explicit external estimator identity (e.g. "group-centered-likelihood@1")
+    # whose detached credit replaces the algorithm's own; the host composition
+    # must inject a matching process-credit provider.
+    credit_estimator: str | None = None
 
     def __post_init__(self) -> None:
+        if self.credit_estimator is not None and (
+                not isinstance(self.credit_estimator, str) or not self.credit_estimator.strip()):
+            raise InvalidPolicyUpdate("credit_estimator must name an explicit estimator identity")
         if self.revision != "1" or self.objective_variant not in {"algorithm", "semantic-spans", "turn-rows"}:
             raise InvalidPolicyUpdate("unsupported policy update selection revision or variant")
         if self.denominator not in {"selected", "original-eligible"} or self.empty_policy not in {"reject", "omit", "zero"}:

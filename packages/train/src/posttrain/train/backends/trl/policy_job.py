@@ -261,7 +261,8 @@ class ResolvedTRLJob:
         selector = hashlib.sha256(json.dumps(selection, sort_keys=True).encode()).hexdigest()
         common: dict[str, Any] = dict(population_id=f"{self.context.run_id}/population-at-{applied}",
             template_revision=self.template_revision, versions=self.versions(applied), selector_digest=selector,
-            attempt_offset=attempts, max_overflow_retries=self.max_overflow_retries, totals=self.totals)
+            attempt_offset=attempts, max_overflow_retries=self.max_overflow_retries, totals=self.totals,
+            process_credit=getattr(self.request, "process_credit", None))
         if active:
             assert isinstance(self.request, SAMPORequest)
             admitted = collect_active_resolved_population(

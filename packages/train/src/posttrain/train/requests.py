@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from posttrain.common import InferenceBinding, LocalArtifactRef, ModelVariant
 from posttrain.data import PreferenceDataSource, SupervisedDataSource
@@ -100,8 +100,16 @@ class SAMPORequest:
     quantization: QuantizationPlan | None = None
     reference: ModelVariant | None = None
     resume_from: LocalArtifactRef | None = None
+    # Composition-injected process-credit provider (scorer + explicit estimator)
+    # for settings.policy_updates.credit_estimator; train never imports a scorer.
+    process_credit: Any = None
 
     def __post_init__(self) -> None:
+        updates = self.settings.policy_updates
+        selected = updates.credit_estimator if updates is not None else None
+        if (selected is None) != (self.process_credit is None) or (
+                selected is not None and getattr(self.process_credit, "estimator_id", None) != selected):
+            raise ValueError("SAMPO process credit requires a selected credit_estimator and a matching injected provider")
         _validate_online_rl(
             "SAMPO",
             self.policy,
@@ -211,6 +219,13 @@ _QUALIFIED_RESOLVED_SELECTIONS: dict[str, frozenset[tuple[str, str]]] = {
 }
 
 
+# Injected process-credit estimators qualified in training (R139 BF16/FP16):
+# TRL resolved SAMPO semantic spans with the composition's likelihood scorer.
+_QUALIFIED_PROCESS_CREDIT: frozenset[tuple[str, str, str, str]] = frozenset({
+    ("trl", "sampo", "semantic-spans", "group-centered-likelihood@1"),
+})
+
+
 def _resolved_selection_problem(
     technique: str,
     settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
@@ -227,6 +242,10 @@ def _resolved_selection_problem(
             f"objective variant {updates.objective_variant!r}; policy_updates requires the native "
             "integration gates in the engine plan"
         )
+    if updates.credit_estimator is not None and (
+            backend, algorithm, updates.objective_variant, updates.credit_estimator) not in _QUALIFIED_PROCESS_CREDIT:
+        return (f"process-credit estimator {updates.credit_estimator!r} has not passed native GPU qualification "
+                f"for {training.backend} {algorithm} {updates.objective_variant!r}")
     if backend == "trl" and inference.backend.split("@", 1)[0] == "vllm":
         return "resolved TRL policy updates are qualified with transformers generation, not vLLM rollouts"
     return None

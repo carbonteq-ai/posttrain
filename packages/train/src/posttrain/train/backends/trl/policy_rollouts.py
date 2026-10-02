@@ -38,7 +38,7 @@ def collect_resolved_population(
     capabilities: ExecutionCapabilities, *, population_id: str,
     template_revision: str, versions: PolicyVersions, selector_digest: str,
     attempt_offset: int, spans: tuple[SemanticSpan, ...] = (),
-    max_overflow_retries: int = 0, totals: RolloutUpdateTotals | None = None,
+    max_overflow_retries: int = 0, totals: RolloutUpdateTotals | None = None, process_credit: Any = None,
 ) -> AdmittedNativePopulation:
     """Reuse ordinary collection and complete-group admission before resolution.
 
@@ -68,7 +68,7 @@ def collect_resolved_population(
         template_revision=template_revision, versions=versions, sampler_step=applied,
         selector_digest=selector_digest, spans=spans,
         applied_update_offset=applied, attempt_offset=attempt_offset,
-        max_overflow_retries=max_overflow_retries,
+        max_overflow_retries=max_overflow_retries, process_credit=process_credit,
     )
     context.artifact(artifact)
     return admitted
@@ -79,6 +79,7 @@ def collect_active_resolved_population(
     reserved: list[dict[str, Any]], capabilities: ExecutionCapabilities, *, evidence_directory: Path,
     population_id: str, template_revision: str, versions: PolicyVersions, selector_digest: str,
     attempt_offset: int, max_overflow_retries: int = 0, totals: RolloutUpdateTotals | None = None,
+    process_credit: Any = None,
 ) -> AdmittedNativePopulation:
     """Run TRL post11 active rounds over one reserved task pool, then admit the selection.
 
@@ -172,7 +173,7 @@ def collect_active_resolved_population(
         artifact, population, settings, capabilities, population_id=population_id,
         template_revision=template_revision, versions=versions, sampler_step=applied,
         selector_digest=selector_digest, applied_update_offset=applied, attempt_offset=attempt_offset,
-        max_overflow_retries=max_overflow_retries,
+        max_overflow_retries=max_overflow_retries, process_credit=process_credit,
     )
     context.artifact(artifact)
     context.metrics(plan.metrics(generations), step=applied + 1,

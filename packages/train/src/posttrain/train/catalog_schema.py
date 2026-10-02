@@ -79,6 +79,7 @@ class PolicyUpdateSettingsSchema(TrainCatalogSchema):
     denominator: Literal["selected", "original-eligible"] = "selected"
     empty_policy: Literal["reject", "omit", "zero"] = "reject"
     revision: Literal["1"] = "1"
+    credit_estimator: str | None = None
 
 
 def _decode_policy_updates(payload: PolicyUpdateSettingsSchema | None) -> PolicyUpdateSettings | None:
@@ -91,6 +92,7 @@ def _decode_policy_updates(payload: PolicyUpdateSettingsSchema | None) -> Policy
         policy_selection=ActionSelection(**payload.policy_selection.model_dump()),
         kl_selection=ActionSelection(**payload.kl_selection.model_dump()),
         denominator=payload.denominator, empty_policy=payload.empty_policy, revision=payload.revision,
+        credit_estimator=payload.credit_estimator,
     )
 
 

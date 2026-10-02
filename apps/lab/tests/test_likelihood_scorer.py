@@ -39,10 +39,9 @@ def _decode(raw):
         for record in json.loads(raw)}
 
 
-def _admitted():
-    evidence = FIXTURE.read_bytes()
-    traces = _decode(evidence)
-    rollouts = tuple(EnvironmentRollout(
+def _rollouts():
+    traces = _decode(FIXTURE.read_bytes())
+    return tuple(EnvironmentRollout(
         "task", (1, 2, 3), tuple(traces[name].nodes[1].token_ids[1:]), (-1.,) * 4, (True,) * 4, reward, False,
         TraceObservation("verifiers", name, {"info": {"posttrain_episode_id": f"episode-{name}",
             "posttrain_prompt_group_id": "group", "posttrain_rollout_id": f"rollout-{name}"}}),
@@ -51,6 +50,11 @@ def _admitted():
                                                         context_contract="causal-text@1"),
         selected_branch_id="1", conditioning_completion_indices=((0, 1, 2, 3),),
     ) for name, reward in (("trace-a", 1.), ("trace-b", 0.)))
+
+
+def _admitted():
+    evidence = FIXTURE.read_bytes()
+    rollouts = _rollouts()
     settings = SAMPOSettings(id="scorer", loop=TrainingLoop(max_steps=1, per_device_batch_size=1),
         policy_updates=PolicyUpdateSettings(PolicyUpdateSchedule("episode", 1), PolicyExecutionBudget(2, 100, 1000),
             objective_variant="semantic-spans", policy_selection=ActionSelection("roles", roles=("reasoning",))))
@@ -91,3 +95,32 @@ def test_likelihood_scorer_scores_original_reasoning_spans_with_retained_provena
     resolved = resolve_policy_population(snapshot, credit, settings, capabilities)
     assert {update.objective.definition_id for update in resolved.updates} == {"sampo-spans@1"}
     assert replace(credit, estimator_id=credit.estimator_id).observation_scope == "prefix"
+
+
+def test_likelihood_process_credit_replaces_algorithm_credit_at_admission():
+    from posttrain_lab.scorers import likelihood_process_credit
+
+    torch.manual_seed(0)
+    model = transformers.GPT2LMHeadModel(transformers.GPT2Config(vocab_size=32, n_positions=16, n_embd=16,
+                                                                 n_layer=1, n_head=2))
+    provider = likelihood_process_credit(model, model_id="tiny-gpt2", model_revision="seed0", device="cpu")
+    evidence = FIXTURE.read_bytes()
+    reference, settings, capabilities = _admitted()
+    assert settings.policy_updates is not None
+    selected = replace(settings, policy_updates=replace(settings.policy_updates,
+                                                         credit_estimator="group-centered-likelihood@1"))
+    rollouts = reference.resolved.updates[0].population  # population identity is unchanged by credit choice
+    admitted = AdmittedNativePopulation.from_rollouts(
+        _rollouts(), selected, capabilities, population_id="population@3", native_evidence_ref="artifact:fixture",
+        read_evidence=lambda ref: evidence, decode=_decode, template_revision="template@1",
+        versions=PolicyVersions("sampler@3", "old@3", "current@3", None), sampler_step=3,
+        selector_digest="fixture@1", applied_update_offset=3, attempt_offset=3, process_credit=provider)
+    assert admitted.resolved.snapshot.digest == rollouts.digest
+    assert admitted.resolved.credit.estimator_id == "group-centered-likelihood@1"
+    [assessments] = provider.last_assessments
+    quality = {value.span_id: float(cast(float, value.components[0].value)) for value in assessments}
+    mean = sum(quality.values()) / len(quality)  # the fixture's two episodes share one prompt group
+    spans = {span.id: span for span in admitted.resolved.snapshot.spans}
+    expected = {action: quality[span_id] - mean for span_id in quality for action in spans[span_id].actions()}
+    for value in admitted.resolved.credit.values:
+        assert value.advantage == pytest.approx(expected.get(value.action, 0.0), abs=1e-12)

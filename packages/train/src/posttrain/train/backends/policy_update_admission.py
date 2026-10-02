@@ -20,7 +20,7 @@ from ..profiles import CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings
 from ..update_plan import ExecutionCapabilities
 from ..update_records import ActionRef, InvalidPolicyUpdate, PolicyVersions, SemanticSpan
 from ..update_recovery import UpdateRecoveryIdentity
-from ..update_resolution import ResolvedPolicyPopulation, resolve_rollout_population
+from ..update_resolution import ResolvedPolicyPopulation, resolve_policy_population, resolve_rollout_population
 from .policy_update_inputs import NativePopulationInputs
 
 
@@ -47,7 +47,7 @@ class AdmittedNativePopulation:
         settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
         capabilities: ExecutionCapabilities, *, population_id: str,
         template_revision: str, versions: PolicyVersions, sampler_step: int,
-        selector_digest: str, spans: tuple[SemanticSpan, ...] = (),
+        selector_digest: str, spans: tuple[SemanticSpan, ...] = (), process_credit: Any = None,
         applied_update_offset: int = 0, attempt_offset: int = 0,
         max_overflow_retries: int = 0,
     ) -> AdmittedNativePopulation:
@@ -74,7 +74,7 @@ class AdmittedNativePopulation:
             native_evidence_ref=artifact.name, read_evidence=lambda _: evidence,
             decode=lambda raw: decode_native_population(raw, format=format),
             template_revision=template_revision, versions=versions, sampler_step=sampler_step,
-            selector_digest=selector_digest, spans=spans,
+            selector_digest=selector_digest, spans=spans, process_credit=process_credit,
             applied_update_offset=applied_update_offset, attempt_offset=attempt_offset,
             max_overflow_retries=max_overflow_retries,
         )
@@ -87,7 +87,7 @@ class AdmittedNativePopulation:
         population_id: str, native_evidence_ref: str,
         read_evidence: Callable[[str], bytes], decode: Callable[[bytes], Mapping[str, Any]],
         template_revision: str, versions: PolicyVersions, sampler_step: int,
-        selector_digest: str, spans: tuple[SemanticSpan, ...] = (),
+        selector_digest: str, spans: tuple[SemanticSpan, ...] = (), process_credit: Any = None,
         applied_update_offset: int = 0, attempt_offset: int = 0,
         max_overflow_retries: int = 0,
     ) -> AdmittedNativePopulation:
@@ -116,6 +116,18 @@ class AdmittedNativePopulation:
             selector_digest=selector_digest, spans=spans,
         )
         reader = NativePopulationInputs.from_evidence(resolved.snapshot, evidence, decode)
+        selected_estimator = updates.credit_estimator if updates is not None else None
+        if (selected_estimator is None) != (process_credit is None):
+            raise InvalidPolicyUpdate("process credit requires both a selected estimator and an injected provider")
+        if process_credit is not None:
+            # The composition-owned provider scores retained spans and returns
+            # validated detached credit; the algorithm's own credit is replaced.
+            if process_credit.estimator_id != selected_estimator:
+                raise InvalidPolicyUpdate("injected process credit differs from the selected estimator")
+            credit = process_credit.prepare(resolved.snapshot, reader)
+            if credit.estimator_id != selected_estimator or credit.population_digest != resolved.snapshot.digest:
+                raise InvalidPolicyUpdate("process credit provider returned credit for a different estimator or population")
+            resolved = resolve_policy_population(resolved.snapshot, credit, settings, capabilities)
         views = {view.id: view for view in resolved.snapshot.conditioning}
         for rollout in rollouts:
             for record, indices in zip(rollout.conditioning_records, rollout.conditioning_completion_indices, strict=True):

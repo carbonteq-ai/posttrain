@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from .reward_evidence import ObservationScope, SpanAssessment
@@ -102,3 +102,42 @@ class ExternalSpanCreditEstimator:
                               tuple(ActionCredit(action, value) for action, value in sorted(credit.items())),
                               self.required_relations, (("process", 1.0),), f"{self.estimator_id}-detached@1",
                               scope, self.evidence_digests)
+
+
+class ProcessCreditProvider(Protocol):
+    """Composition-injected source of detached process credit for one population."""
+
+    @property
+    def estimator_id(self) -> str: ...
+
+    def prepare(self, snapshot: PopulationSnapshot, read_input: Callable[[Any], Any]) -> PreparedCredit: ...
+
+
+@dataclass(frozen=True, slots=True)
+class ScoredSpanCreditProvider:
+    """Score retained spans with an injected scorer, then apply an explicit estimator.
+
+    ``estimator_id`` is the full identity a settings selection names (for
+    example ``group-centered-likelihood@1``); assessments stay evidence and only
+    the estimator's validated output becomes detached credit.
+    """
+
+    scorer: SpanScorer
+    roles: tuple[str, ...]
+    estimator_name: str
+    estimator_revision: str
+    estimate: Callable[[tuple[SpanAssessment, ...], PopulationSnapshot], Mapping[str, float]]
+    last_assessments: list[tuple[SpanAssessment, ...]] = field(default_factory=list)
+
+    @property
+    def estimator_id(self) -> str:
+        return f"{self.estimator_name}@{self.estimator_revision}"
+
+    def prepare(self, snapshot: PopulationSnapshot, read_input: Callable[[Any], Any]) -> PreparedCredit:
+        from .update_credit import prepare_credit
+
+        assessments = assess_population_spans(snapshot, self.scorer, read_input, roles=self.roles)
+        self.last_assessments.append(assessments)
+        return prepare_credit(snapshot, ExternalSpanCreditEstimator(
+            self.estimator_name, self.estimator_revision, assessments, self.estimate,
+            (snapshot.native_evidence_digest,)))
