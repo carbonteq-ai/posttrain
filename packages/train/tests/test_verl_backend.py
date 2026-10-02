@@ -295,7 +295,7 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
                 is_content=(True, True),
             )
 
-        def parse_response(self, token_ids, *, tools):
+        def parse_response(self, token_ids, *, tools, prompt_ids=None):
             assert token_ids == [3, 4]
             assert tools is None
             return SimpleNamespace(content="done", reasoning_content=None, tool_calls=())
@@ -480,7 +480,7 @@ def test_verl_policy_generator_takes_lfm25_python_calls_from_the_renderer_like_t
                 is_content=(True,) * 7,
             )
 
-        def parse_response(self, token_ids, *, tools):
+        def parse_response(self, token_ids, *, tools, prompt_ids=None):
             return parsed
 
         def get_stop_token_ids(self):
@@ -601,7 +601,7 @@ def test_verl_policy_generator_reports_bridged_spans_over_the_full_message_list(
                 message_roles=["tool", "tool"],
             )
 
-        def parse_response(self, token_ids, *, tools):
+        def parse_response(self, token_ids, *, tools, prompt_ids=None):
             return SimpleNamespace(content="done", reasoning_content=None, tool_calls=())
 
         def get_stop_token_ids(self):
@@ -766,7 +766,7 @@ def test_verl_policy_generator_refuses_and_bounds_turns_at_the_rollout_context(
                 token_ids=tuple(range(10)), message_token_spans=lambda: ((0, 10),), is_content=(True,) * 10
             )
 
-        def parse_response(self, token_ids, *, tools):
+        def parse_response(self, token_ids, *, tools, prompt_ids=None):
             return SimpleNamespace(content="done", reasoning_content=None, tool_calls=())
 
         def get_stop_token_ids(self):

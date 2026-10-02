@@ -40,7 +40,7 @@ class FakeRenderer:
         assert add_generation_prompt is True
         return FakeRendered()
 
-    def parse_response(self, token_ids, *, tools):
+    def parse_response(self, token_ids, *, tools, prompt_ids=None):
         assert token_ids == [3, 4]
         assert tools is None
         return SimpleNamespace(content="answer", reasoning_content="reason", tool_calls=[])
@@ -189,7 +189,9 @@ def test_trl_lfm_tool_cycle_keeps_sampled_prefix_and_appends_only_new_tool_messa
                 message_tool_names=[None],
             )
 
-        def parse_response(self, token_ids, *, tools):
+        def parse_response(self, token_ids, *, tools, prompt_ids):
+            # The rendered prompt reaches the parser so a prefilled thought is attributed.
+            assert prompt_ids == [1, 2, 3, 4, 10, 20, 21]
             return SimpleNamespace(content="answer", reasoning_content="reason", tool_calls=[])
 
         def get_stop_token_ids(self):
@@ -450,3 +452,34 @@ def _training() -> TrainingBinding:
         QLoRAUpdate(),
         ExecutionTarget("targets/test", "1", "nvidia-cuda", 8),
     )
+
+
+def test_trl_generator_attributes_prefilled_lfm_thought_with_real_renderer(monkeypatch) -> None:
+    from pathlib import Path
+
+    from posttrain.train import LFM25_RENDERER
+
+    transformers = pytest.importorskip("transformers")
+    pytest.importorskip("renderers")
+    snapshot = (Path.home() / ".cache/huggingface/hub/models--LiquidAI--LFM2.5-2.6B/snapshots"
+                / "654f9463ce32b05d0429d76fe1f580b27d4c1ac0")
+    if not snapshot.exists():
+        pytest.skip("requires the cached immutable LFM2.5-2.6B tokenizer")
+    tokenizer = transformers.AutoTokenizer.from_pretrained(snapshot, local_files_only=True)
+    sampled = tokenizer.encode("I should answer briefly.</think>Four.<|im_end|>", add_special_tokens=False)
+
+    class ThinkingTrainer(FakeTrainer):
+        def _generate_single_turn(self, prompt_ids, generation_config, extra):
+            # LFM2.5-2.6B prefills <think> at the end of its generation prompt.
+            assert tokenizer.decode(prompt_ids[0][-1:]) == "<think>"
+            return [sampled], [[-0.1] * len(sampled)]
+
+    generator = TrlPolicyGenerator(
+        ThinkingTrainer(), tokenizer, LFM_25_26B, replace(QWEN35_GRPO_SMOKE, max_completion_length=len(sampled)),
+        replace(_training(), renderer=LFM25_RENDERER),
+    )
+    result = asyncio.run(generator.generate(PolicyTurnRequest(
+        messages=({"role": "user", "content": "Two plus two?"},),
+        sampling=PolicySampling(max_tokens=len(sampled), temperature=0.7, top_p=0.9))))
+    assert result.reasoning_tokens == len(tokenizer.encode("I should answer briefly.</think>", add_special_tokens=False))
+    assert "</think>" not in str(result.message.get("content"))

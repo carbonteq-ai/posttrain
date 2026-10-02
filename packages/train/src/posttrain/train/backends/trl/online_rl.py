@@ -89,7 +89,10 @@ class TrlPolicyGenerator:
         if not token_ids:
             raise RuntimeError("the policy generator returned an empty completion")
         sampled_logprobs = () if logprobs is None else tuple(float(value) for value in logprobs)
-        parsed = self._renderer.parse_response(list(token_ids), tools=tools or None)
+        # The prompt may prefill an open thought (LFM2.5-2.6B ends its generation
+        # prompt with <think>); the renderer needs it to attribute reasoning.
+        parsed = self._renderer.parse_response(list(token_ids), tools=tools or None,
+                                               prompt_ids=list(rendered.token_ids))
         message = parsed_policy_message(
             parsed,
             token_ids,

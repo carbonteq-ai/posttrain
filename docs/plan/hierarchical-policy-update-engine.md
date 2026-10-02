@@ -181,6 +181,34 @@ Small-GPU qualification checks correctness; research and ablations guide recipes
   GPU qualification R137 (2x RTX PRO 6000 on RunPod) is prepared next. TRL has
   no multi-process launcher in Posttrain; distributed TRL remains unsupported
   and explicitly rejected.
+- [x] Revision134 R136 BF16 qualifies native veRL SAMPO active collection on
+  Gemma 4 E2B (google/gemma-4-E2B-it 3e22461f, text-only, 50 language q/v LoRA
+  targets, rank 8): rounds discard [0,0,0,0] and [1,1,1,1], select [1,1,0,1],
+  three candidates unused; 394/394 nonzero advantages; all 100 adapter tensors
+  change. Update 2 clips every selected action (clip fraction 1.0, gradient
+  norm 0.0031): correct clipping, but the recipe's learning rate is aggressive
+  for this small Gemma population. The production launcher still rejects
+  `gemma4`; the qualifier bypasses that family check for the pinned policy.
+  BF16 resume twice failed at Ray node registration before any training
+  (`raylet` not registered within 30 s; attempts preserved as
+  `*-failed-ray-startup*`); a diagnostic rerun with
+  `RAY_raylet_start_wait_time_s=120` is live. FP16 not yet run.
+- [x] Revision134 fixes renderer reasoning attribution on in-process training
+  paths: TRL and veRL generators now pass the rendered prompt to
+  `parse_response(prompt_ids=...)`. R135b evidence showed every LFM2.5-2.6B
+  assistant message carried its thought and `</think>` inside `content`, with
+  `reasoning_tokens=0`, because the template prefills `<think>` in the
+  generation prompt and the parser never saw it opened. Regression uses the
+  real cached 2.6B tokenizer/renderer.
+- [x] Revision134 real local scorer (code + CPU gate):
+  `apps/lab/src/posttrain_lab/scorers/likelihood.py::LikelihoodSpanScorer`
+  (composition-owned) scores each retained span by the injected model's mean
+  log-probability of its original tokens given their exact prefix, recording
+  scorer revision, model snapshot, observed input digest and prefix scope. Its
+  test checks every span score against an independent computation on the
+  reasoning fixture and drives scorer -> external estimator -> prepare_credit
+  -> `sampo-spans@1` resolution. GPU run on a real retained population with
+  nonzero reasoning spans (R137 traces carry the prompt fix) is open.
 - [x] Revision134 observation gate (Observatory): metric catalog entries and
   run aggregation for resolved counters (applied/attempts max, selected
   actions sum, nonzero-advantage mean, loss/kl mean, loss scale last, skipped

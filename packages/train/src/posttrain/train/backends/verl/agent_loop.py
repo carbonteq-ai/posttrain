@@ -252,7 +252,10 @@ class VerlPolicyGenerator:
             self._behavior_policy = (
                 behavior_policy if self._behavior_policy is None else self._behavior_policy.merge(behavior_policy)
             )
-        parsed = self._renderer.parse_response(list(token_ids), tools=renderer_tools)
+        # The prompt may prefill an open thought (LFM2.5-2.6B ends its generation
+        # prompt with <think>); the renderer needs it to attribute reasoning.
+        parsed = self._renderer.parse_response(list(token_ids), tools=renderer_tools,
+                                               prompt_ids=list(rendered.token_ids))
         message = parsed_policy_message(
             parsed,
             token_ids,
