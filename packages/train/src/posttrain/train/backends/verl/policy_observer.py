@@ -38,10 +38,14 @@ class ResolvedWorkerObserver:
     authority and the host observer retains ownership of tracking publication.
     """
 
-    def __init__(self, path: Path, context: VerlRunContext):
-        self.path, self.context = path, context
+    def __init__(self, path: Path, context: VerlRunContext, *, publishing: bool = True):
+        # Data-parallel ranks other than 0 hold identical global evidence;
+        # only one rank journals it so tracking never counts it twice.
+        self.path, self.context, self.publishing = path, context, publishing
 
     def _write(self, kind: str, observation: Any) -> None:
+        if not self.publishing:
+            return
         if kind == "artifact" and not isinstance(observation.reference, LocalArtifactRef):
             raise InvalidPolicyUpdate("resolved worker artifact transport requires a local retained artifact")
         encoded = TypeAdapter(_TYPES[kind]).dump_json(observation, fallback=dict, warnings=False)

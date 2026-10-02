@@ -398,3 +398,60 @@ def test_continuous_verl_rejects_wrong_prior_attempts_before_native_scoring():
     assert run.current is previous
     assert engine.steps == 2 and engine.lr_scheduler.last_epoch == 1
     assert all(torch.equal(p, value) for p, value in zip(engine.model.parameters(), before, strict=True))
+
+
+def _data_parallel_worker(rank, world, init_file, initial, result_file):
+    import torch.distributed as dist
+    from torch.nn.parallel import DistributedDataParallel
+
+    dist.init_process_group("gloo", init_method=f"file://{init_file}", rank=rank, world_size=world)
+    try:
+        runtime = population()
+
+        class DataParallelEngine(NativeOperatorEngine):
+            def __init__(self):
+                super().__init__()
+                self.model.load_state_dict(initial)
+                self.model = DistributedDataParallel(self.model)
+                self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.01)
+                self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lambda step: 1.0)
+
+            def get_data_parallel_size(self):
+                return world
+
+            def get_data_parallel_group(self):
+                return None
+
+        engine = DataParallelEngine()
+        output = runtime.run_update(engine, 0)
+        if rank == 0:
+            torch.save({"loss": output["loss"], "owned": output["owned_contexts"],
+                        "parameters": {name: value.detach().clone() for name, value in engine.model.module.state_dict().items()}},
+                       result_file)
+        else:
+            torch.save({"owned": output["owned_contexts"]}, f"{result_file}.rank{rank}")
+    finally:
+        dist.destroy_process_group()
+
+
+@pytest.mark.parametrize("world", [2, 3])
+def test_data_parallel_update_reproduces_single_rank_objective_and_parameters(tmp_path, world):
+    """Unequal partitions (and an empty rank when ranks exceed contexts) on real gloo collectives."""
+    from torch.multiprocessing.spawn import spawn
+
+    reference_engine = NativeOperatorEngine()
+    initial = {name: value.detach().clone() for name, value in reference_engine.model.state_dict().items()}
+    reference = population()
+    contexts = len(reference._rows(reference.updates[0].dependencies))
+    expected = reference.run_update(reference_engine, 0)
+    result = tmp_path / "rank0.pt"
+    spawn(_data_parallel_worker, args=(world, str(tmp_path / "init"), initial, str(result)),
+             nprocs=world, join=True)
+    actual = torch.load(result)
+    owned = [actual["owned"]] + [torch.load(f"{result}.rank{rank}")["owned"] for rank in range(1, world)]
+    assert sum(owned) == contexts
+    if world > contexts:
+        assert 0 in owned, "more ranks than contexts must leave an empty rank that still joins collectives"
+    assert actual["loss"] == pytest.approx(expected["loss"], rel=1e-6, abs=1e-7)
+    for name, value in reference_engine.model.state_dict().items():
+        torch.testing.assert_close(actual["parameters"][name], value, rtol=1e-5, atol=1e-6)

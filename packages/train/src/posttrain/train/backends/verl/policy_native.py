@@ -30,8 +30,8 @@ def validate_native_selection(manifest: VerlLaunchManifest) -> None:
     updates = settings.policy_updates
     runtime = manifest.payload.training.runtime
     if (updates is None
-            or manifest.payload.training.target.world_size != 1 or runtime.nodes != 1
-            or runtime.devices_per_node not in (None, 1)
+            or runtime.nodes != 1
+            or manifest.payload.training.target.world_size != (runtime.devices_per_node or 1)
             or settings.mask_truncated_completions
             or (updates.objective_variant == "semantic-spans" and not isinstance(settings, SAMPOSettings))
             or any(getattr(settings, name, None) is not None for name in (
@@ -90,7 +90,12 @@ def build_native_trainer(manifest: VerlLaunchManifest, config: Any) -> Any:
         runtime_identity, template = native_job_identity(manifest, engine)
         context = manifest.run_context
         assert context is not None
-        observer = ResolvedWorkerObserver(manifest.output_directory / JOURNAL_NAME, context)
+        rank = 0
+        if engine.get_data_parallel_size() > 1:
+            import torch.distributed as dist
+
+            rank = dist.get_rank(engine.get_data_parallel_group())
+        observer = ResolvedWorkerObserver(manifest.output_directory / JOURNAL_NAME, context, publishing=rank == 0)
         capabilities = native_execution_capabilities(manifest, engine)
         session = actor_session_from_manifest(manifest, engine, observer, capabilities=capabilities,
             runtime_identity=runtime_identity, template_revision=template, score_temperature=behavior.temperature,

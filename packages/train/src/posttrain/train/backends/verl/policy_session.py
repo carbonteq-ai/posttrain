@@ -159,7 +159,7 @@ def actor_session_from_manifest(
         from ..policy_update_recovery import load_sampler_correction
 
         state = inspect_update_recovery(checkpoint)
-        if state.identity.runtime_identity != runtime_identity or state.identity.world_size != 1:
+        if state.identity.runtime_identity != runtime_identity or state.identity.world_size != engine.get_data_parallel_size():
             raise InvalidPolicyUpdate("resolved actor recovery differs from the actual native runtime")
         correction = load_sampler_correction(checkpoint, state.identity)
         admitted = AdmittedNativePopulation.from_checkpoint(checkpoint, state.identity,

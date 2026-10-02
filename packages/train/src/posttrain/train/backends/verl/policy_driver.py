@@ -20,9 +20,17 @@ from .policy_checkpoint import (
 
 
 def single_actor_result(results: Any) -> Mapping[str, Any]:
-    """ONE_TO_ALL results must represent exactly the qualified single actor."""
-    if not isinstance(results, (list, tuple)) or len(results) != 1 or not isinstance(results[0], Mapping):
-        raise InvalidPolicyUpdate("resolved driver requires exactly one native actor result")
+    """ONE_TO_ALL results must describe one resolved actor state.
+
+    Data-parallel ranks hold identical global populations, objectives and
+    counters, so every rank must report exactly the same state and metrics;
+    any divergence is a failed distributed update, not a value to average.
+    """
+    if (not isinstance(results, (list, tuple)) or not results
+            or not all(isinstance(value, Mapping) for value in results)):
+        raise InvalidPolicyUpdate("resolved driver requires native actor results")
+    if any(dict(value) != dict(results[0]) for value in results[1:]):
+        raise InvalidPolicyUpdate("resolved data-parallel actor ranks report different global state")
     return results[0]
 
 

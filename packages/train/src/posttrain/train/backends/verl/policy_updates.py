@@ -296,10 +296,65 @@ class ResolvedVeRLPopulation:
         return scores
 
     def _infer(self, engine, rows):
+        rank, size, group = self._data_parallel(engine)
+        if size == 1:
+            return self._local_infer(engine, rows)
+        owned, local = self._owned_rows(rows, rank, size)
+        values = self._local_infer(engine, local)
+        actions = {action for _, members in owned for action, _ in members}
+        return self._gather_scores({action: value for action, value in values.items() if action in actions},
+                                   group, size, device=next(iter(values.values())).device)
+
+    def _local_infer(self, engine, rows):
         with engine.eval_mode():
             data = self._batch(rows)
             output = engine.infer_batch(data)
             return self._scores(output["model_output"], data, rows)
+
+    @staticmethod
+    def _data_parallel(engine):
+        size = engine.get_data_parallel_size()
+        if type(size) is not int or size < 1:
+            raise InvalidPolicyUpdate("native veRL data-parallel size must be a positive integer")
+        if size == 1:
+            return 0, 1, None
+        import torch.distributed as dist
+
+        group = engine.get_data_parallel_group()
+        return dist.get_rank(group), size, group
+
+    def _owned_rows(self, rows, rank, size):
+        """Exclusive context ownership plus matched padding forwards for this rank.
+
+        Contexts go to the least-loaded rank by original token count, so
+        partitions may be unequal or empty. Every rank runs the same number of
+        native forwards (FSDP gathers parameters per forward); padding repeats
+        the first admitted context and contributes no objective weight.
+        """
+        if self.execution.records != 1:
+            raise InvalidPolicyUpdate("native veRL data-parallel execution is qualified for one-context packs")
+        loads, owners = [0] * size, [[] for _ in range(size)]
+        for index in sorted(range(len(rows)), key=lambda value: (-len(rows[value][0].token_ids), value)):
+            target = min(range(size), key=lambda value: (loads[value], value))
+            owners[target].append(index)
+            loads[target] += len(rows[index][0].token_ids)
+        owned = tuple(rows[index] for index in sorted(owners[rank]))
+        count = max(len(items) for items in owners)
+        return owned, owned + (rows[0],) * (count - len(owned))
+
+    @staticmethod
+    def _gather_scores(local, group, size, *, device):
+        """All ranks receive identical global scores (exact CPU tensor copies)."""
+        import torch.distributed as dist
+
+        reports: list[Any] = [None] * size
+        dist.all_gather_object(reports, {action: value.detach().cpu() for action, value in local.items()}, group=group)
+        merged: dict[ActionRef, Any] = {}
+        for report in reports:
+            if set(report) & set(merged):
+                raise InvalidPolicyUpdate("native veRL data-parallel ranks scored overlapping actions")
+            merged.update(report)
+        return {action: value.to(device) for action, value in merged.items()}
 
     def freeze_old_scores(self, engine) -> Any:
         """Score complete original support once at the population's initial actor.
@@ -324,8 +379,6 @@ class ResolvedVeRLPopulation:
         return self.old
 
     def _checkpoint_contract(self, engine):
-        if engine.get_data_parallel_size() != 1:
-            raise InvalidPolicyUpdate("native veRL checkpoint recovery is qualified per world size")
         manager = engine.checkpoint_manager
         for operation in ("save", "load"):
             if not all(getattr(manager, f"should_{operation}_{component}") for component in ("model", "optimizer", "extra")):
@@ -335,39 +388,60 @@ class ResolvedVeRLPopulation:
             raise InvalidPolicyUpdate("native veRL checkpoint manager does not retain the active FP16 scaler")
 
     def save_native_checkpoint(self, engine, checkpoint: Path, *, runtime_identity: str):
+        """Every rank saves its native shards; rank 0 alone seals the population.
+
+        The seal lists all ranks' files and binds the world size, so recovery
+        with a different data-parallel size is rejected by identity.
+        """
         from ..policy_update_recovery import save_population_recovery
 
+        rank, size, group = self._data_parallel(engine)
         self._checkpoint_contract(engine)
         if self._pending is not None or engine.lr_scheduler.last_epoch != self.global_applied_updates:
             raise InvalidPolicyUpdate("native veRL checkpoint is not at a complete applied/scheduler boundary")
         if (checkpoint / "posttrain-resolved-update.json").exists():
-            return save_population_recovery(self, checkpoint, runtime_identity=runtime_identity, world_size=1,
-                native_applied_updates=engine.lr_scheduler.last_epoch, native_components=())
+            if rank == 0:
+                save_population_recovery(self, checkpoint, runtime_identity=runtime_identity, world_size=size,
+                    native_applied_updates=engine.lr_scheduler.last_epoch, native_components=())
+            return self._barrier(group, size)
         engine.save_checkpoint(local_path=str(checkpoint), global_step=self.global_applied_updates)
-        required = tuple(f"{name}_world_size_1_rank_0.pt" for name in ("model", "optim", "extra_state"))
-        if any(not (checkpoint / filename).is_file() for filename in required):
-            raise InvalidPolicyUpdate("native veRL checkpoint lacks full retained state")
-        files = tuple(sorted(str(path.relative_to(checkpoint)) for path in checkpoint.rglob("*") if path.is_file()))
-        return save_population_recovery(self, checkpoint, runtime_identity=runtime_identity, world_size=1,
-            native_applied_updates=engine.lr_scheduler.last_epoch, native_components=files)
+        self._barrier(group, size)
+        if rank == 0:
+            required = tuple(f"{name}_world_size_{size}_rank_{index}.pt"
+                             for name in ("model", "optim", "extra_state") for index in range(size))
+            if any(not (checkpoint / filename).is_file() for filename in required):
+                raise InvalidPolicyUpdate("native veRL checkpoint lacks full retained state")
+            files = tuple(sorted(str(path.relative_to(checkpoint)) for path in checkpoint.rglob("*") if path.is_file()))
+            save_population_recovery(self, checkpoint, runtime_identity=runtime_identity, world_size=size,
+                native_applied_updates=engine.lr_scheduler.last_epoch, native_components=files)
+        return self._barrier(group, size)
+
+    @staticmethod
+    def _barrier(group: Any, size: int) -> None:
+        if size > 1:
+            import torch.distributed as dist
+
+            dist.barrier(group=group)
 
     def load_native_checkpoint(self, engine, checkpoint: Path, *, runtime_identity: str):
         from ...update_recovery import load_update_recovery
         from ..policy_update_recovery import population_recovery_identity, restore_population_recovery
 
+        _, size, _ = self._data_parallel(engine)
         self._checkpoint_contract(engine)
-        identity = population_recovery_identity(self, runtime_identity=runtime_identity, world_size=1)
+        identity = population_recovery_identity(self, runtime_identity=runtime_identity, world_size=size)
         load_update_recovery(checkpoint, identity)
         engine.load_checkpoint(local_path=str(checkpoint), del_local_after_load=False)
-        return restore_population_recovery(self, checkpoint, runtime_identity=runtime_identity, world_size=1,
+        return restore_population_recovery(self, checkpoint, runtime_identity=runtime_identity, world_size=size,
             native_applied_updates=engine.lr_scheduler.last_epoch, device=next(engine.module.parameters()).device)
 
     def run_update(self, engine: Any, index: int) -> Any:
         from ..policy_update_math import ScoreBundle
         from ..policy_update_replay import prepare_score_adjoints
 
-        if engine.get_data_parallel_size() != 1 or index != self.next_update or not 0 <= index < len(self.updates):
-            raise InvalidPolicyUpdate("native veRL requires qualified single-rank ordered resolved updates")
+        rank, size, group = self._data_parallel(engine)
+        if index != self.next_update or not 0 <= index < len(self.updates):
+            raise InvalidPolicyUpdate("native veRL requires ordered resolved updates")
         if self._pending is not None:
             raise InvalidPolicyUpdate("failed native veRL update requires recovery before another attempt")
         if engine.lr_scheduler.last_epoch != self.global_applied_updates:
@@ -383,6 +457,8 @@ class ResolvedVeRLPopulation:
             self.sampler_correction = MappingProxyType(dict(correction))
             self.prepare_sampler_correction = None
         rows = self._rows(update.dependencies)
+        if size > 1:
+            return self._run_data_parallel_update(engine, update, rows, rank, size, group)
         sizes = self._pack_sizes(rows)
         planned = plan_packs(update, self.execution, self.capabilities)
         offset = 0
@@ -443,6 +519,88 @@ class ResolvedVeRLPopulation:
             self.last_output["loss"] = float(evaluation.loss)
             self.last_output["policy_loss"] = float(evaluation.policy_loss)
             self.last_output["kl_loss"] = float(evaluation.kl_loss)
+            engine.lr_scheduler_step()
+            self.applied_updates += 1
+            self.next_update += 1
+            self._pending = None
+            return self.last_output
+        raise AssertionError("bounded native retry loop failed to return or raise")
+
+    def _run_data_parallel_update(self, engine: Any, update: ResolvedUpdate, rows: Any,
+                                  rank: int, size: int, group: Any) -> Any:
+        """Owned-context replay whose averaged native gradient equals the global objective.
+
+        Every rank holds identical global current/old/reference scores and
+        adjoints. Each replays only its owned original contexts with carriers
+        scaled by the data-parallel size (native FSDP averages gradients);
+        padding forwards keep collectives matched and contribute exact zeros.
+        """
+        import torch
+        import torch.distributed as dist
+
+        from ..policy_update_math import ScoreBundle
+        from ..policy_update_replay import prepare_score_adjoints
+
+        owned, local = self._owned_rows(rows, rank, size)
+        owned_actions = {action for _, members in owned for action, _ in members}
+        coverage = torch.tensor([len(owned_actions)], dtype=torch.long)
+        dist.all_reduce(coverage, group=group)
+        if int(coverage.item()) != len(update.dependencies):
+            raise InvalidPolicyUpdate("native veRL data-parallel ownership lost dependency coverage")
+        current = self._infer(engine, rows)
+        term = resolve_objective_term(update, self.spec, self.credit,
+                                      parameter_version=f"{update.population.versions.current}/applied-{self.applied_updates}")
+        if term.kl_weights:
+            if self.reference is None or update.population.versions.reference is None:
+                raise InvalidPolicyUpdate("native veRL KL requires frozen reference evidence")
+            self.reference.validate(update.population, policy_version=update.population.versions.reference,
+                                    score_contract=self.score_contract, score_temperature=self.score_temperature)
+        self.last_adjoints = prepare_score_adjoints(
+            term, self.credit, ScoreBundle(current, self.old.values, term.parameter_version,
+                                          self.reference.values if self.reference is not None else {}, self.sampler_correction),
+        )
+        self._pending = self.next_update
+        for retry in range(self.max_overflow_retries + 1):
+            seen: set[ActionRef] = set()
+
+            def loss_function(model_output, data, dp_group=None, seen=seen):
+                indices = data["resolved_context_index"].flatten().tolist()
+                carriers = []
+                for local_index, row_index in enumerate(indices):
+                    if row_index < len(owned):
+                        scores = self._scores(model_output, data, local)
+                        row_scores = {action: scores[action] for action, _ in local[row_index][1]}
+                        if seen.intersection(row_scores):
+                            raise InvalidPolicyUpdate("native veRL replay duplicated original action derivatives")
+                        seen.update(row_scores)
+                        carriers.append(self.last_adjoints.carrier(
+                            row_scores, parameter_version=term.parameter_version,
+                            absolute_tolerance=self.replay_absolute_tolerance,
+                            relative_tolerance=self.replay_relative_tolerance) * size)
+                    else:
+                        # Matched padding forward joins native collectives with zero weight.
+                        carriers.append(model_output["log_probs"][local_index].sum() * 0)
+                return torch.stack(carriers).sum(), {}
+
+            self.attempts += 1
+            with engine.train_mode():
+                self.last_output = engine.train_batch(self._batch(local), loss_function)
+            if seen != owned_actions:
+                raise InvalidPolicyUpdate("native veRL replay lost owned dependency coverage before optimizer step")
+            skipped = bool(engine.last_loss_scale_metrics.get("optimizer_step_skipped", 0)) or not math.isfinite(
+                float(self.last_output["metrics"]["grad_norm"])
+            )
+            if skipped:
+                if retry == self.max_overflow_retries:
+                    raise InvalidPolicyUpdate("native veRL overflow exhausted resolved retry limit without advancing policy")
+                continue
+            self.last_output["replay_carrier_losses"] = self.last_output.pop("loss", None)
+            evaluation = self.last_adjoints.evaluation
+            self.last_output["loss"] = float(evaluation.loss)
+            self.last_output["policy_loss"] = float(evaluation.policy_loss)
+            self.last_output["kl_loss"] = float(evaluation.kl_loss)
+            self.last_output["data_parallel_size"] = size
+            self.last_output["owned_contexts"] = len(owned)
             engine.lr_scheduler_step()
             self.applied_updates += 1
             self.next_update += 1

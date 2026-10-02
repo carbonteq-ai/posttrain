@@ -144,14 +144,43 @@ Small-GPU qualification checks correctness; research and ablations guide recipes
   Previously every TRL/veRL training trace recorded `reasoning_tokens=None`
   (R135 evidence), leaving thinking-token facts unsupported and blocking span
   extraction. Regression asserts a real native Verifiers episode records it.
-- [ ] Revision134 R135 TRL active qualification attempts (all evidence kept):
+- [x] Revision134 R135b qualifies TRL resolved SAMPO active collection on
+  LFM2.5-2.6B with installed post14 + renderers dev3 (every installed source
+  verified against pinned commits), ActiveGroupSampling(6) over six
+  historically informative tasks. BF16: rounds discard [1,1,1,1] and [0,0,0,0],
+  select [1,1,1,0], three candidates unused; 2537/2537 nonzero advantages,
+  nonzero KL at update 2, independent FP64 objective/gradient/clip checks pass,
+  32 adapters change, active metrics equal snapshot counts. FP16: five rounds
+  discard three all-success and one all-fail group, select [0,0,1,0], one
+  unused; 3103/3103 nonzero advantages. Checkpoint1 continuation matches exactly
+  in both precisions (FP16 164 tensors, difference 0) without recollection.
+  Receipts: `/var/lib/posttrain/qualifications/corrected-trl-20261002-r135b/`.
+- [x] Revision134 R135 TRL active qualification attempts (all evidence kept):
   r135-failed-precomputed-advantages (legacy `use_precomputed_advantages`
   without rollout_func; fixed by `resolved_native_arguments`),
   r135-failed-preflight-source-match (qualifier text check; replaced by a
   behavior check), r135 (preflight accepted; fresh collection ran three rounds
   with complete evidence and correctly failed: all 12 episodes reward 0, as in
-  R124's two uniform tasks). R135b uses six historically informative tasks
-  with ActiveGroupSampling(6) and is live.
+  R124's two uniform tasks). Superseded by R135b above.
+- [x] Revision134 native veRL data-parallel resolved updates (code + CPU gates):
+  `ResolvedVeRLPopulation` assigns each update's original contexts to ranks
+  (least-loaded by token count; partitions may be unequal or empty), pads every
+  rank to the same number of native forwards (FSDP gathers per forward),
+  all-gathers owned old/reference/current scores as exact CPU tensors so every
+  rank holds identical global scores and adjoints, and replays only owned
+  contexts with carriers scaled by the data-parallel size (native FSDP averages
+  gradients); padding forwards contribute exact zeros. Checkpoints: every rank
+  saves its native shards, rank 0 alone seals the population with all ranks'
+  files and `world_size=N`, so resume with a different size is rejected by
+  identity. `single_actor_result` accepts N ranks only when their global state
+  and metrics are identical; the worker observer journals only on rank 0; the
+  native guard admits one node with `target.world_size == devices_per_node`.
+  Real two- and three-process gloo DDP runs reproduce the single-rank objective
+  and every parameter exactly (three ranks over two contexts include an empty
+  rank). Execution packs remain one context per rank in data-parallel mode.
+  GPU qualification R137 (2x RTX PRO 6000 on RunPod) is prepared next. TRL has
+  no multi-process launcher in Posttrain; distributed TRL remains unsupported
+  and explicitly rejected.
 - [x] Revision134 observation gate (Observatory): metric catalog entries and
   run aggregation for resolved counters (applied/attempts max, selected
   actions sum, nonzero-advantage mean, loss/kl mean, loss scale last, skipped

@@ -85,10 +85,17 @@ def test_native_collection_failure_restores_pending_commit(monkeypatch):
     assert not any(isinstance(event, tuple) and event[0] == "update" for event in driver.events)
 
 
-@pytest.mark.parametrize("results", [[], [{}, {}], {}, [None]])
+@pytest.mark.parametrize("results", [[], {}, [None]])
 def test_driver_rejects_unsupported_actor_dispatch(results):
-    with pytest.raises(InvalidPolicyUpdate, match="exactly one"):
+    with pytest.raises(InvalidPolicyUpdate, match="requires native actor results"):
         single_actor_result(results)
+
+
+def test_driver_accepts_identical_data_parallel_ranks_and_rejects_divergence():
+    state = {"applied": 1, "attempts": 1, "needs_population": False}
+    assert single_actor_result([state, dict(state)]) == state
+    with pytest.raises(InvalidPolicyUpdate, match="different global state"):
+        single_actor_result([state, {**state, "applied": 2}])
 
 
 @pytest.mark.parametrize("fields", [[], [{}], [{"posttrain_native_episode_receipt": ""}]])

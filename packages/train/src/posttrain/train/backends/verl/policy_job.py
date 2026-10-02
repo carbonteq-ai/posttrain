@@ -59,8 +59,6 @@ class ResolvedVeRLCollectionHost:
     def __post_init__(self) -> None:
         if self.settings.policy_updates is None:
             raise InvalidPolicyUpdate("veRL resolved host requires selected policy_updates")
-        if self.engine.get_data_parallel_size() != 1:
-            raise InvalidPolicyUpdate("veRL resolved host requires qualified single-rank execution")
         AdmittedNativePopulation._validate_counters(0, 0, self.max_overflow_retries)  # noqa: SLF001
         if self.settings.beta and self.reference_scores is None:
             raise InvalidPolicyUpdate("veRL resolved host requires selected frozen reference scoring")
