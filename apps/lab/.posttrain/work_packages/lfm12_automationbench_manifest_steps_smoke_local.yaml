@@ -25,7 +25,7 @@ bindings:
   settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-manifest-steps-smoke-local-v1}
   reward_projection: {type: ref, family: training, id: reward/automationbench-manifest-steps@1}
   training: {type: ref, family: training, id: training/lfm2.5-1.2b-trl-lora-manifest-local@1}
-  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-manifest-local@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-transformers-manifest-local@1}
 enabled_optional_jobs: []
 metadata:
   question: Does resolved SAMPO train correctly with manifest step credit (findings present, credit on the issuing step, finite non-zero gradient norm)?

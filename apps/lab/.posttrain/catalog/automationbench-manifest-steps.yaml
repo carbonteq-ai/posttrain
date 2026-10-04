@@ -177,7 +177,6 @@ training:
     parallelism: {sequence_length_divisor: 2}
     runtime: {global_batch_size: 16, devices_per_node: 1, timeout_seconds: 7200}
     backend_options:
-      rollout_execution: {env_workers: 2, episodes_per_worker: 8, worker_native_threads: 1}
       use_liger_kernel: false
       logits_chunk_size: 64
       training_precision: bf16
@@ -195,7 +194,6 @@ training:
     parallelism: {sequence_length_divisor: 2}
     runtime: {global_batch_size: 16, devices_per_node: 1, timeout_seconds: 7200}
     backend_options:
-      rollout_execution: {env_workers: 2, episodes_per_worker: 4, worker_native_threads: 1}
       use_liger_kernel: false
       logits_chunk_size: 64
       training_precision: bf16
@@ -306,3 +304,27 @@ inference:
     target: targets/carbonteq-rtx-pro-6000-96gb
     startup_timeout_seconds: 900
     purpose: [rollout]
+
+  # Resolved TRL policy updates are qualified with transformers generation (0.4.14),
+  # not vLLM rollouts; these bindings select it for the correctness runs.
+  inference/lfm2.5-1.2b-transformers-manifest-ws@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: transformers@5.14.1
+    renderer: lfm2.5-tools@1
+    engine: {mode: colocate, dtype: bfloat16}
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 1.0}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-1.2b-transformers-manifest-local@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: transformers@5.14.1
+    renderer: lfm2.5-tools@1
+    engine: {mode: colocate, dtype: bfloat16}
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 1.0}
+    target: targets/local-cuda-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
