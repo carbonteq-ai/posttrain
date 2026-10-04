@@ -14,7 +14,7 @@ from ...integrations.verifiers_generation import encode_parser_evidence, prepare
 from ...online_rl import PolicySampling, PolicyTurnRequest, PolicyTurnResult
 from ...policy_messages import ToolCallAdmission, parsed_policy_message
 from ...profiles import CAPOSettings, GDPOSettings, GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings
-from ...rendering import bridged_message_spans, create_renderer
+from ...rendering import bridged_message_spans, create_renderer, full_render_messages
 
 
 class TrlPolicyGenerator:
@@ -89,7 +89,9 @@ class TrlPolicyGenerator:
                 tools=tools or None,
             )
         if rendered is None:
-            rendered = self._renderer.render(messages, tools=tools or None, add_generation_prompt=True)
+            rendered = self._renderer.render(
+                full_render_messages(messages), tools=tools or None, add_generation_prompt=True
+            )
             spans = tuple(rendered.message_token_spans())
         else:
             spans = bridged_message_spans(rendered, request.tail_start, len(request.previous_token_ids))
