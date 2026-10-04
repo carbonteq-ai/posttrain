@@ -19,9 +19,20 @@ This plan does not change the frozen product baseline. It uses the 0.4.14 `polic
 - [x] (2026-10-05) Commit the environment candidate on local branch `wip/automationbench-reward-redesign-2026-10-04`:
   - `26f21b0`: shared verification capabilities, engine round 7 and the unpersisted-read inventory. Full suite 3,738 passed, 7 skipped.
   - `d0b2c9c`: 204 manifest drafts, our 105 sample drafts plus about 99 from the Luna top-20 authoring wave. All drafts load and survive a canonical re-save.
-- [ ] Release: commit and push the AutomationBench fork, publish the native Verifiers credit candidate, push the environment repo, then pin its commit in this repository (catalogs, `packages/eval` and `packages/data` constraints, `uv.lock`) and run the validation ladder.
-- [ ] Choose the release task set and install its manifests with SHA plus Luna-replay gates.
-- [ ] Wire manifest step credit into the trainer as process credit on whole steps (one step = one model turn: its reasoning tokens and its tool call).
+- [x] (2026-10-05) Release the dependency chain:
+  - Verifiers credit candidate committed and merged onto the 0.4.14 consumer pin `e6a3d9bb`, and published as `959da638` (`carbonteq-ai/verifiers`, branch `codex/native-assessment-credit`). Its tests pass.
+  - AutomationBench fork published as `e13b04c`, then `222d4d0`, byte-identical to the vendored copy.
+  - Environment branch merged with `0bad6187`, the environment the H100 run used (per-turn rewards, mistake penalty, turn budget, 0.5.0 tool-fidelity runtime). The tool mistake penalty is now registered only when a penalty is selected, so rescored recorded episodes keep their scalar rewards.
+  - Environment published as `05cdc84` (full suite 3,802 passed). `rl` pins Verifiers `959da638` in train/data/eval and `uv.lock`; lab TRL bindings record the new lock digest.
+- [x] (2026-10-05) Release task set: 39 of `mix-v2`'s 160 training tasks have live manifests (34 newly installed plus 5 already in the catalog).
+  - Gate: packaged bytes equal the draft, the catalog loads it, and every binding is valid against the training-config task (`tests/test_installed_candidate_manifests.py`).
+  - Four drafts were rebound from the system prompt to the user message, because the turn-budget prompt rewrites the system message. Full sales cycle is skipped: the fork renamed a Calendly field.
+  - Manifests now read a public starting state whose nested Sheets/Mailchimp collections are flattened through the schema, set fields only (`public_state.py`). Before this, sheet sources would have abstained at training time.
+- [x] (2026-10-05) Step credit, wired in the environment rather than the trainer (`manifest_step_credit.py`).
+  - Turn-reward scorer v3 adds goal credit (share 0.5 of the required goals, on the step whose tool call first witnessed the goal) and harm debit (0.1 per violation, capped at 0.3 per episode, on the issuing step) to `posttrain_turn_rewards`.
+  - Invocations map to sampled turns by ordered name/argument matching. An unmappable episode gets no manifest credit. Reapplying the credit is idempotent.
+  - Reward projection: `reward/automationbench-manifest-steps@1`.
+- [x] (2026-10-05) Lab catalog `automationbench-manifest-steps.yaml` and three work packages: 1.2B correctness runs on the workstation and the local card, and the 2.6B comparison run. All three plan. Runtime-image locks and profiles name Verifiers `959da638`; the online-RL TRL and eval kind images are being republished locally.
 - [ ] Correctness runs on LFM2.5-1.2B, 2–3 updates each, in parallel on the two machines.
 - [ ] One SAMPO run on LFM2.5-2.6B with the last H100 run's settings, plus the held-out evaluation and comparison.
 
@@ -37,6 +48,16 @@ This plan does not change the frozen product baseline. It uses the 0.4.14 `polic
   Evidence: `docs/research/verifiers-assessment-qualification/luna-development-review-coverage.json`.
 
 ## Decision Log
+
+- Decision: implement manifest step credit inside the environment's per-turn reward evidence (scorer v3), not as a trainer-side process-credit provider.
+  Rationale: SAMPO already consumes per-turn rewards from `posttrain_turn_rewards` through a reward projection, so the credit lands on whole steps with no trainer change. The scorer digest names the rule, and the episode reward stays the official partial credit.
+  Date/Author: 2026-10-05, Claude.
+- Decision: use the resolved TRL SAMPO path (TRL 1.12.0.post14 with vLLM colocate rollouts) rather than native veRL for these runs.
+  Rationale: the TRL kind installs the framework's locked closure, which now pins Verifiers `959da638`. The veRL backend runs in a separate image and Python environment whose Verifiers pin would also have to move. The plan admits the TRL selection with `policy_updates`.
+  Date/Author: 2026-10-05, Claude.
+- Decision: the 2.6B run takes one optimizer step per 144-episode population (`policy_updates.schedule.budget: 144`).
+  Rationale: this matches the H100 run's accumulation of 144, so the comparison isolates the reward change. Multi-minibatch schedules are a follow-up.
+  Date/Author: 2026-10-05, Claude.
 
 - Decision: the episode reward stays the official AutomationBench `partial_credit`. Manifest findings add step-level credit.
   Rationale: this keeps runs comparable with the older system while the manifests supply the per-step signal the older runs lacked.

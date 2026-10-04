@@ -15,7 +15,7 @@
 # framework release may reuse an image only when its runtime inputs still match.
 
 schema_version = 1
-framework_version = "0.4.14"
+framework_version = "0.4.15.dev1"
 default_prefix = "registry.lan/carbonteq"
 
 [base]
@@ -28,19 +28,19 @@ trust_bundle_digest = "1c8eebb22902615537f1b21bedac272482a1c5df087cda8f598a1b9b8
 
 [kinds.eval]
 repository = "posttrain-kind-eval"
-digest = "sha256:7ee6f36db19c40d3568216e75636b03b38141dabcad016207f2fb7c164fd02f3"
-lock_digest = "618b3df794a8c401c5aaf1edc13697640720da0333fbc8548ca2abc743d050a7"
+digest = "sha256:a69df8c82cccbc39fbc05f5c112d9856d91df03eb31f9d3da36a98c7207529b3"
+lock_digest = "b903033cc50062e4fc54ede2e2cd5d093d43153a417e5a5f8f461446a3a68dd3"
 constraint_lock = "containers/posttrain-job-kinds/locks/eval.lock.txt"
-runtime_source_digest = "76dcf249415ded50c37ede2f55d7e77966bd9af03afe2936149f958f83311436"
+runtime_source_digest = "9edb1020adc2f0f081bc18d63300e0d64dd757bd83bd15b98510eebfd6782b71"
 base_digest = "sha256:1083e11ce1c540d8d7816f1c8ccd15011012ebe8771f0ecd6d5a685c4921d76b"
 provided_packages = ["verifiers", "carbonteq-renderers"]
 
 [kinds.online-rl-trl-py312]
 repository = "posttrain-kind-online-rl-trl-py312"
-digest = "sha256:e76801e42d53bbaebd70c65b8e41447273667817385881a05edfbacda1545a95"
-lock_digest = "326965d9c6c552428cf9a53be8468eb47042882d818d2d653422a02c6221e452"
+digest = "sha256:ba196fd4e0028542158b5551b9e3b1644349dbdec155f106b1daa5b88291f259"
+lock_digest = "783bc00e93d54de63faa0e8111f99cfb4186fa7e51d34edc48839529f19cbfad"
 constraint_lock = "containers/posttrain-job-kinds/locks/online-rl-trl-py312.lock.txt"
-runtime_source_digest = "b1e131579ddc38cbba2939ab5fa52a36d2e659442cf948b71e69d17dbbfef6db"
+runtime_source_digest = "400f282368a9fb72f3c192d4f23c0eaf13d5097870014ff9d0f46f2a4b9c7029"
 base_digest = "sha256:1083e11ce1c540d8d7816f1c8ccd15011012ebe8771f0ecd6d5a685c4921d76b"
 provided_packages = ["verifiers", "carbonteq-renderers"]
 
