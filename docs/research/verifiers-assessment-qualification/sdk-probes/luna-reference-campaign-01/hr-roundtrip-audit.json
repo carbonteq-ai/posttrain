@@ -1,0 +1,18 @@
+{
+  "scope": "unpaid schema validate-dump-validate of exact frozen HR initial worlds",
+  "inventory_digest": "80970be3faf3d0ca9108084fc50f536f69ba184e7aeff08255da83361e5d360e",
+  "failures": [
+    {
+      "task": "hr.job_board_monitoring",
+      "error_type": "ValidationError",
+      "locations": [
+        [
+          "linkedin",
+          "companies",
+          0,
+          "company_size"
+        ]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1091 @@
+{
+  "schema_version": 1,
+  "review_kind": "public_input_policy_and_manifest_capability_review",
+  "batch_number": 2,
+  "batch_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-02.json",
+  "batch_sha256": "eea8b69e67adae6bbef920168d57006e1d4f761896d09f7492907ae3c2e80222",
+  "index_path": "docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batches.json",
+  "pack_selection_sha256": "4a793692488e27ebd87b47c019c3c5a7efb69ebcf1ffe3c6518bea58a1583e00",
+  "index_selection_sha256_at_review": "13d326e79af6c064300d7aaeb6cf1b02fb7f14f8a50622cc3648ae8ce87798a3",
+  "provenance_note": "The index hashes exact selection-file bytes; the immutable pack hashes canonical JSON selection contents. These are different hash schemes, not conflicting selections. Exact batch SHA and task order match the index. Both selection identities are verified below.",
+  "reviewed_task_count": 10,
+  "component_proposal_count": 1,
+  "accepted_manifest_count": 0,
+  "full_task_qualified_count": 0,
+  "source_boundary": {
+    "used": "Public prompts, initial worlds, named tools and current reusable capability schemas only.",
+    "not_used": [
+      "Hidden assertions or answers",
+      "Task-specific predicate code",
+      "Recorded episode contents or outcomes"
+    ],
+    "qualification_refs": "Copied for later exact-SHA native replay only."
+  },
+  "classification_rules": [
+    "Prohibitions, incomplete goals and evidence-validation conditions remain separate; only a justified prohibition may produce negative credit.",
+    "Public document policy requires relevant authorized scope, not a universal latest-message or sender-seniority rule.",
+    "The system's output constraint forbids skipped-item narration. Source hashes establish identity, not policy correctness.",
+    "Array-position bindings are conservative admission scaffolding; source reorder rejects until rebound. Stable-ID bindings are preferable for variants.",
+    "Recipient-only evidence cannot establish message purpose or useful action credit."
+  ],
+  "tasks": [
+    {
+      "task_name": "operations.fleet_vehicle_maintenance",
+      "public_input_sha256": "fbf4a33f6575370539de8afe5ebd4fcbd72829a9ed7ce5f8d78d3ed6af1a3d44",
+      "goals": [
+        "Compute service eligibility from vehicle data, policies and odometer corrections.",
+        "Book each eligible vehicle for the 14th, 08:00–10:00 UTC, and email the complete acted-on list to the fleet manager."
+      ],
+      "prohibitions": [
+        "Skip Out of Service vehicles entirely.",
+        "Do not schedule vehicles that are not due.",
+        "Notes containing HOLD prohibit scheduling regardless of mileage."
+      ],
+      "goal_constraints": [
+        "Convert current-minus-last mileage to miles before comparing with the service interval.",
+        "Apply an odometer correction only to its identified vehicle."
+      ],
+      "validation_requirements": [
+        "Existing calendar entries and an arbitrary email do not establish completed service bookings or summary coverage."
+      ],
+      "authority": [
+        {
+          "public_path": "google_sheets.rows[ss_fleet/ws_maintenance_policy]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_fleet_001]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_fleet/ws_vehicles]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_fleet/ws_contacts]"
+        }
+      ],
+      "review_conclusions": [
+        "Under the stated policies, TRK-101, TRK-102, TRK-103 and SUV-301 are above interval. VAN-201 is below after conversion; corrected VAN-203 is below. These are review examples, not production ID lists."
+      ],
+      "ambiguities": [
+        "The month/year of 'the 14th' is absent and no task clock exists.",
+        "Exactly-at-interval due versus overdue semantics need review."
+      ],
+      "capability_families": [
+        "derived-decisions",
+        "public-policy",
+        "service-effects",
+        "compound-evidence"
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_exist",
+        "population": {
+          "kind": "initial_sheet_rows",
+          "spreadsheet_id": "ss_fleet",
+          "worksheet_id": "ws_vehicles",
+          "key": [
+            "Vehicle ID"
+          ]
+        },
+        "required_outputs": [
+          "Compute service eligibility from vehicle data, policies and odometer corrections.",
+          "Book each eligible vehicle for the 14th, 08:00–10:00 UTC, and email the complete acted-on list to the fleet manager."
+        ],
+        "policy_inputs": [
+          "google_sheets.rows[ss_fleet/ws_maintenance_policy]",
+          "gmail.messages[id=msg_fleet_001]",
+          "google_sheets.rows[ss_fleet/ws_vehicles]",
+          "google_sheets.rows[ss_fleet/ws_contacts]"
+        ],
+        "unresolved_parameters": [
+          "The month/year of 'the 14th' is absent and no task clock exists.",
+          "Exactly-at-interval due versus overdue semantics need review."
+        ]
+      },
+      "adversarial_cases": [
+        "8000 km versus 8300 km; corrected mileage crosses threshold; unknown unit.",
+        "Held or Out of Service vehicle exceeds interval; repeated booking earns no extra credit.",
+        "Correct recipient with omitted vehicles; wrong calendar date."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b69519bbfe4bc761dc3e049c5c03aa7c9887926dc82db308e8a02736ac84f18f/episode.json",
+        "episode_sha256": "2f179d4cfd1cd09905456ffb564dab37d87dfe0294b77d857a321e6cbd360392",
+        "trace_ids": [
+          "ff3db8e93f894b179e43048da174a80a"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "sales.deal_escalation",
+      "public_input_sha256": "05f855a2222c7c874fdfc54ee032dca6a11108bdeb8b23dcb4780c950ab5ad16",
+      "goals": [
+        "Score the at-risk deal thread and route the escalation.",
+        "Include score, source amount and ESC-2026-Q1; create a related Zoom meeting if the high tier applies."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "Scope evidence to the selected channel and thread.",
+        "Apply the routing interval to the computed score; do not require teacher wording."
+      ],
+      "validation_requirements": [
+        "Correct channel without required content is incomplete; an old Zoom meeting is not a new escalation meeting."
+      ],
+      "authority": [
+        {
+          "public_path": "google_sheets.rows[ss_risk_scoring/ws_rubric]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_risk_scoring/ws_routing]"
+        },
+        {
+          "public_path": "slack.messages[thread_ts=1704067200.001]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_esc_policy_001]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_esc_002]"
+        }
+      ],
+      "review_conclusions": [
+        "Spreadsheet weights give 8; proposed analyst weights give 12. Both select leadership plus Zoom, but the exact score depends on policy authority."
+      ],
+      "ambiguities": [
+        "The newer analyst proposal is not explicitly adopted or rejected; a junior title alone is not a generic authority rule.",
+        "Meeting details are unspecified."
+      ],
+      "capability_families": [
+        "public-policy",
+        "bounded-populations",
+        "derived-decisions",
+        "content-evidence",
+        "service-effects"
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_exist",
+        "population": {
+          "kind": "initial_slack_thread",
+          "channel": "C003ALERTS",
+          "thread_ts": "1704067200.001"
+        },
+        "required_outputs": [
+          "Score the at-risk deal thread and route the escalation.",
+          "Include score, source amount and ESC-2026-Q1; create a related Zoom meeting if the high tier applies."
+        ],
+        "policy_inputs": [
+          "google_sheets.rows[ss_risk_scoring/ws_rubric]",
+          "google_sheets.rows[ss_risk_scoring/ws_routing]",
+          "slack.messages[thread_ts=1704067200.001]",
+          "gmail.messages[id=msg_esc_policy_001]",
+          "gmail.messages[id=msg_esc_002]"
+        ],
+        "unresolved_parameters": [
+          "The newer analyst proposal is not explicitly adopted or rejected; a junior title alone is not a generic authority rule.",
+          "Meeting details are unspecified."
+        ]
+      },
+      "adversarial_cases": [
+        "Keywords in unrelated threads; exactly $500K and four messages.",
+        "Missing thread messages; conflicting weights; correct channel but missing reference."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/318c40395d621a172d42ff943aa4679e734d3533d4029cb74e43c63311045c8f/episode.json",
+        "episode_sha256": "23a55f05197ce56e7f80905024b83358f33981bb422dd54b9f5de08ab68b3055",
+        "trace_ids": [
+          "292cfbfe7d4d4343bdd4015b297d86f1"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "simple.mailchimp_email_request",
+      "public_input_sha256": "4c8952147705b3d360dfe8dfc1429b545b1751401f1323ea2cd390f5cd98c546",
+      "goals": [
+        "Add the requesting customer to Mailchimp Newsletter list_001 using her sender address."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "Use list_001, not Product Updates list_002.",
+        "Project the sender email from the identified opt-in request."
+      ],
+      "validation_requirements": [
+        "Member count or tool intent does not prove the target subscribed member.",
+        "An initially satisfied subscription does not earn new transition credit."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt[1].content"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_6001]"
+        },
+        {
+          "public_path": "mailchimp.audiences"
+        }
+      ],
+      "review_conclusions": [
+        "A qualified Mailchimp subscription adapter is the main missing capability; Gmail sender projection is already available."
+      ],
+      "ambiguities": [
+        "No confirmation email, campaign enrollment or exact contact-name format is requested.",
+        "Duplicate and subscription-status semantics need adapter qualification."
+      ],
+      "capability_families": [
+        "service-effects"
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_exist",
+        "population": {
+          "kind": "initial_gmail_messages",
+          "key": [
+            "id"
+          ],
+          "request_id": "msg_6001"
+        },
+        "required_outputs": [
+          "Add the requesting customer to Mailchimp Newsletter list_001 using her sender address."
+        ],
+        "policy_inputs": [
+          "prompt[1].content",
+          "gmail.messages[id=msg_6001]",
+          "mailchimp.audiences"
+        ],
+        "unresolved_parameters": [
+          "No confirmation email, campaign enrollment or exact contact-name format is requested.",
+          "Duplicate and subscription-status semantics need adapter qualification."
+        ]
+      },
+      "adversarial_cases": [
+        "Wrong list/email; count changes without member; initially subscribed retry.",
+        "Subscribe then unsubscribe: factual occurrence and retained goal differ."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/41733e0361dcbb4ac41e1583ed15f6ff707e558614bcf583b3c52f2199342602/episode.json",
+        "episode_sha256": "d44b3be8f201408ba9f98c311a3df3308b167209132de9ea42005a708b937125",
+        "trace_ids": [
+          "d6f7f60e59364cee820ebbe3a95eb5f4"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "support.gorgias_refund_processing",
+      "public_input_sha256": "5fd68aa34c11fff5931e1e3011afd2bd3b67d1a3179ce8729526f15c0656408b",
+      "goals": [
+        "Adjudicate qualifying refund tickets; draft Gmail confirmations or escalate to Jira FIN/Task.",
+        "Log each handled request with the prescribed Action enum and post a finance-ops summary."
+      ],
+      "prohibitions": [
+        "Final-sale and perishable categories are ineligible under category policy.",
+        "Clothing requires unworn condition.",
+        "Fraud-review orders require escalation regardless of amount."
+      ],
+      "goal_constraints": [
+        "Drafts are distinct from delivery and financial refund execution.",
+        "Order numbers use exact identity; 45010 is not 4510.",
+        "Loyalty override explicitly bypasses threshold, not every other condition."
+      ],
+      "validation_requirements": [
+        "Resolve requester/order identity before attributing effects.",
+        "Bind each log and draft/escalation to its adjudicated request."
+      ],
+      "authority": [
+        {
+          "public_path": "google_sheets.rows[ss_refund_policy/ws_thresholds]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_refund_policy/ws_categories]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_refund_policy/ws_overrides]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_refund_policy/ws_orders]"
+        },
+        {
+          "public_path": "gorgias.tickets"
+        }
+      ],
+      "review_conclusions": [
+        "No explicit action is supplied for the repeat-refunder list.",
+        "Tags and category notes expose missing qualification rules; do not recover them from hidden expected outcomes."
+      ],
+      "ambiguities": [
+        "Threshold equality matters for the $500 order.",
+        "Repeat-refunder consequence, unworn evidence, tag prerequisite and customer aliases are unresolved.",
+        "Combined override precedence needs a reviewed rule."
+      ],
+      "capability_families": [
+        "public-policy",
+        "bounded-populations",
+        "derived-decisions",
+        "service-effects",
+        "content-evidence",
+        "compound-evidence"
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_exist",
+        "population": {
+          "kind": "initial_gorgias_tickets",
+          "key": [
+            "id"
+          ]
+        },
+        "required_outputs": [
+          "Adjudicate qualifying refund tickets; draft Gmail confirmations or escalate to Jira FIN/Task.",
+          "Log each handled request with the prescribed Action enum and post a finance-ops summary."
+        ],
+        "policy_inputs": [
+          "google_sheets.rows[ss_refund_policy/ws_thresholds]",
+          "google_sheets.rows[ss_refund_policy/ws_categories]",
+          "google_sheets.rows[ss_refund_policy/ws_overrides]",
+          "google_sheets.rows[ss_refund_policy/ws_orders]",
+          "gorgias.tickets"
+        ],
+        "unresolved_parameters": [
+          "Threshold equality matters for the $500 order.",
+          "Repeat-refunder consequence, unworn evidence, tag prerequisite and customer aliases are unresolved.",
+          "Combined override precedence needs a reviewed rule."
+        ]
+      },
+      "adversarial_cases": [
+        "45010 versus 4510; duplicate order requesters; missing order with incomplete inventory.",
+        "VIP threshold boundary; loyalty plus fraud; 30-day boundary.",
+        "Draft then send; wrong Jira project; repair after prohibited action."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/2878a0c3de63445213dd815588dd2f3cecb8b1bc706d8938a1b67c7fa6f93f1b/episode.json",
+        "episode_sha256": "5ee086c5ab9f98fab677154c2e583f77b2a6325087ba6b325d39023f3b244adb",
+        "trace_ids": [
+          "b280fc2c771b4e85bc5103ff4334153d"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "finance.wave_client_statement",
+      "public_input_sha256": "08f6379ab1f92bed6619c684882436d01c516756c9a0a425d3fa5721de358cf7",
+      "goals": [
+        "Send statements for customer outstanding balances of at least $100.",
+        "Include every unpaid invoice, total balance and aging breakdown."
+      ],
+      "prohibitions": [
+        "The public policy forbids statements for balances under $100."
+      ],
+      "goal_constraints": [
+        "Aggregate unpaid amounts by customer ID; do not use invoice face value."
+      ],
+      "validation_requirements": [
+        "An unrelated email to a low-balance client is not a prohibited statement.",
+        "Incomplete invoice inventory cannot prove a complete total or statement."
+      ],
+      "authority": [
+        {
+          "public_path": "gmail.messages[id=msg_stmt_policy]"
+        },
+        {
+          "public_path": "wave.customers/invoices"
+        },
+        {
+          "public_path": "meta.current_time"
+        }
+      ],
+      "review_conclusions": [
+        "Bright Ideas has $4540 outstanding, Summit $75 and GreenLeaf $0. Production checks must derive these totals from the finite invoice population."
+      ],
+      "ambiguities": [
+        "Aging basis and bucket boundaries are unspecified; due dates are absent.",
+        "No exact subject or layout is required."
+      ],
+      "capability_families": [
+        "bounded-populations",
+        "derived-decisions",
+        "content-evidence",
+        "compound-evidence"
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_exist",
+        "population": {
+          "kind": "initial_wave_customers",
+          "key": [
+            "id"
+          ]
+        },
+        "required_outputs": [
+          "Send statements for customer outstanding balances of at least $100.",
+          "Include every unpaid invoice, total balance and aging breakdown."
+        ],
+        "policy_inputs": [
+          "gmail.messages[id=msg_stmt_policy]",
+          "wave.customers/invoices",
+          "meta.current_time"
+        ],
+        "unresolved_parameters": [
+          "Aging basis and bucket boundaries are unspecified; due dates are absent.",
+          "No exact subject or layout is required."
+        ]
+      },
+      "adversarial_cases": [
+        "Several sub-$100 invoices sum above threshold; paid invoice with large face value.",
+        "Missing or duplicate invoice; unrelated email to Summit; statement omits an invoice."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/c645ebecc9d55752dfa58bad3a7caceb5df27593e69a71eb535ae537e20cb7b4/episode.json",
+        "episode_sha256": "9e613fd85964e6b034578e2504406f10b80df98d12e24e49e14fa5fb080fd1e3",
+        "trace_ids": [
+          "376a7fd2f79c4e1aab545356a966a388"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "hr.exit_interview_scheduling",
+      "public_input_sha256": "d7058774e54e53ebca6f44f144de09e318adc3c78f85f0012854956cfa31766e",
+      "goals": [
+        "Apply the voluntary exit-interview SOP, questionnaire, invite and tracker updates.",
+        "Handle past departures through missed/ASAP status and HR Director notification; mark involuntary departures exempt."
+      ],
+      "prohibitions": [
+        "The explicit director exception forbids involuntary exit interviews.",
+        "The supplied external-vendor policy forbids emailing employee roster PII; it conflicts with the direct prompt's forwarding request."
+      ],
+      "goal_constraints": [
+        "The specific involuntary exception overrides the general SOP.",
+        "Five business days requires an explicit calendar."
+      ],
+      "validation_requirements": [
+        "A refusal email to ExitInsights is not PII disclosure.",
+        "A plain email does not automatically prove a calendar invitation."
+      ],
+      "authority": [
+        {
+          "public_path": "gmail.messages[id=msg_exit_general_5108]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_exit_override_5108]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_external_vendor_policy_5108]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_external_exit_5108]"
+        },
+        {
+          "public_path": "prompt[1].content"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_exits_5108/ws_departures_5108]"
+        },
+        {
+          "public_path": "meta.current_time"
+        }
+      ],
+      "review_conclusions": [
+        "Leo and Quinn have passed last days; Olivia's last day is future while the nominal weekday interview deadline is past.",
+        "Nathan has no manager address. Do not invent a substitute."
+      ],
+      "ambiguities": [
+        "Resolve direct prompt versus supplied organizational policy before promoting a normative roster-sharing check.",
+        "No business-day holiday calendar or rule for a past interview deadline with future last day.",
+        "Named tools have no calendar operation; invitation representation requires qualification."
+      ],
+      "capability_families": [
+        "public-policy",
+        "derived-decisions",
+        "service-effects",
+        "content-evidence",
+        "compound-evidence"
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_exist",
+        "population": {
+          "kind": "initial_sheet_rows",
+          "spreadsheet_id": "ss_exits_5108",
+          "worksheet_id": "ws_departures_5108",
+          "key": [
+            "Employee Email"
+          ]
+        },
+        "required_outputs": [
+          "Apply the voluntary exit-interview SOP, questionnaire, invite and tracker updates.",
+          "Handle past departures through missed/ASAP status and HR Director notification; mark involuntary departures exempt."
+        ],
+        "policy_inputs": [
+          "gmail.messages[id=msg_exit_general_5108]",
+          "gmail.messages[id=msg_exit_override_5108]",
+          "gmail.messages[id=msg_external_vendor_policy_5108]",
+          "gmail.messages[id=msg_external_exit_5108]",
+          "prompt[1].content",
+          "google_sheets.rows[ss_exits_5108/ws_departures_5108]",
+          "meta.current_time"
+        ],
+        "unresolved_parameters": [
+          "Resolve direct prompt versus supplied organizational policy before promoting a normative roster-sharing check.",
+          "No business-day holiday calendar or rule for a past interview deadline with future last day.",
+          "Named tools have no calendar operation; invitation representation requires qualification."
+        ]
+      },
+      "adversarial_cases": [
+        "Involuntary separation with past/future last day; vendor recommendation cannot silently erase exception.",
+        "Roster in HTML, Cc or Bcc; refusal without disclosure.",
+        "Blank manager, holiday week and overdue interview slot."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/715f929975096d97c0dce4f3e445385a8d20ee0b2ac35abb9103d9699b55379f/episode.json",
+        "episode_sha256": "5a76e7427ce4b31c2fa016c406ab23069eb05a912b8677cd7e9908ae66ddf9d1",
+        "trace_ids": [
+          "2004d43bdd3348fe92e042f9af8749f5"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "marketing.newsletter_sponsor_invoicing",
+      "public_input_sha256": "a223a15255d681eca1bb5727e0af0292f24bdabf712ecb5f665b1638b0798b8c",
+      "goals": [
+        "Invoice approved eligible past-due sponsors and update Status to Invoiced.",
+        "Include invoice code and exact source amount, then send an audit summary of acted-on sponsors and total."
+      ],
+      "prohibitions": [
+        "Beacon has an explicit finance hold.",
+        "The system prohibits skipped-item narration, overriding the accounting email's request for a skipped list."
+      ],
+      "goal_constraints": [
+        "Apply Ridgeway's explicit same-day exception without generalizing it to future due dates.",
+        "A status write does not prove invoice delivery."
+      ],
+      "validation_requirements": [
+        "Recipient-only evidence does not prove invoice purpose/content.",
+        "One grouped audit message must not multiply credit per sponsor."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt[1].content"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_sponsor_policy_001]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_sponsor_audit_002]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_sponsor/ws_invoices]"
+        },
+        {
+          "public_path": "prompt[0].content"
+        }
+      ],
+      "review_conclusions": [
+        "Public rules select Atlas $2500, Atlas Digital $3200 and Ridgeway $1500, totaling $7200. Derive the amounts from source data.",
+        "No authority clears Beacon's hold."
+      ],
+      "ambiguities": [
+        "Derived-total formatting is not specified; verbatim preservation applies to copied source values."
+      ],
+      "capability_families": [
+        "derived-decisions",
+        "public-policy",
+        "service-effects",
+        "content-evidence",
+        "compound-evidence"
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_exist",
+        "population": {
+          "kind": "initial_sheet_rows",
+          "spreadsheet_id": "ss_sponsor",
+          "worksheet_id": "ws_invoices",
+          "key": [
+            "Row_ID"
+          ]
+        },
+        "required_outputs": [
+          "Invoice approved eligible past-due sponsors and update Status to Invoiced.",
+          "Include invoice code and exact source amount, then send an audit summary of acted-on sponsors and total."
+        ],
+        "policy_inputs": [
+          "prompt[1].content",
+          "gmail.messages[id=msg_sponsor_policy_001]",
+          "gmail.messages[id=msg_sponsor_audit_002]",
+          "google_sheets.rows[ss_sponsor/ws_invoices]",
+          "prompt[0].content"
+        ],
+        "unresolved_parameters": [
+          "Derived-total formatting is not specified; verbatim preservation applies to copied source values."
+        ]
+      },
+      "adversarial_cases": [
+        "Atlas versus Atlas Digital; same-day nonexception; Approved with hold.",
+        "Correct subject but wrong body amount; cancellation email is not an invoice.",
+        "Correct total but missing sponsor; skipped sponsor narration."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/f496ab02fb90550a4bc87b404a543e6ca96273972d884e7ecc23f4ba25d58a46/episode.json",
+        "episode_sha256": "e45832c6da8d7007614de6cf5b957edec508ba225010ac81077972d0f7f0e28f",
+        "trace_ids": [
+          "034d1f2e833d4e16b79e5b6d1f266f01"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "operations.facility_incident_triage",
+      "public_input_sha256": "8f9bc45029d2b18afad8f4f757251127b082681f66dee087526f0e5e410095f8",
+      "goals": [
+        "Handle exactly one most-critical eligible open incident.",
+        "Create a Facilities Ops Jira issue, text the day's on-call contact and post to facilities-incidents."
+      ],
+      "prohibitions": [
+        "Do not act on resolved incidents or additional incidents.",
+        "Insurance-held incidents cannot be escalated through Jira, SMS or Slack."
+      ],
+      "goal_constraints": [
+        "Apply eligibility exclusions before selecting the minimum severity.",
+        "Use Monday's contact row, not the first matching manager name."
+      ],
+      "validation_requirements": [
+        "Each effect must bind the selected incident.",
+        "Later repair does not erase a prohibited escalation occurrence."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt[1].content"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_incidents/ws_incident_hold_policy]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_incidents/ws_open]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_incidents/ws_oncall]"
+        },
+        {
+          "public_path": "jira.actions.project"
+        },
+        {
+          "public_path": "slack.channels"
+        }
+      ],
+      "review_conclusions": [
+        "Assuming lower severity numbers are more critical, FI-2026-089 is the unique eligible severity-1 incident. FI-2026-092 is held.",
+        "Monday's phone is +15551234567; the same manager has a different Sunday number."
+      ],
+      "ambiguities": [
+        "Severity ordering is conventional but not explicitly documented.",
+        "No tie-break is supplied for multiple eligible minimum-severity incidents."
+      ],
+      "capability_families": [
+        "bounded-populations",
+        "public-policy",
+        "service-effects",
+        "content-evidence"
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_exist",
+        "population": {
+          "kind": "initial_sheet_rows",
+          "spreadsheet_id": "ss_incidents",
+          "worksheet_id": "ws_open",
+          "key": [
+            "Incident ID"
+          ]
+        },
+        "required_outputs": [
+          "Handle exactly one most-critical eligible open incident.",
+          "Create a Facilities Ops Jira issue, text the day's on-call contact and post to facilities-incidents."
+        ],
+        "policy_inputs": [
+          "prompt[1].content",
+          "google_sheets.rows[ss_incidents/ws_incident_hold_policy]",
+          "google_sheets.rows[ss_incidents/ws_open]",
+          "google_sheets.rows[ss_incidents/ws_oncall]",
+          "jira.actions.project",
+          "slack.channels"
+        ],
+        "unresolved_parameters": [
+          "Severity ordering is conventional but not explicitly documented.",
+          "No tie-break is supplied for multiple eligible minimum-severity incidents."
+        ]
+      },
+      "adversarial_cases": [
+        "Held severity-1 versus eligible severity-2; tied eligible minima.",
+        "Sunday number on Monday; wrong channel; only two of three required effects."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/f069c1c4a6f19e2cfd3065350bd7836cba29f0ad228747f72b169c2828e35c3a/episode.json",
+        "episode_sha256": "095c329ea5da70da264d2b84748f2093313496c1810732a161996fdac1bd11aa",
+        "trace_ids": [
+          "d387574c1df64eed8a3059ac4a919403"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "sales.docusign_void_resend",
+      "public_input_sha256": "740c1f229899446315f9d08960f0cd947af57f002362c2c1e622fa26f130fc7f",
+      "goals": [
+        "Void and resend the bound Apex contract under applicable terms/template, update CRM and confirm the requesting rep."
+      ],
+      "prohibitions": [
+        "Beta's envelope explicitly says not to void because a manually signed copy is on file."
+      ],
+      "goal_constraints": [
+        "Use negotiated amount $175000 rather than old $120000.",
+        "Preserve target account, signer and source terms; do not invent a Closed Won update."
+      ],
+      "validation_requirements": [
+        "Envelope creation may not prove sending; confirmation delivery does not prove the contract actions."
+      ],
+      "authority": [
+        {
+          "public_path": "gmail.messages[id=msg_void_001]"
+        },
+        {
+          "public_path": "salesforce.notes[id=note_001]"
+        },
+        {
+          "public_path": "salesforce.opportunities[id=006xx000004APX1]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_template_policy]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_template_old]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_ext_vendor_q8p2]"
+        },
+        {
+          "public_path": "docusign.envelopes/templates"
+        }
+      ],
+      "review_conclusions": [
+        "The request and bound opportunity note directly support amount $175000; existing record operators can express that component.",
+        "The internal threshold policy selects Premium using the new amount; the external recommendation does not establish authorized supersession."
+      ],
+      "ambiguities": [
+        "Template authority remains a reviewed procedure interpretation, not a universal sender hierarchy.",
+        "Mixed numeric 2024 dates and 2026 ISO noise prohibit naive global latest-message selection.",
+        "Encoding three-year term and premium support depends on available template fields."
+      ],
+      "capability_families": [
+        "service-effects",
+        "public-policy",
+        "content-evidence",
+        "compound-evidence"
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_exist",
+        "population": {
+          "opportunity_id": "006xx000004APX1",
+          "old_envelope_id": "env_apex_001",
+          "request_id": "msg_void_001"
+        },
+        "required_outputs": [
+          "Void and resend the bound Apex contract under applicable terms/template, update CRM and confirm the requesting rep."
+        ],
+        "policy_inputs": [
+          "gmail.messages[id=msg_void_001]",
+          "salesforce.notes[id=note_001]",
+          "salesforce.opportunities[id=006xx000004APX1]",
+          "gmail.messages[id=msg_template_policy]",
+          "gmail.messages[id=msg_template_old]",
+          "gmail.messages[id=msg_ext_vendor_q8p2]",
+          "docusign.envelopes/templates"
+        ],
+        "unresolved_parameters": [
+          "Template authority remains a reviewed procedure interpretation, not a universal sender hierarchy.",
+          "Mixed numeric 2024 dates and 2026 ISO noise prohibit naive global latest-message selection.",
+          "Encoding three-year term and premium support depends on available template fields."
+        ]
+      },
+      "adversarial_cases": [
+        "Wrong opportunity/envelope; correct amount initially then break/restore.",
+        "Template chosen using old amount; wrong signer; created but unsent envelope.",
+        "Void succeeds and resend fails; confirmation cannot replace actual effects."
+      ],
+      "component_proposal_ids": [
+        "sales.docusign-crm-amount"
+      ],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/ea4a72573a7d28798ea9e7a2c96d348d004f1daf73ee70d22d6ca793c155784b/episode.json",
+        "episode_sha256": "3de9e0a34fbbb3861797e0ff3b3872f6b4b9fca413b2b0c05ebf7efae161e61f",
+        "trace_ids": [
+          "c934718724304bd38b150a46aee5286a"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "simple.email_hs_create_contact",
+      "public_input_sha256": "e680e005042d6947911be37db14d7ec503861243e54c97ac785742cb2edd91fa",
+      "goals": [
+        "Create a HubSpot contact from Nathan Brooks's introduction email."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "Use sender email plus source name, role, company and phone.",
+        "No send, outreach or newsletter subscription is requested."
+      ],
+      "validation_requirements": [
+        "Require persisted target contact evidence; reading Gmail is not contact creation.",
+        "Duplicate/upsert and initial satisfaction semantics need explicit treatment."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt[1].content"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_3042]"
+        }
+      ],
+      "review_conclusions": [
+        "A reusable contact adapter and source-fact projection are sufficient directions; no task-specific parser is needed."
+      ],
+      "ambiguities": [
+        "Map supplied facts only to supported HubSpot fields; do not invent mandatory custom fields.",
+        "No duplicate/upsert rule is specified for existing-contact variants."
+      ],
+      "capability_families": [
+        "service-effects",
+        "content-evidence"
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_exist",
+        "population": {
+          "kind": "initial_gmail_messages",
+          "key": [
+            "id"
+          ],
+          "request_id": "msg_3042"
+        },
+        "required_outputs": [
+          "Create a HubSpot contact from Nathan Brooks's introduction email."
+        ],
+        "policy_inputs": [
+          "prompt[1].content",
+          "gmail.messages[id=msg_3042]"
+        ],
+        "unresolved_parameters": [
+          "Map supplied facts only to supported HubSpot fields; do not invent mandatory custom fields.",
+          "No duplicate/upsert rule is specified for existing-contact variants."
+        ]
+      },
+      "adversarial_cases": [
+        "Correct name but wrong email/company; omitted source facts.",
+        "Changed source facts without changing task name; duplicate retry; result without persisted record."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/f621d9c26a34cbe539178d8c72a90d9d469923166e1e5cda9c301dab3b1e1998/episode.json",
+        "episode_sha256": "642d1e4f0fb932bf9962fe52c8784315553882f5c3ccdf7432220cdae67745c9",
+        "trace_ids": [
+          "69a17cb7608c4692a8b8526da4759d10"
+        ]
+      },
+      "full_task_ready": false
+    }
+  ],
+  "component_manifest_proposals": [
+    {
+      "component_id": "sales.docusign-crm-amount",
+      "task_name": "sales.docusign_void_resend",
+      "status": "schema_candidate_not_cataloged_or_native_replay_qualified",
+      "coverage": "Only the expressly negotiated target opportunity amount; no DocuSign, stage, template, term/support or confirmation-completion claim.",
+      "manifest": {
+        "schema_version": 1,
+        "manifest_id": "sales-docusign-crm-amount-component",
+        "revision": "public_batch02_review_v1",
+        "public_request": "There's an unread contract update request in the inbox. Handle it per standard procedure - void, resend with the right template, update CRM, and confirm with the requesting rep. Include the names of affected entities and the relevant amounts in your message(s).",
+        "bindings": [
+          {
+            "path": [
+              "task_evidence",
+              "prompt",
+              1,
+              "content"
+            ],
+            "canonical_sha256": "b41ea096856591bcc27ad1df685bf598d41e3e61d449cf4c32c8c65ae6f2516d"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "gmail",
+              "messages",
+              0
+            ],
+            "canonical_sha256": "0da7451c6d6dc40e4a979dd0043af1a2392207f5e9763e3968630a9613f0a4df"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "salesforce",
+              "opportunities",
+              0
+            ],
+            "canonical_sha256": "0d0d4d2decf9f8411db0741abd0557bc00b2dd1fda1e141f3e28145418eb562c"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "salesforce",
+              "notes",
+              0
+            ],
+            "canonical_sha256": "c6f1a8db727a594f674235e30706819482684e854fd7a52d6c173da2f5cb0da9"
+          }
+        ],
+        "sources": {
+          "target": {
+            "adapter": "salesforce.record@1",
+            "object_type": "Opportunity",
+            "record_id": "006xx000004APX1",
+            "baseline_requirements": [
+              {
+                "field": "name",
+                "value": "Apex Industries - License",
+                "comparison": "string"
+              }
+            ]
+          }
+        },
+        "checks": [
+          {
+            "check_id": "negotiated-amount",
+            "signal_id": "sales.negotiated_amount",
+            "role": "goal",
+            "operator": "record.fields_equal@1",
+            "source": "target",
+            "expected": [
+              {
+                "field": "amount",
+                "value": 175000,
+                "comparison": "number"
+              }
+            ]
+          },
+          {
+            "check_id": "amount-coverage",
+            "signal_id": "sales.amount_coverage",
+            "role": "diagnostic",
+            "operator": "record.coverage@1",
+            "source": "target"
+          }
+        ],
+        "credit": [
+          {
+            "check": "negotiated-amount",
+            "policy": "verified_transition_once@1",
+            "channel": "goal"
+          }
+        ]
+      }
+    }
+  ],
+  "shared_capability_families": [
+    {
+      "id": "service-effects",
+      "next_minimum": "Prioritize qualified Mailchimp subscription state/occurrence and HubSpot contact creation alongside batch01's draft, Slack and Sheets adapters.",
+      "later": "Later qualify Calendar/Zoom, Jira/Twilio and DocuSign; each service retains result, ACK, persisted-state and baseline checks.",
+      "tasks": [
+        "operations.fleet_vehicle_maintenance",
+        "sales.deal_escalation",
+        "simple.mailchimp_email_request",
+        "support.gorgias_refund_processing",
+        "hr.exit_interview_scheduling",
+        "marketing.newsletter_sponsor_invoicing",
+        "operations.facility_incident_triage",
+        "sales.docusign_void_resend",
+        "simple.email_hs_create_contact"
+      ]
+    },
+    {
+      "id": "derived-decisions",
+      "next_minimum": "Add typed decimal/unit conversion, explicit task dates, bounded sums and authored thresholds.",
+      "later": "Business calendars and aging buckets require declared parameters; no host-clock fallback.",
+      "tasks": [
+        "operations.fleet_vehicle_maintenance",
+        "sales.deal_escalation",
+        "support.gorgias_refund_processing",
+        "finance.wave_client_statement",
+        "hr.exit_interview_scheduling",
+        "marketing.newsletter_sponsor_invoicing"
+      ]
+    },
+    {
+      "id": "bounded-populations",
+      "next_minimum": "Register service populations and exact joins; add unique extrema over a complete eligible finite population.",
+      "later": "Ties and missing members remain unresolved. Add thread counts and closed invoice grouping without fixture ID lists.",
+      "tasks": [
+        "sales.deal_escalation",
+        "support.gorgias_refund_processing",
+        "finance.wave_client_statement",
+        "operations.facility_incident_triage"
+      ]
+    },
+    {
+      "id": "content-evidence",
+      "next_minimum": "Extract source facts with evidence and test required verbatim inclusion while preserving original amount text.",
+      "later": "Purpose and disclosure need qualified content evidence; no teacher wording or recipient-only credit.",
+      "tasks": [
+        "sales.deal_escalation",
+        "support.gorgias_refund_processing",
+        "finance.wave_client_statement",
+        "hr.exit_interview_scheduling",
+        "marketing.newsletter_sponsor_invoicing",
+        "operations.facility_incident_triage",
+        "sales.docusign_void_resend",
+        "simple.email_hs_create_contact"
+      ]
+    },
+    {
+      "id": "compound-evidence",
+      "next_minimum": "Compose goal components and join generated output IDs without duplicating credit across messages or repeated calls.",
+      "later": "Distinguish occurrence, causal order and retained final state; repairs do not erase known harm.",
+      "tasks": [
+        "operations.fleet_vehicle_maintenance",
+        "support.gorgias_refund_processing",
+        "finance.wave_client_statement",
+        "hr.exit_interview_scheduling",
+        "marketing.newsletter_sponsor_invoicing",
+        "sales.docusign_void_resend"
+      ]
+    },
+    {
+      "id": "public-policy",
+      "next_minimum": "Author typed rules and exceptions as source-bound manifest data with reviewed scope; retain unresolved conflicts.",
+      "later": "This is an authoring/admission requirement, not a universal organizational hierarchy or runtime prose executor.",
+      "tasks": [
+        "operations.fleet_vehicle_maintenance",
+        "sales.deal_escalation",
+        "support.gorgias_refund_processing",
+        "hr.exit_interview_scheduling",
+        "marketing.newsletter_sponsor_invoicing",
+        "operations.facility_incident_triage",
+        "sales.docusign_void_resend"
+      ]
+    }
+  ],
+  "next_actions": [
+    "Root may native-test the CRM amount component while leaving all remaining contract obligations open.",
+    "Prioritize simple service adapters instead of creating irrelevant partial email observations.",
+    "Resolve materially ambiguous public policy before negative credit or exact expected outcomes.",
+    "Qualify variants, reloads, once-only credit, missing ACKs and repair before promoting a component."
+  ],
+  "validation": {
+    "schema_validation": "One component validated against current ContractSpec.",
+    "public_binding_validation": "All four component bindings match public pack values; exact pack hash, ten task identities and both selection hash schemes verified.",
+    "native_task_scoring": "not_run_by_reviewer"
+  }
+}

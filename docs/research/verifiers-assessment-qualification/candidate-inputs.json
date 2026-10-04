@@ -1,0 +1,153 @@
+{
+  "schema": "assessment-candidate-inputs@1",
+  "captured_at": "2026-10-03T10:10:10.399482+00:00",
+  "repositories": [
+    {
+      "root": "/home/hammad/projects/rl",
+      "head": "43d14f65215e08dbc87e062c9afe5657de31bb9e",
+      "branch": "main",
+      "dirty_files": [
+        {
+          "status": "??",
+          "path": "docs/plan/automationbench-teacher-calibration-and-action-rewards.md",
+          "content_sha256": "18b877d6ed376f851902610927902d30c61d951d1103771d011c74a525b6295a",
+          "ownership": "pre-existing; preserve; inclusion requires explicit review"
+        },
+        {
+          "status": "??",
+          "path": "docs/plan/verifiers-assessment-api-and-environment-migration-runbook.md",
+          "content_sha256": "75c3219ba6b714184585b70d4b058ace7cbe8590f5a13a67f62b6d3dddac683e",
+          "ownership": "pre-existing; preserve; inclusion requires explicit review"
+        },
+        {
+          "status": "??",
+          "path": "docs/research/verifiers-assessment-api.md",
+          "content_sha256": "dce23c9c856bc4578efc4fef77425fac2d49d428eca83fa8f0bc8ef7131f39f6",
+          "ownership": "pre-existing; preserve; inclusion requires explicit review"
+        }
+      ],
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "remotes": {
+        "origin": "git@github.com:carbonteq-ai/posttrain.git"
+      }
+    },
+    {
+      "root": "/home/hammad/projects/verifiers",
+      "head": "84ab782391bbfe1ac4f4ca32fa612e56d01b5b81",
+      "branch": "codex/evaluation-task-selection-v04",
+      "dirty_files": [
+        {
+          "status": " M",
+          "path": "uv.lock",
+          "content_sha256": "726b5f7df9ccce8344ddb430f8394b59e2bef4e9789244b52b8f809f01f8f0ae",
+          "ownership": "pre-existing; preserve; inclusion requires explicit review"
+        },
+        {
+          "status": " M",
+          "path": "verifiers/v1/clients/renderer_extensions.py",
+          "content_sha256": "5a6fbd9979022d346fd035ffec22c4061eda7c5520925eb1b8992af86f824440",
+          "ownership": "pre-existing; preserve; inclusion requires explicit review"
+        }
+      ],
+      "tracked_patch_sha256": "3d295dd7c828c6ab02b334e0963727cc8d67095a6d2414292e1f80934c0e948e",
+      "remotes": {
+        "origin": "https://github.com/carbonteq-ai/verifiers.git",
+        "upstream": "https://github.com/PrimeIntellect-ai/verifiers.git"
+      }
+    },
+    {
+      "root": "/home/hammad/projects/verifiers-environments",
+      "head": "a6d779fc1fdfde23f86e297125b3381b140cec2f",
+      "branch": "codex/evaluation-task-selection",
+      "dirty_files": [
+        {
+          "status": " M",
+          "path": "environments/automationbench_v1/src/automationbench_v1/judge.py",
+          "content_sha256": "b346bc348a1032dabe0e6e196b6a03b9db216b94d1ebdeb0631c5f7f9cbba103",
+          "ownership": "pre-existing; preserve; inclusion requires explicit review"
+        },
+        {
+          "status": " M",
+          "path": "environments/automationbench_v1/src/automationbench_v1/limited_tools.py",
+          "content_sha256": "3e7c36957677f5438632f94bff03f2ebf466ca305026ec1b5c3cb2238a22ea75",
+          "ownership": "pre-existing; preserve; inclusion requires explicit review"
+        },
+        {
+          "status": " M",
+          "path": "environments/automationbench_v1/src/automationbench_v1/taskset.py",
+          "content_sha256": "2b8ecb94307beee7ff210b0b2941b867e78f5061df9978f8034114ab5ac25058",
+          "ownership": "pre-existing; preserve; inclusion requires explicit review"
+        },
+        {
+          "status": " M",
+          "path": "environments/automationbench_v1/tests/test_environment.py",
+          "content_sha256": "047e3c040af2afd4dd60c7c559eaabde830e2fa24f74fa2946acc70637f5697f",
+          "ownership": "pre-existing; preserve; inclusion requires explicit review"
+        },
+        {
+          "status": " M",
+          "path": "environments/automationbench_v1/tests/test_judge.py",
+          "content_sha256": "d1a25a883e68262ef05d97fc81646bcd67e15b0873cd30bcb19b89185473e737",
+          "ownership": "pre-existing; preserve; inclusion requires explicit review"
+        },
+        {
+          "status": "??",
+          "path": "environments/automationbench_v1/src/automationbench_v1/judge_budget.py",
+          "content_sha256": "755514d511d618701161ca08c588860861f399a4932a6bab9eba0add85e6eb8e",
+          "ownership": "pre-existing; preserve; inclusion requires explicit review"
+        },
+        {
+          "status": "??",
+          "path": "environments/automationbench_v1/tests/test_judge_budget.py",
+          "content_sha256": "5e4cc3dc37ef9e856e27d19bac7ee7404e3776edab6153ffbd41d767a19f521f",
+          "ownership": "pre-existing; preserve; inclusion requires explicit review"
+        }
+      ],
+      "tracked_patch_sha256": "bab34e8fb781f9eca073c38e40412a8327cd30c68aa224b20c139c9142424b8c",
+      "remotes": {
+        "origin": "https://github.com/carbonteq-ai/verifiers-environments.git"
+      }
+    },
+    {
+      "root": "/home/hammad/projects/automationbench",
+      "head": "e193bce99af1ea7cca272644a2b3a1676a587b4a",
+      "branch": "codex/tool-fidelity-fixes",
+      "dirty_files": [],
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "remotes": {
+        "origin": "git@github.com:carbonteq-ai/AutomationBench.git",
+        "upstream": "https://github.com/zapier/AutomationBench.git"
+      }
+    }
+  ],
+  "product_baseline_change": false,
+  "migration_scope": [
+    "automationbench_v1",
+    "gsm8k_v1",
+    "mmlu_pro_v1",
+    "ifeval_v1",
+    "reasoning_gym_v1",
+    "math_python_v1"
+  ],
+  "qualification_scope": {
+    "deterministic": "required",
+    "chat_model": "real configured provider required; pending",
+    "typed_decision": "fixture only until separate real qualification",
+    "projection": [
+      "original sampled assistant turn",
+      "exact call only where parser coordinate mapping proven"
+    ],
+    "tokenless": "evaluation only",
+    "consumer": "non-mutating evidence transport; no optimizer execution"
+  },
+  "legacy_scalar_compatibility": "required; before-change focused tests retained separately",
+  "publication": "not yet performed",
+  "selected_inputs": {
+    "rl_verifiers_pin": "e6a3d9bbfe6959b97878f451fc721793a232cd5f",
+    "verifiers_candidate_head": "84ab782391bbfe1ac4f4ca32fa612e56d01b5b81",
+    "rl_environment_repository_pin": "11f4d712806d292c6c6a752af046f4e16c4f037e",
+    "environment_candidate_head": "a6d779fc1fdfde23f86e297125b3381b140cec2f",
+    "boundary_checker_stale_pin": "1f6793f7d46e8a650a54b2a585193b4010578fa6"
+  },
+  "existing_patches_policy": "Preserved in their original worktrees. Baseline tests include them. Review their specific integration before publication; do not silently identify candidate behavior with selected immutable revisions."
+}

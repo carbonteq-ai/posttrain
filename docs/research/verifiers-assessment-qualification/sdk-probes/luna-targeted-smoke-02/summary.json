@@ -1,0 +1,79 @@
+{
+  "manifest_digest": "1740c58f9d77a1981e83cccc9522d8ef80876fb99a46cf084341cb67cbb7b05d",
+  "inventory_digest": "f3755db7f3fcef3df41e4acd7aa7e598579a56af0ff7d6d8faa80294d45c49f0",
+  "source_unchanged_at_terminal": true,
+  "source_zip_hashes_valid": true,
+  "source_zip_files": 670,
+  "scope": "One signed-in Luna attempt per explicit task; current final-state assertion verification. Reward and budget qualification pending.",
+  "limitations": [
+    "MCP SDK item to authenticated invocation UUID join remains unqualified",
+    "Model request boundaries and token alignment unavailable",
+    "Output threshold is observed-output only, not an exact pre-reserved token cap"
+  ],
+  "attempts": [
+    {
+      "task_name": "hr.docusign_nda_collection",
+      "attempt_id": "1d7b0e167d259b8606cf47283f72b1f24e731b78ad892d7800b7ac2fd31518cf",
+      "status": "retained",
+      "failure_category": null,
+      "partial_credit": 1.0,
+      "strict_score": 1.0,
+      "verified": true,
+      "verification_reason": null,
+      "trace_ok": true,
+      "trace_stop_condition": "agent_completed",
+      "observed_tool_invocations": 14,
+      "observed_invocations_complete": true,
+      "native_action_evidence_count": 14,
+      "capture_unavailable_reasons": []
+    },
+    {
+      "task_name": "hr.i9_verification_tracking",
+      "attempt_id": "218b51cb4a9cfd71b9fbb691d851badf3fa3b1985634e6d0a2c052f0cc8d8099",
+      "status": "retained",
+      "failure_category": null,
+      "partial_credit": 0.0,
+      "strict_score": 0.0,
+      "verified": false,
+      "verification_reason": "assertions_not_fully_satisfied",
+      "trace_ok": true,
+      "trace_stop_condition": "agent_completed",
+      "observed_tool_invocations": 7,
+      "observed_invocations_complete": true,
+      "native_action_evidence_count": 7,
+      "capture_unavailable_reasons": []
+    },
+    {
+      "task_name": "marketing.conversion_tracking",
+      "attempt_id": "a99a57057e3d41a9dd9fc7b2a8edabe4ff6f261d723c76ac406d9e272420b9d5",
+      "status": "retained",
+      "failure_category": null,
+      "partial_credit": 0.0,
+      "strict_score": 0.0,
+      "verified": false,
+      "verification_reason": "assertions_not_fully_satisfied",
+      "trace_ok": true,
+      "trace_stop_condition": "agent_completed",
+      "observed_tool_invocations": 3,
+      "observed_invocations_complete": true,
+      "native_action_evidence_count": 3,
+      "capture_unavailable_reasons": []
+    },
+    {
+      "task_name": "marketing.ad_performance_review",
+      "attempt_id": "41d5fe44336f1a996f626b3dfd041607e006e8d446589a35394e78a26eefe441",
+      "status": "retained",
+      "failure_category": null,
+      "partial_credit": 0.5,
+      "strict_score": 0.0,
+      "verified": false,
+      "verification_reason": "assertions_not_fully_satisfied",
+      "trace_ok": true,
+      "trace_stop_condition": "agent_completed",
+      "observed_tool_invocations": 19,
+      "observed_invocations_complete": true,
+      "native_action_evidence_count": 19,
+      "capture_unavailable_reasons": []
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "fork_base": "e193bce99af1ea7cca272644a2b3a1676a587b4a",
+  "prior_batch_terminal": true,
+  "status": "local unpublished candidate; copied and byte verified after previous source integrity checks",
+  "files": [
+    {
+      "path": "tools/zapier/gmail/message.py",
+      "old_sha256": "d32954ae75cb7059c6e453d939eb45ef3d82e80dfea517326d338ab44706be57",
+      "new_sha256": "a719082e17ca80ab7ac57cfe8d53bf7615997d2951333a8276ee31c1bc813a8d"
+    },
+    {
+      "path": "domains/marketing/_noise.py",
+      "old_sha256": "7ab4092e936b9551ecca9dd6da7c9441908d16976cdf9499bc289dba1fe06d54",
+      "new_sha256": "5c68e819659d188340bd29e11e2e5e23643f0543fbe73eb8806c4fca6c913a74"
+    }
+  ]
+}

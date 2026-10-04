@@ -1,5 +1,37 @@
 # Verifiers (library)
 
+Current unpublished SDK isolation checkpoint (2026-10-04): the worker disables
+fourteen audited built-in features at startup/thread creation and validates
+loaded-thread readback before dispatch. Native fixtures pass 24 cases; seven
+actual pinned-SDK/local-provider cases pass without paid calls. Independent
+review passes eight readback variants and 116 backend cases. Fresh signed-in
+clarification canary passes in 14.04 seconds with 889 unchanged hashes and both
+original action credits retained. This is bounded SDK0.160 transport evidence;
+semantic accuracy, publication and immutable consumer adoption remain open.
+
+Real schema-response confirmation (2026-10-04): one signed-in protocol-3 mixed
+Contact probe passes with complete valid decisions and both existing action
+credits preserved. All 743 source hashes stay unchanged. This qualifies the
+selected response path on that trace; contrast-corpus semantics, complete reward
+coverage and publication remain open. Exact evidence is in the calibration plan
+and `reward-candidate/sdk-summary-backend-checkpoint.md`.
+
+Local unpublished SDK schema forwarding (2026-10-04): the candidate worker passes
+an optional caller JSON Schema through public `turn_start.outputSchema`, with
+early invalid-envelope rejection and unchanged absent-schema behavior. Fifteen
+focused cases pass independently, and eighteen SDK cases pass with seven opt-in
+unpaid gates skipped. Existing SDK notification typing diagnostics remain open;
+this does not establish model adherence. The consumer summary backend is being
+qualified after a clean completion produced malformed JSON. Published pins are
+unchanged; the calibration plan owns exact attempts and acceptance boundaries.
+
+Local unpublished admission repair (2026-10-04): strict original Python receipt
+validation now runs before retention, source capture/export and execution
+projection; copied bytes and boolean coordinates cannot normalize into valid
+wire evidence. Exact token-mask and sampled-node types are checked before
+projection. Consumer overlap tests pass 35 with the native candidate runtime.
+Production parser qualification and publication remain open; pins are unchanged.
+
 Notes **about** the Verifiers dependency. Product contracts live in
 [docs/post-training/](../../post-training/README.md) — especially
 [02 · eval evidence](../../post-training/02-primitives.md#verifiers-backed-eval-evidence)
@@ -345,6 +377,18 @@ in [05 · APIs](../../post-training/05-apis.md#environmentbinding) and
 
 ### Native hosted judges (unpublished migration candidate)
 
+The local native assessment candidate now exposes
+`AssessmentContext.retrospective_source()` for deterministic source admission.
+The executor anchors its validated snapshot privately; transformed assessor
+views remain independent, but an environment can compare a claimed world
+projection against that sealed source before publishing a finding. Access is
+restricted to retrospective contexts, excluded from serialized inputs, and
+unavailable outside native execution. Selected native scoring/trace/judges tests,
+Ruff and focused source-module Pyright pass. Source-candidate qualification,
+publication and immutable pin adoption remain open. AutomationBench's shared
+admission repair and evidence are tracked in
+`docs/research/verifiers-assessment-qualification/reward-candidate/retained-row-checkpoint.md`.
+
 `posttrain.jobs.bind_native_judges(context, environment, requests)` binds a
 mapping of existing native judge names to `ServeLaunchRequest` selections. The
 context manager starts endpoints and closes every started endpoint on normal
@@ -413,3 +457,27 @@ this section does not declare the new runtime release-qualified.
 
 Architecture docs under `docs/architecture/` are stale pending reconcile; do
 not treat them as overriding the post-training baseline.
+# Local intrinsic validation candidate, 2026-10-04
+
+The unpublished native credit candidate now reuses exact successful source/view
+intrinsic proofs within trusted execution-owned scopes. Strict Python coordinate
+admission precedes reuse; relational membership, parents, visibility and credit
+checks remain active. The selected native suite passes 153 tests and independent
+critic qualification passes 30 focused cases. A matched actual AutomationBench
+replay passes in 55.91 seconds versus 195.00 seconds before, preserving original
+source/scalar and exact credit/reload checks. This is a local replay measurement,
+not training throughput or a memory-reduction claim. Archive loading remains fully checked
+outside these scopes. This adds no public API, wire field or framework backend
+dependency; immutable consumer pins and publication gates remain unchanged.
+Source hashes and qualification evidence live in
+`docs/research/verifiers-assessment-qualification/reward-candidate/native-intrinsic-proof-qualification.json`.
+Local unpublished execution-provenance checkpoint (2026-10-04): the candidate
+links native MCP effects to host-authorized sampled dispatches through reserved
+metadata, preserving separate retry identities. Real local integration/reload
+gates pass; token alignment and immutable pin adoption remain open. See
+`docs/research/verifiers-assessment-qualification/reward-candidate/native-parent-link-checkpoint.md`.
+
+The local candidate also projects linked execution recipients through retained
+exact generated-call spans, preserving retry contributions and execution IDs.
+Real-session coordinate fixtures qualify transport, not all production model
+parsers. See `docs/research/verifiers-assessment-qualification/reward-candidate/execution-token-alignment-checkpoint.md`.

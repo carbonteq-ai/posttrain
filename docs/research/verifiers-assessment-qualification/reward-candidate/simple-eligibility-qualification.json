@@ -1,0 +1,68 @@
+{
+  "mode": "execute",
+  "model_calls": 0,
+  "approved_frozen_binding": "5d67f0266cc01f37ede66f1871d44202b58a2d1a7a79bb57ebdba64a19c8b6ca",
+  "guard_scope": "task_specific",
+  "guard_inventory": [],
+  "guard_review_revision": "root-reviewed-empty-task-specific-guards-20261003-public-direct-requests-v1",
+  "task_names": [
+    "simple.sf_case_priority_high",
+    "simple.hs_update_contact_phone",
+    "simple.asana_api_docs_task",
+    "simple.gcal_one_on_one"
+  ],
+  "original_episode_sha256": {
+    "simple.sf_case_priority_high": "249015db21420e535f668c90c3181a9803e28b601f42b990b18ba15c63846296",
+    "simple.hs_update_contact_phone": "dd10d63c5313fe166f9e24d621da2017e79985550710774b6f3eee6ce049f9aa",
+    "simple.asana_api_docs_task": "b1cee3cf075f8b7248a9ab829174b4f37f51a96a25afb41535a9cd833ecfab47",
+    "simple.gcal_one_on_one": "b7ee3c8a36e8418a11b942473c3651f3b63092eadad31298b25846503812dfdd"
+  },
+  "redesign_digest": "f61ae2b4f4f4c6bca86dcfefd89c7b701039823f289b42d13535d6a1ce1eb896",
+  "state_directory": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/simple-eligibility-candidate-20261003-01",
+  "producer_source_digest": "5dd6d6a3f2f9a2e0e8fc4645d166d7f1f16d8809422998ae45c78e6562d6a69a",
+  "native_source_digest": "409fa16329ab1ba978efb819ab92ea1eeb344642b3ac35918e8f046eccb458c4",
+  "results": [
+    {
+      "task_name": "simple.sf_case_priority_high",
+      "original_episode_sha256": "249015db21420e535f668c90c3181a9803e28b601f42b990b18ba15c63846296",
+      "status": "admitted_task_specific_candidate",
+      "proof_digest": "7637fe59f1f2318ccfc6fa206cc646f7963b7a883abc37cac9dcfa0fd881d007",
+      "reported_output_tokens": 111,
+      "required_checks": 2,
+      "proof_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/simple-eligibility-candidate-20261003-01/simple.sf_case_priority_high/eligibility-proof.json"
+    },
+    {
+      "task_name": "simple.hs_update_contact_phone",
+      "original_episode_sha256": "dd10d63c5313fe166f9e24d621da2017e79985550710774b6f3eee6ce049f9aa",
+      "status": "admitted_task_specific_candidate",
+      "proof_digest": "e920e5afdb92e99e5e4de1d6905c4e21343cd7db3e9ffe84e0e107da829ed8fb",
+      "reported_output_tokens": 123,
+      "required_checks": 2,
+      "proof_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/simple-eligibility-candidate-20261003-01/simple.hs_update_contact_phone/eligibility-proof.json"
+    },
+    {
+      "task_name": "simple.asana_api_docs_task",
+      "original_episode_sha256": "b1cee3cf075f8b7248a9ab829174b4f37f51a96a25afb41535a9cd833ecfab47",
+      "status": "admitted_task_specific_candidate",
+      "proof_digest": "22f25e758a53933317727d53943d2af2431f1f3449dc67517dfd1f212edaef1d",
+      "reported_output_tokens": 132,
+      "required_checks": 2,
+      "proof_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/simple-eligibility-candidate-20261003-01/simple.asana_api_docs_task/eligibility-proof.json"
+    },
+    {
+      "task_name": "simple.gcal_one_on_one",
+      "original_episode_sha256": "b7ee3c8a36e8418a11b942473c3651f3b63092eadad31298b25846503812dfdd",
+      "status": "admitted_task_specific_candidate",
+      "proof_digest": "6126153baf001865fdffceb8f4a5a83f893fab74f6cc863433b0b289d5bfe64e",
+      "reported_output_tokens": 193,
+      "required_checks": 2,
+      "proof_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/simple-eligibility-candidate-20261003-01/simple.gcal_one_on_one/eligibility-proof.json"
+    }
+  ],
+  "accepted_count": 4,
+  "limitations": [
+    "Only four exact reviewed public requests",
+    "Empty task-specific guard inventory excludes unreviewed environment-wide guards",
+    "No Qwen collection, model calls, publication, or dependency pin changes"
+  ]
+}

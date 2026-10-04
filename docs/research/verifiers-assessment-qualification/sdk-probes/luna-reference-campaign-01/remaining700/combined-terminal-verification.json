@@ -1,0 +1,35 @@
+{
+  "remaining700_plan_digest": "02619d2342b79c5ba2895d4eb29106b0cf8196201754a8729cb60bd9ec036639",
+  "attempted_tasks": 700,
+  "retained_tasks": 690,
+  "distinct_tasks": 700,
+  "hr_tasks_in_remaining_bank": 0,
+  "partitions": {
+    "timed": 197,
+    "untimed": 503
+  },
+  "source_unchanged": true,
+  "source_zip_files_verified": 671,
+  "execution_error_tasks": 10,
+  "full_current_outcomes": 248,
+  "response_accounting": {
+    "reconciled": 690,
+    "unavailable": 10
+  },
+  "offline_verification_errors": [
+    {
+      "task_name": "marketing.event_registration_sync",
+      "error_type": "ValueError",
+      "message": "finalized state/scorer results differ from recomputed evidence"
+    },
+    {
+      "task_name": "operations.mailchimp_ecommerce_sync",
+      "error_type": "ValueError",
+      "message": "finalized state/scorer results differ from recomputed evidence"
+    }
+  ],
+  "development_index": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/sdk-probes/luna-reference-campaign-01/development-traces-index-700-745049679384.json",
+  "development_coverage": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/sdk-probes/luna-reference-campaign-01/development-coverage-final-9d0b173c29e7.json",
+  "controller_handoff": "Timed parent exited1 after complete197 verification as expected when child owned untimed503; no duplicate attempts or episode failure attributed to handoff.",
+  "full800_boundary": "HR100 retained separately under two source generations with one old finalization defect and two startup failures; no resubmissions."
+}

@@ -1,0 +1,37 @@
+{
+  "status": "native_collection_independently_reverified",
+  "manifest_digest": "e535b8cc78d06716f6544dfe2c0aa2c952b77658e414d73e0bfa14fed74637cb",
+  "frozen_task_digest": "d120ef2041006441c86d2f7f54d7667eaa498cd5270217f39adce1f73f00c92e",
+  "episode_digest": "77ef55eefd1502b24d562e6493b8355309ce14b6680be61dc12d6b1b3a3e2324",
+  "outcome_digest": "7003da2f4896336bf34cba68e70e23bcd33334d723fc289e444cd419ff94a65d",
+  "source_files_reverified": true,
+  "scorer_identity_format": "adapter_scoring_file_sha256_with_full_source_inventory",
+  "combined_fingerprint_contract": "not_used_by_this_immutable_manifest",
+  "official_strict_score": 1.0,
+  "official_partial_credit": 1.0,
+  "assertions_passed": 1,
+  "budget": {
+    "enforcement": "observed_threshold",
+    "observed_output_lower_bound": 358,
+    "observed_overshoot_lower_bound": 0,
+    "observed_updates": 8,
+    "output_budget": 16384,
+    "output_remaining": 16026,
+    "overshoot_tokens": 0,
+    "reason": null,
+    "reasoning_inclusion": "unqualified",
+    "reported_counts": {
+      "cacheWriteInputTokens": 0,
+      "cachedInputTokens": 67840,
+      "inputTokens": 88080,
+      "outputTokens": 358,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 88438
+    },
+    "status": "observed",
+    "thread_id": "01a10245-6c0a-7592-97d5-cffa329fcf74",
+    "threshold_reached": false
+  },
+  "qwen_eligibility": "pending_redesigned_guards_and_qualified_usage_contract",
+  "native_episode": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-native-collection-01/7248733daa39dfd355c227aadd73a42c65c5c93a8da9563ba7903ca3f34e9ea3/episode.json"
+}

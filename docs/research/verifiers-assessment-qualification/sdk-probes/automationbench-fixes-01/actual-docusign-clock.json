@@ -1,0 +1,50 @@
+{
+  "scope": "actual retained SDK-routed tool results",
+  "results": [
+    {
+      "task": "hr.docusign_nda_collection",
+      "clock": "2026-03-20T09:00:00Z",
+      "date_fields": {
+        "createdDateTime": "2026-03-20T09:00:00+00:00",
+        "sentDateTime": "2026-03-20T09:00:00+00:00"
+      },
+      "invocation_id": "debc26fa956f4c63830ff97281b564ec"
+    },
+    {
+      "task": "hr.docusign_nda_collection",
+      "clock": "2026-03-20T09:00:00Z",
+      "date_fields": {
+        "createdDateTime": "2026-03-20T09:00:00+00:00",
+        "sentDateTime": "2026-03-20T09:00:00+00:00"
+      },
+      "invocation_id": "591bfcb873a042c083dd7c5654424b5e"
+    },
+    {
+      "task": "hr.docusign_nda_collection",
+      "clock": "2026-03-20T09:00:00Z",
+      "date_fields": {
+        "createdDateTime": "2026-03-20T09:00:00+00:00",
+        "sentDateTime": "2026-03-20T09:00:00+00:00"
+      },
+      "invocation_id": "57aa96b9d0cd42fbb87794643b40d89b"
+    },
+    {
+      "task": "hr.docusign_offer_letters",
+      "clock": "2026-03-20T09:00:00Z",
+      "date_fields": {
+        "createdDateTime": "2026-03-20T09:00:00+00:00",
+        "sentDateTime": "2026-03-20T09:00:00+00:00"
+      },
+      "invocation_id": "179d73ecd37940aeb8add6ffa1509872"
+    },
+    {
+      "task": "hr.docusign_offer_letters",
+      "clock": "2026-03-20T09:00:00Z",
+      "date_fields": {
+        "createdDateTime": "2026-03-20T09:00:00+00:00",
+        "sentDateTime": "2026-03-20T09:00:00+00:00"
+      },
+      "invocation_id": "daadd3c2f01b4d71bb945073b4c58df0"
+    }
+  ]
+}

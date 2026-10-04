@@ -1,0 +1,14 @@
+{
+  "candidate_root": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1",
+  "candidate_only": true,
+  "files": {
+    "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/calibration/benchmark_models.py": "6026c3a48ab518cfa4d1b6ba30a7a35eedb1c8581d227c9e77d91aa9c2d60592",
+    "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/calibration/benchmark.py": "a8384d9dc754a94399c2834bef589a37fd823d10dd67d63c2cab491a5ffc7ee7",
+    "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/calibration/eligibility.py": "f0a8e2d835bf501ebf731ff5e182939fcc28cf1b1ec02f2ce40969700e7f99cb",
+    "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_calibration_benchmark.py": "158ee01a059c6dff6d41e1315c9ac4631a3e604302c9450ca283dea39d72c906",
+    "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_calibration_eligibility.py": "b7bc9c4ab05421c4dc66488ec2278cc27d34a4d5245fea228795b2a4ebdf69e7"
+  },
+  "native_dependency": "/home/hammad/projects/verifiers-credit-candidate-20261003",
+  "real_inference_executed": false,
+  "historical_verification_seam": "pending; current exact-source verifier rejects historical scorer drift"
+}

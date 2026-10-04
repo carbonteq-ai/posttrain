@@ -1,0 +1,83 @@
+{
+  "scope": "one explicitly named development reference; read only; no inference",
+  "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/c9d9572cfad9d234cd72beba0f647c4ab7c8a2b1dd15ed53fc4c3b4422d668e3/episode.json",
+  "task": "hr.i9_verification_tracking",
+  "episode_digest": "c3ff5b3f3a3249c82db5d45ca6d7060af8d2d295a1fd617f1d8abcf6fc66ceda",
+  "original_manifest": "a8bea9144379f1284dd392813a951850715b655708b3ec8243e624d74e9685b9",
+  "original_output_budget": 16384,
+  "budget_disposition": [
+    "within_budget",
+    "final_output_within_budget"
+  ],
+  "budget": {
+    "thread_id": "01a10284-720f-77f0-bb03-8aac5d6eea08",
+    "output_budget": 16384,
+    "status": "observed",
+    "reason": null,
+    "reported_counts": {
+      "inputTokens": 412680,
+      "cachedInputTokens": 373760,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2260,
+      "reasoningOutputTokens": 303,
+      "totalTokens": 414940
+    },
+    "observed_updates": 25,
+    "output_remaining": 14124,
+    "threshold_reached": false,
+    "overshoot_tokens": 0,
+    "observed_output_lower_bound": 2260,
+    "observed_overshoot_lower_bound": 0,
+    "enforcement": "observed_threshold",
+    "reasoning_inclusion": "unqualified",
+    "response_accounting": {
+      "contract": "codex-0.160-completed-response-usage-v1",
+      "status": "reconciled",
+      "reason": null,
+      "response_ids": [
+        "resp_0f62ec4092e21890016ac12814096087d290621a93dac780a2",
+        "resp_0f62ec4092e21890016ac1281a0ca887d2ad4f2843a010b5bf",
+        "resp_0f62ec4092e21890016ac1281de11087d2abec82a0750508a0",
+        "resp_0f62ec4092e21890016ac12821cb8487d2ae531152b6ae4fe1",
+        "resp_0f62ec4092e21890016ac128249b5087d2b190715f9bde8bed",
+        "resp_0f62ec4092e21890016ac128287cd887d29325f0d0ed7e8269",
+        "resp_0f62ec4092e21890016ac1282ca2cc87d2a424227a2b3f36df",
+        "resp_0f62ec4092e21890016ac1282ff1e887d2b561a7c52e74a624",
+        "resp_0f62ec4092e21890016ac12833248487d28518522a4dade014",
+        "resp_0f62ec4092e21890016ac12836bd2887d2bd109767c0425539",
+        "resp_0f62ec4092e21890016ac1284ffeb087d2b25c8c60bf319ad6",
+        "resp_0f62ec4092e21890016ac128569ce087d288d4bed1c013d863",
+        "resp_0f62ec4092e21890016ac1285c364887d2a0a24d17d5430219",
+        "resp_0f62ec4092e21890016ac12862854887d2a2cc828fcfb931fe",
+        "resp_0f62ec4092e21890016ac128682e4487d2bbf340be2fdb89e2",
+        "resp_0f62ec4092e21890016ac1286e3a8c87d2b8b2b408047c530e",
+        "resp_0f62ec4092e21890016ac12873c04887d283cdbb1594658bb0",
+        "resp_0f62ec4092e21890016ac12878099887d29cf5c005c8670dab",
+        "resp_0f62ec4092e21890016ac1287bfe7c87d286ea7d89acec9196",
+        "resp_0f62ec4092e21890016ac1287ff80887d2afb35c483b0e92eb",
+        "resp_0f62ec4092e21890016ac12883ae1887d2bc50d89179967c14",
+        "resp_0f62ec4092e21890016ac12887bf3487d285de6ef5b159e033",
+        "resp_0f62ec4092e21890016ac1288ff19887d2bf0e2d810a18b4ff",
+        "resp_0f62ec4092e21890016ac12895253487d28c6dbed82ba4c10f",
+        "resp_0f62ec4092e21890016ac12899c5a887d29fed9e64c8a26e9d"
+      ],
+      "reported_counts": {
+        "inputTokens": 412680,
+        "cachedInputTokens": 373760,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 2260,
+        "reasoningOutputTokens": 303,
+        "totalTokens": 414940
+      },
+      "first_response_input": 2047,
+      "maximum_response_input": 24260,
+      "cumulative_response_input": 412680,
+      "reasoning_inclusion": "reported_output_detail"
+    }
+  },
+  "official_current_candidate": {
+    "qualified": false,
+    "rejection": "current scorer differs from frozen scorer identity"
+  },
+  "new_contract_admission": "not qualified: no accepted closed redesign contract and matching selected source-bound native reassessment supplied; historical frozen scorer seam remains open"
+}

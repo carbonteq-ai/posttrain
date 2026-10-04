@@ -348,6 +348,16 @@ derived native-trace records referenced immutably. Checkpoint compatibility
 includes algorithm, reward schema, scorer, and normalization identity. Judge
 sampling attempts and token costs remain individually attributable.
 
+Native assessment evidence distinguishes the assessed subject, permitted source
+views, exact prepared inputs, cited evidence, and credit recipients. Retain input
+builder/configuration identity, transformations, invocation/result links and raw
+responses before parsing. Domain assignments retain accepted parent findings,
+rule identity, signal meaning, allocation, gates and attribution status separately
+from token-alignment fidelity and algorithm advantages. During training, full
+assessment inputs, transcripts and masks remain in native compressed artifacts;
+tracking receives results and artifact references. These records do not change
+the policy's original conditioning context.
+
 For an API-only judge, evidence also retains the requested hosted-model id and
 revision, external-service id and revision, safe endpoint origin, resolved
 provider route, explicitly requested provider slug, fallback policy, capability

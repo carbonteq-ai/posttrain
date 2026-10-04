@@ -1,0 +1,426 @@
+{
+  "schema_version": 1,
+  "selection_hash_semantics": "Index selection_sha256 hashes exact selection-file bytes; each immutable pack selection_sha256 hashes canonical JSON selection contents. These distinct identities must not be compared directly.",
+  "selection_sha256": "13d326e79af6c064300d7aaeb6cf1b02fb7f14f8a50622cc3648ae8ce87798a3",
+  "task_count": 105,
+  "batch_count": 11,
+  "batch_size_limit": 10,
+  "reserved_tasks": 0,
+  "accepted_manifest_count": 13,
+  "whole_task_qualified_count": 0,
+  "reviewed_task_count": 105,
+  "batches": [
+    {
+      "batch_number": 1,
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-01.json",
+      "sha256": "d865aacbaac51c83441f852941b06116303d18bf3973bc1c8b265144c1c8e50d",
+      "tasks": [
+        "finance.prepaid_amortization",
+        "hr.job_posting_distribution",
+        "marketing.product_launch_channel_plan",
+        "operations.linkedin_abm_outreach",
+        "sales.multi_hop_lookup",
+        "simple.email_airtable_customer_welcome",
+        "support.reamaze_cross_platform_dedup",
+        "finance.expense_split_allocation",
+        "hr.calendly_manager_office_hours",
+        "marketing.social_content_calendar"
+      ],
+      "domain_counts": {
+        "finance": 2,
+        "hr": 2,
+        "marketing": 2,
+        "operations": 1,
+        "sales": 1,
+        "simple": 1,
+        "support": 1
+      },
+      "status": "reviewed_three_bounded_components_cataloged_full_task_gaps_open",
+      "review_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batch-01-review.json",
+      "cataloged_components": [
+        {
+          "task_name": "finance.prepaid_amortization",
+          "manifest_id": "finance-prepaid-schedule-and-guard",
+          "revision": "public_batch01_schedule_v3",
+          "coverage": "Supported retained standard, Insurance and corrected Software schedule goals plus ineligible-recognition harm. Whole policy inventories bound; journal, totals and reporting remain open",
+          "credit": "Qualified completing update once per native obligation; per acknowledged harmful effect, with repair unable to erase harm"
+        },
+        {
+          "task_name": "sales.multi_hop_lookup",
+          "manifest_id": "sales-multi-hop-closed-won-component",
+          "coverage": "Requested stage transition only; routing and notification remain open",
+          "credit": "Verified transition once"
+        },
+        {
+          "task_name": "simple.email_airtable_customer_welcome",
+          "manifest_id": "simple-customer-recipient-delivery-component",
+          "coverage": "Recipient delivery only; welcome purpose and Airtable remain open",
+          "credit": "None"
+        }
+      ]
+    },
+    {
+      "batch_number": 2,
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-02.json",
+      "sha256": "eea8b69e67adae6bbef920168d57006e1d4f761896d09f7492907ae3c2e80222",
+      "tasks": [
+        "operations.fleet_vehicle_maintenance",
+        "sales.deal_escalation",
+        "simple.mailchimp_email_request",
+        "support.gorgias_refund_processing",
+        "finance.wave_client_statement",
+        "hr.exit_interview_scheduling",
+        "marketing.newsletter_sponsor_invoicing",
+        "operations.facility_incident_triage",
+        "sales.docusign_void_resend",
+        "simple.email_hs_create_contact"
+      ],
+      "domain_counts": {
+        "operations": 2,
+        "sales": 2,
+        "simple": 2,
+        "support": 1,
+        "finance": 1,
+        "hr": 1,
+        "marketing": 1
+      },
+      "status": "reviewed_one_bounded_component_cataloged_full_task_gaps_open",
+      "cataloged_components": [
+        {
+          "task_name": "sales.docusign_void_resend",
+          "manifest_id": "sales-docusign-negotiated-amount-component",
+          "coverage": "Negotiated CRM amount only; DocuSign and full workflow remain open",
+          "credit": "Verified transition once"
+        }
+      ]
+    },
+    {
+      "batch_number": 3,
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-03.json",
+      "sha256": "689535bbc1dec2ab553ceae4f7ae60f1eb4e88e2f356a64c59e10b3b21f5ff15",
+      "tasks": [
+        "support.helpcrunch_engagement_scoring",
+        "finance.xero_vendor_onboard",
+        "hr.candidate_research_dossier",
+        "marketing.google_ads_high_intent_list_from_hubspot",
+        "operations.docusign_contractor_offboard",
+        "sales.slack_channel_for_new_account",
+        "simple.zoom_calendar_sync",
+        "support.helpscout_jira_bugs",
+        "finance.monthend_journal_entries",
+        "hr.trello_recruiting_event_coordination"
+      ],
+      "domain_counts": {
+        "support": 2,
+        "finance": 2,
+        "hr": 2,
+        "marketing": 1,
+        "operations": 1,
+        "sales": 1,
+        "simple": 1
+      },
+      "status": "reviewed_shared_capability_gaps_no_executable_proposals"
+    },
+    {
+      "batch_number": 4,
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-04.json",
+      "sha256": "08fa811e527fb7cf01213ae2f3424e9ec2dcdcb6f33618e74f4f3499aee963c8",
+      "tasks": [
+        "marketing.brand_mention_analysis",
+        "operations.zoom_training_setup",
+        "sales.event_to_opportunity_pipeline",
+        "simple.asana_sprint_section_task",
+        "support.hiver_inbox_report",
+        "finance.sales_tax_remittance",
+        "hr.benefits_open_enrollment_processing",
+        "marketing.linkedin_speaker_outreach",
+        "operations.trello_vendor_hold_email",
+        "sales.chatgpt_proposal_customization"
+      ],
+      "domain_counts": {
+        "marketing": 2,
+        "operations": 2,
+        "sales": 2,
+        "simple": 1,
+        "support": 1,
+        "finance": 1,
+        "hr": 1
+      },
+      "status": "reviewed_one_schema_guard_proposal_native_qualification_open",
+      "current_status": "bounded_sheets_pr_ticket_guard_cataloged_full_task_gaps_open",
+      "cataloged_components": [
+        {
+          "task_name": "marketing.brand_mention_analysis",
+          "manifest_id": "marketing-brand-board-mention-ticket-guard",
+          "revision": "public_batch04_policy_inventory_v2",
+          "coverage": "Exact protected mention URL in scoped Sheets PR-ticket append only; observed historical Zoho route remains unavailable",
+          "credit": "Once per qualified harmful append; global escalation compliance and message correctness remain open"
+        }
+      ]
+    },
+    {
+      "batch_number": 5,
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-05.json",
+      "sha256": "8f93b47f1584ee58c553a50db4c800966f4e74ebb28d3600df2695d86de590e1",
+      "tasks": [
+        "simple.email_sf_contact_account_update",
+        "support.intercom_demo_scheduling",
+        "finance.escrow_tracking",
+        "hr.break_schedule_processing",
+        "marketing.editorial_calendar",
+        "operations.asana_safety_walk_log",
+        "sales.full_sales_cycle_orchestrator",
+        "simple.slack_dm_meeting_reminder",
+        "support.reamaze_knowledge_routing",
+        "finance.contract_billing"
+      ],
+      "domain_counts": {
+        "simple": 2,
+        "support": 2,
+        "finance": 2,
+        "hr": 1,
+        "marketing": 1,
+        "operations": 1,
+        "sales": 1
+      },
+      "status": "reviewed_one_schema_record_proposal_and_one_cataloged_contact_goal",
+      "cataloged_components": [
+        {
+          "task_name": "simple.email_sf_contact_account_update",
+          "manifest_id": "contact-account-name-update",
+          "coverage": "Full requested Contact account_name state goal; common reporting and extra-action compliance remain open",
+          "credit": "Verified transition once; actual Luna Contact outcome fails; valid native alternative passes",
+          "qualification_path": "docs/research/verifiers-assessment-qualification/reward-candidate/completion-credit-and-contact-checkpoint.md"
+        }
+      ],
+      "review_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batch-05-review.json"
+    },
+    {
+      "batch_number": 6,
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-06.json",
+      "sha256": "fa9c668bea1afdf6f9cfc96e24a8c183015b9e22fa7827a83e220c654c617f02",
+      "tasks": [
+        "hr.docusign_nda_collection",
+        "marketing.social_scheduling",
+        "operations.hubspot_churn_prediction",
+        "sales.sheets_multi_channel_campaign_router",
+        "simple.email_zendesk_ack_reply",
+        "support.zendesk_gdpr_purge",
+        "finance.invoice_reconciliation",
+        "hr.equipment_provisioning",
+        "marketing.ad_platform_audit",
+        "operations.hubspot_lead_qualification"
+      ],
+      "domain_counts": {
+        "hr": 2,
+        "marketing": 2,
+        "operations": 2,
+        "sales": 1,
+        "simple": 1,
+        "support": 1,
+        "finance": 1
+      },
+      "status": "reviewed_one_schema_guard_proposal_native_qualification_open",
+      "review_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batch-06-review.json",
+      "current_status": "signed_status_guard_cataloged_full_task_gaps_open",
+      "cataloged_components": [
+        {
+          "task_name": "hr.docusign_nda_collection",
+          "manifest_id": "hr-nda-preserve-signed-status-guard",
+          "revision": "public_batch06_native_identity_v2",
+          "coverage": "Preserve initial Signed employees' status by native row identity, with public tracker routing bound; DocuSign delivery, pending-status completion and reporting remain open",
+          "credit": "Each qualified harmful status write receives minus one, with later repair unable to erase it; neutral recorded Luna trajectory receives no penalties",
+          "qualification_path": "docs/research/verifiers-assessment-qualification/reward-candidate/jira-and-append-checkpoint.md"
+        }
+      ]
+    },
+    {
+      "batch_number": 7,
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-07.json",
+      "sha256": "6913ff37ab6ef7a4fd6297312a746a305330a350ada61bfc46c4e19efd2385a1",
+      "tasks": [
+        "sales.calendly_no_show_followup",
+        "simple.feature_launch_slack",
+        "support.zoho_account_health",
+        "finance.qb_sales_receipt_batch",
+        "hr.intern_cohort_onboarding",
+        "marketing.email_blast_suppression",
+        "operations.canva_asset_management",
+        "sales.create_contact_for_account",
+        "simple.trello_urgent_support_card",
+        "support.zendesk_hubspot_org_sync"
+      ],
+      "domain_counts": {
+        "sales": 2,
+        "simple": 2,
+        "support": 2,
+        "finance": 1,
+        "hr": 1,
+        "marketing": 1,
+        "operations": 1
+      },
+      "status": "reviewed_one_schema_guard_proposal_native_qualification_open",
+      "review_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batch-07-review.json",
+      "cataloged_components": [
+        {
+          "task_name": "support.zoho_account_health",
+          "manifest_id": "support-health-excluded-account-dashboard-guard",
+          "revision": "public_batch07_scoped_inventory_v2",
+          "coverage": "Exact exclusion-sheet Account ID against scoped dashboard append; recorded neutral and unknown findings retained; health-score and positive workflow remain open",
+          "credit": "Each qualified harmful append persists through deletion; exact once-only credit/rescore/reload"
+        },
+        {
+          "task_name": "simple.feature_launch_slack",
+          "manifest_id": "simple-feature-launch-asana-occurrence",
+          "revision": "public_batch07_request_v1",
+          "coverage": "Acknowledged Asana creation occurrence with exact requested name/workspace on one action. Slack announcement, retained external task and common reporting remain open",
+          "credit": "One matching fresh creation per source-bound authored request; actual Luna execution recipient and score/reload verified"
+        }
+      ]
+    },
+    {
+      "batch_number": 8,
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-08.json",
+      "sha256": "e6cd7cb2ef731eb9510bb8b3cf475b2773e5d03a64bbddb640e9e45a3e860505",
+      "tasks": [
+        "finance.subscription_billing",
+        "hr.intern_program_coordination",
+        "marketing.content_repurpose",
+        "operations.mailchimp_ecommerce_sync",
+        "sales.docusign_deal_workspace",
+        "simple.email_sf_contact_assistant_update",
+        "support.gorgias_inventory_routing",
+        "finance.deferred_revenue_tracking",
+        "hr.zoom_orientation_sessions",
+        "marketing.lead_enrichment"
+      ],
+      "domain_counts": {
+        "finance": 2,
+        "hr": 2,
+        "marketing": 2,
+        "operations": 1,
+        "sales": 1,
+        "simple": 1,
+        "support": 1
+      },
+      "status": "reviewed_one_schema_guard_proposal_and_one_cataloged_contact_goal",
+      "current_status": "retired_content_guard_and_contact_goal_cataloged_full_task_gaps_open",
+      "cataloged_components": [
+        {
+          "task_name": "marketing.content_repurpose",
+          "manifest_id": "marketing-retired-content-queue-guard",
+          "revision": "public_batch08_guard_v2",
+          "coverage": "Historical qualified queue append of exact retired title; complete initial policy-message and speaker inventories bound. Other representations, positive queue eligibility and reporting remain open",
+          "credit": "Per acknowledged harmful append; actual offending action receives minus one once across rescore and reload",
+          "qualification_path": "docs/research/verifiers-assessment-qualification/reward-candidate/jira-and-append-checkpoint.md"
+        },
+        {
+          "task_name": "simple.email_sf_contact_assistant_update",
+          "manifest_id": "contact-assistant-update",
+          "revision": "public_contact_read_v2",
+          "coverage": "Original introduction email full return and requested same-Contact assistant name/email conjunction; conditional summary rule remains unqualified. No extra notification or blanket additional-action ban is required",
+          "credit": "Original message return and verified Contact transition each once; actual Luna, native alternatives and same-version rescore/reload pass",
+          "qualification_path": "docs/research/verifiers-assessment-qualification/reward-candidate/gmail-read-checkpoint.md"
+        }
+      ],
+      "review_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batch-08-review.json"
+    },
+    {
+      "batch_number": 9,
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-09.json",
+      "sha256": "5c14be277b065d6c14fcdaf0453364b90dfe1dbd6cfd43712277b1084286f86a",
+      "tasks": [
+        "operations.salesforce_escalated_customer",
+        "sales.linkedin_event_promotion",
+        "simple.hs_create_deal_with_contact",
+        "support.helpcrunch_zoho_desk_bridge",
+        "finance.payment_reconciliation",
+        "hr.airtable_learning_path_assignment",
+        "marketing.twitter_influencer_followup",
+        "operations.calendar_airtable_gmail_maintenance_notice",
+        "sales.zoom_calendar_conflict",
+        "simple.jira_accessibility_audit"
+      ],
+      "domain_counts": {
+        "operations": 2,
+        "sales": 2,
+        "simple": 2,
+        "support": 1,
+        "finance": 1,
+        "hr": 1,
+        "marketing": 1
+      },
+      "status": "reviewed_shared_capability_gaps_no_executable_proposals",
+      "review_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batch-09-review.json",
+      "current_status": "one_bounded_component_cataloged_full_task_gaps_open",
+      "cataloged_components": [
+        {
+          "task_name": "simple.jira_accessibility_audit",
+          "manifest_id": "simple-jira-accessibility-retained",
+          "revision": "public_batch09_retained_v1",
+          "coverage": "Exact public summary, canonical QA project and Task type on one fresh retained issue; common reporting and extra-action compliance remain open",
+          "credit": "Earliest qualified completing action once per authored request; historical audit-only logs receive none"
+        }
+      ]
+    },
+    {
+      "batch_number": 10,
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-10.json",
+      "sha256": "a99c6aa6fca047d97221b28679aec5811c74e9c7e651d352c8b5f4161d53e42c",
+      "tasks": [
+        "support.helpscout_hubspot_deal_alerts",
+        "finance.payment_terms_tracking",
+        "hr.bamboohr_promotion_update",
+        "marketing.conversion_tracking",
+        "operations.calendly_equipment_inspection",
+        "sales.apply_project_label",
+        "simple.zendesk_resolve_email",
+        "support.helpscout_reamaze_migration",
+        "finance.po_email_logging",
+        "hr.buddy_assignment"
+      ],
+      "domain_counts": {
+        "support": 2,
+        "finance": 2,
+        "hr": 2,
+        "marketing": 1,
+        "operations": 1,
+        "sales": 1,
+        "simple": 1
+      },
+      "status": "reviewed_one_schema_guard_proposal_native_qualification_open",
+      "review_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batch-10-review.json",
+      "current_status": "one_bounded_component_cataloged_full_task_gaps_open",
+      "cataloged_components": [
+        {
+          "task_name": "simple.zendesk_resolve_email",
+          "manifest_id": "simple-zendesk-retained-status",
+          "revision": "public_batch10_credit_v2",
+          "coverage": "Final solved status on the original public ticket ID; meaningful resolution email remains open",
+          "credit": "Earliest observed qualified status completion once on the original native ticket; initial success, noops and unknown evidence receive none"
+        }
+      ]
+    },
+    {
+      "batch_number": 11,
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-11.json",
+      "sha256": "a448ca6f4eea22e13631a136a1d938b3ef05ea7f47e547a62e78ca6231ad8e0e",
+      "tasks": [
+        "marketing.instagram_approved_asset_publish",
+        "operations.chatgpt_feedback_analysis",
+        "sales.call_transcription",
+        "simple.gmail_invoice_email",
+        "support.intercom_auto_response_drafts"
+      ],
+      "domain_counts": {
+        "marketing": 1,
+        "operations": 1,
+        "sales": 1,
+        "simple": 1,
+        "support": 1
+      },
+      "status": "reviewed_shared_capability_gaps_no_executable_proposals",
+      "review_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batch-11-review.json"
+    }
+  ]
+}

@@ -1,0 +1,565 @@
+{
+  "request_shapes": [
+    {
+      "path": "/v1/responses",
+      "catalogs": [
+        {
+          "location": "tools",
+          "tools": []
+        },
+        {
+          "location": "input[0].tools",
+          "tools": [
+            {
+              "type": "namespace",
+              "name": "functions",
+              "description": "",
+              "tools": [
+                {
+                  "type": "function",
+                  "name": "list_mcp_resources",
+                  "description": "Lists resources provided by MCP servers. Resources allow servers to share data that provides context to language models, such as files, database schemas, or application-specific information. Prefer resources over web search when possible.",
+                  "strict": false,
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string",
+                        "description": "Opaque cursor from a previous list_mcp_resources call; omit for the first page."
+                      },
+                      "server": {
+                        "type": "string",
+                        "description": "MCP server name. Omit to list resources from every configured server."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                {
+                  "type": "function",
+                  "name": "list_mcp_resource_templates",
+                  "description": "Lists resource templates provided by MCP servers. Parameterized resource templates allow servers to share data that takes parameters and provides context to language models, such as files, database schemas, or application-specific information. Prefer resource templates over web search when possible.",
+                  "strict": false,
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string",
+                        "description": "Opaque cursor from a previous list_mcp_resource_templates call; omit for the first page."
+                      },
+                      "server": {
+                        "type": "string",
+                        "description": "MCP server name. Omit to list resource templates from every configured server."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                {
+                  "type": "function",
+                  "name": "read_mcp_resource",
+                  "description": "Read a specific resource from an MCP server given the server name and resource URI.",
+                  "strict": false,
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "server": {
+                        "type": "string",
+                        "description": "MCP server name exactly as configured. Must match the 'server' field returned by list_mcp_resources."
+                      },
+                      "uri": {
+                        "type": "string",
+                        "description": "Resource URI to read. Must be one of the URIs returned by list_mcp_resources."
+                      }
+                    },
+                    "required": [
+                      "server",
+                      "uri"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              ]
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__automationbench",
+              "description": "Tools in the mcp__automationbench namespace.",
+              "tools": [
+                {
+                  "type": "function",
+                  "name": "execute_tool",
+                  "description": "Execute a tool found by ``search_tools`` against this rollout's world.",
+                  "strict": false,
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "arguments": {
+                        "type": "string"
+                      },
+                      "tool_name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "tool_name",
+                      "arguments"
+                    ]
+                  }
+                },
+                {
+                  "type": "function",
+                  "name": "search_tools",
+                  "description": "Find Zapier-style tools by service name, action, or description.",
+                  "strict": false,
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "query": {
+                        "type": "string"
+                      },
+                      "top_k": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "query"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "tools": [
+        {
+          "type": "namespace",
+          "name": "functions",
+          "description": "",
+          "tools": [
+            {
+              "type": "function",
+              "name": "list_mcp_resources",
+              "description": "Lists resources provided by MCP servers. Resources allow servers to share data that provides context to language models, such as files, database schemas, or application-specific information. Prefer resources over web search when possible.",
+              "strict": false,
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "cursor": {
+                    "type": "string",
+                    "description": "Opaque cursor from a previous list_mcp_resources call; omit for the first page."
+                  },
+                  "server": {
+                    "type": "string",
+                    "description": "MCP server name. Omit to list resources from every configured server."
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            {
+              "type": "function",
+              "name": "list_mcp_resource_templates",
+              "description": "Lists resource templates provided by MCP servers. Parameterized resource templates allow servers to share data that takes parameters and provides context to language models, such as files, database schemas, or application-specific information. Prefer resource templates over web search when possible.",
+              "strict": false,
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "cursor": {
+                    "type": "string",
+                    "description": "Opaque cursor from a previous list_mcp_resource_templates call; omit for the first page."
+                  },
+                  "server": {
+                    "type": "string",
+                    "description": "MCP server name. Omit to list resource templates from every configured server."
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            {
+              "type": "function",
+              "name": "read_mcp_resource",
+              "description": "Read a specific resource from an MCP server given the server name and resource URI.",
+              "strict": false,
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "server": {
+                    "type": "string",
+                    "description": "MCP server name exactly as configured. Must match the 'server' field returned by list_mcp_resources."
+                  },
+                  "uri": {
+                    "type": "string",
+                    "description": "Resource URI to read. Must be one of the URIs returned by list_mcp_resources."
+                  }
+                },
+                "required": [
+                  "server",
+                  "uri"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ]
+        },
+        {
+          "type": "namespace",
+          "name": "mcp__automationbench",
+          "description": "Tools in the mcp__automationbench namespace.",
+          "tools": [
+            {
+              "type": "function",
+              "name": "execute_tool",
+              "description": "Execute a tool found by ``search_tools`` against this rollout's world.",
+              "strict": false,
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "arguments": {
+                    "type": "string"
+                  },
+                  "tool_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "tool_name",
+                  "arguments"
+                ]
+              }
+            },
+            {
+              "type": "function",
+              "name": "search_tools",
+              "description": "Find Zapier-style tools by service name, action, or description.",
+              "strict": false,
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  },
+                  "top_k": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "input_roles": [
+        "developer",
+        "developer",
+        "developer",
+        "user",
+        "user"
+      ],
+      "keys": [
+        "client_metadata",
+        "include",
+        "input",
+        "model",
+        "parallel_tool_calls",
+        "prompt_cache_key",
+        "reasoning",
+        "store",
+        "stream",
+        "text",
+        "tool_choice"
+      ]
+    },
+    {
+      "path": "/v1/responses",
+      "catalogs": [
+        {
+          "location": "tools",
+          "tools": []
+        },
+        {
+          "location": "input[0].tools",
+          "tools": [
+            {
+              "type": "namespace",
+              "name": "functions",
+              "description": "",
+              "tools": [
+                {
+                  "type": "function",
+                  "name": "list_mcp_resources",
+                  "description": "Lists resources provided by MCP servers. Resources allow servers to share data that provides context to language models, such as files, database schemas, or application-specific information. Prefer resources over web search when possible.",
+                  "strict": false,
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string",
+                        "description": "Opaque cursor from a previous list_mcp_resources call; omit for the first page."
+                      },
+                      "server": {
+                        "type": "string",
+                        "description": "MCP server name. Omit to list resources from every configured server."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                {
+                  "type": "function",
+                  "name": "list_mcp_resource_templates",
+                  "description": "Lists resource templates provided by MCP servers. Parameterized resource templates allow servers to share data that takes parameters and provides context to language models, such as files, database schemas, or application-specific information. Prefer resource templates over web search when possible.",
+                  "strict": false,
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string",
+                        "description": "Opaque cursor from a previous list_mcp_resource_templates call; omit for the first page."
+                      },
+                      "server": {
+                        "type": "string",
+                        "description": "MCP server name. Omit to list resource templates from every configured server."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                {
+                  "type": "function",
+                  "name": "read_mcp_resource",
+                  "description": "Read a specific resource from an MCP server given the server name and resource URI.",
+                  "strict": false,
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "server": {
+                        "type": "string",
+                        "description": "MCP server name exactly as configured. Must match the 'server' field returned by list_mcp_resources."
+                      },
+                      "uri": {
+                        "type": "string",
+                        "description": "Resource URI to read. Must be one of the URIs returned by list_mcp_resources."
+                      }
+                    },
+                    "required": [
+                      "server",
+                      "uri"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              ]
+            },
+            {
+              "type": "namespace",
+              "name": "mcp__automationbench",
+              "description": "Tools in the mcp__automationbench namespace.",
+              "tools": [
+                {
+                  "type": "function",
+                  "name": "execute_tool",
+                  "description": "Execute a tool found by ``search_tools`` against this rollout's world.",
+                  "strict": false,
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "arguments": {
+                        "type": "string"
+                      },
+                      "tool_name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "tool_name",
+                      "arguments"
+                    ]
+                  }
+                },
+                {
+                  "type": "function",
+                  "name": "search_tools",
+                  "description": "Find Zapier-style tools by service name, action, or description.",
+                  "strict": false,
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "query": {
+                        "type": "string"
+                      },
+                      "top_k": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "query"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "tools": [
+        {
+          "type": "namespace",
+          "name": "functions",
+          "description": "",
+          "tools": [
+            {
+              "type": "function",
+              "name": "list_mcp_resources",
+              "description": "Lists resources provided by MCP servers. Resources allow servers to share data that provides context to language models, such as files, database schemas, or application-specific information. Prefer resources over web search when possible.",
+              "strict": false,
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "cursor": {
+                    "type": "string",
+                    "description": "Opaque cursor from a previous list_mcp_resources call; omit for the first page."
+                  },
+                  "server": {
+                    "type": "string",
+                    "description": "MCP server name. Omit to list resources from every configured server."
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            {
+              "type": "function",
+              "name": "list_mcp_resource_templates",
+              "description": "Lists resource templates provided by MCP servers. Parameterized resource templates allow servers to share data that takes parameters and provides context to language models, such as files, database schemas, or application-specific information. Prefer resource templates over web search when possible.",
+              "strict": false,
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "cursor": {
+                    "type": "string",
+                    "description": "Opaque cursor from a previous list_mcp_resource_templates call; omit for the first page."
+                  },
+                  "server": {
+                    "type": "string",
+                    "description": "MCP server name. Omit to list resource templates from every configured server."
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            {
+              "type": "function",
+              "name": "read_mcp_resource",
+              "description": "Read a specific resource from an MCP server given the server name and resource URI.",
+              "strict": false,
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "server": {
+                    "type": "string",
+                    "description": "MCP server name exactly as configured. Must match the 'server' field returned by list_mcp_resources."
+                  },
+                  "uri": {
+                    "type": "string",
+                    "description": "Resource URI to read. Must be one of the URIs returned by list_mcp_resources."
+                  }
+                },
+                "required": [
+                  "server",
+                  "uri"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ]
+        },
+        {
+          "type": "namespace",
+          "name": "mcp__automationbench",
+          "description": "Tools in the mcp__automationbench namespace.",
+          "tools": [
+            {
+              "type": "function",
+              "name": "execute_tool",
+              "description": "Execute a tool found by ``search_tools`` against this rollout's world.",
+              "strict": false,
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "arguments": {
+                    "type": "string"
+                  },
+                  "tool_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "tool_name",
+                  "arguments"
+                ]
+              }
+            },
+            {
+              "type": "function",
+              "name": "search_tools",
+              "description": "Find Zapier-style tools by service name, action, or description.",
+              "strict": false,
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  },
+                  "top_k": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "input_roles": [
+        "developer",
+        "developer",
+        "developer",
+        "user",
+        "user",
+        null,
+        null
+      ],
+      "keys": [
+        "client_metadata",
+        "include",
+        "input",
+        "model",
+        "parallel_tool_calls",
+        "prompt_cache_key",
+        "reasoning",
+        "store",
+        "stream",
+        "text",
+        "tool_choice"
+      ]
+    }
+  ],
+  "resource_admin_qualification": {
+    "resources_empty": true,
+    "templates_empty": true,
+    "local_uri_read_rejected": true,
+    "configured_servers": [
+      "automationbench"
+    ]
+  },
+  "native_artifact": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/pytest-1763-test_unpaid_sdk_tool_call_and_0/sdk-native-trace.json",
+  "result": "joined fixture passed: real MCP mutation applied, receipts and final reply reloaded",
+  "paid_inference": false
+}

@@ -1,0 +1,718 @@
+{
+  "schema_version": 1,
+  "review_kind": "public_input_policy_and_manifest_capability_review",
+  "batch_number": 9,
+  "batch_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-09.json",
+  "batch_sha256": "5c14be277b065d6c14fcdaf0453364b90dfe1dbd6cfd43712277b1084286f86a",
+  "index_path": "docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batches.json",
+  "pack_selection_sha256": "4a793692488e27ebd87b47c019c3c5a7efb69ebcf1ffe3c6518bea58a1583e00",
+  "index_selection_sha256_at_review": "13d326e79af6c064300d7aaeb6cf1b02fb7f14f8a50622cc3648ae8ce87798a3",
+  "reviewed_task_count": 10,
+  "component_proposal_count": 0,
+  "accepted_manifest_count": 0,
+  "full_task_qualified_count": 0,
+  "source_boundary": {
+    "used": "Public prompts, initial state, tool inventory and shared capability schemas.",
+    "not_used": [
+      "Hidden answers/assertions",
+      "Task-specific scoring functions",
+      "Recorded episode contents/teacher action paths"
+    ],
+    "qualification_refs": "Copied only for immutable future replay; no policy inferred from them."
+  },
+  "capability_snapshot": {
+    "available": "Initial Sheets/Gmail/Opportunity populations, typed/derived predicates, qualified Sheets append/update, Gmail send and Asana create/section effects, Opportunity record checks and retained Sheets checks.",
+    "qualification_limit": "Root reports integrated native source admission and separate dense qualification; this review makes no new native qualification or positive completion-credit claim.",
+    "gaps": "Batch goals use unregistered Jira, HubSpot, LinkedIn, Zoho/HelpCrunch, QuickBooks, Airtable, Twitter, Calendar/Zoom or Salesforce Case capabilities; recipient-only Gmail checks are insufficient useful completion."
+  },
+  "component_manifest_proposals": [],
+  "no_executable_proposal_reason": "No task has a useful policy-faithful goal/guard expressible with the currently registered evidence sources and populations without dropping its essential semantics. Two precise small-task blueprints are source-bound below; neither is presented as a ContractSpec or accepted coverage.",
+  "tasks": [
+    {
+      "task_name": "operations.salesforce_escalated_customer",
+      "domain": "operations",
+      "family": "operations.customer-and-marketing-workflows",
+      "public_input_sha256": "59ba2edb4838e4f224040490ea5c8c5263c41fae318bf2133a612d76d22f9522",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/0fd1e1e393a1a7311fbc2820c42f92bd73ad4955a6314b50552b9316a61a784e/episode.json",
+        "episode_sha256": "53002734169c5967b316aee5fd9a50ca6c0172c2e8d772879ee50fbe7f113c0c",
+        "trace_ids": [
+          "1099c66423c0473d8dc026f3d3168cf1"
+        ]
+      },
+      "goals": [
+        "Process the most critical eligible enterprise escalation through Salesforce Case, Jira Customer Escalations, Confluence cloud_ops/SP_ESCALATIONS and both requested Slack channels."
+      ],
+      "prohibitions": [
+        "Do not process non-Pending, held, retracted, pending-approval, legacy/migrated or legally deferred rows.",
+        "Do not escalate a sheet Account ID absent from Salesforce or an account below corrected ARR 200000."
+      ],
+      "goal_constraints": [
+        "Finance Ops correction email is authoritative for ARR; Ops Team assignment email determines CSM, otherwise Unassigned.",
+        "Slack and Confluence need ESC-<Account ID>; Confluence and account-management also need CSM attribution.",
+        "Preserve current source values verbatim rather than rounded or stale tracker ARR."
+      ],
+      "authority": [
+        "User; ss_escalations/ws_escalation_policy and row notes; finance-ops and ops-team emails; Salesforce accounts and Jira project result parameters."
+      ],
+      "review_conclusions": [
+        "Acme has corrected ARR $275,000 and CSM Rachel Torres; Pinnacle's corrected $350,000 cannot override its missing Salesforce account.",
+        "Higher-ARR alternatives carry legal/hold/migration/retraction/approval or status restrictions; filter before any ranking.",
+        "The public policy does not define a severity score or declare maximum ARR synonymous with most critical; in this fixture Acme is the surviving candidate after stated exclusions."
+      ],
+      "ambiguities": [
+        "On variants with multiple eligible issues, most critical needs a public ranking or unresolved selection, not an invented max-ARR rule.",
+        "Absent Confluence initial service requires qualified captured page evidence; it is not a complete empty inventory."
+      ],
+      "data_only_blueprint": {
+        "population": "Pending enterprise sheet rows -> native Salesforce account -> authoritative account-specific ARR/CSM facts.",
+        "policy": "All explicit eligibility constraints before selecting one issue; retain exact corrected display values.",
+        "goal": "Related Case, Jira issue and Confluence page plus both channel messages with reference, current ARR and required CSM facts."
+      },
+      "capability_gaps": [
+        "Salesforce Account/Case, Jira issue, Confluence page and Slack evidence adapters.",
+        "Reviewed message/notes facts and ambiguity-aware selection.",
+        "Generated-output relationships and content-fact conjunction across artifacts."
+      ],
+      "adversarial_cases": [
+        "Pinnacle cannot pass merely because its corrected ARR exceeds Acme's.",
+        "Do not retain stale 250000 for Acme.",
+        "A Jira wrapper ID is not project_id.",
+        "One successful Slack post does not substitute for all requested artifacts."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "sales.linkedin_event_promotion",
+      "domain": "sales",
+      "family": "sales.meeting-and-event-workflows",
+      "public_input_sha256": "3515a14e40012685855ac7d13979c15feaa7ca938ebba5acd02d0c04f0030efd",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/fcec08b79e1004f07163964c5e7c12eeb33103d6dc1393450f99e3f10b34873d/episode.json",
+        "episode_sha256": "b7baa661ef876859b0ca156930685388dcde7dc6d1c5a02437e261c1658dab91",
+        "trace_ids": [
+          "7555dd67b60b408b8ee925bc1e2fccdd"
+        ]
+      },
+      "goals": [
+        "Promote the AI Transformation in Enterprise webinar to relevant Salesforce contacts, message existing LinkedIn connections, invite others, update outreach status and summarize in marketing-outreach."
+      ],
+      "prohibitions": [
+        "Contacts with explicit compliance outreach holds must not be enrolled before review completes."
+      ],
+      "goal_constraints": [
+        "Eligibility requires industry and seniority relevance, not merely any LinkedIn connection.",
+        "Use March 5, 2026 at 2pm EST and the supplied registration URL from the promotion email.",
+        "Outreach state must reflect the actual message/invitation outcome; an invitation is not an accepted connection."
+      ],
+      "authority": [
+        "User; marketing promotion email; Salesforce Contact industry/title/description and LinkedIn profile/connection identity."
+      ],
+      "review_conclusions": [
+        "Rachel Kim is a Technology VP and existing connection; Marcus Lee is an Enterprise innovation director without an initial connection.",
+        "Jennifer Walsh is a Salesforce Lead, not one of the requested Contacts; connection membership alone does not broaden the task population.",
+        "The Contact inventory has 45 explicit compliance-hold descriptions; do not suppress them by names or IDs labeled noise.",
+        "Several same-sender emails concern unrelated subjects; sender alone cannot select the webinar."
+      ],
+      "ambiguities": [
+        "The public text supplies no exact seniority taxonomy; Technology/Enterprise leaders supports the clear VP/Director examples but not arbitrary title keyword rules.",
+        "Email date is numeric while its body gives a 2026 event; use explicit event details rather than deriving event date from transport timestamp.",
+        "The native field representing outreach status is not specified by the public prompt."
+      ],
+      "data_only_blueprint": {
+        "population": "Initial Salesforce Contacts -> reviewed relevance/hold facts -> exact LinkedIn profile -> connection relation.",
+        "policy": "Eligibility plus existing-connection branch, with unresolved person/profile matches unavailable.",
+        "goal": "Purpose-qualified invitation/message with webinar facts; same Contact outreach state and actual-result summary."
+      },
+      "capability_gaps": [
+        "Contact populations and update fields; LinkedIn message/invite/connection evidence.",
+        "Declared title/topic relevance facts and content matching.",
+        "Cross-service person joins and status vocabulary mapping."
+      ],
+      "adversarial_cases": [
+        "A held VP remains excluded.",
+        "A connected Lead is not silently a requested Contact.",
+        "Same name with different email cannot use first profile match.",
+        "A failed invite must not yield Invited status."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "simple.hs_create_deal_with_contact",
+      "domain": "simple",
+      "family": "simple.hubspot-crm",
+      "public_input_sha256": "2365a39c90540dcfc0c357ea04f5a84e4b40372f3c5badae8d27902c4f8d932f",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/70e96bfd972115f165e2e0a3959f068de7855a437f8e6896a663304d7f006e28/episode.json",
+        "episode_sha256": "030da9555b6104b26d673d9ed31066d1221a3f9bd869ab16241574c984099dbc",
+        "trace_ids": [
+          "9f6368d7ccd84cbe9ad1e66f659dad3f"
+        ]
+      },
+      "goals": [
+        "Create BluePeak - Platform Migration at amount 50000 and stage Qualified to Buy, associated with Contact hs_005 (Andre Williams)."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "All requested fields and the contact association must refer to the same newly created deal.",
+        "No extra company creation, email, pipeline value or close date is requested.",
+        "The available create-deal tool may express association in the create operation; do not force an invented separate association step."
+      ],
+      "authority": [
+        "Exact public user request and initial HubSpot Contact hs_005 identity."
+      ],
+      "review_conclusions": [
+        "This is a strong small full-task target: exact public facts, one service, one create capability and one explicit relationship.",
+        "Existing shared schemas do not register HubSpot deals or a request singleton; no executable ContractSpec is claimed."
+      ],
+      "ambiguities": [
+        "Native stage label/ID mapping must be resolved from the installed service schema, not guessed from a hidden expected value."
+      ],
+      "data_only_blueprint": {
+        "status": "deferred_nonexecutable",
+        "public_source_bindings": [
+          {
+            "path": [
+              "task_evidence",
+              "prompt"
+            ],
+            "canonical_sha256": "16aaf3b7b7457c87531205275162c5d6e55212cbea020605a89399e7c6446d84"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "hubspot",
+              "contacts",
+              0,
+              "id"
+            ],
+            "canonical_sha256": "202f7829209d6e027699835309e21760b98bbcfc263d805db2d69e56129d4ce0"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "hubspot",
+              "contacts",
+              0,
+              "firstname"
+            ],
+            "canonical_sha256": "1cfb550347065cb6ecc6016089eca8f6b66f55fcae4e91e9feb2b38a9168fc06"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "hubspot",
+              "contacts",
+              0,
+              "lastname"
+            ],
+            "canonical_sha256": "4a9f213782d2fc1c59b17c55144bfb52afdcec82be294c78fcfd960f6a1f857f"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "hubspot",
+              "contacts",
+              0,
+              "email"
+            ],
+            "canonical_sha256": "2903d28a0fb27d680d47630692f55f6fecc28c1def2808e8812841281a9370b0"
+          }
+        ],
+        "population": "One reviewed request obligation keyed by manifest/check identity.",
+        "expected_public_facts": {
+          "deal_name": "BluePeak - Platform Migration",
+          "amount": 50000,
+          "stage_label": "Qualified to Buy",
+          "contact_id": "hs_005"
+        },
+        "goal": "Qualified fresh deal creation and retained exact fields/contact association on that same native deal ID.",
+        "credit": "Future completion policy must require the whole conjunction and deduplicate by stable obligation; no credit configured here."
+      },
+      "capability_gaps": [
+        "Public-request population and reusable HubSpot deal create/retained/association evidence.",
+        "Installed schema mapping for stage label and exact numeric amount.",
+        "Whole-obligation completion policy is independent of service-effect capture."
+      ],
+      "adversarial_cases": [
+        "Two deals splitting correct amount and correct association fail the same-entity conjunction.",
+        "Right contact name with wrong ID fails.",
+        "Correct fresh occurrence followed by changed amount/removed association cannot satisfy retained completion.",
+        "An initial preexisting matching deal alone does not satisfy create a new deal."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "support.helpcrunch_zoho_desk_bridge",
+      "domain": "support",
+      "family": "support.cross-platform-migration-and-sync",
+      "public_input_sha256": "86ff85c62237acbed50199038e174809b6f26f5a8c60cbacc2bc83dd62181175",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/d1dcf49ecdeb9b7dbb5eacb8e600bc75e6f8748f444431a02f82b4a2a42f4660/episode.json",
+        "episode_sha256": "eeac6c3b91edad87f1dcbfeb39e67824a71592919417958854995ad027a891e1",
+        "trace_ids": [
+          "7aab758149744bcd818ed3c0139c2691"
+        ]
+      },
+      "goals": [
+        "Mirror configured HelpCrunch customer events into Zoho Desk tickets, apply public templates/priorities, and update enterprise-support."
+      ],
+      "prohibitions": [
+        "Events explicitly configured Create_Ticket=false must not create mirrored tickets."
+      ],
+      "goal_constraints": [
+        "support_request -> Medium/[Enterprise Support], bug_report -> High/[Enterprise Bug], billing_inquiry -> Low/[Enterprise Billing]; supported bridge marker is bridged-to-zoho.",
+        "A customer may have multiple events; an unconfigured or disabled event must not conceal a distinct enabled event.",
+        "Existing Zoho contact/account identity should be reused where applicable; no duplicate entity requirement is implied."
+      ],
+      "authority": [
+        "User and higher-priority simulator system clock; ss_bridge event/priority mappings; HelpCrunch events/tags; Zoho identities."
+      ],
+      "review_conclusions": [
+        "System clock and meta say January 29, while the user says February 7 and relevant events are February 5-6. The conflict is retained, not normalized to a convenient date.",
+        "No supplied configuration row explicitly restricts eligible customer tags to enterprise. The enterprise channel and subject prefixes suggest intent but are insufficient to invent a closed enterprise-only predicate.",
+        "Frank Webb has a disabled feature event followed by an enabled bug event; first-event-only selection is unsound."
+      ],
+      "ambiguities": [
+        "Which customer tiers qualify: enterprise-only is plausible but not explicit in provided event mapping.",
+        "No freshness window or one-ticket-per-customer rule is supplied; avoid inventing either.",
+        "Future-dated events relative to the authoritative system clock require reviewed handling; do not silently change the clock or manufacture empty success."
+      ],
+      "data_only_blueprint": {
+        "population": "Customer-event pairs with stable source event identity, joined to enabled event mappings and priorities.",
+        "policy": "Resolve tier/time semantics explicitly; render declared subject template with original subject.",
+        "goal": "Correct contact/account-linked ticket, correlated bridge marker and enterprise channel report for actual mirrored events."
+      },
+      "capability_gaps": [
+        "HelpCrunch events/customer and Zoho ticket/contact/account facts.",
+        "Nested dynamic populations, generated-ID joins and deduplication with incomplete event IDs.",
+        "Policy ambiguity/clock conflict representation and subject-template/content validation."
+      ],
+      "adversarial_cases": [
+        "Disabled feature event does not block a later enabled bug event.",
+        "No-event customer cannot receive a fabricated ticket.",
+        "Do not hardcode an expected five-enterprise-customer list from fixture shape.",
+        "Marker alone does not prove a ticket was created."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "finance.payment_reconciliation",
+      "domain": "finance",
+      "family": "finance.payment-and-vendor-controls",
+      "public_input_sha256": "324a343c710985fb50d66903c94820459209dd732516b6eb04505964344aca0f",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/534530babfded6301b3e05afd0687bd0f0a116d2bf971a3d00bd029301ed55ba/episode.json",
+        "episode_sha256": "5049537d61f108a064e566885970e85114daabc31ced18077e60731089ebf801",
+        "trace_ids": [
+          "034f8c7aaa0e4ba4ac3e53e0cf042936"
+        ]
+      },
+      "goals": [
+        "Compare April bank entries against QuickBooks payments by reference and email controller each discrepancy with category and verbatim source amounts."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "AMOUNT_MISMATCH means reference present on both sides with numerically unequal amounts; BANK_ONLY/QB_ONLY require qualified opposite-side absence.",
+        "Do not alter financial records: this request is a reconciliation report.",
+        "Source amount formatting remains intact in the report even when comparison uses normalized exact decimals."
+      ],
+      "authority": [
+        "User; April 15 simulator clock; bank worksheet and QuickBooks payment records."
+      ],
+      "review_conclusions": [
+        "PMT-2026-0401 matches numerically ($5,200.00 versus 5200.00) and is not a discrepancy.",
+        "0402 is amount mismatch ($8,750.00 versus 8500.00); 0403 and 0404 are bank-only; 0405 is QB-only. These are derived examples, not manifest outcome lists.",
+        "The bank worksheet omits headers in raw initial metadata; a source adapter must qualify its row schema without assuming schema-complete emptiness.",
+        "Gmail initial service is absent despite send tool availability; missing initial service must not be hydrated into closed effect inventory."
+      ],
+      "ambiguities": [
+        "Duplicate references on variants need an explicit group/reconciliation policy rather than arbitrary first match.",
+        "April scope is explicit; whether payments from other periods sharing a reference should join needs a declared temporal policy if introduced."
+      ],
+      "data_only_blueprint": {
+        "population": "Union of April bank and QB reference identities with separately qualified source closure.",
+        "policy": "Full outer join; exact decimal comparisons; source display strings retained alongside values.",
+        "goal": "One complete controller report containing every qualified discrepancy and no fabricated mismatch."
+      },
+      "capability_gaps": [
+        "QuickBooks Payment population and closed two-sided joins/absence evidence.",
+        "Dynamic discrepancy population and report fact/set coverage.",
+        "Gmail qualified effect capture when initial service is absent, plus content validation."
+      ],
+      "adversarial_cases": [
+        "Currency formatting alone is not an amount mismatch.",
+        "Truncated QB query cannot establish BANK_ONLY.",
+        "Four discrepancies must not be hardcoded as expected count.",
+        "Email to correct recipient with no discrepancy facts is not useful completion."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "hr.airtable_learning_path_assignment",
+      "domain": "hr",
+      "family": "hr.all-development",
+      "public_input_sha256": "e06f24303b3e2669425caabba88f3f91582fe0ded1bbf730fd0c6611f5b77a7a",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/51c819df38ca5daa5a81c42616262f00f0f031219289527edaa846f46cdfab4f/episode.json",
+        "episode_sha256": "9f645b968a7ccd34c2d2a231a22fbf1b6255ec6e4d5de86a3cc2cd23b4512da1",
+        "trace_ids": [
+          "0b4b83fbc108469f93b91dc7314ce8c3"
+        ]
+      },
+      "goals": [
+        "Assign eligible employees' level-based learning paths in Airtable, record sabbatical deferrals and email learning plans under current rules."
+      ],
+      "prohibitions": [
+        "Only employees may mark their own prerequisites complete; do not auto-complete overdue courses on their behalf.",
+        "Learning Sabbatical employees receive no new assignments until return."
+      ],
+      "goal_constraints": [
+        "IC3 and below -> Foundation LRN-101/102; IC4-5 -> Advanced LRN-201/202/203; IC6+ -> Leadership LRN-301/302.",
+        "New assignments belong in Learning Assignments; record sabbatical deferral rather than dropping it silently.",
+        "User asks to follow latest eligibility rules, whose explicit no-auto-completion restriction constrains the earlier auto-complete request."
+      ],
+      "authority": [
+        "User; April 7 simulator clock; April 1 L&D policy email; initial employee level/status/notes."
+      ],
+      "review_conclusions": [
+        "Active roster supports Foundation for Kenji and Tom, Advanced for Nadia and Leadership for Marcus; Ji-Yeon has a sabbatical deferral.",
+        "No prerequisite course-completion or due-date records are supplied, so overdue does not establish completion or next-course readiness.",
+        "Airtable initial actions is empty; destination is supplied by base name, with no public base ID or table schema."
+      ],
+      "ambiguities": [
+        "Course-level ordering/prerequisites are unspecified; listed path courses are not proof that all may immediately start.",
+        "Whether path is one record or one record per course is unspecified; preserve valid service-supported representations.",
+        "System exclusion-silence instruction should not erase the explicitly requested deferral record; employee notice scope needs careful wording."
+      ],
+      "data_only_blueprint": {
+        "population": "Employee rows keyed by Employee ID, level bands and active/sabbatical status.",
+        "policy": "Path assignment without invented prerequisites; defer sabbatical; prohibit manufactured completion.",
+        "goal": "Same-employee Airtable plan/deferral records and content-consistent notices."
+      },
+      "capability_gaps": [
+        "Airtable record effects/retained fields and destination resolution.",
+        "Level parsing and one-to-many declared course-set obligations.",
+        "Actor-authorized completion evidence and plan-content checks."
+      ],
+      "adversarial_cases": [
+        "Past due is not completed.",
+        "A correctly named path with missing required course semantics may be incomplete.",
+        "IC6 must not fall into Advanced due string comparisons.",
+        "A deferral record is not an assignment violation."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "marketing.twitter_influencer_followup",
+      "domain": "marketing",
+      "family": "marketing.social-and-community",
+      "public_input_sha256": "853d83e665de6373b70e2931fb509aff68fe5fcd7aa23cd646c7390cddaa3c5b",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b7cb8fa8d93a6c84d5e1bcc88b3ae16c2edfef8547945c1dc1838b00bc221244/episode.json",
+        "episode_sha256": "36b931f664485126567fcb55313468e925e594f0651137f0611da714c6ffa684",
+        "trace_ids": [
+          "7b9764c911a3464c96099759db81c2d1"
+        ]
+      },
+      "goals": [
+        "Follow requested credible professional Twitter accounts meeting verified and >=10000 followers criteria, plus the public VP Social addition."
+      ],
+      "prohibitions": [
+        "Do not follow Kelly MarTech under explicit VP Social/Legal restriction.",
+        "Parody/bot accounts do not meet the stated legitimate-professional requirement."
+      ],
+      "goal_constraints": [
+        "The VP adds Quinn Strategy; the external PromoNetwork email does not authorize unrelated PromoBot scope.",
+        "10000 is inclusive; 9999 fails.",
+        "Verified and large follower count alone cannot establish professional credibility."
+      ],
+      "authority": [
+        "User's explicit handles and criteria; VP Social directive; public initial account bios/status/metrics."
+      ],
+      "review_conclusions": [
+        "Riley sits exactly on the permitted follower boundary; Casey Analytics states parody and Alex DataOps states automated bot.",
+        "Morgan is suspended: service availability needs separate handling rather than a fabricated successful follow.",
+        "Taylor's account is operated by a PR agency on behalf of a client. This raises identity/credibility uncertainty, but no supplied policy categorically bans agency management.",
+        "A public numeric threshold cannot prove followers are authentic; keep the declared metric separate from broader credibility claims."
+      ],
+      "ambiguities": [
+        "Definition of legitimate professional for agency-managed accounts is not fully specified.",
+        "Whether VP's specific addition overrides numeric criteria on variants; in the supplied record Quinn meets them so no conflicting interpretation is needed.",
+        "Suspended-account follow capability should be tested as unavailable/failure, not invented policy authority."
+      ],
+      "data_only_blueprint": {
+        "population": "Reviewed request handle set plus source-bound VP addition, joined by exact handle to native user ID.",
+        "policy": "Verified/count conditions plus reviewed bio credibility facts and explicit legal exclusion.",
+        "goal": "Qualified follow relationship from authenticated user to each eligible account; retain unresolved credibility separately."
+      },
+      "capability_gaps": [
+        "Request population and Twitter user/follow evidence.",
+        "Reviewed semantic credibility facts without task-specific lexical code.",
+        "Service capability/state handling for suspended accounts and retained relationships."
+      ],
+      "adversarial_cases": [
+        "Verified parody account fails credibility.",
+        "10000 passes numeric threshold while 9999 does not.",
+        "Casey Analyst must not resolve to Casey Analytics.",
+        "Kelly remains forbidden despite otherwise strong profile.",
+        "Do not invent an agency-account blanket ban from Taylor's bio."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "operations.calendar_airtable_gmail_maintenance_notice",
+      "domain": "operations",
+      "family": "operations.facilities-inventory-and-scheduling",
+      "public_input_sha256": "1c7d3bbc0f9923058f9105c7f416d4550a2050e7c0b4626e3154563a9dd583a3",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/016fc9bbd7df30785c7953acedd0c01be1d7c76dea9667858c759d554e5dfb1c/episode.json",
+        "episode_sha256": "f80d4b7992473cf6939977dcab843cdd8e6a315c172e6e7f01fbcffd4787e59c",
+        "trace_ids": [
+          "d7a5936f65864550ab72c5a6bd761ccd"
+        ]
+      },
+      "goals": [
+        "Schedule the approved eligible Data Closet power shutdown on cal_ops, log it with an Airtable comment on base_ops/Maintenance/rec_200, and notify it-ops."
+      ],
+      "prohibitions": [
+        "No scheduling while a security review or vendor contract issue is unresolved.",
+        "Do not schedule SUPERSEDED windows or a Draft/nonrequested system window."
+      ],
+      "goal_constraints": [
+        "Review all scheduling guidelines before creating the event; this procedural prerequisite is explicit.",
+        "Preserve approved start/end and source values in comment/notification.",
+        "User asks for a log/comment on the specified existing record, not creating a new maintenance record."
+      ],
+      "authority": [
+        "User; ss_maint_plan plan and scheduling-policy worksheets; declared Operations calendar."
+      ],
+      "review_conclusions": [
+        "The unblocked approved Data Closet window is February 22 02:00-04:00Z; other approved Data Closet rows have security, contract or supersession restrictions.",
+        "No source evidence closes SEC-2026-027 or resolves the expired vendor contract.",
+        "Airtable service is absent initially although add-comment exists; do not convert absence to qualified successful logging.",
+        "Unrelated March emails do not supply a task clock that automatically invalidates the explicitly approved February window."
+      ],
+      "ambiguities": [
+        "The event title is not prescribed; semantic Data Closet shutdown identification permits valid phrasing.",
+        "Airtable target is user-specified but not independently present in initial data; effect capture must prove successful target-specific comment."
+      ],
+      "data_only_blueprint": {
+        "population": "Plan rows keyed by reviewed system/start/end business identity, with policy/hold facts.",
+        "policy": "Approved requested system minus unresolved holds/supersession, preceded by guideline observation.",
+        "goal": "Correct calendar interval and target comment plus consistent notification; generated event ID link only if required by chosen representation."
+      },
+      "capability_gaps": [
+        "Calendar create/retained interval and Airtable comment evidence.",
+        "Reviewed note restrictions and explicit read-before-write prerequisite.",
+        "Cross-artifact content fact checks and missing-initial-service qualification."
+      ],
+      "adversarial_cases": [
+        "Approved status does not override security hold.",
+        "Creating an event on primary instead of cal_ops fails.",
+        "Choosing first Approved Data Closet row by position is not the general rule.",
+        "A comment on a newly created record cannot replace rec_200 logging."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "sales.zoom_calendar_conflict",
+      "domain": "sales",
+      "family": "sales.document-contract-workflows",
+      "public_input_sha256": "ba00ab7bf8dce0df19922bea380f4ec6d4dc3df9851322427a11e9f507e6928d",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/c1ba595bce8cd3517a6ffcf070a34a673f6fa04002a3a901693d53cf29d227ba/episode.json",
+        "episode_sha256": "709de064c1bfee8c2c3c66d37d7330c075bd051fd3c17d91b43ddff827056848",
+        "trace_ids": [
+          "c4d92a5c4ac844a5a295edb3a57c72ce"
+        ]
+      },
+      "goals": [
+        "Resolve the February 20 14:00 conflict under meeting priority policy, prepend [RESCHEDULED] to the losing topic/title, and report winner/loser with both IDs in ops-updates."
+      ],
+      "prohibitions": [
+        "External partner requests must not amend priority rules; only internal leadership email may do so."
+      ],
+      "goal_constraints": [
+        "C-level attendee outranks PRIORITY text, then external attendees, then ordinary internal meetings.",
+        "The user defines rescheduling here as a title/topic prefix; no invented new meeting time is required.",
+        "Preserve original losing title after a single prefix and use actual native meeting/event IDs."
+      ],
+      "authority": [
+        "User; meeting-priority worksheet and explicit authority rule; Calendar attendees and event timestamps; Zoom meetings/registrants; external override email is explicitly nonauthoritative."
+      ],
+      "review_conclusions": [
+        "Executive Strategy Session has CTO attendee and outranks Q1 Product Review - External despite the partner's contrary request.",
+        "Initial Zoom also includes an already-prefixed internal meeting at the same instant; do not blindly choose the first matching timestamp or append a second prefix.",
+        "ISO +00:00 instants, Zoom timezone labels and a Calendar description claiming 2pm PST are inconsistent presentation evidence; compare canonical times and retain intended-local-time uncertainty.",
+        "Both Zoom 1234567890 and Calendar evt_conflict_001 identify the apparent requested pair; do not use this as a fixed fixture identity rule."
+      ],
+      "ambiguities": [
+        "User's 2pm lacks zone while canonical matching records use 14:00+00:00; native timezone interpretation needs declared precedence.",
+        "Variants with equal-priority conflicts require a tie policy; none is supplied."
+      ],
+      "data_only_blueprint": {
+        "population": "Requested-date/time event candidates with canonical instants, role/attendee evidence and prior-rescheduled status.",
+        "policy": "Rank using explicit hierarchy after resolving actual conflicting pair; reject external policy override.",
+        "goal": "Only appropriate losing entity gets the required marker, winning event remains correctly identified, and summary contains both native IDs."
+      },
+      "capability_gaps": [
+        "Calendar/Zoom populations, update and retained title evidence.",
+        "Timezone/interval interpretation and stable tie-aware selection.",
+        "Attendee-role facts and ID-bearing summary content."
+      ],
+      "adversarial_cases": [
+        "External email cannot make the partner session outrank CTO.",
+        "A later PRIORITY meeting is not the stated conflict.",
+        "Already marked meeting must not receive duplicate prefix.",
+        "Changing only Slack wording without actual topic/title update fails."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "simple.jira_accessibility_audit",
+      "domain": "simple",
+      "family": "simple.project-issue-work",
+      "public_input_sha256": "7bbfec1ec5eac73ed0a979fd349462a495754333bf698004c9499db9ad0bce26",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/2fdb9e7e3db51046d0b27d40574a6233c502946063a2dae26dc032b9a2f9b954/episode.json",
+        "episode_sha256": "a1bba91c81e87f1bc25e832fc042e8aaefed375625ec709fcb8c67f3b11cb313",
+        "trace_ids": [
+          "7bd608ddd7044768b464488c24a9a101"
+        ]
+      },
+      "goals": [
+        "Create a Jira issue in QA with summary Conduct accessibility audit for main dashboard and issue type Task."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "Project, summary and issue type must belong to the same created issue.",
+        "No invented assignee, description, priority, due date, labels or announcement is mandatory.",
+        "Project discovery is an available tool, not a user-mandated extra action when the valid project is already known."
+      ],
+      "authority": [
+        "Exact public user request; initial Jira project action parameters identify QA/proj_qa."
+      ],
+      "review_conclusions": [
+        "This is the smallest complete-task candidate in the batch: a single requested entity with three explicit attributes.",
+        "jira_proj_5 is the initial action-wrapper ID; params.project_id=proj_qa is the project identity. They must not be confused.",
+        "No shared Jira effect/retained issue adapter or request singleton is registered; no executable ContractSpec is claimed."
+      ],
+      "ambiguities": [
+        "Native issue type representation must be resolved by the installed service schema; display label Task is public authority."
+      ],
+      "data_only_blueprint": {
+        "status": "deferred_nonexecutable",
+        "public_source_bindings": [
+          {
+            "path": [
+              "task_evidence",
+              "prompt"
+            ],
+            "canonical_sha256": "ffcca47e4a5edc717ef86c02996d2cb9a8b809225070c2db9f9b76f37efc291b"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "jira",
+              "actions",
+              "project",
+              0,
+              "params",
+              "project"
+            ],
+            "canonical_sha256": "6427dfbdb41c884330b6021c4f9b77c3c374d96a575c6de838244176ff0f0526"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "jira",
+              "actions",
+              "project",
+              0,
+              "params",
+              "project_id"
+            ],
+            "canonical_sha256": "2e47b9c1ff31bc34c47ec9236f30c7db517e1b18d9178b24f9416c3cbb8340cd"
+          }
+        ],
+        "population": "One reviewed public request obligation.",
+        "expected_public_facts": {
+          "project_key": "QA",
+          "project_id_from_initial_params": "proj_qa",
+          "summary": "Conduct accessibility audit for main dashboard",
+          "issue_type_label": "Task"
+        },
+        "goal": "One qualified fresh Jira issue with the conjunction of project, exact summary and Task type; retain it if completion semantics require current existence.",
+        "credit": "Separate useful completion policy after service evidence and native replay qualification; no credit configured here."
+      },
+      "capability_gaps": [
+        "Public-request population and generic Jira create/retained issue evidence.",
+        "Installed project/type identity mapping without fixture wrapper IDs."
+      ],
+      "adversarial_cases": [
+        "Right summary on wrong project fails.",
+        "Bug issue with correct summary is not Task.",
+        "Correct attributes distributed across two issues do not satisfy the conjunction.",
+        "A canned create ACK without persisted matching issue is insufficient."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    }
+  ],
+  "small_complete_task_opportunities": [
+    {
+      "task_name": "simple.jira_accessibility_audit",
+      "priority": 1,
+      "minimum_shared_increment": "Request population plus Jira create/retained issue adapter; exact project/summary/type conjunction."
+    },
+    {
+      "task_name": "simple.hs_create_deal_with_contact",
+      "priority": 2,
+      "minimum_shared_increment": "Same request population plus HubSpot create/retained deal adapter including contact association; exact name/amount/stage/contact conjunction."
+    }
+  ],
+  "shared_capability_families": [
+    {
+      "family": "Small request-defined entity completion",
+      "next": "Start with Jira; reusable request population and service evidence must preserve same-entity conjunction, fresh creation, retention and stable obligation identity. Then HubSpot relationship facts."
+    },
+    {
+      "family": "Declared joins and absence",
+      "next": "Closed full outer reconciliation joins; customer-event expansion and bridge deduplication; identity-qualified cross-service contact/account matching. Unknown inventory never proves absence."
+    },
+    {
+      "family": "Authority, holds and procedural prerequisites",
+      "next": "Source-bound policy updates and note facts; enforce explicit read-before-create and actor-only completion rules without treating every workflow as one mandated sequence."
+    },
+    {
+      "family": "Temporal/semantic uncertainty and meaningful messages",
+      "next": "Canonical time interpretation with clock conflicts visible; title/industry/bio credibility facts; complete message fact/set coverage, not recipient matching alone."
+    }
+  ],
+  "validation": {
+    "pack_hash_and_task_order": "pass",
+    "public_input_hashes": "10/10",
+    "selection_hashes": "Both schemes independently recomputed",
+    "contract_schema": "Not applicable: zero executable ContractSpec proposals",
+    "deferred_blueprint_bindings": "8/8 public digests match; 8/8 independent source-value mutations mismatch; JSON reload pass",
+    "source_binding_model_admission": "8/8 SourceBinding admission and JSON roundtrip pass after root repaired concurrent shared-module import; no ContractSpec validation inferred",
+    "native_Task_score": "Not run; review only",
+    "whole_task_qualification": 0
+  }
+}

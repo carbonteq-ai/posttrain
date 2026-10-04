@@ -13,9 +13,10 @@ import pickle
 import re
 import shlex
 import statistics
+import tempfile
 import threading
 from collections import Counter
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from random import Random
@@ -89,13 +90,22 @@ def _compress_jsonl(source: Path) -> _CompressedJsonl:
     records = 0
     uncompressed = 0
     last = b"\n"
-    with source.open("rb") as reader, target.open("wb") as raw:
-        with gzip.GzipFile(filename="", fileobj=raw, mode="wb", compresslevel=1, mtime=0) as writer:
-            while chunk := reader.read(_COMPRESS_CHUNK_BYTES):
-                records += chunk.count(b"\n")
-                uncompressed += len(chunk)
-                last = chunk[-1:]
-                writer.write(chunk)
+    with tempfile.NamedTemporaryFile(dir=target.parent, prefix=f".{target.name}.", delete=False) as raw:
+        temporary = Path(raw.name)
+        try:
+            with source.open("rb") as reader:
+                with gzip.GzipFile(filename="", fileobj=raw, mode="wb", compresslevel=1, mtime=0) as writer:
+                    while chunk := reader.read(_COMPRESS_CHUNK_BYTES):
+                        records += chunk.count(b"\n")
+                        uncompressed += len(chunk)
+                        last = chunk[-1:]
+                        writer.write(chunk)
+            raw.flush()
+            os.fsync(raw.fileno())
+            raw.close()
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
     if last != b"\n":
         records += 1
     digest = hashlib.sha256()
@@ -118,6 +128,45 @@ def _native_record(value: Any) -> dict[str, Any]:
     if "float_decimals" in inspect.signature(to_record).parameters:
         return to_record(float_decimals=None)
     return to_record()
+
+
+def _episode_assessment_observation(record: Mapping[str, Any]) -> TraceObservation | None:
+    """Derived episode evidence, separate from solver traces and reward metrics.
+
+    The native record remains authoritative. Tracking adapters apply their
+    results-only export policy; this internal observation retains producer data.
+    """
+    batches = record.get("assessment_batches")
+    assignments = record.get("credit_assignments")
+    diagnostics = record.get("assessment_errors")
+    credit_diagnostics = record.get("credit_errors")
+    if not batches and not assignments and not diagnostics and not credit_diagnostics:
+        return None
+    episode_id = record.get("id")
+    if not isinstance(episode_id, str) or not episode_id:
+        raise ValueError("episode assessments require native episode identity")
+    children = record.get("traces", [])
+    if not isinstance(children, list):
+        raise ValueError("native episode children must be a list")
+    return TraceObservation(
+        trace_type="verifiers.assessment-results",
+        external_id=f"episode:{episode_id}:assessment-results",
+        payload={
+            "schema_version": 1,
+            "episode_id": episode_id,
+            "child_trace_ids": [str(child["id"]) for child in children if isinstance(child, Mapping)],
+            "execution_ok": bool(record.get("ok", False)),
+            "assessment_finalization_state": record.get("assessment_finalization_state"),
+            "assessment_error_count": len(diagnostics) if isinstance(diagnostics, list) else 0,
+            "assessment_batches": batches or [],
+            "assessment_sources": record.get("assessment_sources", []),
+            "assessment_views": record.get("assessment_views", []),
+            "credit_assignments": assignments or [],
+            "credit_error_count": len(credit_diagnostics) if isinstance(credit_diagnostics, list) else 0,
+            "archive_status": "pending_publication",
+        },
+        attributes={"episode_id": episode_id, "evidence_scope": "episode"},
+    )
 
 
 def _native_failure_detail(episode: Any) -> str | None:
@@ -590,6 +639,15 @@ class _PolicyClient:
             tail_start=tail_start,
         )
         result = await self._generator.generate(request)
+        token_evidence = {}
+        if result.parser_evidence is not None:
+            from .verifiers_generation import decode_parser_evidence
+
+            if not {"generated_calls", "generated_call_producer"}.issubset(TurnTokens.model_fields):
+                raise ValueError("selected native runtime cannot retain generated-call evidence")
+            decoded = decode_parser_evidence(result.parser_evidence)
+            token_evidence["generated_calls"] = decoded.attempts
+            token_evidence["generated_call_producer"] = decoded.producer
         response = Response(
             id=str((result.raw_response or {}).get("id", "posttrain-policy-turn")),
             created=0,
@@ -607,6 +665,7 @@ class _PolicyClient:
                 completion_logprobs=list(result.completion_logprobs),
                 message_spans=list(result.prompt_message_spans) or None,
                 is_content=list(result.prompt_is_content) or None,
+                **token_evidence,
             ),
         )
         response.raw = dict(result.raw_response or {})
@@ -655,6 +714,8 @@ def _project_training_branch(trace: Any) -> Any:
     """
     from verifiers.v1.trace import Branch  # pyright: ignore[reportAttributeAccessIssue]
 
+    if getattr(trace.agent, "execution_purpose", "solver") != "solver":
+        raise VerifiersRolloutFailure("assessment execution cannot supply policy training tokens")
     branches = [branch for branch in trace.branches if branch.trainable and any(branch.sampled_mask)]
     if not branches:
         raise VerifiersRolloutFailure("online-RL trace has no trainable sampled branch")
@@ -1058,8 +1119,16 @@ class VerifiersEnvironmentRolloutBridge:
                     posttrain_prompt_group_id=group_id,
                     posttrain_rollout_id=rollout_id,
                 )
-        traces = [trace for trace in episode.traces if trace.agent.trainable]
-        if not episode.ok or len(traces) != 1:
+        traces = [
+            trace
+            for trace in episode.traces
+            if trace.agent.trainable and getattr(trace.agent, "execution_purpose", "solver") == "solver"
+        ]
+        invalid_assessment_standing = any(
+            trace.agent.trainable and getattr(trace.agent, "execution_purpose", "solver") == "assessment"
+            for trace in episode.traces
+        )
+        if not episode.ok or len(traces) != 1 or invalid_assessment_standing:
             failure_detail = _native_failure_detail(episode)
             reason = (
                 "native episode is not trainable "
@@ -1069,7 +1138,8 @@ class VerifiersEnvironmentRolloutBridge:
                 reason += f"; native_error={failure_detail}"
             for native_trace in episode.traces:
                 native_trace.info.update(posttrain_admission_error=reason)
-            await self._preserve_episode_off_loop(episode)
+            episode_record = await self._preserve_episode_off_loop(episode)
+            await self._observe_episode_assessments(episode_record, on_completed)
             raise InvalidNativeEpisode(reason)
         trace = traces[0]
         enrichment_error: Exception | asyncio.CancelledError | None = None
@@ -1082,10 +1152,11 @@ class VerifiersEnvironmentRolloutBridge:
             enrichment_error = error
             trace.info.update(posttrain_enrichment_error=type(error).__name__)
         record, observation = self._terminal_observation(trace, example_id, task_index, rollout_ordinal)
-        await self._preserve_episode_off_loop(episode)
+        episode_record = await self._preserve_episode_off_loop(episode)
         await self._preserve_off_loop(record)
         if isinstance(enrichment_error, asyncio.CancelledError):
             raise enrichment_error
+        await self._observe_episode_assessments(episode_record, on_completed)
         if on_completed is not None:
             try:
                 await on_completed(observation)
@@ -1096,7 +1167,12 @@ class VerifiersEnvironmentRolloutBridge:
         if enrichment_error is not None:
             raise InvalidNativeEpisode("native trace retained after enrichment failure") from enrichment_error
         try:
-            rollout = self._project(trace, observation)
+            rollout = self._project(
+                trace,
+                observation,
+                assignments=getattr(episode, "credit_assignments", ()),
+                source_traces={str(child.id): child for child in episode.traces},
+            )
             return replace(rollout, behavior_policy=behavior_policy)
         except VerifiersRolloutFailure as error:
             raise InvalidNativeEpisode(str(error)) from error
@@ -1162,7 +1238,14 @@ class VerifiersEnvironmentRolloutBridge:
             facts=(facts,),
         )
 
-    def _project(self, trace: Any, observation: TraceObservation) -> EnvironmentRollout:
+    def _project(
+        self,
+        trace: Any,
+        observation: TraceObservation,
+        *,
+        assignments: Iterable[Any] = (),
+        source_traces: Mapping[str, Any] | None = None,
+    ) -> EnvironmentRollout:
         if _trace_has_error(observation.payload):
             raise VerifiersRolloutFailure("Verifiers trace terminated with a harness or environment error")
         branch = _project_training_branch(trace)
@@ -1185,6 +1268,15 @@ class VerifiersEnvironmentRolloutBridge:
         prompt_ids = token_ids[:first_sampled]
         completion_ids = token_ids[first_sampled:]
         env_mask = sampled_mask[first_sampled:]
+        from .verifiers_credit import align_native_credit
+
+        assigned_credits = align_native_credit(
+            trace,
+            branch,
+            first_sampled,
+            assignments=assignments,
+            traces=source_traces,
+        )
         conditioning_completion_indices = []
         if conditioning:
             offset = 0
@@ -1241,6 +1333,7 @@ class VerifiersEnvironmentRolloutBridge:
             conditioning_records=conditioning,
             selected_branch_id=str(branch.index) if conditioning else None,
             conditioning_completion_indices=tuple(conditioning_completion_indices),
+            assigned_credit=assigned_credits,
             turns=turns,
             reward_evidence=(
                 self.reward_projection.project(
@@ -1260,7 +1353,7 @@ class VerifiersEnvironmentRolloutBridge:
         with self._write_lock:
             self._live_observed_trace_ids.add(external_id)
 
-    async def _preserve_episode_off_loop(self, episode: Any) -> None:
+    async def _preserve_episode_off_loop(self, episode: Any) -> dict[str, Any]:
         """Encode and append a native episode without blocking the event loop.
 
         Episode records carry every turn's token ids (hundreds of KB to MB of
@@ -1268,14 +1361,38 @@ class VerifiersEnvironmentRolloutBridge:
         them inline stalls every in-flight generation. Awaiting the worker keeps
         the write ordered before any projection of the episode.
         """
-        await asyncio.to_thread(self._preserve_episode, episode)
+        return await asyncio.to_thread(self._preserve_episode, episode)
+
+    async def _observe_episode_assessments(
+        self, record: Mapping[str, Any], on_completed: AsyncTerminalTraceObserver | None
+    ) -> None:
+        if on_completed is None:
+            return
+        observation = _episode_assessment_observation(record)
+        if observation is None:
+            return
+        with self._write_lock:
+            if observation.external_id in self._live_observed_trace_ids:
+                return
+        try:
+            await on_completed(observation)
+        except Exception:
+            # Retained native episodes allow evidence() to retry submission.
+            return
+        self.mark_live_observed(observation.external_id)
 
     async def _preserve_off_loop(self, record: dict[str, Any]) -> None:
         await asyncio.to_thread(self._preserve, record)
 
-    def _preserve_episode(self, episode: Any) -> None:
+    def _preserve_episode(self, episode: Any) -> dict[str, Any]:
+        from .verifiers_assessment_artifacts import retain_episode_artifacts
+
         path = self.trace_path.with_name("episodes.jsonl")
-        self._append_record(path, _native_record(episode))
+        with self._write_lock:
+            retain_episode_artifacts(episode, self.trace_path.parent / "assessment-evidence")
+        record = _native_record(episode)
+        self._append_record(path, record)
+        return record
 
     def trace_observation(self, record: Mapping[str, Any]) -> TraceObservation:
         """Reconstruct one terminal native record in a host-side observer."""
@@ -1358,6 +1475,14 @@ class VerifiersEnvironmentRolloutBridge:
         episode envelopes publish their trace records as the authority.
         """
 
+        from .verifiers_assessment_artifacts import seal_assessment_artifacts
+
+        with self._write_lock:
+            evidence_bundle = seal_assessment_artifacts(
+                self.trace_path.parent / "assessment-evidence",
+                name=f"training/rollouts/{self.dataset.id}/verifiers-assessment-evidence",
+            )
+        retained_evidence = () if evidence_bundle is None else (evidence_bundle,)
         episodes_path = self.trace_path.with_name("episodes.jsonl")
         common = {
             "technique": self.technique,
@@ -1369,7 +1494,7 @@ class VerifiersEnvironmentRolloutBridge:
         }
         if episodes_path.is_file():
             compressed = _compress_jsonl(episodes_path)
-            return (
+            return retained_evidence + (
                 ProducedArtifact(
                     name=f"training/rollouts/{self.dataset.id}/verifiers-episodes",
                     kind="evaluation-traces",
@@ -1383,9 +1508,9 @@ class VerifiersEnvironmentRolloutBridge:
                 ),
             )
         if not self.trace_path.is_file():
-            return ()
+            return retained_evidence
         compressed = _compress_jsonl(self.trace_path)
-        return (
+        return retained_evidence + (
             ProducedArtifact(
                 name=f"training/rollouts/{self.dataset.id}/verifiers-traces",
                 kind="evaluation-traces",
@@ -1405,8 +1530,22 @@ class VerifiersEnvironmentRolloutBridge:
         with self._write_lock:
             live_observed_trace_ids = frozenset(self._live_observed_trace_ids)
             requested_by_step = dict(self._requested_by_step)
+        episode_observations: dict[str, TraceObservation] = {}
+        episodes_path = self.trace_path.with_name("episodes.jsonl")
+        if episodes_path.is_file():
+            with episodes_path.open(encoding="utf-8") as stream:
+                for line in stream:
+                    if not line.strip():
+                        continue
+                    episode = json.loads(line)
+                    if not isinstance(episode, dict):
+                        raise TypeError("preserved native episodes must be JSON objects")
+                    observation = _episode_assessment_observation(episode)
+                    if observation is not None and observation.external_id not in live_observed_trace_ids:
+                        episode_observations[observation.external_id] = observation
         if not self.trace_path.is_file():
             return EnvironmentRolloutEvidence(
+                traces=tuple(episode_observations.values()),
                 metrics=tuple(
                     MetricBatchObservation(
                         _trace_metrics((), requested=requested),
@@ -1414,12 +1553,12 @@ class VerifiersEnvironmentRolloutBridge:
                         attributes={"observation_source": "verifiers"},
                     )
                     for step, requested in sorted(requested_by_step.items())
-                )
+                ),
             )
         records = [
             json.loads(line) for line in self.trace_path.read_text(encoding="utf-8").splitlines() if line.strip()
         ]
-        traces: list[TraceObservation] = []
+        traces: list[TraceObservation] = list(episode_observations.values())
         records_by_step: dict[int, list[dict[str, Any]]] = {}
         for record in records:
             if not isinstance(record, dict):

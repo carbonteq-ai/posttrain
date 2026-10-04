@@ -1,0 +1,54 @@
+{
+  "task_name": "simple.email_sf_contact_phone_update",
+  "model": "gpt-6-luna",
+  "attempts": 1,
+  "partial_credit": 1.0,
+  "outcome_metrics": {
+    "task_completed_correctly": 1.0,
+    "assertions_passed": 1.0,
+    "assertions_scored": 1.0,
+    "assertions_excluded": 0.0
+  },
+  "ordinary_api_fallback_attempts": 0,
+  "attempt_error": null,
+  "qualification_scope": "one signed-in Simple debug task, not campaign readiness",
+  "sdk_version": "0.160.0",
+  "elapsed_test_seconds": 29.75,
+  "output_budget_threshold": 16384,
+  "output_budget_state": "observed_output_only",
+  "latest_token_usage": {
+    "last": {
+      "cacheWriteInputTokens": 0,
+      "cachedInputTokens": 12032,
+      "inputTokens": 12996,
+      "outputTokens": 26,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 13022
+    },
+    "modelContextWindow": 258400,
+    "total": {
+      "cacheWriteInputTokens": 0,
+      "cachedInputTokens": 53760,
+      "inputTokens": 77416,
+      "outputTokens": 318,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 77734
+    }
+  },
+  "mcp_calls": 7,
+  "failed_mcp_calls": 0,
+  "native_receipt_events": 14,
+  "native_artifact": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-simple-debug-01/sdk-native-trace.json",
+  "native_artifact_sha256": "937ca846a2aceb63fdc05548788c85a2d02a13de1a81d2a6dabe9be8e9a08da9",
+  "resource_admin_qualification": {
+    "resources_empty": true,
+    "templates_empty": true,
+    "local_uri_read_rejected": true,
+    "configured_servers": [
+      "automationbench"
+    ]
+  },
+  "model_request_boundaries": "unavailable",
+  "token_alignment": "unavailable",
+  "mcp_item_execution_join": "unqualified"
+}

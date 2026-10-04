@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "index_revision": "data_authoring_v2",
+  "index_sha256": "44046a8794d0c47aeaa55b754a190a0d039975c49d80454cd4bcf454becbcd7e",
+  "qualification": "offline_manifest_compilation_and_public_binding_admission_only",
+  "task_count": 10,
+  "compiled_manifest_count": 10,
+  "verified_public_bindings": 20,
+  "recorded_and_verified_source_links": 40,
+  "native_replay_count": 0,
+  "validation": [
+    {
+      "task_name": "finance.invoice_reconciliation",
+      "manifest_file": "01-finance-invoice_reconciliation.json",
+      "manifest_sha256": "2579051c76ebceca682303ca4b17ac12929c069807eac090e48793625fec79b2",
+      "canonical_contract_sha256": "df5405bcad96189b50c56b12ad116de81548509ec08534b0425b7b118552e4c6",
+      "compiled_check_ids": [
+        "destination-occurrence-diagnostic-1",
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "pack_sha256_verified": true,
+      "review_sha256_recorded": true,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "finance.payment_terms_tracking",
+      "manifest_file": "02-finance-payment_terms_tracking.json",
+      "manifest_sha256": "8eaded9528f0eee21dbfb1eb91f4eef3cd10c337dc6126b25d9197c9739e2ac9",
+      "canonical_contract_sha256": "b74014f0a8f08fd74d654d93ebcef2054877cd17b837c5c86c95c6e7326a7675",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "pack_sha256_verified": true,
+      "review_sha256_recorded": true,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "hr.bamboohr_promotion_update",
+      "manifest_file": "03-hr-bamboohr_promotion_update.json",
+      "manifest_sha256": "97493af9d0b21a924730951bc5a3a4c45b051436064b23ac1199df973d23ef59",
+      "canonical_contract_sha256": "a5d0a83ede4c781cc3002916fd3a61893013fdfd43895b1ea8dd2ffe2dedea2d",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "pack_sha256_verified": true,
+      "review_sha256_recorded": true,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "hr.equipment_provisioning",
+      "manifest_file": "04-hr-equipment_provisioning.json",
+      "manifest_sha256": "a69795d2a113d0c97c3ab45c1712ca83636fb8843fcdfa95723db3168bf62380",
+      "canonical_contract_sha256": "857c69758dbc4e2dfc6374db5f79591f2c56e7504a97d3534f2e818e12e2d0ba",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "pack_sha256_verified": true,
+      "review_sha256_recorded": true,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "marketing.email_blast_suppression",
+      "manifest_file": "05-marketing-email_blast_suppression.json",
+      "manifest_sha256": "13f316ae454a35b447a63f427617ce8050b12ab94b5b7182837ca98334a5c84b",
+      "canonical_contract_sha256": "eca2455e6f1fce1707e671716c52dc6630a8e8f01997cc46cdcd74614eebec8e",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "pack_sha256_verified": true,
+      "review_sha256_recorded": true,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "operations.salesforce_escalated_customer",
+      "manifest_file": "06-operations-salesforce_escalated_customer.json",
+      "manifest_sha256": "83dedf577b7f593aeb32481ee045f25edea0d2ede8d83fc1cf65fe8c348bac15",
+      "canonical_contract_sha256": "8877c3c9a7f89cf137642e81c08422f4fc45bdd9957098a2a4ac9b86f5615b43",
+      "compiled_check_ids": [
+        "destination-occurrence-diagnostic-1",
+        "destination-occurrence-diagnostic-2",
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "pack_sha256_verified": true,
+      "review_sha256_recorded": true,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "operations.facility_incident_triage",
+      "manifest_file": "07-operations-facility_incident_triage.json",
+      "manifest_sha256": "0be079e3d64f69e608ba852204d4b59d09d6f1aaddd2850a84f9a13784e2bdfe",
+      "canonical_contract_sha256": "937c817187d69c6d2bb2bffc8e3b4d539c4d812a356c43437a76e8fa2262324e",
+      "compiled_check_ids": [
+        "destination-occurrence-diagnostic-1",
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "pack_sha256_verified": true,
+      "review_sha256_recorded": true,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "sales.create_contact_for_account",
+      "manifest_file": "08-sales-create_contact_for_account.json",
+      "manifest_sha256": "4963fdb98674172a6cda8195c47f368b8204d073e8be38d5b5866fcd31a0e5fc",
+      "canonical_contract_sha256": "499441087c172bd255198550ff5127ce3dd0b48ab9f981af8255152ef6265342",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "pack_sha256_verified": true,
+      "review_sha256_recorded": true,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "sales.apply_project_label",
+      "manifest_file": "09-sales-apply_project_label.json",
+      "manifest_sha256": "64d55cad41a21bb9a5abad320ff661dbe3038e433cb107ca153717c7c4bbe8a3",
+      "canonical_contract_sha256": "601c6754ef26e89bfdae256aa5e80c5117f51aaca369d166d6ac226f7b2e12c6",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "pack_sha256_verified": true,
+      "review_sha256_recorded": true,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "support.helpscout_jira_bugs",
+      "manifest_file": "10-support-helpscout_jira_bugs.json",
+      "manifest_sha256": "193157b2f0746c50e8f2dfbb124a15d59fe9c64706a7bc5bb934749b537f1613",
+      "canonical_contract_sha256": "0b99a699b6075f94100224cdf605981d1e48eaa5944e69f34dd3eb9b32a37309",
+      "compiled_check_ids": [
+        "destination-occurrence-diagnostic-1",
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "pack_sha256_verified": true,
+      "review_sha256_recorded": true,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    }
+  ],
+  "superseded_validation_sha256": "d50c6a4cd72a6476c61a036a0d973ead87b1b98f19243f25971ba6162443ac96",
+  "revision_note": "All ten manifest byte hashes and compiled checks remain unchanged. Revalidate public bindings and immutable source links after adding the explicit six-section policy observation and read-before-archive requirement for email blast suppression."
+}

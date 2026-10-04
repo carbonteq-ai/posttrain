@@ -596,6 +596,20 @@ does not establish backend qualification.
 
 Optional turn reward evidence addresses native episode/trace/branch and turn
 identities, a generic reward name, value/status and scorer/assessment provenance.
+Native assessment input preparation separates the assessed subject from permitted
+source context and the exact prepared input. Custom message builders and
+structured deterministic inputs retain builder identity and invocation evidence.
+Assessor internals remain implementation-owned: helpers are optional, provider
+output formats are unrestricted, and no fixed prepare/call/parse lifecycle is
+required. Published findings enforce typed meaning, validity and provenance.
+Full available source context is legitimate unless explicitly restricted;
+immutable source evidence may be transformed freely in assessor working copies.
+Native credit assignments separately identify recipients, accepted findings,
+rule identity, signal semantics, allocation, gates and validity. Alignment maps
+recipients to original eligible tokens and selected consumer coordinates without
+deciding responsibility or computing advantages. Unsupported combinations are
+rejected explicitly; these contracts do not expand any algorithm's qualified
+capability set automatically.
 No rubric dimension names are built in. Required turn coverage must be complete
 and unambiguous before admission; missing evidence is not zero. SAMPO retains its
 explicit-turn and all-absent sparse-terminal paths. CAPO's `assistant-turns@1`

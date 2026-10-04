@@ -258,7 +258,13 @@ Custom Verifiers judge/scoring plugins own rubric preparation, assessment parsin
 and task-specific extraction. They use injected inference clients; they do not
 allocate GPUs, launch engines or import capability packages. One plugin may do
 both judging and extraction. Composition owns inference lifecycle; training owns
-validated turn-to-original-token mapping and algorithm credit. Generic native
+consumer validation of original-token alignment and algorithm credit. Verifiers
+owns reusable domain assignment rules linking accepted findings to recipient
+actions, with explicit semantics and provenance, and native coordinate alignment.
+Assessor-owned input builders may use declared full context to grade a single
+subject; permitted context, actual input, evidence, and recipient support remain
+distinct. Training owns returns, advantages, population normalization and losses;
+native assignments do not prescribe these transformations. Generic native
 record compatibility belongs in `posttrain.environment`, without concrete
 Verifiers types in its public contracts.
 

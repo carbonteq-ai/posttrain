@@ -1,0 +1,601 @@
+{
+  "sdk_version": "0.160.0",
+  "paid_calls": 0,
+  "auth": "none; loopback synthetic provider only",
+  "tests_passed": 7,
+  "cases": [
+    {
+      "raw_events_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/sdk-usage-accounting-03/test_codex_sdk_actual_unpaid_u0/events.json",
+      "raw_sha256": "c956180dff274f8d838021cadf24d2b9123b368cb3f3c27c09bac0769a27260f",
+      "provider_requests": 2,
+      "raw_responses": [
+        {
+          "threadId": "01a10277-2c6e-7f01-89ce-5d48d1a01f41",
+          "turnId": "01a10277-2c74-7dc2-a665-d1fdc9e8468e",
+          "responseId": "response_usage_1",
+          "usage": {
+            "totalTokens": 17,
+            "inputTokens": 10,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 7,
+            "reasoningOutputTokens": 3
+          },
+          "usageMetadata": {
+            "amount": null,
+            "metadata": {
+              "input_tokens": 10,
+              "output_tokens": 7,
+              "output_tokens_details": {
+                "reasoning_tokens": 3
+              },
+              "total_tokens": 17
+            }
+          }
+        },
+        {
+          "threadId": "01a10277-2c6e-7f01-89ce-5d48d1a01f41",
+          "turnId": "01a10277-2c74-7dc2-a665-d1fdc9e8468e",
+          "responseId": "response_usage_2",
+          "usage": {
+            "totalTokens": 15,
+            "inputTokens": 10,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 5,
+            "reasoningOutputTokens": 2
+          },
+          "usageMetadata": {
+            "amount": null,
+            "metadata": {
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "output_tokens_details": {
+                "reasoning_tokens": 2
+              },
+              "total_tokens": 15
+            }
+          }
+        }
+      ],
+      "errors": [],
+      "final_cumulative": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 0,
+        "inputTokens": 20,
+        "outputTokens": 12,
+        "reasoningOutputTokens": 5,
+        "totalTokens": 32
+      },
+      "terminal": {
+        "kind": "finished",
+        "ok": true,
+        "thread_id": "01a10277-2c6e-7f01-89ce-5d48d1a01f41",
+        "turn_id": "01a10277-2c74-7dc2-a665-d1fdc9e8468e",
+        "status": "completed",
+        "provider_errors_observed": 0,
+        "provider_retries_observed": 0,
+        "output_budget_state": "observed_output_only"
+      },
+      "interrupts": []
+    },
+    {
+      "raw_events_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/sdk-usage-accounting-03/test_codex_sdk_actual_unpaid_u1/events.json",
+      "raw_sha256": "cf8610209576d6dc6aab4b9bcbe8be71ef511f824b0066f8ae00c651b30a33ce",
+      "provider_requests": 2,
+      "raw_responses": [
+        {
+          "threadId": "01a10277-2fa4-76c1-92ff-13601cb29ecf",
+          "turnId": "01a10277-2fab-7193-aa42-a66b5b968cca",
+          "responseId": "response_usage_1",
+          "usage": null,
+          "usageMetadata": null
+        },
+        {
+          "threadId": "01a10277-2fa4-76c1-92ff-13601cb29ecf",
+          "turnId": "01a10277-2fab-7193-aa42-a66b5b968cca",
+          "responseId": "response_usage_2",
+          "usage": {
+            "totalTokens": 15,
+            "inputTokens": 10,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 5,
+            "reasoningOutputTokens": 2
+          },
+          "usageMetadata": {
+            "amount": null,
+            "metadata": {
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "output_tokens_details": {
+                "reasoning_tokens": 2
+              },
+              "total_tokens": 15
+            }
+          }
+        }
+      ],
+      "errors": [],
+      "final_cumulative": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 0,
+        "inputTokens": 10,
+        "outputTokens": 5,
+        "reasoningOutputTokens": 2,
+        "totalTokens": 15
+      },
+      "terminal": {
+        "kind": "finished",
+        "ok": true,
+        "thread_id": "01a10277-2fa4-76c1-92ff-13601cb29ecf",
+        "turn_id": "01a10277-2fab-7193-aa42-a66b5b968cca",
+        "status": "completed",
+        "provider_errors_observed": 0,
+        "provider_retries_observed": 0,
+        "output_budget_state": "observed_output_only"
+      },
+      "interrupts": []
+    },
+    {
+      "raw_events_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/sdk-usage-accounting-03/test_codex_sdk_actual_unpaid_u2/events.json",
+      "raw_sha256": "c1dbb3b0511d9401dceebf171db00eeb8235e1ea9a83b956781f6c3619bf79fe",
+      "provider_requests": 3,
+      "raw_responses": [
+        {
+          "threadId": "01a10277-32de-79e3-a8e1-c62938d62189",
+          "turnId": "01a10277-32e4-7830-8e6b-9ca40293c113",
+          "responseId": "response_usage_1",
+          "usage": {
+            "totalTokens": 17,
+            "inputTokens": 10,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 7,
+            "reasoningOutputTokens": 3
+          },
+          "usageMetadata": {
+            "amount": null,
+            "metadata": {
+              "input_tokens": 10,
+              "output_tokens": 7,
+              "output_tokens_details": {
+                "reasoning_tokens": 3
+              },
+              "total_tokens": 17
+            }
+          }
+        },
+        {
+          "threadId": "01a10277-32de-79e3-a8e1-c62938d62189",
+          "turnId": "01a10277-32e4-7830-8e6b-9ca40293c113",
+          "responseId": "response_usage_2",
+          "usage": {
+            "totalTokens": 15,
+            "inputTokens": 10,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 5,
+            "reasoningOutputTokens": 2
+          },
+          "usageMetadata": {
+            "amount": null,
+            "metadata": {
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "output_tokens_details": {
+                "reasoning_tokens": 2
+              },
+              "total_tokens": 15
+            }
+          }
+        }
+      ],
+      "errors": [
+        {
+          "error": {
+            "additionalDetails": "stream disconnected before completion: Synthetic retry fixture",
+            "codexErrorInfo": {
+              "responseStreamDisconnected": {
+                "httpStatusCode": null
+              }
+            },
+            "message": "Reconnecting... 1/5",
+            "misalignment": null
+          },
+          "threadId": "01a10277-32de-79e3-a8e1-c62938d62189",
+          "turnId": "01a10277-32e4-7830-8e6b-9ca40293c113",
+          "willRetry": true
+        }
+      ],
+      "final_cumulative": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 0,
+        "inputTokens": 20,
+        "outputTokens": 12,
+        "reasoningOutputTokens": 5,
+        "totalTokens": 32
+      },
+      "terminal": {
+        "kind": "finished",
+        "ok": true,
+        "thread_id": "01a10277-32de-79e3-a8e1-c62938d62189",
+        "turn_id": "01a10277-32e4-7830-8e6b-9ca40293c113",
+        "status": "completed",
+        "provider_errors_observed": 1,
+        "provider_retries_observed": 1,
+        "output_budget_state": "unqualified_provider_errors_observed"
+      },
+      "interrupts": []
+    },
+    {
+      "raw_events_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/sdk-usage-accounting-03/test_codex_sdk_actual_unpaid_u3/events.json",
+      "raw_sha256": "d95db64b7247eb15bf3ecde34ea28d3c49cb35cdcdaa4d727b48b1f335e22dbd",
+      "provider_requests": 2,
+      "raw_responses": [
+        {
+          "threadId": "01a10277-36d8-71c1-a37a-f8b01ee41f4a",
+          "turnId": "01a10277-36dd-77d1-ba43-93bd833ef5c2",
+          "responseId": "response_usage_1",
+          "usage": {
+            "totalTokens": 17,
+            "inputTokens": 10,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 7,
+            "reasoningOutputTokens": 3
+          },
+          "usageMetadata": {
+            "amount": null,
+            "metadata": {
+              "input_tokens": 10,
+              "output_tokens": 7,
+              "output_tokens_details": {
+                "reasoning_tokens": 3
+              },
+              "total_tokens": 17
+            }
+          }
+        },
+        {
+          "threadId": "01a10277-36d8-71c1-a37a-f8b01ee41f4a",
+          "turnId": "01a10277-36dd-77d1-ba43-93bd833ef5c2",
+          "responseId": "response_usage_2",
+          "usage": {
+            "totalTokens": 15,
+            "inputTokens": 10,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 5,
+            "reasoningOutputTokens": 2
+          },
+          "usageMetadata": {
+            "amount": null,
+            "metadata": {
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "output_tokens_details": {
+                "reasoning_tokens": 2
+              },
+              "total_tokens": 15
+            }
+          }
+        }
+      ],
+      "errors": [],
+      "final_cumulative": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 0,
+        "inputTokens": 20,
+        "outputTokens": 12,
+        "reasoningOutputTokens": 5,
+        "totalTokens": 32
+      },
+      "terminal": {
+        "kind": "finished",
+        "ok": true,
+        "thread_id": "01a10277-36d8-71c1-a37a-f8b01ee41f4a",
+        "turn_id": "01a10277-36dd-77d1-ba43-93bd833ef5c2",
+        "status": "completed",
+        "provider_errors_observed": 0,
+        "provider_retries_observed": 0,
+        "output_budget_state": "observed_output_only"
+      },
+      "interrupts": [
+        {
+          "kind": "budget_interrupt",
+          "interrupt_result": "inactive_awaiting_terminal",
+          "observed_usage": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 20,
+            "outputTokens": 12,
+            "reasoningOutputTokens": 5,
+            "totalTokens": 32
+          },
+          "threshold": 12,
+          "guarantee": "event_threshold_with_possible_overshoot",
+          "reasoning_inclusion": "unqualified"
+        }
+      ]
+    },
+    {
+      "raw_events_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/sdk-usage-accounting-03/test_codex_sdk_actual_unpaid_u4/events.json",
+      "raw_sha256": "d397fa9f6a8cabd5d81802552e9b3046614ffd17e79d81623bb404a0bac5a0f8",
+      "provider_requests": 2,
+      "raw_responses": [
+        {
+          "threadId": "01a10277-3a03-77a2-9d4d-10ebb5cff4ff",
+          "turnId": "01a10277-3a09-7ef3-b844-3c70c0510863",
+          "responseId": "response_usage_1",
+          "usage": {
+            "totalTokens": 17,
+            "inputTokens": 10,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 7,
+            "reasoningOutputTokens": 3
+          },
+          "usageMetadata": {
+            "amount": null,
+            "metadata": {
+              "input_tokens": 10,
+              "output_tokens": 7,
+              "output_tokens_details": {
+                "reasoning_tokens": 3
+              },
+              "total_tokens": 17
+            }
+          }
+        },
+        {
+          "threadId": "01a10277-3a03-77a2-9d4d-10ebb5cff4ff",
+          "turnId": "01a10277-3a09-7ef3-b844-3c70c0510863",
+          "responseId": "response_usage_2",
+          "usage": {
+            "totalTokens": 15,
+            "inputTokens": 10,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 5,
+            "reasoningOutputTokens": 2
+          },
+          "usageMetadata": {
+            "amount": null,
+            "metadata": {
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "output_tokens_details": {
+                "reasoning_tokens": 2
+              },
+              "total_tokens": 15
+            }
+          }
+        }
+      ],
+      "errors": [],
+      "final_cumulative": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 0,
+        "inputTokens": 20,
+        "outputTokens": 12,
+        "reasoningOutputTokens": 5,
+        "totalTokens": 32
+      },
+      "terminal": {
+        "kind": "finished",
+        "ok": false,
+        "thread_id": "01a10277-3a03-77a2-9d4d-10ebb5cff4ff",
+        "turn_id": "01a10277-3a09-7ef3-b844-3c70c0510863",
+        "status": "interrupted",
+        "provider_errors_observed": 0,
+        "provider_retries_observed": 0,
+        "output_budget_state": "observed_output_only"
+      },
+      "interrupts": [
+        {
+          "kind": "budget_interrupt",
+          "interrupt_result": "accepted",
+          "observed_usage": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 20,
+            "outputTokens": 12,
+            "reasoningOutputTokens": 5,
+            "totalTokens": 32
+          },
+          "threshold": 12,
+          "guarantee": "event_threshold_with_possible_overshoot",
+          "reasoning_inclusion": "unqualified"
+        }
+      ]
+    },
+    {
+      "raw_events_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/sdk-usage-accounting-03/test_codex_sdk_actual_unpaid_u5/events.json",
+      "raw_sha256": "174b7376d5a2f8cbce5bc182cd77563b064d409623e4304620fe9582cee00979",
+      "provider_requests": 2,
+      "raw_responses": [
+        {
+          "threadId": "01a10277-3d50-7b10-9396-4e59594d1619",
+          "turnId": "01a10277-3d57-7820-9435-eddf0e4998fa",
+          "responseId": "response_usage_1",
+          "usage": {
+            "totalTokens": 16392,
+            "inputTokens": 10,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 16382,
+            "reasoningOutputTokens": 3
+          },
+          "usageMetadata": {
+            "amount": null,
+            "metadata": {
+              "input_tokens": 10,
+              "output_tokens": 16382,
+              "output_tokens_details": {
+                "reasoning_tokens": 3
+              },
+              "total_tokens": 16392
+            }
+          }
+        },
+        {
+          "threadId": "01a10277-3d50-7b10-9396-4e59594d1619",
+          "turnId": "01a10277-3d57-7820-9435-eddf0e4998fa",
+          "responseId": "response_usage_2",
+          "usage": {
+            "totalTokens": 12,
+            "inputTokens": 10,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 2
+          },
+          "usageMetadata": {
+            "amount": null,
+            "metadata": {
+              "input_tokens": 10,
+              "output_tokens": 2,
+              "output_tokens_details": {
+                "reasoning_tokens": 2
+              },
+              "total_tokens": 12
+            }
+          }
+        }
+      ],
+      "errors": [],
+      "final_cumulative": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 0,
+        "inputTokens": 20,
+        "outputTokens": 16384,
+        "reasoningOutputTokens": 5,
+        "totalTokens": 16404
+      },
+      "terminal": {
+        "kind": "finished",
+        "ok": false,
+        "thread_id": "01a10277-3d50-7b10-9396-4e59594d1619",
+        "turn_id": "01a10277-3d57-7820-9435-eddf0e4998fa",
+        "status": "interrupted",
+        "provider_errors_observed": 0,
+        "provider_retries_observed": 0,
+        "output_budget_state": "observed_output_only"
+      },
+      "interrupts": [
+        {
+          "kind": "budget_interrupt",
+          "interrupt_result": "accepted",
+          "observed_usage": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 20,
+            "outputTokens": 16384,
+            "reasoningOutputTokens": 5,
+            "totalTokens": 16404
+          },
+          "threshold": 16384,
+          "guarantee": "event_threshold_with_possible_overshoot",
+          "reasoning_inclusion": "unqualified"
+        }
+      ]
+    },
+    {
+      "raw_events_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/sdk-usage-accounting-03/test_codex_sdk_actual_unpaid_u6/events.json",
+      "raw_sha256": "b5d4c6f2db016512936863d7fdc37f1cec4c1deacc8de160768641bdb278f53c",
+      "provider_requests": 2,
+      "raw_responses": [
+        {
+          "threadId": "01a10277-40d8-7b70-a9f0-aea62f257165",
+          "turnId": "01a10277-40df-75d1-bac3-8276085fb8d8",
+          "responseId": "response_usage_1",
+          "usage": {
+            "totalTokens": 16393,
+            "inputTokens": 10,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 16383,
+            "reasoningOutputTokens": 3
+          },
+          "usageMetadata": {
+            "amount": null,
+            "metadata": {
+              "input_tokens": 10,
+              "output_tokens": 16383,
+              "output_tokens_details": {
+                "reasoning_tokens": 3
+              },
+              "total_tokens": 16393
+            }
+          }
+        },
+        {
+          "threadId": "01a10277-40d8-7b70-a9f0-aea62f257165",
+          "turnId": "01a10277-40df-75d1-bac3-8276085fb8d8",
+          "responseId": "response_usage_2",
+          "usage": {
+            "totalTokens": 12,
+            "inputTokens": 10,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 2
+          },
+          "usageMetadata": {
+            "amount": null,
+            "metadata": {
+              "input_tokens": 10,
+              "output_tokens": 2,
+              "output_tokens_details": {
+                "reasoning_tokens": 2
+              },
+              "total_tokens": 12
+            }
+          }
+        }
+      ],
+      "errors": [],
+      "final_cumulative": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 0,
+        "inputTokens": 20,
+        "outputTokens": 16385,
+        "reasoningOutputTokens": 5,
+        "totalTokens": 16405
+      },
+      "terminal": {
+        "kind": "finished",
+        "ok": false,
+        "thread_id": "01a10277-40d8-7b70-a9f0-aea62f257165",
+        "turn_id": "01a10277-40df-75d1-bac3-8276085fb8d8",
+        "status": "interrupted",
+        "provider_errors_observed": 0,
+        "provider_retries_observed": 0,
+        "output_budget_state": "observed_output_only"
+      },
+      "interrupts": [
+        {
+          "kind": "budget_interrupt",
+          "interrupt_result": "accepted",
+          "observed_usage": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 20,
+            "outputTokens": 16385,
+            "reasoningOutputTokens": 5,
+            "totalTokens": 16405
+          },
+          "threshold": 16384,
+          "guarantee": "event_threshold_with_possible_overshoot",
+          "reasoning_inclusion": "unqualified"
+        }
+      ]
+    }
+  ],
+  "scope": "exact reported usage, missing intermediate usage, threshold lifecycle and public recovered stream errors",
+  "source_sha256": {
+    "/home/hammad/projects/verifiers/verifiers/v1/harnesses/codex_sdk/worker.py": "9827fa51e42f597df33066fd4f936035cf96cd74c452030eb97f67ed66b7dbaf",
+    "/home/hammad/projects/verifiers/tests/v1/test_configs.py": "66868caf67a09c5c4b60e779bdeec1d001ced80ec558662f334a0206341f42cb"
+  }
+}

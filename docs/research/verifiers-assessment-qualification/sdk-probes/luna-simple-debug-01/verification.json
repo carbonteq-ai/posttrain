@@ -1,0 +1,48 @@
+{
+  "status": "signed_in_simple_task_passed",
+  "model": "gpt-6-luna",
+  "account_type": "chatgpt",
+  "task_name": "simple.email_sf_contact_phone_update",
+  "official_strict_score": 1.0,
+  "official_partial_credit": 1.0,
+  "assertion_results": [
+    {
+      "type": "salesforce_field_equals",
+      "passed": true,
+      "excluded": false,
+      "params": {
+        "collection": "contacts",
+        "record_id": "003001",
+        "field": "phone",
+        "value": "+1-555-0101"
+      }
+    }
+  ],
+  "budget": {
+    "thread_id": "01a10241-1481-7e02-b87a-6863d1d0f0be",
+    "output_budget": 16384,
+    "status": "observed",
+    "reason": null,
+    "reported_counts": {
+      "inputTokens": 77416,
+      "cachedInputTokens": 53760,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 318,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 77734
+    },
+    "observed_updates": 8,
+    "output_remaining": 16066,
+    "threshold_reached": false,
+    "overshoot_tokens": 0,
+    "observed_output_lower_bound": 318,
+    "observed_overshoot_lower_bound": 0,
+    "enforcement": "observed_threshold",
+    "reasoning_inclusion": "unqualified"
+  },
+  "tool_receipt_count": 14,
+  "native_artifact": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-simple-debug-01/sdk-native-trace.json",
+  "native_sha256": "937ca846a2aceb63fdc05548788c85a2d02a13de1a81d2a6dabe9be8e9a08da9",
+  "verification_scope": "Recomputed retained assertion type/params against final world and hashed initial capture; frozen campaign task/manifest binding not yet qualified",
+  "qwen_eligibility": "pending_redesigned_guards_and_qualified_usage_contract"
+}

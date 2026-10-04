@@ -1,0 +1,19 @@
+{
+  "coverage": 100,
+  "distinct_tasks": 100,
+  "attempts": 100,
+  "old_pre_alias_manifest": "4087fa9cefd39ecff099cc652031fdd3e4f3697e02e55c9fcb60e053b87f3451",
+  "post_alias_manifest": "a8bea9144379f1284dd392813a951850715b655708b3ec8243e624d74e9685b9",
+  "source_versions_preserved": 2,
+  "failed_controller_resubmissions": 0,
+  "old_invalid_finalization_tasks": [
+    "hr.job_board_monitoring"
+  ],
+  "post_alias_startup_failure_tasks": [
+    "hr.payroll_discrepancy",
+    "hr.anniversary_recognition"
+  ],
+  "fully_verified_under_recorded_contract": 17,
+  "scope": "Complete100HRfirstpass coverage across2sourceversions; not a single unchanged-scorer performance comparison. Qwen admission and budgets remain separate.",
+  "qwen_eligibility": "pending_reward_redesign_and_budget_qualification"
+}

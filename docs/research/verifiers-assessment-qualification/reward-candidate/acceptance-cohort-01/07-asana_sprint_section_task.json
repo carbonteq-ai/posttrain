@@ -1,0 +1,220 @@
+{
+  "schema_version": 1,
+  "manifest_id": "acceptance-asana_sprint_section_task",
+  "revision": "cross_pack_data_candidate_v1",
+  "public_request": "Create an Asana task called 'Refactor payment module' in the Engineering project (proj_eng) in workspace ws_prod with due date March 14, 2026. Then find the 'Sprint 8' section in proj_eng and add the task to that section.",
+  "bindings": [
+    {
+      "path": [
+        "task_evidence",
+        "prompt"
+      ],
+      "canonical_sha256": "7729af53bb95fb7a0e898f80ed645963b923a11e70812d5488ed8e99d9ee08b4"
+    },
+    {
+      "path": [
+        "task_evidence",
+        "initial"
+      ],
+      "canonical_sha256": "e71c7fe167c54623badef401ca537d97cab6427570ea2106a4c0c76f5bc30571"
+    }
+  ],
+  "sources": {
+    "task_request": {
+      "adapter": "public.request@1",
+      "member_key": "payment-module-task",
+      "fields": {
+        "name": {
+          "value": "Refactor payment module",
+          "authority_paths": [
+            [
+              "task_evidence",
+              "prompt"
+            ]
+          ]
+        },
+        "workspace": {
+          "value": "ws_prod",
+          "authority_paths": [
+            [
+              "task_evidence",
+              "prompt"
+            ]
+          ]
+        },
+        "project": {
+          "value": "proj_eng",
+          "authority_paths": [
+            [
+              "task_evidence",
+              "prompt"
+            ]
+          ]
+        },
+        "due_date": {
+          "value": "2026-03-14",
+          "authority_paths": [
+            [
+              "task_evidence",
+              "prompt"
+            ]
+          ]
+        }
+      }
+    },
+    "creates": {
+      "adapter": "asana.actions@1",
+      "kind": "create_task"
+    },
+    "summary_assistant": {
+      "adapter": "assistant.outputs@1",
+      "kind": "assistant_text"
+    },
+    "summary_external": {
+      "adapter": "external.outputs@1",
+      "kind": "authored_text"
+    }
+  },
+  "checks": [
+    {
+      "check_id": "requested-task-creation",
+      "signal_id": "cohort.requested-task-creation",
+      "role": "goal",
+      "operator": "effects.required_when@1",
+      "semantics": "new_occurrence",
+      "population": "task_request",
+      "source": "creates",
+      "required_when": {
+        "op": "eq",
+        "left": {
+          "kind": "field",
+          "path": [
+            "request",
+            "request_key"
+          ],
+          "domain": "string"
+        },
+        "right": {
+          "kind": "literal",
+          "value": "payment-module-task"
+        }
+      },
+      "effect_match": {
+        "op": "all",
+        "args": [
+          {
+            "op": "eq",
+            "left": {
+              "kind": "field",
+              "path": [
+                "effect",
+                "name"
+              ],
+              "domain": "string"
+            },
+            "right": {
+              "kind": "field",
+              "path": [
+                "request",
+                "name"
+              ],
+              "domain": "string"
+            }
+          },
+          {
+            "op": "eq",
+            "left": {
+              "kind": "field",
+              "path": [
+                "effect",
+                "workspace"
+              ],
+              "domain": "string"
+            },
+            "right": {
+              "kind": "field",
+              "path": [
+                "request",
+                "workspace"
+              ],
+              "domain": "string"
+            }
+          },
+          {
+            "op": "eq",
+            "left": {
+              "kind": "field",
+              "path": [
+                "effect",
+                "project"
+              ],
+              "domain": "string"
+            },
+            "right": {
+              "kind": "field",
+              "path": [
+                "request",
+                "project"
+              ],
+              "domain": "string"
+            }
+          },
+          {
+            "op": "eq",
+            "left": {
+              "kind": "derived",
+              "expression": {
+                "kind": "input",
+                "format": "iso_date",
+                "path": [
+                  "effect",
+                  "dueDate"
+                ]
+              }
+            },
+            "right": {
+              "kind": "derived",
+              "expression": {
+                "kind": "input",
+                "format": "iso_date",
+                "path": [
+                  "request",
+                  "due_date"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "check_id": "summary",
+      "signal_id": "excluded-prose",
+      "role": "harm",
+      "operator": "summary_exclusions@1",
+      "source": "summary_assistant",
+      "external": "summary_external",
+      "policy_path": [
+        "task_evidence",
+        "prompt",
+        0,
+        "content"
+      ],
+      "policy_digest": "759946c505d4cd1ae5229c2caa09ce98f7cf8afebff2ee3f66c8e10cf3745b23",
+      "assessor": {
+        "assessor_id": "codex-sdk-summary",
+        "revision": "1",
+        "parser_revision": "3",
+        "rubric_revision": "2",
+        "model_selection_json": "{\"catalog_sha256\":\"07087a4f8d94f07b9ebed235a12f43f4d525c0dc8246a57e34556b0fab31b68a\",\"citation_resolution\":\"exact-span-or-unique-literal@1\",\"max_input_bytes\":1048576,\"max_journal_bytes\":33554432,\"model\":\"gpt-6-luna\",\"model_provenance\":\"authenticated_thread_selection\",\"observed_provider_error\":\"reject\",\"outer_retries\":0,\"output_threshold\":16384,\"reference_aliases\":\"request-local-indexed@1\",\"response_schema\":\"codex-turn-output-schema@1\",\"route\":\"codex-sdk:chatgpt\",\"rubric_sha256\":\"c01a8176bc656ef93e5bac56ddda615cadecb7c41f45ccc7fd2a87c80c425be0\",\"sdk_version\":\"0.160.0\",\"timeout_seconds\":120,\"tools\":\"disabled-no-mcp@1\",\"worker_sha256\":\"3178b4d8f15fc634f3cf9ec901c7670119f9c3e1dbbc161844e90acc5d9f2735\"}"
+      }
+    }
+  ],
+  "credit": [
+    {
+      "check": "requested-task-creation",
+      "policy": "required_effect_once@1",
+      "channel": "task-creation"
+    }
+  ]
+}

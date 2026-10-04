@@ -1,0 +1,132 @@
+{
+  "vendor_base": "908db2abd4a868acc37ab0850474bff653bea25c",
+  "fork_tool_delta": "e193bce99af1ea7cca272644a2b3a1676a587b4a",
+  "phase": "copied_and_byte_verified",
+  "files": [
+    {
+      "path": "tools/zapier/action_utils.py",
+      "old_sha256": "7804f5e36b108505ad7f31ceb9c1640b01b4a6004c40f3ea783aee6ff562469a",
+      "new_sha256": "f6b890803b50770463d45aa121913549291cd5d42fe03cfda9ad642b33c47ac9"
+    },
+    {
+      "path": "tools/zapier/airtable/actions.py",
+      "old_sha256": "766bc2ace9a7a6c732084d65652437c9e41334111115958cdeae76c8a0c20d4c",
+      "new_sha256": "bde7d42af4bc3197175f9006c13e792f34a2d37704ba250fb09f274fc56f1412"
+    },
+    {
+      "path": "tools/zapier/asana/actions.py",
+      "old_sha256": "8d7c13e3978ff1a019970f83cc5ed145bb462380e7ee0f5fa683349dab5035bb",
+      "new_sha256": "1dfc8ac948da169fa757f951994b7a15840fc1ad264634bea427962388f8f4c4"
+    },
+    {
+      "path": "tools/zapier/bamboohr/actions.py",
+      "old_sha256": "b453fa620898e1edbe07f2459e7260cecf52d10c53402260e9e202b91c7dc79c",
+      "new_sha256": "05f73fcfde0bf79e951df924f36b0b838e4e635d843b961b54a63034ed4dcfe0"
+    },
+    {
+      "path": "tools/zapier/basecamp3/actions.py",
+      "old_sha256": "6d566ab518129254a0897bb42d093dc19e90bd0e2be877ff337f20a812f82f48",
+      "new_sha256": "dc10b2f930b2f7044d8dba50ee458e40eb0ebf21a5178f49fdbba4bb38468a8a"
+    },
+    {
+      "path": "tools/zapier/confluence/actions.py",
+      "old_sha256": "d60b121910d76010ea466c4c45c84d0f4ba64f09a2d246ac397eeb2df22e341a",
+      "new_sha256": "3d4446f6e30f7bcc089236b4584f9fae226f0c6e6b55196e988b6c730b1f2783"
+    },
+    {
+      "path": "tools/zapier/gmail/message.py",
+      "old_sha256": "fcee4d9789b3dc4d8df3cd7d0f6dd99416fcc54883e9e69af8d18d6de4eda6f0",
+      "new_sha256": "d32954ae75cb7059c6e453d939eb45ef3d82e80dfea517326d338ab44706be57"
+    },
+    {
+      "path": "tools/zapier/google_drive/actions.py",
+      "old_sha256": "825b09998f172a3ae39a344ee3c8aa0c0ba6f1d61cd4bb34dc9cc0dfe4186f09",
+      "new_sha256": "aa602f0497e5e10ab9c5544886da7ce79c8812387a41f19363744ad2682fbac2"
+    },
+    {
+      "path": "tools/zapier/google_sheets/_common.py",
+      "old_sha256": null,
+      "new_sha256": "d80d948715327a0e7379296aae8dcf45c4a0c9a345d31165af9ac48621bc0d5f"
+    },
+    {
+      "path": "tools/zapier/google_sheets/row.py",
+      "old_sha256": "b59ef27f0bc0fc193fecc8374ec13bf607f347b987577fde9843f865b76fe666",
+      "new_sha256": "0d524a9c17897d182ae444cd198b84d2b013d723aaa1127c26a52a815b41375f"
+    },
+    {
+      "path": "tools/zapier/google_sheets/spreadsheet.py",
+      "old_sha256": "1e8b5f5d432ba2d8e0de3fae5256f1b064d308bec45f4e76388c079b2562e3ba",
+      "new_sha256": "d06087cedc2cbb74ed0a54a4b67019bca5225e2f710cdd55dee495b722ff0e85"
+    },
+    {
+      "path": "tools/zapier/google_sheets/worksheet.py",
+      "old_sha256": "bca47abd5655b414f424991074f6d8da00e642f6a5b85e6109b7983c9243f27d",
+      "new_sha256": "566a261dff3c5304d20c6f6d1a82e32930c01410757718550c1171037f668990"
+    },
+    {
+      "path": "tools/zapier/jira/actions.py",
+      "old_sha256": "0feba2e4c84f518770e63cf7b6fa6d2ac1137ca0425f8e7d7f2ca5da35d9ad44",
+      "new_sha256": "5110c6948b2a9188ab0d2a8131184f9969c80f9dbfb085110ed406a279d0bc5d"
+    },
+    {
+      "path": "tools/zapier/linkedin_leadgen_forms/actions.py",
+      "old_sha256": "4c363c2b838778bc8cbffe44f4c2d6e3593e3872e4fb8204422d0362bcf44ffb",
+      "new_sha256": "a00f3c289319de4365684cbcb7f079d43d643402a0f2fab3ae2613752723b825"
+    },
+    {
+      "path": "tools/zapier/monday/actions.py",
+      "old_sha256": "e84be910cbaa4f6224ed3ad0e9845d3dc9b1d37700b9ef722b5e987ef8bc65ff",
+      "new_sha256": "ca4e3942cfe231af1a454990c29640874a7847f73702c396ca8076d787ff8395"
+    },
+    {
+      "path": "tools/zapier/notion/actions.py",
+      "old_sha256": "97268dc554849b853719d6048cbba6452ad88cc7393ced40c697a17260d423f2",
+      "new_sha256": "93f177aa06664f3806d6ddd63eb3e7d693abc31466adc9a63874dcf9aed67af8"
+    },
+    {
+      "path": "tools/zapier/pipefy/actions.py",
+      "old_sha256": "d8783df4fa874d2a51b86f418d096794a9fcc05747c27625bb02ce446d789091",
+      "new_sha256": "4cb59c4a37193d44891e66bed5d83b58c18ab02e09b05fa85c7c1c52ee38af26"
+    },
+    {
+      "path": "tools/zapier/quickbooks/payments.py",
+      "old_sha256": "bd072abd572a2b8d553fbab58f1c4c01c53e6b87d2dbfadd587a4e216f160359",
+      "new_sha256": "7a831847aefa077c869992f243a2e7db470e9b707f944794374b1fdc6efaace5"
+    },
+    {
+      "path": "tools/zapier/recruitee/actions.py",
+      "old_sha256": "fd9b0e7e5963c6481bcb0b1b11a7cf392ebd1168f9147bb176f69339a4667614",
+      "new_sha256": "82c48e288736b736dcce7b5337e37988e0a02cd8059d27dfb57eacb659d662a6"
+    },
+    {
+      "path": "tools/zapier/salesforce/query.py",
+      "old_sha256": "07ce6063708171f69dd37ac0f5659ba86800b03ca533f624b6b11bb3924e4c8e",
+      "new_sha256": "7a8cdb9b00ecbab21318d96fe6cf29a4aa11e8d923cabc3801585367af039a3e"
+    },
+    {
+      "path": "tools/zapier/salesforce/record.py",
+      "old_sha256": "2334b789a505cbf6c11a5d29ca51b14a6b2927c5abfbeb636acf4d20e3d61773",
+      "new_sha256": "a9eb4c57bd8ccb51a51f0725427eedb88012caf4f2a2de1499b2cbf8879eff5e"
+    },
+    {
+      "path": "tools/zapier/slack/search.py",
+      "old_sha256": "b3ada8ba50283ee53ed532991330ac8d8ebdf4795dbf31633594c3872f58e63c",
+      "new_sha256": "48f495ef551c298fdc9c6a9f7fb63c735c316ea616ee1f6ef582e40d02e4a1d1"
+    },
+    {
+      "path": "tools/zapier/trello/actions.py",
+      "old_sha256": "b5104b3214be8946e6d9c7b34982a3b7a1181a9070870d5509d47b0e8b807098",
+      "new_sha256": "a8a1d0eee1c7acf63abce9083f393bfeb984bc82922a495dc029597ae2645588"
+    },
+    {
+      "path": "tools/zapier/wave/actions.py",
+      "old_sha256": "7344f59eb75c83f9638ccc11747ae2748ce6d12d986797a59f4b55edb0cd04d9",
+      "new_sha256": "2c3070f76d7c5de964d90125ce738b1b3967d3cc49049c115757b8b466693283"
+    },
+    {
+      "path": "tools/zapier/where_clause.py",
+      "old_sha256": null,
+      "new_sha256": "b1dafe0e0eda13743839e5f8bce7ff863196bbf4e128f572f61b9ba0bda4fb9d"
+    }
+  ]
+}

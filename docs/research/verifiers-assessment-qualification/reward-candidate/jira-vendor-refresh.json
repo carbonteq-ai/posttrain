@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-04",
+  "status": "local_unpublished_refresh",
+  "sibling_base": "e193bce99af1ea7cca272644a2b3a1676a587b4a",
+  "source": "/home/hammad/projects/automationbench/automationbench",
+  "destination": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench",
+  "sibling_tests": {
+    "passed": 195,
+    "jira_cases": 51
+  },
+  "compatibility": "Response id is now persisted issue ID; action_record_id is separate. Existing action params retained; old archives not hydrated.",
+  "files": [
+    {
+      "file": "schema/jira.py",
+      "before_sha256": "195d7b2b443b7c46f5a4949f7edc4f608571400d595a2a34b4124b3c39e663c3",
+      "after_sha256": "9e600fe5de4d90ca70211bee354b1e9a270992db533633605dc3c857f095a406"
+    },
+    {
+      "file": "tools/zapier/jira/actions.py",
+      "before_sha256": "5110c6948b2a9188ab0d2a8131184f9969c80f9dbfb085110ed406a279d0bc5d",
+      "after_sha256": "53d686968df96731ba0800321bc68811e8334b163df876eec3b799b20ca31801"
+    },
+    {
+      "file": "tools/api/impl/jira.py",
+      "before_sha256": "06627f997c19cc0db34b2f455ccd4a6017f57cfa32bd107971599f5682ebcf77",
+      "after_sha256": "dc43a2337a18d6cd12b1cd26e151e31f4a264ef37b67f57bc0b24aab4ad522c2"
+    }
+  ]
+}

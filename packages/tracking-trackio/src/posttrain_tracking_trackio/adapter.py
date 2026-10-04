@@ -69,6 +69,8 @@ from trackio.remote_client import RemoteClient
 from trackio.run import Run as TrackioSDKRun
 from trackio.utils import parse_trackio_server_url
 
+from .assessment_results import training_verifiers_results
+
 _RESERVED_HISTORY_KEYS = {"step", "timestamp"}
 _TRACE_FACT_WRITE_CHUNK_SIZE = 1000
 
@@ -368,11 +370,16 @@ class TrackioTrackedRun:
         self._run.log(values, step=observation.step)
 
     def trace(self, observation: TraceObservation) -> None:
+        attributes = (
+            training_verifiers_results(observation.attributes)
+            if observation.trace_type in {"verifiers", "verifiers.assessment-results"} and self._spec.stage == "train"
+            else dict(observation.attributes)
+        )
         metadata = {
             "external_id": observation.external_id,
             "observation_type": observation.trace_type,
-            "posttrain_attributes": dict(observation.attributes),
-            **dict(observation.attributes),
+            "posttrain_attributes": attributes,
+            **attributes,
         }
         if observation.trace_type == "verifiers":
             if len(observation.facts) > 1:
@@ -384,14 +391,24 @@ class TrackioTrackedRun:
                     observation.external_id,
                     observation.facts[0],
                 )
-            trace = trackio.VerifiersTrace(dict(observation.payload), **trace_arguments)
+            payload = (
+                training_verifiers_results(observation.payload)
+                if self._spec.stage == "train"
+                else dict(observation.payload)
+            )
+            trace = trackio.VerifiersTrace(payload, **trace_arguments)
         else:
-            messages = observation.payload.get("messages")
+            payload = (
+                training_verifiers_results(observation.payload)
+                if observation.trace_type == "verifiers.assessment-results" and self._spec.stage == "train"
+                else dict(observation.payload)
+            )
+            messages = payload.get("messages")
             if messages is None:
                 messages = []
             if not isinstance(messages, list) or not all(isinstance(item, dict) for item in messages):
                 raise ContractError("generic Trackio traces require a JSON messages list")
-            extra = {key: value for key, value in observation.payload.items() if key != "messages"}
+            extra = {key: value for key, value in payload.items() if key != "messages"}
             trace = trackio.Trace(
                 [dict(item) for item in cast(list[dict[str, Any]], messages)],
                 metadata={"posttrain_payload_extra": extra, **extra, **metadata},

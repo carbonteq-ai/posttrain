@@ -1,0 +1,135 @@
+{
+  "candidate_only": true,
+  "native_import": "/home/hammad/projects/verifiers-credit-candidate-20261003/verifiers/v1/__init__.py",
+  "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/c9d9572cfad9d234cd72beba0f647c4ab7c8a2b1dd15ed53fc4c3b4422d668e3/episode.json",
+  "episode_sha256": "c3ff5b3f3a3249c82db5d45ca6d7060af8d2d295a1fd617f1d8abcf6fc66ceda",
+  "task": "hr.i9_verification_tracking",
+  "trace_count": 1,
+  "execution_count": 24,
+  "source_snapshot_id": "737e6b6cdab645d9ae86e19008489be778bb946f2edf3771e503a3ce47229243",
+  "schema_version": 2,
+  "occurrences": [
+    {
+      "occurrence_id": "c1a702372944a03b46435484e5e299551809e7aa08d102b997034f2ea64f80fa",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "cd77b84c821dcc53be00976611978dab16c50a96e06248f88af7e55224e8aec0",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "3367e26d57a26f9d825c11d1d6a96d670cb9392c77a72e03c7814c6d280f1fce",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "57515f706f660bd46b03e1032d6004fab0b824637225136cb0fcf9baf47f5120",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "bd5dd5ec8addb60bf3b8353e8e7a404e82ac6a1a9b96820d7be7811140bda74b",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "51b299a4aedccedb41ae96f95b194fadf29afd2d64319f7e31e631282c429a14",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "df9e4c094b38213112328fc81e41ba7ae661eb41f78a04aa2e9bd75a9490526a",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "d36365ae8a5d3a90b7446d70edd5c57eaf6dc65aecea6a35cc328f2258e63edf",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "5204b34611718d737e04095b789befe55bf3de5aa6cb01b15665ba69c653f17b",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "5ef4730e574703182af7f0bf94f0b843270d3dcbde83888624058fc3a35e4f4a",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "905a7fa98bd38c492dbd949aced786b6afa108fb4255c464c36e71a370b8b75d",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "b70406c7892938b34c80b28c1758ceb4d0255fc02f766c53c1591a4821f39b20",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "41d658c58ffb4d11794bbbc15831a5e81120328ee77f2c8407c3d668dd07990d",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "b3eccc53162f459760432c71440945f23339c6de6cfd2cf8df117200d0204e9c",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "54f3b0b18e6b12b3c05c80507c45360d158686fc0d6fb0bd514ecd1d156b1f6d",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "d001990f2d437959d916df689ef50d9abdfe19839e246fe43835e8a478a68407",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "8374f09c68d97f1566fc5c93dc2e995a66c540a11ef5cf73a310d4d2a2d2f964",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "193b4e8e3078884609fb093a860dddccf60f764e230b0df4e7bd8120a1b53ed7",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "c78fd0d6dc6665983afb01c71f9c582ef35ad7fd1592c6176c34acee7de4e18b",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "0b53a70e5064b0cb98f232279404cec7876d4101c599c93fd96e5dd4c01954a3",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "c3466335e5addc569c900e3c3eeeaa195d107c7b028849922d3576da86bda742",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "eb735877b3406583ebaa2d249272568dc17e4c7b18c99c374b191581eac369d7",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "097d8cc38c11eaf4d7c03ec35f551cb4e734ad4c2420a105d9fd3ee04bd59d8e",
+      "phase": "returned",
+      "projection": "unsupported"
+    },
+    {
+      "occurrence_id": "7cf921aa69e5d326b0a8dacd557fc5bb3dfc1df62d0fc4b2b211b09bd83cce5e",
+      "phase": "returned",
+      "projection": "unsupported"
+    }
+  ],
+  "token_alignment_qualified": false,
+  "new_model_calls": 0
+}

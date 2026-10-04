@@ -1,0 +1,46 @@
+{
+  "codex-rs/app-server-protocol/src/protocol/v2/notification.rs": {
+    "revision": "a956835d020762cb2b570053af06f643a11c0ecc",
+    "first_line": 60,
+    "lines": [
+      "#[serde(rename_all = \"camelCase\")]",
+      "#[ts(export_to = \"v2/\")]",
+      "pub struct ErrorNotification {",
+      "    pub error: TurnError,",
+      "    // Set to true if the error is transient and the app-server process will automatically retry.",
+      "    // If true, this will not interrupt a turn.",
+      "    pub will_retry: bool,",
+      "    pub thread_id: String,",
+      "    pub turn_id: String,",
+      "}",
+      "",
+      "#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]"
+    ]
+  },
+  "codex-rs/app-server/src/bespoke_event_handling.rs": {
+    "revision": "a956835d020762cb2b570053af06f643a11c0ecc",
+    "first_line": 1053,
+    "lines": [
+      "        }",
+      "        EventMsg::StreamError(ev) => {",
+      "            // We don't need to update the turn summary store for stream errors as they are intermediate error states for retries,",
+      "            // but we notify the client.",
+      "            let turn_error = TurnError {",
+      "                misalignment: None,",
+      "                message: ev.message,",
+      "                codex_error_info: ev.codex_error_info.map(V2CodexErrorInfo::from),",
+      "                additional_details: ev.additional_details,",
+      "            };",
+      "            outgoing",
+      "                .send_server_notification(ServerNotification::Error(ErrorNotification {",
+      "                    error: turn_error,",
+      "                    will_retry: true,",
+      "                    thread_id: conversation_id.to_string(),",
+      "                    turn_id: event_turn_id.clone(),",
+      "                }))",
+      "                .await;",
+      "        }",
+      "        EventMsg::ViewImageToolCall(_) => {}"
+    ]
+  }
+}

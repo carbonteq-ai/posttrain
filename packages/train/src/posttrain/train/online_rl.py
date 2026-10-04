@@ -12,7 +12,7 @@ from posttrain.common import InferenceBinding, JsonValue, MetricBatchObservation
 from posttrain.data import MessageRecord, RolloutDataset
 from posttrain.environment.verifiers_conditioning import NativeConditioningRecord
 
-from .reward_evidence import InvalidRewardEvidence, RewardEvidence
+from .reward_evidence import AssignedCreditEvidence, InvalidRewardEvidence, RewardEvidence
 
 type ToolRecord = Mapping[str, JsonValue]
 type TokenSpan = tuple[int, int]
@@ -203,6 +203,8 @@ class PolicyTurnResult:
     behavior_policy: BehaviorPolicySpan | None = None
     # Renderer parse accounting: leading completion tokens that are thinking.
     reasoning_tokens: int | None = None
+    # Optional versioned parser sidecar; interpretation belongs to the env adapter.
+    parser_evidence: Mapping[str, JsonValue] | None = None
 
     def __post_init__(self) -> None:
         if not self.prompt_ids or not self.completion_ids:
@@ -276,6 +278,7 @@ class EnvironmentRollout:
     conditioning_records: tuple[NativeConditioningRecord, ...] = ()
     selected_branch_id: str | None = None
     conditioning_completion_indices: tuple[tuple[int, ...], ...] = ()
+    assigned_credit: AssignedCreditEvidence = AssignedCreditEvidence()
 
     def __post_init__(self) -> None:
         if not self.prompt_ids or not self.completion_ids:
@@ -288,6 +291,9 @@ class EnvironmentRollout:
             raise ValueError("sampling logprobs must be finite when provided")
         if not any(self.env_mask):
             raise ValueError("training rollouts require at least one model-sampled token")
+        for credit in self.assigned_credit.contributions:
+            if credit.alignment == "exact":
+                credit.support(self.env_mask)
         if self.conditioning_records:
             if not self.selected_branch_id or len(self.conditioning_records) != len(
                 self.conditioning_completion_indices

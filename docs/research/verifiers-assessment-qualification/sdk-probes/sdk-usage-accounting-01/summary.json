@@ -1,0 +1,246 @@
+{
+  "sdk_version": "0.160.0",
+  "source_revision": "a956835d020762cb2b570053af06f643a11c0ecc",
+  "paid_calls": 0,
+  "authentication": "none; loopback qualification only",
+  "cases": [
+    {
+      "raw_events": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/sdk-usage-accounting-01-final/test_codex_sdk_actual_unpaid_u0/events.json",
+      "raw_sha256": "a79ebd8544192216d4462290cf2c48b19a0513169cc08914b5be88425ab881d1",
+      "provider_requests": 2,
+      "cumulative_usage": [
+        {
+          "cacheWriteInputTokens": 0,
+          "cachedInputTokens": 0,
+          "inputTokens": 10,
+          "outputTokens": 7,
+          "reasoningOutputTokens": 3,
+          "totalTokens": 17
+        },
+        {
+          "cacheWriteInputTokens": 0,
+          "cachedInputTokens": 0,
+          "inputTokens": 20,
+          "outputTokens": 12,
+          "reasoningOutputTokens": 5,
+          "totalTokens": 32
+        }
+      ],
+      "interrupts": [],
+      "terminal": {
+        "kind": "finished",
+        "ok": true,
+        "thread_id": "01a1025a-9edb-7de3-9642-af700211947e",
+        "turn_id": "01a1025a-9ee0-7901-bd86-920f2b5504eb",
+        "status": "completed",
+        "output_budget_state": "observed_output_only"
+      }
+    },
+    {
+      "raw_events": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/sdk-usage-accounting-01-final/test_codex_sdk_actual_unpaid_u1/events.json",
+      "raw_sha256": "6628e5548b06df22156f744191b31e95095c657a9f8654c101304c87e8bcb897",
+      "provider_requests": 2,
+      "cumulative_usage": [
+        {
+          "cacheWriteInputTokens": 0,
+          "cachedInputTokens": 0,
+          "inputTokens": 10,
+          "outputTokens": 7,
+          "reasoningOutputTokens": 3,
+          "totalTokens": 17
+        },
+        {
+          "cacheWriteInputTokens": 0,
+          "cachedInputTokens": 0,
+          "inputTokens": 20,
+          "outputTokens": 12,
+          "reasoningOutputTokens": 5,
+          "totalTokens": 32
+        }
+      ],
+      "interrupts": [
+        {
+          "kind": "budget_interrupt",
+          "interrupt_result": "inactive_awaiting_terminal",
+          "observed_usage": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 20,
+            "outputTokens": 12,
+            "reasoningOutputTokens": 5,
+            "totalTokens": 32
+          },
+          "threshold": 12,
+          "guarantee": "event_threshold_with_possible_overshoot",
+          "reasoning_inclusion": "unqualified"
+        }
+      ],
+      "terminal": {
+        "kind": "finished",
+        "ok": true,
+        "thread_id": "01a1025a-a21c-7532-ba8f-05b977a8e45f",
+        "turn_id": "01a1025a-a221-7870-ad58-80552909e604",
+        "status": "completed",
+        "output_budget_state": "observed_output_only"
+      }
+    },
+    {
+      "raw_events": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/sdk-usage-accounting-01-final/test_codex_sdk_actual_unpaid_u2/events.json",
+      "raw_sha256": "7ccd1522b46c6b3bd61525f3926553f24fd0e5439203022626e4c9b7ca3d555a",
+      "provider_requests": 2,
+      "cumulative_usage": [
+        {
+          "cacheWriteInputTokens": 0,
+          "cachedInputTokens": 0,
+          "inputTokens": 10,
+          "outputTokens": 7,
+          "reasoningOutputTokens": 3,
+          "totalTokens": 17
+        },
+        {
+          "cacheWriteInputTokens": 0,
+          "cachedInputTokens": 0,
+          "inputTokens": 20,
+          "outputTokens": 12,
+          "reasoningOutputTokens": 5,
+          "totalTokens": 32
+        }
+      ],
+      "interrupts": [
+        {
+          "kind": "budget_interrupt",
+          "interrupt_result": "accepted",
+          "observed_usage": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 20,
+            "outputTokens": 12,
+            "reasoningOutputTokens": 5,
+            "totalTokens": 32
+          },
+          "threshold": 12,
+          "guarantee": "event_threshold_with_possible_overshoot",
+          "reasoning_inclusion": "unqualified"
+        }
+      ],
+      "terminal": {
+        "kind": "finished",
+        "ok": false,
+        "thread_id": "01a1025a-a551-7642-b7aa-1a712bad7a0f",
+        "turn_id": "01a1025a-a557-7d60-aebb-a0ff933a8561",
+        "status": "interrupted",
+        "output_budget_state": "observed_output_only"
+      }
+    },
+    {
+      "raw_events": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/sdk-usage-accounting-01-final/test_codex_sdk_actual_unpaid_u3/events.json",
+      "raw_sha256": "da75f012d7fbd94b2d96cca2cec70138843febc8cb5ae0f5597926f81185894c",
+      "provider_requests": 2,
+      "cumulative_usage": [
+        {
+          "cacheWriteInputTokens": 0,
+          "cachedInputTokens": 0,
+          "inputTokens": 10,
+          "outputTokens": 16382,
+          "reasoningOutputTokens": 3,
+          "totalTokens": 16392
+        },
+        {
+          "cacheWriteInputTokens": 0,
+          "cachedInputTokens": 0,
+          "inputTokens": 20,
+          "outputTokens": 16384,
+          "reasoningOutputTokens": 5,
+          "totalTokens": 16404
+        }
+      ],
+      "interrupts": [
+        {
+          "kind": "budget_interrupt",
+          "interrupt_result": "accepted",
+          "observed_usage": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 20,
+            "outputTokens": 16384,
+            "reasoningOutputTokens": 5,
+            "totalTokens": 16404
+          },
+          "threshold": 16384,
+          "guarantee": "event_threshold_with_possible_overshoot",
+          "reasoning_inclusion": "unqualified"
+        }
+      ],
+      "terminal": {
+        "kind": "finished",
+        "ok": false,
+        "thread_id": "01a1025a-a934-7892-ad28-5771b189ca85",
+        "turn_id": "01a1025a-a93a-78a0-a3d8-3f6dfdaaf429",
+        "status": "interrupted",
+        "output_budget_state": "observed_output_only"
+      }
+    },
+    {
+      "raw_events": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/sdk-usage-accounting-01-final/test_codex_sdk_actual_unpaid_u4/events.json",
+      "raw_sha256": "86f12e85d7d4cc5bbed9e7d0e4ac5b4c2a32dd9e9b879858927b75b9fc4d3e35",
+      "provider_requests": 2,
+      "cumulative_usage": [
+        {
+          "cacheWriteInputTokens": 0,
+          "cachedInputTokens": 0,
+          "inputTokens": 10,
+          "outputTokens": 16383,
+          "reasoningOutputTokens": 3,
+          "totalTokens": 16393
+        },
+        {
+          "cacheWriteInputTokens": 0,
+          "cachedInputTokens": 0,
+          "inputTokens": 20,
+          "outputTokens": 16385,
+          "reasoningOutputTokens": 5,
+          "totalTokens": 16405
+        }
+      ],
+      "interrupts": [
+        {
+          "kind": "budget_interrupt",
+          "interrupt_result": "accepted",
+          "observed_usage": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 20,
+            "outputTokens": 16385,
+            "reasoningOutputTokens": 5,
+            "totalTokens": 16405
+          },
+          "threshold": 16384,
+          "guarantee": "event_threshold_with_possible_overshoot",
+          "reasoning_inclusion": "unqualified"
+        }
+      ],
+      "terminal": {
+        "kind": "finished",
+        "ok": false,
+        "thread_id": "01a1025a-ae28-7ad3-8cbd-651c178602a1",
+        "turn_id": "01a1025a-ae2e-7582-bd5f-e2a77759a0ad",
+        "status": "interrupted",
+        "output_budget_state": "observed_output_only"
+      }
+    }
+  ],
+  "asserted_tests_passed": 5,
+  "scope": "actual pinned SDK decoding, cumulative provider counters and observed interruption lifecycle",
+  "limitations": [
+    "Synthetic provider counters are fixture inputs, not measured generated text.",
+    "outputTokens preserves provider output; reasoningOutputTokens preserves its detail, without adding it again.",
+    "No pre-generation hard cap: observed threshold may overshoot.",
+    "Signed-in service reporting completeness is not established by synthetic counters.",
+    "No Docker controller qualification."
+  ],
+  "pre_fix_failure_raw": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/sdk-usage-accounting-01-pre-fix",
+  "implementation_files": {
+    "/home/hammad/projects/verifiers/tests/v1/test_configs.py": "3d96674399ec94cd1c839d79af8df9696c5498c070e0fbe66a8aee6cf25edc5a",
+    "/home/hammad/projects/verifiers/verifiers/v1/harnesses/codex_sdk/worker.py": "cee427b480c0dcee886aab29b5161d90a7c08ead25bb9fa814cc9dafb6fd1aa4"
+  }
+}

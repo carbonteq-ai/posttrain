@@ -1,0 +1,290 @@
+{
+  "request_shapes": [
+    {
+      "dialect": "ResponsesDialect",
+      "endpoint": "/responses",
+      "keys": [
+        "client_metadata",
+        "include",
+        "input",
+        "instructions",
+        "max_output_tokens",
+        "model",
+        "parallel_tool_calls",
+        "prompt_cache_key",
+        "provider",
+        "reasoning",
+        "store",
+        "stream",
+        "tool_choice",
+        "tools"
+      ],
+      "model": "openai/gpt-6-luna",
+      "stream": true,
+      "max_output_tokens": 64,
+      "store": false,
+      "parallel_tool_calls": false,
+      "reasoning": {
+        "effort": "low",
+        "summary": "auto"
+      },
+      "tool_choice": "auto",
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "client_metadata_keys": [
+        "session_id",
+        "thread_id",
+        "turn_id",
+        "x-codex-installation-id",
+        "x-codex-turn-metadata",
+        "x-codex-window-id"
+      ],
+      "client_metadata_value_types": {
+        "turn_id": "str",
+        "thread_id": "str",
+        "session_id": "str",
+        "x-codex-installation-id": "str",
+        "x-codex-window-id": "str",
+        "x-codex-turn-metadata": "str"
+      },
+      "prompt_cache_key_type": "str",
+      "request_json_bytes": 38294,
+      "input_json_bytes": 5147,
+      "instructions_bytes": 20903,
+      "tools_json_bytes": 10784,
+      "tools": [
+        "function",
+        "function",
+        "function",
+        "function",
+        "function",
+        "function",
+        "function",
+        "function",
+        "namespace",
+        "function",
+        "function",
+        "function"
+      ],
+      "tool_structure": [
+        {
+          "type": "function",
+          "keys": [
+            "description",
+            "name",
+            "parameters",
+            "strict",
+            "type"
+          ]
+        },
+        {
+          "type": "function",
+          "keys": [
+            "description",
+            "name",
+            "parameters",
+            "strict",
+            "type"
+          ]
+        },
+        {
+          "type": "function",
+          "keys": [
+            "description",
+            "name",
+            "parameters",
+            "strict",
+            "type"
+          ]
+        },
+        {
+          "type": "function",
+          "keys": [
+            "description",
+            "name",
+            "parameters",
+            "strict",
+            "type"
+          ]
+        },
+        {
+          "type": "function",
+          "keys": [
+            "description",
+            "name",
+            "parameters",
+            "strict",
+            "type"
+          ]
+        },
+        {
+          "type": "function",
+          "keys": [
+            "description",
+            "name",
+            "parameters",
+            "strict",
+            "type"
+          ]
+        },
+        {
+          "type": "function",
+          "keys": [
+            "description",
+            "name",
+            "parameters",
+            "strict",
+            "type"
+          ]
+        },
+        {
+          "type": "function",
+          "keys": [
+            "description",
+            "name",
+            "parameters",
+            "strict",
+            "type"
+          ]
+        },
+        {
+          "type": "namespace",
+          "keys": [
+            "description",
+            "name",
+            "tools",
+            "type"
+          ],
+          "members": [
+            {
+              "type": "function",
+              "keys": [
+                "description",
+                "name",
+                "parameters",
+                "strict",
+                "type"
+              ]
+            },
+            {
+              "type": "function",
+              "keys": [
+                "description",
+                "name",
+                "parameters",
+                "strict",
+                "type"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "function",
+          "keys": [
+            "description",
+            "name",
+            "parameters",
+            "strict",
+            "type"
+          ]
+        },
+        {
+          "type": "function",
+          "keys": [
+            "description",
+            "name",
+            "parameters",
+            "strict",
+            "type"
+          ]
+        },
+        {
+          "type": "function",
+          "keys": [
+            "description",
+            "name",
+            "parameters",
+            "strict",
+            "type"
+          ]
+        }
+      ],
+      "input_content_types": [
+        "input_text"
+      ],
+      "provider": {
+        "only": [
+          "openai"
+        ],
+        "order": [
+          "openai"
+        ],
+        "allow_fallbacks": false,
+        "require_parameters": true
+      },
+      "input_shape": "list",
+      "input_items": [
+        {
+          "type": "message",
+          "role": "developer"
+        },
+        {
+          "type": "message",
+          "role": "user"
+        },
+        {
+          "type": "message",
+          "role": "user"
+        }
+      ]
+    }
+  ],
+  "request_count": 1,
+  "isolation": [
+    {
+      "hidden_paths": {
+        "/home/hammad/projects/verifiers-environments": false,
+        "/home/hammad/projects/rl": false,
+        "/home/hammad/.config/posttrain/config.toml": false,
+        "/home/hammad/projects/ai-infra/.state/secrets": false,
+        "/var/run/docker.sock": false
+      },
+      "environment_package_importable": false,
+      "env_secret_keys": [],
+      "private_routes": {
+        "/state": 401,
+        "/task": 401,
+        "/tool-execution": 401
+      },
+      "home_exists": true
+    }
+  ],
+  "main_image": "python:3.12-slim@sha256:6b1f85a08c199d29d5b6d71ab9c27bd5b3b393492e01216a15758ff69c4be8b8",
+  "helper_images": {
+    "python:3.11-alpine@sha256:f2cdc43fcddbabe870f53750cbdcc01ae4aa75b1959351252457fde88f91d20f": {
+      "observed_local_repo_digests": [
+        "python@sha256:f2cdc43fcddbabe870f53750cbdcc01ae4aa75b1959351252457fde88f91d20f"
+      ],
+      "source_pinning": "immutable_digest"
+    },
+    "alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8": {
+      "observed_local_repo_digests": [
+        "alpine@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8"
+      ],
+      "source_pinning": "immutable_digest"
+    }
+  },
+  "model_metadata_requests": [],
+  "redacted_trace_error_messages": [
+    "deliberate unpaid qualification stop"
+  ],
+  "acp_diagnostics": [],
+  "episode_ok": false,
+  "episode_error_count": 0,
+  "trace_error_types": [
+    [
+      "ProviderError"
+    ]
+  ]
+}
