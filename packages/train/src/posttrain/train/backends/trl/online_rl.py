@@ -115,7 +115,7 @@ class TrlPolicyGenerator:
             # Resolved policy collection must preserve the existing Verifiers
             # train-client admission used by native veRL. Named nonconforming
             # calls reach the tool and yield native validation evidence; their
-            # original syntax remains recorded in provider_state.
+            # original syntax remains in the turn's generated-call evidence.
             admission=self._tool_call_admission,
         )
         finish_reason = _finish_reason(

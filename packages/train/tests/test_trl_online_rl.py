@@ -431,9 +431,7 @@ def test_resolved_trl_preserves_native_train_client_admission(monkeypatch) -> No
     assert result.message["tool_calls"] == [
         {"id": "call_0", "name": "asana_get_task", "arguments": '{"task_id": "bad"}'}
     ]
-    evidence = cast(list[dict[str, Any]], result.message["provider_state"])
-    assert evidence[0]["type"] == "posttrain.nonconforming_tool_call"
-    assert evidence[0]["raw"] == "<tool_call>invalid attempt</tool_call>"
+    assert "provider_state" not in result.message
     assert result.raw_response is not None
     choices = cast(list[dict[str, Any]], result.raw_response["choices"])
     assert choices[0]["finish_reason"] == "stop"

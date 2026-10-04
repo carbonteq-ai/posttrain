@@ -231,12 +231,12 @@ training:
       execution: {records: 1, context_tokens: 6144, statistic_bytes: 67108864}
 
   # cont100's settings (LR 6e-5 constant, KL 0.01 to the base, gamma 0.95, token-truncated
-  # sampler correction capped at 2, truncation penalty 0.1, 5 extra groups per round and at
-  # most 5 candidate rounds) with 16 prompt groups x 8 attempts (128 episodes) and 100
-  # updates from the base model. One optimizer step per 128-episode population, as with
-  # cont100's single accumulated step. The resolved TRL engine does not admit the adaptive
-  # curriculum, so prompts are shuffled. The update context leaves headroom above vLLM's
-  # 24576-token engine limit.
+  # sampler correction capped at 2, truncation penalty 0.1, at most 5 candidate rounds) with
+  # 4 extra prompt groups per round and refill (oversample 4), 16 prompt groups x 8 attempts
+  # (128 episodes) and 100 updates from the base model. One optimizer step per 128-episode
+  # population, as with cont100's single accumulated step. The resolved TRL engine does not
+  # admit the adaptive curriculum, so prompts are shuffled. The update context leaves
+  # headroom above vLLM's 24576-token engine limit.
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1:
     selection_type: sampo-settings
     revision: "1"
@@ -262,7 +262,7 @@ training:
     importance_sampling_mode: token_truncate
     importance_sampling_clip_min: null
     importance_sampling_clip_max: 2.0
-    active_sampling: {max_candidate_batches: 5, oversample: 5, oversample_refill: 5}
+    active_sampling: {max_candidate_batches: 5, oversample: 4, oversample_refill: 4}
     truncation_penalty: 0.1
     shuffle_prompts: true
     mask_truncated_completions: false
@@ -326,7 +326,7 @@ training:
       dependency_lock_sha256: 46d1a725a08bd6bc042ad8d1cf5433e025cac13e0ba1a59c8b304a7e47e120df
 
   # cont100's fp16 rank-4 workstation binding for 128-episode updates with 12 rollout
-  # workers x 15 episodes (180 slots for the largest (16 + 5) x 8 = 168-episode round).
+  # workers x 15 episodes (180 slots for the largest (16 + 4) x 8 = 160-episode round).
   training/lfm2.5-2.6b-trl-lora-manifest-ws-g128-r4-fp16@1:
     selection_type: training-binding
     revision: "1"
