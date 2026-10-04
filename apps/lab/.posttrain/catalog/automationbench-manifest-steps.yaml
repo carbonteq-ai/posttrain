@@ -23,6 +23,9 @@ environment:
             toolset: limited_zapier
             search_top_k: 20
             turn_budget: 14
+            # Linked tool execution (needed by manifest findings and step credit)
+            # runs only when the task captures actions; without it every tool call fails.
+            capture_actions: true
             manifest_assessments: true
             turn_rewards:
               tool_failure_penalty: 0.02
