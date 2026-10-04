@@ -1,5 +1,5 @@
 # AutomationBench manifest step credit (docs/plan/automationbench-manifest-reward-release-and-sampo.md).
-# Environment 05cdc84: the official partial credit stays the episode reward; installed
+# Environment 3d7ebc4: the official partial credit stays the episode reward; installed
 # manifests add goal credit and harm debit to the turn (step) whose tool call produced
 # them (turn-reward scorer version 3). Settings use the 0.4.14 resolved policy-update engine.
 environment:
@@ -11,7 +11,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 05cdc84cd6a067b7cbb2ed90d4b0ade53cd7a166
+      revision: 3d7ebc418d7e4c34390129847b517d55be5cdfda
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -79,7 +79,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 05cdc84cd6a067b7cbb2ed90d4b0ade53cd7a166
+      revision: 3d7ebc418d7e4c34390129847b517d55be5cdfda
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -269,6 +269,77 @@ training:
     max_admission_attempts: 1
     policy_updates:
       schedule: {unit: episode, budget: 128, epochs: 1, max_applied_updates: 100}
+      execution: {records: 1, context_tokens: 28672, statistic_bytes: 268435456}
+
+  # Two-update twins of the 100-update settings that differ only in advantage normalization:
+  # `mean` centers episode and step returns within their groups (the authors' WebShop SAMPO
+  # script), `mean_std` also divides by the group standard deviation (their ALFWorld scripts).
+  lfm2.5-2.6b/automationbench-manifest-steps-sampo-2-g16x8-mean-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 28672
+      learning_rate: 0.00006
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 2
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 42
+    num_prompts_per_step: 16
+    num_generations: 8
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    beta: 0.01
+    kl_reference: base
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 5, oversample: 4, oversample_refill: 4}
+    truncation_penalty: 0.1
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    policy_updates:
+      schedule: {unit: episode, budget: 128, epochs: 1, max_applied_updates: 2}
+      execution: {records: 1, context_tokens: 28672, statistic_bytes: 268435456}
+
+  lfm2.5-2.6b/automationbench-manifest-steps-sampo-2-g16x8-mean-std-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 28672
+      learning_rate: 0.00006
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 2
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 42
+    num_prompts_per_step: 16
+    num_generations: 8
+    max_prompt_length: 20480
+    max_completion_length: 4096
+    beta: 0.01
+    kl_reference: base
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean_std
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 5, oversample: 4, oversample_refill: 4}
+    truncation_penalty: 0.1
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    policy_updates:
+      schedule: {unit: episode, budget: 128, epochs: 1, max_applied_updates: 2}
       execution: {records: 1, context_tokens: 28672, statistic_bytes: 268435456}
 
   training/lfm2.5-1.2b-trl-lora-manifest-ws@1:
