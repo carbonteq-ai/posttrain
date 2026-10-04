@@ -63,7 +63,14 @@ def validate_resolved_job(request: GRPORequest | SAMPORequest | GDPORequest | CA
     if request.training.runtime.nodes != 1 or request.training.runtime.devices_per_node != 1:
         raise InvalidPolicyUpdate("resolved TRL job has not qualified distributed native execution")
     if request.inference.backend.split("@", 1)[0] == "vllm":
-        raise InvalidPolicyUpdate("resolved TRL job has not qualified production sampler correction")
+        from .policy_config import _rollout_execution_config
+
+        # Sampler correction compares frozen trainer scores with the processed
+        # logprobs vLLM returns for each sampled token (TRL configures colocated
+        # vLLM with logprobs_mode=processed_logprobs). Only the colocated async
+        # collection runtime carries them into native traces.
+        if request.inference.engine.get("mode") != "colocate" or _rollout_execution_config(request) is None:
+            raise InvalidPolicyUpdate("resolved TRL vLLM collection requires colocated async rollout execution")
     sampling = policy_sampling_from_mapping(getattr(request.inference, "sampling", {}), settings.max_completion_length)
     if (
         sampling.top_p != 1

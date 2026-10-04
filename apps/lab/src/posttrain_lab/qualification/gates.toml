@@ -1593,6 +1593,19 @@ owner = "posttrain-platform"
 replacement_condition = "Retire once the 2.6B manifest-steps comparison run has completed its first updates with the same checks passing."
 
 [[gates]]
+id = "lfm12-automationbench-manifest-steps-smoke-ws-vllm"
+work_package = ".posttrain/work_packages/lfm12_automationbench_manifest_steps_smoke_ws_vllm.yaml"
+job_id = "sampo"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.sampo"
+acceptance = "verifiers-trajectories"
+experiment_family = "automationbench-manifest-steps-v1"
+hypothesis = "Two resolved TRL SAMPO updates on LFM2.5-1.2B with colocated async vLLM rollouts produce finite sampler-correction weights near one, manifest findings with credit on the issuing step, and finite non-zero gradient norms on the RTX PRO 6000 workstation."
+owner = "posttrain-platform"
+replacement_condition = "Retire once the 2.6B manifest-steps comparison run on resolved TRL with vLLM has completed its first updates with the same checks passing."
+
+[[gates]]
 id = "lfm12-automationbench-manifest-steps-smoke-local"
 work_package = ".posttrain/work_packages/lfm12_automationbench_manifest_steps_smoke_local.yaml"
 job_id = "sampo"

@@ -270,8 +270,6 @@ def rollout_function(
     update_totals = totals if totals is not None else RolloutUpdateTotals(context)
 
     rollout_execution = _rollout_execution_config(request)
-    if retain_native and rollout_execution is not None:
-        raise ValueError("resolved native collection has not qualified asynchronous rollout execution")
     rollout_batch_step: int | None = None
     rollout_batch_ordinal = 0
     collection_ordinal = 0
@@ -369,6 +367,11 @@ def rollout_function(
                     )
                     trainer._posttrain_async_collection_runtime = runtime  # noqa: SLF001 - backend lifecycle state
                 collection_ordinal += 1
+                if trainer.state.global_step != trainer._last_loaded_step:  # noqa: SLF001 - TRL's sync marker
+                    # TRL syncs before its own generation; resolved collection runs
+                    # outside it, so the sampler must receive the applied policy here.
+                    trainer.vllm_generation.sync_weights()
+                    trainer._last_loaded_step = trainer.state.global_step  # noqa: SLF001
                 # Waking colocated vLLM needs the memory the trainer's allocator still
                 # caches; TRL's batch generation path releases it the same way.
                 from trl.generation.vllm_generation import empty_cache

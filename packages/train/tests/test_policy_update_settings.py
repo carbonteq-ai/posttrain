@@ -103,7 +103,7 @@ def test_native_request_rejects_unqualified_explicit_executor_before_launch() ->
     from posttrain.train import GRPORequest
 
     settings = GRPOSettings("explicit", TrainingLoop(max_steps=3), policy_updates=update_settings())
-    with pytest.raises(ValueError, match="transformers generation, not vLLM rollouts"):
+    with pytest.raises(ValueError, match="require colocated async vLLM and rollout_execution"):
         GRPORequest(
             QWEN_35_2B,
             FakeRLBridge(),
@@ -146,8 +146,34 @@ def test_public_admission_matches_the_gpu_qualified_resolved_matrix(backend, rol
     problem = _resolved_selection_problem(
         technique,
         settings,  # pyright: ignore[reportArgumentType]
-        SimpleNamespace(backend=backend, target=SimpleNamespace(placement={})),  # pyright: ignore[reportArgumentType]
-        SimpleNamespace(backend=rollout),  # pyright: ignore[reportArgumentType]
+        SimpleNamespace(backend=backend, target=SimpleNamespace(placement={}), backend_options={}),  # pyright: ignore[reportArgumentType]
+        SimpleNamespace(backend=rollout, engine={}),  # pyright: ignore[reportArgumentType]
+    )
+    assert (problem is None) == admitted, problem
+
+
+@pytest.mark.parametrize(
+    ("engine", "rollout_execution", "admitted"),
+    [
+        ({"mode": "colocate", "request_mode": "async"}, {"env_workers": 1}, True),
+        ({"mode": "colocate", "request_mode": "batch"}, None, False),
+        ({"mode": "server", "request_mode": "async"}, {"env_workers": 1}, False),
+        ({"mode": "colocate", "request_mode": "async"}, None, False),
+    ],
+)
+def test_resolved_trl_admits_vllm_only_through_colocated_async_collection(engine, rollout_execution, admitted):
+    from types import SimpleNamespace
+
+    from posttrain.train.profiles import SAMPOSettings
+    from posttrain.train.requests import _resolved_selection_problem
+
+    settings = SAMPOSettings("explicit", TrainingLoop(max_steps=3), policy_updates=update_settings())
+    options = {} if rollout_execution is None else {"rollout_execution": rollout_execution}
+    problem = _resolved_selection_problem(
+        "SAMPO",
+        settings,
+        SimpleNamespace(backend="trl@1", target=SimpleNamespace(placement={}), backend_options=options),  # pyright: ignore[reportArgumentType]
+        SimpleNamespace(backend="vllm@1", engine=engine),  # pyright: ignore[reportArgumentType]
     )
     assert (problem is None) == admitted, problem
 

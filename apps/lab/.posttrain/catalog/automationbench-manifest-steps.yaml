@@ -187,6 +187,26 @@ training:
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
       dependency_lock_sha256: 1e215f1af424aaababaaee84818ed0ec22bb15d81004b4d230644b587cc5b301
 
+  # The workstation binding with colocated async vLLM rollouts and native rollout
+  # workers: qualifies resolved TRL policy updates with vLLM sampler correction.
+  training/lfm2.5-1.2b-trl-lora-manifest-ws-vllm@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post14
+    renderer: {id: lfm2.5-tools@1, model_family: lfm2.5, implementation: default, reasoning_mode: native}
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 16, devices_per_node: 1, timeout_seconds: 7200}
+    backend_options:
+      rollout_execution: {env_workers: 4, episodes_per_worker: 4, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      training_precision: bf16
+      dependency_lock: trl-fork@current
+      source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
+      dependency_lock_sha256: 1e215f1af424aaababaaee84818ed0ec22bb15d81004b4d230644b587cc5b301
+
   training/lfm2.5-1.2b-trl-lora-manifest-local@1:
     selection_type: training-binding
     revision: "1"
