@@ -33,8 +33,12 @@ This plan does not change the frozen product baseline. It uses the 0.4.14 `polic
   - Invocations map to sampled turns by ordered name/argument matching. An unmappable episode gets no manifest credit. Reapplying the credit is idempotent.
   - Reward projection: `reward/automationbench-manifest-steps@1`.
 - [x] (2026-10-05) Lab catalog `automationbench-manifest-steps.yaml` and three work packages: 1.2B correctness runs on the workstation and the local card, and the 2.6B comparison run. All three plan. Runtime-image locks and profiles name Verifiers `959da638`; the online-RL TRL and eval kind images are being republished locally.
-- [ ] Correctness runs on LFM2.5-1.2B, 2–3 updates each, in parallel on the two machines.
-- [ ] One SAMPO run on LFM2.5-2.6B with the last H100 run's settings, plus the held-out evaluation and comparison.
+- [ ] Correctness runs on LFM2.5-1.2B, 2 updates each, on the workstation (the user made the workstation correctness runs double as smoke runs; the local 8 GB card is a dstack worker for later jobs).
+  - r4 (transformers generation) finished an update with gradient norm 0.0025, but no tool ever ran. Fixed by `capture_actions: true` (`36c7195d`) and the LFM full re-render fix (`b61cdbe5`).
+  - r6 (both fixes): all 32 episodes trainable, no capture refusals, scoring 0.8 s mean and 3.1 s max per episode. But 54 of 57 tool calls still failed (linked-receipt HTTP 400), and 2 re-rendered episodes lacked turn evidence, so the run failed with every group rejected.
+  - Fixes, both pushed: Verifiers `cf2ec7fa` records the submitted arguments in linked receipts; the environment computes turn rewards on the trajectory Posttrain trains (`training_nodes`). rl pins Verifiers `cf2ec7fa` and lock digest `46d1a725…`; the TRL and eval kind images are being republished.
+- [ ] Qualify resolved TRL updates with colocated async vLLM rollouts (user decision, 2026-10-05). The engine now admits colocated async vLLM with rollout workers (`0ec2127f`): it syncs the applied policy before each collection, and the existing sampler correction uses vLLM's processed logprobs. The first run (`manifest-steps-smoke-ws-vllm-20261005-r1`) collected and resolved a population, then stopped because one view exceeded the 16,384-token update context. The vLLM arm now has its own settings with 20,480-token context.
+- [ ] One SAMPO run on LFM2.5-2.6B with the settings of the run after the H100 one (cont100: 16 turns, 4,096 tokens per reply, LR 6e-5, KL 0.01) and 8 rollouts per prompt, on resolved TRL with vLLM, plus the held-out evaluation and comparison.
 
 ## Surprises & Discoveries
 
@@ -47,12 +51,26 @@ This plan does not change the frozen product baseline. It uses the 0.4.14 `polic
 - Observation: only 23 of the 105 sample tasks, and none of the 5 installed ones, are full passes in the 709-task Luna run. That run had a mean partial credit of 0.56 and 222 full passes.
   Evidence: `docs/research/verifiers-assessment-qualification/luna-development-review-coverage.json`.
 
+- Observation: Verifiers `959da638` refuses every linked tool call unless the task captures actions. With capture on, it still rejected any call that omitted an optional argument, because the receipt recorded the defaults validation had filled in.
+  Evidence: r4 had 172 of 186 tool replies as the capture refusal. In r6, 54 of 57 calls returned HTTP 400; every failed call omitted optional parameters, and the 3 successes omitted none (`validate_server_parent` replayed offline passes with the submitted arguments).
+- Observation: LFM2.5 parsed turns keep the newline after the reasoning block. A full re-render merges it with the template's newline into one token and breaks the renderer's turn boundary. A full re-render happens after a nonconforming tool call, because Verifiers then withholds the token anchor, and it splits the trace into two branches.
+  Evidence: r4 had 7 of 60 episodes failing; replaying its 211 assistant prefixes, all failed before `full_render_messages` and none after. In r6, 2 of 32 episodes were split with no turn evidence.
+- Observation: manifest scoring is about 1.2 s per episode on average (p90 2 s, max 8.8 s) on one core in an offline replay of 39 Luna episodes, against 0.003 s without manifests. Verifiers scores on the event loop, so at high concurrency the rollout workers (vLLM path) spread this cost across processes.
+  Evidence: `docs/research/verifiers-assessment-qualification/reward-candidate/manifest-scoring-benchmark.py` (run from the environment directory with `PYTHONPATH=src .venv/bin/python <script> manifest-scoring-benchmark-tasks.json`; output `manifest-scoring-benchmark-20261005.jsonl`) and cProfile of `support.gorgias_refund_processing`: Pydantic validation 7.5 s, canonical JSON 3.5 s (guard digest 842 calls), proof checks 2.5 s.
+
 ## Decision Log
+
+- Decision: qualify resolved TRL policy updates with colocated async vLLM rollouts for the 2.6B run, rather than native veRL, the legacy TRL path, or transformers generation.
+  Rationale: the user's choice. It keeps the 0.4.14 engine fixes (minibatches, sequence-level clipping) and vLLM throughput. The admission requires colocated vLLM in async request mode with native rollout workers, which carries vLLM's processed logprobs into native traces for the existing sampler correction. Collection runs outside TRL's own generation, so the policy is synced to vLLM before each collection.
+  Date/Author: 2026-10-05, user and Claude.
+- Decision: the 2.6B run uses cont100's settings (16 turns, 4,096 tokens per reply) with 8 rollouts per prompt, not the H100 run's 6K replies.
+  Rationale: the user's correction: "it should be to the run after the h100 one just the turns need to be increased" and "we want 8 rollouts per prompt not 4".
+  Date/Author: 2026-10-05, user.
 
 - Decision: implement manifest step credit inside the environment's per-turn reward evidence (scorer v3), not as a trainer-side process-credit provider.
   Rationale: SAMPO already consumes per-turn rewards from `posttrain_turn_rewards` through a reward projection, so the credit lands on whole steps with no trainer change. The scorer digest names the rule, and the episode reward stays the official partial credit.
   Date/Author: 2026-10-05, Claude.
-- Decision: use the resolved TRL SAMPO path (TRL 1.12.0.post14 with vLLM colocate rollouts) rather than native veRL for these runs.
+- Decision (superseded by the vLLM qualification decision above): use the resolved TRL SAMPO path rather than native veRL for these runs.
   Rationale: the TRL kind installs the framework's locked closure, which now pins Verifiers `959da638`. The veRL backend runs in a separate image and Python environment whose Verifiers pin would also have to move. The plan admits the TRL selection with `policy_updates`.
   Date/Author: 2026-10-05, Claude.
 - Decision: the 2.6B run takes one optimizer step per 144-episode population (`policy_updates.schedule.budget: 144`).

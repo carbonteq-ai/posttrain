@@ -59,11 +59,65 @@ environment:
     sampling: {max_tokens: 3072, temperature: 0.8, top_p: 1.0}
     num_rollouts: 4
     max_concurrent: 16
+  # The vLLM qualification arm: one extra prompt group per active-sampling round.
+  automationbench-manifest-steps-mixv2-smoke-vllm-v1:
+    <<: *automationbench_manifest_steps
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 1.0}
+    num_rollouts: 4
+    max_concurrent: 20
   automationbench-manifest-steps-mixv2-smoke-local-v1:
     <<: *automationbench_manifest_steps
     sampling: {max_tokens: 1024, temperature: 0.8, top_p: 1.0}
     num_rollouts: 4
     max_concurrent: 8
+
+  # The 2.6B comparison environment: cont100's (the run after the H100 one) 16 turns with a
+  # 4096-token reply budget and 12288 output tokens per episode, mix-v2, 8 attempts per task,
+  # with manifest findings and manifest step credit selected.
+  automationbench-manifest-steps-mixv2-4k16t-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 05cdc84cd6a067b7cbb2ed90d4b0ade53cd7a166
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 16
+            capture_actions: true
+            manifest_assessments: true
+            turn_rewards:
+              tool_failure_penalty: 0.02
+              manifest_goal_share: 0.5
+              manifest_harm_penalty: 0.1
+              manifest_harm_cap: 0.3
+            mistake_penalty: {per_mistake: 0.02, cap: 0.1}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 16
+          max_output_tokens: 12288
+    sampling: {max_tokens: 4096, temperature: 0.8, top_p: 1.0}
+    num_tasks: 160
+    num_rollouts: 8
+    max_concurrent: 180
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 16
+      max_output_tokens: 12288
 
 training:
   # SAMPO step rewards: the live per-turn partial-credit progress (version-2 rule,
@@ -109,6 +163,44 @@ training:
       schedule: {unit: episode, budget: 16, epochs: 1, max_applied_updates: 2}
       execution: {records: 1, context_tokens: 16384, statistic_bytes: 67108864}
 
+  # The vLLM qualification arm, with the 2.6B run's sampler correction, active sampling and
+  # truncation penalty. vLLM caps each request at max_model_len 16384, and a
+  # retained conditioning view adds the turn's closing tokens beyond it, so the update
+  # context leaves headroom above the engine limit.
+  lfm2.5-1.2b/automationbench-manifest-steps-smoke-vllm-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 20480
+      learning_rate: 0.00006
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 2
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 42
+    num_prompts_per_step: 4
+    num_generations: 4
+    max_prompt_length: 12288
+    max_completion_length: 3072
+    beta: 0.01
+    kl_reference: base
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 3, oversample: 1, oversample_refill: 1}
+    truncation_penalty: 0.1
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    policy_updates:
+      schedule: {unit: episode, budget: 16, epochs: 1, max_applied_updates: 2}
+      execution: {records: 1, context_tokens: 20480, statistic_bytes: 67108864}
+
   lfm2.5-1.2b/automationbench-manifest-steps-smoke-local-v1:
     selection_type: sampo-settings
     revision: "1"
@@ -138,36 +230,45 @@ training:
       schedule: {unit: episode, budget: 16, epochs: 1, max_applied_updates: 2}
       execution: {records: 1, context_tokens: 6144, statistic_bytes: 67108864}
 
-  # The last H100 run's settings (24 prompts x 6 rollouts, LR 6e-5 constant, KL 0.01 to
-  # the base, 50 updates, 28672-token context, 6144-token replies, gamma 0.95) on the
-  # resolved engine: one optimizer step per 144-episode population, as with accumulation 144.
-  lfm2.5-2.6b/automationbench-manifest-steps-sampo-50-g24x6-v1:
+  # cont100's settings (LR 6e-5 constant, KL 0.01 to the base, gamma 0.95, token-truncated
+  # sampler correction capped at 2, truncation penalty 0.1, 5 extra groups per round and at
+  # most 5 candidate rounds) with 16 prompt groups x 8 attempts (128 episodes) and 100
+  # updates from the base model. One optimizer step per 128-episode population, as with
+  # cont100's single accumulated step. The resolved TRL engine does not admit the adaptive
+  # curriculum, so prompts are shuffled. The update context leaves headroom above vLLM's
+  # 24576-token engine limit.
+  lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1:
     selection_type: sampo-settings
     revision: "1"
     loop:
-      max_steps: 50
+      max_steps: 100
       max_length: 28672
       learning_rate: 0.00006
       lr_scheduler_type: constant
       logging_steps: 1
       checkpoint_steps: 25
-      checkpoint_limit: 2
+      checkpoint_limit: 4
       gradient_checkpointing: true
       seed: 42
-    num_prompts_per_step: 24
-    num_generations: 6
-    max_prompt_length: 22528
-    max_completion_length: 6144
+    num_prompts_per_step: 16
+    num_generations: 8
+    max_prompt_length: 20480
+    max_completion_length: 4096
     beta: 0.01
     kl_reference: base
     discount_gamma: 0.95
     step_advantage_weight: 1.0
     advantage_normalization: mean
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 5, oversample: 5, oversample_refill: 5}
+    truncation_penalty: 0.1
     shuffle_prompts: true
     mask_truncated_completions: false
     max_admission_attempts: 1
     policy_updates:
-      schedule: {unit: episode, budget: 144, epochs: 1, max_applied_updates: 50}
+      schedule: {unit: episode, budget: 128, epochs: 1, max_applied_updates: 100}
       execution: {records: 1, context_tokens: 28672, statistic_bytes: 268435456}
 
   training/lfm2.5-1.2b-trl-lora-manifest-ws@1:
@@ -185,7 +286,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: 1e215f1af424aaababaaee84818ed0ec22bb15d81004b4d230644b587cc5b301
+      dependency_lock_sha256: 46d1a725a08bd6bc042ad8d1cf5433e025cac13e0ba1a59c8b304a7e47e120df
 
   # The workstation binding with colocated async vLLM rollouts and native rollout
   # workers: qualifies resolved TRL policy updates with vLLM sampler correction.
@@ -199,13 +300,13 @@ training:
     parallelism: {sequence_length_divisor: 2}
     runtime: {global_batch_size: 16, devices_per_node: 1, timeout_seconds: 7200}
     backend_options:
-      rollout_execution: {env_workers: 4, episodes_per_worker: 4, worker_native_threads: 1}
+      rollout_execution: {env_workers: 5, episodes_per_worker: 4, worker_native_threads: 1}
       use_liger_kernel: false
       logits_chunk_size: 64
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: 1e215f1af424aaababaaee84818ed0ec22bb15d81004b4d230644b587cc5b301
+      dependency_lock_sha256: 46d1a725a08bd6bc042ad8d1cf5433e025cac13e0ba1a59c8b304a7e47e120df
 
   training/lfm2.5-1.2b-trl-lora-manifest-local@1:
     selection_type: training-binding
@@ -222,9 +323,11 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: 1e215f1af424aaababaaee84818ed0ec22bb15d81004b4d230644b587cc5b301
+      dependency_lock_sha256: 46d1a725a08bd6bc042ad8d1cf5433e025cac13e0ba1a59c8b304a7e47e120df
 
-  training/lfm2.5-2.6b-trl-lora-manifest-ws-g144-r4-fp16@1:
+  # cont100's fp16 rank-4 workstation binding for 128-episode updates with 12 rollout
+  # workers x 15 episodes (180 slots for the largest (16 + 5) x 8 = 168-episode round).
+  training/lfm2.5-2.6b-trl-lora-manifest-ws-g128-r4-fp16@1:
     selection_type: training-binding
     revision: "1"
     backend: trl@1.12.0.post14
@@ -232,7 +335,7 @@ training:
     update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
     target: targets/carbonteq-rtx-pro-6000-96gb
     parallelism: {sequence_length_divisor: 2}
-    runtime: {global_batch_size: 144, devices_per_node: 1, timeout_seconds: 86400}
+    runtime: {global_batch_size: 128, devices_per_node: 1, timeout_seconds: 86400}
     backend_options:
       rollout_execution: {env_workers: 12, episodes_per_worker: 15, worker_native_threads: 1}
       use_liger_kernel: false
@@ -242,7 +345,7 @@ training:
       logits_float32: true
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: 1e215f1af424aaababaaee84818ed0ec22bb15d81004b4d230644b587cc5b301
+      dependency_lock_sha256: 46d1a725a08bd6bc042ad8d1cf5433e025cac13e0ba1a59c8b304a7e47e120df
 
 inference:
   inference/lfm2.5-1.2b-vllm-manifest-ws@1:
@@ -257,7 +360,7 @@ inference:
       gpu_memory_utilization: 0.35
       tensor_parallel_size: 1
       max_model_len: 16384
-      max_num_seqs: 16
+      max_num_seqs: 20
       max_num_batched_tokens: 16384
       enable_prefix_caching: true
       enable_chunked_prefill: true
@@ -299,9 +402,10 @@ inference:
     purpose: [rollout]
     capabilities: [tool-calling]
 
-  # The H100 run's rollout engine on the RTX PRO 6000 (no H100-specific attention or
-  # speculative-decoding settings).
-  inference/lfm2.5-2.6b-vllm-manifest-ws-c180-6k-t08-fp16@1:
+  # cont100's rollout engine: c180, CUDA graphs, DSpark speculative decoding, sleep level 1
+  # with in-place LoRA reload, 4096-token replies. (cont100's 2048-token graph-capture cap is
+  # not read by the colocated TRL engine, so it is not set.)
+  inference/lfm2.5-2.6b-vllm-manifest-ws-c180-4k-t08-fp16@1:
     revision: "1"
     model: models/lfm2.5-2.6b@bf16
     backend: vllm@0.29.1.dev4
@@ -310,23 +414,31 @@ inference:
       mode: colocate
       request_mode: async
       sleep_during_optimization: true
-      gpu_memory_utilization: 0.72
+      gpu_memory_utilization: 0.68
       tensor_parallel_size: 1
-      max_model_len: 28672
+      max_model_len: 24576
       max_num_seqs: 180
       max_num_batched_tokens: 65536
-      kv_cache_memory_bytes: 42949672960
+      kv_cache_memory_bytes: 51539607552
       weight_sync_mode: lora
       enforce_eager: false
       enable_chunked_prefill: true
       enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
       text_only: true
       skip_mm_profiling: true
+      speculative_config:
+        method: dspark
+        model: LiquidAI/LFM2.5-2.6B-DSpark
+        revision: 458cedab07d0f7b2b05700c77e1aa463d43d6f04
+        num_speculative_tokens: 9
       dtype: float16
-    sampling: {max_tokens: 6144, temperature: 0.8, top_p: 1.0}
+    sampling: {max_tokens: 4096, temperature: 0.8, top_p: 1.0}
     target: targets/carbonteq-rtx-pro-6000-96gb
     startup_timeout_seconds: 900
     purpose: [rollout]
+    capabilities: [tool-calling]
 
   # Resolved TRL policy updates are qualified with transformers generation (0.4.14),
   # not vLLM rollouts; these bindings select it for the correctness runs.

@@ -21,8 +21,8 @@ recipe:
   expected_artifacts: [trained adapter, native Verifiers trajectories, per-turn environment reward evidence, training summary]
 bindings:
   model: {type: ref, family: model, id: models/lfm2.5-1.2b-thinking@bf16}
-  environment: {type: ref, family: environment, id: automationbench-manifest-steps-mixv2-smoke-v1}
-  settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-manifest-steps-smoke-v1}
+  environment: {type: ref, family: environment, id: automationbench-manifest-steps-mixv2-smoke-vllm-v1}
+  settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-manifest-steps-smoke-vllm-v1}
   reward_projection: {type: ref, family: training, id: reward/automationbench-manifest-steps@1}
   training: {type: ref, family: training, id: training/lfm2.5-1.2b-trl-lora-manifest-ws-vllm@1}
   rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-manifest-ws@1}
