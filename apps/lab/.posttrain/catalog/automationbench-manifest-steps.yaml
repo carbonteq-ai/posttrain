@@ -1,0 +1,308 @@
+# AutomationBench manifest step credit (docs/plan/automationbench-manifest-reward-release-and-sampo.md).
+# Environment 05cdc84: the official partial credit stays the episode reward; installed
+# manifests add goal credit and harm debit to the turn (step) whose tool call produced
+# them (turn-reward scorer version 3). Settings use the 0.4.14 resolved policy-update engine.
+environment:
+  # The last H100 SAMPO run's environment (14 turns, 6144 tokens per reply, 18432 output
+  # tokens per episode, mix-v2, turn budget 14, mistake penalty) with manifest findings
+  # and manifest step credit selected.
+  automationbench-manifest-steps-mixv2-6k14t-v1: &automationbench_manifest_steps
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 05cdc84cd6a067b7cbb2ed90d4b0ade53cd7a166
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 14
+            manifest_assessments: true
+            turn_rewards:
+              tool_failure_penalty: 0.02
+              manifest_goal_share: 0.5
+              manifest_harm_penalty: 0.1
+              manifest_harm_cap: 0.3
+            mistake_penalty: {per_mistake: 0.02, cap: 0.1}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 14
+          max_output_tokens: 18432
+    sampling: {max_tokens: 6144, temperature: 0.8, top_p: 1.0}
+    num_tasks: 160
+    num_rollouts: 6
+    max_concurrent: 180
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: lfm26-automationbench-mix-v2
+      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
+      sampling_seed: 172846
+      toolset: limited_zapier
+      max_turns: 14
+      max_output_tokens: 18432
+
+  # 2-update correctness runs: the same tasks and reward with smaller budgets.
+  automationbench-manifest-steps-mixv2-smoke-v1:
+    <<: *automationbench_manifest_steps
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 1.0}
+    num_rollouts: 4
+    max_concurrent: 16
+  automationbench-manifest-steps-mixv2-smoke-local-v1:
+    <<: *automationbench_manifest_steps
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 1.0}
+    num_rollouts: 4
+    max_concurrent: 8
+
+training:
+  # SAMPO step rewards: the live per-turn partial-credit progress (version-2 rule,
+  # 0.02 per tool mistake) plus manifest step credit (goal share 0.5, harm 0.1 capped at
+  # 0.3 per episode). Digest = AutomationBenchTurnRewardConfig scorer version 3.
+  reward/automationbench-manifest-steps@1:
+    selection_type: reward-projection
+    revision: "1"
+    components:
+      - {name: partial_credit, source: scalar}
+    turns_info_key: posttrain_turn_rewards
+    turn_reward_key: turn_reward
+    turn_reward_includes_terminal_outcome: true
+    scorer_digest: c682477d7dde8ded09a85f833c4dd665804495f992a7899ddd306fdf869a4cd1
+
+  # Two resolved SAMPO updates on LFM2.5-1.2B: correctness and gradient-norm checks.
+  lfm2.5-1.2b/automationbench-manifest-steps-smoke-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 16384
+      learning_rate: 0.00006
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 2
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 42
+    num_prompts_per_step: 4
+    num_generations: 4
+    max_prompt_length: 12288
+    max_completion_length: 3072
+    beta: 0.01
+    kl_reference: base
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    policy_updates:
+      schedule: {unit: episode, budget: 16, epochs: 1, max_applied_updates: 2}
+      execution: {records: 1, context_tokens: 16384, statistic_bytes: 67108864}
+
+  lfm2.5-1.2b/automationbench-manifest-steps-smoke-local-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 2
+      max_length: 6144
+      learning_rate: 0.00006
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 2
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 42
+    num_prompts_per_step: 4
+    num_generations: 4
+    max_prompt_length: 5120
+    max_completion_length: 1024
+    beta: 0.01
+    kl_reference: base
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    policy_updates:
+      schedule: {unit: episode, budget: 16, epochs: 1, max_applied_updates: 2}
+      execution: {records: 1, context_tokens: 6144, statistic_bytes: 67108864}
+
+  # The last H100 run's settings (24 prompts x 6 rollouts, LR 6e-5 constant, KL 0.01 to
+  # the base, 50 updates, 28672-token context, 6144-token replies, gamma 0.95) on the
+  # resolved engine: one optimizer step per 144-episode population, as with accumulation 144.
+  lfm2.5-2.6b/automationbench-manifest-steps-sampo-50-g24x6-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 50
+      max_length: 28672
+      learning_rate: 0.00006
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 25
+      checkpoint_limit: 2
+      gradient_checkpointing: true
+      seed: 42
+    num_prompts_per_step: 24
+    num_generations: 6
+    max_prompt_length: 22528
+    max_completion_length: 6144
+    beta: 0.01
+    kl_reference: base
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    policy_updates:
+      schedule: {unit: episode, budget: 144, epochs: 1, max_applied_updates: 50}
+      execution: {records: 1, context_tokens: 28672, statistic_bytes: 268435456}
+
+  training/lfm2.5-1.2b-trl-lora-manifest-ws@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post14
+    renderer: {id: lfm2.5-tools@1, model_family: lfm2.5, implementation: default, reasoning_mode: native}
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 16, devices_per_node: 1, timeout_seconds: 7200}
+    backend_options:
+      rollout_execution: {env_workers: 2, episodes_per_worker: 8, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      training_precision: bf16
+      dependency_lock: trl-fork@current
+      source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
+      dependency_lock_sha256: 1e215f1af424aaababaaee84818ed0ec22bb15d81004b4d230644b587cc5b301
+
+  training/lfm2.5-1.2b-trl-lora-manifest-local@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post14
+    renderer: {id: lfm2.5-tools@1, model_family: lfm2.5, implementation: default, reasoning_mode: native}
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/local-cuda-8gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 16, devices_per_node: 1, timeout_seconds: 7200}
+    backend_options:
+      rollout_execution: {env_workers: 2, episodes_per_worker: 4, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      training_precision: bf16
+      dependency_lock: trl-fork@current
+      source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
+      dependency_lock_sha256: 1e215f1af424aaababaaee84818ed0ec22bb15d81004b4d230644b587cc5b301
+
+  training/lfm2.5-2.6b-trl-lora-manifest-ws-g144-r4-fp16@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post14
+    renderer: {id: lfm2.5-tools-thinking@2, model_family: lfm2.5, implementation: default, reasoning_mode: native}
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 144, devices_per_node: 1, timeout_seconds: 86400}
+    backend_options:
+      rollout_execution: {env_workers: 12, episodes_per_worker: 15, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 128
+      training_precision: fp16
+      fp16_initial_loss_scale: 1024
+      logits_float32: true
+      dependency_lock: trl-fork@current
+      source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
+      dependency_lock_sha256: 1e215f1af424aaababaaee84818ed0ec22bb15d81004b4d230644b587cc5b301
+
+inference:
+  inference/lfm2.5-1.2b-vllm-manifest-ws@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 16384
+      max_num_seqs: 16
+      max_num_batched_tokens: 16384
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 8589934592
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 1.0}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  inference/lfm2.5-1.2b-vllm-manifest-local@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 6144
+      max_num_seqs: 8
+      max_num_batched_tokens: 6144
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 536870912
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 1.0}
+    target: targets/local-cuda-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  # The H100 run's rollout engine on the RTX PRO 6000 (no H100-specific attention or
+  # speculative-decoding settings).
+  inference/lfm2.5-2.6b-vllm-manifest-ws-c180-6k-t08-fp16@1:
+    revision: "1"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.72
+      tensor_parallel_size: 1
+      max_model_len: 28672
+      max_num_seqs: 180
+      max_num_batched_tokens: 65536
+      kv_cache_memory_bytes: 42949672960
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      text_only: true
+      skip_mm_profiling: true
+      dtype: float16
+    sampling: {max_tokens: 6144, temperature: 0.8, top_p: 1.0}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    startup_timeout_seconds: 900
+    purpose: [rollout]
