@@ -130,3 +130,24 @@ def test_collector_rejects_missing_native_contract_before_collection():
             selector_digest="selection",
             attempt_offset=0,
         )
+
+
+def test_sampler_wake_memory_is_recorded_at_the_collection_step(monkeypatch):
+    import torch
+    from posttrain.train.backends.trl.policy_rollouts import _report_device_memory
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "mem_get_info", lambda: (3 * 1024**3, 8 * 1024**3))
+    monkeypatch.setattr(torch.cuda, "memory_allocated", lambda: 1024**3)
+    monkeypatch.setattr(torch.cuda, "memory_reserved", lambda: 2 * 1024**3)
+    monkeypatch.setattr(torch.cuda, "max_memory_allocated", lambda: 1024**3)
+    monkeypatch.setattr(torch.cuda, "reset_peak_memory_stats", lambda: None)
+    seen = []
+    context = SimpleNamespace(metrics=lambda values, **kwargs: seen.append((values, kwargs)))
+    # Rollout metrics of this collection are recorded at its optimizer step (4);
+    # a later step here would make them go back and tracking rejects that.
+    _report_device_memory(cast(RunContext, context), 4)
+    ((values, metadata),) = seen
+    assert metadata == {"step": 4, "attributes": {"measurement_scope": "sampler-wake"}}
+    assert values["train/rl/device_memory_free_gib"] == 3.0
+    assert values["train/rl/device_memory_reserved_gib"] == 2.0

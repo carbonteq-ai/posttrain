@@ -247,6 +247,9 @@ def collect_active_resolved_population(
 def _report_device_memory(context: RunContext, step: int) -> None:
     """Device memory the trainer holds as colocated vLLM wakes, and its peak since the last wake.
 
+    ``step`` is the logical step of the collection the wake precedes, the step
+    its rollout metrics are recorded at; tracking rejects steps that go back.
+
     The sampler reclaims a fixed share of the device on wake; these values show
     what the trainer still holds when it does, so a wake-up out-of-memory can be
     attributed (live tensors versus allocator reservation versus other users).
@@ -270,7 +273,7 @@ def _report_device_memory(context: RunContext, step: int) -> None:
         + ", ".join(f"{name.rsplit('/', 1)[-1]}={value:.2f}" for name, value in values.items()),
         flush=True,
     )
-    context.metrics(values, step=step + 1, attributes={"measurement_scope": "sampler-wake"})
+    context.metrics(values, step=step, attributes={"measurement_scope": "sampler-wake"})
 
 
 def _observe_collection(
