@@ -100,8 +100,10 @@ def update_metrics(
     sampler_correction: Mapping[ActionRef, float] | None = None,
     correction_recipe: tuple[str, float | None, float | None] | None = None,
     entropies: Mapping[ActionRef, float] | None = None,
+    old_scores: Mapping[ActionRef, float] | None = None,
+    sampled_scores: Mapping[ActionRef, float] | None = None,
 ) -> dict[str, float]:
-    """Credit, clipping, correction and entropy over one update's selected policy actions.
+    """Credit, clipping, correction, sampler gap and entropy over one update's selected policy actions.
 
     `clipped_ratios` maps each action whose clipped surrogate was active to its
     current/old ratio. A ratio above one was clipped at the upper bound (a
@@ -111,8 +113,20 @@ def update_metrics(
     clipping is non-zero only when several updates share one collection.
     Sampler-correction weights are the frozen detached weights multiplying each
     selected action's term; "clamped" counts weights held at a truncation bound
-    or zeroed by a mask. Credit within 1e-8 of zero (rounding residue from
-    centring equal rewards) counts as zero, as in TRL's advantage statistics.
+    or zeroed by a mask. With a sequence correction mode every action of an
+    episode shares one weight, so the weight statistics count each touched
+    episode once, as TRL reports sequence importance sampling. Credit within
+    1e-8 of zero (rounding residue from centring equal rewards) counts as zero,
+    as in TRL's advantage statistics.
+
+    The sampler gap compares the frozen trainer old scores with the sampler's
+    own log scores for the same original actions, which are the two inputs of
+    the sampler correction. As in TRL, the token statistics are the mean, max
+    and nearest-rank 99th percentile of |old - sampled| over the selected
+    actions, and the sequence statistic is the mean over touched episodes of
+    |sum(old - sampled)| over the episode's complete eligible support (the
+    scope sequence correction uses). `old_scores` must cover the complete
+    population.
     """
 
     selected = [weighted.action for weighted in term.policy_weights]
@@ -136,10 +150,16 @@ def update_metrics(
     values["train/rl/clip_fraction_high"] = sum(clipped_ratios[action] > 1 for action in clipped) / count
     values["train/rl/clip_fraction_low"] = sum(clipped_ratios[action] < 1 for action in clipped) / count
     if sampler_correction is not None:
-        weights = [float(sampler_correction[action]) for action in selected]
+        if correction_recipe is not None and correction_recipe[0].startswith("sequence"):
+            per_episode: dict[tuple[str, str], float] = {}
+            for action in selected:
+                per_episode.setdefault(_episode(action), float(sampler_correction[action]))
+            weights = list(per_episode.values())
+        else:
+            weights = [float(sampler_correction[action]) for action in selected]
         values.update(
             {
-                "train/rl/importance_sampling_ratio_mean": math.fsum(weights) / count,
+                "train/rl/importance_sampling_ratio_mean": math.fsum(weights) / len(weights),
                 "train/rl/importance_sampling_ratio_min": min(weights),
                 "train/rl/importance_sampling_ratio_max": max(weights),
             }
@@ -153,12 +173,41 @@ def update_metrics(
                     (lower is not None and weight == lower) or (upper is not None and weight == upper)
                     for weight in weights
                 )
-            values["train/rl/importance_sampling_ratio_clamped_fraction"] = clamped / count
+            values["train/rl/importance_sampling_ratio_clamped_fraction"] = clamped / len(weights)
+    if old_scores is not None and sampled_scores is not None:
+        values.update(_sampler_gap(selected, old_scores, sampled_scores))
     if entropies:
         scored = [entropies[action] for action in selected if action in entropies]
         if scored:
             values["train/rl/entropy"] = math.fsum(scored) / len(scored)
     return values
+
+
+def _episode(action: ActionRef) -> tuple[str, str]:
+    return action.episode_id, action.branch_id
+
+
+def _sampler_gap(
+    selected: Sequence[ActionRef],
+    old: Mapping[ActionRef, float],
+    sampled: Mapping[ActionRef, float],
+) -> dict[str, float]:
+    gaps = sorted(abs(float(old[action]) - float(sampled[action])) for action in selected)
+    # Nearest rank, as the ordinary TRL path reports its p99.
+    rank = max(1, math.ceil(0.99 * len(gaps)))
+    touched = {_episode(action) for action in selected}
+    sums: dict[tuple[str, str], list[float]] = {episode: [] for episode in touched}
+    for action, value in old.items():
+        members = sums.get(_episode(action))
+        if members is not None:
+            members.append(float(value) - float(sampled[action]))
+    sequences = [abs(math.fsum(members)) for members in sums.values()]
+    return {
+        "train/rl/sampling_logp_delta_mean": math.fsum(gaps) / len(gaps),
+        "train/rl/sampling_logp_delta_max": gaps[-1],
+        "train/rl/sampling_logp_delta_p99": gaps[rank - 1],
+        "train/rl/sampling_sequence_logp_delta_abs_mean": math.fsum(sequences) / len(sequences),
+    }
 
 
 __all__ = ["SAMPO_CREDIT_ESTIMATOR_PREFIX", "collection_metrics", "update_metrics"]

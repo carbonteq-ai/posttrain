@@ -280,6 +280,8 @@ def test_real_sampo_credit_and_update_metrics_equal_hand_computation(normalizati
         sampler_correction=correction,
         correction_recipe=("token_truncate", None, 2.0),
         entropies=entropies,
+        old_scores=old,
+        sampled_scores=sampled,
     )
 
     count = len(tokens)
@@ -299,11 +301,71 @@ def test_real_sampo_credit_and_update_metrics_equal_hand_computation(normalizati
             "train/rl/importance_sampling_ratio_max": 2.0,
             "train/rl/importance_sampling_ratio_clamped_fraction": deltas.count(2.0) / count,
             "train/rl/entropy": sum(entropies.values()) / count,
+            **_hand_sampler_gap(actions, deltas),
         },
         abs=1e-12,
     )
     # Group b contributes twelve zero-credit tokens despite rounding residue.
     assert values["train/rl/advantage_zero_fraction"] >= 12 / count
+
+
+def _hand_sampler_gap(actions, deltas) -> dict[str, float]:
+    """|old - sampled| per selected token; |sum(old - sampled)| per touched episode."""
+    gaps = sorted(abs(delta) for delta in deltas)
+    episodes: dict[str, float] = {}
+    for action, delta in zip(actions, deltas, strict=True):
+        episodes[action.episode_id] = episodes.get(action.episode_id, 0.0) + delta
+    return {
+        "train/rl/sampling_logp_delta_mean": sum(gaps) / len(gaps),
+        "train/rl/sampling_logp_delta_max": max(gaps),
+        # Nearest-rank 99th percentile: ceil(0.99 * n)-th smallest.
+        "train/rl/sampling_logp_delta_p99": gaps[math.ceil(0.99 * len(gaps)) - 1],
+        "train/rl/sampling_sequence_logp_delta_abs_mean": sum(map(abs, episodes.values())) / len(episodes),
+    }
+
+
+def test_sequence_correction_reports_one_weight_per_episode_and_full_episode_gaps():
+    settings = _settings("mean", 1.0)
+    snapshot, actions, credit = _native_population(settings)
+    episodes = sorted({action.episode_id for action in actions})
+    # A constant per-episode token gap gives each episode a known sequence log ratio.
+    per_episode = {
+        episode: (0.1, -0.2, 0.05, 0.4, -0.3, 0.0, 0.2, -0.05, 0.15)[i] for i, episode in enumerate(episodes)
+    }
+    deltas = [per_episode[action.episode_id] for action in actions]
+    old = {action: -2.0 for action in actions}
+    sampled = {action: -2.0 - delta for action, delta in zip(actions, deltas, strict=True)}
+    correction = sampler_correction_weights(snapshot, old, sampled, mode="sequence_truncate", lower=None, upper=2.0)
+    # The update selects only the first turn's tokens of every episode, but
+    # sequence statistics use each touched episode's complete support.
+    selected = [action for action in actions if action.token_index < 2]
+    term = cast(Any, SimpleNamespace(policy_weights=tuple(SimpleNamespace(action=action) for action in selected)))
+
+    values = update_metrics(
+        term,
+        credit,
+        clipped_ratios={},
+        sampler_correction=correction,
+        correction_recipe=("sequence_truncate", None, 2.0),
+        old_scores=old,
+        sampled_scores=sampled,
+    )
+
+    lengths = {episode: sum(action.episode_id == episode for action in actions) for episode in episodes}
+    sequence = {episode: per_episode[episode] * lengths[episode] for episode in episodes}
+    weights = [min(math.exp(value), 2.0) for value in sequence.values()]
+    gaps = sorted(abs(per_episode[action.episode_id]) for action in selected)
+    assert values["train/rl/importance_sampling_ratio_mean"] == pytest.approx(sum(weights) / len(weights))
+    assert values["train/rl/importance_sampling_ratio_min"] == pytest.approx(min(weights))
+    assert values["train/rl/importance_sampling_ratio_max"] == 2.0
+    assert values["train/rl/importance_sampling_ratio_clamped_fraction"] == pytest.approx(
+        sum(math.exp(value) > 2.0 for value in sequence.values()) / len(episodes)
+    )
+    assert values["train/rl/sampling_logp_delta_mean"] == pytest.approx(sum(gaps) / len(gaps))
+    assert values["train/rl/sampling_logp_delta_max"] == pytest.approx(0.4)
+    assert values["train/rl/sampling_sequence_logp_delta_abs_mean"] == pytest.approx(
+        sum(map(abs, sequence.values())) / len(episodes)
+    )
 
 
 def test_update_metrics_count_masked_correction_and_cover_only_selected_actions():
@@ -331,6 +393,7 @@ def test_update_metrics_count_masked_correction_and_cover_only_selected_actions(
     # A clipped action outside the selected update is not counted.
     assert values["train/rl/clip_fraction"] == 0.0
     assert "train/rl/entropy" not in values
+    assert "train/rl/sampling_logp_delta_mean" not in values  # no sampled scores supplied
     empty = cast(Any, SimpleNamespace(policy_weights=()))
     assert update_metrics(empty, credit, clipped_ratios={}) == {}
 

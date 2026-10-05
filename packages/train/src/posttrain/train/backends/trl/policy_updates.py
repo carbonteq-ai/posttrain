@@ -46,6 +46,9 @@ class ResolvedTRLPopulation:
     applied_update_offset: int = 0
     attempt_offset: int = 0
     max_overflow_retries: int = 0
+    # The sampler's own log scores for each original action, retained for
+    # sampler-gap observation only. Correction weights are frozen separately.
+    sampled_scores: Mapping[ActionRef, float] | None = field(default=None, init=False, repr=False)
     old: Any = field(default=None, init=False)
     last_evaluation: Any = field(default=None, init=False)
     _pending: int | None = field(default=None, init=False)

@@ -119,6 +119,7 @@ class ResolvedVeRLCollectionHost:
             sampler_correction=None,
         )
         sampled = admitted.read_input.sampling_log_scores(admitted.resolved.snapshot)
+        population.sampled_scores = sampled
         population.prepare_sampler_correction = lambda old: recipe_sampler_correction_weights(
             self.settings, admitted.resolved.snapshot, old, sampled
         )

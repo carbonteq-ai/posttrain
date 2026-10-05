@@ -520,7 +520,15 @@ _RESOLVED_SAMPO_CREDIT = (
 )
 
 
-def _resolved_sampo_source(metrics: tuple[str, ...]) -> FakeRunDataSource:
+_RESOLVED_SAMPO_SAMPLER_GAP = (
+    "train/rl/sampling_logp_delta_mean",
+    "train/rl/sampling_logp_delta_max",
+    "train/rl/sampling_logp_delta_p99",
+    "train/rl/sampling_sequence_logp_delta_abs_mean",
+)
+
+
+def _resolved_sampo_source(metrics: tuple[str, ...], backend: str = "transformers@1") -> FakeRunDataSource:
     run_id = "runs/resolved-sampo"
     ratios = {"train/rl/rollouts_failed": 0.0, "train/rl/rollouts_unscorable": 0.0}
     series = {
@@ -535,7 +543,7 @@ def _resolved_sampo_source(metrics: tuple[str, ...]) -> FakeRunDataSource:
                         "beta": 0.005,
                         "policy_updates": {"schedule": {"unit": "episode", "minibatches": 1}},
                     },
-                    "inference": {"backend": "transformers@1"},
+                    "inference": {"backend": backend},
                 },
                 metric_names=tuple(series),
                 trace_count=4,
@@ -545,22 +553,26 @@ def _resolved_sampo_source(metrics: tuple[str, ...]) -> FakeRunDataSource:
     )
 
 
+@pytest.mark.parametrize("backend", ["transformers@1", "vllm@0.20"])
 @pytest.mark.asyncio
-async def test_resolved_sampo_run_satisfies_hierarchical_credit_evidence() -> None:
+async def test_resolved_sampo_run_satisfies_hierarchical_credit_evidence(backend: str) -> None:
     complete = (
         *_RESOLVED_SAMPO_UPDATE,
         *_RESOLVED_SAMPO_NATIVE_LOG,
         *_RESOLVED_SAMPO_ROLLOUT_TOTALS,
         *_RESOLVED_SAMPO_COLLECTION,
         *_RESOLVED_SAMPO_CREDIT,
+        *_RESOLVED_SAMPO_SAMPLER_GAP,
     )
 
-    view = await ObservatoryService(_resolved_sampo_source(complete)).get_run_view("runs/resolved-sampo")
+    view = await ObservatoryService(_resolved_sampo_source(complete, backend)).get_run_view("runs/resolved-sampo")
 
     by_key = {item.key: item for item in view.completeness.requirements}
     assert by_key["hierarchical_credit"].state == "available"
     assert by_key["resolved_updates"].state == "available"
     assert by_key["reference_policy"].state == "available"
+    # A colocated vLLM sampler owes rollout-policy correction evidence.
+    assert by_key["policy_freshness"].state == ("available" if backend.startswith("vllm") else "not_applicable")
     assert view.completeness.state == "complete"
     assert not [alert.id for alert in view.alerts if alert.id.startswith("evidence-")]
 
@@ -581,6 +593,10 @@ async def test_resolved_sampo_run_satisfies_hierarchical_credit_evidence() -> No
         "Relative learning signal evidence is incomplete.",
         "Controlled policy update evidence is incomplete.",
     }
+    # Without the sampler gap a vLLM-sampled resolved run is not complete.
+    no_gap = tuple(name for name in complete if name not in _RESOLVED_SAMPO_SAMPLER_GAP)
+    partial = await ObservatoryService(_resolved_sampo_source(no_gap, backend)).get_run_view("runs/resolved-sampo")
+    assert ("evidence-policy_freshness" in {alert.id for alert in partial.alerts}) is backend.startswith("vllm")
 
 
 @pytest.mark.asyncio

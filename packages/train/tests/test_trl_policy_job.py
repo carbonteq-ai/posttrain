@@ -170,6 +170,8 @@ def test_native_job_slot_collects_complete_rows_once_for_multiple_updates(tmp_pa
     candidate.trainer = SimpleNamespace(state=SimpleNamespace(global_step=0))
     population, index = candidate.run.occurrence(0, 0)
     assert population.applied_update_offset == 0 and population.attempt_offset == 0
+    # Sampled scores are retained for sampler-gap observation.
+    assert population.sampled_scores == prepared.read_input.sampling_log_scores(prepared.resolved.snapshot)
     assert index == 0
     assert calls[0][0] == [{"example_id": "task", "prompt": []}] * 2
     assert calls[0][1]["versions"] == candidate.versions(0)
@@ -382,6 +384,13 @@ def test_applied_observation_reports_clipping_correction_and_entropy(tmp_path):
     population.prepare_sampler_correction = lambda old: recipe_sampler_correction_weights(
         settings, snapshot, old, {action: old[action] - deltas[action] for action in actions}
     )
+    old_scores = {}
+
+    def sampled_scores():
+        # The job retains the sampler's scores beside the frozen trainer old scores.
+        old_scores.update({action: float(value) for action, value in population.old.values.items()})
+        population.sampled_scores = {action: old_scores[action] - deltas[action] for action in actions}
+
     model = CausalModel()
     optimizer = SimpleNamespace(step_was_skipped=False)
     candidate.run.current = population
@@ -400,6 +409,8 @@ def test_applied_observation_reports_clipping_correction_and_entropy(tmp_path):
 
     def apply(index):
         population.loss(model, index, torch.device("cpu"))
+        if population.sampled_scores is None:
+            sampled_scores()
         population.before_step(optimizer)
         population.complete_step(optimizer)
         term = resolve_objective_term(
@@ -422,6 +433,13 @@ def test_applied_observation_reports_clipping_correction_and_entropy(tmp_path):
     clamped = sum(abs(deltas[action]) > 1 for action in selected) / len(selected)
     assert first["train/rl/importance_sampling_ratio_clamped_fraction"] == pytest.approx(clamped)
     assert first["train/rl/entropy"] == pytest.approx(sum(map(entropy, selected)) / len(selected), rel=1e-5)
+    gaps = sorted(abs(deltas[action]) for action in selected)
+    assert first["train/rl/sampling_logp_delta_mean"] == pytest.approx(sum(gaps) / len(gaps))
+    assert first["train/rl/sampling_logp_delta_max"] == pytest.approx(max(gaps))
+    assert first["train/rl/sampling_logp_delta_p99"] == pytest.approx(max(gaps))
+    touched = {action.episode_id for action in selected}
+    sequences = [abs(sum(deltas[action] for action in actions if action.episode_id == episode)) for episode in touched]
+    assert first["train/rl/sampling_sequence_logp_delta_abs_mean"] == pytest.approx(sum(sequences) / len(sequences))
 
     # Move the second update's sampled tokens in its advantage direction far
     # enough that every PPO ratio leaves the clip interval.

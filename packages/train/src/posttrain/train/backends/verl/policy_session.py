@@ -131,6 +131,12 @@ class ResolvedVeRLActorSession:
                 },
                 sampler_correction=population.sampler_correction,
                 correction_recipe=sampler_correction_recipe(self.settings),
+                old_scores=(
+                    None
+                    if population.old is None
+                    else {action: float(value) for action, value in population.old.values.items()}
+                ),
+                sampled_scores=population.sampled_scores,
             )
         )
         for name, value in self.engine.last_loss_scale_metrics.items():

@@ -208,6 +208,24 @@ _RESOLVED_UPDATE_REQUIREMENT = EvidenceRequirementDefinition(
 )
 
 
+# Both the ordinary TRL path and the resolved engine emit these whenever vLLM
+# samples the rollouts the trainer scores, for GRPO-family runs and SAMPO alike.
+_POLICY_FRESHNESS_REQUIREMENT = EvidenceRequirementDefinition(
+    key="policy_freshness",
+    label="Rollout-policy correction",
+    level="conditional",
+    condition="decoupled_rollout",
+    metrics=(
+        "train/rl/sampling_logp_delta_mean",
+        "train/rl/sampling_logp_delta_max",
+        "train/rl/importance_sampling_ratio_mean",
+        "train/rl/importance_sampling_ratio_min",
+        "train/rl/importance_sampling_ratio_max",
+    ),
+    reason="A decoupled rollout server must expose how its sampling probabilities differ from the actor update.",
+)
+
+
 def _help_for(*metrics: str) -> tuple[MetricHelp, ...]:
     return metric_help(*metrics)
 
@@ -1067,20 +1085,7 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
             reason="KL evidence is owed whenever a non-zero reference penalty is selected.",
         ),
         _RESOLVED_UPDATE_REQUIREMENT,
-        EvidenceRequirementDefinition(
-            key="policy_freshness",
-            label="Rollout-policy correction",
-            level="conditional",
-            condition="decoupled_rollout",
-            metrics=(
-                "train/rl/sampling_logp_delta_mean",
-                "train/rl/sampling_logp_delta_max",
-                "train/rl/importance_sampling_ratio_mean",
-                "train/rl/importance_sampling_ratio_min",
-                "train/rl/importance_sampling_ratio_max",
-            ),
-            reason="A decoupled rollout server must expose how its sampling probabilities differ from the actor update.",
-        ),
+        _POLICY_FRESHNESS_REQUIREMENT,
         EvidenceRequirementDefinition(
             key="asynchronous_freshness",
             label="Asynchronous policy freshness",
@@ -1379,6 +1384,7 @@ SAMPO_EVIDENCE_REQUIREMENTS: tuple[EvidenceRequirementDefinition, ...] = (
         reason="Tool environments owe invocation and failure coverage in addition to reward.",
     ),
     _RESOLVED_UPDATE_REQUIREMENT,
+    _POLICY_FRESHNESS_REQUIREMENT,
 )
 
 SAMPO_TELEMETRY = _sampo_telemetry()

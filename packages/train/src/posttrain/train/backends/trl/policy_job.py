@@ -17,7 +17,7 @@ from ...online_rl import policy_sampling_from_mapping
 from ...requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
 from ...update_objectives import resolve_objective_term
 from ...update_plan import ExecutionCapabilities
-from ...update_records import InvalidPolicyUpdate, PolicyVersions
+from ...update_records import ActionRef, InvalidPolicyUpdate, PolicyVersions
 from ...update_recovery import inspect_update_recovery
 from ...update_resolution import resolve_policy_population
 from ...update_sampler_correction import recipe_sampler_correction_weights, sampler_correction_recipe
@@ -175,6 +175,10 @@ def job_identity(request: Any, tokenizer: Any, native_trainer: type) -> tuple[st
     return f"resolved-trl-job/{runtime}", f"renderer/{template}"
 
 
+def _detached_scores(frozen: Any) -> Mapping[ActionRef, float] | None:
+    return None if frozen is None else {action: float(value) for action, value in frozen.values.items()}
+
+
 def _decode_native(evidence: bytes) -> Mapping[str, Any]:
     from ...integrations.verifiers_population_artifact import decode_native_population
 
@@ -185,6 +189,18 @@ def _decode_native(evidence: bytes) -> Mapping[str, Any]:
         raise InvalidPolicyUpdate("resolved job recovery requires native record objects")
     format = "verifiers-native-episodes" if "traces" in first else "verifiers-native-traces"
     return decode_native_population(evidence, format=format)
+
+
+def _observed_sampled_scores(admitted: AdmittedNativePopulation) -> Mapping[ActionRef, float] | None:
+    """Sampled scores for gap observation of a restored population, when its evidence retains them.
+
+    Restoration uses the sealed correction weights; it never needs sampled
+    scores, so evidence without them only omits the sampler-gap metrics.
+    """
+    try:
+        return admitted.read_input.sampling_log_scores(admitted.resolved.snapshot)
+    except InvalidPolicyUpdate:
+        return None
 
 
 @dataclass
@@ -251,6 +267,8 @@ class ResolvedTRLJob:
                 sampler_correction=population.sampler_correction,
                 correction_recipe=sampler_correction_recipe(self.request.settings),
                 entropies=evaluation.entropies,
+                old_scores=_detached_scores(population.old),
+                sampled_scores=population.sampled_scores,
             )
         )
         self.context.metrics(values, step=step, attributes={"measurement_scope": "resolved-applied-update"})
@@ -356,6 +374,7 @@ class ResolvedTRLJob:
             admitted, score_temperature=self.score_temperature, score_contract=SCORE_CONTRACT, sampler_correction=None
         )
         sampled = admitted.read_input.sampling_log_scores(admitted.resolved.snapshot)
+        population.sampled_scores = sampled
         population.prepare_sampler_correction = lambda old: recipe_sampler_correction_weights(
             self.request.settings, admitted.resolved.snapshot, old, sampled
         )
@@ -444,9 +463,11 @@ class ResolvedTRLJob:
             checkpoint, identity, sampler_correction=correction, decode=_decode_native
         )
         self._observed_applied = state.native_applied_updates
-        return ResolvedTRLPopulation.from_admitted(
+        population = ResolvedTRLPopulation.from_admitted(
             admitted,
             score_temperature=self.score_temperature,
             score_contract=SCORE_CONTRACT,
             sampler_correction=correction,
         )
+        population.sampled_scores = _observed_sampled_scores(admitted)
+        return population
