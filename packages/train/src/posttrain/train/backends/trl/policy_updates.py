@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -194,7 +194,7 @@ class ResolvedTRLPopulation:
             # The first old-score forward can consume randomness. Retries skip
             # it, so capture current-score state after freezing, not before it.
             before_current()
-        self.last_evaluation = compute_resolved_loss(
+        evaluation = compute_resolved_loss(
             model,
             update,
             term,
@@ -208,11 +208,21 @@ class ResolvedTRLPopulation:
             score_contract=self.score_contract,
             sampler_correction=self.sampler_correction,
         )
-        if not self.last_evaluation.loss.requires_grad:
+        if not evaluation.loss.requires_grad:
             raise InvalidPolicyUpdate("empty resolved native update cannot count as an applied optimizer step")
+        # Only the returned loss carries the graph, so it ends with the trainer's
+        # step. A kept graph would hold every leaf of the update past backward,
+        # including the gradient-tracked input embeddings (and their gradients)
+        # that gradient checkpointing creates for each scored context.
+        self.last_evaluation = replace(
+            evaluation,
+            loss=evaluation.loss.detach(),
+            policy_loss=evaluation.policy_loss.detach(),
+            kl_loss=evaluation.kl_loss.detach(),
+        )
         self._pending = index
         self.attempts += 1
-        return self.last_evaluation.loss
+        return evaluation.loss
 
     def before_step(self, optimizer: Any) -> None:
         if self._pending is None:

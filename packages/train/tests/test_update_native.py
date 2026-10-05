@@ -126,6 +126,13 @@ def test_native_trl_train_applies_each_declared_update_once(tmp_path, minibatch)
     assert population.old.values.shape == (snapshot.size,) and not population.old.values.requires_grad
     assert any(not torch.equal(parameter, before[name]) for name, parameter in model.named_parameters())
     assert population.last_evaluation.parameter_version.endswith(f"applied-{len(updates) - 1}")
+    # The kept evaluation is evidence only: a graph kept past the trainer's step
+    # would hold the update's leaves (and their gradients) on the device.
+    evaluation = population.last_evaluation
+    assert all(
+        value.grad_fn is None and not value.requires_grad
+        for value in (evaluation.loss, evaluation.policy_loss, evaluation.kl_loss)
+    )
 
 
 def test_resolved_adapter_rejects_native_double_scheduling():

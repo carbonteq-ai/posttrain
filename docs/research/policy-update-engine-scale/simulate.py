@@ -89,6 +89,13 @@ def main() -> None:
     parser.add_argument("--record-encoding", choices=("thread", "process"), default="process")
     parser.add_argument("--groups", type=int, default=16)
     parser.add_argument("--train", action="store_true", help="also run every optimizer step with a stand-in model")
+    parser.add_argument(
+        "--model",
+        choices=("stand-in", "lfm2-layers"),
+        default="stand-in",
+        help="stand-in: embedding decoder; lfm2-layers: LFM2.5-2.6B's architecture cut to one conv and one attention layer, random FP16 "
+        "weights, rank-4 all-linear FP32 LoRA and non-reentrant gradient checkpointing, as the TRL job runs it",
+    )
     parser.add_argument("--data", type=Path, required=True, help="directory with the run's episodes.jsonl")
     parser.add_argument("--project", type=Path, required=True, help="posttrain project root (apps/lab)")
     parser.add_argument("--out", type=Path, required=True)
@@ -299,7 +306,7 @@ def train_steps(args, settings, resolved, view, *, sampled_scores) -> None:
         def get_output_embeddings(self):
             return self.head
 
-    model = StandIn()
+    model = StandIn() if args.model == "stand-in" else lfm2_layers(device)
     snapshot = resolved.snapshot
     view.prepare_sampler_correction = lambda old: recipe_sampler_correction_weights(
         settings, snapshot, old, sampled_scores
@@ -323,10 +330,90 @@ def train_steps(args, settings, resolved, view, *, sampled_scores) -> None:
         with stage(f"update {index} backward"):
             loss.backward()
             torch.cuda.synchronize()
+            del loss  # as Trainer.training_step returns only a detached copy
         view.before_step(optimizer)
         view.complete_step(optimizer)
         model.zero_grad(set_to_none=True)
+        if args.model != "stand-in":
+            report_live_memory(model)
     print(f"peak GPU {torch.cuda.max_memory_allocated() / 1e9:.2f} GB")
+
+
+def lfm2_layers(device):
+    """LFM2.5-2.6B's real layer code and shapes (2048 wide, 128,000-token head), one conv and one attention layer."""
+    import torch
+    from peft import LoraConfig, get_peft_model
+    from transformers import AutoConfig, AutoModelForCausalLM
+
+    config = AutoConfig.from_pretrained("LiquidAI/LFM2.5-2.6B")
+    kinds = list(config.layer_types)
+    conv = [index for index, kind in enumerate(kinds) if kind == "conv"]
+    config.layer_types = [kinds[index] for index in sorted({conv[0], kinds.index("full_attention")})]
+    config.num_hidden_layers = len(config.layer_types)
+    model = AutoModelForCausalLM.from_config(config, dtype=torch.float16).to(device)
+    model = get_peft_model(model, LoraConfig(r=4, lora_alpha=8, target_modules="all-linear", task_type="CAUSAL_LM"))
+    for parameter in model.parameters():
+        if parameter.requires_grad:
+            parameter.data = parameter.data.float()
+    model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+    model.enable_input_require_grads()
+    model.train()
+    return model
+
+
+def holder_chain(obj, live, depth: int = 4) -> str:
+    """The object holding a live tensor and, up to ``depth`` levels, what holds that."""
+    import gc
+    import types
+
+    chain = []
+    for _ in range(depth):
+        label = type(obj).__name__
+        if isinstance(obj, types.FrameType):
+            label += f"({obj.f_code.co_filename.rsplit('/', 1)[-1]}:{obj.f_lineno} {obj.f_code.co_name})"
+        elif isinstance(obj, types.FunctionType):
+            label += f"({obj.__qualname__})"
+        elif isinstance(obj, types.CellType):
+            label += "(closure cell)"
+        chain.append(label)
+        parents = [ref for ref in gc.get_referrers(obj) if ref is not live and not isinstance(ref, types.FrameType)]
+        if not parents:
+            break
+        obj = parents[0]
+    return " <- ".join(chain)
+
+
+def report_live_memory(model) -> None:
+    """Device memory still held after the round: allocator totals and live non-parameter tensors."""
+    import gc
+    import warnings
+
+    import torch
+
+    gc.collect()
+    torch.cuda.empty_cache()
+    mib = 2**20
+    parameters = {parameter.untyped_storage().data_ptr() for parameter in model.parameters()}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        live = [
+            obj
+            for obj in gc.get_objects()
+            if isinstance(obj, torch.Tensor) and obj.is_cuda and obj.untyped_storage().data_ptr() not in parameters
+        ]
+    print(
+        f"after the update: allocated {torch.cuda.memory_allocated() / mib:.0f} MiB, "
+        f"reserved {torch.cuda.memory_reserved() / mib:.0f} MiB, "
+        f"parameters {sum(p.untyped_storage().nbytes() for p in model.parameters()) / mib:.0f} MiB, "
+        f"live non-parameter tensors {len(live)} / {sum(t.untyped_storage().nbytes() for t in live) / mib:.0f} MiB"
+    )
+    for tensor in sorted(live, key=lambda item: -item.untyped_storage().nbytes())[:6]:
+        holders = [holder_chain(ref, live) for ref in gc.get_referrers(tensor) if ref is not live]
+        print(
+            f"   {tuple(tensor.shape)} {tensor.dtype} {tensor.untyped_storage().nbytes() / mib:.0f} MiB "
+            f"grad_fn={type(tensor.grad_fn).__name__ if tensor.grad_fn is not None else None} "
+            f"python holders={holders or 'none (held from C++, e.g. a retained autograd graph)'}"
+        )
 
 
 if __name__ == "__main__":
