@@ -64,6 +64,16 @@ describe('RolloutGroupTable', () => {
     expect(buildRolloutGroups(traces, null)[0].current).toBeNull();
   });
 
+  it('shows a step as its collection number when collections feed several updates', () => {
+    // Collections start at updates 1 and 5: the rollouts recorded at update 5 belong to step 2.
+    const collected = traces.map((item) => (item.optimizer_step === 2 ? { ...item, optimizer_step: 5 } : item));
+    const shifted = { ...rewards, groups: rewards.groups.map((group) => (group.step === 2 ? { ...group, step: 5 } : group)) };
+    const view = render(<RolloutGroupTable traces={collected} allLoadedTraces={collected} total={6} expectedSize={2} rewards={shifted} hasMore={false} loadingMore={false} onLoadMore={vi.fn()} onSelect={vi.fn()} stepLabel={(step) => (step === 5 ? 2 : step)} />);
+    const steps = view.getAllByRole('row', { name: /task-a/ }).map((row) => within(row).getAllByRole('cell')[0].textContent);
+    expect(steps.sort()).toEqual(['1', '2']);
+    view.unmount();
+  });
+
   it('keeps prior reward chronological when loaded traces arrive newest first', () => {
     const groups = buildRolloutGroups([...traces].reverse(), rewards);
     expect(groups[0].id).toBe('step/2/group/1');

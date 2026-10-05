@@ -1063,6 +1063,26 @@ def _metric_grain(metric: str) -> Literal["update", "collection"]:
     return "collection" if entry is not None and entry.entity == "collection" else "update"
 
 
+COLLECTION_START_METRICS = ("train/rl/collection_updates", "train/rl/reward_mean", "train/rl/rollouts_attempted")
+
+
+def _collection_starts(by_name: Mapping[str, MetricSeries], names: Iterable[str]) -> tuple[int, ...]:
+    """Each collection's first-update step, in order, when collections span several updates; else empty."""
+
+    def steps(selected: Iterable[str]) -> set[int]:
+        return {
+            point.step
+            for name in selected
+            for point in by_name.get(name, MetricSeries(name=name)).points
+            if point.step is not None
+        }
+
+    names = tuple(names)
+    collections = steps(name for name in names if _metric_grain(name) == "collection")
+    updates = steps(name for name in names if _metric_grain(name) == "update")
+    return tuple(sorted(collections)) if collections and updates - collections else ()
+
+
 def _chart_views(
     definitions: Sequence[ChartDefinition],
     by_name: Mapping[str, MetricSeries],
@@ -1076,18 +1096,8 @@ def _chart_views(
     hold across the updates of their collection.
     """
 
-    def steps(names: Iterable[str]) -> set[int]:
-        return {
-            point.step
-            for name in names
-            for point in by_name.get(name, MetricSeries(name=name)).points
-            if point.step is not None
-        }
-
     every = [name for chart in definitions for name in chart.metrics]
-    collection_steps = steps(name for name in every if _metric_grain(name) == "collection")
-    update_steps = steps(name for name in every if _metric_grain(name) == "update")
-    multi_update = bool(collection_steps) and len(update_steps - collection_steps) > 0
+    multi_update = bool(_collection_starts(by_name, every))
     return tuple(
         ChartView(
             key=chart.key,
@@ -2187,7 +2197,16 @@ class ObservatoryService:
         locator = self._locator(run)
         context = await self._trace_read_context(locator)
         summaries, _ = await self._trace_filter_population(locator, context)
-        return trace_filter_options(summaries)
+        options = trace_filter_options(summaries)
+        # A rollout's step is its collection's first update; number collections when they span updates.
+        source = self.registry.resolve(locator)
+        names = tuple(
+            name
+            for name in (*COLLECTION_START_METRICS, "train/step_time_seconds")
+            if name in context.detail.metric_names
+        )
+        series = {item.name: item for item in await source.metric_series(locator.run_id, names)} if names else {}
+        return options.model_copy(update={"collection_steps": _collection_starts(series, names)})
 
     async def get_rollout_time(self, run: str | RunLocator) -> RolloutTimeView:
         """Per-step rollout phase time; finished steps are reused across refreshes."""

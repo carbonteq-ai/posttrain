@@ -1470,7 +1470,7 @@ describe('Observatory React product shell', () => {
     await user.click(screen.getByRole('button', { name: 'Next page' }));
     expect(await screen.findByText('3 of 250 traces')).toBeVisible();
 
-    await user.click(screen.getByRole('button', { name: 'Collection step: Any' }));
+    await user.click(screen.getByRole('button', { name: 'Step: Any' }));
     await user.click(screen.getByRole('option', { name: '1' }));
     expect(await screen.findByText('1 traces')).toBeVisible();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/traces?') && String(input).includes('step=1'))).toBe(true);

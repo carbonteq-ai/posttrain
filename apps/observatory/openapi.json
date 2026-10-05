@@ -6500,6 +6500,14 @@
         "additionalProperties": false,
         "description": "Choices derived from the complete recorded trace population.",
         "properties": {
+          "collection_steps": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Collection Steps",
+            "type": "array"
+          },
           "outcomes": {
             "default": [],
             "items": {

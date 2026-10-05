@@ -2915,6 +2915,11 @@ export interface components {
          */
         TraceFilterOptions: {
             /**
+             * Collection Steps
+             * @default []
+             */
+            collection_steps: number[];
+            /**
              * Outcomes
              * @default []
              */

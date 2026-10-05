@@ -1100,3 +1100,16 @@ def test_windowed_summary_reduces_only_the_recent_points() -> None:
     assert _reduce(reward, "mean", 8) == pytest.approx(sum(range(3, 11)) / 8)
     assert _reduce(reward, "mean") == pytest.approx(5.5)
     assert _reduce(_series("train/rl/reward_mean", (1, 2)), "mean", 8) == pytest.approx(1.5)
+
+
+def test_collection_starts_number_populations_only_when_they_span_updates() -> None:
+    from posttrain_observatory.service import _collection_starts
+
+    names = ("train/rl/reward_mean", "train/step_time_seconds")
+    resolved = {
+        "train/rl/reward_mean": _series("train/rl/reward_mean", (1, 5, 9)),
+        "train/step_time_seconds": _series("train/step_time_seconds", range(1, 13)),
+    }
+    assert _collection_starts(resolved, names) == (1, 5, 9)
+    legacy = {name: _series(name, range(1, 4)) for name in names}
+    assert _collection_starts(legacy, names) == ()

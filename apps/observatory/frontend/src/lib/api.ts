@@ -527,6 +527,8 @@ export type TraceFilterOptions = {
   steps: number[];
   slices: Array<{ key: string; label: string }>;
   outcomes: Array<TraceSummary['outcome']>;
+  /** Each collection's first-update step, in order, when collections span several updates. */
+  collection_steps?: number[];
 };
 
 export type EvaluationDistribution = {

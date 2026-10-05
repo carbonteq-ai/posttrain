@@ -790,6 +790,10 @@ class TraceFilterOptions(ObservatoryModel):
     steps: tuple[int, ...] = ()
     slices: tuple[TraceFilterSlice, ...] = ()
     outcomes: tuple[TraceOutcome, ...] = ()
+    # When sampled populations (collections) feed several updates: the step of each
+    # collection's first update, in order, so collection k starts at collection_steps[k - 1].
+    # Empty when every update has its own population (then a step is a collection).
+    collection_steps: tuple[int, ...] = ()
 
 
 class PromptGroupRewardStats(ObservatoryModel):
