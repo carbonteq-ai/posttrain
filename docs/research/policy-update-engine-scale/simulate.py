@@ -43,13 +43,15 @@ def _proxy(mapping):
 copyreg.pickle(types.MappingProxyType, lambda m: (_proxy, (dict(m),)))
 
 timings: dict[str, float] = {}
-profile_stage: str | None = None
-profile_out: Path | None = None
+profile_stages: set[str] = set()
+profile_dir: Path | None = None
 
 
 @contextmanager
 def stage(name: str):
-    profiler = cProfile.Profile() if name == profile_stage else None
+    profiler = cProfile.Profile() if name in profile_stages else None
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    cpu_start = usage.ru_utime + usage.ru_stime
     start = time.perf_counter()
     if profiler:
         profiler.enable()
@@ -58,13 +60,18 @@ def stage(name: str):
     finally:
         if profiler:
             profiler.disable()
-            assert profile_out is not None
-            profiler.dump_stats(profile_out)
+            assert profile_dir is not None
+            profiler.dump_stats(profile_dir / f"{name}.prof")
             stats = pstats.Stats(profiler)
             stats.sort_stats("cumulative").print_stats(35)
         timings[name] = time.perf_counter() - start
-        rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6
-        print(f"[stage] {name:<28} {timings[name]:8.2f}s  peak RSS {rss:5.1f} GB", flush=True)
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+        cpu = usage.ru_utime + usage.ru_stime - cpu_start
+        rss = usage.ru_maxrss / 1e6
+        print(
+            f"[stage] {name:<28} {timings[name]:8.2f}s  main-process CPU {cpu:8.2f}s  peak RSS {rss:5.1f} GB",
+            flush=True,
+        )
 
 
 def resolve(catalog, family: str, selection: str):
@@ -74,9 +81,12 @@ def resolve(catalog, family: str, selection: str):
 
 
 def main() -> None:
-    global profile_stage, profile_out
+    global profile_stages, profile_dir
     parser = argparse.ArgumentParser()
-    parser.add_argument("--profile", help="cProfile one stage by name")
+    parser.add_argument("--profile", action="append", default=[], help="cProfile a stage by name (repeatable)")
+    parser.add_argument("--rebuild", action="store_true", help="project the raw episodes even when a cache exists")
+    parser.add_argument("--concurrency", type=int, default=32, help="episodes projected at once")
+    parser.add_argument("--record-encoding", choices=("thread", "process"), default="process")
     parser.add_argument("--groups", type=int, default=16)
     parser.add_argument("--train", action="store_true", help="also run every optimizer step with a stand-in model")
     parser.add_argument("--data", type=Path, required=True, help="directory with the run's episodes.jsonl")
@@ -86,8 +96,8 @@ def main() -> None:
     args.episodes = args.data / "episodes.jsonl"
     args.cache = args.data / "population.pkl"
     args.projected = args.data / "episodes-projected.jsonl"
-    profile_stage = args.profile
-    profile_out = args.out / f"{args.profile}.prof" if args.profile else None
+    profile_stages = set(args.profile)
+    profile_dir = args.out
     shutil.rmtree(args.out, ignore_errors=True)
     args.out.mkdir(parents=True)
 
@@ -130,8 +140,9 @@ def main() -> None:
             reward_projection=projection,
             policy_update_context_contract="causal-text@1",
         )
+        bridge.record_encoding = args.record_encoding
 
-    if args.cache.exists():
+    if args.cache.exists() and not args.rebuild:
         with stage("load cached population"):
             population = pickle.loads(args.cache.read_bytes())
             shutil.copyfile(args.projected, args.out / "episodes.jsonl")
@@ -147,8 +158,10 @@ def main() -> None:
         collection = CollectionKey(RUN_ID, "collection-0", "actor-0", 0)
 
         async def project_all():
-            out = []
-            for ordinal, episode in enumerate(episodes):
+            # The job keeps many episodes in flight; project them concurrently.
+            limit = asyncio.Semaphore(args.concurrency)
+
+            async def project(ordinal, episode):
                 info = episode.traces[0].info
                 key = EpisodeKey(
                     collection,
@@ -158,8 +171,10 @@ def main() -> None:
                     ordinal,
                     ordinal,
                 )
-                out.append(await bridge.project_native_episode(key, episode, behavior_policy=BehaviorPolicySpan(0, 0)))
-            return out
+                async with limit:
+                    return await bridge.project_native_episode(key, episode, behavior_policy=BehaviorPolicySpan(0, 0))
+
+            return list(await asyncio.gather(*(project(ordinal, episode) for ordinal, episode in enumerate(episodes))))
 
         with stage("project episodes"):
             rollouts = asyncio.run(project_all())
@@ -182,8 +197,9 @@ def main() -> None:
                     selected.append(tuple(group))
             selected = selected[: args.groups]
             population = tuple(r for group in selected for r in group)
-        args.cache.write_bytes(pickle.dumps(population, protocol=5))
-        shutil.copyfile(args.out / "episodes.jsonl", args.projected)
+        if not args.cache.exists():
+            args.cache.write_bytes(pickle.dumps(population, protocol=5))
+            shutil.copyfile(args.out / "episodes.jsonl", args.projected)
     tokens = sum(len(r.completion_ids) for r in population)
     sampled = sum(sum(r.env_mask) for r in population)
     print(f"rollouts {len(population)} completion tokens {tokens} sampled tokens {sampled}")
@@ -215,7 +231,7 @@ def main() -> None:
         )
     resolved = admitted.resolved
     print(
-        f"actions {len(resolved.snapshot.actions)} contexts {len(resolved.snapshot.conditioning)} "
+        f"actions {resolved.snapshot.size} contexts {len(resolved.snapshot.conditioning)} "
         f"updates {len(resolved.updates)} packs {[len(p) for p in resolved.packs]}"
     )
 
@@ -234,7 +250,7 @@ def main() -> None:
     summary = {
         "timings": timings,
         "rollouts": len(population),
-        "actions": len(resolved.snapshot.actions),
+        "actions": resolved.snapshot.size,
         "update_digests": [u.digest for u in resolved.updates],
         "pack_digests": [[p.update_digest for p in packs][:1] for packs in resolved.packs],
         "credit_digest": resolved.credit.digest,
@@ -272,12 +288,10 @@ def train_steps(args, settings, resolved, view, *, sampled_scores) -> None:
 
     def stand_in_logprobs(logits, inputs, *, sampled_indices, score_temperature, entropies=None):
         count = len(sampled_indices)
-        if not count:
-            return {}
         values = torch.linspace(-3.0, -0.05, count, device=device) + model.w
         if entropies is not None:
-            entropies.update(zip(sampled_indices, torch.full((count,), 0.5, device=device).tolist(), strict=True))
-        return dict(zip(sampled_indices, values.unbind(), strict=True))
+            entropies.extend([0.5] * count)
+        return values
 
     scoring.sampled_logprobs = stand_in_logprobs
     snapshot = resolved.snapshot

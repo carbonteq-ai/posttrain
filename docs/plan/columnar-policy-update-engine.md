@@ -16,8 +16,10 @@ Training semantics do not change: the same rewards, the same episode-level and t
 - [x] (2026-10-05 18:20Z) Built the simulation harness (`/home/hammad/projects/sim/postcollect/simulate.py`, see Concrete Steps) on r6's real 160 episodes and cached the 128 selected rollouts.
 - [x] (2026-10-05 18:40Z) Measured the current engine (with interim algorithmic patches) stage by stage; see Surprises & Discoveries.
 - [x] (2026-10-05 18:50Z) Milestone 1: harness checked in at `docs/research/policy-update-engine-scale/` with the recorded baseline; interim fixes kept: one-pass grouping in `update_objectives.py` and `policy_update_inputs.py`, `plan_packs` computing its update digest once, and the conditioning-only decode.
-- [ ] Milestone 2: column-based population, credit, objective, schedule and packs, with parity against the current engine.
-- [ ] Milestone 3: whole-tensor scores and loss, with loss and gradient parity.
+- [x] (2026-10-05 20:10Z) Milestones 2 and 3 implemented together (all engine modules, TRL and veRL adapters, distribution, replay, transport v4, recovery): train package type-checks clean. Harness on r6: admission 7.4 s, reference scores 0.3 s, four updates' loss and backward 0.8 s, memory flat at 5.0 GB.
+- [x] (2026-10-05 20:40Z) Admission: one conditioning derivation per trace, inputs built once from verified records, retained evidence hashed once (`RetainedEvidence`), conditioning decode parsed on a worker-process pool (identical output, 4.67 s serial versus 1.81 s warm). Admission 3.4 s.
+- [x] (2026-10-05 21:20Z) Collection side: episode and trace replay records serialized on the shared worker pool (`integrations/native_records.py`, bridge `record_encoding="process"`); sealing proves indexed lines by SHA-256 instead of parsing. Main-process CPU to convert 160 episodes 68 s to 14 s (wall 67 s to 17 s); sealing 4.4 s to 3.1 s.
+- [ ] Port the train tests to the new types (in progress) and run the real-data parity check against the previous engine on r6 (in progress).
 - [ ] Milestone 4: one forward pass per episode for exact-prefix episodes and language-model head only at sampled positions (fp32 chunks), with score parity on a real model.
 - [ ] Milestone 4b: real-model GPU benchmark on the workstation (2.6B + LoRA, real kernels), before and after Milestones 2 to 4.
 - [ ] Milestone 5: recovery, transport and telemetry on the new representation; remove the per-token path; full validation; 2-update smoke on the workstation; then the 100-update run.
@@ -62,6 +64,12 @@ Training semantics do not change: the same rewards, the same episode-level and t
 - Observation: the harness does not measure GPU compute. Its stand-in replaces the transformer, so attention kernels (SDPA), the language-model head, backward through the LoRA model, gradient checkpointing and memory are not represented. Training updates do not use CUDA graphs (vLLM uses them only for rollout decoding), and variable sequence lengths make graph capture or `torch.compile` a separate later question.
   Evidence: `backends/trl/common.py` sets `attn_implementation="sdpa"`; the stand-in `sampled_logprobs` in `simulate.py`.
 
+- Observation: after the engine rewrite, admission was dominated by evidence handling, not bookkeeping: JSON parsing of the retained episodes (3.3 s), hashing the same bytes four times (1.4 s), and deriving each turn's context twice while re-checking every earlier node per turn.
+  Evidence: cProfile of `admit (resolve+plan)` on r6 after Milestones 2 and 3 (12.3 s profiled).
+
+- Observation: converting each collected episode into a training rollout cost about 340 ms of main-thread CPU, almost all of it serializing the episode and its trace back into replay records (Verifiers `to_record`, dominated by assessment-archive normalization) and encoding them as JSON. Pickling an episode costs 1.6 ms, so the serialization can move to worker processes.
+  Evidence: cProfile of `project episodes` (85.6 s profiled, of which `_native_record` 69 s and appends 16 s); `checks/record_costs.py`: `to_record` 34 ms (episode) and 32 ms (trace), `pickle.dumps` 1.6 ms.
+
 - Observation: the older SAMPO system (TRL's own trainer on flattened episode rows) took 467 s per update on average for 120 episodes: 198 s of rollouts and 219 s of actor update, about 13 hours for 100 updates.
   Evidence: `posttrain query --sql "select run_id, avg(update_seconds), avg(rollout_seconds), avg(actor_seconds) from updates where run_id like 'lfm26-sampo-cont100%' group by run_id"` from `apps/lab`.
 
@@ -81,6 +89,14 @@ Training semantics do not change: the same rewards, the same episode-level and t
 
 - Decision: one pass per episode (Milestone 4) is required for the 100-update run, not an optional optimization.
   Rationale: at 4.67 times the scoring tokens, the actor phase would be roughly four to five times the older system's 219 s per update, so 100 rounds would take about 25 to 30 hours and exceed the 24-hour limit. With one pass per episode the GPU processes about 1.36M tokens per pass, close to what TRL's flattened trainer processed, and the expected round time is 7 to 9 minutes (12 to 15 hours for 100 rounds). This estimate assumes scoring only sampled positions as the old path does and is unmeasured until Milestone 4b.
+  Date/Author: 2026-10-05, Claude.
+
+- Decision: CPU-bound work that needs no trainer state runs on one shared pool of up to 8 worker processes started through a fork server (`integrations/native_records.py`): parsing retained records for admission and serializing episodes for preservation. The trainer process keeps every ordered or stateful step (appends and their byte spans, identity and schema checks, observation, projection).
+  Rationale: the trainer runs standard CPython with the global interpreter lock; JSON parsing and pydantic serialization hold it, so threads do not help. A fork server starts workers from a fresh interpreter, so they never inherit the trainer's CUDA context, threads or locks. Bridges built directly (as tests do) keep thread encoding through an explicit `record_encoding` field, not a silent fallback.
+  Date/Author: 2026-10-05, Claude.
+
+- Decision: a contribution's dependencies are whole turns, not the selected subset of a turn's tokens.
+  Rationale: a turn's forward pass scores all of its tokens anyway, so whole-turn dependencies change no scores, weights or ratios; they only make the statistic-capacity check count every position of a dependency turn (conservative). This removes the last per-token sets from scheduling.
   Date/Author: 2026-10-05, Claude.
 
 - Decision: internal digests and the recovery checkpoint format change version; checkpoints written by the old engine are not resumable by the new one.
@@ -161,4 +177,66 @@ The harness writes only under its `--out` directory and the cache file; deleting
 
 ## Interfaces and Dependencies
 
-No new third-party dependencies: NumPy and PyTorch are already present. `PopulationTable`, `TokenCredit` (the advantage array), `ObjectiveTerm` arrays and `FrozenScores` are internal to `posttrain.train`; the public request and settings types (`SAMPORequest`, `SAMPOSettings`) and metric names do not change. `decode_native_population(evidence, *, format, content="traces" | "conditioning")` in `integrations/verifiers_population_artifact.py` is the decode entry point.
+No new third-party dependencies: NumPy and PyTorch are already present. The public request and settings types (`SAMPORequest`, `SAMPOSettings`, `PolicyUpdateSettings`) and all metric names stay unchanged. Everything below is internal to `posttrain.train`.
+
+Token order. A population's sampled tokens have one canonical order: conditioning views in admission order, and within a view the native token indices in ascending order. A "position" is an index into that order. Every per-token value in the engine is an array indexed by position; nothing stores one Python object per token.
+
+`update_records.py`:
+
+    @dataclass(frozen=True, slots=True)
+    class ConditioningView:            # one sampled assistant turn
+        id: str                        # "<trace id>/node-<node index>"
+        native_ref: str
+        token_ids_ref: str             # JSON coordinates: trace_id, prefix_nodes, node_index
+        attention_ref: str
+        positions_ref: str
+        template_revision: str
+        digest: str                    # input digest of the exact context tokens
+        context_tokens: int
+        episode_id: str                # new
+        branch_id: str                 # new
+        sampled: tuple[int, ...]       # new: ascending native indices of eligible sampled tokens
+
+    @dataclass(frozen=True, slots=True, eq=False)
+    class PopulationSnapshot:
+        id, native_evidence_ref, native_evidence_digest
+        conditioning: tuple[ConditioningView, ...]
+        spans: tuple[SemanticSpan, ...]
+        relations: tuple[PopulationRelation, ...]   # members and expected_members are view ids
+        versions: PolicyVersions
+        selector_digest: str
+        # computed once in __post_init__ (read-only arrays):
+        offsets: np.ndarray            # int64, len(conditioning) + 1; view v owns positions offsets[v]:offsets[v+1]
+        view_of: np.ndarray            # int32 per position
+        episode_of: np.ndarray         # int32 per position, index into episodes
+        episodes: tuple[tuple[str, str], ...]   # (episode_id, branch_id), first-seen order
+        digest: str
+        size -> int; view_index(view_id) -> int; action(position) -> ActionRef; positions(actions) -> np.ndarray
+        select_roles(roles) / select_spans(span_ids) -> np.ndarray[bool]
+
+`ActionRef` stays as the addressing type at boundaries (spans, error messages, tests); `ActionRecord` and `ActionCredit` are removed.
+
+`update_credit.py`: `PreparedCredit.advantages: np.ndarray` (float64 per position, read-only) replaces `values`; `eq=False`; `digest` computed once from metadata plus the array bytes. `NativeCreditRows` keeps the rollout rows and, per row, the array of positions its sampled completion indices map to; `project(values)` gathers estimator rows into the position array.
+
+`update_plan.py` and `update_objectives.py`:
+
+    ContributionRef(id: str, view: int, dependency_views: tuple[int, ...])       # one per turn
+    ObjectivePopulation(definition_id, credit_digest, contributions, policy: np.ndarray[bool],
+                        kl: np.ndarray[bool], required_statistics, statistic_bytes_per_action, contract_digest)
+    ResolvedUpdate(population, objective, schedule_digest, epoch, minibatch,
+                   contributions: tuple[int, ...], occurrence_ids, views: tuple[int, ...], discarded_contributions)
+        # views: sorted dependency views; digest computed once from the population and objective digests
+    ExecutionPack(update_digest, index, views: tuple[int, ...], context_tokens, layout: "turn" | "episode")
+    ResolvedObjectiveTerm(spec, update_digest, credit_digest, policy_weight: np.ndarray, kl_weight: np.ndarray,
+                          ratio_segment: np.ndarray[int32, -1 outside support], segment_count: int,
+                          policy_denominators, kl_denominators, zero_policy_episodes, zero_kl_episodes, parameter_version)
+
+`backends/policy_update_scoring.py`: `score_positions(model, snapshot, views, *, read_input, device, score_temperature, chunk_size) -> torch.Tensor` returns a float32 tensor of length `snapshot.size` holding scores at the positions of the given views (zero elsewhere), scattered from per-pack gathers. `FrozenPopulationScores.values` is a detached float32 tensor of length `snapshot.size`.
+
+`backends/policy_update_math.py`: `evaluate(term, credit, scores) -> ObjectiveEvaluation` computes the loss with whole-tensor operations; `ObjectiveEvaluation.ratios` and the clipped set become tensors and a boolean mask.
+
+`update_sampler_correction.py`: correction weights are a float64 array per position; sequence modes sum log differences per episode with `np.add.at`.
+
+`update_transport.py` and `backends/policy_update_recovery.py`: schema `posttrain.resolved-population.v4` stores views with their sampled indices, credit and correction as lists aligned with positions, and update view lists; v1 to v3 sidecars are rejected with a clear error (no in-flight run depends on them).
+
+`decode_native_population(evidence, *, format, content="traces" | "conditioning")` in `integrations/verifiers_population_artifact.py` is the decode entry point; scoring uses `content="conditioning"`.
