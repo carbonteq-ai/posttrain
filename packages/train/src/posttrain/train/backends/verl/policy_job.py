@@ -75,7 +75,8 @@ class ResolvedVeRLCollectionHost:
             version, version, version, f"{self.runtime_identity}/reference" if self.settings.beta else None
         )
         if (
-            population.updates != selected.updates
+            # Updates are identified by digest (their population snapshots compare by identity).
+            tuple(update.digest for update in population.updates) != tuple(update.digest for update in selected.updates)
             or population.spec != selected.spec
             or population.execution != selected.execution
             or population.capabilities != selected.capabilities

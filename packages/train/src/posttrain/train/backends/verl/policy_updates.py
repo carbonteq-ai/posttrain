@@ -235,7 +235,7 @@ class ResolvedVeRLPopulation:
         return self.attempt_offset + self.attempts
 
     def _rows(self, views: tuple[int, ...]):
-        """One row per original turn: (inputs, causal score positions, population positions)."""
+        """One row per original turn: (inputs, causal score positions, population positions, view)."""
         snapshot = self.updates[0].population
         if (
             not views
@@ -260,11 +260,12 @@ class ResolvedVeRLPopulation:
             if any(not 0 <= position < len(inputs.token_ids) - 1 for position in causal):
                 raise InvalidPolicyUpdate("native veRL action lacks its preceding causal position")
             span = snapshot.view_positions(index)
-            rows.append((inputs, causal, np.arange(span.start, span.stop, dtype=np.int64)))
+            rows.append((inputs, causal, np.arange(span.start, span.stop, dtype=np.int64), index))
         return tuple(rows)
 
-    def _pack_sizes(self, rows, views):
-        """Preserve ordered original views under both execution capacities."""
+    def _pack_sizes(self, rows):
+        """Preserve the rows' ordered original views under both execution capacities."""
+        views = tuple(view for _, _, _, view in rows)
         sizes, pending = [], []
         snapshot = self.updates[0].population
         for view in views:
@@ -284,11 +285,11 @@ class ResolvedVeRLPopulation:
         from verl import DataProto  # pyright: ignore[reportMissingImports, reportAttributeAccessIssue]
         from verl.utils import tensordict_utils as tu  # pyright: ignore[reportMissingImports]
 
-        width = max(len(inputs.token_ids) for inputs, _, _ in rows)
+        width = max(len(inputs.token_ids) for inputs, _, _, _ in rows)
         ids = torch.zeros((len(rows), width), dtype=torch.long)
         attention = torch.zeros_like(ids)
         mask = torch.zeros((len(rows), width - 1), dtype=torch.long)
-        for index, (inputs, causal, _) in enumerate(rows):
+        for index, (inputs, causal, _, _) in enumerate(rows):
             ids[index, : len(inputs.token_ids)] = torch.tensor(inputs.token_ids)
             attention[index, : len(inputs.token_ids)] = 1
             mask[index, list(causal)] = 1
@@ -310,11 +311,11 @@ class ResolvedVeRLPopulation:
         # Construct native jagged views directly. Dense SDPA does not need the
         # FlashAttention unpad helper used by the generic padding converter.
         data["input_ids"] = torch.nested.as_nested_tensor(
-            [ids[index, : len(inputs.token_ids)] for index, (inputs, _, _) in enumerate(rows)],
+            [ids[index, : len(inputs.token_ids)] for index, (inputs, _, _, _) in enumerate(rows)],
             layout=torch.jagged,
         )
         data["position_ids"] = torch.nested.as_nested_tensor(
-            [torch.arange(len(inputs.token_ids)) for inputs, _, _ in rows],
+            [torch.arange(len(inputs.token_ids)) for inputs, _, _, _ in rows],
             layout=torch.jagged,
         )
         data["loss_mask"] = mask
@@ -336,7 +337,7 @@ class ResolvedVeRLPopulation:
         if self.capabilities.context_layout == "dense-population":
             tu.assign_non_tensor(data, resolved_dense_width=population_context_width(self.updates[0].population))
         if self.execution.records > 1:
-            tu.assign_non_tensor(data, micro_batch_sizes=self._pack_sizes(rows, tuple(range(len(rows)))))
+            tu.assign_non_tensor(data, micro_batch_sizes=self._pack_sizes(rows))
         return data
 
     @staticmethod
@@ -347,7 +348,7 @@ class ResolvedVeRLPopulation:
 
         positions, values = [], []
         for local_index, row_index in enumerate(data["resolved_context_index"].flatten().tolist()):
-            _, causal, row_positions = rows[row_index]
+            _, causal, row_positions, _ = rows[row_index]
             probabilities = output["log_probs"][local_index]
             values.append(probabilities[torch.as_tensor(causal, dtype=torch.long, device=probabilities.device)])
             positions.append(row_positions)
@@ -359,7 +360,7 @@ class ResolvedVeRLPopulation:
             return self._local_infer(engine, rows)
         owned, local = self._owned_rows(rows, rank, size)
         scores = self._local_infer(engine, local)
-        owned_positions = np.concatenate([row_positions for _, _, row_positions in owned]) if owned else None
+        owned_positions = np.concatenate([row_positions for _, _, row_positions, _ in owned]) if owned else None
         return self._gather_scores(scores, owned_positions, group, size, device=scores.values.device)
 
     def _local_infer(self, engine, rows):
@@ -562,7 +563,7 @@ class ResolvedVeRLPopulation:
         rows = self._rows(update.views)
         if size > 1:
             return self._run_data_parallel_update(engine, update, rows, rank, size, group)
-        sizes = self._pack_sizes(rows, update.views)
+        sizes = self._pack_sizes(rows)
         planned = plan_packs(update, self.execution, self.capabilities)
         offset = 0
         for size, pack in zip(sizes, planned, strict=True):
@@ -670,7 +671,7 @@ class ResolvedVeRLPopulation:
 
         owned, local = self._owned_rows(rows, rank, size)
         owned_actions = np.zeros(update.population.size, dtype=bool)
-        for _, _, row_positions in owned:
+        for _, _, row_positions, _ in owned:
             owned_actions[row_positions] = True
         coverage = torch.tensor([int(owned_actions.sum())], dtype=torch.long)
         dist.all_reduce(coverage, group=group)

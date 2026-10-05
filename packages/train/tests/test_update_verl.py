@@ -49,7 +49,7 @@ def population(population_id=None, **kwargs):
     )
     prepared = resolve_policy_population(snapshot, credit, selection, capabilities)
     if population_id is None:
-        assert prepared.updates == (update,)
+        assert tuple(item.digest for item in prepared.updates) == (update.digest,)
     runtime = ResolvedVeRLPopulation.from_resolved(
         prepared,
         read_input=lambda view: source,
@@ -116,7 +116,7 @@ def test_manifest_actor_factory_requires_real_identity_and_publishing_observer(t
 
 def test_native_jagged_transport_preserves_original_score_positions():
     runtime = population()
-    rows = runtime._rows(runtime.updates[0].dependencies)
+    rows = runtime._rows(runtime.updates[0].views)
     data = runtime._batch(rows)
     assert data["input_ids"].is_nested
     assert data["input_ids"].unbind()[0].tolist() == [1, 2, 3, 4, 5]
@@ -125,18 +125,18 @@ def test_native_jagged_transport_preserves_original_score_positions():
     output = {
         "log_probs": torch.nested.as_nested_tensor([torch.arange(5.0), torch.arange(10.0, 15.0)], layout=torch.jagged)
     }
-    assert [value.item() for value in runtime._scores(output, data, rows).values()] == [2.0, 3.0, 12.0, 13.0]
+    assert runtime._scores(output, data, rows).values.tolist() == [2.0, 3.0, 12.0, 13.0]
 
 
 @pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16, torch.float16])
 def test_selected_native_projection_matches_full_reference_values_and_gradients(dtype):
     runtime = population()
-    rows = runtime._rows(runtime.updates[0].dependencies)
+    rows = runtime._rows(runtime.updates[0].views)
     data = runtime._batch(rows)
     torch.manual_seed(19)
     logits = torch.randn(2, 5, 8, dtype=dtype, requires_grad=True)
     output = selected_native_outputs(SimpleNamespace(logits=logits), {"temperature": torch.tensor([0.7, 0.7])}, data)
-    actual = torch.stack(tuple(runtime._scores(output, data, rows).values()))
+    actual = runtime._scores(output, data, rows).values
     full = (logits.float() / 0.7).log_softmax(-1)
     expected = torch.stack(
         [full[row, position, data["input_ids"].unbind()[row][position + 1]] for row in range(2) for position in (2, 3)]
@@ -228,7 +228,8 @@ def test_native_execution_layouts_preserve_objective_and_parameter_update():
     assert runtimes[0].last_output["loss"] == runtimes[1].last_output["loss"]
     for left, right in zip(engines[0].model.parameters(), engines[1].model.parameters(), strict=True):
         torch.testing.assert_close(left, right)
-    rows = runtimes[1]._rows(runtimes[1].updates[0].dependencies)
+    views = runtimes[1].updates[0].views
+    rows = runtimes[1]._rows(views)
     assert runtimes[1]._pack_sizes(rows) == (2,)
     limited = replace(runtimes[1], execution=PolicyExecutionBudget(2, 5, 10000))
     assert limited._pack_sizes(rows) == (1, 1)
@@ -292,7 +293,7 @@ def test_native_base_engine_retries_same_occurrence_without_advancing_lr(overflo
         not torch.equal(parameter, initial)
         for parameter, initial in zip(engine.model.parameters(), before, strict=True)
     )
-    assert all(not value.requires_grad for value in runtime.old.values.values())
+    assert not runtime.old.values.requires_grad
     assert runtime.last_output["loss"] == runtime.last_adjoints.evaluation.loss.item()
 
 
@@ -321,10 +322,8 @@ def test_continuous_verl_populations_keep_native_optimizer_and_attempt_offsets()
     assert engine.lr_scheduler.last_epoch == run.active().global_applied_updates == 2
     assert engine.steps == run.active().global_attempts == 3
     assert [(p.applied_update_offset, p.attempt_offset) for p in collected] == [(0, 0), (1, 2)]
-    assert any(
-        not torch.equal(collected[0].old.values[action], collected[1].old.values[action])
-        for action in collected[0].old.values
-    )
+    # Each population freezes its own old scores (dense, one value per population position).
+    assert not torch.equal(collected[0].old.values, collected[1].old.values)
 
 
 @pytest.mark.parametrize("actor_rpc", [False, True])
@@ -446,15 +445,19 @@ def test_native_collection_host_admits_receipts_reuses_population_and_retains_en
         active = host.run.active()
         assert active.old is not None and active.sampler_correction is not None
         assert active.prepare_sampler_correction is None
-        population_digest = active.updates[0].population.digest
+        snapshot = active.updates[0].population
+        population_digest = snapshot.digest
         # Independent episode-product reference; native sampled logps are -1.
-        sums = {}
-        for action, score in active.old.values.items():
-            sums[action.episode_id] = sums.get(action.episode_id, 0.0) + float(score) + 1.0
-        expected = {action: min(max(math.exp(sums[action.episode_id]), 0.1), 3.0) for action in active.old.values}
-        assert dict(active.sampler_correction) == pytest.approx(expected)
-        previous = frozen_corrections.setdefault(population_digest, dict(active.sampler_correction))
-        assert dict(active.sampler_correction) == previous
+        sums: dict[int, float] = {}
+        for position, score in enumerate(active.old.values.tolist()):
+            episode = int(snapshot.episode_of[position])
+            sums[episode] = sums.get(episode, 0.0) + score + 1.0
+        expected = [
+            min(max(math.exp(sums[int(snapshot.episode_of[position])]), 0.1), 3.0) for position in range(snapshot.size)
+        ]
+        assert active.sampler_correction.tolist() == pytest.approx(expected)
+        previous = frozen_corrections.setdefault(population_digest, active.sampler_correction.tolist())
+        assert active.sampler_correction.tolist() == previous
     assert collected == [(0, 0), (2, 3)]
     assert len(artifacts) == 2
     assert engine.optimizer is optimizer
@@ -539,7 +542,7 @@ def test_data_parallel_update_reproduces_single_rank_objective_and_parameters(tm
     reference_engine = NativeOperatorEngine()
     initial = {name: value.detach().clone() for name, value in reference_engine.model.state_dict().items()}
     reference = population()
-    contexts = len(reference._rows(reference.updates[0].dependencies))
+    contexts = len(reference._rows(reference.updates[0].views))
     expected = reference.run_update(reference_engine, 0)
     result = tmp_path / "rank0.pt"
     spawn(_data_parallel_worker, args=(world, str(tmp_path / "init"), initial, str(result)), nprocs=world, join=True)
