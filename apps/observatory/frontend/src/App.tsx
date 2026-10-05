@@ -2460,9 +2460,13 @@ function TraceView({
   const traces = pageTraces;
   if (!page) return <EmptyState title="Loading trace summaries" body="Fetching the first bounded page without loading transcript bodies." />;
   if (!total && !page.items.length) return <EmptyState title="No traces were captured" body="This job has run-level evidence only. Trace-derived evaluation and example-level investigation are unavailable." />;
+  // A step is a collection (one sampled population). When collections feed several updates, a
+  // rollout's recorded step is its collection's first update, so number collections 1, 2, 3, ...
+  const collectionByStart = new Map((filterOptions?.collection_steps ?? []).map((start, index) => [start, index + 1]));
+  const stepLabel = (value: number | null) => (value == null ? null : collectionByStart.get(value) ?? value);
   const stepOptions = [
     { value: 'all', label: 'Any' },
-    ...(filterOptions?.steps ?? []).map((value) => ({ value: String(value), label: String(value) })),
+    ...(filterOptions?.steps ?? []).map((value) => ({ value: String(value), label: String(stepLabel(value)) })),
   ];
   const sliceOptions = [
     { value: 'all', label: 'Any' },
@@ -2511,7 +2515,7 @@ function TraceView({
     )}
     <div className="obs-card mt-3 flex flex-wrap items-center gap-2 px-2.5 py-2 text-xs">
       <SlidersHorizontal size={15} className="mx-0.5 text-muted" />
-      {presentation.mode === 'optimization' && <FilterPopover label="Collection step" value={step} onChange={setStep} options={stepOptions} />}
+      {presentation.mode === 'optimization' && <FilterPopover label="Step" value={step} onChange={setStep} options={stepOptions} />}
       <FilterPopover label={evaluation?.facets.length ? 'Slice / facet' : 'Slice'} value={slice} onChange={setSlice} options={sliceOptions} />
       <FilterPopover label={presentation.outcomeHeading} value={outcome} onChange={setOutcome} options={outcomeOptions} />
       {activeFilters > 0 && <button type="button" onClick={() => { setStep('all'); setSlice('all'); setOutcome('all'); setQuery(''); }} className="inline-flex h-8 items-center gap-1 px-2 text-[11px] text-violet-700 hover:text-violet-900"><X size={12} /> Clear {activeFilters}</button>}
@@ -2523,7 +2527,7 @@ function TraceView({
       <div className="space-y-3">
         {!filterLoading && <RolloutTimeSummary view={rolloutTime} />}
         {filterLoading ? <EmptyState title="Filtering the full run" body="Reading matching trace summaries across the recorded population." /> : <Suspense fallback={<ChartFallback height={430} />}>{canGroupRollouts
-          ? <RolloutGroupTable traces={traces} allLoadedTraces={pageTraces} total={visiblePage?.total ?? total} filtered={activeFilters > 0} expectedSize={expectedGroupSize} rewards={groupRewards} rewardError={groupRewardError} metricColumns={metricColumns} selectedId={detail?.summary.external_id ?? null} hasMore={visiblePage?.next_cursor != null} loadingMore={activeFilters ? filteredLoadingMore : loadingMore} onLoadMore={activeFilters ? () => void loadMoreFiltered() : onLoadMore} onSelect={(trace) => void onSelect(trace)} />
+          ? <RolloutGroupTable traces={traces} allLoadedTraces={pageTraces} stepLabel={stepLabel} total={visiblePage?.total ?? total} filtered={activeFilters > 0} expectedSize={expectedGroupSize} rewards={groupRewards} rewardError={groupRewardError} metricColumns={metricColumns} selectedId={detail?.summary.external_id ?? null} hasMore={visiblePage?.next_cursor != null} loadingMore={activeFilters ? filteredLoadingMore : loadingMore} onLoadMore={activeFilters ? () => void loadMoreFiltered() : onLoadMore} onSelect={(trace) => void onSelect(trace)} />
           : <TraceTable traces={traces} total={visiblePage?.total ?? total} hasMore={visiblePage?.next_cursor != null} loadingMore={activeFilters ? filteredLoadingMore : loadingMore} onLoadMore={activeFilters ? () => void loadMoreFiltered() : onLoadMore} selectedId={detail?.summary.external_id ?? null} metricColumns={metricColumns} presentation={presentation} sorting={sorting} onSortingChange={setSorting} onSelect={(trace) => void onSelect(trace)} distillation={distillation} />}</Suspense>}
       </div>
       {(!canGroupRollouts || detail) && <div ref={inspectorRef}><TraceInspector
