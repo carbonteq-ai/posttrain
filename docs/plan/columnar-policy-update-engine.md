@@ -26,6 +26,9 @@ Training semantics do not change: the same rewards, the same episode-level and t
 - [x] (2026-10-05 21:10Z) Submitted the 100-update run `manifest-steps-26-sampo-100-g16x8-20261005-r7` (f2200d28, 24-hour limit).
 - [x] (2026-10-05) r7 applied 4 updates, then failed when vLLM woke for round 2 (CUDA out of memory in its cumem allocator). Fixed in 2290ff52: frozen scores and ratios on the host, garbage collection before emptying the cache, device memory recorded before each wake. Harness on r6 unchanged (admission 3.4 s, reference scores 9.1 s, peak GPU 0.71 GB).
 - [x] (2026-10-05) Submitted a fresh 100-update run `manifest-steps-26-sampo-100-g16x8-20261005-r8` (2290ff52, 24-hour limit; image sha256:bf7b4154…).
+- [x] (2026-10-05) r8 failed at its first rollout batch: the new sampler-wake memory metric was recorded one step ahead (`step + 1` on a value that was already the collection's step), so the batch's own metrics went back a step and Trackio rejected them. Fixed in d2cbf5e6 with a regression test. Its one wake reading: 5.07 GiB held by the trainer, 89.19 GiB free.
+- [x] (2026-10-05) Reward design checked on r6's 128 admitted episodes (784 turns) through the real admission engine (`sim/checks/credit_sign.py`, default, `--decompose` and `--sequence` modes). Episode level: the episode reward is partial_credit and the turns' progress parts sum to it exactly (max gap 5.6e-17). Turn level: each turn's credit is the episode advantage plus the anchor-centred discounted turn return; only 6% of turns lack a sibling at their state (the old runs: 40–51%). Harmful-write turns: turn part negative in 5/5, total credit negative in 4/5 (the old loss: 7 of 15 harmful actions positive); tool-mistake turns: turn part negative in 8/10; goal turns: total credit positive in 82%. Sequence level: in each of the 4 updates, sampo@1's ratio is episode-geometric with exactly one ratio segment per episode over all of its turns' tokens (32 segments for 32 episodes).
+- [ ] Resubmit the 100-collection run (r9, d2cbf5e6) once the tracking database is healthy: on 2026-10-05 the Doris backend on `ai-doris` held 82 GB resident (77 GB untracked by Doris) and rejected queries; restarting it awaits the user.
 - [ ] Milestone 5: recovery, transport and telemetry on the new representation; remove the per-token path; full validation; 2-update smoke on the workstation; then the 100-update run.
 
 ## Surprises & Discoveries
@@ -85,6 +88,9 @@ Training semantics do not change: the same rewards, the same episode-level and t
 
 - Observation: r7 applied four updates in round 1 and then failed at the start of round 2: `wake_up` returned "CUDA Error: out of memory" from vLLM's cumem allocator, so active sampling found no live sampler and exhausted its candidate pool. The new engine kept frozen old and reference scores (one float per population token) and dense ratios on the GPU for the whole round. They are small, but they outlive the update, so their caching-allocator segments stay reserved and `empty_cache` cannot hand those pages back before vLLM re-maps its 0.68 share of the card.
   Evidence: r7 job log at the round-2 wake; the old engine held these values in Python lists on the host.
+
+- Observation: turns whose tool calls failed are not all penalized, by design: the environment fines only tool mistakes (rejected arguments, an unknown tool, an ID never returned), not empty searches. Turns that lowered partial credit and were followed by a recovery carry almost no turn credit (+0.004 on average), because the discounted return from that turn includes the recovery; their sign comes from the episode part.
+  Evidence: `automationbench_v1/turn_rewards.py` (environment da8bb32); `credit_sign.py --decompose` on r6.
 
 ## Decision Log
 
