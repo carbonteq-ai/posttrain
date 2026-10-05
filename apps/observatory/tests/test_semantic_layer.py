@@ -75,24 +75,32 @@ def test_short_form_compiles_to_readable_doris_sql() -> None:
     compiled = compile_query(
         FRAMEWORK_MODEL,
         SemanticQuery(
-            measures=("rollout_share", "entropy:last", "update_seconds:p90"),
+            measures=("actor_share", "entropy:last", "update_seconds:p90"),
             by=("run.id",),
             where={"update.step": ">= 10", "run.work_package": "train/lfm*"},
-            order_by=("-rollout_share",),
+            order_by=("-actor_share",),
             limit=5,
         ),
     )
     assert compiled.grain == "update"
     assert compiled.sql.splitlines() == [
-        "SELECT r.`id` AS `run.id`, (sum(rollout_seconds) / sum(update_seconds)) AS `rollout_share`, "
+        "SELECT r.`id` AS `run.id`, (sum(actor_seconds) / sum(update_seconds)) AS `actor_share`, "
         "max_by(t.`entropy`, CASE WHEN t.`entropy` IS NOT NULL THEN t.`step` END) AS `entropy_last`, "
         "percentile(t.`update_seconds`, 0.9) AS `update_seconds_p90`",
         "FROM runs AS r LEFT JOIN updates AS t ON t.run_id = r.id",
         "WHERE t.`step` >= 10 AND r.`work_package` LIKE 'train/lfm%'",
         "GROUP BY r.`id`",
-        "ORDER BY `rollout_share` DESC NULLS LAST",
+        "ORDER BY `actor_share` DESC NULLS LAST",
         "LIMIT 6",
     ]
+    # Population values are per collection, ordered by the collection's first update.
+    collections = compile_query(
+        FRAMEWORK_MODEL,
+        SemanticQuery(measures=("rollout_share", "reward:last"), by=("run.id",), where={"collection.step": ">= 10"}),
+    )
+    assert collections.grain == "collection"
+    assert "FROM runs AS r LEFT JOIN collections AS t ON t.run_id = r.id" in collections.sql
+    assert "max_by(t.`reward`, CASE WHEN t.`reward` IS NOT NULL THEN t.`step` END)" in collections.sql
     rollouts = compile_query(FRAMEWORK_MODEL, SemanticQuery(measures=("rollouts",), by=("rollout.task",)))
     assert "FROM rollouts AS t JOIN runs AS r ON r.id = t.run_id" in rollouts.sql
 
@@ -143,13 +151,13 @@ def test_views_contain_only_what_a_statement_reads() -> None:
 
 def test_describe_lists_the_tables_and_narrows_by_job_kind() -> None:
     everything = describe_semantics(FRAMEWORK_MODEL)
-    assert [table.name for table in everything.sql_tables][:3] == ["runs", "updates", "rollouts"]
+    assert [table.name for table in everything.sql_tables][:4] == ["runs", "collections", "updates", "rollouts"]
     sampo = describe_semantics(FRAMEWORK_MODEL, job_kinds=("train.sampo",))
     names = {measure.name for measure in sampo.measures}
     assert "step_reward_share" in names and "preference_accuracy" not in names
 
 
-def test_episode_endings_are_a_rollout_dimension_and_update_rates() -> None:
+def test_episode_endings_are_a_rollout_dimension_and_collection_rates() -> None:
     from posttrain.common import EPISODE_ENDINGS
 
     ending = FRAMEWORK_MODEL.dimension("rollout.ending")
@@ -157,7 +165,7 @@ def test_episode_endings_are_a_rollout_dimension_and_update_rates() -> None:
     for name in EPISODE_ENDINGS:
         assert name in ending.description
         measure = FRAMEWORK_MODEL.measure(f"ending_{name}_rate")
-        assert measure.entity == "update" and measure.source.name == f"train/rl/ending_{name}_rate"
+        assert measure.entity == "collection" and measure.source.name == f"train/rl/ending_{name}_rate"
     sql = assemble(FRAMEWORK_MODEL, "select ending, count(*) from rollouts group by ending", None)
     assert (
         """COALESCE(t.fact_episode_ending, JSON_EXTRACT_STRING(t.metadata, '$."episode_ending"')) AS `ending`""" in sql

@@ -6,13 +6,14 @@ This ExecPlan is a living document. The sections `Progress`, `Surprises & Discov
 
 An online reinforcement-learning run (GRPO, SAMPO and their relatives) alternates two phases: it samples a population of episodes from the current policy, then trains on that population. Until the resolved policy-update engine, one population fed exactly one optimizer update, so "update" and "population" were the same row everywhere. The resolved engine applies one population as several updates (the 2.6B SAMPO run `manifest-steps-26-sampo-100-g16x8-20261006-r10` applies each 128-episode population as 4 updates of 32 episodes). Tracking and the Observatory still assume one population per update: population values such as mean reward are written only at the first update of each population and are blank at the other three, averages "per update" are really averages per population, all 128 episodes are attributed to the first update, and derived figures such as rows per update and rollout share divide a population's work by single updates.
 
-After this change a population is a first-class record called a **collection**. A user can ask the semantic layer for one row per collection (`select collection_step, reward, rollouts_completed from collections`), see each update's collection (`update.collection_step`), and read Observatory charts whose population values are per collection while optimizer values stay per update. Older runs, where each update had its own population, read as one collection per update, so comparisons across old and new runs remain valid.
+After this change a population is a first-class record called a **collection**. A user can ask the semantic layer for one row per collection (`select step, updates, reward, rollouts_completed from collections`), see each update's collection (`update.collection_step`), and read Observatory charts whose population values are per collection while optimizer values stay per update. Older runs, where each update had its own population, read as one collection per update, so comparisons across old and new runs remain valid.
 
 ## Progress
 
 - [x] (2026-10-06 01:20Z) Baseline amendment: `docs/post-training/06-observation-and-lineage.md`, "Envelope" section, defines the collection grain, its identity (`collection_step`, the step of its first update), `train/rl/collection_updates`, and the `collection_step`/`collection_update` attributes on applied updates.
 - [x] (2026-10-06 01:35Z) Trainer: the TRL resolved path records `train/rl/collection_updates` and attribute `collection_step` with each collection's metrics (`packages/train/src/posttrain/train/backends/trl/policy_rollouts.py`, `_observe_collection`), and attributes `collection_step` and `collection_update` with each applied update (`packages/train/src/posttrain/train/backends/trl/policy_job.py`, `observe_applied_update`). Tests updated; 1090 passed.
-- [ ] Semantic layer: `collection` entity and `collections` table; collection-grain catalog measures move from `update` to `collection`; `update.collection_step` dimension; `rollout.step` documented as the collection step; `rows_per_update` and `rollout_share` restated per collection.
+- [x] (2026-10-06 02:40Z) Semantic layer: `collection` entity and `collections` table (`step`, `time`, `updates`, `collection_seconds` and 59 collection measures, including `planned_updates` from `train/rl/collection_updates`); 49 catalog entries moved from `update` to `collection`; `update.collection_step`; `rollout.step` described as the collection step; `rollout_share` and `rows_per_collection` per collection. Note templates `group-policy@4` and `sampo@4` report collections and updates separately. Fixture project `fixture-resolved` (tagged and untagged runs, two collections of two updates); 193 Observatory tests pass. On Doris: r10 reads as collections 1, 5, 9, ... with 4 updates each; the legacy cont100 run reads as 100 collections of 1 update with mean reward 0.3947 (as before).
+- [x] (2026-10-06 02:40Z) Algorithm-specific settings (user request): the run snapshot (`packages/work/src/posttrain/work/runner.py`, `_selection_details`) now records `policy_updates` (schedule, execution, objective variant, selections, denominator) when declared and SAMPO's credit and correction settings (discount, step weight, normalization, importance-sampling mode and caps, truncation penalty, masking, admission attempts). Run dimensions `run.prompts_per_collection` (was `prompts_per_update`), `run.update_unit`, `run.update_budget`, `run.update_epochs`, `run.objective_variant`, `run.importance_sampling_mode`, `run.importance_sampling_clip_max`, `run.truncation_penalty`, `run.discount_gamma`, `run.step_advantage_weight`, `run.advantage_normalization`.
 - [ ] Observatory service and frontend: population charts per collection, system summary `rollouts_per_update` replaced by observed rollouts per collection, rollout tables labelled by collection.
 - [ ] Validation against r10's live data and the full validation ladder.
 
@@ -33,6 +34,14 @@ After this change a population is a first-class record called a **collection**. 
 
 - Decision: readers derive the collection of an untagged update as the latest collection start at or before it, where a collection start is a step with a collection-grain metric point; an explicit `collection_step` attribute wins when present.
   Rationale: runs recorded before the trainer tags (r10 included) and legacy runs (every update is a start) are read correctly without rewriting stored data.
+  Date/Author: 2026-10-06, Claude.
+
+- Decision: a collection start is a step with a marker metric (`train/rl/collection_updates`, `train/rl/reward_mean`, `train/rl/rollouts_attempted`) or with a point of any collection metric the statement reads.
+  Rationale: fixed markers keep the collection set stable for update mapping; adding the read metrics keeps legacy population rows whatever columns a statement reads, as the `updates` view already does for its rows. Scanning all 59 collection metrics for every statement would cost Doris a JSON extraction per metric per row.
+  Date/Author: 2026-10-06, Claude.
+
+- Decision: record algorithm settings additively in the run snapshot (new keys only, `policy_updates` only when declared) rather than replacing the hand-picked subsets with a full dump.
+  Rationale: existing readers keep their keys, existing bindings keep their snapshot digests, and the values that decide how collections become updates and how SAMPO builds credit become queryable.
   Date/Author: 2026-10-06, Claude.
 
 ## Outcomes & Retrospective
@@ -61,7 +70,7 @@ From `/home/hammad/projects/worktrees/rl-perf`:
 
     uv run --frozen pytest -q packages/train/tests
     uv run --frozen pytest -q apps/observatory/tests
-    cd apps/lab && ../../.venv/bin/posttrain query --format csv --sql "select collection_step, reward, rollouts_completed from collections where run_id='manifest-steps-26-sampo-100-g16x8-20261006-r10' order by collection_step"
+    cd apps/lab && ../../.venv/bin/posttrain query --format csv --sql "select step, updates, reward, rollouts_completed from collections where run_id='manifest-steps-26-sampo-100-g16x8-20261006-r10' order by step"
 
 ## Validation and Acceptance
 
@@ -73,4 +82,4 @@ All changes are code and documentation; no stored data is rewritten. Reverting t
 
 ## Interfaces and Dependencies
 
-`collections` table columns: `run_id`, `collection_step` (integer), `time`, `updates` (integer), and every measure whose entity is `collection`. `updates` gains `collection_step`. Trainer attributes: `collection_step` (integer) on collection rows and applied-update rows, `collection_update` (1-based integer) on applied-update rows; metric `train/rl/collection_updates`.
+`collections` table columns: `run_id`, `step` (the collection step, integer), `time`, `updates` (integer, updates recorded as trained on it), `collection_seconds`, and every measure whose entity is `collection`. `updates` gains `collection_step`. Trainer attributes: `collection_step` (integer) on collection rows and applied-update rows, `collection_update` (1-based integer) on applied-update rows; metric `train/rl/collection_updates`.

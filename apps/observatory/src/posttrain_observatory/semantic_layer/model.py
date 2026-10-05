@@ -17,7 +17,7 @@ from pydantic import Field, model_validator
 from ..models import ObservatoryModel
 
 type Aggregation = Literal["last", "first", "min", "max", "mean", "sum", "count", "stddev", "p50", "p90", "p95", "p99"]
-type EntityName = Literal["run", "update", "rollout"]
+type EntityName = Literal["run", "collection", "update", "rollout"]
 type SourceKind = Literal["run_field", "setting", "event", "metric_series", "trace_fact", "trace_attribute", "derived"]
 type DimensionType = Literal["string", "integer", "number", "time", "boolean"]
 

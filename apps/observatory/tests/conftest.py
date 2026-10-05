@@ -18,6 +18,7 @@ import trackio
 import trackio.context_vars as context_vars
 from posttrain.common import (
     EventObservation,
+    JsonValue,
     MetricBatchObservation,
     MetricObservation,
     TraceFactSet,
@@ -171,3 +172,46 @@ def trackio_project(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Tracki
     )
     yield TrackioDataSource(PROJECT, server_url=SERVER_URL)
     patches.undo()
+
+
+RESOLVED_PROJECT = "fixture-resolved"
+
+
+@pytest.fixture(scope="session")
+def resolved_project(trackio_project: TrackioDataSource) -> TrackioDataSource:
+    """Runs of the resolved engine, in their own project (same storage as ``trackio_project``)."""
+    backend = TrackioBackend(TrackioSettings(project=RESOLVED_PROJECT, server_url=SERVER_URL))
+    # Resolved engine: each collection (sampled population) feeds two optimizer updates.
+    # Collection values are written once, at the collection's first update; the tagged run
+    # also names each update's collection, the untagged one was recorded before the tags.
+    for run_id, tagged in (("resolved-tagged", True), ("resolved-untagged", False)):
+        resolved = backend.start_run(_spec(run_id, "train.sampo", 6e-5))
+        for first, reward in ((1, 0.4), (3, 0.6)):
+            values = {
+                "train/rl/reward_mean": reward,
+                "train/rl/rollouts_attempted": 160.0,
+                "train/rl/time/rollout_seconds": 300.0,
+            }
+            attributes: dict[str, JsonValue] = {"measurement_scope": "resolved-collection"}
+            if tagged:
+                values["train/rl/collection_updates"] = 2.0
+                attributes["collection_step"] = first
+            resolved.metrics(MetricBatchObservation(values, step=first, attributes=attributes))
+            for position in (1, 2):
+                step = first + position - 1
+                resolved.metrics(
+                    MetricBatchObservation(
+                        {"train/step_time_seconds": 50.0 * position, "train/rl/entropy": 0.1 * step}, step=step
+                    )
+                )
+                applied: dict[str, JsonValue] = {"measurement_scope": "resolved-applied-update"}
+                if tagged:
+                    applied |= {"collection_step": first, "collection_update": position}
+                resolved.metrics(
+                    MetricBatchObservation(
+                        {"train/rl/applied_optimizer_updates": float(step)}, step=step, attributes=applied
+                    )
+                )
+        resolved.finish(RunOutcome("succeeded", STARTED, STARTED + timedelta(seconds=900)))
+
+    return TrackioDataSource(RESOLVED_PROJECT, server_url=SERVER_URL)

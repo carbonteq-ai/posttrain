@@ -32,7 +32,7 @@ from .query import QueryError
 if TYPE_CHECKING:
     from .compile import CompiledScope
 
-SEMANTIC_TABLES = {"run": "runs", "update": "updates", "rollout": "rollouts"}
+SEMANTIC_TABLES = {"run": "runs", "collection": "collections", "update": "updates", "rollout": "rollouts"}
 TRACKIO_TABLES: dict[str, tuple[str, ...]] = {
     "metric_rows": ("run_id", "run_name", "step", "timestamp", "metrics"),
     "run_configs": ("run_id", "run_name", "config", "created_at"),
@@ -190,7 +190,7 @@ def build_views(
     semantic = table_columns(model)
     run_columns = set(planned.get("runs", ())) | {"id"} | set(scope.columns if scope else ())
     # Entity views read each run's start (update time) through the scope.
-    needs_start = "time" in planned.get("updates", ())
+    needs_start = "time" in planned.get("updates", ()) or "time" in planned.get("collections", ())
     if needs_start:
         run_columns.add("started_at")
     views: list[tuple[str, str]] = []
@@ -222,6 +222,20 @@ def build_views(
                 f" WHERE provider_id IN (SELECT provider_id FROM _pt_scope)",
             )
         )
+    collection_steps = "collections" in planned or "collection_step" in planned.get("updates", ())
+    if collection_steps:
+        read = planned.get("collections", frozenset())
+        markers = sorted(
+            {
+                owner.source.name
+                for name, owner in semantic["collections"].items()
+                if name in read and isinstance(owner, Measure) and owner.source.kind == "metric_series"
+            }
+        )
+        views.append(("_pt_collection_starts", _collection_starts_sql(markers)))
+        views.append(("_pt_update_collection", _update_collection_sql()))
+    if "collections" in planned:
+        views.extend(_collections_sql(semantic["collections"], planned["collections"]))
     if "updates" in planned:
         views.extend(_updates_sql(model, semantic["updates"], planned["updates"]))
     if "rollouts" in planned:
@@ -357,12 +371,107 @@ def _updates_sql(
         selected.append(f"unix_timestamp({seen}) - unix_timestamp(MIN(s.started_at)) AS `time`")
     for measure in measures:
         selected.append(f"{_update_aggregate(measure, present.index(measure))} AS {_quote(measure.name)}")
+    collection = ""
+    if "collection_step" in columns:
+        selected.append("MAX(c.collection_step) AS `collection_step`")
+        # One row per run and step, so the join never repeats a point.
+        collection = " LEFT JOIN _pt_update_collection AS c ON c.run_id = u.run_id AND c.step = u.step"
     views.append(
         (
             "updates",
             f"SELECT {', '.join(selected)} FROM _pt_update_points AS u"
-            " JOIN _pt_scope AS s ON s.provider_id = u.run_id"
+            f" JOIN _pt_scope AS s ON s.provider_id = u.run_id{collection}"
             " WHERE u.replay = u.any_replay GROUP BY s.id, u.step",
+        )
+    )
+    return views
+
+
+# Metrics a trainer writes once per collection (sampled population). A step carrying any of them
+# starts a collection; every update of a run that trained on each population once starts its own.
+_COLLECTION_MARKERS = ("train/rl/collection_updates", "train/rl/reward_mean", "train/rl/rollouts_attempted")
+
+
+def _replayed_step(column: str = "step") -> str:
+    """A point's logical step: the replayed `source_step` for points recomputed from traces."""
+    observation = _extract("metrics", "string", "metric/attributes", "observation_source")
+    source_step = _extract("metrics", "integer", "metric/attributes", "source_step")
+    return f"CASE WHEN {observation} = 'verifiers' AND {source_step} >= 0 THEN {source_step} ELSE {column} END"
+
+
+def _collection_starts_sql(read: Sequence[str] = ()) -> str:
+    """Steps that start a collection: a marker's step, or a step where a collection metric the statement
+    reads has a point (so legacy runs keep every population row whatever columns are read)."""
+
+    markers = dict.fromkeys((*_COLLECTION_MARKERS, *read))
+    present = " OR ".join(f"{_extract('metrics', 'number', marker)} IS NOT NULL" for marker in markers)
+    return (
+        f"SELECT run_id, {_replayed_step()} AS step, MIN(`timestamp`) AS start_ts FROM metric_rows"
+        f" WHERE ({present}) AND run_id IN (SELECT provider_id FROM _pt_scope)"
+        f" GROUP BY run_id, {_replayed_step()}"
+    )
+
+
+def _update_collection_sql() -> str:
+    """Each update's collection: the trainer's `collection_step` tag, else the latest collection start at
+    or before it (runs recorded before the tag). Also the update's step time, for collection totals."""
+
+    tagged = _extract("metrics", "integer", "metric/attributes", "collection_step")
+    seconds = _extract("metrics", "number", "train/step_time_seconds")
+    return (
+        "SELECT u.run_id, u.step, COALESCE(MAX(u.tagged), MAX(c.step)) AS collection_step,"
+        " MAX(u.seconds) AS seconds"
+        f" FROM (SELECT run_id, step, {tagged} AS tagged, {seconds} AS seconds FROM metric_rows"
+        f" WHERE ({tagged} IS NOT NULL OR {seconds} IS NOT NULL)"
+        " AND run_id IN (SELECT provider_id FROM _pt_scope)) AS u"
+        " LEFT JOIN _pt_collection_starts AS c ON c.run_id = u.run_id AND c.step <= u.step"
+        " GROUP BY u.run_id, u.step"
+    )
+
+
+def _collections_sql(
+    owners: Mapping[str, Dimension | Measure | None], columns: frozenset[str]
+) -> list[tuple[str, str]]:
+    """One row per run and collection: its collection metrics, and its updates' count and step time."""
+
+    measures = [
+        owner
+        for name, owner in owners.items()
+        if name in columns and isinstance(owner, Measure) and owner.source.kind == "metric_series"
+    ]
+    views: list[tuple[str, str]] = []
+    joins = [
+        " LEFT JOIN (SELECT run_id, collection_step, COUNT(seconds) AS updates, SUM(seconds) AS seconds"
+        " FROM _pt_update_collection GROUP BY run_id, collection_step) AS uc"
+        " ON uc.run_id = c.run_id AND uc.collection_step = c.step"
+    ]
+    if measures:
+        points = " UNION ALL ".join(_update_points_sql(measure, index) for index, measure in enumerate(measures))
+        views.append(
+            (
+                "_pt_collection_points",
+                f"SELECT p.*, MAX(replay) OVER (PARTITION BY run_id, m, step) AS any_replay FROM ({points}) AS p",
+            )
+        )
+        joins.append(
+            " LEFT JOIN _pt_collection_points AS u"
+            " ON u.run_id = c.run_id AND u.step = c.step AND u.replay = u.any_replay"
+        )
+    selected = ["s.id AS run_id", "c.step AS step"]
+    if "time" in columns:
+        selected.append("unix_timestamp(MIN(c.start_ts)) - unix_timestamp(MIN(s.started_at)) AS `time`")
+    if "updates" in columns:
+        selected.append("COALESCE(MAX(uc.updates), 0) AS `updates`")
+    if "collection_seconds" in columns:
+        selected.append("MAX(uc.seconds) AS `collection_seconds`")
+    for index, measure in enumerate(measures):
+        selected.append(f"{_update_aggregate(measure, index)} AS {_quote(measure.name)}")
+    views.append(
+        (
+            "collections",
+            f"SELECT {', '.join(selected)} FROM _pt_collection_starts AS c"
+            f" JOIN _pt_scope AS s ON s.provider_id = c.run_id{''.join(joins)}"
+            " GROUP BY s.id, c.step",
         )
     )
     return views

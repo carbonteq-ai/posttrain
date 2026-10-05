@@ -52,6 +52,15 @@ def _rollout(
 ENTITIES = (
     Entity(name="run", description="One run of one job."),
     Entity(
+        name="collection",
+        description=(
+            "One population of episodes an online run sampled at one policy version and trained on with one or "
+            "more optimizer updates, identified by the step of its first update. Runs that trained on each "
+            "population once have one collection per update."
+        ),
+        order_dimension="collection.step",
+    ),
+    Entity(
         name="update",
         description="One optimizer update of a training run, at a logged step.",
         order_dimension="update.step",
@@ -199,15 +208,88 @@ DIMENSIONS = (
         name="run.max_updates",
         entity="run",
         type="integer",
-        description="Configured number of updates (max_steps).",
+        description="Configured number of optimizer updates (max_steps).",
         source=_setting("settings.resolved.max_steps"),
     ),
     Dimension(
-        name="run.prompts_per_update",
+        name="run.prompts_per_collection",
         entity="run",
         type="integer",
-        description="Prompt groups per update.",
+        description="Prompt groups sampled per collection (num_prompts_per_step).",
         source=_setting("settings.resolved.num_prompts_per_step"),
+    ),
+    Dimension(
+        name="run.update_unit",
+        entity="run",
+        type="string",
+        description=(
+            "What an optimizer update's budget counts when a collection is split into several updates "
+            "(episode, turn or selected-token); empty when each collection is one update."
+        ),
+        source=_setting("settings.resolved.policy_updates.schedule.unit"),
+    ),
+    Dimension(
+        name="run.update_budget",
+        entity="run",
+        type="integer",
+        description="Units of the collection per optimizer update (policy_updates.schedule.budget).",
+        source=_setting("settings.resolved.policy_updates.schedule.budget"),
+    ),
+    Dimension(
+        name="run.update_epochs",
+        entity="run",
+        type="integer",
+        description="Passes over each collection (policy_updates.schedule.epochs).",
+        source=_setting("settings.resolved.policy_updates.schedule.epochs"),
+    ),
+    Dimension(
+        name="run.objective_variant",
+        entity="run",
+        type="string",
+        description="Resolved objective variant (policy_updates.objective_variant), when declared.",
+        source=_setting("settings.resolved.policy_updates.objective_variant"),
+    ),
+    Dimension(
+        name="run.importance_sampling_mode",
+        entity="run",
+        type="string",
+        description="How the trainer corrects for the sampler's own probabilities (for example token_truncate).",
+        source=_setting("settings.resolved.importance_sampling_mode"),
+    ),
+    Dimension(
+        name="run.importance_sampling_clip_max",
+        entity="run",
+        type="number",
+        description="Upper cap on the sampler-correction weight.",
+        source=_setting("settings.resolved.importance_sampling_clip_max"),
+    ),
+    Dimension(
+        name="run.truncation_penalty",
+        entity="run",
+        type="number",
+        description="Reward penalty for a truncated episode.",
+        source=_setting("settings.resolved.truncation_penalty"),
+    ),
+    Dimension(
+        name="run.discount_gamma",
+        entity="run",
+        type="number",
+        description="SAMPO discount on later turn rewards when crediting a turn.",
+        source=_setting("settings.resolved.discount_gamma"),
+    ),
+    Dimension(
+        name="run.step_advantage_weight",
+        entity="run",
+        type="number",
+        description="SAMPO weight of the turn advantage relative to the episode advantage.",
+        source=_setting("settings.resolved.step_advantage_weight"),
+    ),
+    Dimension(
+        name="run.advantage_normalization",
+        entity="run",
+        type="string",
+        description="SAMPO advantage normalization within groups (mean or mean_std).",
+        source=_setting("settings.resolved.advantage_normalization"),
     ),
     Dimension(
         name="run.rollouts_per_prompt",
@@ -258,6 +340,34 @@ DIMENSIONS = (
         source=_setting("training.resolved.parameter_update.rank"),
     ),
     Dimension(
+        name="collection.step",
+        entity="collection",
+        type="integer",
+        description="Step of the collection's first update; it identifies the collection.",
+        source=Source(kind="derived", name="collection_step"),
+    ),
+    Dimension(
+        name="collection.time",
+        entity="collection",
+        type="number",
+        description="Seconds since the run started, when the collection was first reported.",
+        source=Source(kind="derived", name="elapsed_seconds"),
+    ),
+    Dimension(
+        name="collection.updates",
+        entity="collection",
+        type="integer",
+        description="Optimizer updates recorded as trained on the collection.",
+        source=Source(kind="derived", name="collection_updates"),
+    ),
+    Dimension(
+        name="update.collection_step",
+        entity="update",
+        type="integer",
+        description="Step of the first update of the collection this update trained on (its own step when it had its own).",
+        source=Source(kind="derived", name="collection_step"),
+    ),
+    Dimension(
         name="update.step",
         entity="update",
         type="integer",
@@ -289,14 +399,14 @@ DIMENSIONS = (
         name="rollout.prompt_group",
         entity="rollout",
         type="string",
-        description="Prompt group id (rollouts of one prompt in one update).",
+        description="Prompt group id (rollouts of one prompt in one collection).",
         source=Source(kind="trace_fact", name="prompt_group_id"),
     ),
     Dimension(
         name="rollout.step",
         entity="rollout",
         type="integer",
-        description="Update step the rollout was collected for.",
+        description="Collection step the rollout was sampled for (the step of the collection's first update).",
         source=Source(kind="trace_fact", name="rollout_step"),
     ),
     Dimension(
@@ -354,6 +464,16 @@ MEASURES = (
         aggregation="sum",
         job_kinds=("*",),
     ),
+    Measure(
+        name="collection_seconds",
+        entity="collection",
+        label="Collection time",
+        description="Wall time of a collection: the summed step time of the updates that trained on it.",
+        unit="s",
+        source=Source(kind="derived", name="collection_seconds"),
+        aggregation="mean",
+        job_kinds=RL_KINDS,
+    ),
     _rollout("rollouts", "Rollouts", "Number of rollouts.", "trace_count", aggregation="sum"),
     _rollout("rollout_reward", "Rollout reward", "Task reward of a rollout.", "task_reward"),
     _rollout("algorithm_reward", "Algorithm reward", "Reward after the algorithm's shaping.", "algorithm_reward"),
@@ -389,10 +509,10 @@ MEASURES = (
 METRICS = (
     Metric(
         name="rollout_share",
-        entity="update",
-        label="Rollout share of update time",
-        description="Share of update wall time spent collecting rollouts.",
-        formula="sum(rollout_seconds) / sum(update_seconds)",
+        entity="collection",
+        label="Rollout share of collection time",
+        description="Share of a collection's wall time (its updates' step time) spent collecting its rollouts.",
+        formula="sum(rollout_seconds) / sum(collection_seconds)",
     ),
     Metric(
         name="actor_share",
@@ -409,11 +529,11 @@ METRICS = (
         formula="max(optimizer_attempts) - max(applied_updates)",
     ),
     Metric(
-        name="rows_per_update",
-        entity="update",
-        label="Rows generated per update",
-        description="Rollouts generated per update, including refills.",
-        formula="sum(generated_rows) / count(update_seconds)",
+        name="rows_per_collection",
+        entity="collection",
+        label="Rows generated per collection",
+        description="Rollouts generated per collection, including refills.",
+        formula="sum(generated_rows) / count(collection_seconds)",
     ),
 )
 
