@@ -1013,6 +1013,7 @@ numpy==2.3.5 \
     #   opencv-python-headless
     #   pandas
     #   peft
+    #   posttrain-train
     #   textual-hires-canvas
     #   textual-plot
     #   tilelang
