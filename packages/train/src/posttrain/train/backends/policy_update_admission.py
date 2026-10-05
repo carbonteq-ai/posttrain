@@ -7,21 +7,21 @@ It does not collect task groups, publish artifacts or construct native models.
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from posttrain.common import LocalArtifactRef, ProducedArtifact
 
 from ..online_rl import EnvironmentRollout
 from ..profiles import CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings
 from ..update_plan import ExecutionCapabilities
-from ..update_records import ActionRef, InvalidPolicyUpdate, PolicyVersions, SemanticSpan
+from ..update_records import InvalidPolicyUpdate, PolicyVersions, SemanticSpan
 from ..update_recovery import UpdateRecoveryIdentity
 from ..update_resolution import ResolvedPolicyPopulation, resolve_policy_population, resolve_rollout_population
-from .policy_update_inputs import NativePopulationInputs
+from .policy_update_inputs import NativePopulationInputs, RetainedEvidence
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,10 +36,7 @@ class AdmittedNativePopulation:
 
     def __post_init__(self) -> None:
         self._validate_counters(self.applied_update_offset, self.attempt_offset, self.max_overflow_retries)
-        if (
-            hashlib.sha256(self.read_input.retained_evidence).hexdigest()
-            != self.resolved.snapshot.native_evidence_digest
-        ):
+        if self.read_input.evidence.digest != self.resolved.snapshot.native_evidence_digest:
             raise InvalidPolicyUpdate("admitted input reader lost its original native evidence bytes")
         for view in self.resolved.snapshot.conditioning:
             self.read_input(view)
@@ -82,8 +79,8 @@ class AdmittedNativePopulation:
             or format not in ("verifiers-native-episodes", "verifiers-native-traces")
         ):
             raise InvalidPolicyUpdate("native admission requires a retained native replay artifact")
-        evidence = reference.path.read_bytes()
-        if hashlib.sha256(evidence).hexdigest() != reference.digest:
+        evidence = RetainedEvidence(reference.path.read_bytes())
+        if evidence.digest != reference.digest:
             raise InvalidPolicyUpdate("retained native artifact differs from its declared digest")
         return cls.from_rollouts(
             rollouts,
@@ -113,7 +110,7 @@ class AdmittedNativePopulation:
         *,
         population_id: str,
         native_evidence_ref: str,
-        read_evidence: Callable[[str], bytes],
+        read_evidence: Callable[[str], bytes | RetainedEvidence],
         decode: Callable[[bytes], Mapping[str, Any]],
         template_revision: str,
         versions: PolicyVersions,
@@ -141,14 +138,14 @@ class AdmittedNativePopulation:
             # original traces, so selection addresses exactly admitted actions.
             from ..update_spans import reasoning_answer_spans
 
-            spans = reasoning_answer_spans(rollouts, decode(evidence))
+            spans = reasoning_answer_spans(rollouts, decode(evidence.data))
         resolved = resolve_rollout_population(
             rollouts,
             settings,
             capabilities,
             population_id=population_id,
             native_evidence_ref=native_evidence_ref,
-            native_evidence_digest=hashlib.sha256(evidence).hexdigest(),
+            native_evidence_digest=evidence.digest,
             template_revision=template_revision,
             versions=versions,
             sampler_step=sampler_step,
@@ -190,8 +187,8 @@ class AdmittedNativePopulation:
         checkpoint: Path,
         identity: UpdateRecoveryIdentity,
         *,
-        sampler_correction: Mapping[ActionRef, float] | None,
-        read_evidence: Callable[[str], bytes] | None = None,
+        sampler_correction: np.ndarray | None,
+        read_evidence: Callable[[str], bytes | RetainedEvidence] | None = None,
         decode: Callable[[bytes], Mapping[str, Any]],
     ) -> AdmittedNativePopulation:
         """Verify the native seal, restore frozen credit, then admit original inputs.
@@ -215,7 +212,7 @@ class AdmittedNativePopulation:
                 raise InvalidPolicyUpdate(
                     "checkpoint lacks sealed native evidence; supply a retained artifact resolver"
                 )
-            evidence = (checkpoint / NATIVE_EVIDENCE_FILENAME).read_bytes()
+            evidence = RetainedEvidence((checkpoint / NATIVE_EVIDENCE_FILENAME).read_bytes())
         else:
             evidence = cls._read_evidence(read_evidence, resolved.snapshot.native_evidence_ref)
         reader = NativePopulationInputs.from_evidence(resolved.snapshot, evidence, decode)
@@ -224,11 +221,11 @@ class AdmittedNativePopulation:
         )
 
     @staticmethod
-    def _read_evidence(read_evidence: Callable[[str], bytes], reference: str) -> bytes:
+    def _read_evidence(read_evidence: Callable[[str], bytes | RetainedEvidence], reference: str) -> RetainedEvidence:
         evidence = read_evidence(reference)
-        if not isinstance(evidence, bytes):
+        if not isinstance(evidence, bytes | RetainedEvidence):
             raise InvalidPolicyUpdate("native artifact reader must return original retained bytes")
-        return evidence
+        return RetainedEvidence.of(evidence)
 
     @staticmethod
     def _validate_counters(applied: int, attempts: int, retries: int) -> None:

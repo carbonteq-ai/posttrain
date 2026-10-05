@@ -98,7 +98,9 @@ def test_collector_publishes_native_json_and_retained_bytes_together(tmp_path):
         "assessment_batches": [{"source": {"source_json": "retained-input"}}],
     }
     episode.to_record = lambda: record
-    assert bridge._preserve_episode(episode) == record
+    encoded = bridge._preserve_episode(episode)
+    assert json.loads(encoded.line) == record
+    assert encoded.trace_ids == ("trace",) and encoded.assessment is not None
     artifacts = bridge.finalize()
     assert len(artifacts) == 2
     bundle, native = artifacts

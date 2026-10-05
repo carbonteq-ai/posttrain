@@ -12,9 +12,45 @@ from posttrain.environment.verifiers_conditioning import native_conditioning_rec
 from posttrain.train.backends.policy_update_admission import AdmittedNativePopulation
 from posttrain.train.backends.trl.policy_updates import ResolvedTRLPopulation
 from posttrain.train.online_rl import AgenticTurn, BehaviorPolicySpan, EnvironmentRollout
+from posttrain.train.profiles import SAMPOSettings, TrainingLoop
+from posttrain.train.update_plan import (
+    ExecutionCapabilities,
+    PolicyExecutionBudget,
+    PolicyUpdateSchedule,
+    PolicyUpdateSettings,
+)
 from posttrain.train.update_records import InvalidPolicyUpdate, PolicyVersions
+from posttrain.train.update_resolution import ResolvedPolicyPopulation
 
-from .test_update_resolution import capabilities, settings
+
+def settings():
+    return SAMPOSettings(
+        id="resolution-test",
+        loop=TrainingLoop(max_steps=2, per_device_batch_size=1),
+        policy_updates=PolicyUpdateSettings(
+            PolicyUpdateSchedule("episode", 1),
+            PolicyExecutionBudget(2, 100, 1000),
+        ),
+    )
+
+
+def capabilities():
+    return ExecutionCapabilities(
+        ("sampo@1", "sampo-spans@1", "grpo@1", "dapo@1"), ("sampled-logp", "old-logp", "reference-logp"), 100, True
+    )
+
+
+def resolution_identity(resolved: ResolvedPolicyPopulation) -> tuple:
+    """Population-sized records compare by digest; small records compare structurally."""
+    return (
+        resolved.snapshot.digest,
+        resolved.credit.digest,
+        resolved.spec,
+        tuple(update.digest for update in resolved.updates),
+        resolved.packs,
+        resolved.execution,
+        resolved.capabilities,
+    )
 
 
 class AdmissionIdentity(TypedDict):
@@ -54,7 +90,7 @@ def test_retained_artifact_handoff_binds_logical_name_and_checks_digest(tmp_path
     )
     admitted = AdmittedNativePopulation.from_retained_artifact(artifact, rollouts, settings(), capabilities(), **args)
     assert admitted.resolved.snapshot.native_evidence_ref == artifact.name
-    assert all(action.native_ref == artifact.name for action in admitted.resolved.snapshot.actions)
+    assert all(view.native_ref == artifact.name for view in admitted.resolved.snapshot.conditioning)
     path.write_bytes(evidence + b" ")
     with pytest.raises(InvalidPolicyUpdate, match="declared digest"):
         AdmittedNativePopulation.from_retained_artifact(artifact, rollouts, settings(), capabilities(), **args)
@@ -155,7 +191,7 @@ def test_collection_binds_retained_bytes_and_preserves_original_context_and_cred
     admitted = admit(rollouts, evidence, decode, applied_update_offset=3, attempt_offset=5, max_overflow_retries=2)
     assert admitted.resolved.snapshot.native_evidence_digest == hashlib.sha256(evidence).hexdigest()
     assert len(admitted.resolved.updates) == 2
-    assert [value.advantage for value in admitted.resolved.credit.values] == [-1, -1, 1, 1]
+    assert admitted.resolved.credit.advantages.tolist() == [-1, -1, 1, 1]
     for view in admitted.resolved.snapshot.conditioning:
         inputs = admitted.read_input(view)
         assert inputs.token_ids == (1, 2, 3, 4, 5)
@@ -218,7 +254,6 @@ def test_both_backend_factories_consume_the_same_admitted_contract():
 
     rollouts, evidence, decode = source()
     selected = settings()
-    from posttrain.train.update_plan import PolicyExecutionBudget
     from posttrain.train.update_resolution import resolve_policy_population
 
     assert selected.policy_updates is not None
@@ -234,7 +269,8 @@ def test_both_backend_factories_consume_the_same_admitted_contract():
     verl = ResolvedVeRLPopulation.from_admitted(
         admitted, score_temperature=0.8, score_contract="test@1", sampler_correction=None
     )
-    assert trl.updates == verl.updates and trl.credit is verl.credit
+    assert [update.digest for update in trl.updates] == [update.digest for update in verl.updates]
+    assert trl.credit is verl.credit
     assert trl.read_input is verl.read_input
 
 
@@ -273,7 +309,7 @@ def test_recovery_verifies_native_seal_and_original_inputs_without_estimating_cr
     relocated = tmp_path.parent / f"{tmp_path.name}-relocated"
     shutil.copytree(tmp_path, relocated)
     standalone = AdmittedNativePopulation.from_checkpoint(relocated, identity, sampler_correction=None, decode=decode)
-    assert standalone.resolved == admitted.resolved
+    assert resolution_identity(standalone.resolved) == resolution_identity(admitted.resolved)
     assert standalone.read_input.retained_evidence == evidence
     (relocated / NATIVE_EVIDENCE_FILENAME).write_bytes(evidence + b" ")
     with pytest.raises(InvalidPolicyUpdate, match="changed|digest|differs|component"):
@@ -303,16 +339,14 @@ def test_recovery_verifies_native_seal_and_original_inputs_without_estimating_cr
             sampler_correction=None,
             decode=lambda _: pytest.fail("legacy checkpoint decoded without its artifact resolver"),
         )
-    assert (
-        AdmittedNativePopulation.from_checkpoint(
-            legacy,
-            identity,
-            sampler_correction=None,
-            read_evidence=lambda _: evidence,
-            decode=decode,
-        ).resolved
-        == admitted.resolved
+    legacy_restored = AdmittedNativePopulation.from_checkpoint(
+        legacy,
+        identity,
+        sampler_correction=None,
+        read_evidence=lambda _: evidence,
+        decode=decode,
     )
+    assert resolution_identity(legacy_restored.resolved) == resolution_identity(admitted.resolved)
 
     def forbidden(*args, **kwargs):
         pytest.fail("recovery must not resolve a fresh population or estimate new credit")
@@ -328,7 +362,7 @@ def test_recovery_verifies_native_seal_and_original_inputs_without_estimating_cr
         tmp_path, identity, sampler_correction=None, read_evidence=read, decode=decode
     )
     assert reads == ["artifact:episodes"]
-    assert restored.resolved == admitted.resolved
+    assert resolution_identity(restored.resolved) == resolution_identity(admitted.resolved)
     assert (restored.applied_update_offset, restored.attempt_offset) == (3, 5)
     for view in restored.resolved.snapshot.conditioning:
         assert restored.read_input(view) == admitted.read_input(view)

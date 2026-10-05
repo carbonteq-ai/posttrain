@@ -15,6 +15,7 @@ from typing import Any, BinaryIO, Literal
 from posttrain.common import LocalArtifactRef, ProducedArtifact
 
 from ..update_records import InvalidPolicyUpdate
+from .native_records import message_graphs, record_workers
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +29,35 @@ class ConditioningTrace:
     id: str
     nodes: tuple[Any, ...]
     calls: tuple[Any, ...]
+
+
+# Populations larger than this decode their message graphs on worker processes.
+PARALLEL_DECODE_BYTES = 64 * 1024 * 1024
+
+
+def _decode_conditioning(lines: list[bytes], episodes: bool, *, parallel: bool) -> dict[str, Any]:
+    from verifiers.v1.trace import Branch  # pyright: ignore[reportMissingImports]
+
+    graphs: Iterable[list[tuple[Any, Any, Any]] | str] = (
+        record_workers().map(message_graphs, lines, [episodes] * len(lines))
+        if parallel
+        else (message_graphs(line, episodes) for line in lines)
+    )
+    traces: dict[str, Any] = {}
+    for parsed in graphs:
+        if isinstance(parsed, str):
+            raise InvalidPolicyUpdate(parsed)
+        for identity, _, _ in parsed:
+            if not isinstance(identity, str) or not identity:
+                raise InvalidPolicyUpdate("native population trace requires its original identity")
+            if identity in traces:
+                raise InvalidPolicyUpdate("native population has duplicate trace identities")
+            # Reserve all IDs before validation, including duplicates in one envelope.
+            traces[identity] = None
+        for identity, nodes, calls in parsed:
+            branch = Branch.model_validate({"index": 0, "nodes": nodes, "calls": calls})
+            traces[identity] = ConditioningTrace(identity, tuple(branch.nodes), tuple(branch.calls))
+    return traces
 
 
 def decode_native_population(
@@ -45,12 +75,19 @@ def decode_native_population(
     ``content="conditioning"`` restores only each trace's message graph (nodes
     and model calls) through the native ``Branch`` schema. Policy scoring reads
     nothing else, and the assessment archives that dominate an episode's bytes
-    are not validated again.
+    are not validated again. Records are parsed on worker processes when the
+    population exceeds ``PARALLEL_DECODE_BYTES``; validation stays here.
     """
     if format not in {"verifiers-native-episodes", "verifiers-native-traces"}:
         raise InvalidPolicyUpdate("unsupported native population artifact format")
     if content not in {"traces", "conditioning"}:
         raise InvalidPolicyUpdate("unsupported native population decode content")
+    if not evidence or not evidence.endswith(b"\n"):
+        raise InvalidPolicyUpdate("native population artifact requires complete JSONL records")
+    episodes = format == "verifiers-native-episodes"
+    lines = evidence.splitlines()
+    if content == "conditioning":
+        return _decode_conditioning(lines, episodes, parallel=len(evidence) > PARALLEL_DECODE_BYTES)
     from verifiers.v1.episode import Episode  # pyright: ignore[reportMissingImports]
     from verifiers.v1.trace import Trace  # pyright: ignore[reportMissingImports]
 
@@ -61,14 +98,12 @@ def decode_native_population(
     except ImportError:  # older pinned runtimes: validate without proof reuse
         validation_scope = contextlib.nullcontext
 
-    if not evidence or not evidence.endswith(b"\n"):
-        raise InvalidPolicyUpdate("native population artifact requires complete JSONL records")
     traces: dict[str, Any] = {}
-    for line in evidence.splitlines():
+    for line in lines:
         record = json.loads(line)
         if not isinstance(record, dict):
             raise InvalidPolicyUpdate("native population records must be objects")
-        raw_traces = record.get("traces") if format == "verifiers-native-episodes" else [record]
+        raw_traces = record.get("traces") if episodes else [record]
         if not isinstance(raw_traces, list) or not raw_traces:
             raise InvalidPolicyUpdate("native population record lacks original traces")
         for raw in raw_traces:
@@ -78,23 +113,12 @@ def decode_native_population(
                 raise InvalidPolicyUpdate("native population has duplicate trace identities")
             # Reserve all IDs before validation, including duplicates in one envelope.
             traces[raw["id"]] = None
-        if content == "conditioning":
-            from verifiers.v1.trace import Branch  # pyright: ignore[reportMissingImports]
-
-            for raw in raw_traces:
-                branch = Branch.model_validate({"index": 0, "nodes": raw.get("nodes"), "calls": raw.get("calls", [])})
-                traces[raw["id"]] = ConditioningTrace(raw["id"], tuple(branch.nodes), tuple(branch.calls))
-            continue
         # Episodes repeat the same assessment sources across hundreds of batches.
         # A per-record validation scope validates each source once and reuses its
         # exact-match proof for the repeats (as the Verifiers env server and
         # client do); the proofs end with the record, so memory stays bounded.
         with validation_scope():
-            restored = (
-                Episode.model_validate(record).traces
-                if format == "verifiers-native-episodes"
-                else [Trace.model_validate(record)]
-            )
+            restored = Episode.model_validate(record).traces if episodes else [Trace.model_validate(record)]
         for trace in restored:
             traces[trace.id] = trace
     return traces
@@ -121,12 +145,13 @@ def _select(lines: Iterable[bytes], wanted: set[str], episodes: bool) -> list[by
     return selected
 
 
-def _read_spans(stream: BinaryIO, spans: Sequence[tuple[int, int]]) -> Iterator[bytes]:
-    for offset, length in spans:
+def _read_spans(stream: BinaryIO, spans: Sequence[tuple[int, int, str]]) -> Iterator[bytes]:
+    """Read indexed records back, each proven by its length and the SHA-256 recorded when it was written."""
+    for offset, length, digest in spans:
         stream.seek(offset)
         line = stream.read(length)
-        if len(line) != length:
-            raise InvalidPolicyUpdate("native population source record span is truncated")
+        if len(line) != length or not line.endswith(b"\n") or hashlib.sha256(line).hexdigest() != digest:
+            raise InvalidPolicyUpdate("native population source record span differs from its written record")
         yield line
 
 
@@ -136,7 +161,7 @@ def retain_native_population(
     trace_ids: tuple[str, ...],
     *,
     episodes: bool,
-    spans: Mapping[str, tuple[int, int]] | None = None,
+    spans: Mapping[str, tuple[int, int, str]] | None = None,
 ) -> ProducedArtifact:
     """Copy complete native envelopes verbatim, with deterministic membership.
 
@@ -149,15 +174,15 @@ def retain_native_population(
     wanted = set(trace_ids)
     selected: list[bytes] | None = None
     if spans is not None and wanted <= set(spans):
-        # Read only the population's own records (in file order) rather than
-        # parsing every record the run has appended so far. Any inconsistency
-        # (a stale index after a restart, a foreign writer) falls back to the
+        # Read only the population's own records, in file order. The writer
+        # indexed every trace identity of each record with the record's span
+        # and digest, so membership comes from the index and each line is
+        # proven by its digest instead of being parsed. Any inconsistency (a
+        # stale index after a restart, a foreign writer) falls back to the
         # authoritative full scan instead of failing the update.
         try:
             with source.open("rb") as stream:
-                selected = _select(
-                    _read_spans(stream, sorted({spans[identity] for identity in wanted})), wanted, episodes
-                )
+                selected = list(_read_spans(stream, sorted({spans[identity] for identity in wanted})))
         except (InvalidPolicyUpdate, ValueError):
             selected = None
     if selected is None:

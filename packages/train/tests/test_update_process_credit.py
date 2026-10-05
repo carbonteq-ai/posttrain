@@ -16,16 +16,44 @@ from posttrain.common import TraceObservation
 from posttrain.environment.verifiers_conditioning import native_conditioning_records
 from posttrain.train.backends.policy_update_admission import AdmittedNativePopulation
 from posttrain.train.online_rl import AgenticTurn, BehaviorPolicySpan, EnvironmentRollout
+from posttrain.train.profiles import SAMPOSettings, TrainingLoop
 from posttrain.train.reward_evidence import RewardValue, SpanAssessment
-from posttrain.train.update_credit import prepare_credit
-from posttrain.train.update_plan import PolicyExecutionBudget, PolicyUpdateSchedule, PolicyUpdateSettings
+from posttrain.train.update_credit import PreparedCredit, prepare_credit
+from posttrain.train.update_plan import (
+    ExecutionCapabilities,
+    PolicyExecutionBudget,
+    PolicyUpdateSchedule,
+    PolicyUpdateSettings,
+)
 from posttrain.train.update_process_credit import ExternalSpanCreditEstimator, assess_population_spans
-from posttrain.train.update_records import ActionSelection, InvalidPolicyUpdate, PolicyVersions
+from posttrain.train.update_records import ActionSelection, InvalidPolicyUpdate, PolicyVersions, PopulationSnapshot
 from posttrain.train.update_resolution import resolve_policy_population
 
-from .test_update_resolution import capabilities, settings
-
 FIXTURE = Path(__file__).parent / "fixtures" / "policy_updates" / "two-episode-reasoning.json"
+
+
+def settings():
+    return SAMPOSettings(
+        id="resolution-test",
+        loop=TrainingLoop(max_steps=2, per_device_batch_size=1),
+        policy_updates=PolicyUpdateSettings(
+            PolicyUpdateSchedule("episode", 1),
+            PolicyExecutionBudget(2, 100, 1000),
+        ),
+    )
+
+
+def capabilities():
+    return ExecutionCapabilities(
+        ("sampo@1", "sampo-spans@1", "grpo@1", "dapo@1"), ("sampled-logp", "old-logp", "reference-logp"), 100, True
+    )
+
+
+def _by_action(snapshot: PopulationSnapshot, credit: PreparedCredit) -> dict[tuple[str, int], float]:
+    return {
+        (action.turn_id, action.token_index): advantage
+        for action, advantage in zip(snapshot.actions(), credit.advantages.tolist(), strict=True)
+    }
 
 
 def _decode(raw: bytes):
@@ -157,7 +185,7 @@ def test_scored_reasoning_spans_become_validated_detached_credit():
             "known-centered-step", "1", assessments, _known_estimator, (snapshot.native_evidence_digest,)
         ),
     )
-    by_action = {(value.action.turn_id, value.action.token_index): value.advantage for value in credit.values}
+    by_action = _by_action(snapshot, credit)
     # Reasoning spans: trace-a tokens 1-2 (quality 10), trace-b tokens 1-3 (quality 12);
     # answer tokens carry no process credit.
     assert by_action == {
@@ -258,9 +286,7 @@ def test_selected_estimator_replaces_algorithm_credit_through_injected_provider(
     assert admitted.resolved.credit.estimator_id == "known-centered-step@1"
     assert admitted.resolved.snapshot.digest == base.digest
     assert len(provider.last_assessments) == 1
-    by_action = {
-        (value.action.turn_id, value.action.token_index): value.advantage for value in admitted.resolved.credit.values
-    }
+    by_action = _by_action(admitted.resolved.snapshot, admitted.resolved.credit)
     assert by_action[("trace-a/node-1", 1)] == -0.5 and by_action[("trace-b/node-1", 4)] == 0.0
     for wrong, estimator in ((provider, None), (None, "known-centered-step@1"), (provider, "other-estimator@1")):
         assert selected.policy_updates is not None

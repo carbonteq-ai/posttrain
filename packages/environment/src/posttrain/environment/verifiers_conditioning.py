@@ -49,12 +49,23 @@ def materialize_native_conditioning(trace: Any, record: NativeConditioningRecord
     )[0]
     if actual != record:
         raise InvalidNativeConditioning("retained native conditioning differs from the frozen record")
-    tokens = tuple(
-        value for index in (*record.prefix_node_indices, record.node_index) for value in trace.nodes[index].token_ids
-    )
-    prefix_length = len(tokens) - len(trace.nodes[record.node_index].token_ids)
+    return conditioning_input(trace, record)
+
+
+def conditioning_input(trace: Any, record: NativeConditioningRecord) -> NativeConditioningInput:
+    """Model input for a record already derived from this same trace.
+
+    Callers that derived ``record`` with ``native_conditioning_records`` from
+    ``trace`` (and hold the trace privately) use this to skip a second
+    derivation; any other caller uses ``materialize_native_conditioning``.
+    """
+    nodes = trace.nodes
+    tokens: list[int] = []
+    for index in (*record.prefix_node_indices, record.node_index):
+        tokens.extend(nodes[index].token_ids)
+    prefix_length = len(tokens) - len(nodes[record.node_index].token_ids)
     return NativeConditioningInput(
-        record, tokens, tuple((local, prefix_length + local) for local in record.sampled_token_indices)
+        record, tuple(tokens), tuple((local, prefix_length + local) for local in record.sampled_token_indices)
     )
 
 
@@ -64,6 +75,12 @@ def native_conditioning_records(
     sampled_node_indices: tuple[int, ...],
     context_contract: str,
 ) -> tuple[NativeConditioningRecord, ...]:
+    """Derive each sampled node's exact causal context from the physical graph.
+
+    Every node on a path is validated once per call, so passing all of a
+    trace's sampled nodes together costs one pass over the graph, not one per
+    turn of history.
+    """
     if context_contract != "causal-text@1":
         raise InvalidNativeConditioning("unqualified native conditioning contract")
     trace_id = getattr(trace, "id", None)
@@ -73,6 +90,22 @@ def native_conditioning_records(
     if len(set(sampled_node_indices)) != len(sampled_node_indices):
         raise InvalidNativeConditioning("sampled node selection duplicates a native call")
     calls = [call.node for call in trace.calls if call.node is not None]
+    checked: dict[int, tuple[int, ...]] = {}
+
+    def node_tokens(index: int) -> tuple[int, ...]:
+        ids = checked.get(index)
+        if ids is None:
+            source = nodes[index]
+            ids, mask = tuple(source.token_ids), tuple(source.mask)
+            if not ids or len(ids) != len(mask) or any(type(value) is not int or value < 0 for value in ids):
+                raise InvalidNativeConditioning("native context requires aligned original text token IDs")
+            if any(type(value) is not bool for value in mask):
+                raise InvalidNativeConditioning("native sampled eligibility must be boolean")
+            if getattr(source, "multi_modal_data", None) is not None:
+                raise InvalidNativeConditioning("multimodal context is not qualified by causal-text@1")
+            checked[index] = ids
+        return ids
+
     result: list[NativeConditioningRecord] = []
     for node_index in sampled_node_indices:
         if type(node_index) is not int or not 0 <= node_index < len(nodes):
@@ -83,24 +116,18 @@ def native_conditioning_records(
         if node.sampled is not True or role != "assistant" or calls.count(node_index) != 1:
             raise InvalidNativeConditioning("conditioning requires one original sampled assistant call")
         path = [node_index]
+        on_path = {node_index}
         parent = node.parent
         while parent is not None:
-            if type(parent) is not int or not 0 <= parent < len(nodes) or parent in path:
+            if type(parent) is not int or not 0 <= parent < len(nodes) or parent in on_path:
                 raise InvalidNativeConditioning("native physical path has an invalid parent or cycle")
             path.append(parent)
+            on_path.add(parent)
             parent = nodes[parent].parent
         path.reverse()
         tokens: list[int] = []
         for index in path:
-            source = nodes[index]
-            ids, mask = tuple(source.token_ids), tuple(source.mask)
-            if not ids or len(ids) != len(mask) or any(type(value) is not int or value < 0 for value in ids):
-                raise InvalidNativeConditioning("native context requires aligned original text token IDs")
-            if any(type(value) is not bool for value in mask):
-                raise InvalidNativeConditioning("native sampled eligibility must be boolean")
-            if getattr(source, "multi_modal_data", None) is not None:
-                raise InvalidNativeConditioning("multimodal context is not qualified by causal-text@1")
-            tokens.extend(ids)
+            tokens.extend(node_tokens(index))
         selected = tuple(index for index, eligible in enumerate(node.mask) if eligible)
         if not selected:
             raise InvalidNativeConditioning("sampled assistant call has no eligible original actions")

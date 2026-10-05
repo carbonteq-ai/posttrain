@@ -1,5 +1,6 @@
 from dataclasses import replace
 
+import numpy as np
 import pytest
 from posttrain.train.assigned_rewards import CreditSelection, episode_reward, local_token_rewards, with_turn_rewards
 from posttrain.train.profiles import CAPOSettings, GDPOSettings, GRPOSettings
@@ -14,7 +15,6 @@ from posttrain.train.reward_evidence import (
     RewardValue,
 )
 from posttrain.train.update_credit import (
-    ActionCredit,
     NativeCreditRows,
     PreparedCredit,
     SampoCreditEstimator,
@@ -23,7 +23,6 @@ from posttrain.train.update_credit import (
     prepare_credit,
 )
 from posttrain.train.update_records import (
-    ActionRecord,
     ActionRef,
     ConditioningView,
     InvalidPolicyUpdate,
@@ -34,7 +33,39 @@ from posttrain.train.update_records import (
 )
 
 from .test_sampo import _rollout, _settings
-from .test_update_records import population
+
+
+def _view(identity: str, native_ref: str, episode: str, sampled: tuple[int, ...]) -> ConditioningView:
+    return ConditioningView(
+        identity,
+        native_ref,
+        "tokens",
+        "attention",
+        "positions",
+        "template@1",
+        f"digest:{identity}",
+        8,
+        episode,
+        "branch",
+        sampled,
+    )
+
+
+def population() -> PopulationSnapshot:
+    # Token index 1 is an observation, hence absent from the sampled positions.
+    return PopulationSnapshot(
+        "population",
+        "native:episode",
+        "native-digest",
+        (_view("first", "native:episode", "ep", (0,)), _view("second", "native:episode", "ep", (2, 3))),
+        (),
+        (
+            PopulationRelation("prompt", "prompt-group", ("first", "second"), "complete", ("first", "second")),
+            PopulationRelation("anchor", "anchor-state", ("second",), "complete", ("second",)),
+        ),
+        PolicyVersions("sampler@1", "old@1", "current@1", "reference@1"),
+        "selector@1",
+    )
 
 
 class ExternalEstimator:
@@ -47,9 +78,7 @@ class ExternalEstimator:
         return PreparedCredit(
             snapshot.digest,
             self.id,
-            tuple(
-                ActionCredit(record.action, (-1.0, 0.0, 1.0)[index]) for index, record in enumerate(snapshot.actions)
-            ),
+            np.array([-1.0, 0.0, 1.0]),
             self.required_relations,
             (("step-return", 1.0),),
             "externally-prepared@1",
@@ -61,7 +90,7 @@ class ExternalEstimator:
 def test_external_estimator_preserves_detached_credit_and_identity() -> None:
     snapshot = population()
     credit = prepare_credit(snapshot, ExternalEstimator())
-    assert tuple(value.advantage for value in credit.values) == (-1.0, 0.0, 1.0)
+    assert credit.advantages.tolist() == [-1.0, 0.0, 1.0]
     assert credit.digest == prepare_credit(snapshot, ExternalEstimator()).digest
 
 
@@ -77,15 +106,16 @@ def test_credit_must_cover_original_actions_and_frozen_evidence() -> None:
     snapshot = population()
     credit = prepare_credit(snapshot, ExternalEstimator())
     with pytest.raises(InvalidPolicyUpdate, match="cover eligible"):
-        replace(credit, values=credit.values[:1]).validate(snapshot)
+        replace(credit, advantages=credit.advantages[:1]).validate(snapshot)
     with pytest.raises(InvalidPolicyUpdate, match="different frozen"):
         credit.validate(replace(snapshot, native_evidence_digest="different"))
 
 
-@pytest.mark.parametrize("advantage", [float("nan"), float("inf"), True])
-def test_credit_rejects_nonfinite_and_boolean_values(advantage: float) -> None:
+@pytest.mark.parametrize("advantage", [float("nan"), float("inf"), float("-inf")])
+def test_credit_rejects_nonfinite_values(advantage: float) -> None:
+    credit = prepare_credit(population(), ExternalEstimator())
     with pytest.raises(InvalidPolicyUpdate, match="finite numeric"):
-        ActionCredit(population().actions[0].action, advantage)
+        replace(credit, advantages=np.array([0.0, advantage, 1.0]))
 
 
 def test_scorer_quality_cannot_be_relabelled_as_advantage() -> None:
@@ -110,36 +140,32 @@ def native_rows() -> tuple[PopulationSnapshot, NativeCreditRows]:
         )
         for index in range(2)
     )
-    coordinates = tuple(
-        tuple(
-            ActionRef(f"episode-{index}", "branch", "first" if position < 2 else "second", position)
-            if eligible
-            else None
-            for position, eligible in enumerate(rollout.env_mask)
-        )
-        for index, rollout in enumerate(rollouts)
+    # Each rollout has two sampled turns: completion tokens 0-1 and 4-5; 2-3 are observations.
+    views = tuple(
+        _view(f"{index}/{turn}", "native:fixture", f"episode-{index}", sampled)
+        for index in range(2)
+        for turn, sampled in (("first", (0, 1)), ("second", (4, 5)))
     )
-    actions = tuple(action for row in coordinates for action in row if action is not None)
+    positions = (np.array([0, 1, -1, -1, 2, 3]), np.array([4, 5, -1, -1, 6, 7]))
+    assert all(((row >= 0) == rollout.env_mask).all() for row, rollout in zip(positions, rollouts, strict=True))
+    members = tuple(view.id for view in views)
     snapshot = PopulationSnapshot(
         "native-fixture",
         "native:fixture",
         "native-fixture-digest",
-        tuple(ActionRecord(action, "context", "native:node") for action in actions),
-        (ConditioningView("context", "native:fixture", "tokens", "attention", "positions", "template@1", "digest", 8),),
+        views,
         (),
-        (PopulationRelation("prompt", "prompt-group", actions, "complete", actions),),
+        (PopulationRelation("prompt", "prompt-group", members, "complete", members),),
         PolicyVersions("sampler@1", "old@1", "current@1", None),
         "selector@1",
     )
-    return snapshot, NativeCreditRows(rollouts, coordinates, ("native-fixture-digest",))
+    return snapshot, NativeCreditRows(rollouts, positions, ("native-fixture-digest",))
 
 
 def test_sampo_adapter_preserves_existing_sparse_terminal_credit() -> None:
     snapshot, rows = native_rows()
     credit = prepare_credit(snapshot, SampoCreditEstimator(_settings(), rows, ("prompt",)))
-    assert [value.advantage for value in credit.values] == pytest.approx(
-        [0.975, 0.975, 1.0, 1.0, -0.975, -0.975, -1.0, -1.0]
-    )
+    assert credit.advantages.tolist() == pytest.approx([0.975, 0.975, 1.0, 1.0, -0.975, -0.975, -1.0, -1.0])
     assert credit.normalization == "sampo-mean@1"
 
 
@@ -152,9 +178,7 @@ def test_sampo_native_adapter_applies_truncation_recipe_before_centering():
     )
     selected = _settings(truncation_penalty=0.5)
     credit = prepare_credit(snapshot, SampoCreditEstimator(selected, rows, ("prompt",)))
-    assert [value.advantage for value in credit.values] == pytest.approx(
-        [0.4875, 0.4875, 0.5, 0.5, -0.4875, -0.4875, -0.5, -0.5]
-    )
+    assert credit.advantages.tolist() == pytest.approx([0.4875, 0.4875, 0.5, 0.5, -0.4875, -0.4875, -0.5, -0.5])
     assert rows.rollouts[1].reward == 1.0
     assert credit.estimator_id.startswith("sampo-credit@2:")
 
@@ -184,7 +208,7 @@ def test_structured_adapter_delegates_without_changing_existing_estimator(algori
         settings = CAPOSettings(id="fixture-capo", loop=loop, max_prompt_length=2, max_completion_length=6)
         expected = compute_capo_advantages(evidence, masks, group_size=2)
     credit = prepare_credit(snapshot, StructuredCreditEstimator(settings, rows, ("prompt",)))
-    assert [value.advantage for value in credit.values] == pytest.approx(
+    assert credit.advantages.tolist() == pytest.approx(
         [
             value
             for row, mask in zip(expected.token_advantages, masks, strict=True)
@@ -197,7 +221,7 @@ def test_structured_adapter_delegates_without_changing_existing_estimator(algori
 def test_native_projection_rejects_observation_credit_and_coordinate_loss() -> None:
     _, rows = native_rows()
     with pytest.raises(InvalidPolicyUpdate, match="sampled eligibility"):
-        replace(rows, actions=(rows.actions[0][:-1], rows.actions[1]))
+        replace(rows, positions=(rows.positions[0][:-1], rows.positions[1]))
     with pytest.raises(InvalidPolicyUpdate, match="ineligible native"):
         rows.project(((1.0,) * 6,) * 2)
 
@@ -301,7 +325,7 @@ def test_selected_episode_assignments_feed_group_estimator_without_changing_offi
     credit = prepare_credit(
         snapshot, ScalarGroupCreditEstimator(settings, replace(rows, rollouts=admitted), ("prompt",))
     )
-    assert [value.advantage for value in credit.values] == pytest.approx([-0.5] * 4 + [0.5] * 4)
+    assert credit.advantages.tolist() == pytest.approx([-0.5] * 4 + [0.5] * 4)
     assert [rollout.reward for rollout in assigned] == [1.0, 0.0]
     assert [rollout.reward for rollout in admitted] == [0.0, 1.0]
 
@@ -326,9 +350,7 @@ def test_selected_turn_assignments_feed_sampo_returns_without_broadcasting_raw_r
     assert all(turn.step_reward is None for rollout in assigned for turn in rollout.turns)
     credit = prepare_credit(snapshot, SampoCreditEstimator(_settings(), replace(rows, rollouts=admitted), ("prompt",)))
     # Discounted returns (1, 0) versus (.95, 1), centered within each original anchor.
-    assert [value.advantage for value in credit.values] == pytest.approx(
-        [0.025, 0.025, -0.5, -0.5, -0.025, -0.025, 0.5, 0.5]
-    )
+    assert credit.advantages.tolist() == pytest.approx([0.025, 0.025, -0.5, -0.5, -0.025, -0.025, 0.5, 0.5])
 
 
 def test_turn_consumer_requires_explicit_terminal_outcome_composition():
@@ -437,8 +459,15 @@ def test_local_assignment_channels_cross_explicit_estimator_seam_with_original_a
             )
 
     credit = prepare_credit(snapshot, AssignmentTransportFixture())
-    assert [item.advantage for item in credit.values] == pytest.approx([0.5, 0.5, 1, 1, -0.5, -0.5, -1.5, -1.5])
-    assert tuple(item.action for item in credit.values) == tuple(record.action for record in snapshot.actions)
+    assert credit.advantages.tolist() == pytest.approx([0.5, 0.5, 1, 1, -0.5, -0.5, -1.5, -1.5])
+    # Each advantage lands on the original action its native completion token addresses.
+    assert credit.advantages.shape == (snapshot.size,)
+    assert [snapshot.action(int(position)) for position in native.positions[0] if position >= 0] == [
+        ActionRef("episode-0", "branch", "0/first", 0),
+        ActionRef("episode-0", "branch", "0/first", 1),
+        ActionRef("episode-0", "branch", "0/second", 4),
+        ActionRef("episode-0", "branch", "0/second", 5),
+    ]
     assert credit.meaning == "detached-advantage"
     assert credit.component_weights == (("centered-progress", 1.0), ("guard-cost", 1.0))
     assert progress[0] != (0.5, 0.5, 0, 0, 1, 1)  # Assignment values remain distinct from prepared advantages.

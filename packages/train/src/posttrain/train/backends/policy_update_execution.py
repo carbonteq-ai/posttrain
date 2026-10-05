@@ -6,20 +6,20 @@ steps and checkpoint transactions. This bridge does not run an optimizer loop.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import replace
-from types import MappingProxyType
 from typing import Any
 
+import numpy as np
 import torch
 from posttrain.environment.verifiers_conditioning import NativeConditioningInput
 
 from ..update_credit import PreparedCredit
 from ..update_objectives import ResolvedObjectiveTerm
 from ..update_plan import ExecutionPack, ResolvedUpdate
-from ..update_records import ActionRef, ConditioningView, InvalidPolicyUpdate
+from ..update_records import ConditioningView, InvalidPolicyUpdate
 from .policy_update_math import ObjectiveEvaluation, ScoreBundle, evaluate
-from .policy_update_scoring import FrozenPopulationScores, score_actions
+from .policy_update_scoring import FrozenPopulationScores, dense_scores, score_views
 
 
 def compute_resolved_loss(
@@ -35,7 +35,7 @@ def compute_resolved_loss(
     device: torch.device,
     score_temperature: float,
     score_contract: str,
-    sampler_correction: Mapping[ActionRef, float] | None,
+    sampler_correction: np.ndarray | None,
 ) -> ObjectiveEvaluation:
     """Score all dependency packs at fixed parameters, then form one true loss.
 
@@ -46,55 +46,56 @@ def compute_resolved_loss(
     """
     if term.update_digest != update.digest or term.credit_digest != credit.digest:
         raise InvalidPolicyUpdate("native loss received a different resolved update or prepared credit")
+    population = update.population
     old.validate(
-        update.population,
-        policy_version=update.population.versions.old_score,
+        population,
+        policy_version=population.versions.old_score,
         score_contract=score_contract,
         score_temperature=score_temperature,
     )
-    if term.kl_weights:
-        if reference is None or update.population.versions.reference is None:
+    if term.kl_weight.any():
+        if reference is None or population.versions.reference is None:
             raise InvalidPolicyUpdate("resolved KL requires frozen reference scores and identity")
         reference.validate(
-            update.population,
-            policy_version=update.population.versions.reference,
+            population,
+            policy_version=population.versions.reference,
             score_contract=score_contract,
             score_temperature=score_temperature,
         )
-    addressed = tuple(action for pack in packs for action in pack.actions)
+    addressed = [view for pack in packs for view in pack.views]
     if (
         len(set(addressed)) != len(addressed)
-        or set(addressed) != set(update.dependencies)
+        or set(addressed) != set(update.views)
         or any(pack.update_digest != update.digest or pack.index != index for index, pack in enumerate(packs))
     ):
         raise InvalidPolicyUpdate("native score packs must cover each resolved dependency exactly once in order")
-    records = {record.action: record for record in update.population.actions}
-    contexts = {view.id: view for view in update.population.conditioning}
-    for pack in packs:
-        expected_contexts = tuple(sorted({records[action].conditioning_id for action in pack.actions}))
-        if pack.context_ids != expected_contexts or pack.context_tokens != sum(
-            contexts[identity].context_tokens for identity in expected_contexts
-        ):
-            raise InvalidPolicyUpdate("native pack lost its resolved original conditioning footprint")
-    current = {}
-    entropies: dict[ActionRef, float] = {}
-    for pack in packs:
-        current.update(
-            score_actions(
-                model,
-                update.population,
-                pack.actions,
-                read_input=read_input,
-                device=device,
-                score_temperature=score_temperature,
-                entropies=entropies,
-            )
+    if any(
+        pack.context_tokens != sum(population.conditioning[view].context_tokens for view in pack.views)
+        for pack in packs
+    ):
+        raise InvalidPolicyUpdate("native pack lost its resolved original conditioning footprint")
+    entropies = np.full(population.size, np.nan)
+    parts = [
+        score_views(
+            model,
+            population,
+            pack.views,
+            read_input=read_input,
+            device=device,
+            score_temperature=score_temperature,
+            entropies=entropies,
         )
+        for pack in packs
+    ]
+    scored = np.zeros(population.size, dtype=bool)
+    for part in parts:
+        scored[part.positions] = True
     scores = ScoreBundle(
-        current,
+        dense_scores(population.size, parts, device=device),
         old.values,
         term.parameter_version,
-        reference.values if reference is not None else {},
+        scored,
+        reference.values if reference is not None else None,
         sampler_correction,
     )
-    return replace(evaluate(term, credit, scores), entropies=MappingProxyType(entropies))
+    return replace(evaluate(term, credit, scores), entropies=entropies)

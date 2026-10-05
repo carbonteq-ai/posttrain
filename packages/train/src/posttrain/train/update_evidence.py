@@ -6,11 +6,11 @@ import json
 from collections import defaultdict
 from collections.abc import Mapping
 
+import numpy as np
+
 from .online_rl import EnvironmentRollout
 from .update_credit import NativeCreditRows
 from .update_records import (
-    ActionRecord,
-    ActionRef,
     ConditioningView,
     InvalidPolicyUpdate,
     PolicyVersions,
@@ -63,13 +63,13 @@ def population_from_rollouts(
             raise InvalidPolicyUpdate("fresh native population cannot collect one task in multiple prompt groups")
         seen_tasks.add(task)
     rollouts = tuple(rollout for members in grouped.values() for rollout in members)
-    actions: list[ActionRecord] = []
     views: list[ConditioningView] = []
-    rows: list[tuple[ActionRef | None, ...]] = []
-    prompt_members: dict[str, list[ActionRef]] = defaultdict(list)
-    anchor_members: dict[tuple[str, str], list[ActionRef]] = defaultdict(list)
+    rows: list[np.ndarray] = []
+    prompt_members: dict[str, list[str]] = defaultdict(list)
+    anchor_members: dict[tuple[str, str], list[str]] = defaultdict(list)
     group_episodes: dict[str, list[str]] = defaultdict(list)
     seen_episodes: set[str] = set()
+    position = 0
     for rollout in rollouts:
         info = rollout.trace.payload.get("info")
         if not isinstance(info, Mapping):
@@ -92,7 +92,8 @@ def population_from_rollouts(
             raise InvalidPolicyUpdate("native population must prove one synchronous sampler version")
         if not rollout.conditioning_records or rollout.selected_branch_id is None:
             raise InvalidPolicyUpdate("legacy flattened rollout has no proven original conditioning views")
-        row: list[ActionRef | None] = [None] * len(rollout.completion_ids)
+        # Completion index -> population position, -1 where the token was not sampled.
+        row = np.full(len(rollout.completion_ids), -1, dtype=np.int64)
         if rollout.turns and len(rollout.turns) != len(rollout.conditioning_records):
             raise InvalidPolicyUpdate("native turn credit and conditioning views disagree")
         for turn_index, (record, indices) in enumerate(
@@ -106,6 +107,10 @@ def population_from_rollouts(
                 turn = rollout.turns[turn_index]
                 if indices != tuple(range(turn.completion_start, turn.completion_end)):
                     raise InvalidPolicyUpdate("native turn credit and sampled action coordinates disagree")
+            if len(indices) != len(record.sampled_token_indices):
+                raise InvalidPolicyUpdate("native sampled actions and completion coordinates disagree")
+            if any(index < 0 or index >= len(row) or row[index] != -1 for index in indices):
+                raise InvalidPolicyUpdate("native sampled actions address invalid completion coordinates")
             view_id = f"{record.trace_id}/node-{record.node_index}"
             coordinates = json.dumps(
                 {
@@ -126,16 +131,20 @@ def population_from_rollouts(
                     template_revision,
                     record.input_digest,
                     record.context_tokens,
+                    episode_id,
+                    rollout.selected_branch_id,
+                    tuple(record.sampled_token_indices),
                 )
             )
-            for native_index, completion_index in zip(record.sampled_token_indices, indices, strict=True):
-                action = ActionRef(episode_id, rollout.selected_branch_id, view_id, native_index)
-                row[completion_index] = action
-                actions.append(ActionRecord(action, view_id, native_evidence_ref))
-                prompt_members[group_id].append(action)
-                if rollout.turns:
-                    anchor_members[(group_id, rollout.turns[turn_index].anchor_state_key)].append(action)
-        rows.append(tuple(row))
+            row[list(indices)] = np.arange(position, position + len(indices), dtype=np.int64)
+            position += len(indices)
+            prompt_members[group_id].append(view_id)
+            if rollout.turns:
+                anchor_members[(group_id, rollout.turns[turn_index].anchor_state_key)].append(view_id)
+        if [bool(value) for value in rollout.env_mask] != [index >= 0 for index in row.tolist()]:
+            raise InvalidPolicyUpdate("native credit coordinates must match original sampled eligibility")
+        row.setflags(write=False)
+        rows.append(row)
     if any(len(episodes) != num_generations for episodes in group_episodes.values()):
         raise InvalidPolicyUpdate("native population requires complete prompt groups before credit")
     relations = tuple(
@@ -155,7 +164,6 @@ def population_from_rollouts(
         population_id,
         native_evidence_ref,
         native_evidence_digest,
-        tuple(actions),
         tuple(views),
         spans,
         relations,

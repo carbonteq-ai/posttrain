@@ -251,7 +251,10 @@ async def test_episode_assessment_replay_without_solver_file_and_live_delivery(t
         "assessment_finalization_state": "not_run",
     }
     episode = SimpleNamespace(id=record["id"], traces=[], to_record=lambda: record)
-    bridge._preserve_episode(episode)
+    encoded = bridge._preserve_episode(episode)
+    assert encoded.line == (tmp_path / "episodes.jsonl").read_bytes()
+    assert encoded.digest == hashlib.sha256(encoded.line).hexdigest()
+    assert encoded.assessment is not None
     replay = bridge.evidence()
     assert len(replay.traces) == 1
     assert replay.metrics == ()
@@ -263,15 +266,16 @@ async def test_episode_assessment_replay_without_solver_file_and_live_delivery(t
     async def unavailable(_observation):
         raise RuntimeError("observer unavailable")
 
-    await bridge._observe_episode_assessments(record, unavailable)
+    await bridge._observe_episode_assessments(encoded.assessment, unavailable)
     assert len(bridge.evidence().traces) == 1
     delivered = []
 
     async def observe(observation):
         delivered.append(observation)
 
-    await bridge._observe_episode_assessments(record, observe)
-    await bridge._observe_episode_assessments(record, observe)
+    await bridge._observe_episode_assessments(encoded.assessment, observe)
+    await bridge._observe_episode_assessments(encoded.assessment, observe)
+    await bridge._observe_episode_assessments(None, observe)
     assert [item.external_id for item in delivered] == [result.external_id]
     assert bridge.evidence().traces == ()
     assert json.loads((tmp_path / "episodes.jsonl").read_text()) == record

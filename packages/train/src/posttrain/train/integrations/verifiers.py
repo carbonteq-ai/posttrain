@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import gzip
 import hashlib
-import inspect
 import json
 import math
 import os
@@ -57,6 +56,17 @@ from ..online_rl import (
 from ..reward_projection import RewardProjection
 from ..rollout_execution import EpisodeKey, InvalidNativeEpisode
 from ..turn_rewards import native_turn_map
+from .native_records import (
+    EncodedEpisode,
+    encode_episode,
+    encode_episode_on_workers,
+)
+from .native_records import (
+    episode_assessment_observation as _episode_assessment_observation,
+)
+from .native_records import (
+    native_record as _native_record,
+)
 
 type OnlineRLTechnique = Literal["grpo", "dapo", "olmo3", "sampo", "gdpo", "capo", "distill"]
 
@@ -113,60 +123,6 @@ def _compress_jsonl(source: Path) -> _CompressedJsonl:
         while chunk := written.read(_COMPRESS_CHUNK_BYTES):
             digest.update(chunk)
     return _CompressedJsonl(target, digest.hexdigest(), records, uncompressed)
-
-
-def _native_record(value: Any) -> dict[str, Any]:
-    """Serialize replay authority without reducing policy-float precision.
-
-    Newer Verifiers releases round JSON record floats by default for storage
-    efficiency. Posttrain replays these records for training/evidence audits, so
-    it opts out when the runtime exposes that setting while remaining readable
-    against the older v0.3.1 contract during the pin migration.
-    """
-
-    to_record = value.to_record
-    if "float_decimals" in inspect.signature(to_record).parameters:
-        return to_record(float_decimals=None)
-    return to_record()
-
-
-def _episode_assessment_observation(record: Mapping[str, Any]) -> TraceObservation | None:
-    """Derived episode evidence, separate from solver traces and reward metrics.
-
-    The native record remains authoritative. Tracking adapters apply their
-    results-only export policy; this internal observation retains producer data.
-    """
-    batches = record.get("assessment_batches")
-    assignments = record.get("credit_assignments")
-    diagnostics = record.get("assessment_errors")
-    credit_diagnostics = record.get("credit_errors")
-    if not batches and not assignments and not diagnostics and not credit_diagnostics:
-        return None
-    episode_id = record.get("id")
-    if not isinstance(episode_id, str) or not episode_id:
-        raise ValueError("episode assessments require native episode identity")
-    children = record.get("traces", [])
-    if not isinstance(children, list):
-        raise ValueError("native episode children must be a list")
-    return TraceObservation(
-        trace_type="verifiers.assessment-results",
-        external_id=f"episode:{episode_id}:assessment-results",
-        payload={
-            "schema_version": 1,
-            "episode_id": episode_id,
-            "child_trace_ids": [str(child["id"]) for child in children if isinstance(child, Mapping)],
-            "execution_ok": bool(record.get("ok", False)),
-            "assessment_finalization_state": record.get("assessment_finalization_state"),
-            "assessment_error_count": len(diagnostics) if isinstance(diagnostics, list) else 0,
-            "assessment_batches": batches or [],
-            "assessment_sources": record.get("assessment_sources", []),
-            "assessment_views": record.get("assessment_views", []),
-            "credit_assignments": assignments or [],
-            "credit_error_count": len(credit_diagnostics) if isinstance(credit_diagnostics, list) else 0,
-            "archive_status": "pending_publication",
-        },
-        attributes={"episode_id": episode_id, "evidence_scope": "episode"},
-    )
 
 
 def _native_failure_detail(episode: Any) -> str | None:
@@ -304,6 +260,7 @@ class VerifiersBridgeSnapshot:
     reward_component_sources: Mapping[str, SignalSource] = field(default_factory=dict)
     reward_projection: RewardProjection | None = None
     policy_update_context_contract: str | None = None
+    record_encoding: Literal["thread", "process"] = "thread"
 
     def create(self) -> VerifiersEnvironmentRolloutBridge:
         return VerifiersEnvironmentRolloutBridge(
@@ -323,6 +280,7 @@ class VerifiersBridgeSnapshot:
             reward_component_sources=self.reward_component_sources,
             reward_projection=self.reward_projection,
             policy_update_context_contract=self.policy_update_context_contract,
+            record_encoding=self.record_encoding,
         )
 
 
@@ -421,6 +379,7 @@ def create_verifiers_training_bridge(
         reward_component_sources=dict(environment.reward_component_sources),
         reward_projection=reward_projection,
         policy_update_context_contract=policy_update_context_contract,
+        record_encoding="process",
     )
 
 
@@ -788,14 +747,17 @@ class VerifiersEnvironmentRolloutBridge:
     reward_component_sources: Mapping[str, SignalSource] = field(default_factory=dict)
     reward_projection: RewardProjection | None = None
     policy_update_context_contract: str | None = None
+    # "process" serializes each episode's replay record on the shared native
+    # record worker pool; "thread" serializes it in a thread of this process.
+    record_encoding: Literal["thread", "process"] = "thread"
     _write_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _trace_count: int = field(default=0, init=False)
     _live_observed_trace_ids: set[str] = field(default_factory=set, init=False, repr=False)
     _requested_by_step: dict[int, int] = field(default_factory=dict, init=False, repr=False)
-    # Byte span of each native episode record in episodes.jsonl, keyed by trace
-    # id, so retaining a population reads only its own records instead of
-    # re-parsing every episode the run has written.
-    _episode_spans: dict[str, tuple[int, int]] = field(default_factory=dict, init=False, repr=False)
+    # Byte span and SHA-256 of each native episode record in episodes.jsonl,
+    # keyed by every trace id in the record, so retaining a population reads
+    # and proves only its own records instead of re-parsing the run's episodes.
+    _episode_spans: dict[str, tuple[int, int, str]] = field(default_factory=dict, init=False, repr=False)
     _dataset: RolloutDataset = field(init=False, repr=False)
     _tasks_by_example_id: dict[str, tuple[int, Any]] = field(init=False, repr=False)
     _environment: Any = field(init=False, repr=False)
@@ -1142,8 +1104,8 @@ class VerifiersEnvironmentRolloutBridge:
                 reason += f"; native_error={failure_detail}"
             for native_trace in episode.traces:
                 native_trace.info.update(posttrain_admission_error=reason)
-            episode_record = await self._preserve_episode_off_loop(episode)
-            await self._observe_episode_assessments(episode_record, on_completed)
+            encoded = await self._preserve_episode_off_loop(episode)
+            await self._observe_episode_assessments(encoded.assessment, on_completed)
             raise InvalidNativeEpisode(reason)
         trace = traces[0]
         enrichment_error: Exception | asyncio.CancelledError | None = None
@@ -1155,12 +1117,23 @@ class VerifiersEnvironmentRolloutBridge:
         except (Exception, asyncio.CancelledError) as error:
             enrichment_error = error
             trace.info.update(posttrain_enrichment_error=type(error).__name__)
-        record, observation = self._terminal_observation(trace, example_id, task_index, rollout_ordinal)
-        episode_record = await self._preserve_episode_off_loop(episode)
-        await self._preserve_off_loop(record)
+        encoded = await self._preserve_episode_off_loop(
+            episode,
+            trace_id=str(trace.id),
+            task_facets=_task_facet_values(self.tasks[task_index], self.task_facet_fields),
+        )
+        record = encoded.trace_record
+        assert record is not None and encoded.trace_line is not None
+        observation = self._observation_from_record(
+            record,
+            example_id=example_id,
+            task_index=task_index,
+            rollout_ordinal=rollout_ordinal,
+        )
+        await asyncio.to_thread(self._preserve_line, encoded.trace_line)
         if isinstance(enrichment_error, asyncio.CancelledError):
             raise enrichment_error
-        await self._observe_episode_assessments(episode_record, on_completed)
+        await self._observe_episode_assessments(encoded.assessment, on_completed)
         if on_completed is not None:
             try:
                 await on_completed(observation)
@@ -1357,23 +1330,32 @@ class VerifiersEnvironmentRolloutBridge:
         with self._write_lock:
             self._live_observed_trace_ids.add(external_id)
 
-    async def _preserve_episode_off_loop(self, episode: Any) -> dict[str, Any]:
+    async def _preserve_episode_off_loop(
+        self,
+        episode: Any,
+        *,
+        trace_id: str | None = None,
+        task_facets: Mapping[str, JsonValue] | None = None,
+    ) -> EncodedEpisode:
         """Encode and append a native episode without blocking the event loop.
 
-        Episode records carry every turn's token ids (hundreds of KB to MB of
-        JSON). The rollout event loop also serves the policy engine, so encoding
-        them inline stalls every in-flight generation. Awaiting the worker keeps
-        the write ordered before any projection of the episode.
+        Episode records carry every turn's token ids and the assessment
+        archive (megabytes of JSON). The rollout event loop also serves the
+        policy engine, so the record is serialized on the shared worker pool
+        (or a thread) and only the append happens here. Awaiting it keeps the
+        write ordered before any projection of the episode.
         """
-        return await asyncio.to_thread(self._preserve_episode, episode)
+        if self.record_encoding == "process":
+            encoded = await encode_episode_on_workers(episode, trace_id=trace_id, task_facets=task_facets)
+        else:
+            encoded = await asyncio.to_thread(encode_episode, episode, trace_id=trace_id, task_facets=task_facets)
+        await asyncio.to_thread(self._write_episode, episode, encoded)
+        return encoded
 
     async def _observe_episode_assessments(
-        self, record: Mapping[str, Any], on_completed: AsyncTerminalTraceObserver | None
+        self, observation: TraceObservation | None, on_completed: AsyncTerminalTraceObserver | None
     ) -> None:
-        if on_completed is None:
-            return
-        observation = _episode_assessment_observation(record)
-        if observation is None:
+        if on_completed is None or observation is None:
             return
         with self._write_lock:
             if observation.external_id in self._live_observed_trace_ids:
@@ -1388,24 +1370,25 @@ class VerifiersEnvironmentRolloutBridge:
     async def _preserve_off_loop(self, record: dict[str, Any]) -> None:
         await asyncio.to_thread(self._preserve, record)
 
-    def _preserve_episode(self, episode: Any) -> dict[str, Any]:
+    def _preserve_episode(self, episode: Any) -> EncodedEpisode:
+        """Encode and append one native episode in this thread."""
+        encoded = encode_episode(episode)
+        self._write_episode(episode, encoded)
+        return encoded
+
+    def _write_episode(self, episode: Any, encoded: EncodedEpisode) -> None:
         from .verifiers_assessment_artifacts import retain_episode_artifacts
 
-        path = self.trace_path.with_name("episodes.jsonl")
         with self._write_lock:
             retain_episode_artifacts(episode, self.trace_path.parent / "assessment-evidence")
-        record = _native_record(episode)
-        span = self._append_record(path, record)
+        offset, length = self._append_line(self.trace_path.with_name("episodes.jsonl"), encoded.line)
         with self._write_lock:
             try:
                 spans = self._episode_spans
             except AttributeError:  # constructed without dataclass initialization
                 spans = self._episode_spans = {}
-            for trace in record.get("traces", ()):
-                identity = trace.get("id") if isinstance(trace, Mapping) else None
-                if isinstance(identity, str) and identity:
-                    spans[identity] = span
-        return record
+            for identity in encoded.trace_ids:
+                spans[identity] = (offset, length, encoded.digest)
 
     def trace_observation(self, record: Mapping[str, Any]) -> TraceObservation:
         """Reconstruct one terminal native record in a host-side observer."""
@@ -1413,15 +1396,17 @@ class VerifiersEnvironmentRolloutBridge:
         return self._observation_from_record(record)
 
     def _preserve(self, record: dict[str, Any]) -> None:
-        self._append_record(self.trace_path, record)
+        self._preserve_line((json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8"))
+
+    def _preserve_line(self, line: bytes) -> None:
+        self._append_line(self.trace_path, line)
         with self._write_lock:
             self._trace_count += 1
 
-    def _append_record(self, path: Path, record: dict[str, Any]) -> tuple[int, int]:
+    def _append_line(self, path: Path, encoded: bytes) -> tuple[int, int]:
         """Keep native and derived JSONL intact across concurrent rollout workers.
 
-        Returns the record's (byte offset, byte length) in the file."""
-        encoded = (json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+        Returns the line's (byte offset, byte length) in the file."""
         with self._write_lock:
             path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("ab") as stream:
@@ -1460,6 +1445,7 @@ class VerifiersEnvironmentRolloutBridge:
             reward_component_sources=self.reward_component_sources,
             reward_projection=self.reward_projection,
             policy_update_context_contract=self.policy_update_context_contract,
+            record_encoding=self.record_encoding,
         )
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("wb") as stream:

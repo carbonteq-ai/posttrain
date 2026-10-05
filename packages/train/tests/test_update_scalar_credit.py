@@ -4,11 +4,45 @@ import math
 from dataclasses import replace
 
 import pytest
-from posttrain.train.profiles import ActiveGroupSampling, GRPOSettings
-from posttrain.train.update_records import InvalidPolicyUpdate
+from posttrain.train.profiles import ActiveGroupSampling, GRPOSettings, SAMPOSettings, TrainingLoop
+from posttrain.train.update_plan import (
+    ExecutionCapabilities,
+    PolicyExecutionBudget,
+    PolicyUpdateSchedule,
+    PolicyUpdateSettings,
+)
+from posttrain.train.update_records import InvalidPolicyUpdate, PolicyVersions
+from posttrain.train.update_resolution import resolve_rollout_population
 
 from .test_update_evidence import native_rollout
-from .test_update_resolution import native_resolution, settings
+
+
+def settings():
+    return SAMPOSettings(
+        id="resolution-test",
+        loop=TrainingLoop(max_steps=2, per_device_batch_size=1),
+        policy_updates=PolicyUpdateSettings(
+            PolicyUpdateSchedule("episode", 1),
+            PolicyExecutionBudget(2, 100, 1000),
+        ),
+    )
+
+
+def native_resolution(rollouts, selected):
+    return resolve_rollout_population(
+        rollouts,
+        selected,
+        ExecutionCapabilities(
+            ("sampo@1", "sampo-spans@1", "grpo@1", "dapo@1"), ("sampled-logp", "old-logp", "reference-logp"), 100, True
+        ),
+        population_id="admitted",
+        native_evidence_ref="native:receipts",
+        native_evidence_digest="native-receipt-digest",
+        template_revision="native-template@1",
+        versions=PolicyVersions("sampler@3", "old@3", "current@3", None),
+        sampler_step=3,
+        selector_digest="original-actions@1",
+    )
 
 
 def selected(algorithm, scaling):
@@ -49,8 +83,9 @@ def test_scalar_credit_matches_independent_group_reference_before_minibatching(a
         "episode-b-0": 2 / divisors[1],
         "episode-b-1": -2 / divisors[1],
     }
-    for value in result.credit.values:
-        assert value.advantage == pytest.approx(expected[value.action.episode_id])
+    snapshot = result.snapshot
+    episodes = [snapshot.episodes[episode][0] for episode in snapshot.episode_of]
+    assert result.credit.advantages.tolist() == pytest.approx([expected[episode] for episode in episodes])
     assert len(result.updates) == 4
     assert len({update.objective.credit_digest for update in result.updates}) == 1
     assert result.credit.estimator_id.startswith(f"{algorithm}-scalar-credit@1:")
@@ -59,14 +94,14 @@ def test_scalar_credit_matches_independent_group_reference_before_minibatching(a
 def test_scalar_credit_shapes_raw_rewards_without_mutating_native_evidence():
     rollouts = (native_rollout("a", 0, 1), replace(native_rollout("a", 1, 1), is_truncated=True))
     result = native_resolution(rollouts, replace(selected("grpo", "none"), truncation_penalty=0.5))
-    assert [value.advantage for value in result.credit.values] == pytest.approx([0.25] * 4 + [-0.25] * 4)
+    assert result.credit.advantages.tolist() == pytest.approx([0.25] * 4 + [-0.25] * 4)
     assert rollouts[0].reward == rollouts[1].reward == 1
 
 
 def test_scalar_equal_rewards_produce_finite_zero_credit_and_reject_other_recipes():
     rollouts = (native_rollout("a", 0, 1), native_rollout("a", 1, 1))
     result = native_resolution(rollouts, selected("grpo", "group"))
-    assert all(value.advantage == 0 for value in result.credit.values)
+    assert (result.credit.advantages == 0).all()
     with pytest.raises(InvalidPolicyUpdate, match="supported GRPO/DAPO"):
         native_resolution(
             rollouts,
@@ -107,5 +142,5 @@ def test_scalar_credit_agrees_with_selected_native_verl_estimator(scaling):
         std_scope="group" if scaling == "none" else scaling,
         trl_statistics=True,
     )
-    expected = torch.tensor([value.advantage for value in result.credit.values])
+    expected = torch.tensor(result.credit.advantages, dtype=torch.float32)
     torch.testing.assert_close(actual[mask.bool()], expected, rtol=1e-6, atol=1e-6)

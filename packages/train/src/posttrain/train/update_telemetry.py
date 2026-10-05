@@ -18,15 +18,16 @@ from __future__ import annotations
 
 import math
 import statistics
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import replace
+
+import numpy as np
 
 from .online_rl import EnvironmentRollout
 from .profiles import CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings, shape_online_reward
 from .sampo_advantages import ZERO_CREDIT_TOLERANCE, compute_sampo_advantages
 from .update_credit import PreparedCredit
 from .update_objectives import ResolvedObjectiveTerm
-from .update_records import ActionRef
 
 # TRL treats a group as zero-spread, and an advantage as zero, when
 # torch.isclose(value, 0) holds; with default tolerances that is |value| <= 1e-8.
@@ -96,28 +97,32 @@ def update_metrics(
     term: ResolvedObjectiveTerm,
     credit: PreparedCredit,
     *,
-    clipped_ratios: Mapping[ActionRef, float],
-    sampler_correction: Mapping[ActionRef, float] | None = None,
+    episode_of: np.ndarray,
+    ratios: np.ndarray,
+    clipped: np.ndarray,
+    sampler_correction: np.ndarray | None = None,
     correction_recipe: tuple[str, float | None, float | None] | None = None,
-    entropies: Mapping[ActionRef, float] | None = None,
-    old_scores: Mapping[ActionRef, float] | None = None,
-    sampled_scores: Mapping[ActionRef, float] | None = None,
+    entropies: np.ndarray | None = None,
+    old_scores: np.ndarray | None = None,
+    sampled_scores: np.ndarray | None = None,
 ) -> dict[str, float]:
     """Credit, clipping, correction, sampler gap and entropy over one update's selected policy actions.
 
-    `clipped_ratios` maps each action whose clipped surrogate was active to its
-    current/old ratio. A ratio above one was clipped at the upper bound (a
-    positive advantage pushed past 1+epsilon_high, or the CISPO weight cap); one
-    below one at the lower bound (a negative advantage past 1-epsilon_low).
-    The first update on a fresh population evaluates at the old parameters, so
-    clipping is non-zero only when several updates share one collection.
-    Sampler-correction weights are the frozen detached weights multiplying each
-    selected action's term; "clamped" counts weights held at a truncation bound
-    or zeroed by a mask. With a sequence correction mode every action of an
-    episode shares one weight, so the weight statistics count each touched
-    episode once, as TRL reports sequence importance sampling. Credit within
-    1e-8 of zero (rounding residue from centring equal rewards) counts as zero,
-    as in TRL's advantage statistics.
+    Every array is indexed by population position. `episode_of` is the
+    snapshot's episode index per position. `clipped` marks the actions whose
+    clipped surrogate was active and `ratios` holds their current/old ratio. A
+    ratio above one was clipped at the upper bound (a positive advantage pushed
+    past 1+epsilon_high, or the CISPO weight cap); one below one at the lower
+    bound (a negative advantage past 1-epsilon_low). The first update on a fresh
+    population evaluates at the old parameters, so clipping is non-zero only when
+    several updates share one collection. Sampler-correction weights are the
+    frozen detached weights multiplying each selected action's term; "clamped"
+    counts weights held at a truncation bound or zeroed by a mask. With a
+    sequence correction mode every action of an episode shares one weight, so
+    the weight statistics count each touched episode once, as TRL reports
+    sequence importance sampling. Credit within 1e-8 of zero (rounding residue
+    from centring equal rewards) counts as zero, as in TRL's advantage
+    statistics. Entropy is NaN at positions that were not scored.
 
     The sampler gap compares the frozen trainer old scores with the sampler's
     own log scores for the same original actions, which are the two inputs of
@@ -125,87 +130,79 @@ def update_metrics(
     and nearest-rank 99th percentile of |old - sampled| over the selected
     actions, and the sequence statistic is the mean over touched episodes of
     |sum(old - sampled)| over the episode's complete eligible support (the
-    scope sequence correction uses). `old_scores` must cover the complete
-    population.
+    scope sequence correction uses).
     """
 
-    selected = [weighted.action for weighted in term.policy_weights]
-    if not selected:
+    selected = term.policy_positions
+    if not selected.size:
         return {}
-    by_action = {value.action: value.advantage for value in credit.values}
-    advantages = [by_action[action] for action in selected]
-    count = len(advantages)
-    mean = math.fsum(advantages) / count
+    advantages = credit.advantages[selected]
+    count = int(selected.size)
+    mean = math.fsum(advantages.tolist()) / count
     values: dict[str, float] = {
         "train/rl/advantage_mean": mean,
-        "train/rl/advantage_abs_mean": math.fsum(abs(value) for value in advantages) / count,
-        "train/rl/advantage_std": math.sqrt(math.fsum((value - mean) ** 2 for value in advantages) / count),
-        "train/rl/advantage_nonzero_fraction": sum(abs(value) > _ZERO for value in advantages) / count,
-        "train/rl/advantage_positive_fraction": sum(value > _ZERO for value in advantages) / count,
-        "train/rl/advantage_negative_fraction": sum(value < -_ZERO for value in advantages) / count,
-        "train/rl/advantage_zero_fraction": sum(abs(value) <= _ZERO for value in advantages) / count,
+        "train/rl/advantage_abs_mean": math.fsum(np.abs(advantages).tolist()) / count,
+        "train/rl/advantage_std": math.sqrt(math.fsum(((advantages - mean) ** 2).tolist()) / count),
+        "train/rl/advantage_nonzero_fraction": int((np.abs(advantages) > _ZERO).sum()) / count,
+        "train/rl/advantage_positive_fraction": int((advantages > _ZERO).sum()) / count,
+        "train/rl/advantage_negative_fraction": int((advantages < -_ZERO).sum()) / count,
+        "train/rl/advantage_zero_fraction": int((np.abs(advantages) <= _ZERO).sum()) / count,
     }
-    clipped = [action for action in selected if action in clipped_ratios]
-    values["train/rl/clip_fraction"] = len(clipped) / count
-    values["train/rl/clip_fraction_high"] = sum(clipped_ratios[action] > 1 for action in clipped) / count
-    values["train/rl/clip_fraction_low"] = sum(clipped_ratios[action] < 1 for action in clipped) / count
+    was_clipped, ratio = clipped[selected], ratios[selected]
+    values["train/rl/clip_fraction"] = int(was_clipped.sum()) / count
+    values["train/rl/clip_fraction_high"] = int((was_clipped & (ratio > 1)).sum()) / count
+    values["train/rl/clip_fraction_low"] = int((was_clipped & (ratio < 1)).sum()) / count
     if sampler_correction is not None:
         if correction_recipe is not None and correction_recipe[0].startswith("sequence"):
-            per_episode: dict[tuple[str, str], float] = {}
-            for action in selected:
-                per_episode.setdefault(_episode(action), float(sampler_correction[action]))
-            weights = list(per_episode.values())
+            _, first = np.unique(episode_of[selected], return_index=True)
+            weights = sampler_correction[selected[np.sort(first)]].astype(np.float64)
         else:
-            weights = [float(sampler_correction[action]) for action in selected]
+            weights = sampler_correction[selected].astype(np.float64)
         values.update(
             {
-                "train/rl/importance_sampling_ratio_mean": math.fsum(weights) / len(weights),
-                "train/rl/importance_sampling_ratio_min": min(weights),
-                "train/rl/importance_sampling_ratio_max": max(weights),
+                "train/rl/importance_sampling_ratio_mean": math.fsum(weights.tolist()) / weights.size,
+                "train/rl/importance_sampling_ratio_min": float(weights.min()),
+                "train/rl/importance_sampling_ratio_max": float(weights.max()),
             }
         )
         if correction_recipe is not None:
             mode, lower, upper = correction_recipe
             if mode.endswith("mask"):
-                clamped = sum(weight == 0.0 for weight in weights)
+                clamped = int((weights == 0.0).sum())
             else:
-                clamped = sum(
-                    (lower is not None and weight == lower) or (upper is not None and weight == upper)
-                    for weight in weights
-                )
-            values["train/rl/importance_sampling_ratio_clamped_fraction"] = clamped / len(weights)
+                held = np.zeros(weights.size, dtype=bool)
+                if lower is not None:
+                    held |= weights == lower
+                if upper is not None:
+                    held |= weights == upper
+                clamped = int(held.sum())
+            values["train/rl/importance_sampling_ratio_clamped_fraction"] = clamped / weights.size
     if old_scores is not None and sampled_scores is not None:
-        values.update(_sampler_gap(selected, old_scores, sampled_scores))
-    if entropies:
-        scored = [entropies[action] for action in selected if action in entropies]
-        if scored:
-            values["train/rl/entropy"] = math.fsum(scored) / len(scored)
+        values.update(_sampler_gap(selected, episode_of, old_scores, sampled_scores))
+    if entropies is not None:
+        scored = entropies[selected]
+        scored = scored[np.isfinite(scored)]
+        if scored.size:
+            values["train/rl/entropy"] = math.fsum(scored.tolist()) / scored.size
     return values
 
 
-def _episode(action: ActionRef) -> tuple[str, str]:
-    return action.episode_id, action.branch_id
-
-
 def _sampler_gap(
-    selected: Sequence[ActionRef],
-    old: Mapping[ActionRef, float],
-    sampled: Mapping[ActionRef, float],
+    selected: np.ndarray,
+    episode_of: np.ndarray,
+    old: np.ndarray,
+    sampled: np.ndarray,
 ) -> dict[str, float]:
-    gaps = sorted(abs(float(old[action]) - float(sampled[action])) for action in selected)
+    difference = np.asarray(old, dtype=np.float64) - np.asarray(sampled, dtype=np.float64)
+    gaps = np.sort(np.abs(difference[selected]))
     # Nearest rank, as the ordinary TRL path reports its p99.
-    rank = max(1, math.ceil(0.99 * len(gaps)))
-    touched = {_episode(action) for action in selected}
-    sums: dict[tuple[str, str], list[float]] = {episode: [] for episode in touched}
-    for action, value in old.items():
-        members = sums.get(_episode(action))
-        if members is not None:
-            members.append(float(value) - float(sampled[action]))
-    sequences = [abs(math.fsum(members)) for members in sums.values()]
+    rank = max(1, math.ceil(0.99 * gaps.size))
+    touched = np.unique(episode_of[selected])
+    sequences = [abs(math.fsum(difference[episode_of == episode].tolist())) for episode in touched]
     return {
-        "train/rl/sampling_logp_delta_mean": math.fsum(gaps) / len(gaps),
-        "train/rl/sampling_logp_delta_max": gaps[-1],
-        "train/rl/sampling_logp_delta_p99": gaps[rank - 1],
+        "train/rl/sampling_logp_delta_mean": math.fsum(gaps.tolist()) / gaps.size,
+        "train/rl/sampling_logp_delta_max": float(gaps[-1]),
+        "train/rl/sampling_logp_delta_p99": float(gaps[rank - 1]),
         "train/rl/sampling_sequence_logp_delta_abs_mean": math.fsum(sequences) / len(sequences),
     }
 

@@ -107,7 +107,7 @@ def test_receipts_resolve_complete_groups_with_shared_native_admission(tmp_path,
     admitted, artifact = admit_episode_receipts(tuple(encoded), settings(), capabilities(), **kwargs)
     assert admitted.resolved.snapshot.native_evidence_ref == artifact.name
     assert admitted.applied_update_offset == 3 and admitted.attempt_offset == 4
-    assert len(admitted.resolved.credit.values) == 4
+    assert admitted.resolved.credit.advantages.shape == (admitted.resolved.snapshot.size,) == (4,)
     assert len(admitted.resolved.snapshot.conditioning) == 2
     with pytest.raises(InvalidPolicyUpdate, match="complete prompt groups"):
         admit_episode_receipts(tuple(encoded[:1]), settings(), capabilities(), **kwargs)

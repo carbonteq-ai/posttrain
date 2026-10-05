@@ -3,8 +3,9 @@
 import copy
 from dataclasses import replace
 
+import numpy as np
 import pytest
-from posttrain.train.update_credit import ActionCredit, PreparedCredit
+from posttrain.train.update_credit import PreparedCredit
 from posttrain.train.update_objectives import ObjectiveSpec, objective_population, resolve_objective_term
 from posttrain.train.update_plan import (
     ExecutionCapabilities,
@@ -13,7 +14,7 @@ from posttrain.train.update_plan import (
     plan_packs,
     resolve_updates,
 )
-from posttrain.train.update_records import ActionRecord, ActionRef, InvalidPolicyUpdate
+from posttrain.train.update_records import InvalidPolicyUpdate, PopulationSnapshot
 
 torch = pytest.importorskip("torch")
 
@@ -24,21 +25,23 @@ from .test_update_scoring import CausalModel, score_population  # noqa: E402
 
 
 def resolved(identity):
-    snapshot, source, actions = score_population()
-    second = tuple(ActionRef("episode-b", "branch", "turn-b", action.token_index) for action in actions)
-    view = replace(snapshot.conditioning[0], id="context-b")
-    snapshot = replace(
-        snapshot,
-        actions=snapshot.actions + tuple(ActionRecord(action, view.id, "native") for action in second),
-        conditioning=snapshot.conditioning + (view,),
+    """Two one-turn episodes over the same original context: positions 0-1 and 2-3."""
+    snapshot, source, _ = score_population()
+    view = replace(snapshot.conditioning[0], id="context-b", episode_id="episode-b")
+    snapshot = PopulationSnapshot(
+        snapshot.id,
+        snapshot.native_evidence_ref,
+        snapshot.native_evidence_digest,
+        snapshot.conditioning + (view,),
+        snapshot.spans,
+        snapshot.relations,
+        snapshot.versions,
+        snapshot.selector_digest,
     )
     credit = PreparedCredit(
         snapshot.digest,
         "external-fixture@1",
-        tuple(
-            ActionCredit(record.action, value)
-            for record, value in zip(snapshot.actions, (1, -0.5, 0.25, 0.75), strict=True)
-        ),
+        np.array((1, -0.5, 0.25, 0.75)),
         (),
         (),
         "fixture@1",
@@ -90,7 +93,9 @@ def test_two_applied_transitions_match_monolithic_oracle_across_packs(identity, 
     for count in (1, 2):
         model = copy.deepcopy(initial)
         optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+        # One turn per pack (two packs) versus both turns in one pack.
         packs = plan_packs(update, PolicyExecutionBudget(count, 100, 10000), capabilities)
+        assert len(packs) == 3 - count
         kwargs = dict(read_input=lambda view: source, device=torch.device("cpu"), score_temperature=0.7)
         old = freeze_population_scores(model, snapshot, policy_version="old@1", score_contract="causal@1", **kwargs)
         for index in range(2):
@@ -111,6 +116,8 @@ def test_two_applied_transitions_match_monolithic_oracle_across_packs(identity, 
             # Loss arithmetic is compared at identical parameters. Independent
             # half-parameter optimizer histories can differ by rounding after
             # separate graph accumulation; gradients and states are compared below.
+            # The vectorized loss is a weighted sum (weights 1/4, exact in
+            # binary) rather than a mean; the original tolerance still holds.
             torch.testing.assert_close(actual.loss, reference_loss(model).detach(), rtol=1e-6, atol=1e-6)
             actual.loss.backward()
             tolerance = 0.005 if dtype == torch.bfloat16 else 0.0007 if dtype == torch.float16 else 1e-6
@@ -127,6 +134,7 @@ def test_missing_dependency_pack_rejected_before_model_execution():
     kwargs = dict(read_input=lambda view: source, device=torch.device("cpu"), score_temperature=1)
     old = freeze_population_scores(model, snapshot, policy_version="old@1", score_contract="causal@1", **kwargs)
     packs = plan_packs(update, PolicyExecutionBudget(1, 100, 10000), capabilities)
+    assert len(packs) == 2
     term = resolve_objective_term(update, spec, credit)
     with pytest.raises(InvalidPolicyUpdate, match="each resolved dependency"):
         compute_resolved_loss(

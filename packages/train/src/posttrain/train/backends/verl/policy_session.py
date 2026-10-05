@@ -106,9 +106,8 @@ class ResolvedVeRLActorSession:
             raise InvalidPolicyUpdate("native actor did not commit exactly one resolved optimizer update")
         population = self.host.run.active()
         adjoints = population.last_adjoints
-        term = resolve_objective_term(
-            population.updates[population.next_update - 1], population.spec, population.credit
-        )
+        update = population.updates[population.next_update - 1]
+        term = resolve_objective_term(update, population.spec, population.credit)
         evaluation = adjoints.evaluation
         metrics = {
             "train/rl/loss": float(output["loss"]),
@@ -116,8 +115,8 @@ class ResolvedVeRLActorSession:
             "train/rl/kl_loss": float(output["kl_loss"]),
             "train/rl/applied_optimizer_updates": float(after["applied"]),
             "train/rl/optimizer_attempts": float(after["attempts"]),
-            "train/rl/selected_policy_actions": float(len(term.policy_weights)),
-            "train/rl/selected_kl_actions": float(len(term.kl_weights)),
+            "train/rl/selected_policy_actions": float(term.policy_positions.size),
+            "train/rl/selected_kl_actions": float(term.kl_positions.size),
             "train/grad_norm": float(output["metrics"]["grad_norm"]),
         }
         # The same selected-action credit, clipping and correction evidence as
@@ -126,16 +125,12 @@ class ResolvedVeRLActorSession:
             update_metrics(
                 term,
                 population.credit,
-                clipped_ratios={
-                    action: float(evaluation.ratios[action].detach()) for action in evaluation.clipped_actions
-                },
+                episode_of=update.population.episode_of,
+                ratios=evaluation.ratios.detach().double().cpu().numpy(),
+                clipped=evaluation.clipped,
                 sampler_correction=population.sampler_correction,
                 correction_recipe=sampler_correction_recipe(self.settings),
-                old_scores=(
-                    None
-                    if population.old is None
-                    else {action: float(value) for action, value in population.old.values.items()}
-                ),
+                old_scores=(None if population.old is None else population.old.values.detach().double().cpu().numpy()),
                 sampled_scores=population.sampled_scores,
             )
         )

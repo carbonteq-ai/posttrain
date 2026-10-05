@@ -172,21 +172,34 @@ def _episode_line(index):
     return (json.dumps({"traces": [{"id": f"t{index}", "payload": "x" * (index + 3)}]}, sort_keys=True) + "\n").encode()
 
 
-def test_indexed_population_reads_only_its_records_and_matches_a_full_scan(tmp_path):
+def _span(offset, line):
+    return (offset, len(line), hashlib.sha256(line).hexdigest())
+
+
+def test_indexed_population_reads_only_its_records_and_matches_a_full_scan(tmp_path, monkeypatch):
+    from posttrain.train.integrations import verifiers_population_artifact as artifact_module
+
     source = tmp_path / "episodes.jsonl"
     spans, offset = {}, 0
     with source.open("wb") as stream:
         for index in range(8):
             line = _episode_line(index)
             stream.write(line)
-            spans[f"t{index}"] = (offset, len(line))
+            spans[f"t{index}"] = _span(offset, line)
             offset += len(line)
     wanted = ("t6", "t2", "t5")
     scanned = retain_native_population(source, tmp_path / "scan", wanted, episodes=True)
+    full_scan = artifact_module._select
+
+    def no_scan(*args, **kwargs):
+        pytest.fail("a complete digest-proven index must not scan the source")
+
+    monkeypatch.setattr(artifact_module, "_select", no_scan)
     indexed = retain_native_population(source, tmp_path / "index", wanted, episodes=True, spans=spans)
     assert indexed.reference.digest == scanned.reference.digest
     assert indexed.reference.path.read_bytes() == scanned.reference.path.read_bytes()
     # A span index that does not cover every trace falls back to the full scan.
+    monkeypatch.setattr(artifact_module, "_select", full_scan)
     partial = retain_native_population(source, tmp_path / "partial", wanted, episodes=True, spans={"t2": spans["t2"]})
     assert partial.reference.digest == scanned.reference.digest
 
@@ -196,16 +209,22 @@ def test_stale_or_truncated_spans_fall_back_to_the_authoritative_scan(tmp_path):
     first, second = _episode_line(0), _episode_line(1)
     source.write_bytes(first + second)
     scanned = retain_native_population(source, tmp_path / "scan", ("t1",), episodes=True)
-    for name, span in (("stale", (0, len(first))), ("truncated", (len(first), len(second) + 50))):
+    second_digest = hashlib.sha256(second).hexdigest()
+    for name, span in (
+        ("stale", (0, len(first), second_digest)),
+        ("truncated", (len(first), len(second) + 50, second_digest)),
+        ("rewritten", (len(first), len(second), hashlib.sha256(first).hexdigest())),
+    ):
         retained = retain_native_population(source, tmp_path / name, ("t1",), episodes=True, spans={"t1": span})
         assert retained.reference.path.read_bytes() == scanned.reference.path.read_bytes() == second
     # A trace that is genuinely absent still fails after the fallback.
     with pytest.raises(InvalidPolicyUpdate):
-        retain_native_population(source, tmp_path / "missing", ("t9",), episodes=True, spans={"t9": (0, len(first))})
+        retain_native_population(
+            source, tmp_path / "missing", ("t9",), episodes=True, spans={"t9": (0, len(first), second_digest)}
+        )
 
 
 def test_bridge_records_episode_spans_as_it_appends(tmp_path, monkeypatch):
-    from posttrain.train.integrations import verifiers as bridge_module
     from posttrain.train.integrations.verifiers import VerifiersEnvironmentRolloutBridge
     from posttrain.train.online_rl import PolicySampling
 
@@ -220,15 +239,24 @@ def test_bridge_records_episode_spans_as_it_appends(tmp_path, monkeypatch):
         run_id="run",
         sampling=PolicySampling(8),
     )
-    monkeypatch.setattr(bridge_module, "_native_record", lambda episode: episode)
+    # Encoding reads the record through native_records; the bridge alias is not consulted.
+    monkeypatch.setattr("posttrain.train.integrations.native_records.native_record", lambda episode: episode)
     monkeypatch.setattr(
         "posttrain.train.integrations.verifiers_assessment_artifacts.retain_episode_artifacts",
         lambda *args, **kwargs: None,
     )
     for index in range(3):
         bridge._preserve_episode({"traces": [{"id": f"t{index}"}, {"id": f"s{index}"}]})
-    raw = (tmp_path / "episodes.jsonl").read_bytes()
+    source = tmp_path / "episodes.jsonl"
+    raw = source.read_bytes()
     for index in range(3):
-        offset, length = bridge._episode_spans[f"t{index}"]
-        assert bridge._episode_spans[f"s{index}"] == (offset, length)
-        assert json.loads(raw[offset : offset + length])["traces"][0]["id"] == f"t{index}"
+        offset, length, digest = bridge._episode_spans[f"t{index}"]
+        assert bridge._episode_spans[f"s{index}"] == (offset, length, digest)
+        line = raw[offset : offset + length]
+        assert hashlib.sha256(line).hexdigest() == digest
+        assert json.loads(line)["traces"][0]["id"] == f"t{index}"
+    # The recorded spans prove the bridge's own records on the indexed path.
+    wanted = ("t2", "s0")
+    indexed = retain_native_population(source, tmp_path / "index", wanted, episodes=True, spans=bridge._episode_spans)
+    scanned = retain_native_population(source, tmp_path / "scan", wanted, episodes=True)
+    assert indexed.reference.path.read_bytes() == scanned.reference.path.read_bytes()

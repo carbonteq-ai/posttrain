@@ -7,7 +7,7 @@ it does not collect trajectories or replace backend capability qualification.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from .online_rl import EnvironmentRollout
 from .profiles import CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings
@@ -19,7 +19,7 @@ from .update_credit import (
     prepare_credit,
 )
 from .update_evidence import population_from_rollouts
-from .update_objectives import ObjectiveSpec, objective_population, resolve_objective_term
+from .update_objectives import ObjectiveSpec, objective_population
 from .update_plan import (
     ExecutionCapabilities,
     ExecutionPack,
@@ -28,11 +28,18 @@ from .update_plan import (
     plan_packs,
     resolve_updates,
 )
-from .update_records import InvalidPolicyUpdate, PolicyVersions, PopulationSnapshot, SemanticSpan
+from .update_records import InvalidPolicyUpdate, PolicyVersions, PopulationSnapshot, SemanticSpan, payload_digest
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class ResolvedPolicyPopulation:
+    """An admitted population with its credit, objective, occurrences and packs.
+
+    Built by ``resolve_policy_population`` (or restored from a checkpoint that
+    recomputes the same structures); the checks here bind the parts together
+    by identity and do not resolve them again.
+    """
+
     snapshot: PopulationSnapshot
     credit: PreparedCredit
     spec: ObjectiveSpec
@@ -46,11 +53,34 @@ class ResolvedPolicyPopulation:
             raise InvalidPolicyUpdate("resolved population requires every occurrence and execution plan")
         self.credit.validate(self.snapshot)
         for update, packs in zip(self.updates, self.packs, strict=True):
-            if update.population != self.snapshot:
+            if update.population.digest != self.snapshot.digest:
                 raise InvalidPolicyUpdate("resolved occurrence belongs to different native evidence")
-            resolve_objective_term(update, self.spec, self.credit)
-            if packs != plan_packs(update, self.execution, self.capabilities):
+            if update.objective.credit_digest != self.credit.digest or update.objective.contract_digest != (
+                self.spec.digest
+            ):
+                raise InvalidPolicyUpdate("resolved occurrence objective differs from its credit or specification")
+            # An occurrence that selects nothing (zero-weight episodes) scores no turns and has no packs.
+            if bool(packs) != bool(update.views) or any(
+                pack.update_digest != update.digest or pack.index != index for index, pack in enumerate(packs)
+            ):
                 raise InvalidPolicyUpdate("resolved execution plans changed after population validation")
+            if sorted(view for pack in packs for view in pack.views) != sorted(update.views):
+                raise InvalidPolicyUpdate("resolved execution plans must cover each occurrence's turns exactly once")
+
+    @property
+    def digest(self) -> str:
+        """Identity of the whole resolved contract: evidence, credit, objective, occurrences, packs and budgets."""
+        return payload_digest(
+            {
+                "snapshot": self.snapshot.digest,
+                "credit": self.credit.digest,
+                "spec": self.spec.digest,
+                "updates": [update.digest for update in self.updates],
+                "packs": [[asdict(pack) for pack in packs] for packs in self.packs],
+                "execution": asdict(self.execution),
+                "capabilities": asdict(self.capabilities),
+            }
+        )
 
 
 def resolve_policy_population(

@@ -16,9 +16,11 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+import numpy as np
+
 from .reward_evidence import ObservationScope, SpanAssessment
-from .update_credit import ActionCredit, PreparedCredit
-from .update_records import ActionRef, InvalidPolicyUpdate, PopulationSnapshot, SemanticSpan, require_identity
+from .update_credit import PreparedCredit
+from .update_records import InvalidPolicyUpdate, PopulationSnapshot, SemanticSpan, require_identity
 
 
 class SpanScorer(Protocol):
@@ -95,21 +97,20 @@ class ExternalSpanCreditEstimator:
         values = self.estimate(self.assessments, snapshot)
         if not isinstance(values, Mapping) or set(values) != {value.span_id for value in self.assessments}:
             raise InvalidPolicyUpdate("external estimator must return one advantage per assessed span")
-        credit: dict[ActionRef, float] = {record.action: 0.0 for record in snapshot.actions}
-        credited: set[ActionRef] = set()
+        credit = np.zeros(snapshot.size, dtype=np.float64)
+        credited = np.zeros(snapshot.size, dtype=bool)
         for span_id, advantage in values.items():
             if isinstance(advantage, bool) or not isinstance(advantage, int | float) or not math.isfinite(advantage):
                 raise InvalidPolicyUpdate("external estimator returned a non-finite or non-numeric advantage")
-            actions = set(spans[span_id].actions())
-            if actions & credited:
+            positions = snapshot.span_positions(spans[span_id])
+            if credited[positions].any():
                 raise InvalidPolicyUpdate("overlapping assessed spans need a declared credit-combination estimator")
-            credited |= actions
-            for action in actions:
-                credit[action] = float(advantage)
+            credited[positions] = True
+            credit[positions] = float(advantage)
         return PreparedCredit(
             snapshot.digest,
             self.id,
-            tuple(ActionCredit(action, value) for action, value in sorted(credit.items())),
+            credit,
             self.required_relations,
             (("process", 1.0),),
             f"{self.estimator_id}-detached@1",

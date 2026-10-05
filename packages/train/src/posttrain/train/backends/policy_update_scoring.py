@@ -1,17 +1,23 @@
-"""Private causal-logit projection shared by qualified native score adapters."""
+"""Private causal-logit projection shared by qualified native score adapters.
+
+Scores are carried as tensors aligned with population positions (see
+``update_records``): one model forward per conditioning view yields that view's
+sampled-token log-probabilities as one tensor, and a population's scores are
+one tensor of length ``snapshot.size``.
+"""
 
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from types import MappingProxyType
 from typing import Any
 
+import numpy as np
 import torch
 from posttrain.environment.verifiers_conditioning import NativeConditioningInput
 
-from ..update_records import ActionRef, ConditioningView, InvalidPolicyUpdate, PopulationSnapshot, require_identity
+from ..update_records import ConditioningView, InvalidPolicyUpdate, PopulationSnapshot, require_identity
 
 
 def sampled_logprobs(
@@ -20,21 +26,22 @@ def sampled_logprobs(
     *,
     sampled_indices: tuple[int, ...],
     score_temperature: float,
-    entropies: dict[int, float] | None = None,
-) -> Mapping[int, torch.Tensor]:
+    entropies: list[float] | None = None,
+) -> torch.Tensor:
     """Score selected original actions at their preceding causal positions.
 
-    Inputs must come from materialize_native_conditioning over authenticated
-    retained evidence. The native adapter owns model/attention qualification,
-    parameter identity and score freezing. This projection does not establish
-    those guarantees or score observations merely because they are in context.
-    The score temperature is required explicitly: native trainers use tempered
-    policy probabilities, which differ from raw model probabilities. This is not
-    reconstruction of a top-p/top-k filtered sampler distribution.
+    Returns one value per entry of ``sampled_indices``, in that order. Inputs
+    must come from materialize_native_conditioning over authenticated retained
+    evidence. The native adapter owns model/attention qualification, parameter
+    identity and score freezing. This projection does not establish those
+    guarantees or score observations merely because they are in context. The
+    score temperature is required explicitly: native trainers use tempered
+    policy probabilities, which differ from raw model probabilities. This is
+    not reconstruction of a top-p/top-k filtered sampler distribution.
 
     When `entropies` is supplied, the detached entropy of the same tempered
-    distribution at each selected causal position is added to it. This is
-    observation only: it never enters the returned scores or their graph.
+    distribution at each selected causal position is appended to it, in order.
+    This is observation only: it never enters the returned scores or their graph.
     """
     if logits.ndim != 3 or logits.shape[0] != 1 or logits.shape[1] != len(inputs.token_ids):
         raise InvalidPolicyUpdate("native logits must align with one complete original conditioning view")
@@ -48,7 +55,7 @@ def sampled_logprobs(
     if any(type(index) is not int or index not in positions for index in sampled_indices):
         raise InvalidPolicyUpdate("native score selection includes an ineligible node token")
     if not sampled_indices:
-        return {}
+        return logits.new_zeros(0, dtype=torch.float32)
     action_positions = [positions[index] for index in sampled_indices]
     if any(position < 1 or position >= len(inputs.token_ids) for position in action_positions):
         raise InvalidPolicyUpdate("native action lacks a preceding causal score position")
@@ -67,8 +74,8 @@ def sampled_logprobs(
         torch.tensor(targets, dtype=torch.long, device=logits.device).unsqueeze(1),
     ).squeeze(1)
     if entropies is not None:
-        entropies.update(zip(sampled_indices, _entropies(log_probabilities), strict=True))
-    return dict(zip(sampled_indices, values.unbind(), strict=True))
+        entropies.extend(_entropies(log_probabilities))
+    return values
 
 
 _ENTROPY_ROWS = 256
@@ -85,33 +92,42 @@ def _entropies(log_probabilities: torch.Tensor) -> list[float]:
     return result
 
 
-def score_actions(
+@dataclass(frozen=True)
+class PositionScores:
+    """Scores for some population positions: ``values[i]`` belongs to ``positions[i]``."""
+
+    positions: np.ndarray
+    values: torch.Tensor
+
+    def __post_init__(self) -> None:
+        if self.positions.ndim != 1 or self.values.shape != (self.positions.size,):
+            raise InvalidPolicyUpdate("position scores must pair each position with one value")
+
+
+def score_views(
     model: Any,
     snapshot: PopulationSnapshot,
-    actions: tuple[ActionRef, ...],
+    views: Sequence[int],
     *,
     read_input: Callable[[ConditioningView], NativeConditioningInput],
     device: torch.device,
     score_temperature: float,
-    entropies: dict[ActionRef, float] | None = None,
-) -> Mapping[ActionRef, torch.Tensor]:
-    """Retain full-context model graphs for exactly the requested score support.
+    entropies: np.ndarray | None = None,
+) -> PositionScores:
+    """Score every sampled token of the given views, one full-context forward per view.
 
     The native caller authenticates retained bytes in read_input and qualifies
     the model's causal-text@1 attention/position behavior. No detached KV cache,
     retokenization, padding or generation call is used here. Calling this across
     planned packs retains graphs; native backward must occur before any update.
+    When ``entropies`` (length ``snapshot.size``) is given, each scored
+    position's detached entropy is written into it.
     """
-    records = {record.action: record for record in snapshot.actions}
-    if len(set(actions)) != len(actions) or any(action not in records for action in actions):
+    if len(set(views)) != len(views) or any(not 0 <= view < len(snapshot.conditioning) for view in views):
         raise InvalidPolicyUpdate("model score support must contain unique admitted original actions")
-    contexts = {view.id: view for view in snapshot.conditioning}
-    groups: dict[str, list[ActionRef]] = {}
-    for action in actions:
-        groups.setdefault(records[action].conditioning_id, []).append(action)
-    scores: dict[ActionRef, torch.Tensor] = {}
-    for context_id, members in groups.items():
-        view = contexts[context_id]
+    positions, values = [], []
+    for index in views:
+        view = snapshot.conditioning[index]
         inputs = read_input(view)
         record = inputs.record
         if (
@@ -120,10 +136,6 @@ def score_actions(
             or (len(inputs.token_ids) != view.context_tokens or record.context_tokens != view.context_tokens)
         ):
             raise InvalidPolicyUpdate("materialized model input differs from the frozen conditioning view")
-        if len({action.turn_id for action in members}) != 1 or len({action.token_index for action in members}) != len(
-            members
-        ):
-            raise InvalidPolicyUpdate("one native conditioning view must identify one original sampled turn")
         token_ids = torch.tensor([inputs.token_ids], dtype=torch.long, device=device)
         output = model(
             input_ids=token_ids,
@@ -131,29 +143,49 @@ def score_actions(
             position_ids=torch.arange(token_ids.shape[1], device=device).unsqueeze(0),
             use_cache=False,
         )
-        local_entropies: dict[int, float] | None = {} if entropies is not None else None
-        values = sampled_logprobs(
-            output.logits,
-            inputs,
-            sampled_indices=tuple(action.token_index for action in members),
-            score_temperature=score_temperature,
-            entropies=local_entropies,
+        local_entropies: list[float] | None = [] if entropies is not None else None
+        values.append(
+            sampled_logprobs(
+                output.logits,
+                inputs,
+                sampled_indices=view.sampled,
+                score_temperature=score_temperature,
+                entropies=local_entropies,
+            )
         )
-        scores.update((action, values[action.token_index]) for action in members)
+        span = snapshot.view_positions(index)
+        positions.append(np.arange(span.start, span.stop, dtype=np.int64))
         if entropies is not None and local_entropies is not None:
-            entropies.update((action, local_entropies[action.token_index]) for action in members)
-    return scores
+            entropies[span] = local_entropies
+    if not positions:
+        return PositionScores(np.zeros(0, dtype=np.int64), torch.zeros(0, device=device))
+    return PositionScores(np.concatenate(positions), torch.cat(values))
+
+
+def dense_scores(size: int, parts: Sequence[PositionScores], *, device: torch.device) -> torch.Tensor:
+    """One float32 tensor of length ``size`` holding each part's values at its positions (zero elsewhere)."""
+    if not parts:
+        return torch.zeros(size, dtype=torch.float32, device=device)
+    positions = np.concatenate([part.positions for part in parts])
+    if np.unique(positions).size != positions.size:
+        raise InvalidPolicyUpdate("score parts must not score one position twice")
+    values = torch.cat([part.values.to(device=device, dtype=torch.float32) for part in parts])
+    index = torch.as_tensor(positions, dtype=torch.long, device=device)
+    return torch.zeros(size, dtype=torch.float32, device=device).index_put((index,), values)
 
 
 @dataclass(frozen=True)
 class FrozenPopulationScores:
-    """Detached scores bound to one admitted population and score contract."""
+    """Detached scores bound to one admitted population and score contract.
+
+    ``values`` is a float32 tensor with one score per population position.
+    """
 
     population_digest: str
     policy_version: str
     score_contract: str
     score_temperature: float
-    values: Mapping[ActionRef, torch.Tensor]
+    values: torch.Tensor
 
     def validate(
         self, snapshot: PopulationSnapshot, *, policy_version: str, score_contract: str, score_temperature: float
@@ -165,10 +197,12 @@ class FrozenPopulationScores:
             score_temperature,
         ):
             raise InvalidPolicyUpdate("frozen policy scores belong to different evidence, policy or score contract")
-        if set(self.values) != {record.action for record in snapshot.actions}:
+        if self.values.shape != (snapshot.size,):
             raise InvalidPolicyUpdate("frozen policy scores must cover the complete admitted population")
-        if any(
-            value.ndim != 0 or value.requires_grad or not bool(torch.isfinite(value)) for value in self.values.values()
+        if (
+            self.values.requires_grad
+            or not self.values.is_floating_point()
+            or not bool(torch.isfinite(self.values).all())
         ):
             raise InvalidPolicyUpdate("frozen policy scores must remain detached finite scalars")
 
@@ -186,21 +220,16 @@ def freeze_population_scores(
     """Prepare old/reference probabilities before any update on this population."""
     require_identity(policy_version, score_contract)
     with torch.no_grad():
-        values = score_actions(
+        scored = score_views(
             model,
             snapshot,
-            tuple(record.action for record in snapshot.actions),
+            range(len(snapshot.conditioning)),
             read_input=read_input,
             device=device,
             score_temperature=score_temperature,
         )
-    frozen = FrozenPopulationScores(
-        snapshot.digest,
-        policy_version,
-        score_contract,
-        score_temperature,
-        MappingProxyType({action: value.detach().clone() for action, value in values.items()}),
-    )
+        values = dense_scores(snapshot.size, (scored,), device=device).detach().clone()
+    frozen = FrozenPopulationScores(snapshot.digest, policy_version, score_contract, score_temperature, values)
     frozen.validate(
         snapshot, policy_version=policy_version, score_contract=score_contract, score_temperature=score_temperature
     )

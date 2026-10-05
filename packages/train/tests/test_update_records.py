@@ -9,8 +9,8 @@ from posttrain.common import TraceObservation
 from posttrain.train.reward_evidence import InvalidRewardEvidence, RewardValue, SpanAssessment
 from posttrain.train.update_records import (
     ActionInterval,
-    ActionRecord,
     ActionRef,
+    ActionSelection,
     ConditioningView,
     InvalidPolicyUpdate,
     PolicyVersions,
@@ -20,40 +20,51 @@ from posttrain.train.update_records import (
 )
 
 
+def view(name: str, size: int, sampled: tuple[int, ...]) -> ConditioningView:
+    return ConditioningView(
+        name,
+        "native:episode",
+        f"tokens:{name}",
+        f"mask:{name}",
+        f"positions:{name}",
+        "template@1",
+        f"digest:{name}",
+        size,
+        "ep",
+        "branch",
+        sampled,
+    )
+
+
 def population() -> PopulationSnapshot:
-    # Token index 1 is an observation, hence absent from eligible actions.
-    actions = tuple(ActionRef("ep", "branch", "turn", index) for index in (0, 2, 3))
-    contexts = tuple(
-        ConditioningView(
-            name,
-            f"native:{name}",
-            f"tokens:{name}",
-            f"mask:{name}",
-            f"positions:{name}",
-            "template@1",
-            f"digest:{name}",
-            size,
-        )
-        for name, size in (("original", 6), ("rolling-window", 4))
+    # Three positions: "original" samples native tokens 0 and 2 (token 1 is an
+    # observation, hence absent from eligible actions); "rolling-window" samples
+    # token 0 under its own, shorter conditioning context.
+    original, window = view("original", 6, (0, 2)), view("rolling-window", 4, (0,))
+    first, second, third = (
+        ActionRef("ep", "branch", "original", 0),
+        ActionRef("ep", "branch", "original", 2),
+        ActionRef("ep", "branch", "rolling-window", 0),
     )
     return PopulationSnapshot(
         "population",
         "native:episode",
         "native-digest",
-        tuple(
-            ActionRecord(action, "original" if action.token_index == 0 else "rolling-window", "native:node")
-            for action in actions
-        ),
-        contexts,
+        (original, window),
         (
             SemanticSpan(
-                "thinking", "reasoning", "extract@1", (ActionInterval(actions[0], 1), ActionInterval(actions[1], 4))
+                "thinking",
+                "reasoning",
+                "extract@1",
+                (ActionInterval(first, 1), ActionInterval(second, 3), ActionInterval(third, 1)),
             ),
-            SemanticSpan("step-2", "reasoning", "extract@1", (ActionInterval(actions[2], 4),)),
+            SemanticSpan("step-2", "reasoning", "extract@1", (ActionInterval(third, 1),)),
         ),
         (
-            PopulationRelation("prompt", "prompt-group", actions, "complete", actions),
-            PopulationRelation("anchor", "anchor-state", actions[1:], "complete", actions[1:]),
+            PopulationRelation(
+                "prompt", "prompt-group", ("original", "rolling-window"), "complete", ("original", "rolling-window")
+            ),
+            PopulationRelation("anchor", "anchor-state", ("rolling-window",), "complete", ("rolling-window",)),
         ),
         PolicyVersions("sampler@1", "old@1", "current@1", "reference@1"),
         "selector@1",
@@ -62,9 +73,22 @@ def population() -> PopulationSnapshot:
 
 def test_overlapping_multi_interval_spans_select_original_actions_once() -> None:
     snapshot = population()
-    assert snapshot.select_spans(("thinking", "step-2")) == tuple(record.action for record in snapshot.actions)
-    assert snapshot.actions[0].conditioning_id == "original"
-    assert snapshot.actions[1].conditioning_id == "rolling-window"
+    assert snapshot.size == 3
+    assert snapshot.select_spans(("thinking", "step-2")).tolist() == [True, True, True]
+    assert snapshot.select_spans(("step-2",)).tolist() == [False, False, True]
+    assert snapshot.select_roles(("reasoning",)).tolist() == [True, True, True]
+    assert ActionSelection("spans", ("step-2",)).resolve(snapshot).tolist() == [False, False, True]
+    assert ActionSelection().resolve(snapshot).all()
+    # Canonical order: views in admission order, native indices ascending within a view.
+    assert [(action.turn_id, action.token_index) for action in snapshot.actions()] == [
+        ("original", 0),
+        ("original", 2),
+        ("rolling-window", 0),
+    ]
+    assert snapshot.action(1) == ActionRef("ep", "branch", "original", 2)
+    assert snapshot.positions(tuple(reversed(snapshot.actions()))).tolist() == [2, 1, 0]
+    assert snapshot.view_of.tolist() == [0, 0, 1]
+    assert snapshot.view_positions(1) == slice(2, 3)
     assert snapshot.relations[1].members == snapshot.relations[0].members[1:]
     assert snapshot.digest == population().digest
     assert replace(snapshot, versions=replace(snapshot.versions, current="current@2")).digest != snapshot.digest
@@ -72,17 +96,25 @@ def test_overlapping_multi_interval_spans_select_original_actions_once() -> None
 
 def test_spans_cannot_select_observation_or_another_branch() -> None:
     snapshot = population()
-    for action in (ActionRef("ep", "branch", "turn", 1), ActionRef("ep", "other", "turn", 0)):
+    for action in (ActionRef("ep", "branch", "original", 1), ActionRef("ep", "other", "original", 0)):
         with pytest.raises(InvalidPolicyUpdate, match="ineligible"):
             replace(snapshot, spans=(SemanticSpan("bad", "reasoning", "extract@1", (ActionInterval(action, 2),)),))
+    with pytest.raises(InvalidPolicyUpdate, match="ineligible"):
+        snapshot.positions((ActionRef("ep", "branch", "original", 1),))
 
 
 def test_missing_actual_context_and_duplicate_actions_rejected() -> None:
     snapshot = population()
-    with pytest.raises(InvalidPolicyUpdate, match="conditioning"):
+    with pytest.raises(InvalidPolicyUpdate, match="absent sampled turns"):
         replace(snapshot, conditioning=snapshot.conditioning[:1])
-    with pytest.raises(InvalidPolicyUpdate, match="unique eligible"):
-        replace(snapshot, actions=snapshot.actions + snapshot.actions[:1])
+    with pytest.raises(InvalidPolicyUpdate, match="conditioning identities must be unique"):
+        replace(snapshot, conditioning=snapshot.conditioning + snapshot.conditioning[:1])
+    with pytest.raises(InvalidPolicyUpdate, match="ascending unique"):
+        replace(snapshot.conditioning[0], sampled=(0, 2, 2))
+    with pytest.raises(InvalidPolicyUpdate, match="ascending unique"):
+        replace(snapshot.conditioning[0], sampled=())
+    with pytest.raises(InvalidPolicyUpdate, match="different population evidence"):
+        replace(snapshot, conditioning=(replace(snapshot.conditioning[0], native_ref="native:other"),))
     with pytest.raises(InvalidPolicyUpdate, match="unknown semantic"):
         snapshot.select_spans(("missing",))
 
@@ -92,6 +124,8 @@ def test_complete_relation_cannot_hide_missing_members() -> None:
     with pytest.raises(InvalidPolicyUpdate, match="lacks expected"):
         replace(relation, members=relation.members[:1])
     assert replace(relation, members=relation.members[:1], completeness="partial").completeness == "partial"
+    with pytest.raises(InvalidPolicyUpdate, match="cannot duplicate"):
+        replace(relation, members=relation.members * 2)
 
 
 def test_assessment_preserves_unavailable_score_and_observation_scope() -> None:

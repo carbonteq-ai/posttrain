@@ -6,11 +6,9 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
-from posttrain.environment.verifiers_conditioning import InvalidNativeConditioning, native_conditioning_records
+from posttrain.environment.verifiers_conditioning import native_conditioning_records
 from posttrain.train.backends.policy_update_inputs import NativePopulationInputs
 from posttrain.train.update_records import (
-    ActionRecord,
-    ActionRef,
     ConditioningView,
     InvalidPolicyUpdate,
     PolicyVersions,
@@ -64,15 +62,14 @@ def fixture():
         "template@1",
         record.input_digest,
         5,
-    )
-    actions = tuple(
-        ActionRecord(ActionRef("episode", "branch", view.id, index), view.id, view.native_ref) for index in (1, 2)
+        "episode",
+        "branch",
+        (1, 2),
     )
     snapshot = PopulationSnapshot(
         "population",
         view.native_ref,
         hashlib.sha256(evidence).hexdigest(),
-        actions,
         (view,),
         (),
         (),
@@ -94,11 +91,20 @@ def test_sampler_scores_match_original_coordinates_and_reject_mutation():
     snapshot, evidence, decode = fixture()
     reader = NativePopulationInputs.from_evidence(snapshot, evidence, decode)
     scores = reader.sampling_log_scores(snapshot)
-    assert list(scores.values()) == [-0.2, -0.4]
-    assert list(scores) == [record.action for record in snapshot.actions]
+    # One score per position, in canonical (turn, native token index) order.
+    assert scores.tolist() == [-0.2, -0.4]
+    assert [snapshot.action(position).token_index for position in range(snapshot.size)] == [1, 2]
+    assert not scores.flags.writeable
+    # Rewritten by design: scores are read once from authenticated evidence at
+    # admission, so mutating the decoded graph afterwards cannot change them.
     reader._traces["original"].nodes[1].logprobs[0] = -0.8
-    with pytest.raises(InvalidPolicyUpdate, match="sampled log scores"):
-        reader.sampling_log_scores(snapshot)
+    assert reader.sampling_log_scores(snapshot).tolist() == [-0.2, -0.4]
+    # A population bound to other evidence or another view is still rejected.
+    with pytest.raises(InvalidPolicyUpdate, match="different native evidence"):
+        reader.sampling_log_scores(replace(snapshot, native_evidence_digest="other"))
+    changed = replace(snapshot, conditioning=(replace(snapshot.conditioning[0], digest="changed"),))
+    with pytest.raises(InvalidPolicyUpdate, match="different native evidence"):
+        reader.sampling_log_scores(changed)
 
 
 @pytest.mark.parametrize("values", [None, [], [-0.2], [-0.2, float("nan")], [True, -0.4]])
@@ -138,28 +144,25 @@ def test_hash_mismatch_rejected_before_native_decode():
 )
 def test_reader_preflights_context_identity_and_coordinates(changes, message):
     snapshot, evidence, decode = fixture()
-    snapshot = replace(snapshot, conditioning=(replace(snapshot.conditioning[0], **changes),))
+    # A view naming other evidence is now rejected when the snapshot is built.
     with pytest.raises(InvalidPolicyUpdate, match=message):
+        snapshot = replace(snapshot, conditioning=(replace(snapshot.conditioning[0], **changes),))
         NativePopulationInputs.from_evidence(snapshot, evidence, decode)
 
 
 def test_reader_rejects_context_positions_credited_as_sampled_actions():
     snapshot, evidence, decode = fixture()
-    first = snapshot.actions[0]
-    snapshot = replace(
-        snapshot, actions=(replace(first, action=replace(first.action, token_index=0)), snapshot.actions[1])
-    )
+    snapshot = replace(snapshot, conditioning=(replace(snapshot.conditioning[0], sampled=(0, 2)),))
     with pytest.raises(InvalidPolicyUpdate, match="sampled action coordinates"):
         NativePopulationInputs.from_evidence(snapshot, evidence, decode)
 
 
 def test_reader_rejects_action_evidence_reference_substitution():
-    snapshot, evidence, decode = fixture()
-    snapshot = replace(
-        snapshot, actions=tuple(replace(action, native_ref="native:other") for action in snapshot.actions)
-    )
-    with pytest.raises(InvalidPolicyUpdate, match="action references different"):
-        NativePopulationInputs.from_evidence(snapshot, evidence, decode)
+    # Actions no longer carry their own evidence reference; every view must
+    # name the snapshot's evidence, so substitution fails at construction.
+    snapshot, _, _ = fixture()
+    with pytest.raises(InvalidPolicyUpdate, match="references different"):
+        replace(snapshot, native_evidence_ref="native:other")
 
 
 def test_reader_revalidates_mutable_graph_and_rejects_foreign_views():
@@ -169,6 +172,9 @@ def test_reader_revalidates_mutable_graph_and_rejects_foreign_views():
     view = snapshot.conditioning[0]
     with pytest.raises(InvalidPolicyUpdate, match="outside its frozen population"):
         reader(replace(view, digest="changed"))
+    # Rewritten by design: inputs are built once from the verified graph at
+    # admission, so a later mutation of the decoded graph cannot reach scoring.
     traces["original"].nodes[0].token_ids[0] = 9
-    with pytest.raises(InvalidNativeConditioning, match="differs from the frozen"):
-        reader(view)
+    inputs = reader(view)
+    assert inputs.token_ids == (1, 2, 3, 4, 5)
+    assert inputs is reader(view)

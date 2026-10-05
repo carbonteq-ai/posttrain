@@ -11,13 +11,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import numpy as np
 from posttrain.common import RunContext
 
 from ...online_rl import policy_sampling_from_mapping
 from ...requests import CAPORequest, GDPORequest, GRPORequest, SAMPORequest
 from ...update_objectives import resolve_objective_term
 from ...update_plan import ExecutionCapabilities
-from ...update_records import ActionRef, InvalidPolicyUpdate, PolicyVersions
+from ...update_records import InvalidPolicyUpdate, PolicyVersions
 from ...update_recovery import inspect_update_recovery
 from ...update_resolution import resolve_policy_population
 from ...update_sampler_correction import recipe_sampler_correction_weights, sampler_correction_recipe
@@ -175,8 +176,8 @@ def job_identity(request: Any, tokenizer: Any, native_trainer: type) -> tuple[st
     return f"resolved-trl-job/{runtime}", f"renderer/{template}"
 
 
-def _detached_scores(frozen: Any) -> Mapping[ActionRef, float] | None:
-    return None if frozen is None else {action: float(value) for action, value in frozen.values.items()}
+def _detached_scores(frozen: Any) -> np.ndarray | None:
+    return None if frozen is None else frozen.values.detach().double().cpu().numpy()
 
 
 def _decode_native(evidence: bytes) -> Mapping[str, Any]:
@@ -191,7 +192,7 @@ def _decode_native(evidence: bytes) -> Mapping[str, Any]:
     return decode_native_population(evidence, format=format, content="conditioning")
 
 
-def _observed_sampled_scores(admitted: AdmittedNativePopulation) -> Mapping[ActionRef, float] | None:
+def _observed_sampled_scores(admitted: AdmittedNativePopulation) -> np.ndarray | None:
     """Sampled scores for gap observation of a restored population, when its evidence retains them.
 
     Restoration uses the sealed correction weights; it never needs sampled
@@ -252,8 +253,8 @@ class ResolvedTRLJob:
             "train/rl/kl_loss": float(evaluation.kl_loss.detach()),
             "train/rl/applied_optimizer_updates": step,
             "train/rl/optimizer_attempts": population.global_attempts,
-            "train/rl/selected_policy_actions": len(term.policy_weights),
-            "train/rl/selected_kl_actions": len(term.kl_weights),
+            "train/rl/selected_policy_actions": int(term.policy_positions.size),
+            "train/rl/selected_kl_actions": int(term.kl_positions.size),
         }
         if population.spec.beta:
             values["train/rl/kl"] = values["train/rl/kl_loss"] / population.spec.beta
@@ -261,9 +262,9 @@ class ResolvedTRLJob:
             update_metrics(
                 term,
                 population.credit,
-                clipped_ratios={
-                    action: float(evaluation.ratios[action].detach()) for action in evaluation.clipped_actions
-                },
+                episode_of=update.population.episode_of,
+                ratios=evaluation.ratios.detach().double().cpu().numpy(),
+                clipped=evaluation.clipped,
                 sampler_correction=population.sampler_correction,
                 correction_recipe=sampler_correction_recipe(self.request.settings),
                 entropies=evaluation.entropies,
@@ -436,7 +437,7 @@ class ResolvedTRLJob:
             self.versions(retained.applied_update_offset), sampler=selected.snapshot.versions.sampler
         )
         if (
-            selected != retained.resolved
+            selected.digest != retained.resolved.digest
             or retained.max_overflow_retries != self.max_overflow_retries
             or selected.snapshot.versions != expected_versions
             or any(view.template_revision != self.template_revision for view in selected.snapshot.conditioning)

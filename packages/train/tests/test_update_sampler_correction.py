@@ -1,22 +1,47 @@
 """Independent correction references, separate from native execution admission."""
 
 import math
-from collections.abc import MutableMapping
-from typing import cast
 
+import numpy as np
 import pytest
 from posttrain.train.profiles import CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings, TrainingLoop
-from posttrain.train.update_records import ActionRef, InvalidPolicyUpdate
+from posttrain.train.update_records import ConditioningView, InvalidPolicyUpdate, PolicyVersions, PopulationSnapshot
 from posttrain.train.update_sampler_correction import recipe_sampler_correction_weights, sampler_correction_weights
 
-from .test_update_plan import five_turns
+
+def five_turns() -> PopulationSnapshot:
+    """Two episodes: A has three one-token turns, B has two."""
+    return PopulationSnapshot(
+        "five-turns",
+        "native:five-turns",
+        "native-digest",
+        tuple(
+            ConditioningView(
+                turn,
+                "native:five-turns",
+                "tokens",
+                "attention",
+                "positions",
+                "template@1",
+                turn,
+                10,
+                episode,
+                "branch",
+                (0,),
+            )
+            for episode, turn in (("A", "A1"), ("A", "A2"), ("A", "A3"), ("B", "B1"), ("B", "B2"))
+        ),
+        (),
+        (),
+        PolicyVersions("sampler@1", "old@1", "current@1", None),
+        "selector@1",
+    )
 
 
 def scores():
-    snapshot, _ = five_turns()
-    actions = [record.action for record in snapshot.actions]
-    old = dict.fromkeys(actions, 0.0)
-    sampled = {a: -math.log(w) for a, w in zip(actions, (2.0, 0.5, 1.0, 3.0, 0.25), strict=True)}
+    snapshot = five_turns()
+    old = np.zeros(snapshot.size)
+    sampled = -np.log(np.array([2.0, 0.5, 1.0, 3.0, 0.25]))
     return snapshot, old, sampled
 
 
@@ -33,35 +58,34 @@ def scores():
 def test_complete_episode_and_token_reference(mode, expected):
     snapshot, old, sampled = scores()
     actual = sampler_correction_weights(snapshot, old, sampled, mode=mode, lower=0.5, upper=2.0)
-    assert list(actual.values()) == pytest.approx(expected)
+    assert actual.tolist() == pytest.approx(expected)
     # Turn selection or packing consumes these fixed weights, not a new reduction.
-    assert actual[snapshot.actions[3].action] == pytest.approx(expected[3])
-    with pytest.raises(TypeError):
-        cast(MutableMapping[ActionRef, float], actual)[snapshot.actions[0].action] = 0
+    assert actual[snapshot.view_positions(snapshot.view_index("B1"))].tolist() == pytest.approx([expected[3]])
+    with pytest.raises(ValueError, match="read-only"):
+        actual[0] = 0
 
 
 @pytest.mark.parametrize("mode", ["token_truncate", "sequence_truncate", "token_mask", "sequence_mask"])
 def test_large_log_ratio_uses_selected_bounds_without_overflow(mode):
     snapshot, old, sampled = scores()
-    sampled = dict.fromkeys(sampled, -1001.0)
+    sampled = np.full_like(sampled, -1001.0)
     actual = sampler_correction_weights(snapshot, old, sampled, mode=mode, lower=None, upper=2.0)
-    assert set(actual.values()) == ({2.0} if mode.endswith("truncate") else {0.0})
+    assert set(actual.tolist()) == ({2.0} if mode.endswith("truncate") else {0.0})
 
 
 def test_missing_extra_or_nonfinite_scores_reject_before_weights():
     snapshot, old, sampled = scores()
-    action = snapshot.actions[0].action
     for invalid in (
-        {a: v for a, v in sampled.items() if a != action},
-        {**sampled, action: math.nan},
-        {**sampled, action: True},
-        {**sampled, action: "0"},
+        sampled[:-1],
+        np.append(sampled, 0.0),
+        np.where(np.arange(snapshot.size) == 0, math.nan, sampled),
+        np.where(np.arange(snapshot.size) == 0, math.inf, sampled),
     ):
         with pytest.raises(InvalidPolicyUpdate):
             sampler_correction_weights(snapshot, old, invalid, mode="token_truncate", lower=None, upper=2.0)
     with pytest.raises(InvalidPolicyUpdate, match="uncapped"):
         sampler_correction_weights(
-            snapshot, old, dict.fromkeys(sampled, -1001.0), mode="token_truncate", lower=None, upper=None
+            snapshot, old, np.full_like(sampled, -1001.0), mode="token_truncate", lower=None, upper=None
         )
 
 
@@ -93,4 +117,4 @@ def test_selected_recipe_defaults_are_shared_by_backends(kind, expected):
         selected = GRPOSettings(**args)
     snapshot, old, sampled = scores()
     actual = recipe_sampler_correction_weights(selected, snapshot, old, sampled)
-    assert list(actual.values()) == pytest.approx(expected)
+    assert actual.tolist() == pytest.approx(expected)

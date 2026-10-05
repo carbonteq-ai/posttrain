@@ -121,8 +121,7 @@ def test_native_scaler_retry_matches_control_with_stochastic_replay(tmp_path):
     assert retried.accelerator.scaler.get_scale() == control.accelerator.scaler.get_scale() == 4
     for left, right in zip(control.model.parameters(), retried.model.parameters(), strict=True):
         torch.testing.assert_close(left, right, rtol=0, atol=0)
-    for action in expected.old.values:
-        torch.testing.assert_close(expected.old.values[action], actual.old.values[action], rtol=0, atol=0)
+    torch.testing.assert_close(expected.old.values, actual.old.values, rtol=0, atol=0)
     # Compare at the same native scale. Inverse-scaling a different FP16
     # backward need not be bit-exact because intermediate rounding differs.
     torch.testing.assert_close(control_calls[0], calls[1], rtol=0, atol=0)

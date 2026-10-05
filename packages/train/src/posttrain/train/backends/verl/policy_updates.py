@@ -11,9 +11,9 @@ import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from types import MappingProxyType
 from typing import Any
 
+import numpy as np
 from posttrain.environment.verifiers_conditioning import NativeConditioningInput
 
 from ...update_credit import PreparedCredit
@@ -26,7 +26,7 @@ from ...update_plan import (
     plan_packs,
     population_context_width,
 )
-from ...update_records import ActionRef, ConditioningView, InvalidPolicyUpdate
+from ...update_records import ConditioningView, InvalidPolicyUpdate
 from ...update_resolution import ResolvedPolicyPopulation
 from ..policy_update_admission import AdmittedNativePopulation
 from ..policy_update_lifecycle import ResolvedPolicyRun
@@ -128,9 +128,9 @@ class ResolvedVeRLPopulation:
     read_input: Callable[[ConditioningView], NativeConditioningInput]
     score_temperature: float
     score_contract: str
-    sampler_correction: Mapping[ActionRef, float] | None
+    sampler_correction: np.ndarray | None
     reference: Any = None
-    prepare_sampler_correction: Callable[[Mapping[ActionRef, float]], Mapping[ActionRef, float]] | None = None
+    prepare_sampler_correction: Callable[[np.ndarray], np.ndarray] | None = None
     replay_absolute_tolerance: float = 0.0
     replay_relative_tolerance: float = 0.0
     max_overflow_retries: int = 0
@@ -139,9 +139,9 @@ class ResolvedVeRLPopulation:
     attempts: int = 0
     applied_update_offset: int = 0
     attempt_offset: int = 0
-    # The sampler's own log scores for each original action, retained for
+    # The sampler's own log scores per population position, retained for
     # sampler-gap observation only. Correction weights are frozen separately.
-    sampled_scores: Mapping[ActionRef, float] | None = field(default=None, init=False, repr=False)
+    sampled_scores: np.ndarray | None = field(default=None, init=False, repr=False)
     old: Any = field(default=None, init=False)
     last_adjoints: Any = field(default=None, init=False)
     last_output: Any = field(default=None, init=False)
@@ -171,7 +171,6 @@ class ResolvedVeRLPopulation:
         if len({update.digest for update in self.updates}) != len(self.updates):
             raise InvalidPolicyUpdate("native veRL occurrences must identify distinct resolved updates")
         for update in self.updates:
-            resolve_objective_term(update, self.spec, self.credit)
             plan_packs(update, self.execution, self.capabilities)
 
     @classmethod
@@ -182,7 +181,7 @@ class ResolvedVeRLPopulation:
         read_input: Callable[[ConditioningView], NativeConditioningInput],
         score_temperature: float,
         score_contract: str,
-        sampler_correction: Mapping[ActionRef, float] | None,
+        sampler_correction: np.ndarray | None,
         reference: Any = None,
         max_overflow_retries: int = 0,
         applied_update_offset: int = 0,
@@ -212,7 +211,7 @@ class ResolvedVeRLPopulation:
         *,
         score_temperature: float,
         score_contract: str,
-        sampler_correction: Mapping[ActionRef, float] | None,
+        sampler_correction: np.ndarray | None,
         reference: Any = None,
     ) -> ResolvedVeRLPopulation:
         return cls.from_resolved(
@@ -235,18 +234,18 @@ class ResolvedVeRLPopulation:
     def global_attempts(self) -> int:
         return self.attempt_offset + self.attempts
 
-    def _rows(self, actions: tuple[ActionRef, ...]):
+    def _rows(self, views: tuple[int, ...]):
+        """One row per original turn: (inputs, causal score positions, population positions)."""
         snapshot = self.updates[0].population
-        records = {record.action: record for record in snapshot.actions}
-        contexts = {view.id: view for view in snapshot.conditioning}
-        if not actions or len(set(actions)) != len(actions) or any(action not in records for action in actions):
+        if (
+            not views
+            or len(set(views)) != len(views)
+            or any(not 0 <= view < len(snapshot.conditioning) for view in views)
+        ):
             raise InvalidPolicyUpdate("native veRL score support requires unique admitted actions")
-        groups: dict[str, list[ActionRef]] = {}
-        for action in actions:
-            groups.setdefault(records[action].conditioning_id, []).append(action)
         rows = []
-        for context_id, members in groups.items():
-            view = contexts[context_id]
+        for index in views:
+            view = snapshot.conditioning[index]
             inputs = self.read_input(view)
             if (
                 inputs.record.context_contract != "causal-text@1"
@@ -255,31 +254,27 @@ class ResolvedVeRLPopulation:
             ):
                 raise InvalidPolicyUpdate("native veRL input differs from frozen original context")
             positions = dict(inputs.action_positions)
-            if any(action.token_index not in positions for action in members):
+            if any(token not in positions for token in view.sampled):
                 raise InvalidPolicyUpdate("native veRL view lost original action positions")
-            if len({action.turn_id for action in members}) != 1 or len(
-                {action.token_index for action in members}
-            ) != len(members):
-                raise InvalidPolicyUpdate("native veRL view must identify one original sampled turn")
-            if any(not 1 <= positions[action.token_index] < len(inputs.token_ids) for action in members):
+            causal = tuple(positions[token] - 1 for token in view.sampled)
+            if any(not 0 <= position < len(inputs.token_ids) - 1 for position in causal):
                 raise InvalidPolicyUpdate("native veRL action lacks its preceding causal position")
-            rows.append((inputs, tuple((action, positions[action.token_index] - 1) for action in members)))
+            span = snapshot.view_positions(index)
+            rows.append((inputs, causal, np.arange(span.start, span.stop, dtype=np.int64)))
         return tuple(rows)
 
-    def _pack_sizes(self, rows):
+    def _pack_sizes(self, rows, views):
         """Preserve ordered original views under both execution capacities."""
         sizes, pending = [], []
         snapshot = self.updates[0].population
-        contexts = {record.action: record.conditioning_id for record in snapshot.actions}
-        for _, members in rows:
-            context = contexts[members[0][0]]
-            if execution_context_tokens(snapshot, (context,), self.capabilities) > self.execution.context_tokens:
+        for view in views:
+            if execution_context_tokens(snapshot, (view,), self.capabilities) > self.execution.context_tokens:
                 raise InvalidPolicyUpdate("native original context exceeds execution pack capacity")
-            cost = execution_context_tokens(snapshot, (*pending, context), self.capabilities)
+            cost = execution_context_tokens(snapshot, (*pending, view), self.capabilities)
             if pending and (len(pending) == self.execution.records or cost > self.execution.context_tokens):
                 sizes.append(len(pending))
                 pending = []
-            pending.append(context)
+            pending.append(view)
         if pending:
             sizes.append(len(pending))
         return tuple(sizes)
@@ -289,15 +284,14 @@ class ResolvedVeRLPopulation:
         from verl import DataProto  # pyright: ignore[reportMissingImports, reportAttributeAccessIssue]
         from verl.utils import tensordict_utils as tu  # pyright: ignore[reportMissingImports]
 
-        width = max(len(inputs.token_ids) for inputs, _ in rows)
+        width = max(len(inputs.token_ids) for inputs, _, _ in rows)
         ids = torch.zeros((len(rows), width), dtype=torch.long)
         attention = torch.zeros_like(ids)
         mask = torch.zeros((len(rows), width - 1), dtype=torch.long)
-        for index, (inputs, actions) in enumerate(rows):
+        for index, (inputs, causal, _) in enumerate(rows):
             ids[index, : len(inputs.token_ids)] = torch.tensor(inputs.token_ids)
             attention[index, : len(inputs.token_ids)] = 1
-            for _, position in actions:
-                mask[index, position] = 1
+            mask[index, list(causal)] = 1
         values = dict(
             input_ids=ids,
             attention_mask=attention,
@@ -316,11 +310,11 @@ class ResolvedVeRLPopulation:
         # Construct native jagged views directly. Dense SDPA does not need the
         # FlashAttention unpad helper used by the generic padding converter.
         data["input_ids"] = torch.nested.as_nested_tensor(
-            [ids[index, : len(inputs.token_ids)] for index, (inputs, _) in enumerate(rows)],
+            [ids[index, : len(inputs.token_ids)] for index, (inputs, _, _) in enumerate(rows)],
             layout=torch.jagged,
         )
         data["position_ids"] = torch.nested.as_nested_tensor(
-            [torch.arange(len(inputs.token_ids)) for inputs, _ in rows],
+            [torch.arange(len(inputs.token_ids)) for inputs, _, _ in rows],
             layout=torch.jagged,
         )
         data["loss_mask"] = mask
@@ -342,31 +336,31 @@ class ResolvedVeRLPopulation:
         if self.capabilities.context_layout == "dense-population":
             tu.assign_non_tensor(data, resolved_dense_width=population_context_width(self.updates[0].population))
         if self.execution.records > 1:
-            tu.assign_non_tensor(data, micro_batch_sizes=self._pack_sizes(rows))
+            tu.assign_non_tensor(data, micro_batch_sizes=self._pack_sizes(rows, tuple(range(len(rows)))))
         return data
 
     @staticmethod
     def _scores(output, data, rows):
-        scores = {}
+        import torch
+
+        from ..policy_update_scoring import PositionScores
+
+        positions, values = [], []
         for local_index, row_index in enumerate(data["resolved_context_index"].flatten().tolist()):
+            _, causal, row_positions = rows[row_index]
             probabilities = output["log_probs"][local_index]
-            for action, position in rows[row_index][1]:
-                scores[action] = probabilities[position]
-        return scores
+            values.append(probabilities[torch.as_tensor(causal, dtype=torch.long, device=probabilities.device)])
+            positions.append(row_positions)
+        return PositionScores(np.concatenate(positions), torch.cat(values))
 
     def _infer(self, engine, rows):
         rank, size, group = self._data_parallel(engine)
         if size == 1:
             return self._local_infer(engine, rows)
         owned, local = self._owned_rows(rows, rank, size)
-        values = self._local_infer(engine, local)
-        actions = {action for _, members in owned for action, _ in members}
-        return self._gather_scores(
-            {action: value for action, value in values.items() if action in actions},
-            group,
-            size,
-            device=next(iter(values.values())).device,
-        )
+        scores = self._local_infer(engine, local)
+        owned_positions = np.concatenate([row_positions for _, _, row_positions in owned]) if owned else None
+        return self._gather_scores(scores, owned_positions, group, size, device=scores.values.device)
 
     def _local_infer(self, engine, rows):
         with engine.eval_mode():
@@ -406,18 +400,24 @@ class ResolvedVeRLPopulation:
         return owned, owned + (rows[0],) * (count - len(owned))
 
     @staticmethod
-    def _gather_scores(local, group, size, *, device):
+    def _gather_scores(local, owned_positions, group, size, *, device):
         """All ranks receive identical global scores (exact CPU tensor copies)."""
+        import torch
         import torch.distributed as dist
 
+        from ..policy_update_scoring import PositionScores
+
+        if owned_positions is None:
+            report = (np.zeros(0, dtype=np.int64), torch.zeros(0))
+        else:
+            keep = np.isin(local.positions, owned_positions)
+            report = (local.positions[keep], local.values.detach().cpu()[torch.as_tensor(keep)])
         reports: list[Any] = [None] * size
-        dist.all_gather_object(reports, {action: value.detach().cpu() for action, value in local.items()}, group=group)
-        merged: dict[ActionRef, Any] = {}
-        for report in reports:
-            if set(report) & set(merged):
-                raise InvalidPolicyUpdate("native veRL data-parallel ranks scored overlapping actions")
-            merged.update(report)
-        return {action: value.to(device) for action, value in merged.items()}
+        dist.all_gather_object(reports, report, group=group)
+        positions = np.concatenate([item[0] for item in reports])
+        if np.unique(positions).size != positions.size:
+            raise InvalidPolicyUpdate("native veRL data-parallel ranks scored overlapping actions")
+        return PositionScores(positions, torch.cat([item[1] for item in reports]).to(device))
 
     def freeze_old_scores(self, engine) -> Any:
         """Score complete original support once at the population's initial actor.
@@ -425,7 +425,7 @@ class ResolvedVeRLPopulation:
         Collection may call this before preparing sampler correction. Subsequent
         updates and resumed populations retain these scores without rescoring.
         """
-        from ..policy_update_scoring import FrozenPopulationScores
+        from ..policy_update_scoring import FrozenPopulationScores, dense_scores
 
         snapshot = self.updates[0].population
         if self.old is None:
@@ -436,13 +436,13 @@ class ResolvedVeRLPopulation:
                 or (engine.lr_scheduler.last_epoch != self.applied_update_offset)
             ):
                 raise InvalidPolicyUpdate("old scores must freeze at the initial population actor boundary")
-            old = self._infer(engine, self._rows(tuple(record.action for record in snapshot.actions)))
+            old = self._infer(engine, self._rows(tuple(range(len(snapshot.conditioning)))))
             self.old = FrozenPopulationScores(
                 snapshot.digest,
                 snapshot.versions.old_score,
                 self.score_contract,
                 self.score_temperature,
-                MappingProxyType({action: value.detach().clone() for action, value in old.items()}),
+                dense_scores(snapshot.size, (old,), device=old.values.device).detach().clone(),
             )
         self.old.validate(
             snapshot,
@@ -535,6 +535,7 @@ class ResolvedVeRLPopulation:
     def run_update(self, engine: Any, index: int) -> Any:
         from ..policy_update_math import ScoreBundle
         from ..policy_update_replay import prepare_score_adjoints
+        from ..policy_update_scoring import dense_scores
 
         rank, size, group = self._data_parallel(engine)
         if index != self.next_update or not 0 <= index < len(self.updates):
@@ -546,25 +547,26 @@ class ResolvedVeRLPopulation:
         update = self.updates[index]
         self.freeze_old_scores(engine)
         if self.prepare_sampler_correction is not None:
-            correction = self.prepare_sampler_correction(
-                {action: float(value) for action, value in self.old.values.items()}
+            correction = np.asarray(
+                self.prepare_sampler_correction(self.old.values.detach().double().cpu().numpy()), dtype=np.float64
             )
-            if set(correction) != {record.action for record in update.population.actions} or any(
-                type(value) not in (float, int) or not math.isfinite(value) or value < 0
-                for value in correction.values()
+            if (
+                correction.shape != (update.population.size,)
+                or not np.isfinite(correction).all()
+                or (correction < 0).any()
             ):
                 raise InvalidPolicyUpdate("prepared correction requires complete detached finite action weights")
-            self.sampler_correction = MappingProxyType(dict(correction))
+            correction.setflags(write=False)
+            self.sampler_correction = correction
             self.prepare_sampler_correction = None
-        rows = self._rows(update.dependencies)
+        rows = self._rows(update.views)
         if size > 1:
             return self._run_data_parallel_update(engine, update, rows, rank, size, group)
-        sizes = self._pack_sizes(rows)
+        sizes = self._pack_sizes(rows, update.views)
         planned = plan_packs(update, self.execution, self.capabilities)
         offset = 0
         for size, pack in zip(sizes, planned, strict=True):
-            actions = tuple(action for _, members in rows[offset : offset + size] for action, _ in members)
-            if set(actions) != set(pack.actions):
+            if set(update.views[offset : offset + size]) != set(pack.views):
                 raise InvalidPolicyUpdate("native context packing differs from resolved objective packs")
             offset += size
         current = self._infer(engine, rows)
@@ -574,7 +576,7 @@ class ResolvedVeRLPopulation:
             self.credit,
             parameter_version=f"{update.population.versions.current}/applied-{self.applied_updates}",
         )
-        if term.kl_weights:
+        if term.kl_weight.any():
             if self.reference is None or update.population.versions.reference is None:
                 raise InvalidPolicyUpdate("native veRL KL requires frozen reference evidence")
             self.reference.validate(
@@ -587,31 +589,33 @@ class ResolvedVeRLPopulation:
             term,
             self.credit,
             ScoreBundle(
-                current,
+                dense_scores(update.population.size, (current,), device=current.values.device),
                 self.old.values,
                 term.parameter_version,
-                self.reference.values if self.reference is not None else {},
+                update.population.views_mask(update.views),
+                self.reference.values if self.reference is not None else None,
                 self.sampler_correction,
             ),
         )
         self._pending = index
         for retry in range(self.max_overflow_retries + 1):
-            seen: set[ActionRef] = set()
+            seen = np.zeros(update.population.size, dtype=bool)
+            expected = update.population.views_mask(update.views)
             next_context = 0
             next_pack = 0
 
-            def loss_function(model_output, data, dp_group=None, seen=seen):
+            def loss_function(model_output, data, dp_group=None, seen=seen, expected=expected):
                 nonlocal next_context, next_pack
                 indices = data["resolved_context_index"].flatten().tolist()
                 if next_pack >= len(sizes) or indices != list(range(next_context, next_context + sizes[next_pack])):
                     raise InvalidPolicyUpdate("native veRL replay differs from declared original context packs")
                 scores = self._scores(model_output, data, rows)
-                if seen.intersection(scores):
+                if seen[scores.positions].any():
                     raise InvalidPolicyUpdate("native veRL replay duplicated original action derivatives")
-                seen.update(scores)
+                seen[scores.positions] = True
                 next_context += sizes[next_pack]
                 next_pack += 1
-                if next_context == len(rows) and seen != set(update.dependencies):
+                if next_context == len(rows) and not np.array_equal(seen, expected):
                     raise InvalidPolicyUpdate("native veRL replay lost dependency coverage before optimizer step")
                 carrier = self.last_adjoints.carrier(
                     scores,
@@ -662,12 +666,15 @@ class ResolvedVeRLPopulation:
 
         from ..policy_update_math import ScoreBundle
         from ..policy_update_replay import prepare_score_adjoints
+        from ..policy_update_scoring import dense_scores
 
         owned, local = self._owned_rows(rows, rank, size)
-        owned_actions = {action for _, members in owned for action, _ in members}
-        coverage = torch.tensor([len(owned_actions)], dtype=torch.long)
+        owned_actions = np.zeros(update.population.size, dtype=bool)
+        for _, _, row_positions in owned:
+            owned_actions[row_positions] = True
+        coverage = torch.tensor([int(owned_actions.sum())], dtype=torch.long)
         dist.all_reduce(coverage, group=group)
-        if int(coverage.item()) != len(update.dependencies):
+        if int(coverage.item()) != update.dependency_count:
             raise InvalidPolicyUpdate("native veRL data-parallel ownership lost dependency coverage")
         current = self._infer(engine, rows)
         term = resolve_objective_term(
@@ -676,7 +683,7 @@ class ResolvedVeRLPopulation:
             self.credit,
             parameter_version=f"{update.population.versions.current}/applied-{self.applied_updates}",
         )
-        if term.kl_weights:
+        if term.kl_weight.any():
             if self.reference is None or update.population.versions.reference is None:
                 raise InvalidPolicyUpdate("native veRL KL requires frozen reference evidence")
             self.reference.validate(
@@ -689,27 +696,34 @@ class ResolvedVeRLPopulation:
             term,
             self.credit,
             ScoreBundle(
-                current,
+                dense_scores(update.population.size, (current,), device=current.values.device),
                 self.old.values,
                 term.parameter_version,
-                self.reference.values if self.reference is not None else {},
+                update.population.views_mask(update.views),
+                self.reference.values if self.reference is not None else None,
                 self.sampler_correction,
             ),
         )
         self._pending = self.next_update
         for retry in range(self.max_overflow_retries + 1):
-            seen: set[ActionRef] = set()
+            seen = np.zeros(update.population.size, dtype=bool)
 
             def loss_function(model_output, data, dp_group=None, seen=seen):
+                from ..policy_update_scoring import PositionScores
+
                 indices = data["resolved_context_index"].flatten().tolist()
                 carriers = []
+                scores = self._scores(model_output, data, local)
+                offset = 0
                 for local_index, row_index in enumerate(indices):
+                    count = len(local[row_index][1])
                     if row_index < len(owned):
-                        scores = self._scores(model_output, data, local)
-                        row_scores = {action: scores[action] for action, _ in local[row_index][1]}
-                        if seen.intersection(row_scores):
+                        row_scores = PositionScores(
+                            scores.positions[offset : offset + count], scores.values[offset : offset + count]
+                        )
+                        if seen[row_scores.positions].any():
                             raise InvalidPolicyUpdate("native veRL replay duplicated original action derivatives")
-                        seen.update(row_scores)
+                        seen[row_scores.positions] = True
                         carriers.append(
                             self.last_adjoints.carrier(
                                 row_scores,
@@ -722,12 +736,13 @@ class ResolvedVeRLPopulation:
                     else:
                         # Matched padding forward joins native collectives with zero weight.
                         carriers.append(model_output["log_probs"][local_index].sum() * 0)
+                    offset += count
                 return torch.stack(carriers).sum(), {}
 
             self.attempts += 1
             with engine.train_mode():
                 self.last_output = engine.train_batch(self._batch(local), loss_function)
-            if seen != owned_actions:
+            if not np.array_equal(seen, owned_actions):
                 raise InvalidPolicyUpdate("native veRL replay lost owned dependency coverage before optimizer step")
             skipped = bool(engine.last_loss_scale_metrics.get("optimizer_step_skipped", 0)) or not math.isfinite(
                 float(self.last_output["metrics"]["grad_norm"])

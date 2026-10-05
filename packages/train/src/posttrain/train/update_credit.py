@@ -4,49 +4,59 @@ from __future__ import annotations
 
 import math
 import statistics
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Literal, Protocol
+
+import numpy as np
 
 from .online_rl import EnvironmentRollout
 from .profiles import CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings, shape_online_reward
 from .reward_advantages import compute_capo_advantages, compute_gdpo_advantages
 from .reward_evidence import ObservationScope
 from .sampo_advantages import compute_sampo_advantages
-from .update_records import ActionRef, InvalidPolicyUpdate, PopulationSnapshot, record_digest, require_identity
+from .update_records import (
+    InvalidPolicyUpdate,
+    PopulationSnapshot,
+    array_digest,
+    frozen_array,
+    payload_digest,
+    record_digest,
+    require_identity,
+)
 
 
-@dataclass(frozen=True, slots=True)
-class ActionCredit:
-    action: ActionRef
-    advantage: float
-
-    def __post_init__(self) -> None:
-        if isinstance(self.advantage, bool) or not math.isfinite(self.advantage):
-            raise InvalidPolicyUpdate("prepared advantage must be a finite numeric value")
-
-
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class PreparedCredit:
+    """Detached advantages, one per population position, and their declared provenance.
+
+    Identity is ``digest``, computed once from the metadata and the advantage bytes.
+    """
+
     population_digest: str
     estimator_id: str
-    values: tuple[ActionCredit, ...]
+    advantages: np.ndarray
     required_relations: tuple[str, ...]
     component_weights: tuple[tuple[str, float], ...]
     normalization: str
     observation_scope: ObservationScope
     evidence_digests: tuple[str, ...]
     meaning: Literal["detached-advantage"] = "detached-advantage"
+    digest: str = field(init=False)
 
     def __post_init__(self) -> None:
         require_identity(self.population_digest, self.estimator_id, self.normalization, *self.evidence_digests)
-        if not self.evidence_digests or not self.values:
+        if np.asarray(self.advantages).dtype.kind not in "fiu":
+            raise InvalidPolicyUpdate("prepared advantage must be a finite numeric value")
+        advantages = frozen_array(self.advantages, np.float64)
+        object.__setattr__(self, "advantages", advantages)
+        if not self.evidence_digests or advantages.ndim != 1 or not advantages.size:
             raise InvalidPolicyUpdate("prepared credit requires retained evidence and action values")
+        if not np.isfinite(advantages).all():
+            raise InvalidPolicyUpdate("prepared advantage must be a finite numeric value")
         if self.meaning != "detached-advantage":
             raise InvalidPolicyUpdate("quality scores are not prepared detached advantages")
         if self.observation_scope not in {"prefix", "current-step", "full-trajectory"}:
             raise InvalidPolicyUpdate("prepared credit requires explicit estimator observation scope")
-        if len({value.action for value in self.values}) != len(self.values):
-            raise InvalidPolicyUpdate("prepared credit duplicates an original action")
         if len(set(self.required_relations)) != len(self.required_relations):
             raise InvalidPolicyUpdate("required credit populations must be unique")
         if len({name for name, _ in self.component_weights}) != len(self.component_weights):
@@ -55,15 +65,29 @@ class PreparedCredit:
             require_identity(name)
             if isinstance(weight, bool) or not math.isfinite(weight):
                 raise InvalidPolicyUpdate("credit component weights must be finite")
-
-    @property
-    def digest(self) -> str:
-        return record_digest(self)
+        object.__setattr__(
+            self,
+            "digest",
+            payload_digest(
+                {
+                    "schema": "posttrain.prepared-credit.v2",
+                    "population_digest": self.population_digest,
+                    "estimator_id": self.estimator_id,
+                    "advantages": array_digest(advantages),
+                    "required_relations": list(self.required_relations),
+                    "component_weights": [list(item) for item in self.component_weights],
+                    "normalization": self.normalization,
+                    "observation_scope": self.observation_scope,
+                    "evidence_digests": list(self.evidence_digests),
+                    "meaning": self.meaning,
+                }
+            ),
+        )
 
     def validate(self, snapshot: PopulationSnapshot) -> None:
         if self.population_digest != snapshot.digest:
             raise InvalidPolicyUpdate("prepared credit belongs to different frozen evidence")
-        if {value.action for value in self.values} != {record.action for record in snapshot.actions}:
+        if self.advantages.shape != (snapshot.size,):
             raise InvalidPolicyUpdate("prepared credit must cover eligible original actions exactly")
         relations = {relation.id: relation for relation in snapshot.relations}
         for relation_id in self.required_relations:
@@ -100,50 +124,62 @@ def prepare_credit(snapshot: PopulationSnapshot, estimator: CreditEstimator) -> 
     return prepared
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class NativeCreditRows:
-    """Adapter-proved original action addresses aligned with existing rollout rows.
+    """Existing estimator rows aligned with population positions.
 
-    None denotes an ineligible observation/padding coordinate, never unavailable
-    policy credit. This transports existing estimators without reimplementing them.
-    Native bridge authenticity remains the adapter's separate evidence gate.
+    ``positions[r][i]`` is the population position of completion token ``i`` of
+    rollout ``r``, or -1 where the token was an observation or not sampled (the
+    estimators' rows cover whole completions). This transports existing
+    estimators without reimplementing them. Native bridge authenticity remains
+    the adapter's separate evidence gate.
     """
 
     rollouts: tuple[EnvironmentRollout, ...]
-    actions: tuple[tuple[ActionRef | None, ...], ...]
+    positions: tuple[np.ndarray, ...]
     evidence_digests: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        if not self.rollouts or len(self.rollouts) != len(self.actions) or not self.evidence_digests:
+        if not self.rollouts or len(self.rollouts) != len(self.positions) or not self.evidence_digests:
             raise InvalidPolicyUpdate("native credit rows require aligned rollouts, coordinates and retained evidence")
         require_identity(*self.evidence_digests)
-        for rollout, actions in zip(self.rollouts, self.actions, strict=True):
+        for rollout, positions in zip(self.rollouts, self.positions, strict=True):
             if any(type(eligible) is not bool for eligible in rollout.env_mask):
                 raise InvalidPolicyUpdate("native sampled eligibility must be boolean")
-            if len(actions) != len(rollout.env_mask) or any(
-                (action is not None) != eligible for action, eligible in zip(actions, rollout.env_mask, strict=True)
+            if (
+                positions.shape != (len(rollout.env_mask),)
+                or ((positions >= 0) != np.asarray(rollout.env_mask, dtype=bool)).any()
             ):
                 raise InvalidPolicyUpdate("native credit coordinates must match original sampled eligibility")
-            if len({(action.episode_id, action.branch_id) for action in actions if action is not None}) != 1:
-                raise InvalidPolicyUpdate("one native credit row cannot combine different trajectories")
-        addressed = [action for row in self.actions for action in row if action is not None]
-        if len(set(addressed)) != len(addressed):
+        addressed = np.concatenate([positions[positions >= 0] for positions in self.positions])
+        if np.unique(addressed).size != addressed.size:
             raise InvalidPolicyUpdate("native credit rows duplicate an original action")
 
-    def project(self, values: tuple[tuple[float, ...], ...]) -> tuple[ActionCredit, ...]:
-        if len(values) != len(self.actions):
+    @property
+    def size(self) -> int:
+        return int(sum(int((positions >= 0).sum()) for positions in self.positions))
+
+    def row_of_position(self) -> np.ndarray:
+        """Rollout row index of every population position."""
+        rows = np.full(self.size, -1, dtype=np.int64)
+        for row, positions in enumerate(self.positions):
+            rows[positions[positions >= 0]] = row
+        return rows
+
+    def project(self, values: tuple[tuple[float, ...], ...] | list[list[float]]) -> np.ndarray:
+        """Gather estimator rows (whole completions) into the population's position order."""
+        if len(values) != len(self.positions):
             raise InvalidPolicyUpdate("estimator output lost native row alignment")
-        projected: list[ActionCredit] = []
-        for actions, row in zip(self.actions, values, strict=True):
-            if len(row) != len(actions):
+        projected = np.zeros(self.size, dtype=np.float64)
+        for positions, row in zip(self.positions, values, strict=True):
+            row_values = np.asarray(row, dtype=np.float64)
+            if row_values.shape != positions.shape:
                 raise InvalidPolicyUpdate("estimator output lost original token alignment")
-            for action, value in zip(actions, row, strict=True):
-                if action is None:
-                    if value != 0.0:
-                        raise InvalidPolicyUpdate("estimator credited an ineligible native position")
-                else:
-                    projected.append(ActionCredit(action, value))
-        return tuple(projected)
+            eligible = positions >= 0
+            if (row_values[~eligible] != 0.0).any():
+                raise InvalidPolicyUpdate("estimator credited an ineligible native position")
+            projected[positions[eligible]] = row_values[eligible]
+        return projected
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,16 +207,18 @@ class ScalarGroupCreditEstimator:
         if set(self.required_relations) != set(relations):
             raise InvalidPolicyUpdate("scalar credit requires every declared complete prompt group")
         groups: dict[str, list[int]] = {}
-        assigned: dict[ActionRef, str] = {}
+        assigned: dict[int, str] = {}
         for identity, relation in relations.items():
             if relation.completeness != "complete":
                 raise InvalidPolicyUpdate("scalar credit requires complete prompt groups")
-            for action in relation.members:
-                if action in assigned:
+            for view_id in relation.members:
+                view = snapshot.view_index(view_id)
+                if view in assigned:
                     raise InvalidPolicyUpdate("scalar credit prompt groups overlap")
-                assigned[action] = identity
-        for index, actions in enumerate(self.rows.actions):
-            memberships = {assigned.get(action) for action in actions if action is not None}
+                assigned[view] = identity
+        for index, positions in enumerate(self.rows.positions):
+            views = np.unique(snapshot.view_of[positions[positions >= 0]])
+            memberships = {assigned.get(int(view)) for view in views}
             if len(memberships) != 1 or None in memberships:
                 raise InvalidPolicyUpdate("scalar credit row must belong to exactly one declared prompt group")
             identity = next(iter(memberships))
@@ -210,10 +248,10 @@ class ScalarGroupCreditEstimator:
             )
             for index in group:
                 advantages[index] = (rewards[index] - mean) / divisor
-        tokens = tuple(
-            tuple(advantage if action is not None else 0.0 for action in actions)
-            for advantage, actions in zip(advantages, self.rows.actions, strict=True)
-        )
+        tokens = [
+            np.where(positions >= 0, advantage, 0.0)
+            for advantage, positions in zip(advantages, self.rows.positions, strict=True)
+        ]
         return PreparedCredit(
             snapshot.digest,
             self.id,

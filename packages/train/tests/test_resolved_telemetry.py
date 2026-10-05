@@ -21,6 +21,7 @@ from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any, cast
 
+import numpy as np
 import pytest
 from posttrain.common import TraceObservation
 from posttrain.train.online_rl import AgenticTurn, EnvironmentRollout
@@ -28,8 +29,6 @@ from posttrain.train.profiles import SAMPOSettings, TrainingLoop
 from posttrain.train.sampo_advantages import compute_sampo_advantages
 from posttrain.train.update_credit import NativeCreditRows, SampoCreditEstimator, prepare_credit
 from posttrain.train.update_records import (
-    ActionRecord,
-    ActionRef,
     ConditioningView,
     PolicyVersions,
     PopulationRelation,
@@ -223,29 +222,57 @@ def test_resolved_sampo_collection_metrics_equal_hand_computation(normalization,
 
 
 def _native_population(settings: SAMPOSettings):
+    """One conditioning view per episode; its sampled tokens are the eligible completion indices."""
     rollouts = _rollouts()
-    coordinates = tuple(
-        tuple(
-            ActionRef(f"episode-{index}", "branch", f"turn-{index}", position) if eligible else None
-            for position, eligible in enumerate(rollout.env_mask)
+    views, rows, position = [], [], 0
+    for index, rollout in enumerate(rollouts):
+        sampled = tuple(offset for offset, eligible in enumerate(rollout.env_mask) if eligible)
+        views.append(
+            ConditioningView(
+                f"turn-{index}",
+                "native:fixture",
+                "tokens",
+                "attention",
+                "positions",
+                "template@1",
+                "digest",
+                8,
+                f"episode-{index}",
+                "branch",
+                sampled,
+            )
         )
-        for index, rollout in enumerate(rollouts)
-    )
-    actions = tuple(action for row in coordinates for action in row if action is not None)
+        row = np.full(len(rollout.env_mask), -1, dtype=np.int64)
+        row[list(sampled)] = np.arange(position, position + len(sampled))
+        position += len(sampled)
+        rows.append(row)
+    members = tuple(view.id for view in views)
     snapshot = PopulationSnapshot(
         "telemetry-fixture",
         "native:fixture",
         "native-fixture-digest",
-        tuple(ActionRecord(action, "context", "native:node") for action in actions),
-        (ConditioningView("context", "native:fixture", "tokens", "attention", "positions", "template@1", "digest", 8),),
+        tuple(views),
         (),
-        (PopulationRelation("population", "prompt-group", actions, "complete", actions),),
+        (PopulationRelation("population", "prompt-group", members, "complete", members),),
         PolicyVersions("sampler@1", "old@1", "current@1", None),
         "selector@1",
     )
-    rows = NativeCreditRows(rollouts, coordinates, ("native-fixture-digest",))
-    credit = prepare_credit(snapshot, SampoCreditEstimator(settings, rows, ("population",)))
-    return snapshot, actions, credit
+    credit_rows = NativeCreditRows(rollouts, tuple(rows), ("native-fixture-digest",))
+    credit = prepare_credit(snapshot, SampoCreditEstimator(settings, credit_rows, ("population",)))
+    return snapshot, snapshot.actions(), credit
+
+
+def _term(positions) -> Any:
+    """The update metrics read only the selected policy positions of a resolved term."""
+    return cast(Any, SimpleNamespace(policy_positions=np.asarray(positions, dtype=np.int64)))
+
+
+def _clipped(size: int, ratios: dict[int, float]) -> tuple[np.ndarray, np.ndarray]:
+    """Clip mask and current/old ratios per position; unlisted positions are unclipped at ratio one."""
+    clipped, values = np.zeros(size, dtype=bool), np.ones(size, dtype=np.float64)
+    for position, ratio in ratios.items():
+        clipped[position], values[position] = True, ratio
+    return clipped, values
 
 
 @pytest.mark.parametrize(("normalization", "weight"), CASES)
@@ -257,29 +284,30 @@ def test_real_sampo_credit_and_update_metrics_equal_hand_computation(normalizati
 
     # The estimator that trains the policy produces the hand-computed credit,
     # and the telemetry gate recognizes its identity.
-    assert [value.advantage for value in credit.values] == pytest.approx(tokens, abs=1e-12)
+    assert credit.advantages.tolist() == pytest.approx(tokens, abs=1e-12)
     assert credit.estimator_id.startswith("sampo-credit@")
 
     # Sampler correction: token truncation at 2.0, no lower bound (the SAMPO default).
     deltas = [(0.0, 0.5, -0.5, 2.0, -3.0)[index % 5] for index in range(len(actions))]
-    old = {action: -1.0 for action in actions}
-    sampled = {action: -1.0 - delta for action, delta in zip(actions, deltas, strict=True)}
+    old = np.full(len(actions), -1.0)
+    sampled = -1.0 - np.asarray(deltas)
     correction = sampler_correction_weights(snapshot, old, sampled, mode="token_truncate", lower=None, upper=2.0)
     weights = [min(math.exp(delta), 2.0) for delta in deltas]
-    assert [correction[action] for action in actions] == pytest.approx(weights)
+    assert correction.tolist() == pytest.approx(weights)
 
     # Two clipped actions: one above and one below the unit ratio.
-    clipped = {actions[0]: 1.5, actions[3]: 0.6}
-    entropies = {action: 0.1 * (index % 4) for index, action in enumerate(actions)}
-    term = cast(Any, SimpleNamespace(policy_weights=tuple(SimpleNamespace(action=action) for action in actions)))
+    clipped, ratios = _clipped(len(actions), {0: 1.5, 3: 0.6})
+    entropies = [0.1 * (index % 4) for index in range(len(actions))]
 
     values = update_metrics(
-        term,
+        _term(range(len(actions))),
         credit,
-        clipped_ratios=clipped,
+        episode_of=snapshot.episode_of,
+        ratios=ratios,
+        clipped=clipped,
         sampler_correction=correction,
         correction_recipe=("token_truncate", None, 2.0),
-        entropies=entropies,
+        entropies=np.asarray(entropies),
         old_scores=old,
         sampled_scores=sampled,
     )
@@ -300,7 +328,7 @@ def test_real_sampo_credit_and_update_metrics_equal_hand_computation(normalizati
             "train/rl/importance_sampling_ratio_min": math.exp(-3.0),
             "train/rl/importance_sampling_ratio_max": 2.0,
             "train/rl/importance_sampling_ratio_clamped_fraction": deltas.count(2.0) / count,
-            "train/rl/entropy": sum(entropies.values()) / count,
+            "train/rl/entropy": sum(entropies) / count,
             **_hand_sampler_gap(actions, deltas),
         },
         abs=1e-12,
@@ -333,18 +361,21 @@ def test_sequence_correction_reports_one_weight_per_episode_and_full_episode_gap
         episode: (0.1, -0.2, 0.05, 0.4, -0.3, 0.0, 0.2, -0.05, 0.15)[i] for i, episode in enumerate(episodes)
     }
     deltas = [per_episode[action.episode_id] for action in actions]
-    old = {action: -2.0 for action in actions}
-    sampled = {action: -2.0 - delta for action, delta in zip(actions, deltas, strict=True)}
+    old = np.full(len(actions), -2.0)
+    sampled = -2.0 - np.asarray(deltas)
     correction = sampler_correction_weights(snapshot, old, sampled, mode="sequence_truncate", lower=None, upper=2.0)
     # The update selects only the first turn's tokens of every episode, but
     # sequence statistics use each touched episode's complete support.
-    selected = [action for action in actions if action.token_index < 2]
-    term = cast(Any, SimpleNamespace(policy_weights=tuple(SimpleNamespace(action=action) for action in selected)))
+    positions = [position for position, action in enumerate(actions) if action.token_index < 2]
+    selected = [actions[position] for position in positions]
+    clipped, ratios = _clipped(len(actions), {})
 
     values = update_metrics(
-        term,
+        _term(positions),
         credit,
-        clipped_ratios={},
+        episode_of=snapshot.episode_of,
+        ratios=ratios,
+        clipped=clipped,
         sampler_correction=correction,
         correction_recipe=("sequence_truncate", None, 2.0),
         old_scores=old,
@@ -372,16 +403,17 @@ def test_update_metrics_count_masked_correction_and_cover_only_selected_actions(
     settings = _settings("mean", 1.0)
     snapshot, actions, credit = _native_population(settings)
     deltas = [(0.0, 1.0, -1.0)[index % 3] for index in range(len(actions))]
-    old = {action: 0.0 for action in actions}
-    sampled = {action: -delta for action, delta in zip(actions, deltas, strict=True)}
+    old = np.zeros(len(actions))
+    sampled = -np.asarray(deltas)
     correction = sampler_correction_weights(snapshot, old, sampled, mode="token_mask", lower=0.5, upper=2.0)
-    selected = actions[:6]
-    term = cast(Any, SimpleNamespace(policy_weights=tuple(SimpleNamespace(action=action) for action in selected)))
+    clipped, ratios = _clipped(len(actions), {len(actions) - 1: 2.0})
 
     values = update_metrics(
-        term,
+        _term(range(6)),
         credit,
-        clipped_ratios={actions[-1]: 2.0},
+        episode_of=snapshot.episode_of,
+        ratios=ratios,
+        clipped=clipped,
         sampler_correction=correction,
         correction_recipe=("token_mask", 0.5, 2.0),
     )
@@ -394,8 +426,7 @@ def test_update_metrics_count_masked_correction_and_cover_only_selected_actions(
     assert values["train/rl/clip_fraction"] == 0.0
     assert "train/rl/entropy" not in values
     assert "train/rl/sampling_logp_delta_mean" not in values  # no sampled scores supplied
-    empty = cast(Any, SimpleNamespace(policy_weights=()))
-    assert update_metrics(empty, credit, clipped_ratios={}) == {}
+    assert update_metrics(_term([]), credit, episode_of=snapshot.episode_of, ratios=ratios, clipped=clipped) == {}
 
 
 @pytest.mark.parametrize(("normalization", "weight"), CASES)

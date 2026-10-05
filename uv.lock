@@ -3271,6 +3271,7 @@ version = "0.0.0"
 source = { editable = "packages/train" }
 dependencies = [
     { name = "httpx" },
+    { name = "numpy" },
     { name = "posttrain-common" },
     { name = "posttrain-data" },
     { name = "posttrain-environment" },
@@ -3322,6 +3323,7 @@ requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'trl'", specifier = ">=1.31,<1.32" },
     { name = "kernels", marker = "extra == 'trl'", specifier = ">=0.15.2,<0.16" },
     { name = "liger-kernel", marker = "extra == 'trl'", specifier = ">=0.8.2,<0.9" },
+    { name = "numpy", specifier = ">=2.3,<3" },
     { name = "nvidia-cuda-cccl", marker = "sys_platform == 'linux' and extra == 'trl-vllm'", specifier = "==13.0.85" },
     { name = "nvidia-cuda-crt", marker = "sys_platform == 'linux' and extra == 'trl-vllm'", specifier = "==13.0.88" },
     { name = "nvidia-cuda-nvcc", marker = "sys_platform == 'linux' and extra == 'trl-vllm'", specifier = "==13.0.88" },

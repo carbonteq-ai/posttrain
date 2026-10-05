@@ -128,9 +128,12 @@ def test_likelihood_scorer_scores_original_reasoning_spans_with_retained_provena
         with torch.no_grad():
             logprobs = model(input_ids=torch.tensor([inputs.token_ids])).logits[0].log_softmax(-1)
         positions = dict(inputs.action_positions)
+        span_actions = [
+            admitted.resolved.snapshot.action(int(p)) for p in admitted.resolved.snapshot.span_positions(span)
+        ]
         expected = [
             float(logprobs[positions[action.token_index] - 1, inputs.token_ids[positions[action.token_index]]])
-            for action in span.actions()
+            for action in span_actions
         ]
         assert assessment.components[0].value == pytest.approx(sum(expected) / len(expected), abs=1e-6)
         assert assessment.scorer_revision == scorer.revision and assessment.observation_scope == "prefix"
@@ -188,7 +191,12 @@ def test_likelihood_process_credit_replaces_algorithm_credit_at_admission():
     [assessments] = provider.last_assessments
     quality = {value.span_id: float(cast(float, value.components[0].value)) for value in assessments}
     mean = sum(quality.values()) / len(quality)  # the fixture's two episodes share one prompt group
-    spans = {span.id: span for span in admitted.resolved.snapshot.spans}
-    expected = {action: quality[span_id] - mean for span_id in quality for action in spans[span_id].actions()}
-    for value in admitted.resolved.credit.values:
-        assert value.advantage == pytest.approx(expected.get(value.action, 0.0), abs=1e-12)
+    snapshot = admitted.resolved.snapshot
+    spans = {span.id: span for span in snapshot.spans}
+    expected = {
+        int(position): quality[span_id] - mean
+        for span_id in quality
+        for position in snapshot.span_positions(spans[span_id])
+    }
+    for position, advantage in enumerate(admitted.resolved.credit.advantages.tolist()):
+        assert advantage == pytest.approx(expected.get(position, 0.0), abs=1e-12)

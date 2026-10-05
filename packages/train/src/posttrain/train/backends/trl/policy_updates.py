@@ -9,17 +9,18 @@ overflow retry, recovery and distributed execution.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from posttrain.environment.verifiers_conditioning import NativeConditioningInput
 
 from ...update_credit import PreparedCredit
 from ...update_objectives import ObjectiveSpec, resolve_objective_term
-from ...update_plan import ExecutionCapabilities, PolicyExecutionBudget, ResolvedUpdate, plan_packs
-from ...update_records import ActionRef, ConditioningView, InvalidPolicyUpdate
+from ...update_plan import ExecutionCapabilities, ExecutionPack, PolicyExecutionBudget, ResolvedUpdate, plan_packs
+from ...update_records import ConditioningView, InvalidPolicyUpdate
 from ...update_resolution import ResolvedPolicyPopulation
 from ..policy_update_admission import AdmittedNativePopulation
 from ..policy_update_lifecycle import ResolvedPolicyRun
@@ -37,18 +38,20 @@ class ResolvedTRLPopulation:
     read_input: Callable[[ConditioningView], NativeConditioningInput]
     score_temperature: float
     score_contract: str
-    sampler_correction: Mapping[ActionRef, float] | None
+    sampler_correction: np.ndarray | None
     reference: Any = None
-    prepare_sampler_correction: Callable[[Mapping[ActionRef, float]], Mapping[ActionRef, float]] | None = None
+    prepare_sampler_correction: Callable[[np.ndarray], np.ndarray] | None = None
     next_update: int = 0
     applied_updates: int = 0
     attempts: int = 0
     applied_update_offset: int = 0
     attempt_offset: int = 0
     max_overflow_retries: int = 0
-    # The sampler's own log scores for each original action, retained for
+    # Each occurrence's execution packs; planned once here when not supplied.
+    packs: tuple[tuple[ExecutionPack, ...], ...] | None = None
+    # The sampler's own log scores per population position, retained for
     # sampler-gap observation only. Correction weights are frozen separately.
-    sampled_scores: Mapping[ActionRef, float] | None = field(default=None, init=False, repr=False)
+    sampled_scores: np.ndarray | None = field(default=None, init=False, repr=False)
     old: Any = field(default=None, init=False)
     last_evaluation: Any = field(default=None, init=False)
     _pending: int | None = field(default=None, init=False)
@@ -76,9 +79,14 @@ class ResolvedTRLPopulation:
             raise InvalidPolicyUpdate("native TRL score temperature must be finite and positive")
         if not isinstance(self.score_contract, str) or not self.score_contract.strip():
             raise InvalidPolicyUpdate("native TRL score arithmetic requires an explicit contract identity")
-        for update in self.updates:
-            resolve_objective_term(update, self.spec, self.credit)
-            plan_packs(update, self.execution, self.capabilities)
+        if self.packs is None:
+            self.packs = tuple(plan_packs(update, self.execution, self.capabilities) for update in self.updates)
+        if len(self.packs) != len(self.updates) or any(
+            pack.update_digest != update.digest
+            for update, packs in zip(self.updates, self.packs, strict=True)
+            for pack in packs
+        ):
+            raise InvalidPolicyUpdate("native TRL execution packs must belong to their resolved occurrences")
 
     @classmethod
     def from_resolved(
@@ -88,7 +96,7 @@ class ResolvedTRLPopulation:
         read_input: Callable[[ConditioningView], NativeConditioningInput],
         score_temperature: float,
         score_contract: str,
-        sampler_correction: Mapping[ActionRef, float] | None,
+        sampler_correction: np.ndarray | None,
         reference: Any = None,
         max_overflow_retries: int = 0,
         applied_update_offset: int = 0,
@@ -109,6 +117,7 @@ class ResolvedTRLPopulation:
             max_overflow_retries=max_overflow_retries,
             applied_update_offset=applied_update_offset,
             attempt_offset=attempt_offset,
+            packs=resolved.packs,
         )
 
     @classmethod
@@ -118,7 +127,7 @@ class ResolvedTRLPopulation:
         *,
         score_temperature: float,
         score_contract: str,
-        sampler_correction: Mapping[ActionRef, float] | None,
+        sampler_correction: np.ndarray | None,
         reference: Any = None,
     ) -> ResolvedTRLPopulation:
         return cls.from_resolved(
@@ -161,17 +170,17 @@ class ResolvedTRLPopulation:
                 score_temperature=self.score_temperature,
             )
         if self.prepare_sampler_correction is not None:
-            from types import MappingProxyType
-
-            correction = self.prepare_sampler_correction(
-                {action: float(value) for action, value in self.old.values.items()}
+            correction = np.asarray(
+                self.prepare_sampler_correction(self.old.values.detach().double().cpu().numpy()), dtype=np.float64
             )
-            if set(correction) != {record.action for record in update.population.actions} or any(
-                type(value) not in (float, int) or not math.isfinite(value) or value < 0
-                for value in correction.values()
+            if (
+                correction.shape != (update.population.size,)
+                or not np.isfinite(correction).all()
+                or (correction < 0).any()
             ):
                 raise InvalidPolicyUpdate("prepared correction requires complete detached finite action weights")
-            self.sampler_correction = MappingProxyType(dict(correction))
+            correction.setflags(write=False)
+            self.sampler_correction = correction
             self.prepare_sampler_correction = None
         term = resolve_objective_term(
             update,
@@ -179,6 +188,7 @@ class ResolvedTRLPopulation:
             self.credit,
             parameter_version=f"{update.population.versions.current}/applied-{self.applied_updates}",
         )
+        assert self.packs is not None
         if before_current is not None:
             # The first old-score forward can consume randomness. Retries skip
             # it, so capture current-score state after freezing, not before it.
@@ -188,7 +198,7 @@ class ResolvedTRLPopulation:
             update,
             term,
             self.credit,
-            plan_packs(update, self.execution, self.capabilities),
+            self.packs[index],
             old=self.old,
             reference=self.reference,
             read_input=self.read_input,

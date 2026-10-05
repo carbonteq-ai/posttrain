@@ -3,8 +3,6 @@ from types import SimpleNamespace
 import pytest
 from posttrain.environment.verifiers_conditioning import materialize_native_conditioning, native_conditioning_records
 from posttrain.train.update_records import (
-    ActionRecord,
-    ActionRef,
     ConditioningView,
     InvalidPolicyUpdate,
     PolicyVersions,
@@ -14,9 +12,10 @@ from posttrain.train.update_records import (
 torch = pytest.importorskip("torch")
 
 from posttrain.train.backends.policy_update_scoring import (  # noqa: E402
+    dense_scores,
     freeze_population_scores,
     sampled_logprobs,
-    score_actions,
+    score_views,
 )
 
 
@@ -48,8 +47,8 @@ def test_original_coordinates_use_previous_logit_and_exclude_context_gradient(dt
             logits[0, 3].float()[5] / temperature - torch.logsumexp(logits[0, 3].float() / temperature, 0),
         ]
     )
-    torch.testing.assert_close(torch.stack(tuple(actual.values())), expected, rtol=1e-6, atol=1e-6)
-    (-torch.stack(tuple(actual.values())).sum()).backward()
+    torch.testing.assert_close(actual, expected, rtol=1e-6, atol=1e-6)
+    (-actual.sum()).backward()
     gradient = logits.grad.float()
     assert gradient[0, [0, 1, 4]].count_nonzero() == 0
     for position, target in ((2, 4), (3, 5)):
@@ -64,7 +63,7 @@ def test_nonfinite_unused_context_does_not_poison_selected_score():
     logits = torch.zeros(1, 5, 7, requires_grad=True)
     with torch.no_grad():
         logits[0, 0] = float("nan")
-    assert sampled_logprobs(logits, inputs(), sampled_indices=(2,), score_temperature=1)[2].isfinite()
+    assert sampled_logprobs(logits, inputs(), sampled_indices=(2,), score_temperature=1)[0].isfinite()
     with torch.no_grad():
         logits[0, 3, 0] = float("inf")
     with pytest.raises(InvalidPolicyUpdate, match="non-finite"):
@@ -105,7 +104,6 @@ class CausalModel(torch.nn.Module):
 
 def score_population():
     source = inputs()
-    actions = tuple(ActionRef("episode", "branch", "turn", local) for local, _ in source.action_positions)
     view = ConditioningView(
         "context",
         "native",
@@ -115,46 +113,51 @@ def score_population():
         "template@1",
         source.record.input_digest,
         len(source.token_ids),
+        "episode",
+        "branch",
+        tuple(local for local, _ in source.action_positions),
     )
     snapshot = PopulationSnapshot(
         "population",
         "native",
         "native-digest",
-        tuple(ActionRecord(action, view.id, "native") for action in actions),
         (view,),
         (),
         (),
         PolicyVersions("sample@1", "old@1", "current@1", None),
         "all@1",
     )
-    return snapshot, source, actions
+    return snapshot, source, snapshot.actions()
 
 
 def test_model_scoring_retains_full_prefix_gradients_and_frozen_old_scores():
     torch.manual_seed(7)
     model = CausalModel()
     snapshot, source, actions = score_population()
+    views = tuple(range(len(snapshot.conditioning)))
     kwargs = dict(read_input=lambda view: source, device=torch.device("cpu"), score_temperature=0.7)
     old = freeze_population_scores(
         model, snapshot, policy_version="old@1", score_contract="causal-temperature@1", **kwargs
     )
-    before = {action: value.clone() for action, value in old.values.items()}
+    assert old.values.shape == (snapshot.size,) == (len(actions),)
+    before = old.values.clone()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
     for _ in range(2):
         optimizer.zero_grad()
-        current = score_actions(model, snapshot, actions, **kwargs)
-        loss = -torch.stack(tuple(current.values())).sum()
+        current = score_views(model, snapshot, views, **kwargs)
+        assert current.positions.tolist() == list(range(snapshot.size))
+        loss = -current.values.sum()
         loss.backward()
         # The first system token participates through causal context, despite
         # having no policy loss. Detached context/KV would erase this gradient.
         assert model.embedding.weight.grad[1].abs().sum() > 0
         assert model.embedding.weight.grad[5].count_nonzero() == 0
         optimizer.step()
-    refreshed = score_actions(model, snapshot, actions, **kwargs)
-    assert any(not torch.equal(refreshed[action], before[action]) for action in actions)
-    assert all(
-        torch.equal(old.values[action], before[action]) and not old.values[action].requires_grad for action in actions
+    refreshed = dense_scores(
+        snapshot.size, (score_views(model, snapshot, views, **kwargs),), device=torch.device("cpu")
     )
+    assert any(not torch.equal(refreshed[position], before[position]) for position in range(snapshot.size))
+    assert torch.equal(old.values, before) and not old.values.requires_grad
     old.validate(snapshot, policy_version="old@1", score_contract="causal-temperature@1", score_temperature=0.7)
     with pytest.raises(InvalidPolicyUpdate, match="different evidence, policy or score contract"):
         old.validate(snapshot, policy_version="old@1", score_contract="causal-temperature@1", score_temperature=1)
@@ -163,13 +166,13 @@ def test_model_scoring_retains_full_prefix_gradients_and_frozen_old_scores():
 def test_model_scoring_rejects_mismatched_materialized_input_before_forward():
     from dataclasses import replace
 
-    snapshot, source, actions = score_population()
+    snapshot, source, _ = score_population()
     source = replace(source, record=replace(source.record, input_digest="other-context"))
     with pytest.raises(InvalidPolicyUpdate, match="frozen conditioning view"):
-        score_actions(
+        score_views(
             CausalModel(),
             snapshot,
-            actions,
+            (0,),
             read_input=lambda view: source,
             device=torch.device("cpu"),
             score_temperature=1,

@@ -57,16 +57,17 @@ def test_interleaved_groups_preserve_native_context_and_delegate_sampo_credit():
     b0, b1 = native_rollout("b", 0, 0.0), native_rollout("b", 1, 1.0)
     snapshot, rows = assemble((a0, b0, a1, b1))
     assert rows.rollouts == (a0, a1, b0, b1)
-    assert len(snapshot.actions) == 16
-    assert rows.actions[0][2:4] == (None, None)
-    assert rows.actions[0][4] is not None
-    assert rows.actions[0][4].token_index == 1
-    assert rows.actions[0][4].branch_id == "7"
+    assert snapshot.size == 16
+    assert rows.positions[0][2:4].tolist() == [-1, -1]
+    assert rows.positions[0][4] >= 0
+    action = snapshot.action(int(rows.positions[0][4]))
+    assert action.token_index == 1
+    assert action.branch_id == "7"
     assert snapshot.conditioning[1].context_tokens == 6
     assert '"prefix_nodes":[2,3]' in snapshot.conditioning[1].token_ids_ref
     groups = tuple(relation.id for relation in snapshot.relations if relation.kind == "prompt-group")
     credit = prepare_credit(snapshot, SampoCreditEstimator(_settings(), rows, groups))
-    assert [value.advantage for value in credit.values] == pytest.approx(
+    assert credit.advantages.tolist() == pytest.approx(
         [0.975, 0.975, 1, 1, -0.975, -0.975, -1, -1, -0.975, -0.975, -1, -1, 0.975, 0.975, 1, 1]
     )
 

@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from types import SimpleNamespace
 from typing import Any, cast
 
+import numpy as np
 import pytest
 from posttrain.train.backends.policy_update_admission import AdmittedNativePopulation
 from posttrain.train.backends.trl.policy_job import ResolvedTRLJob
@@ -171,7 +172,10 @@ def test_native_job_slot_collects_complete_rows_once_for_multiple_updates(tmp_pa
     population, index = candidate.run.occurrence(0, 0)
     assert population.applied_update_offset == 0 and population.attempt_offset == 0
     # Sampled scores are retained for sampler-gap observation.
-    assert population.sampled_scores == prepared.read_input.sampling_log_scores(prepared.resolved.snapshot)
+    assert population.sampled_scores is not None
+    assert np.array_equal(
+        population.sampled_scores, prepared.read_input.sampling_log_scores(prepared.resolved.snapshot)
+    )
     assert index == 0
     assert calls[0][0] == [{"example_id": "task", "prompt": []}] * 2
     assert calls[0][1]["versions"] == candidate.versions(0)
@@ -231,9 +235,10 @@ def test_job_restore_uses_sealed_native_evidence_and_frozen_credit(tmp_path, mon
     )
     monkeypatch.setattr("posttrain.train.backends.trl.policy_job._decode_native", decode)
     restored = candidate.restore(tmp_path)
-    assert restored.credit == population.credit
-    assert restored.updates == population.updates
-    assert restored.sampler_correction == population.sampler_correction
+    assert restored.credit.digest == population.credit.digest
+    assert [update.digest for update in restored.updates] == [update.digest for update in population.updates]
+    assert population.sampler_correction is not None and restored.sampler_correction is not None
+    assert np.array_equal(restored.sampler_correction, population.sampler_correction)
     assert restored.old is None and restored.next_update == 0  # native state loading is a later boundary
     original_versions = candidate.versions(3)
     for field_name in ("old_score", "current", "reference"):
@@ -346,9 +351,9 @@ def test_applied_observation_separates_total_policy_and_weighted_kl(tmp_path, be
         assert values["train/rl/kl"] == 25
     else:
         assert "train/rl/kl" not in values  # zero beta does not measure divergence
-    credit = {value.action: value.advantage for value in population.credit.values}
-    selected = [credit[weight.action] for weight in term.policy_weights]
-    assert values["train/rl/advantage_abs_mean"] == pytest.approx(sum(map(abs, selected)) / len(selected))
+    selected = population.credit.advantages[term.policy_positions]
+    assert selected.size
+    assert values["train/rl/advantage_abs_mean"] == pytest.approx(float(np.abs(selected).mean()))
     with pytest.raises(InvalidPolicyUpdate, match="committed applied boundary"):
         candidate.observe_applied_update(2)
 
@@ -378,27 +383,25 @@ def test_applied_observation_reports_clipping_correction_and_entropy(tmp_path):
         sampler_correction=None,
     )
     snapshot = prepared.resolved.snapshot
-    actions = [record.action for record in snapshot.actions]
-    # log(old) - log(sampled): above the 3.0 cap, inside, and below the 0.1 floor.
-    deltas = dict(zip(actions, (2.0, 0.25, -3.0, 0.0), strict=True))
+    # log(old) - log(sampled) per position: above the 3.0 cap, inside, and below the 0.1 floor.
+    deltas = np.array([2.0, 0.25, -3.0, 0.0])
+    assert deltas.shape == (snapshot.size,)
     population.prepare_sampler_correction = lambda old: recipe_sampler_correction_weights(
-        settings, snapshot, old, {action: old[action] - deltas[action] for action in actions}
+        settings, snapshot, old, old - deltas
     )
-    old_scores = {}
 
     def sampled_scores():
         # The job retains the sampler's scores beside the frozen trainer old scores.
-        old_scores.update({action: float(value) for action, value in population.old.values.items()})
-        population.sampled_scores = {action: old_scores[action] - deltas[action] for action in actions}
+        old_scores = population.old.values.detach().double().numpy()
+        population.sampled_scores = old_scores - deltas
 
     model = CausalModel()
     optimizer = SimpleNamespace(step_was_skipped=False)
     candidate.run.current = population
 
-    def entropy(action):
-        view = {view.id: view for view in snapshot.conditioning}[
-            {record.action: record for record in snapshot.actions}[action].conditioning_id
-        ]
+    def entropy(position):
+        action = snapshot.action(int(position))
+        view = snapshot.conditioning[snapshot.view_index(action.turn_id)]
         inputs = population.read_input(view)
         tokens = torch.tensor([inputs.token_ids])
         with torch.no_grad():
@@ -420,42 +423,43 @@ def test_applied_observation_reports_clipping_correction_and_entropy(tmp_path):
             parameter_version=population.last_evaluation.parameter_version,
         )
         candidate.observe_applied_update(index + 1)
-        return [weighted.action for weighted in term.policy_weights], metrics[-1]
+        return term.policy_positions, metrics[-1]
 
     selected, first = apply(0)
-    weights = {action: min(max(math.exp(delta), 0.1), 3.0) for action, delta in deltas.items()}
-    chosen = [weights[action] for action in selected]
+    weights = [min(max(math.exp(delta), 0.1), 3.0) for delta in deltas]
+    chosen = [weights[position] for position in selected]
     # The first update evaluates at the sampling parameters: ratios are one.
     assert first["train/rl/clip_fraction"] == 0.0
     assert first["train/rl/importance_sampling_ratio_mean"] == pytest.approx(sum(chosen) / len(chosen))
     assert first["train/rl/importance_sampling_ratio_min"] == pytest.approx(min(chosen))
     assert first["train/rl/importance_sampling_ratio_max"] == pytest.approx(max(chosen))
-    clamped = sum(abs(deltas[action]) > 1 for action in selected) / len(selected)
+    clamped = sum(abs(deltas[position]) > 1 for position in selected) / len(selected)
     assert first["train/rl/importance_sampling_ratio_clamped_fraction"] == pytest.approx(clamped)
     assert first["train/rl/entropy"] == pytest.approx(sum(map(entropy, selected)) / len(selected), rel=1e-5)
-    gaps = sorted(abs(deltas[action]) for action in selected)
+    gaps = sorted(abs(deltas[position]) for position in selected)
     assert first["train/rl/sampling_logp_delta_mean"] == pytest.approx(sum(gaps) / len(gaps))
     assert first["train/rl/sampling_logp_delta_max"] == pytest.approx(max(gaps))
     assert first["train/rl/sampling_logp_delta_p99"] == pytest.approx(max(gaps))
-    touched = {action.episode_id for action in selected}
-    sequences = [abs(sum(deltas[action] for action in actions if action.episode_id == episode)) for episode in touched]
+    episode_of = snapshot.episode_of
+    touched = set(episode_of[selected].tolist())
+    sequences = [abs(float(deltas[episode_of == episode].sum())) for episode in touched]
     assert first["train/rl/sampling_sequence_logp_delta_abs_mean"] == pytest.approx(sum(sequences) / len(sequences))
 
     # Move the second update's sampled tokens in its advantage direction far
     # enough that every PPO ratio leaves the clip interval.
-    credit = {value.action: value.advantage for value in population.credit.values}
+    credit = population.credit.advantages
     second = population.updates[1]
     term = resolve_objective_term(second, population.spec, population.credit)
-    sign = 1.0 if credit[term.policy_weights[0].action] > 0 else -1.0
+    sign = 1.0 if credit[term.policy_positions[0]] > 0 else -1.0
     with torch.no_grad():
         model.head.bias[4] += 6 * sign
         model.head.bias[5] += 6 * sign
     selected, last = apply(1)
-    ratios = {action: float(population.last_evaluation.ratios[action].detach()) for action in selected}
+    ratios = population.last_evaluation.ratios.detach()
     expected = [
-        (credit[action] > 0 and ratios[action] > 1 + population.spec.clip_high)
-        or (credit[action] < 0 and ratios[action] < 1 - population.spec.clip_low)
-        for action in selected
+        (credit[position] > 0 and float(ratios[position]) > 1 + population.spec.clip_high)
+        or (credit[position] < 0 and float(ratios[position]) < 1 - population.spec.clip_low)
+        for position in selected
     ]
     assert all(expected)
     assert last["train/rl/clip_fraction"] == 1.0

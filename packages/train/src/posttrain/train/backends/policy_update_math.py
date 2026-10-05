@@ -7,58 +7,69 @@ an execution decision; the declared adjoints are independent of pack layout.
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+import numpy as np
 import torch
 
 from ..update_credit import PreparedCredit
 from ..update_objectives import ResolvedObjectiveTerm, objective_definition
-from ..update_records import ActionRef, InvalidPolicyUpdate
+from ..update_records import InvalidPolicyUpdate
 
 
 @dataclass(frozen=True)
 class ScoreBundle:
-    current: Mapping[ActionRef, torch.Tensor]
-    old: Mapping[ActionRef, torch.Tensor]
+    """Per-position scores: ``current`` (live graph), frozen ``old`` and optional ``reference``.
+
+    Every tensor has one float value per population position. ``scored`` marks
+    the positions ``current`` actually holds scores for; any other position is
+    zero and must not be needed by the objective. ``sampler_correction`` holds
+    detached per-position weights.
+    """
+
+    current: torch.Tensor
+    old: torch.Tensor
     parameter_version: str
-    reference: Mapping[ActionRef, torch.Tensor] = field(default_factory=dict)
-    sampler_correction: Mapping[ActionRef, float] | None = None
+    scored: np.ndarray
+    reference: torch.Tensor | None = None
+    sampler_correction: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
 class ObjectiveEvaluation:
+    """The objective's value and its per-position evidence.
+
+    ``ratios`` holds each ratio-supported position's importance ratio (with the
+    objective's graph) and ``clipped`` marks the selected policy positions whose
+    clipped surrogate was active; both have one entry per population position.
+    """
+
     loss: torch.Tensor
     policy_loss: torch.Tensor
     kl_loss: torch.Tensor
-    ratios: Mapping[ActionRef, torch.Tensor]
-    clipped_actions: tuple[ActionRef, ...]
+    ratios: torch.Tensor
+    clipped: np.ndarray
     term_digest: str
     parameter_version: str
-    # Detached current-policy entropy per scored action, when the adapter
-    # measured it. Observation only; it never enters the loss.
-    entropies: Mapping[ActionRef, float] = field(default_factory=dict)
-
-
-def _score(
-    values: Mapping[ActionRef, torch.Tensor], action: ActionRef, role: str, *, detached: bool = False
-) -> torch.Tensor:
-    value = values.get(action)
-    if value is None or value.ndim != 0 or not value.is_floating_point() or not bool(torch.isfinite(value)):
-        raise InvalidPolicyUpdate(f"missing or non-finite scalar {role} score for {action}")
-    value = value.float() if value.dtype in (torch.float16, torch.bfloat16) else value
-    return value.detach() if detached else value
+    # Detached current-policy entropy per position (NaN where not measured).
+    # Observation only; it never enters the loss.
+    entropies: np.ndarray | None = field(default=None)
 
 
 def _sampled_k3(x: torch.Tensor) -> torch.Tensor:
-    # Tenth-order series avoids expm1 backward cancellation near zero. Evaluate
-    # only the selected branch so an unused exponential cannot poison backward.
-    if bool(x.abs() <= 0.25):
-        polynomial = torch.zeros_like(x)
-        for power in range(10, 1, -1):
-            polynomial = polynomial * x + 1 / math.factorial(power)
-        return x.square() * polynomial
-    return torch.expm1(x) - x
+    """exp(x) - 1 - x elementwise, by a tenth-order series near zero.
+
+    The series avoids expm1 backward cancellation near zero. Each branch only
+    sees inputs from its own domain (zero elsewhere), so the unused branch can
+    neither overflow nor poison the gradient through ``torch.where``.
+    """
+    small = x.abs() <= 0.25
+    near = torch.where(small, x, torch.zeros_like(x))
+    far = torch.where(small, torch.zeros_like(x), x)
+    polynomial = torch.zeros_like(near)
+    for power in range(10, 1, -1):
+        polynomial = polynomial * near + 1 / math.factorial(power)
+    return torch.where(small, near.square() * polynomial, torch.expm1(far) - far)
 
 
 def evaluate(term: ResolvedObjectiveTerm, credit: PreparedCredit, scores: ScoreBundle) -> ObjectiveEvaluation:
@@ -67,69 +78,75 @@ def evaluate(term: ResolvedObjectiveTerm, credit: PreparedCredit, scores: ScoreB
     if scores.parameter_version != term.parameter_version:
         raise InvalidPolicyUpdate("current scores belong to a different parameter version")
     definition = objective_definition(term.spec.definition_id)
-    advantages = {value.action: value.advantage for value in credit.values}
-    ratios: dict[ActionRef, torch.Tensor] = {}
-    for support in term.ratio_support:
-        deltas = tuple(
-            _score(scores.current, action, "current") - _score(scores.old, action, "old", detached=True)
-            for action in support
-        )
-        log_ratio = deltas[0] if definition.ratio == "token" else torch.stack(deltas).mean()
-        ratio = log_ratio.exp()
-        if not bool(torch.isfinite(ratio)):
-            raise InvalidPolicyUpdate("non-finite importance ratio; no implicit cap is qualified")
-        for action in support:
-            ratios[action] = ratio
-    policy_terms: list[torch.Tensor] = []
-    clipped_actions: list[ActionRef] = []
-    for weighted in term.policy_weights:
-        action = weighted.action
-        current = _score(scores.current, action, "current")
-        ratio = ratios[action]
-        if definition.derivative == "token-local":
-            ratio = (ratio.log().detach() + current - current.detach()).exp()
-        if action not in advantages:
-            raise InvalidPolicyUpdate("selected action lacks prepared credit")
-        advantage = advantages[action]
-        if definition.policy_loss == "cispo-upper":
-            assert term.spec.cispo_max_weight is not None
-            clipped = ratio.clamp(max=term.spec.cispo_max_weight)
-            loss = -clipped.detach() * advantage * current
-            active_clip = bool(ratio > term.spec.cispo_max_weight)
-        else:
-            plain = -ratio * advantage
-            clipped = -ratio.clamp(1 - term.spec.clip_low, 1 + term.spec.clip_high) * advantage
-            loss = torch.maximum(plain, clipped)
-            active_clip = bool(clipped > plain)
-        if active_clip:
-            clipped_actions.append(action)
-        correction = 1.0
-        if scores.sampler_correction is not None:
-            correction_value = scores.sampler_correction.get(action)
-            if (
-                correction_value is None
-                or isinstance(correction_value, bool)
-                or (not math.isfinite(correction_value) or correction_value < 0)
-            ):
-                raise InvalidPolicyUpdate("sampler correction requires detached finite nonnegative action weights")
-            correction = correction_value
-        policy_terms.append(loss * (weighted.weight * correction))
-    kl_terms = [
-        _sampled_k3(
-            _score(scores.reference, item.action, "reference", detached=True)
-            - _score(scores.current, item.action, "current")
-        )
-        * (term.spec.beta * item.weight)
-        for item in term.kl_weights
-    ]
-    # Empty terms retain a zero carrier when another term has a live device graph.
-    anchor = next(iter(policy_terms or kl_terms), None)
-    zero = anchor * 0 if anchor is not None else torch.tensor(0.0)
-    policy_loss = torch.stack(policy_terms).sum() if policy_terms else zero
-    kl_loss = torch.stack(kl_terms).sum() if kl_terms else zero
+    size = term.policy_weight.size
+    current, device = scores.current, scores.current.device
+    if current.shape != (size,) or scores.old.shape != (size,) or scores.scored.shape != (size,):
+        raise InvalidPolicyUpdate("scores must align with the objective's population positions")
+    current = current.float() if current.dtype in (torch.float16, torch.bfloat16) else current
+    old = scores.old.to(device=device, dtype=current.dtype).detach()
+    support = term.ratio_segment >= 0
+    policy = term.policy_weight > 0
+    kl = term.kl_weight > 0
+    needed = support | policy | kl
+    if not scores.scored[needed].all():
+        raise InvalidPolicyUpdate("missing current score for a resolved objective dependency")
+    index = torch.as_tensor(np.flatnonzero(support), dtype=torch.long, device=device)
+    delta = current[index] - old[index]
+    if not bool(torch.isfinite(delta).all()):
+        raise InvalidPolicyUpdate("missing or non-finite scalar current or old score")
+    if definition.ratio == "token":
+        log_ratio = delta
+    else:
+        segment = torch.as_tensor(term.ratio_segment[support], dtype=torch.long, device=device)
+        sums = torch.zeros(term.segment_count, dtype=delta.dtype, device=device).index_add(0, segment, delta)
+        counts = torch.bincount(segment, minlength=term.segment_count).to(delta.dtype)
+        log_ratio = (sums / counts)[segment]
+    supported_ratio = log_ratio.exp()
+    if not bool(torch.isfinite(supported_ratio).all()):
+        raise InvalidPolicyUpdate("non-finite importance ratio; no implicit cap is qualified")
+    ratios = torch.zeros(size, dtype=supported_ratio.dtype, device=device).index_put((index,), supported_ratio)
+    policy_positions = np.flatnonzero(policy)
+    policy_index = torch.as_tensor(policy_positions, dtype=torch.long, device=device)
+    ratio = ratios[policy_index]
+    selected_current = current[policy_index]
+    if definition.derivative == "token-local":
+        ratio = (ratio.log().detach() + selected_current - selected_current.detach()).exp()
+    advantage = torch.as_tensor(credit.advantages[policy_positions], dtype=ratio.dtype, device=device)
+    if definition.policy_loss == "cispo-upper":
+        assert term.spec.cispo_max_weight is not None
+        clipped_weight = ratio.clamp(max=term.spec.cispo_max_weight)
+        losses = -clipped_weight.detach() * advantage * selected_current
+        active = ratio > term.spec.cispo_max_weight
+    else:
+        plain = -ratio * advantage
+        clipped_term = -ratio.clamp(1 - term.spec.clip_low, 1 + term.spec.clip_high) * advantage
+        losses = torch.maximum(plain, clipped_term)
+        active = clipped_term > plain
+    weights = term.policy_weight[policy_positions]
+    if scores.sampler_correction is not None:
+        correction = np.asarray(scores.sampler_correction, dtype=np.float64)
+        if correction.shape != (size,) or not np.isfinite(correction).all() or (correction < 0).any():
+            raise InvalidPolicyUpdate("sampler correction requires detached finite nonnegative action weights")
+        weights = weights * correction[policy_positions]
+    policy_loss = (losses * torch.as_tensor(weights, dtype=losses.dtype, device=device)).sum()
+    clipped = np.zeros(size, dtype=bool)
+    clipped[policy_positions] = active.detach().cpu().numpy()
+    kl_positions = np.flatnonzero(kl)
+    if kl_positions.size:
+        if scores.reference is None or scores.reference.shape != (size,):
+            raise InvalidPolicyUpdate("missing or non-finite scalar reference score")
+        kl_index = torch.as_tensor(kl_positions, dtype=torch.long, device=device)
+        reference = scores.reference.to(device=device, dtype=current.dtype).detach()[kl_index]
+        x = reference - current[kl_index]
+        if not bool(torch.isfinite(x).all()):
+            raise InvalidPolicyUpdate("missing or non-finite scalar reference score")
+        kl_weight = torch.as_tensor(term.spec.beta * term.kl_weight[kl_positions], dtype=x.dtype, device=device)
+        kl_loss = (_sampled_k3(x) * kl_weight).sum()
+    else:
+        kl_loss = policy_loss * 0 if policy_positions.size else torch.zeros((), device=device)
+    if not policy_positions.size:
+        policy_loss = kl_loss * 0
     loss = policy_loss + kl_loss
     if not bool(torch.isfinite(loss)):
         raise InvalidPolicyUpdate("non-finite resolved objective")
-    return ObjectiveEvaluation(
-        loss, policy_loss, kl_loss, ratios, tuple(clipped_actions), term.digest, scores.parameter_version
-    )
+    return ObjectiveEvaluation(loss, policy_loss, kl_loss, ratios, clipped, term.digest, scores.parameter_version)

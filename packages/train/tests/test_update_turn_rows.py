@@ -5,11 +5,12 @@ import math
 from dataclasses import replace
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
-from posttrain.train.update_credit import ActionCredit, PreparedCredit
+from posttrain.train.update_credit import PreparedCredit
 from posttrain.train.update_objectives import ObjectiveSpec, objective_population, resolve_objective_term
 from posttrain.train.update_plan import PolicyUpdateSchedule, resolve_updates
-from posttrain.train.update_records import ActionRecord, InvalidPolicyUpdate
+from posttrain.train.update_records import InvalidPolicyUpdate
 from posttrain.train.update_resolution import resolve_policy_population
 
 from .test_update_plan import five_turns
@@ -19,18 +20,18 @@ from .test_update_resolution import capabilities, settings
 def fixture(identity="sampo-turns@1"):
     snapshot, _ = five_turns()
     # Two episodes, five turns, eight actions; turn lengths 3,1,1,2,1.
-    records = []
-    for record, length in zip(snapshot.actions, (3, 1, 1, 2, 1), strict=True):
-        records.extend(
-            ActionRecord(replace(record.action, token_index=index), record.conditioning_id, record.native_ref)
-            for index in range(length)
-        )
-    snapshot = replace(snapshot, actions=tuple(records))
+    snapshot = replace(
+        snapshot,
+        conditioning=tuple(
+            replace(view, sampled=tuple(range(length)))
+            for view, length in zip(snapshot.conditioning, (3, 1, 1, 2, 1), strict=True)
+        ),
+    )
     advantages = {"A1": 1.0, "A2": -1.0, "A3": 0.5, "B1": 0.3, "B2": -0.3}
     credit = PreparedCredit(
         snapshot.digest,
         "fixture@1",
-        tuple(ActionCredit(record.action, advantages[record.action.turn_id]) for record in records),
+        np.array([advantages[action.turn_id] for action in snapshot.actions()]),
         (),
         (),
         "none@1",
@@ -45,17 +46,18 @@ def fixture(identity="sampo-turns@1"):
 
 def test_unequal_lengths_use_equal_turn_weight_and_turn_only_dependencies():
     snapshot, credit, spec, update, term = fixture()
-    weights = {value.action: value.weight for value in term.policy_weights}
-    for support in term.ratio_support:
-        assert len({action.turn_id for action in support}) == 1
-        assert sum(weights[action] for action in support) == pytest.approx(1 / 5)
-    assert sorted(len(support) for support in term.ratio_support) == [1, 1, 1, 2, 3]
+    assert snapshot.size == 8
+    supports = [np.flatnonzero(term.ratio_segment == segment) for segment in range(term.segment_count)]
+    for support in supports:
+        assert len({int(snapshot.view_of[position]) for position in support}) == 1
+        assert term.policy_weight[support].sum() == pytest.approx(1 / 5)
+    assert sorted(len(support) for support in supports) == [1, 1, 1, 2, 3]
     assert sorted(length for _, length in term.policy_denominators) == [1, 1, 1, 2, 3]
     partial = resolve_updates(snapshot, PolicyUpdateSchedule("turn", 1), update.objective)[0]
     selected = resolve_objective_term(partial, spec, credit)
-    assert len(partial.dependencies) == len(selected.ratio_support[0]) == 3
-    assert len({action.turn_id for action in partial.dependencies}) == 1
-    assert [weight.weight for weight in selected.policy_weights] == [1 / 3] * 3
+    assert partial.views == (0,)
+    assert partial.dependency_count == int((selected.ratio_segment == 0).sum()) == 3
+    assert selected.policy_weight[selected.policy_positions].tolist() == [1 / 3] * 3
 
 
 def test_named_selection_is_sampo_only_and_preserves_legacy_objective():
@@ -96,7 +98,12 @@ def test_named_selection_is_sampo_only_and_preserves_legacy_objective():
             )
         )
     )
-    assert retained.resolved == result
+    restored = retained.resolved
+    assert restored.snapshot.digest == result.snapshot.digest
+    assert restored.credit.digest == result.credit.digest
+    assert restored.spec == result.spec
+    assert [update.digest for update in restored.updates] == [update.digest for update in result.updates]
+    assert restored.packs == result.packs
     assert retained.applied_update_offset == 3 and retained.attempt_offset == 4
 
 
@@ -107,39 +114,38 @@ def test_loss_and_gradients_match_independent_author_turn_row_formula(dtype_name
     from posttrain.train.backends.policy_update_replay import prepare_score_adjoints
 
     snapshot, credit, _, _, term = fixture()
+    actions = snapshot.actions()
     deltas = {"A1": 0.3, "A2": -1.0, "A3": 0.1, "B1": 0.1, "B2": -0.1}
-    current = {
-        record.action: torch.tensor(deltas[record.action.turn_id], dtype=getattr(torch, dtype_name), requires_grad=True)
-        for record in snapshot.actions
-    }
-    old = {action: torch.zeros((), dtype=torch.float32) for action in current}
-    score = ScoreBundle(current, old, term.parameter_version)
+    current = torch.tensor(
+        [deltas[action.turn_id] for action in actions], dtype=getattr(torch, dtype_name), requires_grad=True
+    )
+    old = torch.zeros(snapshot.size, dtype=torch.float32)
+    scored = np.ones(snapshot.size, dtype=bool)
+    score = ScoreBundle(current, old, term.parameter_version, scored)
     actual = evaluate(term, credit, score)
-    advantages = {value.action: value.advantage for value in credit.values}
     # Direct author-style row mean, local token derivative, clipping, token mean,
     # then row mean. No production objective/reduction helper supplies the reference.
     row_losses = []
     for turn in ("A1", "A2", "A3", "B1", "B2"):
-        actions = [record.action for record in snapshot.actions if record.action.turn_id == turn]
-        logits = torch.stack([current[action].float() for action in actions])
+        positions = [position for position, action in enumerate(actions) if action.turn_id == turn]
+        logits = current[positions].float()
         ratio = (logits.mean().detach() + logits - logits.detach()).exp()
-        advantage = torch.tensor([advantages[action] for action in actions])
+        advantage = torch.tensor(credit.advantages[positions], dtype=torch.float32)
         row_losses.append(torch.maximum(-ratio * advantage, -ratio.clamp(0.8, 1.2) * advantage).mean())
     expected = torch.stack(row_losses).mean()
     torch.testing.assert_close(actual.loss, expected)
-    actual_grad = torch.autograd.grad(actual.loss, tuple(current.values()), retain_graph=True)
-    expected_grad = torch.autograd.grad(expected, tuple(current.values()), retain_graph=True)
-    torch.testing.assert_close(torch.stack(actual_grad), torch.stack(expected_grad))
-    assert {action.turn_id for action in actual.clipped_actions} == {"A1", "A2"}
+    (actual_grad,) = torch.autograd.grad(actual.loss, (current,), retain_graph=True)
+    (expected_grad,) = torch.autograd.grad(expected, (current,), retain_graph=True)
+    torch.testing.assert_close(actual_grad, expected_grad)
+    assert {actions[int(position)].turn_id for position in np.flatnonzero(actual.clipped)} == {"A1", "A2"}
     assert math.isclose(
-        float(actual.ratios[snapshot.actions[0].action].detach()),
-        math.exp(float(current[snapshot.actions[0].action].detach())),
+        float(actual.ratios[0].detach()),
+        math.exp(float(current[0].detach())),
         rel_tol=1e-6,
     )
     # Native veRL's bounded replay uses these same complete-objective adjoints.
     prepared = prepare_score_adjoints(term, credit, score)
-    for action, gradient in zip(current, actual_grad, strict=True):
-        torch.testing.assert_close(prepared.adjoints[action], gradient.float(), atol=0.001, rtol=0.01)
+    torch.testing.assert_close(prepared.adjoints, actual_grad.float(), atol=0.001, rtol=0.01)
     _, episode_credit, _, _, episode = fixture("sampo@1")
-    episode_result = evaluate(episode, episode_credit, ScoreBundle(current, old, episode.parameter_version))
-    assert episode_result.clipped_actions == ()
+    episode_result = evaluate(episode, episode_credit, ScoreBundle(current, old, episode.parameter_version, scored))
+    assert not episode_result.clipped.any()
