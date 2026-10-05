@@ -24,6 +24,8 @@ Training semantics do not change: the same rewards, the same episode-level and t
 - [ ] Milestone 4: one forward pass per episode for exact-prefix episodes and language-model head only at sampled positions (fp32 chunks), with score parity on a real model.
 - [x] (2026-10-05 21:07Z) Milestone 4b, as a 2.6B smoke run on the workstation with Verifiers 58df1306 and environment da8bb32 (`manifest-steps-26-smoke-columnar-20261005-r2`, 8 updates, f2200d28): every update applied; gradient norms 0.0082 to 0.0132; KL 0 to 5.3e-4; first update 617 s after job start (start-up, collection, two scoring passes); later updates 32 to 57 s; round 2 took 401 s to its first update, so a full round is about 9 minutes (100 rounds about 15 hours). SAMPO telemetry shows both credit levels (episode advantage magnitude 0.15/0.13, turn 0.060/0.070, turn credit share 27%/32%, zero-spread groups 0%), trainer-sampler gap 0.001, importance weights at most 1.21. Rescoring round 1's 160 live episodes on da8bb32: 0 assessment or credit errors, manifest credit on the witnessing turn in 32/32 episodes. The first smoke run (r1) failed because EnvClient's parametrized generics could not be pickled for record workers; fixed in f2200d28.
 - [x] (2026-10-05 21:10Z) Submitted the 100-update run `manifest-steps-26-sampo-100-g16x8-20261005-r7` (f2200d28, 24-hour limit).
+- [x] (2026-10-05) r7 applied 4 updates, then failed when vLLM woke for round 2 (CUDA out of memory in its cumem allocator). Fixed in 2290ff52: frozen scores and ratios on the host, garbage collection before emptying the cache, device memory recorded before each wake. Harness on r6 unchanged (admission 3.4 s, reference scores 9.1 s, peak GPU 0.71 GB).
+- [x] (2026-10-05) Submitted a fresh 100-update run `manifest-steps-26-sampo-100-g16x8-20261005-r8` (2290ff52, 24-hour limit; image sha256:bf7b4154…).
 - [ ] Milestone 5: recovery, transport and telemetry on the new representation; remove the per-token path; full validation; 2-update smoke on the workstation; then the 100-update run.
 
 ## Surprises & Discoveries
@@ -81,6 +83,9 @@ Training semantics do not change: the same rewards, the same episode-level and t
 - Observation: the older SAMPO system (TRL's own trainer on flattened episode rows) took 467 s per update on average for 120 episodes: 198 s of rollouts and 219 s of actor update, about 13 hours for 100 updates.
   Evidence: `posttrain query --sql "select run_id, avg(update_seconds), avg(rollout_seconds), avg(actor_seconds) from updates where run_id like 'lfm26-sampo-cont100%' group by run_id"` from `apps/lab`.
 
+- Observation: r7 applied four updates in round 1 and then failed at the start of round 2: `wake_up` returned "CUDA Error: out of memory" from vLLM's cumem allocator, so active sampling found no live sampler and exhausted its candidate pool. The new engine kept frozen old and reference scores (one float per population token) and dense ratios on the GPU for the whole round. They are small, but they outlive the update, so their caching-allocator segments stay reserved and `empty_cache` cannot hand those pages back before vLLM re-maps its 0.68 share of the card.
+  Evidence: r7 job log at the round-2 wake; the old engine held these values in Python lists on the host.
+
 ## Decision Log
 
 - Decision: redesign the representation instead of keeping the interim patches.
@@ -113,6 +118,10 @@ Training semantics do not change: the same rewards, the same episode-level and t
 
 - Decision: internal digests and the recovery checkpoint format change version; checkpoints written by the old engine are not resumable by the new one.
   Rationale: identities become hashes of compact columns instead of JSON of token objects. The project starts fresh runs rather than resuming (standing user instruction), and no in-flight run depends on old checkpoints.
+  Date/Author: 2026-10-05, Claude.
+
+- Decision: no population-sized tensor outlives an update on the device. Frozen scores are moved to the host when frozen and moved to the device per pack, ratios are gathered on the host, the trainer collects garbage before `empty_cache`, and it records `train/rl/device_memory_*` before every sampler wake.
+  Rationale: the colocated sampler can wake only into memory the trainer has truly released. Host copies cost microseconds per pack. Wake-time memory telemetry turns any later failure into a measured cause instead of a guess.
   Date/Author: 2026-10-05, Claude.
 
 ## Outcomes & Retrospective
