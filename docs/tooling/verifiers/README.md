@@ -180,6 +180,35 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 
 ## Install / pin
 
+The AutomationBench manifest-steps catalog
+(`apps/lab/.posttrain/catalog/automationbench-manifest-steps.yaml`) and the
+workspace packages select
+`carbonteq-ai/verifiers@58df1306afff9b6bef5ce74701efeb19cf1e9042`
+(`0.3.2.dev101`, branch `codex/native-assessment-runtime-cost`) through
+environment `verifiers-environments@da8bb3248d405ffc3db47431322b70e8256f93a3`
+(branch `wip/automationbench-manifest-coverage-release-2026-10-05`: f587146 plus
+the manifest coverage campaign). Over 24c12379 it reuses intrinsic proofs while
+loading assessment archives, elides repeated sources/views during archive
+serialization, and packs env-server replies in the pooled archive form; the fork
+ledger has the per-change detail. Evidence, against 24c12379: `to_record`
+output is byte-identical on all 160 retained r6 episodes and the record decoded
+from the pooled reply equals the direct record; rescoring 161 recorded 2.6B
+episodes gives identical findings, rewards, metrics and turn rewards. On the ten
+heaviest r6 episodes the env-server reply falls from 2,322 MB to 58.5 MB on
+average, `EnvClient` decode from 5.12 to 0.91 s and decode peak RSS from 7.6 to
+1.0 GB; `Episode.to_record` falls from 899 to 416 ms. Environment da8bb32 keeps
+the installed contracts of all 135 manifest tasks byte-identical (contract
+digests), changes no task prompt or data, and gives identical findings and
+rewards to f587146 on one Luna reference episode for each of the 105
+`automationbench-manifest-luna-v1` tasks (5,374 valid findings) and on the 159
+recorded 2.6B episodes. Its only tool change (Buffer scheduled-post `due_at`)
+touches 14 benchmark tasks, none of them in that population. Plan and
+measurements: `docs/plan/verifiers-assessment-runtime-release.md`. Open release
+gates: runtime-image locks/profiles, published kind images and catalog lock
+digests are regenerated on the merged release branch (until then
+`test_peft_bindings_settings_and_quantization_load_from_filesystem_catalog`
+reports the stale lock digest).
+
 Posttrain 0.4.12 selects
 `carbonteq-ai/verifiers@e6a3d9bbfe6959b97878f451fc721793a232cd5f`
 (`0.3.2.dev94`, branch `codex/math-verify-thread-safe`, fast-forwarded onto the

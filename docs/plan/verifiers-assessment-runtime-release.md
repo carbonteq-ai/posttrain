@@ -14,16 +14,16 @@ Someone can see it working by rescoring the recorded episodes with the old and n
 - [x] (2026-10-05 19:40Z) Confirmed `codex/context-budget-clamp` (e9edbeb3) was never pinned or used by a run; excluded.
 - [x] (2026-10-05 20:05Z) V1: archive-loading candidate committed as Verifiers b5026573 (scoring/trace/judges suites 187 passed).
 - [x] (2026-10-05 21:40Z) V2: scoring, serialization and reply-wire changes committed as Verifiers d793cc6e with six new regression tests; native v1 suite 355 passed, 83 skipped (credentialed/opt-in). Serialization JSON schemas of SourceSnapshot, ObservationView, AssessmentBatch, WireTrace and WireEpisode are unchanged.
-- [ ] Layer-1 equivalence: rescore recorded episodes, old vs new Verifiers, identical outputs; record timings and sizes.
-- [ ] Serialization measurement with `record_costs.py` on r6 episodes; send numbers to the engine-redesign session.
-- [ ] Update `CARBONTEQ_FORK.md`; commit and push the fork.
+- [x] (2026-10-06) Layer-1 equivalence: 161 recorded 2.6B episodes (48 r3, 111 mean-r1, email_blast, gorgias) rescored with env f587146 code give identical findings, rewards, metrics, turn rewards and errors under Verifiers 24c12379 and d793cc6e, ignoring only the environment's per-run uuid4 identifiers.
+- [x] (2026-10-06) Serialization: all 160 r6 episodes byte-identical (`Episode.to_record`, `Trace.to_record`, and the record of the episode decoded from the pooled reply); numbers sent to the engine-redesign session.
+- [x] (2026-10-06) Fork ledger updated; Verifiers 58df1306afff9b6bef5ce74701efeb19cf1e9042 pushed on `codex/native-assessment-runtime-cost` (`ty check verifiers` passes; pre-push hook bypassed only because uv rejected the internal index certificate).
 - [x] (2026-10-05 21:55Z) E1: campaign committed as environment f44ac80 on `wip/automationbench-manifest-coverage-release-2026-10-05` (81 copied, 1,780 new, 2 clean three-way merges, 1 import conflict resolved; scratch `controls.py` kept as `manifest-drafts/evidence/missing-ack-controls.py.txt`).
-- [ ] E2: pin the new Verifiers commit in the environment; full environment suite.
-- [ ] Layer-2 report: per-task findings/reward changes caused by E1, each tied to an engine fix.
-- [ ] Push the environment branch.
+- [x] (2026-10-06) E2: environment da8bb3248d405ffc3db47431322b70e8256f93a3 pins Verifiers 58df1306; full suite 4,170 passed, 7 skipped.
+- [x] (2026-10-06) Layer 2: no findings, reward, metric or turn-reward change on 159 recorded 2.6B episodes (19 tasks) or on one Luna reference episode for each of the 105 `automationbench-manifest-luna-v1` tasks (5,374 valid findings); installed contracts for all 135 manifest tasks have identical digests; the Buffer tool fix touches 14 benchmark tasks, none in that population.
+- [x] (2026-10-06) Environment branch `wip/automationbench-manifest-coverage-release-2026-10-05` pushed.
 - [x] (2026-10-05 22:10Z) R1/R3: campaign and task-selection evidence (115 untracked shared-checkout files except the facet test), the Verifiers README ledger notes, and nine machine-local selection files under `docs/research/verifiers-assessment-qualification/reward-candidate/selection-working-files-20261005/` committed on this branch, rebased onto a54759f9.
-- [ ] R2: task-facet transport on its own branch for the engine-redesign session to merge.
-- [ ] R4: pin bump only (packages/{train,data,eval}/pyproject.toml Verifiers and environment URLs, uv.lock, catalog environment revisions); the engine-redesign session runs the runtime-lock/image release chain on the merged result.
+- [x] (2026-10-05) R2: `wip/task-facet-lists-2026-10-05` (062c285e) pushed and merged by the engine-redesign session into 33b4079f.
+- [x] (2026-10-06) R4: pin commit ab5b20e0 (pyproject x3, uv.lock via uv 0.12.3 from mise.toml, catalog environment revisions); branch rebased onto 33b4079f. Remaining for the release chain (engine-redesign session): runtime locks/profiles, published kind images, catalog lock digests.
 - [ ] Hand the pin-bump branch and the changed-task list to the engine-redesign session.
 
 ## Surprises & Discoveries
@@ -70,7 +70,7 @@ Someone can see it working by rescoring the recorded episodes with the old and n
 
 ## Outcomes & Retrospective
 
-Not started.
+Verifiers 58df1306 and environment da8bb32 ship the archive-loading candidate, the scoring/serialization/reply work and the manifest coverage campaign with no change to any retained record, finding, reward or turn reward on the evidence above. The largest practical gain was not in the originally profiled scoring path but in the env-server reply: Python-mode packing bypassed archive pooling, so heavy replies were 30–40 times their record size (a 111 MB record became a 3 GB reply). Scoring of `marketing.email_blast_suppression` fell from 5.86 to 3.00 s; heavy `to_record` roughly halved. Lessons: measure unprofiled before trusting cProfile ranking (it inflated `_same_wire`), and check what a serializer framework does with returned objects before designing around identity. Not done here, by agreement: dropping or delta-encoding queued/running lifecycle batches, because the trainer treats `to_record` output as replay authority and requires byte identity.
 
 ## Context and Orientation
 
@@ -115,3 +115,6 @@ Filled in as milestones complete.
 ## Interfaces and Dependencies
 
 No public Verifiers API changes. `verifiers.v1._validation_scope` stays private with the same `validation_scope`, `validation_owner`, `planned_validation_child` and `intrinsic_proof` names. Wire format of `trace.assessment_batches` and the archive pools is unchanged unless the Decision Log records otherwise.
+
+
+Revision note (2026-10-06): recorded completion of V1/V2, the equivalence and serialization evidence, the fork and environment publication, the layer-2 report and the pin commit, and the outcome summary.
