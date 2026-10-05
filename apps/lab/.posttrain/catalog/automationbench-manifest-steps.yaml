@@ -325,7 +325,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 0408bc0aba2d3c358d0aa7d1f3befabc36de084e
+      revision: 089b67def1ebb91d3d7989c8bfb6147be02ae3f3
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -487,7 +487,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 0408bc0aba2d3c358d0aa7d1f3befabc36de084e
+      revision: 089b67def1ebb91d3d7989c8bfb6147be02ae3f3
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
