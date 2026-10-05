@@ -18,7 +18,8 @@ Training semantics do not change: the same rewards, the same episode-level and t
 - [x] (2026-10-05 18:50Z) Milestone 1: harness checked in at `docs/research/policy-update-engine-scale/` with the recorded baseline; interim fixes kept: one-pass grouping in `update_objectives.py` and `policy_update_inputs.py`, `plan_packs` computing its update digest once, and the conditioning-only decode.
 - [ ] Milestone 2: column-based population, credit, objective, schedule and packs, with parity against the current engine.
 - [ ] Milestone 3: whole-tensor scores and loss, with loss and gradient parity.
-- [ ] Milestone 4: one forward pass per episode for exact-prefix episodes, with score parity on a real model.
+- [ ] Milestone 4: one forward pass per episode for exact-prefix episodes and language-model head only at sampled positions (fp32 chunks), with score parity on a real model.
+- [ ] Milestone 4b: real-model GPU benchmark on the workstation (2.6B + LoRA, real kernels), before and after Milestones 2 to 4.
 - [ ] Milestone 5: recovery, transport and telemetry on the new representation; remove the per-token path; full validation; 2-update smoke on the workstation; then the 100-update run.
 
 ## Surprises & Discoveries
@@ -51,6 +52,12 @@ Training semantics do not change: the same rewards, the same episode-level and t
 - Observation: without any interim patches, admission alone did not finish within the simulation's 25-minute cap (it was cut off after more than 23 minutes in admission).
   Evidence: `simulate.py --baseline` (digest cache disabled, run on the pre-patch grouping code) timed out after `retain population` with no `admit` line.
 
+- Observation: the resolved scorer materializes full-vocabulary logits for every position of every forwarded context, then keeps only the sampled positions. The older TRL path computes log-probabilities from hidden states in fp32 chunks of 128 positions and never holds whole-sequence logits.
+  Evidence: `backends/policy_update_scoring.py` `score_actions` calls `model(input_ids=...)` and indexes `output.logits`; the 2.6B binding sets `logits_chunk_size: 128` and `logits_float32: true` for the TRL path. One 24k-token context is about 3.2 GB of half-precision logits over LFM2.5's 65,536-token vocabulary.
+
+- Observation: the harness does not measure GPU compute. Its stand-in replaces the transformer, so attention kernels (SDPA), the language-model head, backward through the LoRA model, gradient checkpointing and memory are not represented. Training updates do not use CUDA graphs (vLLM uses them only for rollout decoding), and variable sequence lengths make graph capture or `torch.compile` a separate later question.
+  Evidence: `backends/trl/common.py` sets `attn_implementation="sdpa"`; the stand-in `sampled_logprobs` in `simulate.py`.
+
 - Observation: the older SAMPO system (TRL's own trainer on flattened episode rows) took 467 s per update on average for 120 episodes: 198 s of rollouts and 219 s of actor update, about 13 hours for 100 updates.
   Evidence: `posttrain query --sql "select run_id, avg(update_seconds), avg(rollout_seconds), avg(actor_seconds) from updates where run_id like 'lfm26-sampo-cont100%' group by run_id"` from `apps/lab`.
 
@@ -69,7 +76,7 @@ Training semantics do not change: the same rewards, the same episode-level and t
   Date/Author: 2026-10-05, Claude.
 
 - Decision: one pass per episode (Milestone 4) is required for the 100-update run, not an optional optimization.
-  Rationale: at 4.67 times the scoring tokens, the actor phase would be roughly four to five times the older system's 219 s per update, so 100 rounds would take about 25 to 30 hours and exceed the 24-hour limit. With one pass per episode the GPU processes about 1.36M tokens per pass, close to what TRL's flattened trainer processed, and the expected round time is 7 to 9 minutes (12 to 15 hours for 100 rounds).
+  Rationale: at 4.67 times the scoring tokens, the actor phase would be roughly four to five times the older system's 219 s per update, so 100 rounds would take about 25 to 30 hours and exceed the 24-hour limit. With one pass per episode the GPU processes about 1.36M tokens per pass, close to what TRL's flattened trainer processed, and the expected round time is 7 to 9 minutes (12 to 15 hours for 100 rounds). This estimate assumes scoring only sampled positions as the old path does and is unmeasured until Milestone 4b.
   Date/Author: 2026-10-05, Claude.
 
 - Decision: internal digests and the recovery checkpoint format change version; checkpoints written by the old engine are not resumable by the new one.
@@ -123,6 +130,10 @@ Milestone 2 introduces `PopulationTable` and moves credit, selections, objective
 Milestone 3 moves scores and the loss to tensors. Acceptance: parity tests compare the vectorized loss, policy loss, KL loss, clipped-token set and gradient of a small real model's LoRA parameters against the token-by-token reference on fixtures, within 1e-6 relative for float32; and the harness with the stand-in model reports under 5 seconds of overhead per optimizer update and flat memory across updates.
 
 Milestone 4 adds episode packs. Acceptance: with `LiquidAI/LFM2.5-1.2B` on the local GPU, per-token log-probabilities from one pass per episode equal the per-turn passes within bf16 tolerance (documented), on a handful of r6 episodes truncated to fit; and the harness reports scoring token volume reduced from 6.36M to 1.36M per pass.
+
+Milestone 4 also changes how scores are computed from the model: run the transformer to get hidden states, gather the hidden states at the positions preceding sampled tokens, and apply the language-model head and an fp32 log-softmax to those rows in chunks (the chunk size comes from the binding's `logits_chunk_size`), so whole-sequence full-vocabulary logits are never materialized. Acceptance adds: the gathered-position scores equal the full-logits scores within fp32 tolerance on the 1.2B parity set.
+
+Milestone 4b measures what the harness cannot: GPU time. A short workstation job (or a dstack task in the job image) loads LFM2.5-2.6B with the run's LoRA settings, kernels and precision, and runs the harness's reference-score pass and one optimizer update on r6's population with the real model, reporting forward and backward seconds per pass and peak GPU memory. It runs once on the current engine and once after Milestones 2 to 4. Acceptance: the after-run's actor time per round (old scores, reference scores and four updates) is at or below the older system's 219 s per update scaled to 128 episodes, and the measured numbers replace the estimate in this plan's Decision Log.
 
 Milestone 5 finishes the migration: recovery and transport on arrays, telemetry from arrays, veRL and distributed adapters updated, the per-token reference code deleted, the full validation ladder green, a 2-update 2.6B smoke run on the workstation, and then the 100-update run.
 
