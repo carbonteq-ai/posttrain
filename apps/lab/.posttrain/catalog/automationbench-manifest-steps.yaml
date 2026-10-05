@@ -1,5 +1,5 @@
 # AutomationBench manifest step credit (docs/plan/automationbench-manifest-reward-release-and-sampo.md).
-# Environment 88086c5: the official partial credit stays the episode reward; installed
+# Environment ac10ccf: the official partial credit stays the episode reward; installed
 # manifests add goal credit and harm debit to the turn (step) whose tool call produced
 # them (turn-reward scorer version 3). Settings use the 0.4.14 resolved policy-update engine.
 environment:
@@ -11,7 +11,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 88086c5514536497a7b66b4b0db35932946e5726
+      revision: ac10ccfb163b73b8c6438ff8240f192033cd0732
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -172,7 +172,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 88086c5514536497a7b66b4b0db35932946e5726
+      revision: ac10ccfb163b73b8c6438ff8240f192033cd0732
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -307,7 +307,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 88086c5514536497a7b66b4b0db35932946e5726
+      revision: ac10ccfb163b73b8c6438ff8240f192033cd0732
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -723,7 +723,7 @@ training:
     update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
     target: targets/carbonteq-rtx-pro-6000-96gb
     parallelism: {sequence_length_divisor: 2}
-    runtime: {global_batch_size: 128, devices_per_node: 1, timeout_seconds: 86400}
+    runtime: {global_batch_size: 128, devices_per_node: 1, timeout_seconds: 172800}
     backend_options:
       rollout_execution: {env_workers: 12, episodes_per_worker: 15, worker_native_threads: 1}
       use_liger_kernel: false
