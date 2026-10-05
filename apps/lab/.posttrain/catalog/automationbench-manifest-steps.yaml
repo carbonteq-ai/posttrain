@@ -684,7 +684,7 @@ training:
     backend: trl@1.12.0.post14
     renderer: {id: lfm2.5-tools@1, model_family: lfm2.5, implementation: default, reasoning_mode: native}
     update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
-    target: targets/local-cuda-8gb
+    target: targets/pop-os-rtx-3070ti-8gb
     parallelism: {sequence_length_divisor: 2}
     runtime: {global_batch_size: 8, devices_per_node: 1, timeout_seconds: 7200}
     backend_options:
@@ -702,7 +702,7 @@ training:
     backend: trl@1.12.0.post14
     renderer: {id: lfm2.5-tools@1, model_family: lfm2.5, implementation: default, reasoning_mode: native}
     update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
-    target: targets/local-cuda-8gb
+    target: targets/pop-os-rtx-3070ti-8gb
     parallelism: {sequence_length_divisor: 2}
     runtime: {global_batch_size: 16, devices_per_node: 1, timeout_seconds: 7200}
     backend_options:
@@ -786,7 +786,7 @@ inference:
       enforce_eager: false
       dtype: bfloat16
     sampling: {max_tokens: 1024, temperature: 0.8, top_p: 1.0}
-    target: targets/local-cuda-8gb
+    target: targets/pop-os-rtx-3070ti-8gb
     purpose: [rollout]
     capabilities: [tool-calling]
 
@@ -848,6 +848,6 @@ inference:
     renderer: lfm2.5-tools@1
     engine: {mode: colocate, dtype: bfloat16}
     sampling: {max_tokens: 1024, temperature: 0.8, top_p: 1.0}
-    target: targets/local-cuda-8gb
+    target: targets/pop-os-rtx-3070ti-8gb
     purpose: [rollout]
     capabilities: [tool-calling]
