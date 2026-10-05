@@ -132,3 +132,69 @@ def test_decoder_rejects_invalid_identity_before_native_defaults(monkeypatch, pa
     monkeypatch.setitem(sys.modules, "verifiers.v1.trace", SimpleNamespace(Trace=NativeSchema))
     with pytest.raises(InvalidPolicyUpdate, match=message):
         decode_native_population(payload, format="verifiers-native-episodes")
+
+
+def _episode_line(index):
+    return (json.dumps({"traces": [{"id": f"t{index}", "payload": "x" * (index + 3)}]}, sort_keys=True) + "\n").encode()
+
+
+def test_indexed_population_reads_only_its_records_and_matches_a_full_scan(tmp_path):
+    source = tmp_path / "episodes.jsonl"
+    spans, offset = {}, 0
+    with source.open("wb") as stream:
+        for index in range(8):
+            line = _episode_line(index)
+            stream.write(line)
+            spans[f"t{index}"] = (offset, len(line))
+            offset += len(line)
+    wanted = ("t6", "t2", "t5")
+    scanned = retain_native_population(source, tmp_path / "scan", wanted, episodes=True)
+    indexed = retain_native_population(source, tmp_path / "index", wanted, episodes=True, spans=spans)
+    assert indexed.reference.digest == scanned.reference.digest
+    assert indexed.reference.path.read_bytes() == scanned.reference.path.read_bytes()
+    # A span index that does not cover every trace falls back to the full scan.
+    partial = retain_native_population(source, tmp_path / "partial", wanted, episodes=True, spans={"t2": spans["t2"]})
+    assert partial.reference.digest == scanned.reference.digest
+
+
+def test_stale_or_truncated_spans_fall_back_to_the_authoritative_scan(tmp_path):
+    source = tmp_path / "episodes.jsonl"
+    first, second = _episode_line(0), _episode_line(1)
+    source.write_bytes(first + second)
+    scanned = retain_native_population(source, tmp_path / "scan", ("t1",), episodes=True)
+    for name, span in (("stale", (0, len(first))), ("truncated", (len(first), len(second) + 50))):
+        retained = retain_native_population(source, tmp_path / name, ("t1",), episodes=True, spans={"t1": span})
+        assert retained.reference.path.read_bytes() == scanned.reference.path.read_bytes() == second
+    # A trace that is genuinely absent still fails after the fallback.
+    with pytest.raises(InvalidPolicyUpdate):
+        retain_native_population(source, tmp_path / "missing", ("t9",), episodes=True, spans={"t9": (0, len(first))})
+
+
+def test_bridge_records_episode_spans_as_it_appends(tmp_path, monkeypatch):
+    from posttrain.train.integrations import verifiers as bridge_module
+    from posttrain.train.integrations.verifiers import VerifiersEnvironmentRolloutBridge
+    from posttrain.train.online_rl import PolicySampling
+
+    monkeypatch.setattr(VerifiersEnvironmentRolloutBridge, "__post_init__", lambda self: None)
+    bridge = VerifiersEnvironmentRolloutBridge(
+        dataset_id="tasks",
+        revision="test@1",
+        tasks={},
+        environment_factory=dict,
+        trace_path=tmp_path / "traces.jsonl",
+        environment_id="environment",
+        run_id="run",
+        sampling=PolicySampling(8),
+    )
+    monkeypatch.setattr(bridge_module, "_native_record", lambda episode: episode)
+    monkeypatch.setattr(
+        "posttrain.train.integrations.verifiers_assessment_artifacts.retain_episode_artifacts",
+        lambda *args, **kwargs: None,
+    )
+    for index in range(3):
+        bridge._preserve_episode({"traces": [{"id": f"t{index}"}, {"id": f"s{index}"}]})
+    raw = (tmp_path / "episodes.jsonl").read_bytes()
+    for index in range(3):
+        offset, length = bridge._episode_spans[f"t{index}"]
+        assert bridge._episode_spans[f"s{index}"] == (offset, length)
+        assert json.loads(raw[offset : offset + length])["traces"][0]["id"] == f"t{index}"

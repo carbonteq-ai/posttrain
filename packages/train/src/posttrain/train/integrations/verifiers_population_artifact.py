@@ -6,9 +6,9 @@ import hashlib
 import json
 import os
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, BinaryIO, Literal
 
 from posttrain.common import LocalArtifactRef, ProducedArtifact
 
@@ -58,12 +58,43 @@ def decode_native_population(
     return traces
 
 
+def _select(lines: Iterable[bytes], wanted: set[str], episodes: bool) -> list[bytes]:
+    found: set[str] = set()
+    selected: list[bytes] = []
+    for line in lines:
+        record = json.loads(line)
+        traces = record.get("traces", []) if episodes else [record]
+        ids = [trace.get("id") for trace in traces]
+        matched = wanted.intersection(ids)
+        if not matched:
+            continue
+        if found.intersection(matched) or any(ids.count(identity) != 1 for identity in matched):
+            raise InvalidPolicyUpdate("native population has duplicate retained trace identities")
+        found.update(matched)
+        if not line.endswith(b"\n"):
+            raise InvalidPolicyUpdate("native population source contains an incomplete record")
+        selected.append(line)
+    if found != wanted:
+        raise InvalidPolicyUpdate("native population source lacks admitted trace identities")
+    return selected
+
+
+def _read_spans(stream: BinaryIO, spans: Sequence[tuple[int, int]]) -> Iterator[bytes]:
+    for offset, length in spans:
+        stream.seek(offset)
+        line = stream.read(length)
+        if len(line) != length:
+            raise InvalidPolicyUpdate("native population source record span is truncated")
+        yield line
+
+
 def retain_native_population(
     source: Path,
     destination: Path,
     trace_ids: tuple[str, ...],
     *,
     episodes: bool,
+    spans: Mapping[str, tuple[int, int]] | None = None,
 ) -> ProducedArtifact:
     """Copy complete native envelopes verbatim, with deterministic membership.
 
@@ -74,24 +105,22 @@ def retain_native_population(
     if not trace_ids or any(not value for value in trace_ids) or len(set(trace_ids)) != len(trace_ids):
         raise InvalidPolicyUpdate("native population requires unique nonempty trace identities")
     wanted = set(trace_ids)
-    found: set[str] = set()
-    selected: list[bytes] = []
-    with source.open("rb") as stream:
-        for line in stream:
-            record = json.loads(line)
-            traces = record.get("traces", []) if episodes else [record]
-            ids = [trace.get("id") for trace in traces]
-            matched = wanted.intersection(ids)
-            if not matched:
-                continue
-            if found.intersection(matched) or any(ids.count(identity) != 1 for identity in matched):
-                raise InvalidPolicyUpdate("native population has duplicate retained trace identities")
-            found.update(matched)
-            if not line.endswith(b"\n"):
-                raise InvalidPolicyUpdate("native population source contains an incomplete record")
-            selected.append(line)
-    if found != wanted:
-        raise InvalidPolicyUpdate("native population source lacks admitted trace identities")
+    selected: list[bytes] | None = None
+    if spans is not None and wanted <= set(spans):
+        # Read only the population's own records (in file order) rather than
+        # parsing every record the run has appended so far. Any inconsistency
+        # (a stale index after a restart, a foreign writer) falls back to the
+        # authoritative full scan instead of failing the update.
+        try:
+            with source.open("rb") as stream:
+                selected = _select(
+                    _read_spans(stream, sorted({spans[identity] for identity in wanted})), wanted, episodes
+                )
+        except (InvalidPolicyUpdate, ValueError):
+            selected = None
+    if selected is None:
+        with source.open("rb") as stream:
+            selected = _select(stream, wanted, episodes)
     evidence = b"".join(selected)
     digest = hashlib.sha256(evidence).hexdigest()
     destination.mkdir(parents=True, exist_ok=True)

@@ -792,6 +792,10 @@ class VerifiersEnvironmentRolloutBridge:
     _trace_count: int = field(default=0, init=False)
     _live_observed_trace_ids: set[str] = field(default_factory=set, init=False, repr=False)
     _requested_by_step: dict[int, int] = field(default_factory=dict, init=False, repr=False)
+    # Byte span of each native episode record in episodes.jsonl, keyed by trace
+    # id, so retaining a population reads only its own records instead of
+    # re-parsing every episode the run has written.
+    _episode_spans: dict[str, tuple[int, int]] = field(default_factory=dict, init=False, repr=False)
     _dataset: RolloutDataset = field(init=False, repr=False)
     _tasks_by_example_id: dict[str, tuple[int, Any]] = field(init=False, repr=False)
     _environment: Any = field(init=False, repr=False)
@@ -1391,7 +1395,16 @@ class VerifiersEnvironmentRolloutBridge:
         with self._write_lock:
             retain_episode_artifacts(episode, self.trace_path.parent / "assessment-evidence")
         record = _native_record(episode)
-        self._append_record(path, record)
+        span = self._append_record(path, record)
+        with self._write_lock:
+            try:
+                spans = self._episode_spans
+            except AttributeError:  # constructed without dataclass initialization
+                spans = self._episode_spans = {}
+            for trace in record.get("traces", ()):
+                identity = trace.get("id") if isinstance(trace, Mapping) else None
+                if isinstance(identity, str) and identity:
+                    spans[identity] = span
         return record
 
     def trace_observation(self, record: Mapping[str, Any]) -> TraceObservation:
@@ -1404,12 +1417,14 @@ class VerifiersEnvironmentRolloutBridge:
         with self._write_lock:
             self._trace_count += 1
 
-    def _append_record(self, path: Path, record: dict[str, Any]) -> None:
-        """Keep native and derived JSONL intact across concurrent rollout workers."""
-        encoded = json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+    def _append_record(self, path: Path, record: dict[str, Any]) -> tuple[int, int]:
+        """Keep native and derived JSONL intact across concurrent rollout workers.
+
+        Returns the record's (byte offset, byte length) in the file."""
+        encoded = (json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
         with self._write_lock:
             path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open("a", encoding="utf-8") as stream:
+            with path.open("ab") as stream:
                 try:
                     import fcntl
                 except ImportError:  # pragma: no cover - Windows is not a qualified veRL target
@@ -1417,11 +1432,13 @@ class VerifiersEnvironmentRolloutBridge:
                 if fcntl is not None:
                     fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
                 try:
+                    offset = stream.seek(0, os.SEEK_END)
                     stream.write(encoded)
                     stream.flush()
                 finally:
                     if fcntl is not None:
                         fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+        return offset, len(encoded)
 
     def write_portable_snapshot(self, path: Path) -> None:
         """Serialize trusted reconstruction state for an isolated veRL/Ray runtime."""
@@ -1464,6 +1481,7 @@ class VerifiersEnvironmentRolloutBridge:
                 self.trace_path.parent / "populations",
                 tuple(rollout.trace.external_id for rollout in rollouts),
                 episodes=episodes,
+                spans=dict(getattr(self, "_episode_spans", {})) if episodes else None,
             )
 
     def finalize(self) -> tuple[ProducedArtifact, ...]:
