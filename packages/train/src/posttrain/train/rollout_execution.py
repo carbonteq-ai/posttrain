@@ -65,6 +65,11 @@ class RolloutExecutionConfig:
     env_workers: int
     episodes_per_worker: int
     worker_native_threads: int = 1
+    # Resident memory allowed across every environment worker's process tree
+    # (env server, harness and tool-server subprocesses). Exceeding it fails the
+    # collection with a diagnostic instead of letting the host's OOM killer end
+    # the whole job. None leaves memory unguarded.
+    memory_budget_gb: float | None = None
 
     def __post_init__(self) -> None:
         if self.env_workers < 1:
@@ -73,6 +78,12 @@ class RolloutExecutionConfig:
             raise ValueError("episodes per worker must be positive")
         if self.worker_native_threads < 1:
             raise ValueError("worker native thread count must be positive")
+        if self.memory_budget_gb is not None and (
+            isinstance(self.memory_budget_gb, bool)
+            or not isinstance(self.memory_budget_gb, int | float)
+            or not self.memory_budget_gb > 0
+        ):
+            raise ValueError("worker memory budget must be a positive number of GB")
 
     @property
     def episode_capacity(self) -> int:
