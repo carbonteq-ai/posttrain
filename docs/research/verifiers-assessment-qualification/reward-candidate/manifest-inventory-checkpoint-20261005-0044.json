@@ -1,0 +1,42 @@
+{
+  "scope": "current canonical generated inventory; nonempty declared manifest presence only, not reviewed substantive coverage or qualification",
+  "domains": {
+    "finance": {
+      "inventory": 100,
+      "manifest_present": 61,
+      "missing": 39
+    },
+    "hr": {
+      "inventory": 100,
+      "manifest_present": 52,
+      "missing": 48
+    },
+    "marketing": {
+      "inventory": 100,
+      "manifest_present": 52,
+      "missing": 48
+    },
+    "operations": {
+      "inventory": 100,
+      "manifest_present": 43,
+      "missing": 57
+    },
+    "sales": {
+      "inventory": 100,
+      "manifest_present": 41,
+      "missing": 59
+    },
+    "simple": {
+      "inventory": 200,
+      "manifest_present": 25,
+      "missing": 175
+    },
+    "support": {
+      "inventory": 100,
+      "manifest_present": 50,
+      "missing": 50
+    }
+  },
+  "total": 800,
+  "present": 324
+}

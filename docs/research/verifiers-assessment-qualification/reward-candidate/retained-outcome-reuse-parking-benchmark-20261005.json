@@ -1,0 +1,326 @@
+{
+  "task_name": "operations.parking_allocation_management",
+  "episode_sha256": "95f4b3149098af1ecdaa91cb6443128c6c360b893e3dc0bcf6431a9d8a5e1d56",
+  "draft_sha256": "16f3bd4c4a9617282f96134adc47891edc7c552570b44da6c9a98b901792838b",
+  "finding_reward_source_parity": true,
+  "method": "Same recorded native fixture and current checker; baseline disables only outcome preparation LRU; three sequential scoring stages per process, no profiler; single local sample with concurrent authoring, not a general throughput guarantee",
+  "cached_seconds": {
+    "first": 33.87,
+    "rescore": 31.518,
+    "reload_rescore": 48.113
+  },
+  "uncached_seconds": {
+    "first": 78.81,
+    "rescore": 75.241,
+    "reload_rescore": 92.762
+  },
+  "speedup_by_stage": {
+    "first": 2.327,
+    "rescore": 2.387,
+    "reload_rescore": 1.928
+  },
+  "total_speedup": 2.175,
+  "checker_sha256": "0d26d8f8227f266c4f22d6cbf8b8af2ed9b10695a09e2ceee9f0db0cfcfb03ac",
+  "baseline_artifact": {
+    "task_name": "operations.parking_allocation_management",
+    "episode_sha256": "95f4b3149098af1ecdaa91cb6443128c6c360b893e3dc0bcf6431a9d8a5e1d56",
+    "draft_sha256": "16f3bd4c4a9617282f96134adc47891edc7c552570b44da6c9a98b901792838b",
+    "source_head": "3d7ebc418d7e4c34390129847b517d55be5cdfda",
+    "per_check": [
+      {
+        "check_id": "no-existing-assignment-overwrite",
+        "status": "abstained",
+        "value": null,
+        "reason": "guard_candidate_key_unavailable",
+        "count": 250
+      },
+      {
+        "check_id": "maintenance-not-assigned",
+        "status": "abstained",
+        "value": null,
+        "reason": "guard_candidate_key_unavailable",
+        "count": 250
+      },
+      {
+        "check_id": "read-parking-spots",
+        "status": "abstained",
+        "value": null,
+        "reason": "obligation_effect_scope_unavailable",
+        "count": 2
+      },
+      {
+        "check_id": "read-employee-seniority",
+        "status": "abstained",
+        "value": null,
+        "reason": "obligation_effect_scope_unavailable",
+        "count": 2
+      },
+      {
+        "check_id": "read-availability-update-before-allocation",
+        "status": "valid",
+        "value": 0.0,
+        "reason": "obligation_required_effect_missing",
+        "count": 2
+      },
+      {
+        "check_id": "assigned-employee-notified-with-spot-details",
+        "status": "abstained",
+        "value": null,
+        "reason": "obligation_effect_scope_unavailable",
+        "count": 6
+      },
+      {
+        "check_id": "assigned-employee-notified-with-spot-details",
+        "status": "inapplicable",
+        "value": null,
+        "reason": "obligation_not_required",
+        "count": 42
+      },
+      {
+        "check_id": "assigned-employee-notified-with-spot-details",
+        "status": "valid",
+        "value": 0.0,
+        "reason": "obligation_required_effect_missing",
+        "count": 2
+      },
+      {
+        "check_id": "office-ops-summary-count-and-utilization",
+        "status": "abstained",
+        "value": null,
+        "reason": "obligation_effect_scope_unavailable",
+        "count": 2
+      },
+      {
+        "check_id": "availability-update-keeps-p109-unassigned",
+        "status": "abstained",
+        "value": null,
+        "reason": "retained_requirement_unavailable",
+        "count": 50
+      },
+      {
+        "check_id": "each-eligible-requester-has-one-final-spot",
+        "status": "valid",
+        "value": 1.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 6
+      },
+      {
+        "check_id": "each-eligible-requester-has-one-final-spot",
+        "status": "inapplicable",
+        "value": null,
+        "reason": "terminal_count_not_required",
+        "count": 42
+      },
+      {
+        "check_id": "each-eligible-requester-has-one-final-spot",
+        "status": "valid",
+        "value": 0.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 2
+      },
+      {
+        "check_id": "ineligible-requester-has-no-final-spot",
+        "status": "inapplicable",
+        "value": null,
+        "reason": "terminal_count_not_required",
+        "count": 8
+      },
+      {
+        "check_id": "ineligible-requester-has-no-final-spot",
+        "status": "valid",
+        "value": 0.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 6
+      },
+      {
+        "check_id": "ineligible-requester-has-no-final-spot",
+        "status": "valid",
+        "value": 1.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 36
+      },
+      {
+        "check_id": "no-ineligible-handicap-allocations",
+        "status": "valid",
+        "value": 1.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 50
+      },
+      {
+        "check_id": "no-ineligible-reserved-allocations",
+        "status": "valid",
+        "value": 1.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 50
+      },
+      {
+        "check_id": "no-maintenance-allocations",
+        "status": "valid",
+        "value": 1.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 50
+      }
+    ],
+    "rescore_equal": true,
+    "reload_equal": true,
+    "scalar_unchanged": true,
+    "episode_bytes_unchanged": true,
+    "errors": [],
+    "stage_seconds": {
+      "first": 78.81,
+      "rescore": 75.241,
+      "reload_rescore": 92.762
+    }
+  },
+  "cached_artifact": {
+    "task_name": "operations.parking_allocation_management",
+    "episode_sha256": "95f4b3149098af1ecdaa91cb6443128c6c360b893e3dc0bcf6431a9d8a5e1d56",
+    "draft_sha256": "16f3bd4c4a9617282f96134adc47891edc7c552570b44da6c9a98b901792838b",
+    "source_head": "3d7ebc418d7e4c34390129847b517d55be5cdfda",
+    "per_check": [
+      {
+        "check_id": "no-existing-assignment-overwrite",
+        "status": "abstained",
+        "value": null,
+        "reason": "guard_candidate_key_unavailable",
+        "count": 250
+      },
+      {
+        "check_id": "maintenance-not-assigned",
+        "status": "abstained",
+        "value": null,
+        "reason": "guard_candidate_key_unavailable",
+        "count": 250
+      },
+      {
+        "check_id": "read-parking-spots",
+        "status": "abstained",
+        "value": null,
+        "reason": "obligation_effect_scope_unavailable",
+        "count": 2
+      },
+      {
+        "check_id": "read-employee-seniority",
+        "status": "abstained",
+        "value": null,
+        "reason": "obligation_effect_scope_unavailable",
+        "count": 2
+      },
+      {
+        "check_id": "read-availability-update-before-allocation",
+        "status": "valid",
+        "value": 0.0,
+        "reason": "obligation_required_effect_missing",
+        "count": 2
+      },
+      {
+        "check_id": "assigned-employee-notified-with-spot-details",
+        "status": "abstained",
+        "value": null,
+        "reason": "obligation_effect_scope_unavailable",
+        "count": 6
+      },
+      {
+        "check_id": "assigned-employee-notified-with-spot-details",
+        "status": "inapplicable",
+        "value": null,
+        "reason": "obligation_not_required",
+        "count": 42
+      },
+      {
+        "check_id": "assigned-employee-notified-with-spot-details",
+        "status": "valid",
+        "value": 0.0,
+        "reason": "obligation_required_effect_missing",
+        "count": 2
+      },
+      {
+        "check_id": "office-ops-summary-count-and-utilization",
+        "status": "abstained",
+        "value": null,
+        "reason": "obligation_effect_scope_unavailable",
+        "count": 2
+      },
+      {
+        "check_id": "availability-update-keeps-p109-unassigned",
+        "status": "abstained",
+        "value": null,
+        "reason": "retained_requirement_unavailable",
+        "count": 50
+      },
+      {
+        "check_id": "each-eligible-requester-has-one-final-spot",
+        "status": "valid",
+        "value": 1.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 6
+      },
+      {
+        "check_id": "each-eligible-requester-has-one-final-spot",
+        "status": "inapplicable",
+        "value": null,
+        "reason": "terminal_count_not_required",
+        "count": 42
+      },
+      {
+        "check_id": "each-eligible-requester-has-one-final-spot",
+        "status": "valid",
+        "value": 0.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 2
+      },
+      {
+        "check_id": "ineligible-requester-has-no-final-spot",
+        "status": "inapplicable",
+        "value": null,
+        "reason": "terminal_count_not_required",
+        "count": 8
+      },
+      {
+        "check_id": "ineligible-requester-has-no-final-spot",
+        "status": "valid",
+        "value": 0.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 6
+      },
+      {
+        "check_id": "ineligible-requester-has-no-final-spot",
+        "status": "valid",
+        "value": 1.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 36
+      },
+      {
+        "check_id": "no-ineligible-handicap-allocations",
+        "status": "valid",
+        "value": 1.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 50
+      },
+      {
+        "check_id": "no-ineligible-reserved-allocations",
+        "status": "valid",
+        "value": 1.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 50
+      },
+      {
+        "check_id": "no-maintenance-allocations",
+        "status": "valid",
+        "value": 1.0,
+        "reason": "terminal_count_predicate_verified",
+        "count": 50
+      }
+    ],
+    "rescore_equal": true,
+    "reload_equal": true,
+    "scalar_unchanged": true,
+    "episode_bytes_unchanged": true,
+    "errors": [],
+    "stage_seconds": {
+      "first": 33.87,
+      "rescore": 31.518,
+      "reload_rescore": 48.113
+    }
+  }
+}

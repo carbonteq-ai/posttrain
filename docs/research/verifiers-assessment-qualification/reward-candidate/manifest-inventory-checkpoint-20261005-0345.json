@@ -1,0 +1,42 @@
+{
+  "count_semantics": "Installed contract or draft with nonempty checks, not reviewed coverage, correctness, credit or eligibility",
+  "domains": {
+    "sales": {
+      "inventory": 100,
+      "manifest_present": 81,
+      "missing": 19
+    },
+    "marketing": {
+      "inventory": 100,
+      "manifest_present": 82,
+      "missing": 18
+    },
+    "operations": {
+      "inventory": 100,
+      "manifest_present": 65,
+      "missing": 35
+    },
+    "support": {
+      "inventory": 100,
+      "manifest_present": 90,
+      "missing": 10
+    },
+    "finance": {
+      "inventory": 100,
+      "manifest_present": 91,
+      "missing": 9
+    },
+    "hr": {
+      "inventory": 100,
+      "manifest_present": 97,
+      "missing": 3
+    },
+    "simple": {
+      "inventory": 200,
+      "manifest_present": 25,
+      "missing": 175
+    }
+  },
+  "total_present": 531,
+  "total_missing": 269
+}

@@ -1,0 +1,1653 @@
+{
+  "interpretation": "Declared in-scope coverage only; out-of-scope obligations and behavioral gaps remain; no new task qualification",
+  "tasks": [
+    {
+      "task_name": "finance.cash_flow_forecast",
+      "domain": "finance",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_reviewed": 7,
+        "in_scope": 6,
+        "expressed": 5,
+        "gaps": 1,
+        "gaps_by_category": {
+          "other:excluded_row_report_entry_discrimination": 1
+        },
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.cost_center_allocation",
+      "domain": "finance",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 6,
+        "expressed": 4,
+        "gaps": 2,
+        "out_of_scope": 1,
+        "gaps_by_category": {
+          "report_fact_coverage": 1,
+          "cross_system_reconciliation": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.dept_expense_rollup",
+      "domain": "finance",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 1,
+        "gaps_by_category": {
+          "report_fact_coverage": 2
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.financial_close_checklist",
+      "domain": "finance",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 2,
+        "expressed": 1,
+        "gaps": 1,
+        "out_of_scope": 1,
+        "gaps_by_category": {
+          "report_fact_coverage": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.monday_project_billing",
+      "domain": "finance",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 3,
+        "expressed": 2,
+        "gaps": 1,
+        "out_of_scope": 1,
+        "gaps_by_category": {
+          "cross_system_reconciliation": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.overdue_invoice_followup",
+      "domain": "finance",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 8,
+        "expressed": 6,
+        "gaps": 2,
+        "out_of_scope": 1,
+        "gaps_by_category": {
+          "report_fact_coverage": 1,
+          "other:sheet_update_after_send": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.petty_cash_reconciliation",
+      "domain": "finance",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 1,
+        "gaps_by_category": {
+          "report_fact_coverage": 2
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.profit_margin_analysis",
+      "domain": "finance",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 3,
+        "expressed": 2,
+        "gaps": 1,
+        "out_of_scope": 1,
+        "gaps_by_category": {
+          "report_fact_coverage": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.qb_estimate_conversion",
+      "domain": "finance",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 5,
+        "expressed": 3,
+        "gaps": 2,
+        "out_of_scope": 1,
+        "gaps_by_category": {
+          "report_fact_coverage": 1,
+          "generated_object_relationships": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.travel_advance_settlement",
+      "domain": "finance",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 7,
+        "expressed": 4,
+        "gaps": 3,
+        "out_of_scope": 1,
+        "gaps_by_category": {
+          "report_fact_coverage": 1,
+          "other:hold_policy": 1,
+          "other:date_policy": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.airtable_recruitment_analytics",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 6,
+        "in_scope": 4,
+        "expressed": 3,
+        "gaps": 1,
+        "out_of_scope": 2,
+        "gaps_by_category": {
+          "report_fact_coverage": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.candidate_pipeline_report",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 7,
+        "in_scope": 5,
+        "expressed": 3,
+        "gaps": 2,
+        "out_of_scope": 2,
+        "gaps_by_category": {
+          "report_fact_coverage": 1,
+          "required_read_ordering": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.data_migration_validation",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 6,
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 2,
+        "gaps_by_category": {
+          "other:status-semantics": 1,
+          "cross_system_reconciliation": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.docusign_offer_letters",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 6,
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 2,
+        "gaps_by_category": {
+          "generated_object_relationships": 1,
+          "other:cross_service_ordered_status": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.handbook_acknowledgment",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 6,
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 2,
+        "gaps_by_category": {
+          "required_read_ordering": 1,
+          "other:retention_duration": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.i9_verification_tracking",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 5,
+        "in_scope": 3,
+        "expressed": 1,
+        "gaps": 2,
+        "out_of_scope": 2,
+        "gaps_by_category": {
+          "required_read_ordering": 1,
+          "other:cross_service_ordered_status": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.offboarding_automation",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 6,
+        "in_scope": 4,
+        "expressed": 1,
+        "gaps": 3,
+        "out_of_scope": 2,
+        "gaps_by_category": {
+          "required_read_ordering": 1,
+          "cross_system_reconciliation": 1,
+          "other:multi_effect_completion": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.performance_feedback_logging",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 7,
+        "in_scope": 5,
+        "expressed": 3,
+        "gaps": 2,
+        "out_of_scope": 2,
+        "gaps_by_category": {
+          "other:structured-extraction": 1,
+          "report_fact_coverage": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.performance_review_cycle",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 6,
+        "in_scope": 4,
+        "expressed": 3,
+        "gaps": 1,
+        "out_of_scope": 2,
+        "gaps_by_category": {
+          "report_fact_coverage": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.quarterly_termination_queue",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 6,
+        "in_scope": 4,
+        "expressed": 3,
+        "gaps": 1,
+        "out_of_scope": 2,
+        "gaps_by_category": {
+          "other:cross_channel_harm": 1
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.campaign_handoff",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 9,
+        "expressed": 6,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.competitor_product_launch",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 3,
+        "expressed": 2,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.content_performance",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 2,
+        "expressed": 1,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.email_campaign_analytics",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 2,
+        "expressed": 1,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.market_trend",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 2,
+        "expressed": 1,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.news_digest_dedup",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 3,
+        "expressed": 2,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.trial_extension_processing",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 2,
+        "expressed": 1,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.campaign_roi_analysis",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 2,
+        "expressed": 1,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.content_expiration_alert",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 2,
+        "expressed": 1,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.seo_audit",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 2,
+        "expressed": 1,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.access_request_validation",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 5,
+        "expressed": 3,
+        "gaps": 2,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.contract_renewal_pipeline",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 7,
+        "expressed": 4,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.energy_consumption_anomaly",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 7,
+        "expressed": 4,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.equipment_lease_processing",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 6,
+        "expressed": 3,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.facebook_roas_monitoring",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 5,
+        "expressed": 2,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.fire_extinguisher_inspection_schedule",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 6,
+        "expressed": 3,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.hazmat_shipping_compliance",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 6,
+        "expressed": 3,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.housekeeping_schedule",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 5,
+        "expressed": 2,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.hubspot_payment_failure",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 6,
+        "expressed": 3,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.mailroom_package_routing",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 6,
+        "expressed": 3,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.calendar_crm_meeting",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 9,
+        "expressed": 6,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.create_draft_reply",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 1,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.create_important_draft",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 3,
+        "expressed": 1,
+        "gaps": 2,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.cross_modal_renewal_processing",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 5,
+        "expressed": 2,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.dependency_chain",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 5,
+        "expressed": 2,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.five_level_conditional",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 3,
+        "expressed": 1,
+        "gaps": 2,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.soft_matching",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.meeting_action_items",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 3,
+        "expressed": 0,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.unreliable_label_account_review",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 5,
+        "expressed": 2,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.zoom_webinar_lead_scoring",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 5,
+        "expressed": 3,
+        "gaps": 2,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.reamaze_multilanguage",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.hiver_quality_coaching",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.hiver_workload_forecast",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.hiver_response_sla",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.zoho_desk_customer_journey",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.zendesk_intercom_company_sync",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.gorgias_quality_audit",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.helpscout_daily_digest",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 2,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.zendesk_customer_360",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 5,
+        "expressed": 3,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.zendesk_sf_case_sync",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 6,
+        "expressed": 2,
+        "gaps": 4,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.monthend_journal_entries",
+      "domain": "finance",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "obligations_reviewed": 14,
+        "obligations_total": 10,
+        "expressed": 10,
+        "gaps": 0,
+        "gaps_by_category": {},
+        "out_of_scope": 4,
+        "out_of_scope_requires_judgement": 2,
+        "coverage_change": "first draft: 10/10"
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.po_email_logging",
+      "domain": "finance",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "obligations_reviewed": 9,
+        "in_scope": 7,
+        "expressed": 7,
+        "gaps": 0,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.prepaid_amortization",
+      "domain": "finance",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "in_scope": 8,
+        "expressed": 8,
+        "gaps": 0,
+        "out_of_scope": 4,
+        "gaps_by_category": {}
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.vendor_statement_reconciliation",
+      "domain": "finance",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "obligations_reviewed": 4,
+        "in_scope": 3,
+        "expressed": 3,
+        "gaps": 0,
+        "gaps_by_category": {},
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.wave_expense_categorization",
+      "domain": "finance",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_reviewed": 4,
+        "in_scope": 3,
+        "expressed": 2,
+        "gaps": 1,
+        "gaps_by_category": {
+          "other:missing_rule_for_source_row": 1
+        },
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.xero_expense_claim_review",
+      "domain": "finance",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "obligations_reviewed": 5,
+        "in_scope": 4,
+        "expressed": 4,
+        "gaps": 0,
+        "gaps_by_category": {},
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.year_end_audit_prep",
+      "domain": "finance",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "obligations_reviewed": 3,
+        "in_scope": 2,
+        "expressed": 2,
+        "gaps": 0,
+        "gaps_by_category": {},
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.employee_reimbursement",
+      "domain": "finance",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "obligations_reviewed": 5,
+        "in_scope": 4,
+        "expressed": 4,
+        "gaps": 0,
+        "gaps_by_category": {},
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.ap_turnover_analysis",
+      "domain": "finance",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_reviewed": 5,
+        "in_scope": 4,
+        "expressed": 3,
+        "gaps": 1,
+        "gaps_by_category": {
+          "report_fact_coverage": 1
+        },
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "finance.qb_sales_receipt_batch",
+      "domain": "finance",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "obligations_reviewed": 11,
+        "in_scope": 9,
+        "expressed": 9,
+        "gaps": 0,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.docusign_nda_collection",
+      "domain": "hr",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "obligations_total": 11,
+        "in_scope": 9,
+        "expressed": 9,
+        "gaps": 0,
+        "gaps_by_category": {},
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.equipment_provisioning",
+      "domain": "hr",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "in_scope": 10,
+        "expressed": 10,
+        "gaps": 0,
+        "out_of_scope": 4
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.recruitment_dedup_alert",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 5,
+        "in_scope": 3,
+        "expressed": 2,
+        "gaps_by_category": {
+          "cross_system_reconciliation": 1
+        },
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.safety_incident_reporting",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 12,
+        "in_scope": 10,
+        "expressed": 8,
+        "gaps_by_category": {
+          "other:retention_duration": 1,
+          "other:conditional_case_absent": 1
+        },
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.team_restructure_notification",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 7,
+        "in_scope": 5,
+        "expressed": 4,
+        "gaps_by_category": {
+          "report_fact_coverage": 1
+        },
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.tuition_reimbursement",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 32,
+        "in_scope": 30,
+        "expressed": 28,
+        "gaps_by_category": {
+          "other:partial_award_semantics": 1,
+          "other:conflicting_public_instructions": 1
+        },
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.twilio_emergency_notification",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 7,
+        "in_scope": 5,
+        "expressed": 4,
+        "gaps_by_category": {
+          "other:date_mention": 1
+        },
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.exit_interview_scheduling",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 13,
+        "in_scope": 9,
+        "expressed": 8,
+        "gaps_by_category": {
+          "other:date_mention": 1
+        },
+        "out_of_scope": 4,
+        "expressed_v1": 7,
+        "expressed_v2": 8,
+        "change_v2": "invite by calendar or email -> expressed (alternatives); business-day date partially expressed (calendar path), still a gap for email invites (R4-L2)."
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.workforce_planning_forecast",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 15,
+        "in_scope": 13,
+        "expressed": 11,
+        "gaps_by_category": {
+          "other:recipient_identity": 1,
+          "other:status-semantics": 1
+        },
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "hr.visa_expiry_tracking",
+      "domain": "hr",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 10,
+        "in_scope": 8,
+        "expressed": 5,
+        "gaps_by_category": {
+          "other:renewal_deadline": 1,
+          "other:unsupported_filing_effect": 1,
+          "other:missing_public_amount": 1
+        },
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.ad_platform_audit",
+      "domain": "marketing",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "obligations_total": 18,
+        "in_scope": 17,
+        "expressed": 17,
+        "expressed_unverified": [],
+        "gaps_by_category": {},
+        "out_of_scope": 1,
+        "round3_to_round4": {
+          "expressed": "13 (1 unverified) -> 17 verified",
+          "in_scope": "15 -> 17",
+          "gaps": "2 -> 0"
+        },
+        "note": "Two gaps closed (record-write guards, numeric verbatim); two scope guards added; read join verified."
+      },
+      "whole_task_status": "qualified_candidate"
+    },
+    {
+      "task_name": "marketing.email_blast_suppression",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 13,
+        "expressed": 12,
+        "gaps": 1,
+        "out_of_scope": 3,
+        "gap_pending_mechanisms": [
+          "date-mode"
+        ]
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.partner_content_approval",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 3,
+        "expressed": 2,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.content_scoring",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 3,
+        "expressed": 2,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.hashtag_performance",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 3,
+        "expressed": 2,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.social_roi",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 3,
+        "expressed": 2,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.keyword_cannibalization",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 3,
+        "expressed": 2,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.social_content_calendar",
+      "domain": "marketing",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "obligations_total": 16,
+        "in_scope": 15,
+        "expressed": 15,
+        "expressed_unverified": [],
+        "gaps_by_category": {},
+        "out_of_scope": 1,
+        "round3_to_round4": {
+          "expressed": "14 (1 unverified) -> 15 verified",
+          "in_scope": "15 -> 15",
+          "gaps": "1 -> 0"
+        },
+        "note": "Brand Awareness guard added (mechanism 9); read join verified (mechanisms 11/12)."
+      },
+      "whole_task_status": "qualified_candidate"
+    },
+    {
+      "task_name": "marketing.social_contest",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 3,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "marketing.multi_touch_attribution",
+      "domain": "marketing",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 3,
+        "expressed": 2,
+        "gaps": 1,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.facility_incident_triage",
+      "domain": "operations",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "in_scope": 10,
+        "expressed": 10,
+        "gaps": 0,
+        "gaps_by_category": {},
+        "out_of_scope": 2
+      },
+      "whole_task_status": "qualified_candidate"
+    },
+    {
+      "task_name": "operations.office_supply_budget_monitoring",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 5,
+        "expressed": 4,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.perishable_inventory_expiry",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 6,
+        "expressed": 5,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.procurement_card_reconciliation",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 3,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.safety_certification_gap_analysis",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 5,
+        "expressed": 4,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.training_compliance_check",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 5,
+        "expressed": 4,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.twilio_facilities_emergency",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 9,
+        "expressed": 8,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.fleet_vehicle_maintenance",
+      "domain": "operations",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "obligations_reviewed": 12,
+        "obligations_total": 10,
+        "expressed": 10,
+        "gaps_by_category": {},
+        "out_of_scope": 2,
+        "out_of_scope_by_reason": {
+          "system_prompt_rule": 2
+        },
+        "coverage_change": {
+          "round_3": "not drafted",
+          "round_4": "first draft"
+        }
+      },
+      "whole_task_status": "qualified_candidate"
+    },
+    {
+      "task_name": "operations.google_ads_budget_alert",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 3,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "operations.sla_breach_early_warning",
+      "domain": "operations",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 7,
+        "expressed": 6,
+        "gaps": 2,
+        "out_of_scope": 1
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.apply_project_label",
+      "domain": "sales",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "in_scope": 8,
+        "expressed": 8,
+        "gaps": 0,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.docusign_void_resend",
+      "domain": "sales",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "in_scope": 8,
+        "expressed": 8,
+        "gaps": 0,
+        "out_of_scope": 3
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.zoom_calendar_conflict",
+      "domain": "sales",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "in_scope": 10,
+        "expressed": 10,
+        "gaps": 0,
+        "out_of_scope": 4
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.milestone_celebration",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 1,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.zoom_customer_health",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 5,
+        "expressed": 2,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.chatgpt_lead_classification_pipeline",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 6,
+        "expressed": 2,
+        "gaps": 4,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.recency_selection",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 1,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.chatgpt_email_sentiment_routing",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 4,
+        "expressed": 1,
+        "gaps": 3,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.slack_deal_notification",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 6,
+        "expressed": 2,
+        "gaps": 4,
+        "out_of_scope": 2
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "sales.chatgpt_proposal_customization",
+      "domain": "sales",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "in_scope": 8,
+        "expressed": 7,
+        "gaps": 1,
+        "out_of_scope": 4
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.zendesk_hubspot_org_sync",
+      "domain": "support",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "in_scope": 16,
+        "expressed": 16,
+        "gaps": 0,
+        "out_of_scope": 2,
+        "reviewed": 18
+      },
+      "whole_task_status": "qualified_candidate"
+    },
+    {
+      "task_name": "support.hiver_inbox_report",
+      "domain": "support",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "in_scope": 11,
+        "expressed": 11,
+        "gaps": 0,
+        "out_of_scope": 5
+      },
+      "whole_task_status": "qualified_candidate"
+    },
+    {
+      "task_name": "support.gorgias_inventory_routing",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 29,
+        "in_scope": 20,
+        "expressed": 19,
+        "gaps_by_category": {
+          "required_read_ordering": 1
+        },
+        "out_of_scope": 9,
+        "coverage_change": {
+          "round3": "0 / 20 (first draft)",
+          "round4": "19 / 20",
+          "added": [
+            "first draft"
+          ]
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.helpcrunch_engagement_scoring",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "obligations_total": 15,
+        "in_scope": 11,
+        "expressed": 5,
+        "gaps_by_category": {
+          "other:per_member_child_aggregation": 6
+        },
+        "out_of_scope": 4,
+        "coverage_change": {
+          "round3": "5 / 11",
+          "round4": "5 / 11",
+          "added": [],
+          "note": "No new obligation is expressible: mechanisms 9-16 do not reach nested per-customer events. H4c moved from public_policy_ambiguity to per_member_child_aggregation after deciding the amounts and window."
+        }
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.helpscout_customer_effort",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "reviewed": 5,
+        "expressed": 1,
+        "gaps": 2,
+        "out_of_scope": 2,
+        "whole_task_status": "not_qualified",
+        "in_scope": 3
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.reamaze_cross_platform_dedup",
+      "domain": "support",
+      "declared_full_in_scope": true,
+      "coverage": {
+        "in_scope": 11,
+        "expressed": 11,
+        "gaps": 0,
+        "out_of_scope": 3
+      },
+      "whole_task_status": "qualified_candidate"
+    },
+    {
+      "task_name": "support.intercom_reactivation_campaign",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "reviewed": 6,
+        "expressed": 2,
+        "gaps": 3,
+        "out_of_scope": 1,
+        "whole_task_status": "not_qualified",
+        "in_scope": 5
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.hiver_slack_digest",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "reviewed": 5,
+        "expressed": 1,
+        "gaps": 3,
+        "out_of_scope": 1,
+        "whole_task_status": "not_qualified",
+        "in_scope": 4
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.hiver_team_performance",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "reviewed": 6,
+        "expressed": 1,
+        "gaps": 3,
+        "out_of_scope": 2,
+        "whole_task_status": "not_qualified",
+        "in_scope": 4
+      },
+      "whole_task_status": "not_qualified"
+    },
+    {
+      "task_name": "support.zoho_multitenant_isolation",
+      "domain": "support",
+      "declared_full_in_scope": false,
+      "coverage": {
+        "reviewed": 4,
+        "expressed": 1,
+        "gaps": 2,
+        "out_of_scope": 1,
+        "whole_task_status": "not_qualified",
+        "in_scope": 3
+      },
+      "whole_task_status": "not_qualified"
+    }
+  ],
+  "declared_full_by_domain": {
+    "finance": 8,
+    "hr": 2,
+    "marketing": 2,
+    "operations": 2,
+    "sales": 3,
+    "support": 3
+  },
+  "declared_full_total": 20
+}

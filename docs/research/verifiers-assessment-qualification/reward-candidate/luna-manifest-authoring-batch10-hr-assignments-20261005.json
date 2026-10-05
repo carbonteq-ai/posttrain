@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "purpose": "Final three HR public-only drafts after independent HR09 component review; no qualification",
+  "source_split_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/luna-development-review-coverage.json",
+  "source_split_sha256": "f262e989ae1cf008e7f57de2364c8a7668f6a966222ef9f176cae0eaeb83e919",
+  "selection_algorithm": "Canonical unowned missing HR tasks, preserve existing development review index split; public inputs only",
+  "worker_model": "gpt-6-luna",
+  "reasoning_effort": "high",
+  "category_assignments": {
+    "hr": [
+      {
+        "task_name": "hr.anniversary_recognition",
+        "domain": "hr",
+        "family": "hr.all-development",
+        "split": "development",
+        "frozen_split": "development",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch10-20261005/hr.json",
+        "public_pack_index": 0,
+        "public_pack_sha256": "b676a50b7223e2999e6c2bb5b9c805bb773ba68349694e66ba6bda217e225736",
+        "public_input_sha256": "089f68d73a18e6ef05b1a7839fa1ce18ca4d00b384e2582f901998e10c498e37",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.anniversary_recognition",
+        "authoring_action": "author_missing_draft",
+        "reference_class": "no_reference_public_only",
+        "replay_status": "unavailable_no_recorded_reference",
+        "training_eligibility": "not_granted"
+      },
+      {
+        "task_name": "hr.job_board_monitoring",
+        "domain": "hr",
+        "family": "hr.all-development",
+        "split": "development",
+        "frozen_split": "development",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch10-20261005/hr.json",
+        "public_pack_index": 1,
+        "public_pack_sha256": "b676a50b7223e2999e6c2bb5b9c805bb773ba68349694e66ba6bda217e225736",
+        "public_input_sha256": "f0d586076836b5109692e1cc13962b98fbdc06a70b452a92c72ac4ef11d2c018",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.job_board_monitoring",
+        "authoring_action": "author_missing_draft",
+        "reference_class": "no_reference_public_only",
+        "replay_status": "unavailable_no_recorded_reference",
+        "training_eligibility": "not_granted"
+      },
+      {
+        "task_name": "hr.payroll_discrepancy",
+        "domain": "hr",
+        "family": "hr.all-development",
+        "split": "development",
+        "frozen_split": "development",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch10-20261005/hr.json",
+        "public_pack_index": 2,
+        "public_pack_sha256": "b676a50b7223e2999e6c2bb5b9c805bb773ba68349694e66ba6bda217e225736",
+        "public_input_sha256": "eaeb8e8f9251eb350b6f72e5bf17f562f94f0f8d4615c10c475585207f541031",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.payroll_discrepancy",
+        "authoring_action": "author_missing_draft",
+        "reference_class": "no_reference_public_only",
+        "replay_status": "unavailable_no_recorded_reference",
+        "training_eligibility": "not_granted"
+      }
+    ]
+  }
+}

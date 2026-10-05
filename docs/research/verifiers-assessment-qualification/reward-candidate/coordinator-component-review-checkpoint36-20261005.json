@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "heartbeat_utc": "2026-10-05T04:34:48.154Z",
+  "reviewed": [
+    {
+      "domain": "sales",
+      "batch": "08",
+      "tasks": 7,
+      "controls": 21,
+      "reference_scores": "all original zero, unchanged"
+    },
+    {
+      "domain": "support",
+      "batch": "09",
+      "tasks": 10,
+      "controls": 75,
+      "baseline": "public-only empty-assertion harness; hidden baseline unavailable"
+    }
+  ],
+  "qualification_granted": false,
+  "eligibility_granted": false,
+  "refill_count": 12,
+  "artifacts": [
+    {
+      "path": "/tmp/root-sales08-support09-gates.py",
+      "sha256": "d4d6dabc126324298ea1544e03f20f57d39b80234fd338f1a4a846f774059d97"
+    },
+    {
+      "path": "/tmp/automationbench-luna-sales-batch08-20261005/genuine-handler-controls.json",
+      "sha256": "57bb686c2940eee756cd811616f521771c3b1b01977bd6c8709acffcb49c80be"
+    },
+    {
+      "path": "/tmp/automationbench-luna-sales-batch08-20261005/batch08-final-audit.json",
+      "sha256": "4af9da4900c5e95d6bf527ffaa7b46c3d5ad95e13c09873a9e1d0476169a97e3"
+    },
+    {
+      "path": "/tmp/automationbench-luna-support-batch09-20261005/controls.json",
+      "sha256": "a44681ae48a1462e99b4e96b1c463917307f5ae737aaa04a9b0db4b6750b3c24"
+    },
+    {
+      "path": "/tmp/automationbench-luna-marketing-batch08-20261005/ugc_batch_id_repro.json",
+      "sha256": "3c52c4baceed13bdf6eefb8276e9098931c62f76c8d2cfe71093e5bdf3c95b09"
+    },
+    {
+      "path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/luna-manifest-authoring-batch09-sales-assignments-20261005.json",
+      "sha256": "91fc8d7578dff2611d6edd4aa8537763067edfc44f6f6c9cbe96b89c0e6ce28b"
+    },
+    {
+      "path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/luna-manifest-authoring-batch10-support-assignments-20261005.json",
+      "sha256": "ea7847f6a6ae2c5c35c0676ccd8cdd4d22aa63cb26388d5c9198f191566876d3"
+    }
+  ]
+}

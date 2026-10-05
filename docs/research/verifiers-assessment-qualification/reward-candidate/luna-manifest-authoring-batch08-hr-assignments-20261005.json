@@ -1,0 +1,534 @@
+{
+  "schema_version": 1,
+  "purpose": "Rolling ten-case hr refill after reviewed batch07 component authoring; no qualification",
+  "source_index_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/luna-development-review-coverage.json",
+  "source_index_sha256": "f262e989ae1cf008e7f57de2364c8a7668f6a966222ef9f176cae0eaeb83e919",
+  "selection_algorithm": "Highest-scoring retained development references; exclude installed/drafts and exact prior ownership",
+  "worker_model": "gpt-6-luna",
+  "reasoning_effort": "high",
+  "fast_mode": "No separate fast-mode parameter exposed; priority tier available",
+  "category_assignments": {
+    "hr": [
+      {
+        "attempt_id": "c5ed456be208664188a225c40476725d161e9e798dbcf1d8601a74e0d7a7c614",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 4,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 4
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/c5ed456be208664188a225c40476725d161e9e798dbcf1d8601a74e0d7a7c614/episode.json",
+        "source_episode_sha256": "7999d2c05287ea47ecad6a8f1b2127bf3c6dae755943edad524abd67a935ed73",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.offer_letter_generation",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "ba891c5b5abf43f5974ab1ff22c395c0"
+        ],
+        "domain": "hr",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 1,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.offer_letter_generation",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/hr.json",
+        "public_pack_index": 0,
+        "public_pack_sha256": "c64c65a39c5c712cbb0f238ba78d04ccd16a66cc3e7684d04138ace34d249122"
+      },
+      {
+        "attempt_id": "69ae31a124962a09a84087b804bc5faeb8529d1a3e0bf9cc5f4b37dea227652b",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 7,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 7
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/69ae31a124962a09a84087b804bc5faeb8529d1a3e0bf9cc5f4b37dea227652b/episode.json",
+        "source_episode_sha256": "30eed2d69af5f8a07f45864ece422721cdbf35c9f50ec64e273d558660f8b720",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.org_restructure_update",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "349f8f80310f4d818b6315cd3e9bbb49"
+        ],
+        "domain": "hr",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 2,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.org_restructure_update",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/hr.json",
+        "public_pack_index": 1,
+        "public_pack_sha256": "c64c65a39c5c712cbb0f238ba78d04ccd16a66cc3e7684d04138ace34d249122"
+      },
+      {
+        "attempt_id": "61c65283a24da26e013d3241693481df41f54f8f6b36443aedffb7b00c002afa",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 7,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 7
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/61c65283a24da26e013d3241693481df41f54f8f6b36443aedffb7b00c002afa/episode.json",
+        "source_episode_sha256": "d0ba59eaf016759e4eb554e2d2c523cb9a17d8eb90f76422948380fa87df510b",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.performance_review_kickoff",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "7da4ef2214d34ee9a92ba57741f017ab"
+        ],
+        "domain": "hr",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 3,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.performance_review_kickoff",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/hr.json",
+        "public_pack_index": 2,
+        "public_pack_sha256": "c64c65a39c5c712cbb0f238ba78d04ccd16a66cc3e7684d04138ace34d249122"
+      },
+      {
+        "attempt_id": "573dd147227170b8f9e15ba8638f3d4fa9d79f00674c8b5e1cabdf8a3b87454e",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 12,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 12
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/573dd147227170b8f9e15ba8638f3d4fa9d79f00674c8b5e1cabdf8a3b87454e/episode.json",
+        "source_episode_sha256": "babda3996abb6cba3149281666f785a8b027f68facd9311c7ffd5e74514cdeb0",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.policy_update_distribution",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "22b7ee58fc8d4cc8a28ff87196b1b774"
+        ],
+        "domain": "hr",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 4,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.policy_update_distribution",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/hr.json",
+        "public_pack_index": 3,
+        "public_pack_sha256": "c64c65a39c5c712cbb0f238ba78d04ccd16a66cc3e7684d04138ace34d249122"
+      },
+      {
+        "attempt_id": "30d6e33a221f893a849eed3f7689ed29ff7437c98f12f0b39304cadeb9de9c22",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 10,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 10
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/30d6e33a221f893a849eed3f7689ed29ff7437c98f12f0b39304cadeb9de9c22/episode.json",
+        "source_episode_sha256": "e1cbf53f626227ddbb91bee1e15004f6613574ffffebff5b28ef1aaf66965430",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.promotion_announcement",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "d18e09b4c97a4bdb9691bf9e84e85cd2"
+        ],
+        "domain": "hr",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 5,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.promotion_announcement",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/hr.json",
+        "public_pack_index": 4,
+        "public_pack_sha256": "c64c65a39c5c712cbb0f238ba78d04ccd16a66cc3e7684d04138ace34d249122"
+      },
+      {
+        "attempt_id": "0631fe21f666fc1665fa0a287ff31d7f762201b4a6b08cedb16c8b737f67c146",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 4,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 4
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-firstpass/0631fe21f666fc1665fa0a287ff31d7f762201b4a6b08cedb16c8b737f67c146/episode.json",
+        "source_episode_sha256": "65d978463e1b47630ac1e01d526c1f8a57ffeb4ea819a35d06f8bea70ac0a487",
+        "source_generation": "hr-firstpass",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.pto_balance_alert",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "9a8bb0434de949d780a0cca8958fe8c6"
+        ],
+        "domain": "hr",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 6,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.pto_balance_alert",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/hr.json",
+        "public_pack_index": 5,
+        "public_pack_sha256": "c64c65a39c5c712cbb0f238ba78d04ccd16a66cc3e7684d04138ace34d249122"
+      },
+      {
+        "attempt_id": "8e4974e51fbaeb5883d4570b274ab9cee6fadc829084448979067f788ce8706f",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 13,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 13
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/8e4974e51fbaeb5883d4570b274ab9cee6fadc829084448979067f788ce8706f/episode.json",
+        "source_episode_sha256": "0f4e3cf8cd3b7c9c5b9668964ccbc48a1214e0746225daa71280f04e29b60c64",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.pto_reconciliation",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "b56b0c81bb4f4020b70dc98dc70be02a"
+        ],
+        "domain": "hr",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 7,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.pto_reconciliation",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/hr.json",
+        "public_pack_index": 6,
+        "public_pack_sha256": "c64c65a39c5c712cbb0f238ba78d04ccd16a66cc3e7684d04138ace34d249122"
+      },
+      {
+        "attempt_id": "83b2d3efa30b40fdb950c540adb6ff345577709d227e1159e1568d9cdf9af464",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 10,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 10
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/83b2d3efa30b40fdb950c540adb6ff345577709d227e1159e1568d9cdf9af464/episode.json",
+        "source_episode_sha256": "2021f643d0a4def891d35745116782979cb00409a31197400a18071756b0f476",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.recognition_nominations",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "6ba98f672d6a47eb805faa3e2eaece20"
+        ],
+        "domain": "hr",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 8,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.recognition_nominations",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/hr.json",
+        "public_pack_index": 7,
+        "public_pack_sha256": "c64c65a39c5c712cbb0f238ba78d04ccd16a66cc3e7684d04138ace34d249122"
+      },
+      {
+        "attempt_id": "98bcecce66a506d44be608eeb49f09f158f3a465a68ceb815e71595c30032cd4",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 12,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 12
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/98bcecce66a506d44be608eeb49f09f158f3a465a68ceb815e71595c30032cd4/episode.json",
+        "source_episode_sha256": "7f135b7c07809161fd3fa994cfe5019ef586fc833735c84f49e6f5d2c18b1932",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.recruitment_channel_roi",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "c42238b1565d4e5ab609376f38df016e"
+        ],
+        "domain": "hr",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 9,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.recruitment_channel_roi",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/hr.json",
+        "public_pack_index": 8,
+        "public_pack_sha256": "c64c65a39c5c712cbb0f238ba78d04ccd16a66cc3e7684d04138ace34d249122"
+      },
+      {
+        "attempt_id": "8f7f64c543c8b292e5196922bb576be02f8cf6b4bbcf89ee70bd77a005dfe03d",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 9,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 9
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/8f7f64c543c8b292e5196922bb576be02f8cf6b4bbcf89ee70bd77a005dfe03d/episode.json",
+        "source_episode_sha256": "7517ff4e35c24b9807b990fac64b48d029cde285257e90a134a53505f52b8eb2",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.referral_bonus_processing",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "762cc67a05a34c85ac71cc5a7e36864f"
+        ],
+        "domain": "hr",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 10,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.referral_bonus_processing",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/hr.json",
+        "public_pack_index": 9,
+        "public_pack_sha256": "c64c65a39c5c712cbb0f238ba78d04ccd16a66cc3e7684d04138ace34d249122"
+      }
+    ]
+  }
+}

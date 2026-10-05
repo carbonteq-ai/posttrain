@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "purpose": "Public-only missing canonical tasks after independent prior batch component review; preserve reserved isolation",
+  "source_split_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/sdk-probes/luna-reference-campaign-01/remaining700-family-splits-reviewed.json",
+  "source_split_sha256": "096051820598d4ac3d646a60e3b862ddd2dcc0428caf8a647155681796faa1cd",
+  "worker_model": "gpt-6-luna",
+  "reasoning_effort": "high",
+  "category_assignments": {
+    "support": [
+      {
+        "task_name": "support.zoho_freshdesk_escalation",
+        "domain": "support",
+        "family": "support.freshdesk-workflows",
+        "split": "reserved",
+        "frozen_split": "evaluation",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch10-20261005/support.json",
+        "public_pack_index": 0,
+        "public_pack_sha256": "e75df80562cf1e00167c6ac65dc3ccced1457bd8fd36640adfaee1e872cd2caa",
+        "public_input_sha256": "85c7b5ff6162a188d9e0ca5ad45cf7e1856a8ced2a710d1a450cde8acc853515",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/support.zoho_freshdesk_escalation",
+        "authoring_action": "author_missing_draft",
+        "reference_class": "no_reference_public_only",
+        "replay_status": "unavailable_no_recorded_reference",
+        "training_eligibility": "not_granted"
+      },
+      {
+        "task_name": "support.zoho_resolution_patterns",
+        "domain": "support",
+        "family": "support.zoho-workflows",
+        "split": "development",
+        "frozen_split": "development",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch10-20261005/support.json",
+        "public_pack_index": 1,
+        "public_pack_sha256": "e75df80562cf1e00167c6ac65dc3ccced1457bd8fd36640adfaee1e872cd2caa",
+        "public_input_sha256": "9ecd1c4bffb7aa07e915b58dc506cfabc36c858c56e888b75383875f5206689b",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/support.zoho_resolution_patterns",
+        "authoring_action": "author_missing_draft",
+        "reference_class": "no_reference_public_only",
+        "replay_status": "unavailable_no_recorded_reference",
+        "training_eligibility": "not_granted"
+      }
+    ]
+  }
+}

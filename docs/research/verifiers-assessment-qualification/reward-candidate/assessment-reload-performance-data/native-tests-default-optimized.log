@@ -1,0 +1,29 @@
+.sssssss................................................................ [ 16%]
+..sssssssssssssssssssssssssssssssssssssssssssssssssssssssss..s.......... [ 33%]
+................................ssssssssssssssssss...................... [ 50%]
+........................................................................ [ 66%]
+........................................................................ [ 83%]
+.......................................................................  [100%]
+=========================== short test summary info ============================
+SKIPPED [7] tests/v1/test_configs.py:47: set VF_RUN_CODEX_SDK_USAGE=1 for unpaid pinned SDK accounting
+SKIPPED [6] tests/v1/test_e2e.py:679: needs PRIME_API_KEY
+SKIPPED [1] tests/v1/test_e2e.py:709: needs PRIME_API_KEY
+SKIPPED [4] tests/v1/test_e2e.py:729: needs PRIME_API_KEY
+SKIPPED [1] tests/v1/test_e2e.py:751: needs PRIME_API_KEY
+SKIPPED [11] tests/v1/test_e2e.py:791: needs PRIME_API_KEY
+SKIPPED [8] tests/v1/test_e2e.py:843: needs PRIME_API_KEY
+SKIPPED [4] tests/v1/test_e2e.py:870: needs PRIME_API_KEY
+SKIPPED [4] tests/v1/test_e2e.py:892: needs PRIME_API_KEY
+SKIPPED [1] tests/v1/test_e2e.py:917: needs PRIME_API_KEY
+SKIPPED [1] tests/v1/test_e2e.py:933: needs PRIME_API_KEY
+SKIPPED [8] tests/v1/test_e2e.py:960: needs PRIME_API_KEY
+SKIPPED [1] tests/v1/test_e2e.py:977: needs PRIME_API_KEY
+SKIPPED [1] tests/v1/test_e2e.py:1009: needs PRIME_API_KEY
+SKIPPED [1] tests/v1/test_e2e.py:1026: needs PRIME_API_KEY
+SKIPPED [1] tests/v1/test_e2e.py:1069: needs PRIME_API_KEY
+SKIPPED [1] tests/v1/test_e2e.py:1115: needs PRIME_API_KEY
+SKIPPED [1] tests/v1/test_e2e.py:1149: needs PRIME_API_KEY
+SKIPPED [1] tests/v1/test_e2e.py:1179: needs PRIME_API_KEY
+SKIPPED [1] tests/v1/test_e2e.py:1211: needs PRIME_API_KEY
+SKIPPED [1] tests/v1/test_e2e.py:1336: needs PRIME_API_KEY
+SKIPPED [18] tests/v1/test_envs.py:43: needs PRIME_API_KEY

@@ -1,0 +1,16 @@
+{
+  "source_archive": "/tmp/automationbench-luna-sales-20261005/sales.docusign_contract_send.scored-episode.json",
+  "archive_sha256": "398ed0bf258e280a411433579295b36260db522288838e123047f5b0bb65384a",
+  "archive_bytes": 44731994,
+  "profiled_baseline_seconds": 87.14215348602738,
+  "worker_unprofiled_baseline_seconds": 84.013,
+  "baseline_scope_owners": 1,
+  "baseline_source_misses": 161,
+  "baseline_view_misses": 161,
+  "baseline_source_proof_bytes": 39983605,
+  "baseline_view_proof_bytes": 40300468,
+  "cache_budget_bytes": 67108864,
+  "compact_final_seconds": 3.891200212063268,
+  "reserialized_bytes_equal": true,
+  "validation": "full native v1 suite passed; 83 external/opt-in skips; scoped Ruff and diff pass"
+}

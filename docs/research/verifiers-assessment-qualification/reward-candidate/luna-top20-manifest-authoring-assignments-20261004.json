@@ -1,0 +1,2901 @@
+{
+  "schema_version": 1,
+  "selection_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/luna-top20-per-nonsimple-category-selection.json",
+  "selection_sha256": "76c5e4ba44d631b5a76dc12d7278784a3cd145d8543ed10e64c19b5f1d90343c",
+  "worker_model": "gpt-6-luna",
+  "reasoning_effort": "high",
+  "fast_mode": "not_exposed_by_collaboration_tool; available_service_tier_priority",
+  "category_assignments": {
+    "finance": [
+      {
+        "attempt_id": "4a92941f9a4711ccee33b0ab7ec21f39655a2676c3e79cd96bc6fb92e58b38d1",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "case_review": {
+          "note": "Observed forecast reports weighted AR70000, AP116600, ending153400 from200000; arithmetic and selected entity set need independent deterministic checks.",
+          "occurrence_ids": [
+            "7c93b5deae7840d0b96e732e009614b5"
+          ],
+          "scope": "selected_policy_and_occurrence_review",
+          "task_name": "finance.cash_flow_forecast"
+        },
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "finance.budget-forecast-and-analytics",
+        "observed_tool_server_occurrences": 9,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 9
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "selected_policy_and_occurrence_review",
+        "review_status": "selected_policy_and_occurrence_review",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/4a92941f9a4711ccee33b0ab7ec21f39655a2676c3e79cd96bc6fb92e58b38d1/episode.json",
+        "source_episode_sha256": "b3de71d5ae7fd73429fc8f838ccf4ae883bfb13ec03836106330e7eb3ab6f3f8",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "finance.cash_flow_forecast",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "f951a5f61d7546a58b506b61644c03f4"
+        ],
+        "domain": "finance",
+        "rank_within_category": 1,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "8f56c22b833c37a577450d7de96517c3132d58051874d7e1bee7fcb9cc0bca68",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "finance.expenses-and-reimbursements",
+        "observed_tool_server_occurrences": 14,
+        "occurrence_phase_sets": {
+          "dispatch+raised": 1,
+          "dispatch+returned": 13
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/8f56c22b833c37a577450d7de96517c3132d58051874d7e1bee7fcb9cc0bca68/episode.json",
+        "source_episode_sha256": "a1cbbb97cf43d42553f7e22b8bd568383059c2a540a0c8e5c7e3cc930091c6d9",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "finance.cost_center_allocation",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "0b3a982bb4944a9ebaff1c311dba1ea4"
+        ],
+        "domain": "finance",
+        "rank_within_category": 2,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "c54ca1281ed786717c1e4cc535ec63ff45bb68e76f81d8d0caea5fbc6684c376",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "finance.expenses-and-reimbursements",
+        "observed_tool_server_occurrences": 14,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 14
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/c54ca1281ed786717c1e4cc535ec63ff45bb68e76f81d8d0caea5fbc6684c376/episode.json",
+        "source_episode_sha256": "df05b2451c9141309b9afdfc943b03655ef976066b72d8582d6f676122ea74a7",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "finance.dept_expense_rollup",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "a06e4ee8445c451eb0dff6abdebdb4e7"
+        ],
+        "domain": "finance",
+        "rank_within_category": 3,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "0a27381980b81bda28011b86e75ea6e04a4953c586a42d1b06e655a145ac0e0c",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "finance.reconciliation-and-close",
+        "observed_tool_server_occurrences": 11,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 11
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/0a27381980b81bda28011b86e75ea6e04a4953c586a42d1b06e655a145ac0e0c/episode.json",
+        "source_episode_sha256": "7aa0bf4e67789ffb8e40ca3673e0a6c37234f3d90eac4f32db089f2a60368539",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "finance.financial_close_checklist",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "c49f8e32dd9b481a9f6f19584253aba5"
+        ],
+        "domain": "finance",
+        "rank_within_category": 4,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "d11b1eb20b718ee6878bca942cafb063ed1bfce9af7d97dbcb72ff32dc64016f",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "finance.invoicing-billing-and-receivables",
+        "observed_tool_server_occurrences": 11,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 11
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/d11b1eb20b718ee6878bca942cafb063ed1bfce9af7d97dbcb72ff32dc64016f/episode.json",
+        "source_episode_sha256": "25da8ead911410a40baa8ddb6fffda3d790458fff30d5985818fa33ab8d5888f",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "finance.monday_project_billing",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "9a5cbc1d3c9a4833a591eb8113017273"
+        ],
+        "domain": "finance",
+        "rank_within_category": 5,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "79a03e7f5dadd9b7ccb454e237485f798e3c128c116a48bf9b231462a050005c",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "finance.invoicing-billing-and-receivables",
+        "observed_tool_server_occurrences": 16,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 16
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/79a03e7f5dadd9b7ccb454e237485f798e3c128c116a48bf9b231462a050005c/episode.json",
+        "source_episode_sha256": "3c963dbf1f7d2dd0528c4d5f4b735de97df763e64d74851552b295916b18bc71",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "finance.overdue_invoice_followup",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "a6c1416948d44c1788a06f8c0553d671"
+        ],
+        "domain": "finance",
+        "rank_within_category": 7,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "32e02c2e46833534423f4ee1826a46ff72020ad868dbc08bacc2bd0b13f83a41",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "finance.expenses-and-reimbursements",
+        "observed_tool_server_occurrences": 5,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 5
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/32e02c2e46833534423f4ee1826a46ff72020ad868dbc08bacc2bd0b13f83a41/episode.json",
+        "source_episode_sha256": "40b121b07a64682864d9b06ae5a001525f460cbfce3a8d68c579375c2b1fed08",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "finance.petty_cash_reconciliation",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "8e3f1c2b61254dab9a89cef6714881ab"
+        ],
+        "domain": "finance",
+        "rank_within_category": 8,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "cca49483abb99e2c92f51841d08f6db3f910634b467baf9858251722f5b77744",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "finance.budget-forecast-and-analytics",
+        "observed_tool_server_occurrences": 9,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 9
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/cca49483abb99e2c92f51841d08f6db3f910634b467baf9858251722f5b77744/episode.json",
+        "source_episode_sha256": "cce7d4fcbcac4f408c165606a0bf7ad8a40b462121d700a685c4ab55bbb440d9",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "finance.profit_margin_analysis",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "32dc70d705ed4a16958d016a5f7eaa43"
+        ],
+        "domain": "finance",
+        "rank_within_category": 11,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "68347467cb1ae02cac328a78a3d04cb4ee6bd295bf49442d3dc44b44d8fde887",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "finance.invoicing-billing-and-receivables",
+        "observed_tool_server_occurrences": 14,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 14
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/68347467cb1ae02cac328a78a3d04cb4ee6bd295bf49442d3dc44b44d8fde887/episode.json",
+        "source_episode_sha256": "aa842282a44f57563b518295b8b392dbff4b229c5bccf9a3e121556a07f70f3a",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "finance.qb_estimate_conversion",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "b577cf2fcfa54269841491efd5c6756c"
+        ],
+        "domain": "finance",
+        "rank_within_category": 12,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "9146f86f3a5e8d3b14b449a9caad0dec5127e45fed27f7bb02f8b61e846030a2",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "finance.expenses-and-reimbursements",
+        "observed_tool_server_occurrences": 10,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 10
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/9146f86f3a5e8d3b14b449a9caad0dec5127e45fed27f7bb02f8b61e846030a2/episode.json",
+        "source_episode_sha256": "e8962c1e6f603e8cb9c17f4613c294e430237e748f7333d8ebec04b32b33d93b",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "finance.travel_advance_settlement",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "c51f2e25fe93407390ce75445d54c819"
+        ],
+        "domain": "finance",
+        "rank_within_category": 13,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      }
+    ],
+    "hr": [
+      {
+        "attempt_id": "05facbb1d916e8e3e7588a7c065efcb81c30dea9981e384978d11b28cc3d5dd4",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 15,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 15
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/05facbb1d916e8e3e7588a7c065efcb81c30dea9981e384978d11b28cc3d5dd4/episode.json",
+        "source_episode_sha256": "d9d7c327a5704d57b3410d775cb1e67d517b78684db9b99f36baee032fdaa321",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.airtable_recruitment_analytics",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "69f5d584c9034cbcb45fd89450d09289"
+        ],
+        "domain": "hr",
+        "rank_within_category": 1,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "2fc932ea8ef27e442525821ac3dcea8c1d0242ae79b001b6247b1f30f4925090",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 20,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 20
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/2fc932ea8ef27e442525821ac3dcea8c1d0242ae79b001b6247b1f30f4925090/episode.json",
+        "source_episode_sha256": "c1cab25433991552619d5741cd25d92ba4f75b979f98e51e9659afee577d595e",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.candidate_pipeline_report",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "8bdbccd64e7445ab8b436c50fc927f81"
+        ],
+        "domain": "hr",
+        "rank_within_category": 2,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "d60d2f7586893532079c568b0b169b73d95b586f0a09ba651d400c52ede51ed9",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 19,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 19
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/d60d2f7586893532079c568b0b169b73d95b586f0a09ba651d400c52ede51ed9/episode.json",
+        "source_episode_sha256": "517701643cf6b4bc1d98aec7fd50671068faf2c221bc659e9edd848cfe8e709e",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.data_migration_validation",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "577edffefc564bf4bc72fbc68232cbdc"
+        ],
+        "domain": "hr",
+        "rank_within_category": 3,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "c63c6f927211f55cdd6fde62629a7093eb437fac2ecdd7e12fc5fce7c006d603",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 10,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 10
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/c63c6f927211f55cdd6fde62629a7093eb437fac2ecdd7e12fc5fce7c006d603/episode.json",
+        "source_episode_sha256": "8bf33d9e5217ce4dfb2ec492698284089dfa9dc9253921511ecc11afcb4856e7",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.docusign_offer_letters",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "c661ef83551c486b9b399cba77379788"
+        ],
+        "domain": "hr",
+        "rank_within_category": 5,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "ba70a844dd812372d20b4e8d52d6c8bfe79ca385b7da84498824e86b09557873",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 19,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 19
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/ba70a844dd812372d20b4e8d52d6c8bfe79ca385b7da84498824e86b09557873/episode.json",
+        "source_episode_sha256": "717ddc48dd4b4000b53993939cc907981ca494ca38c51e465daeaa8bd9394354",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.handbook_acknowledgment",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "899beb2ce92e473f936b2d567bf6820a"
+        ],
+        "domain": "hr",
+        "rank_within_category": 7,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "c9d9572cfad9d234cd72beba0f647c4ab7c8a2b1dd15ed53fc4c3b4422d668e3",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 24,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 24
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/c9d9572cfad9d234cd72beba0f647c4ab7c8a2b1dd15ed53fc4c3b4422d668e3/episode.json",
+        "source_episode_sha256": "c3ff5b3f3a3249c82db5d45ca6d7060af8d2d295a1fd617f1d8abcf6fc66ceda",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.i9_verification_tracking",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "572fecac3029446f9f54c6f60e018c7b"
+        ],
+        "domain": "hr",
+        "rank_within_category": 8,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "b03c8dc88e1661f65e7150a31c48e55a20e3f372d6ceedd4bb37753bb55ef9cb",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 16,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 16
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-firstpass/b03c8dc88e1661f65e7150a31c48e55a20e3f372d6ceedd4bb37753bb55ef9cb/episode.json",
+        "source_episode_sha256": "ed4d1ba9f45b9807d3a4a03166d962d22e8ae74e05b325339761da6f7ebd9423",
+        "source_generation": "hr-firstpass",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.offboarding_automation",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "ce2ff47d7bb7427b9a67e870a6fb5ae8"
+        ],
+        "domain": "hr",
+        "rank_within_category": 9,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "6c47439c704bf59c1937bd60014b2bfc0c16d84e5edf0c09cc1823c30b8dfbc1",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 8,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 8
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-firstpass/6c47439c704bf59c1937bd60014b2bfc0c16d84e5edf0c09cc1823c30b8dfbc1/episode.json",
+        "source_episode_sha256": "d099b558ab397eb5e44ced40411957830aba48338b6b119da60f7040f5f9ab3e",
+        "source_generation": "hr-firstpass",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.performance_feedback_logging",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "f7d233162a0849ab924c4e20946d012b"
+        ],
+        "domain": "hr",
+        "rank_within_category": 10,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "0bdef3156aa5748fe0f82c80d19b9e92170d8aa9d93a9d7f1131c44b241e2214",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 15,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 15
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/0bdef3156aa5748fe0f82c80d19b9e92170d8aa9d93a9d7f1131c44b241e2214/episode.json",
+        "source_episode_sha256": "b65fe4e3374d59ff1673517e61add80089c2de57fd8f8277c51de2a56479d2c0",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.performance_review_cycle",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "0fbbb4d3eff6470b88eff78b9d90ab73"
+        ],
+        "domain": "hr",
+        "rank_within_category": 11,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "0766684a0dff7e4e15015c91574b67a31cc44865e01bbb3fd59b4abbd215738c",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "independent terminal verification or retained phase verification; no Qwen eligibility claimed",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "hr.all-development",
+        "observed_tool_server_occurrences": 11,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 11
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/0766684a0dff7e4e15015c91574b67a31cc44865e01bbb3fd59b4abbd215738c/episode.json",
+        "source_episode_sha256": "39afaea4a56c752f70b5066e317030ca41031b586c82dc52d58fa9aefb76adfc",
+        "source_generation": "hr-remaining-firstpass",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "scope": "Recorded HR source generation terminal verification; not re-scored against later source",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "hr.quarterly_termination_queue",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "347b58d69f0e4d39967510b654e9d28c"
+        ],
+        "domain": "hr",
+        "rank_within_category": 12,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      }
+    ],
+    "marketing": [
+      {
+        "attempt_id": "f07e9391a9495e9c50805817a5e98d15ba149741c8c4862cbed64eb2402f39e4",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.campaign-launch-and-coordination",
+        "observed_tool_server_occurrences": 16,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 16
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/f07e9391a9495e9c50805817a5e98d15ba149741c8c4862cbed64eb2402f39e4/episode.json",
+        "source_episode_sha256": "187a1096beb40ba5542bb1343d4b33207def52a6735fee6048cc013e872683c5",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.campaign_handoff",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "b70702b440a043fc90dfe8410dfffe6d"
+        ],
+        "domain": "marketing",
+        "rank_within_category": 2,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "ff05d4dda29b2fe3abef42b60dc86e2e726eaa9cb0b805374c1feedf2d87f33b",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.research-and-monitoring",
+        "observed_tool_server_occurrences": 14,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 14
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/ff05d4dda29b2fe3abef42b60dc86e2e726eaa9cb0b805374c1feedf2d87f33b/episode.json",
+        "source_episode_sha256": "7d93cd21ab5ce5305b7166477fb67566c70d030e38d8e9cf17e91a4017826252",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.competitor_product_launch",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "9e98f4e319de4a7ab825d60beeba8918"
+        ],
+        "domain": "marketing",
+        "rank_within_category": 3,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "a6d53eca62e34f2e0d05113833b8d0a01c546c78beaf3b28c24a271b5e46511e",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.content-seo-and-editorial",
+        "observed_tool_server_occurrences": 4,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 4
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/a6d53eca62e34f2e0d05113833b8d0a01c546c78beaf3b28c24a271b5e46511e/episode.json",
+        "source_episode_sha256": "5613d07f51ce4058572cce39015c2f9d99fe8a527cc32c27b3239b0275b5353d",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.content_performance",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "f24fbf1548804d7e9470d5e0f13505d8"
+        ],
+        "domain": "marketing",
+        "rank_within_category": 4,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "61cd06d529d22ce0ef11320317b2ecee018b0bc50e44d2a4d95eea90b76dca5e",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.customer-lifecycle-and-data",
+        "observed_tool_server_occurrences": 8,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 8
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/61cd06d529d22ce0ef11320317b2ecee018b0bc50e44d2a4d95eea90b76dca5e/episode.json",
+        "source_episode_sha256": "7a6808e82561e62fb22af48f80d36918bc9fd8a50b650f77f6863bd0b084efb9",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.email_campaign_analytics",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "273ba3a9a18640968df8b75d5a28e6fc"
+        ],
+        "domain": "marketing",
+        "rank_within_category": 6,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "b5a49a385936d40215171020dc307c862c4178c166259b391b58a7f318c01708",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.research-and-monitoring",
+        "observed_tool_server_occurrences": 14,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 14
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b5a49a385936d40215171020dc307c862c4178c166259b391b58a7f318c01708/episode.json",
+        "source_episode_sha256": "3aed74bae77164d0b86eb9d3b2adb0eb72ec0cb68c56482a1922bd1b12c49d9e",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.market_trend",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "6c4d9f4b65e74c05a7585472653f5859"
+        ],
+        "domain": "marketing",
+        "rank_within_category": 7,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "b405bf0c733e44b9ecc4309b3668fab77847e800fd1fb3cea75f0bb28f148d6c",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.research-and-monitoring",
+        "observed_tool_server_occurrences": 17,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 17
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b405bf0c733e44b9ecc4309b3668fab77847e800fd1fb3cea75f0bb28f148d6c/episode.json",
+        "source_episode_sha256": "55d197e85d7a4ef216f1526f370bd520cb2c3a9d117cf9e88af856965b72ed5a",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.news_digest_dedup",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "962422281b4c48a8a587511eb3ab5c25"
+        ],
+        "domain": "marketing",
+        "rank_within_category": 8,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "7e7bc50d43d5db7f61edebb1bb1e4e23b9c58bcbbd87ffe57f06694f456c7200",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.customer-lifecycle-and-data",
+        "observed_tool_server_occurrences": 14,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 14
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/7e7bc50d43d5db7f61edebb1bb1e4e23b9c58bcbbd87ffe57f06694f456c7200/episode.json",
+        "source_episode_sha256": "05febfb9973679276cfa71f2a326a27f594e4e3dbcd2dacbe3eb2ea1a79f41ee",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.trial_extension_processing",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "6317941ebed24c37a3a868d7509540bc"
+        ],
+        "domain": "marketing",
+        "rank_within_category": 9,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "ed0941448ceb2982738abb9cec1c2c4cd85b439889d844e9b85fb891bd093ea2",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.paid-advertising-and-attribution",
+        "observed_tool_server_occurrences": 6,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 6
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.9523809523809523,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/ed0941448ceb2982738abb9cec1c2c4cd85b439889d844e9b85fb891bd093ea2/episode.json",
+        "source_episode_sha256": "ab3f03d56328ca13cc2e09282fc1b903a3c37b9eddd925f1c7f2762f6516ce40",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.campaign_roi_analysis",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "8107a2d4b1574cfcbb442bd08b286e79"
+        ],
+        "domain": "marketing",
+        "rank_within_category": 10,
+        "selection_score": 0.9523809523809523,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "ccc5a9b71a0c089fe9dd8ef22cc7b87187c68abf002a787f7264136397014f1e",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.content-seo-and-editorial",
+        "observed_tool_server_occurrences": 18,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 18
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.9375,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/ccc5a9b71a0c089fe9dd8ef22cc7b87187c68abf002a787f7264136397014f1e/episode.json",
+        "source_episode_sha256": "9b7e75932b7757e4020aa636ff7db381d75df25a94cbdad6a67467315ce2bfcf",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.content_expiration_alert",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "10f592c1cde14eb6b42a6bd00cb3eea3"
+        ],
+        "domain": "marketing",
+        "rank_within_category": 11,
+        "selection_score": 0.9375,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "06b3ea18614059bce35df0640719189ae5e0551e75926e56ff96edeea6b2e257",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.content-seo-and-editorial",
+        "observed_tool_server_occurrences": 7,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 7
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.9090909090909091,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/06b3ea18614059bce35df0640719189ae5e0551e75926e56ff96edeea6b2e257/episode.json",
+        "source_episode_sha256": "1105bf184d5d4e6b1597b46065f3eb75a6bb910467f6caa9666719ad7d604e76",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.seo_audit",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "61afdc34cade450c9efffef48ebb324f"
+        ],
+        "domain": "marketing",
+        "rank_within_category": 12,
+        "selection_score": 0.9090909090909091,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      }
+    ],
+    "operations": [
+      {
+        "attempt_id": "b7ceb938dd4f906649254a579bb3aba365022607c6f6893dab97b9005e322aef",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "case_review": {
+          "note": "Public queue/directory joins must use email and department rather than duplicate display names. Admin requires Director or above; Standard requires Manager or above. Observed three Asana provisioning tasks plus section assignments and two denials; provisioning request is not actual permission grant.",
+          "occurrence_ids": [
+            "ea1e6590c0914762ac1190d7c1aa4c2d",
+            "c28e9694adb342ee8efe854ff8a28544",
+            "e3a5fd229a904840a62d4f6c363fe84d",
+            "d27dad3a234341899bf017f9c28c3db5"
+          ],
+          "scope": "selected_policy_and_occurrence_review",
+          "task_name": "operations.access_request_validation"
+        },
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.incident-security-and-access",
+        "observed_tool_server_occurrences": 17,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 17
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "selected_policy_and_occurrence_review",
+        "review_status": "selected_policy_and_occurrence_review",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b7ceb938dd4f906649254a579bb3aba365022607c6f6893dab97b9005e322aef/episode.json",
+        "source_episode_sha256": "b73ff019d1cbff99dee848574dffd0c844c45e846316181e5f78a284260deb0d",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.access_request_validation",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "3a4d52bef238482ebc9015016fd8eb82"
+        ],
+        "domain": "operations",
+        "rank_within_category": 1,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "6cf13e6eb39a1f0767f43b9c745c4fa3a7abe4bd877e3605c1148e7263725124",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "case_review": {
+          "note": "Three sent renewal envelopes support dispatch goals, not signed/completed renewals. Template search failures recovered through list_templates.",
+          "occurrence_ids": [
+            "5f4408d668cf4eb19f7fa0c18f0a40ba",
+            "983b71f589e5471e983554a3ee74712a",
+            "0aa43b5476ad46d88eb5fdd7d7d8e0b8"
+          ],
+          "scope": "selected_policy_and_occurrence_review",
+          "task_name": "operations.contract_renewal_pipeline"
+        },
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.procurement-vendors-and-contracts",
+        "observed_tool_server_occurrences": 12,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 12
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "selected_policy_and_occurrence_review",
+        "review_status": "selected_policy_and_occurrence_review",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/6cf13e6eb39a1f0767f43b9c745c4fa3a7abe4bd877e3605c1148e7263725124/episode.json",
+        "source_episode_sha256": "2dd3b607d814c1440fc7c79b7eaae1523ec45ffabf624fb078891ae91e5de884",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.contract_renewal_pipeline",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "6a334ad393f24e2388af599050db93fa"
+        ],
+        "domain": "operations",
+        "rank_within_category": 2,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "8655364429afd3a155dc69761809d235fd60fa5299615030e5fe708636724b44",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.incident-security-and-access",
+        "observed_tool_server_occurrences": 8,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 8
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/8655364429afd3a155dc69761809d235fd60fa5299615030e5fe708636724b44/episode.json",
+        "source_episode_sha256": "418cf12cb4c6c7bba777d05d117be913e8aadb86df9c7f3cac6415ab58748df1",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.energy_consumption_anomaly",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "9e795be234c142e198ac6ce41a4e576b"
+        ],
+        "domain": "operations",
+        "rank_within_category": 3,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "2e5fde570a6cd633313bad43c4247b50c1b9608fff29991a59acd0f8a8233631",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.procurement-vendors-and-contracts",
+        "observed_tool_server_occurrences": 14,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 14
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/2e5fde570a6cd633313bad43c4247b50c1b9608fff29991a59acd0f8a8233631/episode.json",
+        "source_episode_sha256": "8e031cdde265e7467411402cc02713cd792ea5af74f625e1f37400bda1cd7f20",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.equipment_lease_processing",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "2c5f7b8f91214aacb403426840e46932"
+        ],
+        "domain": "operations",
+        "rank_within_category": 4,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "59d90f27fc25c3f4ec8345071e2f3f49386665fb4d8557750f8b4dada8c30c6b",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.customer-and-marketing-workflows",
+        "observed_tool_server_occurrences": 10,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 10
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/59d90f27fc25c3f4ec8345071e2f3f49386665fb4d8557750f8b4dada8c30c6b/episode.json",
+        "source_episode_sha256": "21730eb2cdfee04fe84e1f09a1bf38d3dde3b4149a0109631ffedbf087e5fdbb",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.facebook_roas_monitoring",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "9db1ce2ce8544569a9a37c20407e9ddb"
+        ],
+        "domain": "operations",
+        "rank_within_category": 5,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "bbf9f11304789fc7ea3713fc75df91daae4bb534153cd17e52cd6c383f616e57",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.safety-training-and-compliance",
+        "observed_tool_server_occurrences": 10,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 10
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/bbf9f11304789fc7ea3713fc75df91daae4bb534153cd17e52cd6c383f616e57/episode.json",
+        "source_episode_sha256": "c3a237665b4863873cdb5cbde72dd26394ed6142fdb222831c44e09cfecec47f",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.fire_extinguisher_inspection_schedule",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "e793d74fcb094abe8f4fd048ac6cb566"
+        ],
+        "domain": "operations",
+        "rank_within_category": 7,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "cf09e8dbf019a0e3113a577320e9fe8c34224ce261cb992be8c3cce40ab14f8d",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.safety-training-and-compliance",
+        "observed_tool_server_occurrences": 11,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 11
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/cf09e8dbf019a0e3113a577320e9fe8c34224ce261cb992be8c3cce40ab14f8d/episode.json",
+        "source_episode_sha256": "86d0561a447f4e62b964cf233dcf05beb802a56df383bcfbfeb65eb41ce94201",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.hazmat_shipping_compliance",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "80f2e7f1012b4b3f923cb7ce7db70f5e"
+        ],
+        "domain": "operations",
+        "rank_within_category": 8,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "5ab7145c597b55ba3dadc1a16cf6568001d5c189aca754a4c11e73d249803209",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.facilities-inventory-and-scheduling",
+        "observed_tool_server_occurrences": 14,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 14
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/5ab7145c597b55ba3dadc1a16cf6568001d5c189aca754a4c11e73d249803209/episode.json",
+        "source_episode_sha256": "242010d2f3581460d57e5b98d56dbf7cbffe4c9213ae634f4b9ec8d05f33a900",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.housekeeping_schedule",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "aa906c3c5ca842aa861fccd3eafce320"
+        ],
+        "domain": "operations",
+        "rank_within_category": 9,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "fe83fdd36783aca1af593774dba1576b1dd2576e8362cf7ed081d5e28107fc4f",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.customer-and-marketing-workflows",
+        "observed_tool_server_occurrences": 21,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 21
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/fe83fdd36783aca1af593774dba1576b1dd2576e8362cf7ed081d5e28107fc4f/episode.json",
+        "source_episode_sha256": "72fc1f1b3706eb6264dff0733890d8f382608f5aade2a661645cb24599ef8f9a",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.hubspot_payment_failure",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "6efd4bc463c745d787435f6d2d84c232"
+        ],
+        "domain": "operations",
+        "rank_within_category": 10,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "22f1c88d42433001837418de75b59c533245cf09148bbc5ea2b168b2ee65bf79",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.facilities-inventory-and-scheduling",
+        "observed_tool_server_occurrences": 5,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 5
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/22f1c88d42433001837418de75b59c533245cf09148bbc5ea2b168b2ee65bf79/episode.json",
+        "source_episode_sha256": "84426e827781a7eaeb78f0a980bd7fdd89110cb7125d2ba820f2b7d998300ff1",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.mailroom_package_routing",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "cf554fbd821f4447a2d1bc056fda58ff"
+        ],
+        "domain": "operations",
+        "rank_within_category": 11,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      }
+    ],
+    "sales": [
+      {
+        "attempt_id": "f0a13fcb470ffe5c1eed580b1d4e534d4bc77c6639ae8416fcfd2b12664874ef",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.document-contract-workflows",
+        "observed_tool_server_occurrences": 19,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 19
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/f0a13fcb470ffe5c1eed580b1d4e534d4bc77c6639ae8416fcfd2b12664874ef/episode.json",
+        "source_episode_sha256": "25ae9984926a68a4d02cbe833ded5eea78eaee51bbe919531a8427442d3fd08e",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.calendar_crm_meeting",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "b76add6f57e94ba9afd6831af460a111"
+        ],
+        "domain": "sales",
+        "rank_within_category": 2,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "1153cdb1f53c925cdd774a2065713359fa82ac1227912ccc42a4ae7e158f572e",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.email-and-customer-followup",
+        "observed_tool_server_occurrences": 14,
+        "occurrence_phase_sets": {
+          "dispatch+raised": 1,
+          "dispatch+returned": 13
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/1153cdb1f53c925cdd774a2065713359fa82ac1227912ccc42a4ae7e158f572e/episode.json",
+        "source_episode_sha256": "7b34f97905a606ddd695a62bffb281a1606344e4f022ec079a9bd7db1bf5e7de",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.create_draft_reply",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "0a40cde10f0544269bfbd85019ff8fab"
+        ],
+        "domain": "sales",
+        "rank_within_category": 3,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "5a575a6e5a186cc1f861924955ec15840962d596f357d0ce891be00ef09aa2cc",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.email-and-customer-followup",
+        "observed_tool_server_occurrences": 14,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 14
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/5a575a6e5a186cc1f861924955ec15840962d596f357d0ce891be00ef09aa2cc/episode.json",
+        "source_episode_sha256": "a0b852d5ee29f5054a81743b749ad2666a28eb676470adb3975f60a587623fd1",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.create_important_draft",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "461bb9999a024b9b807c8fdb825afe31"
+        ],
+        "domain": "sales",
+        "rank_within_category": 4,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "3352dba0e87800cefd479fc94200a09237a3e72f91c526f6927d1e12f90e2cda",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.unresolved-workflows",
+        "observed_tool_server_occurrences": 17,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 17
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/3352dba0e87800cefd479fc94200a09237a3e72f91c526f6927d1e12f90e2cda/episode.json",
+        "source_episode_sha256": "152946ff26f16d88a5ecf9e53ee8bbd79e7775280bf7b0d1dfb88e4cb86b1a7d",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.cross_modal_renewal_processing",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "5589a3d4970b458791e3bd11c39b691b"
+        ],
+        "domain": "sales",
+        "rank_within_category": 5,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "8c173b9a6a6a43277495a32fad819a9bc8f8aae1ef069b10c528695c5849a71a",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.conditional-crm-selection",
+        "observed_tool_server_occurrences": 14,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 14
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/8c173b9a6a6a43277495a32fad819a9bc8f8aae1ef069b10c528695c5849a71a/episode.json",
+        "source_episode_sha256": "ab3e0e30bc22c3377f43de7934ddd09eda5c5cf616777a00dd7f85121d907530",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.dependency_chain",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "33ea1cb8073247c5b6d6dc0d58b42762"
+        ],
+        "domain": "sales",
+        "rank_within_category": 6,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "82d1678bb1dcd6b061316a9fdfd596237e5b2ca9c53e84d260a0d6d294052260",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.conditional-crm-selection",
+        "observed_tool_server_occurrences": 8,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 8
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/82d1678bb1dcd6b061316a9fdfd596237e5b2ca9c53e84d260a0d6d294052260/episode.json",
+        "source_episode_sha256": "1654908fac779ce85d7942973c5894c1e5216c668c17244f9465a2bcefe1322b",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.five_level_conditional",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "5386fa440a714127ad0104ec45d7a5e6"
+        ],
+        "domain": "sales",
+        "rank_within_category": 8,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "450b80e60ca83937eb882e6ae1382076f176f169db78b94dce9983b2bc150791",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.conditional-crm-selection",
+        "observed_tool_server_occurrences": 11,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 11
+        },
+        "official_outcome_class": "official_full",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 1.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/450b80e60ca83937eb882e6ae1382076f176f169db78b94dce9983b2bc150791/episode.json",
+        "source_episode_sha256": "ea91593f6809f9091e6b7b98f37a57dbfa9609f432f81fe77ee069775d4426f4",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": true,
+          "native_hashes_verified": true,
+          "reason": null,
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.soft_matching",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "651041f3f32d45979eb486bbeb0abe27"
+        ],
+        "domain": "sales",
+        "rank_within_category": 9,
+        "selection_score": 1.0,
+        "reference_class": "recorded_full_score",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "7d15eb294d90aba490fb956d884ebc3dc94b641143561fb96817fe5293c586ad",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.meeting-and-event-workflows",
+        "observed_tool_server_occurrences": 15,
+        "occurrence_phase_sets": {
+          "dispatch+raised": 1,
+          "dispatch+returned": 14
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.9333333333333333,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/7d15eb294d90aba490fb956d884ebc3dc94b641143561fb96817fe5293c586ad/episode.json",
+        "source_episode_sha256": "970fbe6616143f94ba9bb3ce0108f781666a5724ecb60196d81303e0d4322ddb",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.meeting_action_items",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "44aa2c5a77204be493cde51855847b59"
+        ],
+        "domain": "sales",
+        "rank_within_category": 11,
+        "selection_score": 0.9333333333333333,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "d7dd54665e5b55cde6d9c90b536d00429edac81cf0c4cc652d7756d6825c1e2e",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "case_review": {
+          "note": "QBR email uses host2026-10-03 despite system2026-02-26 and incorrectly flags Meridian inactivity under task clock. Date/amount predicates and empty fields need typed truth.",
+          "occurrence_ids": [
+            "b995030548e04b85a62960e239375de0"
+          ],
+          "scope": "selected_policy_and_occurrence_review",
+          "task_name": "sales.unreliable_label_account_review"
+        },
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.crm-record-mutations",
+        "observed_tool_server_occurrences": 12,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 12
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.8571428571428571,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "selected_policy_and_occurrence_review",
+        "review_status": "selected_policy_and_occurrence_review",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/d7dd54665e5b55cde6d9c90b536d00429edac81cf0c4cc652d7756d6825c1e2e/episode.json",
+        "source_episode_sha256": "4518d91511687641d4199bfd4c9fedcb7502f9e8175671da248e0abbb4b3f786",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.unreliable_label_account_review",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "51e9d3b14d1247aba72b39ff7308df6e"
+        ],
+        "domain": "sales",
+        "rank_within_category": 12,
+        "selection_score": 0.8571428571428571,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "439174131157049f43d7ffdd7ab0b93b8af891ba5ae7bbe7b17055b437b39a1b",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.meeting-and-event-workflows",
+        "observed_tool_server_occurrences": 20,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 20
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.8571428571428571,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/439174131157049f43d7ffdd7ab0b93b8af891ba5ae7bbe7b17055b437b39a1b/episode.json",
+        "source_episode_sha256": "9f3156663e30868917a1cf767d1823883cb699abdb55bba17245d78431317383",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.zoom_webinar_lead_scoring",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "e5f83bb84d6f45c18ee17ddbc9937c1f"
+        ],
+        "domain": "sales",
+        "rank_within_category": 13,
+        "selection_score": 0.8571428571428571,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      }
+    ],
+    "support": [
+      {
+        "attempt_id": "8dc47f3a07dc74e512bfc9dabfcf14e335fb7a2ace45a8038dea052af14d5a75",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "support.reamaze-workflows",
+        "observed_tool_server_occurrences": 17,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 17
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.9523809523809523,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/8dc47f3a07dc74e512bfc9dabfcf14e335fb7a2ace45a8038dea052af14d5a75/episode.json",
+        "source_episode_sha256": "64f8dc7ddfd2048c2c7411866457886bfe71e14b18085ab25aeede63fcf85bef",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "support.reamaze_multilanguage",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "c2d7309ef5c048269bf09d8dc55794ab"
+        ],
+        "domain": "support",
+        "rank_within_category": 3,
+        "selection_score": 0.9523809523809523,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "5f60072dcccb773ff917cbe7cc133e6515d2e818e5b810c3b368001b2b61d570",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "support.hiver-workflows",
+        "observed_tool_server_occurrences": 20,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 20
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.95,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/5f60072dcccb773ff917cbe7cc133e6515d2e818e5b810c3b368001b2b61d570/episode.json",
+        "source_episode_sha256": "2e78284ceb53152ce3499956c066655cc3f305477a4fcc91e5473f07c897b206",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "support.hiver_quality_coaching",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "75813b2d9c47462cb5ba23487a00e941"
+        ],
+        "domain": "support",
+        "rank_within_category": 4,
+        "selection_score": 0.95,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "e5b8c41ecbd0c861240799481005b8dd860c5d8b3089e64105711e740954cb3d",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "support.hiver-workflows",
+        "observed_tool_server_occurrences": 9,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 9
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.9333333333333333,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/e5b8c41ecbd0c861240799481005b8dd860c5d8b3089e64105711e740954cb3d/episode.json",
+        "source_episode_sha256": "9f891d1fadbf7128ff5635ab9c732e80aa1b25da8a4ff5d7c0c0fa4f29720003",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "support.hiver_workload_forecast",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "db287e3d15ed43278df1078f9ae130d6"
+        ],
+        "domain": "support",
+        "rank_within_category": 5,
+        "selection_score": 0.9333333333333333,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "1eca1fdaeae8abb97c47d3dd31a2054c5f37a92a78607aca079dd9f6483c990b",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "support.hiver-workflows",
+        "observed_tool_server_occurrences": 20,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 20
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.9130434782608695,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/1eca1fdaeae8abb97c47d3dd31a2054c5f37a92a78607aca079dd9f6483c990b/episode.json",
+        "source_episode_sha256": "c4088eb3bc7c93c77349af093c15ed398652a7dcf6bfb4f97d1e281f9fa262cc",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "support.hiver_response_sla",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "cae41441a5a44bb68a6f3764e7a61d30"
+        ],
+        "domain": "support",
+        "rank_within_category": 7,
+        "selection_score": 0.9130434782608695,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "e3a202a90e91acdb9113c79ab71a5d3195596675ce4b6cd52c467d92b6ea8dfd",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "support.zoho-workflows",
+        "observed_tool_server_occurrences": 12,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 12
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.9090909090909091,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/e3a202a90e91acdb9113c79ab71a5d3195596675ce4b6cd52c467d92b6ea8dfd/episode.json",
+        "source_episode_sha256": "0970b79fbd5551417f41cb5f67e98a1a017794968c7417f71ae4136ada0339fa",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "support.zoho_desk_customer_journey",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "c575a04f916642c0bb97826822e8194a"
+        ],
+        "domain": "support",
+        "rank_within_category": 8,
+        "selection_score": 0.9090909090909091,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "258122bb09a94e696b882c3b9391a162320268036ed489665f14ca4b9097584f",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "support.cross-platform-migration-and-sync",
+        "observed_tool_server_occurrences": 28,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 28
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.9,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/258122bb09a94e696b882c3b9391a162320268036ed489665f14ca4b9097584f/episode.json",
+        "source_episode_sha256": "4ab9fb06f02e6ac27108fdc23a6cb0eeedcfad824b1eb047451c13099a078606",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "support.zendesk_intercom_company_sync",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "a68ea0b0bb494b679678f74c8b9b8d35"
+        ],
+        "domain": "support",
+        "rank_within_category": 9,
+        "selection_score": 0.9,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "05a079f69ce346eef7c6d9d4ec614ef5fa5bb25143383b8b43797a29fd5e2649",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "support.gorgias-workflows",
+        "observed_tool_server_occurrences": 17,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 17
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.8888888888888888,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/05a079f69ce346eef7c6d9d4ec614ef5fa5bb25143383b8b43797a29fd5e2649/episode.json",
+        "source_episode_sha256": "468823a87ec9269039d94208cb6896a169a588ca7858c81ed50e6303e57ae0fd",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "support.gorgias_quality_audit",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "91c88a0eb55b465693f644db816636ff"
+        ],
+        "domain": "support",
+        "rank_within_category": 10,
+        "selection_score": 0.8888888888888888,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "3112505e1e9a391c134bb97ee5185f2badff1dd0638c193ffff37855c90eedcf",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "case_review": {
+          "note": "Digest states11 open but enumerates10; routing candidate vs escalated requires defined policy. Derive counts from entity set and bind summaries to it.",
+          "occurrence_ids": [
+            "f20b7110dbe448e68c1c0e68cdc97041",
+            "32144d9c1d274aa98781f80d5f7ae00a"
+          ],
+          "scope": "selected_policy_and_occurrence_review",
+          "task_name": "support.helpscout_daily_digest"
+        },
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "support.helpscout-workflows",
+        "observed_tool_server_occurrences": 9,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 9
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.8461538461538461,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "selected_policy_and_occurrence_review",
+        "review_status": "selected_policy_and_occurrence_review",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/3112505e1e9a391c134bb97ee5185f2badff1dd0638c193ffff37855c90eedcf/episode.json",
+        "source_episode_sha256": "5752c770dfcabb82b9ec457f00d2ef364ed90b6e45373e7963075abd6826076d",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "support.helpscout_daily_digest",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "5fc77ef3e8934531b3b716df034aa06a"
+        ],
+        "domain": "support",
+        "rank_within_category": 11,
+        "selection_score": 0.8461538461538461,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "1255c3b0c12e3bd59ffe8f244d078d73eb3fbd76d93acac3533423c48b52eb59",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "support.cross-platform-migration-and-sync",
+        "observed_tool_server_occurrences": 11,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 11
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.8333333333333334,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/1255c3b0c12e3bd59ffe8f244d078d73eb3fbd76d93acac3533423c48b52eb59/episode.json",
+        "source_episode_sha256": "b4dc17c9eb36113bdceed33c04760c765d66a83d6fd2d00393312b87225cc480",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "support.zendesk_customer_360",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "bc1a07d5cf9b4ff7822d357940ce5305"
+        ],
+        "domain": "support",
+        "rank_within_category": 12,
+        "selection_score": 0.8333333333333334,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      },
+      {
+        "attempt_id": "9cd36b8e356d599cb8c59ca1bf01706068425bff612ab960e01c2f7bb7c3ffd0",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "support.cross-platform-migration-and-sync",
+        "observed_tool_server_occurrences": 45,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 45
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.8125,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/9cd36b8e356d599cb8c59ca1bf01706068425bff612ab960e01c2f7bb7c3ffd0/episode.json",
+        "source_episode_sha256": "466be90646f59d5e65cecc964739ed25d2a2b0b78c50dc86f062ac615d96c412",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "support.zendesk_sf_case_sync",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "26c5ca9f2ea24f43a97d1f6340259963"
+        ],
+        "domain": "support",
+        "rank_within_category": 14,
+        "selection_score": 0.8125,
+        "reference_class": "highest_score_partial_fallback",
+        "existing_draft_manifest": false,
+        "qwen_eligibility": "not_granted_by_this_selection"
+      }
+    ]
+  }
+}
