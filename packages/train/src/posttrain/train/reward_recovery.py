@@ -39,6 +39,10 @@ def reward_contract_digest(request: GDPORequest | CAPORequest | SAMPORequest) ->
     if isinstance(active_sampling, dict):
         active_sampling.pop("oversample", None)
         active_sampling.pop("oversample_refill", None)
+        # Keeping surplus groups in candidate order is what runs did before the setting
+        # existed; choosing them by learning signal changes what is trained on.
+        if active_sampling.get("retain") == "first":
+            active_sampling.pop("retain")
     payload = {
         "schema": "posttrain.reward-contract.v1",
         "settings": settings,

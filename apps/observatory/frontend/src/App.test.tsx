@@ -1684,11 +1684,11 @@ describe('Observatory React product shell', () => {
     expect(algorithm).toHaveTextContent('Actor microbatch4');
     expect(algorithm).toHaveTextContent('Grad accumulation64');
   });
-  it('reads population charts per collection when collections feed several updates', async () => {
+  it('holds population values across the updates of their collection', async () => {
     const { jobRun, jobView } = metricJob(
       'train.sampo',
       'SAMPO collections',
-      [{ key: 'reward_mean', label: 'Mean reward', metric: 'train/rl/reward_mean', value: 0.5, unit: null }],
+      [{ key: 'reward_mean', label: 'Mean reward, last 2 collections', metric: 'train/rl/reward_mean', value: 0.7, unit: null }],
       {},
       true,
     );
@@ -1696,20 +1696,17 @@ describe('Observatory React product shell', () => {
       ...jobView,
       view: {
         ...jobView.view,
+        summary: jobView.view.summary.map((item: Record<string, unknown>) => (item.key === 'reward_mean' ? { ...item, window: 2 } : item)),
         charts: [
-          {
-            key: 'optimization_collection',
-            title: 'Policy optimization per collection',
-            question: 'Is the population improving?',
-            grain: 'collection',
-            series: [{ name: 'train/rl/reward_mean', points: [{ value: 0.4, step: 1 }, { value: 0.5, step: 5 }] }],
-          },
           {
             key: 'optimization',
             title: 'Policy optimization',
-            question: 'Is the policy moving?',
-            grain: 'update',
-            series: [{ name: 'train/rl/entropy', points: [1, 2, 3, 4, 5, 6, 7, 8].map((step) => ({ value: 0.2, step })) }],
+            question: 'Is the policy improving?',
+            collection_series: ['train/rl/reward_mean'],
+            series: [
+              { name: 'train/rl/reward_mean', points: [1, 3, 5, 7].map((step) => ({ value: step / 10, step })) },
+              { name: 'train/rl/entropy', points: [1, 2, 3, 4, 5, 6, 7, 8].map((step) => ({ value: 0.2, step })) },
+            ],
           },
         ],
       },
@@ -1723,7 +1720,10 @@ describe('Observatory React product shell', () => {
 
     render(<App />);
 
-    expect(await screen.findByText('Collection at step 5')).toBeVisible();
-    expect(screen.getByText(/vs previous collection \(step 1\)/)).toBeVisible();
+    // The last update (8) trained on the collection sampled at update 7, whose reward it shows.
+    expect(await screen.findByText('Step 8')).toBeVisible();
+    expect(screen.getByText(/\(per collection\)/)).toBeVisible();
+    // The windowed headline compares the last two collections with the two before them.
+    expect(screen.getByText(/last 2 collections · \+.* vs previous 2 collections/)).toBeVisible();
   });
 });

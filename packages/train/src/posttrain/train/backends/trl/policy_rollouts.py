@@ -8,6 +8,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
+from statistics import fmean
 from typing import Any, Literal, cast
 
 from posttrain.common import (
@@ -165,7 +166,7 @@ def collect_active_resolved_population(
     destination = evidence_directory.resolve()
     publish_collection_snapshot(context, destination, state)
     collector = rollout_function(context, request, tokenizer, totals, retain_native=True)
-    retained: list[tuple[str, tuple[EnvironmentRollout, ...]]] = []
+    retained: list[tuple[str, tuple[EnvironmentRollout, ...], float]] = []
     try:
         while (next_round := plan.next_round()) is not None:
             requested, size = next_round
@@ -195,6 +196,9 @@ def collect_active_resolved_population(
                 if complete and not all(math.isfinite(value) for value in rewards):
                     raise InvalidPolicyUpdate("resolved active classification requires finite shaped rewards")
                 eligible = complete and max(rewards) > min(rewards)
+                # Learning signal: how far the group's shaped rewards sit from their mean, the
+                # episode advantage magnitude under "mean" normalization.
+                signal = _learning_signal(rewards) if eligible else 0.0
                 state["groups"].append(
                     {
                         "uid": f"candidate-{index}",
@@ -202,24 +206,31 @@ def collect_active_resolved_population(
                         "traces": [rollout.trace.external_id for rollout in group],
                         "metric_values": rewards,
                         "spread_eligible": eligible,
+                        "learning_signal": signal,
                     }
                 )
                 if eligible:
                     kept += 1
-                    retained.append((f"candidate-{index}", group))
+                    retained.append((f"candidate-{index}", group, signal))
             plan.record(requested, size, kept)
             state["status"] = "round-observed"
             publish_collection_snapshot(context, destination, state)
         plan.require_full()
-        selected = retained[: settings.num_prompts_per_step]
-        state["selected"] = [uid for uid, _ in selected]
+        if active.retain == "learning_signal":
+            # Keep the groups that teach the most; the population stays in candidate order.
+            ranked = sorted(range(len(retained)), key=lambda position: (-retained[position][2], position))
+            selected = [retained[position] for position in sorted(ranked[: settings.num_prompts_per_step])]
+        else:
+            selected = retained[: settings.num_prompts_per_step]
+        state["retain"] = active.retain
+        state["selected"] = [uid for uid, _, _ in selected]
         state["status"] = "selected"
         publish_collection_snapshot(context, destination, state)
     except Exception:
         state["status"] = "failed"
         publish_collection_snapshot(context, destination, state)
         raise
-    population = tuple(rollout for _, group in selected for rollout in group)
+    population = tuple(rollout for _, group, _ in selected for rollout in group)
     artifact = bridge.retain_population(population)
     admitted = AdmittedNativePopulation.from_retained_artifact(
         artifact,
@@ -237,8 +248,14 @@ def collect_active_resolved_population(
         process_credit=process_credit,
     )
     context.artifact(artifact)
+    signals = {
+        "train/rl/active_sampling_retained_signal_mean": [signal for _, _, signal in selected],
+        "train/rl/active_sampling_eligible_signal_mean": [signal for _, _, signal in retained],
+    }
     context.metrics(
-        plan.metrics(generations), step=applied + 1, attributes={"measurement_scope": "resolved-active-collection"}
+        {**plan.metrics(generations), **{name: fmean(values) for name, values in signals.items() if values}},
+        step=applied + 1,
+        attributes={"measurement_scope": "resolved-active-collection"},
     )
     _observe_collection(context, settings, population, admitted, step=applied + 1)
     return admitted
@@ -345,6 +362,12 @@ def _device_memory_layout(top: int = 8) -> list[str]:
         )
     )
     return lines
+
+
+def _learning_signal(rewards: Sequence[float]) -> float:
+    """Mean absolute deviation of a group's shaped rewards from their mean."""
+    mean = fmean(rewards)
+    return fmean(abs(value - mean) for value in rewards)
 
 
 def _observe_collection(

@@ -288,6 +288,8 @@ type EvidenceChartProps = {
   seriesType?: 'line' | 'bar';
   /** Name and categories for a logical x axis other than the training step. */
   xAxis?: ChartXAxis;
+  /** Series whose value holds until its next point (per-collection values across their updates). */
+  steppedSeries?: readonly string[];
 };
 
 export function EvidenceChart({
@@ -307,8 +309,11 @@ export function EvidenceChart({
   xRange,
   seriesType = 'line',
   xAxis,
+  steppedSeries = [],
 }: EvidenceChartProps) {
   const elementRef = useRef<HTMLDivElement>(null);
+  // Content key, so a new array with the same names does not rebuild the chart.
+  const steppedKey = steppedSeries.join('\u0000');
   const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null);
   const applyingSharedHoverRef = useRef(false);
   const pointerInsideRef = useRef(false);
@@ -371,6 +376,7 @@ export function EvidenceChart({
   useEffect(() => {
     if (!elementRef.current) return;
     const chart = echarts.init(elementRef.current, undefined, { renderer: 'canvas' });
+    const stepped = new Set(steppedKey ? steppedKey.split('\u0000') : []);
     chartRef.current = chart;
     const groupSeries = panelGroups.map((group) => plottedSeries.filter((item) => panelGroup(item.name, metricUnits) === group));
     const groupAxisGroups = groupSeries.map((items) => [...new Set(items.map((item) => scaleGroup(item.name, metricUnits)))]);
@@ -527,9 +533,10 @@ export function EvidenceChart({
           type: seriesType,
           xAxisIndex: useSmallMultiples ? panelGroupIndex : 0,
           yAxisIndex,
-          showSymbol: item.points.length < 12,
+          showSymbol: item.points.length < 12 && !stepped.has(item.name),
           symbolSize: 5,
           smooth: false,
+          step: stepped.has(item.name) ? ('end' as const) : undefined,
           lineStyle: seriesType === 'line' ? { width: 1.9, type: lineTypes[indexWithinGroup % lineTypes.length] } : undefined,
           barMaxWidth: seriesType === 'bar' ? 28 : undefined,
           emphasis: { focus: 'series' },
@@ -581,7 +588,7 @@ export function EvidenceChart({
       chart.dispose();
       if (chartRef.current === chart) chartRef.current = null;
     };
-  }, [compact, elapsedMaximum, metricLabels, metricUnits, onHoverStep, onPointSelect, panelGroups, plottedSeries, renderedHeight, scaleGroups, selectedStep, seriesType, showLegend, showZoom, useSmallMultiples, xAxis, xDomain, xMaximum, xMinimum, xOriginMs]);
+  }, [compact, elapsedMaximum, metricLabels, metricUnits, onHoverStep, onPointSelect, panelGroups, plottedSeries, renderedHeight, scaleGroups, selectedStep, seriesType, showLegend, showZoom, steppedKey, useSmallMultiples, xAxis, xDomain, xMaximum, xMinimum, xOriginMs]);
 
   useEffect(() => {
     const chart = chartRef.current;

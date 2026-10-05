@@ -45,6 +45,8 @@ export type SummaryMetric = {
   state: string;
   value: unknown;
   unit: string | null;
+  /** The value reduces only the series' last `window` points, when set. */
+  window?: number | null;
 };
 
 export type GRPOSamplingStep = {
@@ -612,7 +614,7 @@ export type RunView = {
     view_kind: 'job.metrics' | 'job.evaluation' | 'job.serving' | 'generic';
     run: RunItem['run'];
     summary?: SummaryMetric[];
-    charts?: Array<{ key: string; title: string; question: string | null; series: MetricSeries[]; grain?: 'update' | 'collection' }>;
+    charts?: Array<{ key: string; title: string; question: string | null; series: MetricSeries[]; collection_series?: string[] }>;
     metric_help?: MetricHelp[];
     completeness?: {
       state: 'complete' | 'partial' | 'insufficient';
@@ -750,6 +752,7 @@ export type SystemMetrics = {
     value: number | null;
     unit: string | null;
     state: string;
+    window?: number | null;
     description: string;
     interpretation: string;
     caveat: string | null;

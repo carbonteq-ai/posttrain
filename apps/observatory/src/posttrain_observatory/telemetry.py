@@ -39,6 +39,8 @@ class SummaryFieldDefinition(ObservatoryModel):
     label: str = Field(min_length=1)
     metric: str = Field(min_length=1)
     reducer: Reducer = "last"
+    # Reduce over only the last ``window`` points (for example recent collections), when set.
+    window: int | None = Field(default=None, ge=1)
     required: bool = False
     unit: str | None = None
 
@@ -655,7 +657,16 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
     job_kind="train.grpo",
     display_name="Group relative policy optimization",
     summary_fields=(
-        SummaryFieldDefinition(key="reward_mean", label="Mean reward", metric="train/rl/reward_mean", required=True),
+        # Each collection samples a different set of tasks, so one collection's mean moves with
+        # the task mix; the headline averages recent collections (about one pass over a task pool).
+        SummaryFieldDefinition(
+            key="reward_mean",
+            label="Mean reward, last 8 collections",
+            metric="train/rl/reward_mean",
+            reducer="mean",
+            window=8,
+            required=True,
+        ),
         SummaryFieldDefinition(key="reward_std", label="Reward standard deviation", metric="train/rl/reward_std"),
         SummaryFieldDefinition(
             key="zero_variance",
@@ -811,10 +822,14 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
                 "train/rl/active_sampling_candidate_groups_unused",
                 "train/rl/active_sampling_oversampled_groups",
                 "train/rl/active_sampling_discarded_groups",
+                "train/rl/active_sampling_retained_signal_mean",
+                "train/rl/active_sampling_eligible_signal_mean",
             ),
         ),
     ),
     metric_help=_help_for(
+        "train/rl/active_sampling_retained_signal_mean",
+        "train/rl/active_sampling_eligible_signal_mean",
         "train/rl/reward_mean",
         "train/rl/reward_std",
         "train/rl/group_zero_variance_fraction",

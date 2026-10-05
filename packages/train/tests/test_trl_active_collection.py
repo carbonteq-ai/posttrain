@@ -62,18 +62,16 @@ def test_round_plan_sizes_rounds_and_rejects_exhaustion():
 
 
 def _settings(**changes: Any) -> SAMPOSettings:
-    return SAMPOSettings(
-        "settings/active@1",
-        TrainingLoop(max_steps=2, per_device_batch_size=1),
-        num_prompts_per_step=1,
-        num_generations=2,
-        active_sampling=ActiveGroupSampling(3),
-        policy_updates=PolicyUpdateSettings(PolicyUpdateSchedule("episode", 1), PolicyExecutionBudget(1, 100, 1000)),
-        **changes,
-    )
+    values: dict[str, Any] = {
+        "num_prompts_per_step": 1,
+        "num_generations": 2,
+        "active_sampling": ActiveGroupSampling(3),
+        "policy_updates": PolicyUpdateSettings(PolicyUpdateSchedule("episode", 1), PolicyExecutionBudget(1, 100, 1000)),
+    }
+    return SAMPOSettings("settings/active@1", TrainingLoop(max_steps=2, per_device_batch_size=1), **(values | changes))
 
 
-def _collect(tmp_path, monkeypatch, rewards: dict[str, list[float]]):
+def _collect(tmp_path, monkeypatch, rewards: dict[str, list[float]], settings: SAMPOSettings | None = None):
     published: list[Any] = []
     admitted: dict[str, Any] = {}
     collected: list[tuple[str, ...]] = []
@@ -119,7 +117,7 @@ def _collect(tmp_path, monkeypatch, rewards: dict[str, list[float]]):
         policy_update_context_contract="causal-text@1",
         retain_population=lambda values: SimpleNamespace(name="retained", values=values),
     )
-    request = SimpleNamespace(bridge=bridge, settings=_settings())
+    request = SimpleNamespace(bridge=bridge, settings=settings or _settings())
     context = SimpleNamespace(
         run_id="run",
         phase=lambda *args: nullcontext(),
@@ -182,6 +180,36 @@ def test_active_collection_discards_uniform_groups_and_accounts_for_every_candid
     assert published.index(next(item for item in published if getattr(item, "name", None) == "retained")) > max(
         index for index, item in enumerate(published) if getattr(item, "kind", None) == "training-collection"
     )
+
+
+@pytest.mark.parametrize(("retain", "kept"), [("first", "a"), ("learning_signal", "b")])
+def test_surplus_groups_are_kept_in_candidate_order_or_by_learning_signal(tmp_path, monkeypatch, retain, kept):
+    # One group is needed; the oversampled first round finishes three with reward spread.
+    # Their learning signals (mean absolute deviation from the group mean) are 0.1, 0.5, 0.1.
+    settings = _settings(active_sampling=ActiveGroupSampling(3, oversample=2, retain=retain))
+    run, published, admitted, collected = _collect(
+        tmp_path, monkeypatch, {"a": [0.0, 0.2], "b": [0.0, 1.0], "c": [0.4, 0.6]}, settings
+    )
+    run()
+    assert collected == [("a", "a", "b", "b", "c", "c")]
+    assert {rollout.example_id for rollout in admitted["population"]} == {kept}
+    final = _snapshots(published)[-1]
+    assert final["retain"] == retain
+    assert [group["learning_signal"] for group in final["groups"]] == pytest.approx([0.1, 0.5, 0.1])
+    metrics = next(values for kind, values in (item for item in published if isinstance(item, tuple)))
+    assert metrics["train/rl/active_sampling_eligible_signal_mean"] == pytest.approx(0.7 / 3)
+    assert metrics["train/rl/active_sampling_retained_signal_mean"] == pytest.approx(0.5 if kept == "b" else 0.1)
+
+
+def test_learning_signal_retention_requires_the_resolved_engine():
+    with pytest.raises(ValueError, match="requires explicit policy_updates"):
+        SAMPOSettings(
+            "settings/active@1",
+            TrainingLoop(max_steps=2, per_device_batch_size=2),
+            num_prompts_per_step=1,
+            num_generations=2,
+            active_sampling=ActiveGroupSampling(3, retain="learning_signal"),
+        )
 
 
 def test_active_collection_records_failed_groups_and_exhaustion(tmp_path, monkeypatch):

@@ -1761,6 +1761,28 @@ function EvaluationOverview({ selected, response, evaluation, onTraces, onCompar
   </>;
 }
 
+/** Carry each held (per-collection) series across the update steps the chart's other series record. */
+function holdCollectionValues(series: MetricSeries[], held: ReadonlySet<string>): MetricSeries[] {
+  if (!held.size) return series;
+  const updateSteps = [...new Set(series
+    .filter((item) => !held.has(item.name))
+    .flatMap((item) => item.points.flatMap((point) => point.step == null ? [] : [point.step])))]
+    .sort((left, right) => left - right);
+  if (!updateSteps.length) return series;
+  return series.map((item) => {
+    if (!held.has(item.name) || !item.points.length) return item;
+    const own = [...item.points].filter((point) => point.step != null).sort((left, right) => (left.step ?? 0) - (right.step ?? 0));
+    const steps = [...new Set([...updateSteps, ...own.map((point) => point.step as number)])].sort((left, right) => left - right);
+    const points: MetricSeries['points'] = [];
+    let index = -1;
+    for (const step of steps) {
+      while (index + 1 < own.length && (own[index + 1].step as number) <= step) index += 1;
+      if (index >= 0) points.push({ ...own[index], step });
+    }
+    return { ...item, points };
+  });
+}
+
 function GenericOverview({
   selected,
   response,
@@ -1815,20 +1837,43 @@ function GenericOverview({
       return points.length ? [{ name, points }] : [];
     })
     : [];
-  const chart = baseChart == null ? undefined : { ...baseChart, series: [...baseChart.series, ...rolloutSeries] };
+  // Population (collection) values hold across the updates their collection fed, so the chart, its
+  // tooltip and the step readout all show the collection an update trained on.
+  const heldNames = new Set(
+    baseChart?.collection_series?.length
+      ? [...baseChart.collection_series, ...rolloutSeries.map((series) => series.name)]
+      : [],
+  );
+  const chart = baseChart == null ? undefined : {
+    ...baseChart,
+    series: holdCollectionValues([...baseChart.series, ...rolloutSeries], heldNames),
+  };
+  const chartSeriesLabels = heldNames.size
+    ? {
+      ...chartLabels,
+      ...Object.fromEntries([...heldNames].map((name) => [name, `${chartLabels[name] ?? metricLabel(name)} (per collection)`])),
+    }
+    : chartLabels;
   const lead = summary[0];
   const leadPoints = charts
     .flatMap((item) => item.series)
     .find((series) => series.name === lead?.metric)?.points ?? [];
   const previousLeadPoint = leadPoints.at(-2);
-  const leadGrain = charts.find((item) => item.series.some((series) => series.name === lead?.metric))?.grain;
-  const leadComparison = leadGrain === 'collection'
-    ? `previous collection (step ${previousLeadPoint?.step ?? '—'})`
-    : `step ${previousLeadPoint?.step ?? leadPoints.length - 1}`;
   const latestLeadPoint = leadPoints.at(-1);
-  const leadDelta = previousLeadPoint && latestLeadPoint
-    ? latestLeadPoint.value - previousLeadPoint.value
-    : null;
+  const leadWindow = lead?.window ?? null;
+  // A windowed headline (for example the mean of the last 8 collections) compares with the window before it.
+  const windowMean = (points: typeof leadPoints) => points.reduce((total, point) => total + point.value, 0) / points.length;
+  const leadDelta = leadWindow != null
+    ? (leadPoints.length >= 2 * leadWindow
+      ? windowMean(leadPoints.slice(-leadWindow)) - windowMean(leadPoints.slice(-2 * leadWindow, -leadWindow))
+      : null)
+    : previousLeadPoint && latestLeadPoint
+      ? latestLeadPoint.value - previousLeadPoint.value
+      : null;
+  const leadComparison = leadWindow != null
+    ? `previous ${leadWindow} collections`
+    : `step ${previousLeadPoint?.step ?? leadPoints.length - 1}`;
+  const leadScope = leadWindow != null ? `last ${leadWindow} collections` : null;
   const recordedSteps = chart?.series.flatMap((series) => series.points.flatMap((point) => point.step == null ? [] : [point.step])) ?? [];
   const latestStep = recordedSteps.length ? Math.max(...recordedSteps) : null;
   const unrecordedSeries = chart?.series.filter((series) => series.points.length === 0) ?? [];
@@ -1958,7 +2003,7 @@ function GenericOverview({
                     metric={grpoReward?.metric ?? null}
                     help={grpoReward?.metric ? helpByMetric.get(grpoReward.metric) : undefined}
                     state={grpoReward?.state ?? 'missing'}
-                    note={leadDelta == null ? undefined : `${leadDelta >= 0 ? '+' : ''}${formatValue(leadDelta, grpoReward?.unit)} vs ${leadComparison}`}
+                    note={[leadScope, leadDelta == null ? null : `${leadDelta >= 0 ? '+' : ''}${formatValue(leadDelta, grpoReward?.unit)} vs ${leadComparison}`].filter(Boolean).join(' · ') || undefined}
                   />
                   <HeadlineMetric
                     label="Policy entropy"
@@ -2016,10 +2061,10 @@ function GenericOverview({
                 <span className="max-w-xl text-right text-[11px] text-muted">{chart?.question ?? 'Select a point to inspect exact evidence'}</span>
               </div>
               <div className="flex min-h-10 flex-wrap items-center gap-x-5 gap-y-2 border-b border-divider bg-subtle/45 px-4 py-2 text-[11px]">
-                <span className="font-medium text-ink">{chart?.grain === 'collection' ? 'Collection at step' : 'Step'} {selectedStep ?? '—'}</span>
-                {selectedSeries.map((item) => <span key={item.name} className="inline-flex items-center text-secondary"><MetricLabel label={chartLabels[item.name] ?? helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} className="text-muted" /> <strong className="ml-1 font-medium text-ink">{formatValue(item.value, chartUnits[item.name] ?? metricUnits[item.name] ?? helpByMetric.get(item.name)?.unit)}</strong></span>)}
+                <span className="font-medium text-ink">Step {selectedStep ?? '—'}</span>
+                {selectedSeries.map((item) => <span key={item.name} className="inline-flex items-center text-secondary"><MetricLabel label={chartSeriesLabels[item.name] ?? helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} className="text-muted" /> <strong className="ml-1 font-medium text-ink">{formatValue(item.value, chartUnits[item.name] ?? metricUnits[item.name] ?? helpByMetric.get(item.name)?.unit)}</strong></span>)}
               </div>
-              {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} xAxis={chart.grain === 'collection' ? { name: 'Collection at step' } : undefined} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
+              {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartSeriesLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} steppedSeries={[...heldNames]} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
               {unrecordedSeries.length > 0 && (
                 <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
                   Not recorded by this run: {unrecordedSeries.map((series) => chartLabels[series.name] ?? helpByMetric.get(series.name)?.label ?? metricLabel(series.name)).join(', ')}.

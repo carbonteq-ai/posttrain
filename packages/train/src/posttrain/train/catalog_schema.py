@@ -233,6 +233,14 @@ class ActiveGroupSamplingSchema(TrainCatalogSchema):
             "a refill round never exceeds the first round."
         ),
     )
+    retain: Literal["first", "learning_signal"] = Field(
+        default="first",
+        description=(
+            "Which groups with reward spread to keep when more finish than the update needs: first (candidate "
+            "order) or learning_signal (largest mean absolute deviation of shaped rewards from the group mean, "
+            "ties in candidate order). learning_signal requires policy_updates."
+        ),
+    )
 
 
 class AdaptiveCurriculumSchema(TrainCatalogSchema):

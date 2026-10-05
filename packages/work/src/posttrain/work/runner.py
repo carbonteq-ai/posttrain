@@ -931,6 +931,8 @@ def _active_sampling_details(sampling: ActiveGroupSampling) -> dict[str, JsonVal
         details["oversample"] = sampling.oversample
     if sampling.oversample_refill:
         details["oversample_refill"] = sampling.oversample_refill
+    if sampling.retain != "first":
+        details["retain"] = sampling.retain
     return details
 
 
