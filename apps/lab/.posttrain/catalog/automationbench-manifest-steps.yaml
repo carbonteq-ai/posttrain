@@ -1141,9 +1141,10 @@ inference:
     purpose: [rollout]
     capabilities: [tool-calling]
 
-  # The local 12k rollout engine for luna-v2's Simple VORTEX check: 12288-token context, a 768 MiB
-  # KV cache (about 12 KiB per token with LFM2.5's few attention layers: four full-context attempts;
-  # 1 GiB did not fit beside the trainer and the desktop on the 8 GB card), 3072-token replies.
+  # The local 12k rollout engine for luna-v2's Simple VORTEX check: 12288-token context, the 512 MiB
+  # KV cache that fits beside the trainer and the desktop on the 8 GB card (1 GiB and 768 MiB ran
+  # out of memory at engine start; about 12 KiB per token with LFM2.5's few attention layers keeps
+  # 43k tokens, and the attempts share their prompt), 3072-token replies.
   inference/lfm2.5-1.2b-vllm-manifest-local-12k@1:
     revision: "1"
     model: models/lfm2.5-1.2b-thinking@bf16
@@ -1162,7 +1163,7 @@ inference:
       enable_chunked_prefill: true
       text_only: true
       skip_mm_profiling: true
-      kv_cache_memory_bytes: 805306368
+      kv_cache_memory_bytes: 536870912
       weight_sync_mode: lora
       enforce_eager: false
       dtype: bfloat16
