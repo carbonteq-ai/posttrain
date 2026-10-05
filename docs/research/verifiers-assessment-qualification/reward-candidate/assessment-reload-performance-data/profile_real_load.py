@@ -21,6 +21,7 @@ original_proof = assessment_types.intrinsic_proof
 metrics = defaultdict(lambda: {"calls": 0, "seconds": 0.0, "input_bytes": 0})
 proofs = Counter()
 
+
 def loads(value, *a, **kw):
     start = time.perf_counter()
     try:
@@ -32,6 +33,7 @@ def loads(value, *a, **kw):
         row["seconds"] += time.perf_counter() - start
         row["input_bytes"] += len(value)
 
+
 def dumps(value, *a, **kw):
     start = time.perf_counter()
     result = original_dumps(value, *a, **kw)
@@ -41,10 +43,12 @@ def dumps(value, *a, **kw):
     row["input_bytes"] += len(result)
     return result
 
+
 def proof(value):
     result = original_proof(value)
     proofs[f"{type(value).__name__}:{'hit' if result.hit else 'miss'}"] += 1
     return result
+
 
 json.loads, json.dumps = loads, dumps
 assessment_types.intrinsic_proof = proof
