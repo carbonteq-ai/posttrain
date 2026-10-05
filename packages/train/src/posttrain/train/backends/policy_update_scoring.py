@@ -20,6 +20,7 @@ def sampled_logprobs(
     *,
     sampled_indices: tuple[int, ...],
     score_temperature: float,
+    entropies: dict[int, float] | None = None,
 ) -> Mapping[int, torch.Tensor]:
     """Score selected original actions at their preceding causal positions.
 
@@ -30,6 +31,10 @@ def sampled_logprobs(
     The score temperature is required explicitly: native trainers use tempered
     policy probabilities, which differ from raw model probabilities. This is not
     reconstruction of a top-p/top-k filtered sampler distribution.
+
+    When `entropies` is supplied, the detached entropy of the same tempered
+    distribution at each selected causal position is added to it. This is
+    observation only: it never enters the returned scores or their graph.
     """
     if logits.ndim != 3 or logits.shape[0] != 1 or logits.shape[1] != len(inputs.token_ids):
         raise InvalidPolicyUpdate("native logits must align with one complete original conditioning view")
@@ -56,16 +61,28 @@ def sampled_logprobs(
         selected = selected.float()
     if not bool(torch.isfinite(selected).all()):
         raise InvalidPolicyUpdate("non-finite native logits at a required causal position")
-    values = (
-        (selected / score_temperature)
-        .log_softmax(dim=-1)
-        .gather(
-            1,
-            torch.tensor(targets, dtype=torch.long, device=logits.device).unsqueeze(1),
-        )
-        .squeeze(1)
-    )
+    log_probabilities = (selected / score_temperature).log_softmax(dim=-1)
+    values = log_probabilities.gather(
+        1,
+        torch.tensor(targets, dtype=torch.long, device=logits.device).unsqueeze(1),
+    ).squeeze(1)
+    if entropies is not None:
+        entropies.update(zip(sampled_indices, _entropies(log_probabilities), strict=True))
     return dict(zip(sampled_indices, values.unbind(), strict=True))
+
+
+_ENTROPY_ROWS = 256
+
+
+def _entropies(log_probabilities: torch.Tensor) -> list[float]:
+    """Detached per-row entropy, in row chunks to bound the vocabulary-sized temporaries."""
+    result: list[float] = []
+    with torch.no_grad():
+        detached = log_probabilities.detach()
+        for start in range(0, detached.shape[0], _ENTROPY_ROWS):
+            chunk = detached[start : start + _ENTROPY_ROWS]
+            result.extend(float(value) for value in (-(chunk.exp() * chunk).sum(dim=-1)).tolist())
+    return result
 
 
 def score_actions(
@@ -76,6 +93,7 @@ def score_actions(
     read_input: Callable[[ConditioningView], NativeConditioningInput],
     device: torch.device,
     score_temperature: float,
+    entropies: dict[ActionRef, float] | None = None,
 ) -> Mapping[ActionRef, torch.Tensor]:
     """Retain full-context model graphs for exactly the requested score support.
 
@@ -113,13 +131,17 @@ def score_actions(
             position_ids=torch.arange(token_ids.shape[1], device=device).unsqueeze(0),
             use_cache=False,
         )
+        local_entropies: dict[int, float] | None = {} if entropies is not None else None
         values = sampled_logprobs(
             output.logits,
             inputs,
             sampled_indices=tuple(action.token_index for action in members),
             score_temperature=score_temperature,
+            entropies=local_entropies,
         )
         scores.update((action, values[action.token_index]) for action in members)
+        if entropies is not None and local_entropies is not None:
+            entropies.update((action, local_entropies[action.token_index]) for action in members)
     return scores
 
 

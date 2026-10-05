@@ -13,6 +13,10 @@ from .profiles import SAMPOSettings
 _EPSILON = 1e-6
 # A turn advantage smaller than this carries no usable relative signal.
 _INFORMATIVE = 1e-9
+# Credit within this distance of zero is reported as zero, matching TRL's
+# torch.isclose(advantage, 0) convention. Centring a group of equal rewards
+# leaves rounding residue (around 1e-17), which is not positive or negative credit.
+ZERO_CREDIT_TOLERANCE = 1e-8
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +71,32 @@ class SAMPOAdvantages:
             evidence["train/rl/turn_credit_share"] = (turn_credit / (episode_credit + turn_credit), count)
         return evidence
 
+    def credit_evidence(self, step_advantage_weight: float) -> dict[str, tuple[float, int]]:
+        """Per-population (mean, count) for every SAMPO credit metric except sampled-token pooling.
+
+        The centred episode and turn means stay for continuity with older
+        readers; `hierarchy_evidence` supplies the readable magnitudes and
+        shares. Both backends and both update engines report this one set.
+        """
+
+        flat_turns = [value for values in self.turn_advantages for value in values]
+        flat_sizes = [value for values in self.anchor_group_sizes for value in values]
+        evidence = {
+            "train/rl/episode_advantage_mean": (
+                math.fsum(self.episode_advantages) / len(self.episode_advantages),
+                len(self.episode_advantages),
+            ),
+            "train/rl/sparse_reward_projection_fraction": (
+                sum(self.used_sparse_rewards) / len(self.used_sparse_rewards),
+                len(self.used_sparse_rewards),
+            ),
+        }
+        if flat_turns:
+            evidence["train/rl/turn_advantage_mean"] = (math.fsum(flat_turns) / len(flat_turns), len(flat_turns))
+            evidence["train/rl/anchor_group_size_mean"] = (sum(flat_sizes) / len(flat_sizes), len(flat_sizes))
+        evidence.update(self.hierarchy_evidence(step_advantage_weight))
+        return evidence
+
     def policy_credit_evidence(self) -> dict[str, tuple[float, int]]:
         """Pool actual supplied advantages over sampled actions, excluding tool/padding tokens."""
         tokens = self.sampled_token_advantages
@@ -74,9 +104,18 @@ class SAMPOAdvantages:
         return {
             "train/rl/advantage_mean": (math.fsum(tokens) / count, count),
             "train/rl/advantage_abs_mean": (math.fsum(abs(value) for value in tokens) / count, count),
-            "train/rl/advantage_positive_fraction": (sum(value > 0 for value in tokens) / count, count),
-            "train/rl/advantage_negative_fraction": (sum(value < 0 for value in tokens) / count, count),
-            "train/rl/advantage_zero_fraction": (sum(value == 0 for value in tokens) / count, count),
+            "train/rl/advantage_positive_fraction": (
+                sum(value > ZERO_CREDIT_TOLERANCE for value in tokens) / count,
+                count,
+            ),
+            "train/rl/advantage_negative_fraction": (
+                sum(value < -ZERO_CREDIT_TOLERANCE for value in tokens) / count,
+                count,
+            ),
+            "train/rl/advantage_zero_fraction": (
+                sum(abs(value) <= ZERO_CREDIT_TOLERANCE for value in tokens) / count,
+                count,
+            ),
         }
 
 
@@ -207,4 +246,4 @@ def _center_and_scale(values: Sequence[float], normalization: str) -> list[float
     return [value / (scale + _EPSILON) for value in centered]
 
 
-__all__ = ["SAMPOAdvantages", "compute_sampo_advantages"]
+__all__ = ["ZERO_CREDIT_TOLERANCE", "SAMPOAdvantages", "compute_sampo_advantages"]

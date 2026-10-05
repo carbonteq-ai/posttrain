@@ -67,6 +67,9 @@ from .policy_telemetry import (
     actor_update_trainer_type as _actor_update_trainer_type,
 )
 from .policy_telemetry import (
+    native_trainer_record,
+)
+from .policy_telemetry import (
     normalize_live_metrics as _normalize_live_grpo_metrics,
 )
 from .precision_runtime import (
@@ -284,10 +287,8 @@ def _run_online_rl(
             metric_normalizer=loss_scale.finite_grad_norm(
                 lambda step, native: _normalize_live_grpo_metrics(
                     step,
-                    (
-                        {key: value for key, value in native.items() if key != "loss"}
-                        if resolved_job is not None
-                        else native
+                    native_trainer_record(
+                        native, resolved=resolved_job is not None, sampo=isinstance(request, SAMPORequest)
                     ),
                     observation_features,
                 )

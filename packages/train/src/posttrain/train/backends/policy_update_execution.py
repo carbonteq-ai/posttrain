@@ -7,6 +7,8 @@ steps and checkpoint transactions. This bridge does not run an optimizer loop.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import replace
+from types import MappingProxyType
 from typing import Any
 
 import torch
@@ -75,6 +77,7 @@ def compute_resolved_loss(
         ):
             raise InvalidPolicyUpdate("native pack lost its resolved original conditioning footprint")
     current = {}
+    entropies: dict[ActionRef, float] = {}
     for pack in packs:
         current.update(
             score_actions(
@@ -84,6 +87,7 @@ def compute_resolved_loss(
                 read_input=read_input,
                 device=device,
                 score_temperature=score_temperature,
+                entropies=entropies,
             )
         )
     scores = ScoreBundle(
@@ -93,4 +97,4 @@ def compute_resolved_loss(
         reference.values if reference is not None else {},
         sampler_correction,
     )
-    return evaluate(term, credit, scores)
+    return replace(evaluate(term, credit, scores), entropies=MappingProxyType(entropies))

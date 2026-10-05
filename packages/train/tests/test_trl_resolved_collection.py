@@ -50,6 +50,7 @@ def test_collector_preserves_native_rollouts_and_publishes_after_admission(tmp_p
         trace=lambda value: None,
         trace_fact_update=lambda value: None,
         artifact=lambda value: seen.append(("publish", value.name)),
+        metrics=lambda values, **kwargs: seen.append(("metrics", (values, kwargs))),
     )
     trainer = SimpleNamespace(state=SimpleNamespace(global_step=3), accelerator=SimpleNamespace(num_processes=1))
     totals = SimpleNamespace(add_batch=lambda *args, **kwargs: None)
@@ -82,10 +83,35 @@ def test_collector_preserves_native_rollouts_and_publishes_after_admission(tmp_p
         assert [entry[0] for entry in seen] == ["collect", "retain"]
         return
     admitted = collect()
-    assert [entry[0] for entry in seen] == ["collect", "retain", "publish"]
+    assert [entry[0] for entry in seen] == ["collect", "retain", "publish", "metrics"]
     assert admitted.applied_update_offset == 3 and admitted.attempt_offset == 5
     assert admitted.resolved.snapshot.native_evidence_ref == artifact.name
     assert len(admitted.resolved.updates) == 2
+    # The admitted population is described once, at the first update trained on
+    # it. Two one-turn episodes with sparse rewards 0 and 1 share one anchor, so
+    # SAMPO "mean" credit is -/+0.5 at both the episode and the turn level.
+    values, metadata = seen[-1][1]
+    assert metadata == {"step": 4, "attributes": {"measurement_scope": "resolved-collection"}}
+    assert values == pytest.approx(
+        {
+            "train/rl/reward_mean": 0.5,
+            "train/rl/reward_std": 2**-0.5,
+            "train/rl/group_reward_std_mean": 2**-0.5,
+            "train/rl/group_zero_variance_fraction": 0.0,
+            "train/rl/completion_tokens_mean": 2.0,
+            "train/rl/completion_tokens_max": 2.0,
+            "train/rl/completion_truncation_rate": 0.0,
+            "train/rl/episode_advantage_mean": 0.0,
+            "train/rl/turn_advantage_mean": 0.0,
+            "train/rl/anchor_group_size_mean": 2.0,
+            "train/rl/sparse_reward_projection_fraction": 1.0,
+            "train/rl/episode_advantage_abs_mean": 0.5,
+            "train/rl/turn_advantage_abs_mean": 0.5,
+            "train/rl/turn_advantage_informative_fraction": 1.0,
+            "train/rl/singleton_anchor_fraction": 0.0,
+            "train/rl/turn_credit_share": 0.5,
+        }
+    )
 
 
 def test_collector_rejects_missing_native_contract_before_collection():

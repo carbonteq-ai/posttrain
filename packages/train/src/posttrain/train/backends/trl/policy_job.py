@@ -20,7 +20,8 @@ from ...update_plan import ExecutionCapabilities
 from ...update_records import InvalidPolicyUpdate, PolicyVersions
 from ...update_recovery import inspect_update_recovery
 from ...update_resolution import resolve_policy_population
-from ...update_sampler_correction import recipe_sampler_correction_weights
+from ...update_sampler_correction import recipe_sampler_correction_weights, sampler_correction_recipe
+from ...update_telemetry import update_metrics
 from ...update_transport import decode_population_payload
 from ..policy_update_admission import AdmittedNativePopulation
 from .policy_rollouts import collect_active_resolved_population, collect_resolved_population
@@ -208,6 +209,9 @@ class ResolvedTRLJob:
         Native Trainer's logged loss is a windowed total, not policy loss.
         Prepared-credit statistics describe selected actions, without changing
         their objective weights or claiming that a nonzero gradient was applied.
+        Clipping, sampler-correction weights and entropy describe the same
+        selected actions; grad_norm and gradient_clipped come from the native
+        log record through the shared observation callback.
         """
         if step == self._observed_applied:
             return
@@ -237,20 +241,18 @@ class ResolvedTRLJob:
         }
         if population.spec.beta:
             values["train/rl/kl"] = values["train/rl/kl_loss"] / population.spec.beta
-        if term.policy_weights:
-            credit = {item.action: item.advantage for item in population.credit.values}
-            advantages = [credit[item.action] for item in term.policy_weights]
-            mean = sum(advantages) / len(advantages)
-            values.update(
-                {
-                    "train/rl/advantage_mean": mean,
-                    "train/rl/advantage_abs_mean": sum(abs(value) for value in advantages) / len(advantages),
-                    "train/rl/advantage_std": (sum((value - mean) ** 2 for value in advantages) / len(advantages))
-                    ** 0.5,
-                    "train/rl/advantage_nonzero_fraction": sum(value != 0 for value in advantages) / len(advantages),
-                    "train/rl/clip_fraction": len(evaluation.clipped_actions) / len(term.policy_weights),
-                }
+        values.update(
+            update_metrics(
+                term,
+                population.credit,
+                clipped_ratios={
+                    action: float(evaluation.ratios[action].detach()) for action in evaluation.clipped_actions
+                },
+                sampler_correction=population.sampler_correction,
+                correction_recipe=sampler_correction_recipe(self.request.settings),
+                entropies=evaluation.entropies,
             )
+        )
         self.context.metrics(values, step=step, attributes={"measurement_scope": "resolved-applied-update"})
         self.context.event(
             "resolved_policy_update_applied",

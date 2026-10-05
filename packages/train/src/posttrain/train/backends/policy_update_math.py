@@ -35,6 +35,9 @@ class ObjectiveEvaluation:
     clipped_actions: tuple[ActionRef, ...]
     term_digest: str
     parameter_version: str
+    # Detached current-policy entropy per scored action, when the adapter
+    # measured it. Observation only; it never enters the loss.
+    entropies: Mapping[ActionRef, float] = field(default_factory=dict)
 
 
 def _score(

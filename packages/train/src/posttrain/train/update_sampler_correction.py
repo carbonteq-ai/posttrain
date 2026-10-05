@@ -15,6 +15,23 @@ from typing import Literal
 from .profiles import CAPOSettings, GDPOSettings, GRPOSettings, SAMPOSettings
 from .update_records import ActionRef, InvalidPolicyUpdate, PopulationSnapshot
 
+type SamplerCorrectionMode = Literal["token_truncate", "token_mask", "sequence_truncate", "sequence_mask"]
+
+
+def sampler_correction_recipe(
+    settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
+) -> tuple[SamplerCorrectionMode, float | None, float | None]:
+    """The (mode, lower, upper) correction recipe a typed selection declares."""
+    if isinstance(settings, GRPOSettings | SAMPOSettings):
+        return (
+            settings.importance_sampling_mode,
+            settings.importance_sampling_clip_min,
+            settings.importance_sampling_clip_max,
+        )
+    if isinstance(settings, GDPOSettings | CAPOSettings):
+        return "token_truncate", None, 3.0
+    raise InvalidPolicyUpdate("unsupported sampler correction recipe")
+
 
 def recipe_sampler_correction_weights(
     settings: GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings,
@@ -23,16 +40,7 @@ def recipe_sampler_correction_weights(
     sampled: Mapping[ActionRef, float],
 ) -> Mapping[ActionRef, float]:
     """Apply the normalizer's selected recipe consistently in either backend."""
-    if isinstance(settings, GRPOSettings | SAMPOSettings):
-        mode, lower, upper = (
-            settings.importance_sampling_mode,
-            settings.importance_sampling_clip_min,
-            settings.importance_sampling_clip_max,
-        )
-    elif isinstance(settings, GDPOSettings | CAPOSettings):
-        mode, lower, upper = "token_truncate", None, 3.0
-    else:
-        raise InvalidPolicyUpdate("unsupported sampler correction recipe")
+    mode, lower, upper = sampler_correction_recipe(settings)
     return sampler_correction_weights(snapshot, old, sampled, mode=mode, lower=lower, upper=upper)
 
 

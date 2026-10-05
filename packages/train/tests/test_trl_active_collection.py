@@ -94,6 +94,7 @@ def _collect(tmp_path, monkeypatch, rewards: dict[str, list[float]]):
                             example_id=task,
                             reward=rewards[task][index],
                             completion_ids=(1, 2),
+                            env_mask=(True, True),
                             is_truncated=False,
                             trace=SimpleNamespace(external_id=f"{task}/{index}"),
                         )
@@ -104,7 +105,10 @@ def _collect(tmp_path, monkeypatch, rewards: dict[str, list[float]]):
 
     def admit(artifact, population, settings, capabilities, **kwargs):
         admitted.update(population=population, kwargs=kwargs)
-        return SimpleNamespace(population=population)
+        # A non-SAMPO estimator id: only population reward/shape evidence is reported.
+        return SimpleNamespace(
+            population=population, resolved=SimpleNamespace(credit=SimpleNamespace(estimator_id="fixture@1"))
+        )
 
     monkeypatch.setattr("posttrain.train.backends.trl.policy_rollouts.rollout_function", collector_factory)
     monkeypatch.setattr(
@@ -165,8 +169,13 @@ def test_active_collection_discards_uniform_groups_and_accounts_for_every_candid
     assert [item["uids"] for item in final["rounds"]] == [["candidate-0"], ["candidate-1"]]
     statuses = [snapshot["status"] for snapshot in _snapshots(published)]
     assert statuses == ["reserved", "dispatching", "round-observed", "dispatching", "round-observed", "selected"]
-    metrics = next(values for kind, values in (item for item in published if isinstance(item, tuple)))
+    metrics, collection = (values for kind, values in (item for item in published if isinstance(item, tuple)))
     assert metrics["train/rl/active_sampling_candidate_groups_unused"] == 2.0
+    # Only the selected group b ([0, 1]) is the admitted population; the uniform
+    # group a was generated but never trained on.
+    assert collection["train/rl/reward_mean"] == 0.5
+    assert collection["train/rl/group_zero_variance_fraction"] == 0.0
+    assert "train/rl/turn_credit_share" not in collection
     assert published.index(next(item for item in published if getattr(item, "name", None) == "retained")) > max(
         index for index, item in enumerate(published) if getattr(item, "kind", None) == "training-collection"
     )

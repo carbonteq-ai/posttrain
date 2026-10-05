@@ -26,6 +26,7 @@ from ...reward_advantages import compute_capo_advantages, compute_gdpo_advantage
 from ...sampo_advantages import compute_sampo_advantages
 from ...update_plan import ExecutionCapabilities
 from ...update_records import InvalidPolicyUpdate, PolicyVersions, SemanticSpan
+from ...update_telemetry import collection_metrics
 from ..policy_update_admission import AdmittedNativePopulation
 from .update_totals import RolloutUpdateTotals
 
@@ -93,6 +94,7 @@ def collect_resolved_population(
         process_credit=process_credit,
     )
     context.artifact(artifact)
+    _observe_collection(context, request.settings, rollouts, admitted, step=applied + 1)
     return admitted
 
 
@@ -238,7 +240,26 @@ def collect_active_resolved_population(
     context.metrics(
         plan.metrics(generations), step=applied + 1, attributes={"measurement_scope": "resolved-active-collection"}
     )
+    _observe_collection(context, settings, population, admitted, step=applied + 1)
     return admitted
+
+
+def _observe_collection(
+    context: RunContext,
+    settings: Any,
+    population: tuple[EnvironmentRollout, ...],
+    admitted: AdmittedNativePopulation,
+    *,
+    step: int,
+) -> None:
+    """Report the admitted population once, at the first update that trains on it.
+
+    Rollout counts and timings stay with the candidate-scope rollout totals; these
+    values describe only the admitted groups that credit was prepared on.
+    """
+    values = collection_metrics(settings, population, credit_estimator_id=admitted.resolved.credit.estimator_id)
+    if values:
+        context.metrics(values, step=step, attributes={"measurement_scope": "resolved-collection"})
 
 
 def technique(request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest) -> PolicyTechnique:
@@ -603,28 +624,11 @@ def _sampo_update_means(advantages: Any, settings: Any) -> dict[str, tuple[float
 
     The centred advantage means stay for continuity; the hierarchy evidence is
     what a reader can use (magnitudes, the turn share of credit and coverage).
+    The resolved engine reports the same credit evidence per collection.
     """
 
-    flat_turn_advantages = [value for values in advantages.turn_advantages for value in values]
-    flat_group_sizes = [value for values in advantages.anchor_group_sizes for value in values]
     return {
-        "train/rl/episode_advantage_mean": (
-            sum(advantages.episode_advantages) / len(advantages.episode_advantages),
-            len(advantages.episode_advantages),
-        ),
-        "train/rl/turn_advantage_mean": (
-            sum(flat_turn_advantages) / len(flat_turn_advantages),
-            len(flat_turn_advantages),
-        ),
-        "train/rl/anchor_group_size_mean": (
-            sum(flat_group_sizes) / len(flat_group_sizes),
-            len(flat_group_sizes),
-        ),
-        "train/rl/sparse_reward_projection_fraction": (
-            sum(advantages.used_sparse_rewards) / len(advantages.used_sparse_rewards),
-            len(advantages.used_sparse_rewards),
-        ),
-        **advantages.hierarchy_evidence(settings.step_advantage_weight),
+        **advantages.credit_evidence(settings.step_advantage_weight),
         **advantages.policy_credit_evidence(),
     }
 

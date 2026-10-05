@@ -1,5 +1,6 @@
 """Resolved job composition preserves credit and refuses changed recovery meaning."""
 
+import math
 from dataclasses import dataclass, replace
 from types import SimpleNamespace
 from typing import Any, cast
@@ -348,3 +349,97 @@ def test_applied_observation_separates_total_policy_and_weighted_kl(tmp_path, be
     assert values["train/rl/advantage_abs_mean"] == pytest.approx(sum(map(abs, selected)) / len(selected))
     with pytest.raises(InvalidPolicyUpdate, match="committed applied boundary"):
         candidate.observe_applied_update(2)
+
+
+def test_applied_observation_reports_clipping_correction_and_entropy(tmp_path):
+    """Two declared updates share one collection; the second runs at changed parameters."""
+    torch = pytest.importorskip("torch")
+    from posttrain.train.backends.trl.policy_updates import ResolvedTRLPopulation
+    from posttrain.train.update_objectives import resolve_objective_term
+    from posttrain.train.update_sampler_correction import recipe_sampler_correction_weights
+
+    from .test_update_scoring import CausalModel
+
+    metrics = []
+    context = SimpleNamespace(
+        run_id="run", metrics=lambda values, **kw: metrics.append(values), event=lambda name, values: None
+    )
+    candidate = job(tmp_path, context=context)
+    # Token truncation keeps each action's correction weight separately readable.
+    settings = replace(candidate.request.settings, importance_sampling_mode="token_truncate")
+    object.__setattr__(candidate.request, "settings", settings)
+    prepared, _ = admitted(candidate, 0, 0)
+    population = ResolvedTRLPopulation.from_admitted(
+        prepared,
+        score_temperature=0.8,
+        score_contract="posttrain.causal-text-tempered-logsoftmax-fp32@1",
+        sampler_correction=None,
+    )
+    snapshot = prepared.resolved.snapshot
+    actions = [record.action for record in snapshot.actions]
+    # log(old) - log(sampled): above the 3.0 cap, inside, and below the 0.1 floor.
+    deltas = dict(zip(actions, (2.0, 0.25, -3.0, 0.0), strict=True))
+    population.prepare_sampler_correction = lambda old: recipe_sampler_correction_weights(
+        settings, snapshot, old, {action: old[action] - deltas[action] for action in actions}
+    )
+    model = CausalModel()
+    optimizer = SimpleNamespace(step_was_skipped=False)
+    candidate.run.current = population
+
+    def entropy(action):
+        view = {view.id: view for view in snapshot.conditioning}[
+            {record.action: record for record in snapshot.actions}[action].conditioning_id
+        ]
+        inputs = population.read_input(view)
+        tokens = torch.tensor([inputs.token_ids])
+        with torch.no_grad():
+            logits = model(tokens, torch.ones_like(tokens), torch.arange(tokens.shape[1]).unsqueeze(0), False).logits
+        position = dict(inputs.action_positions)[action.token_index]
+        probabilities = (logits[0, position - 1] / 0.8).softmax(-1)
+        return float(-(probabilities * probabilities.log()).sum())
+
+    def apply(index):
+        population.loss(model, index, torch.device("cpu"))
+        population.before_step(optimizer)
+        population.complete_step(optimizer)
+        term = resolve_objective_term(
+            population.updates[index],
+            population.spec,
+            population.credit,
+            parameter_version=population.last_evaluation.parameter_version,
+        )
+        candidate.observe_applied_update(index + 1)
+        return [weighted.action for weighted in term.policy_weights], metrics[-1]
+
+    selected, first = apply(0)
+    weights = {action: min(max(math.exp(delta), 0.1), 3.0) for action, delta in deltas.items()}
+    chosen = [weights[action] for action in selected]
+    # The first update evaluates at the sampling parameters: ratios are one.
+    assert first["train/rl/clip_fraction"] == 0.0
+    assert first["train/rl/importance_sampling_ratio_mean"] == pytest.approx(sum(chosen) / len(chosen))
+    assert first["train/rl/importance_sampling_ratio_min"] == pytest.approx(min(chosen))
+    assert first["train/rl/importance_sampling_ratio_max"] == pytest.approx(max(chosen))
+    clamped = sum(abs(deltas[action]) > 1 for action in selected) / len(selected)
+    assert first["train/rl/importance_sampling_ratio_clamped_fraction"] == pytest.approx(clamped)
+    assert first["train/rl/entropy"] == pytest.approx(sum(map(entropy, selected)) / len(selected), rel=1e-5)
+
+    # Move the second update's sampled tokens in its advantage direction far
+    # enough that every PPO ratio leaves the clip interval.
+    credit = {value.action: value.advantage for value in population.credit.values}
+    second = population.updates[1]
+    term = resolve_objective_term(second, population.spec, population.credit)
+    sign = 1.0 if credit[term.policy_weights[0].action] > 0 else -1.0
+    with torch.no_grad():
+        model.head.bias[4] += 6 * sign
+        model.head.bias[5] += 6 * sign
+    selected, last = apply(1)
+    ratios = {action: float(population.last_evaluation.ratios[action].detach()) for action in selected}
+    expected = [
+        (credit[action] > 0 and ratios[action] > 1 + population.spec.clip_high)
+        or (credit[action] < 0 and ratios[action] < 1 - population.spec.clip_low)
+        for action in selected
+    ]
+    assert all(expected)
+    assert last["train/rl/clip_fraction"] == 1.0
+    assert last["train/rl/clip_fraction_high" if sign > 0 else "train/rl/clip_fraction_low"] == 1.0
+    assert last["train/rl/entropy"] == pytest.approx(sum(map(entropy, selected)) / len(selected), rel=1e-5)

@@ -448,6 +448,141 @@ async def test_registered_job_kinds_resolve_to_first_class_metric_views(
     assert response.view.trace_evaluation_enabled is bool(definition.trace_sections)
 
 
+# What the resolved TRL SAMPO engine writes per update, by writer. This mirrors
+# packages/train (policy_job, policy_rollouts, update_telemetry, update_totals and
+# the shared native log callback); Observatory cannot import the trainer.
+_RESOLVED_SAMPO_UPDATE = (
+    "train/rl/loss",
+    "train/rl/policy_loss",
+    "train/rl/kl_loss",
+    "train/rl/kl",
+    "train/rl/applied_optimizer_updates",
+    "train/rl/optimizer_attempts",
+    "train/rl/selected_policy_actions",
+    "train/rl/selected_kl_actions",
+    "train/rl/advantage_mean",
+    "train/rl/advantage_abs_mean",
+    "train/rl/advantage_std",
+    "train/rl/advantage_nonzero_fraction",
+    "train/rl/advantage_positive_fraction",
+    "train/rl/advantage_negative_fraction",
+    "train/rl/advantage_zero_fraction",
+    "train/rl/clip_fraction",
+    "train/rl/clip_fraction_low",
+    "train/rl/clip_fraction_high",
+    "train/rl/importance_sampling_ratio_mean",
+    "train/rl/importance_sampling_ratio_min",
+    "train/rl/importance_sampling_ratio_max",
+    "train/rl/importance_sampling_ratio_clamped_fraction",
+    "train/rl/entropy",
+)
+_RESOLVED_SAMPO_NATIVE_LOG = (
+    "train/grad_norm",
+    "train/gradient_clipped",
+    "train/learning_rate",
+    "train/step_time_seconds",
+)
+_RESOLVED_SAMPO_ROLLOUT_TOTALS = (
+    "train/rl/rollouts_requested",
+    "train/rl/rollouts_attempted",
+    "train/rl/rollouts_completed",
+    "train/rl/rollouts_failed",
+    "train/rl/rollouts_replaced",
+    "train/rl/rollouts_truncated",
+    "train/rl/rollouts_unscorable",
+    "train/rl/rollouts_missing",
+    "train/rl/admission_rounds",
+    "train/rl/admission_rejected_groups",
+    "train/rl/time/rollout_seconds",
+    "train/rl/rollout_selected_tokens",
+    "train/rl/rollout_tokens_per_second",
+    "train/rl/rollout_selected_token_fraction",
+)
+_RESOLVED_SAMPO_COLLECTION = (
+    "train/rl/reward_mean",
+    "train/rl/reward_std",
+    "train/rl/group_reward_std_mean",
+    "train/rl/group_zero_variance_fraction",
+    "train/rl/completion_tokens_mean",
+    "train/rl/completion_tokens_max",
+    "train/rl/completion_truncation_rate",
+)
+_RESOLVED_SAMPO_CREDIT = (
+    "train/rl/episode_advantage_mean",
+    "train/rl/turn_advantage_mean",
+    "train/rl/anchor_group_size_mean",
+    "train/rl/sparse_reward_projection_fraction",
+    "train/rl/episode_advantage_abs_mean",
+    "train/rl/turn_advantage_abs_mean",
+    "train/rl/turn_advantage_informative_fraction",
+    "train/rl/singleton_anchor_fraction",
+    "train/rl/turn_credit_share",
+)
+
+
+def _resolved_sampo_source(metrics: tuple[str, ...]) -> FakeRunDataSource:
+    run_id = "runs/resolved-sampo"
+    ratios = {"train/rl/rollouts_failed": 0.0, "train/rl/rollouts_unscorable": 0.0}
+    series = {
+        name: MetricSeries(name=name, points=(MetricPoint(value=ratios.get(name, 0.5), step=1),)) for name in metrics
+    }
+    return FakeRunDataSource(
+        {
+            run_id: RunDetail(
+                summary=_summary(run_id, "train.sampo"),
+                resolved_inputs={
+                    "settings": {
+                        "beta": 0.005,
+                        "policy_updates": {"schedule": {"unit": "episode", "minibatches": 1}},
+                    },
+                    "inference": {"backend": "transformers@1"},
+                },
+                metric_names=tuple(series),
+                trace_count=4,
+            )
+        },
+        {run_id: series},
+    )
+
+
+@pytest.mark.asyncio
+async def test_resolved_sampo_run_satisfies_hierarchical_credit_evidence() -> None:
+    complete = (
+        *_RESOLVED_SAMPO_UPDATE,
+        *_RESOLVED_SAMPO_NATIVE_LOG,
+        *_RESOLVED_SAMPO_ROLLOUT_TOTALS,
+        *_RESOLVED_SAMPO_COLLECTION,
+        *_RESOLVED_SAMPO_CREDIT,
+    )
+
+    view = await ObservatoryService(_resolved_sampo_source(complete)).get_run_view("runs/resolved-sampo")
+
+    by_key = {item.key: item for item in view.completeness.requirements}
+    assert by_key["hierarchical_credit"].state == "available"
+    assert by_key["resolved_updates"].state == "available"
+    assert by_key["reference_policy"].state == "available"
+    assert view.completeness.state == "complete"
+    assert not [alert.id for alert in view.alerts if alert.id.startswith("evidence-")]
+
+    # Before the fix the resolved engine wrote only update and rollout totals.
+    before = (
+        *_RESOLVED_SAMPO_UPDATE[:8],
+        "train/rl/advantage_mean",
+        "train/rl/advantage_abs_mean",
+        "train/rl/advantage_std",
+        "train/rl/advantage_nonzero_fraction",
+        "train/rl/clip_fraction",
+    )
+    old = await ObservatoryService(
+        _resolved_sampo_source((*before, *_RESOLVED_SAMPO_NATIVE_LOG, *_RESOLVED_SAMPO_ROLLOUT_TOTALS))
+    ).get_run_view("runs/resolved-sampo")
+    assert {alert.message for alert in old.alerts} >= {
+        "Hierarchical credit assignment evidence is incomplete.",
+        "Relative learning signal evidence is incomplete.",
+        "Controlled policy update evidence is incomplete.",
+    }
+
+
 @pytest.mark.asyncio
 async def test_distillation_projection_requires_traces_and_surfaces_teacher_failures() -> None:
     definition = DEFAULT_TELEMETRY_DEFINITIONS["train.distill"]
