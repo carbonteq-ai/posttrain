@@ -19,7 +19,7 @@ from ..update_objectives import ResolvedObjectiveTerm
 from ..update_plan import ExecutionPack, ResolvedUpdate
 from ..update_records import ConditioningView, InvalidPolicyUpdate
 from .policy_update_math import ObjectiveEvaluation, ScoreBundle, evaluate
-from .policy_update_scoring import FrozenPopulationScores, dense_scores, score_views
+from .policy_update_scoring import FrozenPopulationScores, dense_scores, score_covers
 
 
 def compute_resolved_loss(
@@ -70,16 +70,16 @@ def compute_resolved_loss(
     ):
         raise InvalidPolicyUpdate("native score packs must cover each resolved dependency exactly once in order")
     if any(
-        pack.context_tokens != sum(population.conditioning[view].context_tokens for view in pack.views)
+        pack.context_tokens != sum(population.conditioning[view].context_tokens for view in pack.contexts)
         for pack in packs
     ):
         raise InvalidPolicyUpdate("native pack lost its resolved original conditioning footprint")
     entropies = np.full(population.size, np.nan)
     parts = [
-        score_views(
+        score_covers(
             model,
             population,
-            pack.views,
+            pack.covers,
             read_input=read_input,
             device=device,
             score_temperature=score_temperature,

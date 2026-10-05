@@ -309,6 +309,7 @@ class ResolvedTRLJob:
             ("sampled-logp", "old-logp", "reference-logp"),
             self.request.settings.max_prompt_length + self.request.settings.max_completion_length,
             True,
+            prefix_sharing=True,
         )
         self.run = ResolvedTRLRun(self.collect, self.restore)
 
@@ -393,6 +394,7 @@ class ResolvedTRLJob:
             policy_version=snapshot.versions.reference,
             score_contract=SCORE_CONTRACT,
             score_temperature=self.score_temperature,
+            prefix_sharing=population.capabilities.prefix_sharing,
         )
         if self.trainer.ref_model is not None:
             return freeze_population_scores(self.trainer.ref_model, snapshot, **kwargs)

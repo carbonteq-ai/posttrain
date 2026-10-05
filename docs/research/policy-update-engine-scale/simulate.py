@@ -212,6 +212,7 @@ def main() -> None:
         ("sampled-logp", "old-logp", "reference-logp"),
         settings.max_prompt_length + settings.max_completion_length,
         True,
+        prefix_sharing=True,
     )
     current = "sim/actor-0"
     with stage("admit (resolve+plan)"):
@@ -268,7 +269,6 @@ def train_steps(args, settings, resolved, view, *, sampled_scores) -> None:
     """
     from types import SimpleNamespace
 
-    import posttrain.train.backends.policy_update_scoring as scoring
     import torch
     from posttrain.train.backends.policy_update_scoring import freeze_population_scores
     from posttrain.train.backends.trl.policy_job import SCORE_CONTRACT
@@ -277,23 +277,29 @@ def train_steps(args, settings, resolved, view, *, sampled_scores) -> None:
     device = torch.device("cuda")
 
     class StandIn(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.w = torch.nn.Parameter(torch.zeros((), device=device))
+        """A tiny causal LM over the real 128,000-token vocabulary.
 
-        def forward(self, input_ids, **_):
-            return SimpleNamespace(logits=None)
+        The decoder is an embedding (no attention), so model compute is
+        negligible while the engine's real scoring path runs: one decoder pass
+        per cover and the chunked FP32 log-softmax over the full vocabulary at
+        every sampled position, with real autograd into the parameters.
+        """
+
+        def __init__(self, vocabulary: int = 128_000, width: int = 8):
+            super().__init__()
+            self.embedding = torch.nn.Embedding(vocabulary, width, device=device)
+            self.head = torch.nn.Linear(width, vocabulary, bias=False, device=device)
+
+        def decode(self, input_ids, **_):
+            return SimpleNamespace(last_hidden_state=self.embedding(input_ids))
+
+        def get_decoder(self):
+            return self.decode
+
+        def get_output_embeddings(self):
+            return self.head
 
     model = StandIn()
-
-    def stand_in_logprobs(logits, inputs, *, sampled_indices, score_temperature, entropies=None):
-        count = len(sampled_indices)
-        values = torch.linspace(-3.0, -0.05, count, device=device) + model.w
-        if entropies is not None:
-            entropies.extend([0.5] * count)
-        return values
-
-    scoring.sampled_logprobs = stand_in_logprobs
     snapshot = resolved.snapshot
     view.prepare_sampler_correction = lambda old: recipe_sampler_correction_weights(
         settings, snapshot, old, sampled_scores
@@ -308,6 +314,7 @@ def train_steps(args, settings, resolved, view, *, sampled_scores) -> None:
                 policy_version=snapshot.versions.reference,
                 score_contract=SCORE_CONTRACT,
                 score_temperature=view.score_temperature,
+                prefix_sharing=view.capabilities.prefix_sharing,
             )
     optimizer = SimpleNamespace()
     for index in range(len(view.updates)):
@@ -318,7 +325,7 @@ def train_steps(args, settings, resolved, view, *, sampled_scores) -> None:
             torch.cuda.synchronize()
         view.before_step(optimizer)
         view.complete_step(optimizer)
-        model.w.grad = None
+        model.zero_grad(set_to_none=True)
     print(f"peak GPU {torch.cuda.max_memory_allocated() / 1e9:.2f} GB")
 
 

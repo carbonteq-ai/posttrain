@@ -19,7 +19,8 @@ Training semantics do not change: the same rewards, the same episode-level and t
 - [x] (2026-10-05 20:10Z) Milestones 2 and 3 implemented together (all engine modules, TRL and veRL adapters, distribution, replay, transport v4, recovery): train package type-checks clean. Harness on r6: admission 7.4 s, reference scores 0.3 s, four updates' loss and backward 0.8 s, memory flat at 5.0 GB.
 - [x] (2026-10-05 20:40Z) Admission: one conditioning derivation per trace, inputs built once from verified records, retained evidence hashed once (`RetainedEvidence`), conditioning decode parsed on a worker-process pool (identical output, 4.67 s serial versus 1.81 s warm). Admission 3.4 s.
 - [x] (2026-10-05 21:20Z) Collection side: episode and trace replay records serialized on the shared worker pool (`integrations/native_records.py`, bridge `record_encoding="process"`); sealing proves indexed lines by SHA-256 instead of parsing. Main-process CPU to convert 160 episodes 68 s to 14 s (wall 67 s to 17 s); sealing 4.4 s to 3.1 s.
-- [ ] Port the train tests to the new types (in progress) and run the real-data parity check against the previous engine on r6 (in progress).
+- [x] (2026-10-05 22:30Z) Train tests ported (five parallel agents, disjoint files) and two restore/empty-update bugs they exposed fixed; real-data parity against the previous engine on r6 matches advantages, sampler scores, weights, ratio groups, updates and packs exactly. Committed 12be9000.
+- [x] (2026-10-06 00:20Z) Milestone 4: prefix covers (`update_plan.prefix_covers`, `ExecutionPack.covers`, `ExecutionCapabilities.prefix_sharing`, TRL on), cover scoring from final hidden states with a chunked FP32 head (`backends/policy_update_logprobs.py`). Done: unit parity (scores, entropies, gradients), real-model fp16 run on r6 (5.6x faster, chunked head equals model logits to 1.9e-6). fp32 parity on the real model (LFM2.5-2.6B on CPU, two-turn cover versus per-turn: max |diff| 5.7e-6, mean 1.5e-7). Harness on r6 with a real-vocabulary stand-in head: 32 packs per update (one per episode, was 155 to 238), reference scores 9.2 s and four updates about 32 s on the RTX 3070 Ti, GPU peak 0.72 GB, process memory flat at 5.2 GB.
 - [ ] Milestone 4: one forward pass per episode for exact-prefix episodes and language-model head only at sampled positions (fp32 chunks), with score parity on a real model.
 - [ ] Milestone 4b: real-model GPU benchmark on the workstation (2.6B + LoRA, real kernels), before and after Milestones 2 to 4.
 - [ ] Milestone 5: recovery, transport and telemetry on the new representation; remove the per-token path; full validation; 2-update smoke on the workstation; then the 100-update run.
@@ -70,6 +71,12 @@ Training semantics do not change: the same rewards, the same episode-level and t
 - Observation: converting each collected episode into a training rollout cost about 340 ms of main-thread CPU, almost all of it serializing the episode and its trace back into replay records (Verifiers `to_record`, dominated by assessment-archive normalization) and encoding them as JSON. Pickling an episode costs 1.6 ms, so the serialization can move to worker processes.
   Evidence: cProfile of `project episodes` (85.6 s profiled, of which `_native_record` 69 s and appends 16 s); `checks/record_costs.py`: `to_record` 34 ms (episode) and 32 ms (trace), `pickle.dumps` 1.6 ms.
 
+- Observation: LFM2.5-2.6B has a 128,000-token vocabulary (the 1.2B models have 65,536), so full-vocabulary FP32 logits cost about 512 KB per scored token; one update of r6's population would retain tens of gigabytes of them for backward.
+  Evidence: `config.json` vocab_size; an episode-sized forward with full kept-row logits ran out of memory on the 8 GB card while per-turn forwards fit.
+
+- Observation: scoring all turns of an episode inside one forward of its longest context is exact in arithmetic but not bitwise in half precision: on two r6 episodes with LFM2.5-2.6B in fp16 the per-token log-probability difference from per-turn forwards was 7.7e-4 on average (max 3.7e-2), about a fifth of the trainer-sampler gap (0.0037 mean). Old, reference and current scores all use the same covers, so ratios stay consistent within a run.
+  Evidence: `sim/checks/model_cover_parity.py 9000 2`: per-turn 12.1 s versus shared 2.1 s for 12 turns (64,121 versus 12,406 forwarded tokens); chunked head versus the model's own logits max |diff| 1.9e-6.
+
 - Observation: the older SAMPO system (TRL's own trainer on flattened episode rows) took 467 s per update on average for 120 episodes: 198 s of rollouts and 219 s of actor update, about 13 hours for 100 updates.
   Evidence: `posttrain query --sql "select run_id, avg(update_seconds), avg(rollout_seconds), avg(actor_seconds) from updates where run_id like 'lfm26-sampo-cont100%' group by run_id"` from `apps/lab`.
 
@@ -97,6 +104,10 @@ Training semantics do not change: the same rewards, the same episode-level and t
 
 - Decision: a contribution's dependencies are whole turns, not the selected subset of a turn's tokens.
   Rationale: a turn's forward pass scores all of its tokens anyway, so whole-turn dependencies change no scores, weights or ratios; they only make the statistic-capacity check count every position of a dependency turn (conservative). This removes the last per-token sets from scheduling.
+  Date/Author: 2026-10-05, Claude.
+
+- Decision: policy scores are formed from the decoder's final hidden states with a custom autograd function that computes the output head and FP32 log-softmax in row chunks and recomputes them in backward, instead of requesting logits from the model.
+  Rationale: retaining full-vocabulary FP32 logits (or even model-dtype kept rows) for every scored token does not fit an update at r6's size; the chunked function retains only hidden states and one normalizer per token. It forms logits with the model's own linear op and applies the config's `final_logit_softcapping` when declared (the only post-head transform in current Transformers causal LMs, used by the Gemma family), so it reproduces model logits exactly; tests check values, entropies and gradients against full log-softmax autograd.
   Date/Author: 2026-10-05, Claude.
 
 - Decision: internal digests and the recovery checkpoint format change version; checkpoints written by the old engine are not resumable by the new one.

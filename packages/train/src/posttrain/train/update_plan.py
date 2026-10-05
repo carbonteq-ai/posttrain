@@ -6,6 +6,7 @@ module schedules them; it does not reinterpret credit or ratio mathematics.
 
 from __future__ import annotations
 
+import json
 import random
 from dataclasses import dataclass, field
 from typing import Literal
@@ -14,6 +15,7 @@ import numpy as np
 
 from .update_records import (
     ActionSelection,
+    ConditioningView,
     InvalidPolicyUpdate,
     PolicyVersions,
     PopulationSnapshot,
@@ -252,6 +254,9 @@ class ExecutionCapabilities:
     # A coupled backward graph must remain intact across packs unless qualified replay exists.
     cross_pack_dependencies: bool = False
     context_layout: Literal["ragged", "dense-pack", "dense-population"] = "ragged"
+    # The backend scores every turn whose context is a prefix of another turn's
+    # context in the same pack from that longer context's single forward pass.
+    prefix_sharing: bool = False
 
     def __post_init__(self) -> None:
         if self.context_layout not in {"ragged", "dense-pack", "dense-population"}:
@@ -286,10 +291,25 @@ def execution_context_tokens(
 
 @dataclass(frozen=True, slots=True)
 class ExecutionPack:
+    """Turns scored together, grouped by the contexts forwarded to score them.
+
+    Each cover is (forwarded turn, turns it scores), see ``prefix_covers``.
+    Without prefix sharing every turn covers only itself. ``context_tokens``
+    is the physical input cost of the pack's forwards.
+    """
+
     update_digest: str
     index: int
-    views: tuple[int, ...]
+    covers: tuple[tuple[int, tuple[int, ...]], ...]
     context_tokens: int
+
+    @property
+    def views(self) -> tuple[int, ...]:
+        return tuple(sorted(view for _, members in self.covers for view in members))
+
+    @property
+    def contexts(self) -> tuple[int, ...]:
+        return tuple(cover for cover, _ in self.covers)
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,6 +329,57 @@ def turn_order(population: PopulationSnapshot, views: set[int] | tuple[int, ...]
         sorted(
             views, key=lambda view: (conditioning[view].episode_id, conditioning[view].branch_id, conditioning[view].id)
         )
+    )
+
+
+def view_path(view: ConditioningView) -> tuple[str, tuple[int, ...]] | None:
+    """(trace id, root-to-node path) from a view's native coordinates, if it has them."""
+    try:
+        coordinates = json.loads(view.token_ids_ref)
+        trace, prefix, node = coordinates["trace_id"], coordinates["prefix_nodes"], coordinates["node_index"]
+    except (TypeError, ValueError, KeyError):
+        return None
+    if not isinstance(trace, str) or type(node) is not int or not isinstance(prefix, list):
+        return None
+    if any(type(index) is not int for index in prefix):
+        return None
+    return trace, (*prefix, node)
+
+
+def prefix_covers(population: PopulationSnapshot, views: tuple[int, ...]) -> tuple[tuple[int, tuple[int, ...]], ...]:
+    """Group turns under covering turns whose context contains theirs.
+
+    A turn's causal context is the concatenation of its message-graph path, so
+    when one turn's path is a prefix of another's in the same trace, its tokens
+    are a prefix of the other's and causal attention gives it identical scores
+    inside the longer forward. Each cover is (covering turn, covered turns in
+    turn order, the cover included); turns without native coordinates cover only
+    themselves. Covers keep the input turn order of their covering turns.
+    """
+    order = {view: rank for rank, view in enumerate(views)}
+    paths = {view: view_path(population.conditioning[view]) for view in views}
+    covers: dict[int, list[int]] = {}
+    def longest_first(view: int) -> tuple[int, int]:
+        path = paths[view]
+        return (-len(path[1]) if path is not None else 0, order[view])
+
+    # Longest paths first, so each turn joins the longest context that contains it.
+    for view in sorted(views, key=longest_first):
+        path = paths[view]
+        host = None
+        if path is not None:
+            for cover in covers:
+                candidate = paths[cover]
+                if candidate is not None and candidate[0] == path[0] and candidate[1][: len(path[1])] == path[1]:
+                    host = cover
+                    break
+        if host is None:
+            covers[view] = [view]
+        else:
+            covers[host].append(view)
+    return tuple(
+        (cover, tuple(sorted(members, key=order.__getitem__)))
+        for cover, members in sorted(covers.items(), key=lambda item: order[item[0]])
     )
 
 
@@ -401,33 +472,40 @@ def plan_packs(
 ) -> tuple[ExecutionPack, ...]:
     """Split an occurrence's turns into packs within the record and context budgets.
 
-    A pack holds whole turns. Turn order is the occurrence's (episode, branch,
-    turn id) order; a new pack starts when the record count or physical context
-    would exceed its budget.
+    The unit is a cover: a forwarded context and the turns it scores (with
+    ``prefix_sharing``, every turn of the occurrence whose context it contains;
+    otherwise just itself). Covers follow the occurrence's (episode, branch,
+    turn id) order; a new pack starts when the forward count (``records``) or
+    the physical context would exceed its budget. A cover is never split.
     """
     validate_update(update, capabilities)
     if update.dependency_count * update.objective.statistic_bytes_per_action > execution_budget.statistic_bytes:
         raise InvalidPolicyUpdate("retained objective statistics exceed execution capacity")
     population = update.population
+    covers = (
+        prefix_covers(population, update.views)
+        if capabilities.prefix_sharing
+        else tuple((view, (view,)) for view in update.views)
+    )
     packs: list[ExecutionPack] = []
-    pending: list[int] = []
-    pending_tokens = 0
+    pending: list[tuple[int, tuple[int, ...]]] = []
 
-    def cost(views: list[int]) -> int:
-        return execution_context_tokens(population, tuple(views), capabilities)
+    def cost(contexts: list[int]) -> int:
+        return execution_context_tokens(population, tuple(contexts), capabilities)
 
     def emit() -> None:
-        packs.append(ExecutionPack(update.digest, len(packs), tuple(sorted(pending)), pending_tokens))
+        packs.append(ExecutionPack(update.digest, len(packs), tuple(pending), cost([cover for cover, _ in pending])))
 
-    for view in update.views:
-        if cost([view]) > execution_budget.context_tokens:
+    for cover in covers:
+        if cost([cover[0]]) > execution_budget.context_tokens:
             raise InvalidPolicyUpdate("atomic turn conditioning exceeds hard pack capacity")
-        candidate = cost([*pending, view]) if pending else 0
-        if pending and (len(pending) == execution_budget.records or candidate > execution_budget.context_tokens):
+        if pending and (
+            len(pending) == execution_budget.records
+            or cost([*(item for item, _ in pending), cover[0]]) > execution_budget.context_tokens
+        ):
             emit()
             pending = []
-        pending.append(view)
-        pending_tokens = cost(pending)
+        pending.append(cover)
     if pending:
         emit()
     if len(packs) > 1 and not capabilities.cross_pack_dependencies:

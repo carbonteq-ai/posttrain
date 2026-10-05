@@ -168,6 +168,7 @@ class ResolvedTRLPopulation:
                 policy_version=update.population.versions.old_score,
                 score_contract=self.score_contract,
                 score_temperature=self.score_temperature,
+                prefix_sharing=self.capabilities.prefix_sharing,
             )
         if self.prepare_sampler_correction is not None:
             correction = np.asarray(

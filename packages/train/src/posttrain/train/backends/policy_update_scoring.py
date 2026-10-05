@@ -18,6 +18,47 @@ import torch
 from posttrain.environment.verifiers_conditioning import NativeConditioningInput
 
 from ..update_records import ConditioningView, InvalidPolicyUpdate, PopulationSnapshot, require_identity
+from .policy_update_logprobs import output_head, selected_token_logprobs
+
+
+def _action_rows(
+    inputs: NativeConditioningInput, sampled_indices: tuple[int, ...], vocabulary: int | None
+) -> tuple[list[int], list[int]]:
+    """Causal score rows (position - 1) and target tokens for the given original actions."""
+    if len(set(sampled_indices)) != len(sampled_indices):
+        raise InvalidPolicyUpdate("native score selection duplicates an original action")
+    positions = dict(inputs.action_positions)
+    if any(type(index) is not int or index not in positions for index in sampled_indices):
+        raise InvalidPolicyUpdate("native score selection includes an ineligible node token")
+    action_positions = [positions[index] for index in sampled_indices]
+    if any(position < 1 or position >= len(inputs.token_ids) for position in action_positions):
+        raise InvalidPolicyUpdate("native action lacks a preceding causal score position")
+    targets = [inputs.token_ids[position] for position in action_positions]
+    if any(target < 0 or (vocabulary is not None and target >= vocabulary) for target in targets):
+        raise InvalidPolicyUpdate("native sampled token is outside model vocabulary")
+    return [position - 1 for position in action_positions], targets
+
+
+def _score_rows(
+    rows: torch.Tensor, targets: list[int], *, score_temperature: float, entropies: list[float] | None
+) -> torch.Tensor:
+    """Tempered log-probabilities of ``targets`` under each row of logits, in FP32."""
+    if rows.dtype in (torch.bfloat16, torch.float16):
+        rows = rows.float()
+    if not bool(torch.isfinite(rows).all()):
+        raise InvalidPolicyUpdate("non-finite native logits at a required causal position")
+    log_probabilities = (rows / score_temperature).log_softmax(dim=-1)
+    values = log_probabilities.gather(
+        1, torch.tensor(targets, dtype=torch.long, device=rows.device).unsqueeze(1)
+    ).squeeze(1)
+    if entropies is not None:
+        entropies.extend(_entropies(log_probabilities))
+    return values
+
+
+def _check_temperature(score_temperature: float) -> None:
+    if isinstance(score_temperature, bool) or not math.isfinite(score_temperature) or score_temperature <= 0:
+        raise InvalidPolicyUpdate("native score temperature must be finite and positive")
 
 
 def sampled_logprobs(
@@ -28,7 +69,7 @@ def sampled_logprobs(
     score_temperature: float,
     entropies: list[float] | None = None,
 ) -> torch.Tensor:
-    """Score selected original actions at their preceding causal positions.
+    """Score selected original actions at their preceding causal positions from full-context logits.
 
     Returns one value per entry of ``sampled_indices``, in that order. Inputs
     must come from materialize_native_conditioning over authenticated retained
@@ -47,35 +88,11 @@ def sampled_logprobs(
         raise InvalidPolicyUpdate("native logits must align with one complete original conditioning view")
     if not logits.is_floating_point() or logits.shape[2] < 1:
         raise InvalidPolicyUpdate("native score logits require a floating vocabulary axis")
-    if isinstance(score_temperature, bool) or not math.isfinite(score_temperature) or score_temperature <= 0:
-        raise InvalidPolicyUpdate("native score temperature must be finite and positive")
-    if len(set(sampled_indices)) != len(sampled_indices):
-        raise InvalidPolicyUpdate("native score selection duplicates an original action")
-    positions = dict(inputs.action_positions)
-    if any(type(index) is not int or index not in positions for index in sampled_indices):
-        raise InvalidPolicyUpdate("native score selection includes an ineligible node token")
-    if not sampled_indices:
+    _check_temperature(score_temperature)
+    rows, targets = _action_rows(inputs, sampled_indices, logits.shape[2])
+    if not rows:
         return logits.new_zeros(0, dtype=torch.float32)
-    action_positions = [positions[index] for index in sampled_indices]
-    if any(position < 1 or position >= len(inputs.token_ids) for position in action_positions):
-        raise InvalidPolicyUpdate("native action lacks a preceding causal score position")
-    targets = [inputs.token_ids[position] for position in action_positions]
-    if any(target < 0 or target >= logits.shape[2] for target in targets):
-        raise InvalidPolicyUpdate("native sampled token is outside model vocabulary")
-    selected = logits[0, [position - 1 for position in action_positions]]
-    # Normalize only needed positions in FP32 for supported half precision.
-    if selected.dtype in (torch.bfloat16, torch.float16):
-        selected = selected.float()
-    if not bool(torch.isfinite(selected).all()):
-        raise InvalidPolicyUpdate("non-finite native logits at a required causal position")
-    log_probabilities = (selected / score_temperature).log_softmax(dim=-1)
-    values = log_probabilities.gather(
-        1,
-        torch.tensor(targets, dtype=torch.long, device=logits.device).unsqueeze(1),
-    ).squeeze(1)
-    if entropies is not None:
-        entropies.extend(_entropies(log_probabilities))
-    return values
+    return _score_rows(logits[0, rows], targets, score_temperature=score_temperature, entropies=entropies)
 
 
 _ENTROPY_ROWS = 256
@@ -104,6 +121,99 @@ class PositionScores:
             raise InvalidPolicyUpdate("position scores must pair each position with one value")
 
 
+def _checked_input(read_input: Callable[[ConditioningView], NativeConditioningInput], view: ConditioningView):
+    inputs = read_input(view)
+    record = inputs.record
+    if (
+        record.context_contract != "causal-text@1"
+        or record.input_digest != view.digest
+        or (len(inputs.token_ids) != view.context_tokens or record.context_tokens != view.context_tokens)
+    ):
+        raise InvalidPolicyUpdate("materialized model input differs from the frozen conditioning view")
+    return inputs
+
+
+def score_covers(
+    model: Any,
+    snapshot: PopulationSnapshot,
+    covers: Sequence[tuple[int, tuple[int, ...]]],
+    *,
+    read_input: Callable[[ConditioningView], NativeConditioningInput],
+    device: torch.device,
+    score_temperature: float,
+    entropies: np.ndarray | None = None,
+) -> PositionScores:
+    """Score every sampled token of each cover's turns from one forward of the cover's context.
+
+    A cover is (forwarded turn, turns it scores); each scored turn's context
+    must be a prefix of the forwarded one (checked here token for token), so
+    causal attention gives its actions the same conditioning as their own
+    forward would. The model's decoder runs once per cover; log-probabilities
+    are formed from the final hidden states of the rows preceding sampled
+    tokens only, in chunks (``selected_token_logprobs``), so neither
+    whole-context nor whole-vocabulary FP32 logits are retained. The model
+    exposes Hugging Face's ``get_decoder()`` and ``get_output_embeddings()``.
+    The native caller authenticates retained bytes in read_input and qualifies
+    the model's causal-text@1 attention/position behavior. Calling this across
+    planned packs retains graphs; native backward must occur before any update.
+    When ``entropies`` (length ``snapshot.size``) is given, each scored
+    position's detached entropy is written into it.
+    """
+    _check_temperature(score_temperature)
+    decoder = model.get_decoder()
+    weight, bias, softcap = output_head(model)
+    scored = [view for _, members in covers for view in members]
+    if len(set(scored)) != len(scored) or any(not 0 <= view < len(snapshot.conditioning) for view in scored):
+        raise InvalidPolicyUpdate("model score support must contain unique admitted original actions")
+    positions, values = [], []
+    for cover, members in covers:
+        if cover not in members:
+            raise InvalidPolicyUpdate("a forwarded context must score its own turn")
+        context = _checked_input(read_input, snapshot.conditioning[cover])
+        keep: list[int] = []
+        targets: list[int] = []
+        spans = []
+        for member in members:
+            inputs = _checked_input(read_input, snapshot.conditioning[member])
+            if inputs.token_ids != context.token_ids[: len(inputs.token_ids)]:
+                raise InvalidPolicyUpdate("a covered turn's context is not a prefix of its forwarded context")
+            rows, member_targets = _action_rows(inputs, snapshot.conditioning[member].sampled, None)
+            spans.append((member, len(keep), len(rows)))
+            keep.extend(rows)
+            targets.extend(member_targets)
+        token_ids = torch.tensor([context.token_ids], dtype=torch.long, device=device)
+        output = decoder(
+            input_ids=token_ids,
+            attention_mask=torch.ones_like(token_ids),
+            position_ids=torch.arange(token_ids.shape[1], device=device).unsqueeze(0),
+            use_cache=False,
+        )
+        hidden = output.last_hidden_state
+        if hidden.ndim != 3 or hidden.shape[:2] != (1, len(context.token_ids)):
+            raise InvalidPolicyUpdate("native hidden states must align with one complete original context")
+        if any(target >= weight.shape[0] for target in targets):
+            raise InvalidPolicyUpdate("native sampled token is outside model vocabulary")
+        cover_values, cover_entropies = selected_token_logprobs(
+            hidden[0, torch.tensor(keep, dtype=torch.long, device=device)],
+            weight,
+            bias,
+            torch.tensor(targets, dtype=torch.long, device=device),
+            temperature=score_temperature,
+            softcap=softcap,
+            with_entropy=entropies is not None,
+        )
+        local_entropies = cover_entropies.tolist() if entropies is not None else None
+        for member, start, count in spans:
+            span = snapshot.view_positions(member)
+            positions.append(np.arange(span.start, span.stop, dtype=np.int64))
+            values.append(cover_values[start : start + count])
+            if entropies is not None and local_entropies is not None:
+                entropies[span] = local_entropies[start : start + count]
+    if not positions:
+        return PositionScores(np.zeros(0, dtype=np.int64), torch.zeros(0, device=device))
+    return PositionScores(np.concatenate(positions), torch.cat(values))
+
+
 def score_views(
     model: Any,
     snapshot: PopulationSnapshot,
@@ -114,52 +224,16 @@ def score_views(
     score_temperature: float,
     entropies: np.ndarray | None = None,
 ) -> PositionScores:
-    """Score every sampled token of the given views, one full-context forward per view.
-
-    The native caller authenticates retained bytes in read_input and qualifies
-    the model's causal-text@1 attention/position behavior. No detached KV cache,
-    retokenization, padding or generation call is used here. Calling this across
-    planned packs retains graphs; native backward must occur before any update.
-    When ``entropies`` (length ``snapshot.size``) is given, each scored
-    position's detached entropy is written into it.
-    """
-    if len(set(views)) != len(views) or any(not 0 <= view < len(snapshot.conditioning) for view in views):
-        raise InvalidPolicyUpdate("model score support must contain unique admitted original actions")
-    positions, values = [], []
-    for index in views:
-        view = snapshot.conditioning[index]
-        inputs = read_input(view)
-        record = inputs.record
-        if (
-            record.context_contract != "causal-text@1"
-            or record.input_digest != view.digest
-            or (len(inputs.token_ids) != view.context_tokens or record.context_tokens != view.context_tokens)
-        ):
-            raise InvalidPolicyUpdate("materialized model input differs from the frozen conditioning view")
-        token_ids = torch.tensor([inputs.token_ids], dtype=torch.long, device=device)
-        output = model(
-            input_ids=token_ids,
-            attention_mask=torch.ones_like(token_ids),
-            position_ids=torch.arange(token_ids.shape[1], device=device).unsqueeze(0),
-            use_cache=False,
-        )
-        local_entropies: list[float] | None = [] if entropies is not None else None
-        values.append(
-            sampled_logprobs(
-                output.logits,
-                inputs,
-                sampled_indices=view.sampled,
-                score_temperature=score_temperature,
-                entropies=local_entropies,
-            )
-        )
-        span = snapshot.view_positions(index)
-        positions.append(np.arange(span.start, span.stop, dtype=np.int64))
-        if entropies is not None and local_entropies is not None:
-            entropies[span] = local_entropies
-    if not positions:
-        return PositionScores(np.zeros(0, dtype=np.int64), torch.zeros(0, device=device))
-    return PositionScores(np.concatenate(positions), torch.cat(values))
+    """Score every sampled token of the given views, one full-context forward per view."""
+    return score_covers(
+        model,
+        snapshot,
+        [(view, (view,)) for view in views],
+        read_input=read_input,
+        device=device,
+        score_temperature=score_temperature,
+        entropies=entropies,
+    )
 
 
 def dense_scores(size: int, parts: Sequence[PositionScores], *, device: torch.device) -> torch.Tensor:
@@ -216,14 +290,23 @@ def freeze_population_scores(
     policy_version: str,
     score_contract: str,
     score_temperature: float,
+    prefix_sharing: bool = False,
 ) -> FrozenPopulationScores:
-    """Prepare old/reference probabilities before any update on this population."""
+    """Prepare old/reference probabilities before any update on this population.
+
+    With ``prefix_sharing`` each turn is scored inside the longest context that
+    contains it (one forward per covering context, see ``prefix_covers``).
+    """
+    from ..update_plan import prefix_covers
+
     require_identity(policy_version, score_contract)
+    views = tuple(range(len(snapshot.conditioning)))
+    covers = prefix_covers(snapshot, views) if prefix_sharing else tuple((view, (view,)) for view in views)
     with torch.no_grad():
-        scored = score_views(
+        scored = score_covers(
             model,
             snapshot,
-            range(len(snapshot.conditioning)),
+            covers,
             read_input=read_input,
             device=device,
             score_temperature=score_temperature,

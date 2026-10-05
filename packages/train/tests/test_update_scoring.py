@@ -88,18 +88,32 @@ def test_invalid_score_temperature_rejected(temperature):
 
 
 class CausalModel(torch.nn.Module):
-    """Small independent causal operator; this does not qualify an architecture."""
+    """Small independent causal operator; this does not qualify an architecture.
+
+    Exposes Hugging Face's causal-LM split: ``get_decoder()`` returns the final
+    hidden states and ``get_output_embeddings()`` the (biased) output head.
+    """
 
     def __init__(self):
         super().__init__()
         self.embedding = torch.nn.Embedding(7, 3)
         self.head = torch.nn.Linear(3, 7)
 
-    def forward(self, input_ids, attention_mask, position_ids, use_cache):
+    def hidden(self, input_ids, attention_mask, position_ids, use_cache):
         assert not use_cache
         assert attention_mask.tolist() == [[1] * input_ids.shape[1]]
         assert position_ids.tolist() == [list(range(input_ids.shape[1]))]
-        return SimpleNamespace(logits=self.head(self.embedding(input_ids).cumsum(dim=1)))
+        return SimpleNamespace(last_hidden_state=self.embedding(input_ids).cumsum(dim=1))
+
+    def get_decoder(self):
+        return self.hidden
+
+    def get_output_embeddings(self):
+        return self.head
+
+    def forward(self, input_ids, attention_mask, position_ids, use_cache):
+        hidden = self.hidden(input_ids, attention_mask, position_ids, use_cache).last_hidden_state
+        return SimpleNamespace(logits=self.head(hidden))
 
 
 def score_population():
