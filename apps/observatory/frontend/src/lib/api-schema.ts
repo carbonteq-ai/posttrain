@@ -2254,6 +2254,11 @@ export interface components {
             capabilities: components["schemas"]["TrackingCapabilities"];
             /** Charts */
             charts: components["schemas"]["ChartView"][];
+            /**
+             * Collection Steps
+             * @default []
+             */
+            collection_steps: number[];
             completeness: components["schemas"]["EvidenceCompleteness"];
             configuration?: components["schemas"]["ConfigurationReview"] | null;
             /**

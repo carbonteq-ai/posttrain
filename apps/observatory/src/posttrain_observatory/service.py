@@ -19,6 +19,7 @@ from posttrain.advisor import ArchitectureLoader
 from posttrain.common import JsonValue
 from posttrain.tracking import (
     EventRecord,
+    MetricPoint,
     MetricSeries,
     NoteSource,
     ProjectSql,
@@ -39,10 +40,11 @@ from .discovery import TrackioSourceDiscovery
 from .evaluation_contracts import read_evaluation_contract
 from .evaluations import EvaluationIndex, EvaluationTaskScores, evaluation_index, evaluation_tasks
 from .execution_targets import execution_target_capacity, execution_target_contexts
-from .metric_catalog import CATALOG_BY_METRIC
+from .metric_catalog import CATALOG_BY_METRIC, COLLECTION_TIME_METRIC, DERIVED_COLLECTION_METRICS
 from .models import (
     BackendRuntimeSummary,
     ChartView,
+    ComparisonDifference,
     ComparisonRow,
     EvaluationBreakdownSpec,
     EvaluationFacetSpec,
@@ -498,6 +500,65 @@ def _comparison_context(view: EvaluationRunView | RunView) -> dict[str, JsonValu
         "environment": environment_id,
         "environment_revision": environment_revision,
     }
+
+
+TRAINING_COMPARISON_INPUTS: tuple[tuple[str, str], ...] = (
+    ("model", "Model"),
+    ("reward_function", "Reward function"),
+    ("environment", "Environment"),
+    ("task_mix", "Task mix"),
+    ("tasks", "Tasks"),
+    ("max_turns", "Turns per episode"),
+    ("reply_tokens", "Reply token budget"),
+    ("prompts_per_collection", "Prompt groups per collection"),
+    ("rollouts_per_prompt", "Rollouts per prompt group"),
+    ("updates_per_collection", "Updates per collection"),
+    ("collections", "Collections recorded"),
+)
+"""Training inputs shown beside a comparison, and flagged when they differ (`collections` is progress, not flagged)."""
+
+
+def _nested(value: object, *path: str) -> JsonValue:
+    for key in path:
+        if not isinstance(value, Mapping):
+            return None
+        value = value.get(key)
+    return cast(JsonValue, value) if isinstance(value, str | int | float | bool) or value is None else None
+
+
+def _training_comparison_context(view: RunView) -> dict[str, JsonValue]:
+    """The inputs that decide what a training run's reward, step and time mean."""
+
+    inputs = view.resolved_inputs
+    environment = inputs.get("environment")
+    starts = view.collection_steps
+    spans = [later - earlier for earlier, later in zip(starts, starts[1:], strict=False)]
+    reward_points = next(
+        (series.points for chart in view.charts for series in chart.series if series.name == "train/rl/reward_mean"),
+        (),
+    )
+    return {
+        "model": _selection_identity(inputs.get("model"))[0],
+        "reward_function": _selection_identity(inputs.get("reward_projection"))[0],
+        "environment": _selection_identity(environment)[0],
+        "task_mix": _nested(environment, "resolved", "parameters", "task_mix_id"),
+        "tasks": _nested(environment, "resolved", "num_tasks"),
+        "max_turns": _nested(environment, "resolved", "parameters", "max_turns"),
+        "reply_tokens": _nested(inputs.get("rollout_inference"), "resolved", "sampling", "max_tokens")
+        or _nested(environment, "resolved", "sampling", "max_tokens"),
+        "prompts_per_collection": _nested(inputs.get("settings"), "resolved", "num_prompts_per_step"),
+        "rollouts_per_prompt": _nested(inputs.get("settings"), "resolved", "num_generations"),
+        "updates_per_collection": max(set(spans), key=spans.count) if spans else 1,
+        "collections": len(starts) or len(reward_points),
+    }
+
+
+def _training_differences(contexts: Sequence[Mapping[str, JsonValue]]) -> tuple[ComparisonDifference, ...]:
+    return tuple(
+        ComparisonDifference(key=key, label=label, values=tuple(context.get(key) for context in contexts))
+        for key, label in TRAINING_COMPARISON_INPUTS
+        if key != "collections" and len({json.dumps(context.get(key)) for context in contexts}) > 1
+    )
 
 
 def _presentation_metric_series(series: MetricSeries) -> MetricSeries:
@@ -1059,6 +1120,8 @@ def _config_values(value: JsonValue, key: str) -> tuple[JsonValue, ...]:
 
 
 def _metric_grain(metric: str) -> Literal["update", "collection"]:
+    if metric in DERIVED_COLLECTION_METRICS:
+        return "collection"
     entry = CATALOG_BY_METRIC.get(metric)
     return "collection" if entry is not None and entry.entity == "collection" else "update"
 
@@ -1083,10 +1146,52 @@ def _collection_starts(by_name: Mapping[str, MetricSeries], names: Iterable[str]
     return tuple(sorted(collections)) if collections and updates - collections else ()
 
 
+def _collection_time(
+    by_name: Mapping[str, MetricSeries], collection_steps: Sequence[int], *, finished: bool
+) -> MetricSeries | None:
+    """Each collection's wall time: the summed step time of its updates, at its first update's step.
+
+    Without multi-update collections every update is its own collection, so collection time is step
+    time. A collection still training (fewer recorded updates than planned) is left out so the last
+    point never reads as a sudden speed-up.
+    """
+
+    step_time = by_name.get("train/step_time_seconds")
+    if step_time is None or not step_time.points:
+        return None
+    timed = sorted((point for point in step_time.points if point.step is not None), key=lambda point: point.step or 0)
+    if not collection_steps:
+        return MetricSeries(name=COLLECTION_TIME_METRIC, points=tuple(timed))
+    planned = {
+        point.step: int(point.value)
+        for point in by_name.get("train/rl/collection_updates", MetricSeries(name="train/rl/collection_updates")).points
+        if point.step is not None and point.value >= 1
+    }
+    points: list[MetricPoint] = []
+    for index, start in enumerate(collection_steps):
+        end = collection_steps[index + 1] if index + 1 < len(collection_steps) else None
+        members = [point for point in timed if (point.step or 0) >= start and (end is None or (point.step or 0) < end)]
+        if not members:
+            continue
+        if end is None and not finished:
+            expected = planned.get(start) or (start - collection_steps[index - 1] if index else None)
+            if expected is None or len(members) < expected:
+                continue
+        points.append(
+            MetricPoint(
+                value=sum(point.value for point in members),
+                step=start,
+                observed_at=members[-1].observed_at,
+            )
+        )
+    return MetricSeries(name=COLLECTION_TIME_METRIC, points=tuple(points))
+
+
 def _chart_views(
     definitions: Sequence[ChartDefinition],
     by_name: Mapping[str, MetricSeries],
     presentation_by_name: Mapping[str, MetricSeries],
+    collection_steps: Sequence[int] = (),
 ) -> tuple[ChartView, ...]:
     """Chart views, naming the series that are per collection when collections span updates.
 
@@ -1096,8 +1201,7 @@ def _chart_views(
     hold across the updates of their collection.
     """
 
-    every = [name for chart in definitions for name in chart.metrics]
-    multi_update = bool(_collection_starts(by_name, every))
+    multi_update = bool(collection_steps)
     return tuple(
         ChartView(
             key=chart.key,
@@ -1536,11 +1640,16 @@ class ObservatoryService:
         source = self.registry.resolve(locator)
         if detail is None:
             detail = await source.get_run(locator.run_id)
-        names = tuple(sorted(definition.metric_names))
+        names = tuple(sorted(definition.metric_names - DERIVED_COLLECTION_METRICS))
         series_values, artifacts = await asyncio.gather(
             _read_metric_series(source, locator.run_id, names), source.artifacts(locator.run_id)
         )
         by_name = {series.name: series for series in series_values}
+        collection_steps = _collection_starts(by_name, names)
+        if COLLECTION_TIME_METRIC in definition.metric_names:
+            collection_time = _collection_time(by_name, collection_steps, finished=detail.summary.status != "running")
+            if collection_time is not None:
+                by_name[COLLECTION_TIME_METRIC] = collection_time
         presentation_by_name = {
             name: _presentation_metric_series(_downsample(series, 400)[0]) for name, series in by_name.items()
         }
@@ -1565,7 +1674,7 @@ class ObservatoryService:
             )
             for field in definition.summary_fields
         )
-        charts = _chart_views(definition.charts, by_name, presentation_by_name)
+        charts = _chart_views(definition.charts, by_name, presentation_by_name, collection_steps)
         completeness = _evidence_completeness(
             definition,
             detail.resolved_inputs,
@@ -1581,6 +1690,7 @@ class ObservatoryService:
             run=detail.summary,
             summary=summary,
             charts=charts,
+            collection_steps=collection_steps,
             metric_help=definition.metric_help,
             completeness=completeness,
             grpo=(
@@ -2078,7 +2188,11 @@ class ObservatoryService:
                     run_id=view.run.run_id,
                     values={key: values[key].value for key in definition.comparison_keys},
                     states={key: values[key].state for key in definition.comparison_keys},
-                    context=(_comparison_context(view) if isinstance(view, EvaluationRunView) else {}),
+                    context=(
+                        _comparison_context(view)
+                        if isinstance(view, EvaluationRunView)
+                        else _training_comparison_context(view)
+                    ),
                 )
             )
         return RunComparison(
@@ -2086,7 +2200,8 @@ class ObservatoryService:
             state="comparable",
             columns=definition.comparison_keys,
             rows=tuple(rows),
-            basis=basis,
+            basis=basis or ("job kind",),
+            differences=() if evaluation_views else _training_differences([row.context for row in rows]),
         )
 
     async def get_trace_evaluation_view(

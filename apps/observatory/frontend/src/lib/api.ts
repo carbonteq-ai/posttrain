@@ -569,6 +569,8 @@ export type RunComparison = {
   }>;
   reason: string | null;
   basis: string[];
+  /** Training inputs that differ between the runs, each with one value per row. */
+  differences?: Array<{ key: string; label: string; values: unknown[] }>;
 };
 
 export type RunComparisonKey = { job_kind: string | null; comparison_key: string | null };
@@ -617,6 +619,8 @@ export type RunView = {
     run: RunItem['run'];
     summary?: SummaryMetric[];
     charts?: Array<{ key: string; title: string; question: string | null; series: MetricSeries[]; collection_series?: string[] }>;
+    /** First-update step of each collection when collections span several updates; empty when steps are collections. */
+    collection_steps?: number[];
     metric_help?: MetricHelp[];
     completeness?: {
       state: 'complete' | 'partial' | 'insufficient';

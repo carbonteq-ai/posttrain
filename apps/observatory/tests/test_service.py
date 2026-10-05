@@ -1082,15 +1082,63 @@ def test_charts_name_population_series_when_collections_span_updates() -> None:
         "train/rl/entropy": _series("train/rl/entropy", range(1, 5)),
         "train/grad_norm": _series("train/grad_norm", range(1, 5)),
     }
-    views = _chart_views(charts, resolved, resolved)
-    # Charts stay whole; the population series is named so readers hold it across its updates.
+    views = _chart_views(charts, resolved, resolved, (1, 3))
+    # Charts stay whole; the population series is named so readers place it at its collection.
     assert [(view.key, [series.name for series in view.series], view.collection_series) for view in views] == [
         ("optimization", ["train/rl/reward_mean", "train/rl/entropy"], ("train/rl/reward_mean",)),
         ("stability", ["train/grad_norm"], ()),
     ]
-    # One update per collection: nothing to hold.
+    # One update per collection: steps already are collections.
     legacy = {name: _series(name, range(1, 5)) for name in resolved}
     assert all(view.collection_series == () for view in _chart_views(charts, legacy, legacy))
+
+
+def test_collection_time_sums_each_collections_updates_and_skips_one_still_training() -> None:
+    from posttrain_observatory.metric_catalog import COLLECTION_TIME_METRIC
+    from posttrain_observatory.service import _collection_time
+
+    # Collections at updates 1, 5 and 9; the third has recorded two of its four updates so far.
+    step_time = MetricSeries(
+        name="train/step_time_seconds",
+        points=tuple(
+            MetricPoint(step=step, value=value)
+            for step, value in ((1, 400.0), (2, 50.0), (3, 50.0), (4, 50.0), (5, 300.0), (6, 40.0), (7, 40.0))
+            + ((8, 40.0), (9, 350.0), (10, 45.0))
+        ),
+    )
+    by_name = {"train/step_time_seconds": step_time}
+    live = _collection_time(by_name, (1, 5, 9), finished=False)
+    assert live is not None and live.name == COLLECTION_TIME_METRIC
+    assert [(point.step, point.value) for point in live.points] == [(1, 550.0), (5, 420.0)]
+    finished = _collection_time(by_name, (1, 5, 9), finished=True)
+    assert finished is not None and [point.value for point in finished.points] == [550.0, 420.0, 395.0]
+    # One update per collection: collection time is step time.
+    single = _collection_time(by_name, (), finished=False)
+    assert single is not None and [point.value for point in single.points] == [
+        point.value for point in step_time.points
+    ]
+    assert _collection_time({}, (1, 5), finished=True) is None
+
+
+def test_training_comparison_flags_inputs_that_change_what_numbers_mean() -> None:
+    from posttrain_observatory.service import _training_differences
+
+    resolved = {
+        "model": "lfm2.5-2.6b",
+        "reward_function": "reward/automationbench-manifest-steps@1",
+        "updates_per_collection": 4,
+        "prompts_per_collection": 16,
+        "collections": 22,
+    }
+    legacy = {**resolved, "reward_function": "reward/automationbench-turn-progress@2", "updates_per_collection": 1}
+    legacy["collections"] = 20
+    differences = _training_differences([resolved, legacy])
+    # Progress (collections recorded) is context, never a difference.
+    assert [(item.key, item.values) for item in differences] == [
+        ("reward_function", ("reward/automationbench-manifest-steps@1", "reward/automationbench-turn-progress@2")),
+        ("updates_per_collection", (4, 1)),
+    ]
+    assert _training_differences([resolved, {**resolved, "collections": 3}]) == ()
 
 
 def test_windowed_summary_reduces_only_the_recent_points() -> None:

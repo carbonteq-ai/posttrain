@@ -4535,6 +4535,14 @@
             "title": "Charts",
             "type": "array"
           },
+          "collection_steps": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Collection Steps",
+            "type": "array"
+          },
           "completeness": {
             "$ref": "#/components/schemas/EvidenceCompleteness"
           },

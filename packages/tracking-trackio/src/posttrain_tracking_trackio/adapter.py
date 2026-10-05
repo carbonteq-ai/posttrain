@@ -1994,13 +1994,19 @@ class TrackioDataSource:
         cached = self._provider_runs_by_id.get(run_id)
         if cached is not None:
             return cached
+        # One request carries every run's configuration; reading each run's own config cost one
+        # summary request per run in the project before the wanted run was found.
+        configs = self._api.run_configs(self.project)
+        found = None
         for run in self._api.runs(self.project):
-            config = run.config or {}
-            posttrain_run_id = config.get("run_id")
+            config = configs.get(run.id) or {}
+            posttrain_run_id = config.get("run_id") if isinstance(config, Mapping) else None
             if isinstance(posttrain_run_id, str):
                 self._provider_runs_by_id[posttrain_run_id] = run
-            if posttrain_run_id == run_id:
-                return run
+                if posttrain_run_id == run_id:
+                    found = run
+        if found is not None:
+            return found
         raise LookupError(f"posttrain run {run_id!r} was not found in Trackio project {self.project!r}")
 
     def _provider_run_by_id(self, provider_run_id: str) -> Any:

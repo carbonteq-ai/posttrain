@@ -35,7 +35,12 @@ export type ChartXDomain = 'logical-step' | 'elapsed-time';
  * name for the axis and tooltip, and category labels when the x values are
  * not numbers (each point's ``step`` is then the category's index).
  */
-export type ChartXAxis = { name?: string; categories?: readonly string[] };
+export type ChartXAxis = {
+  name?: string;
+  categories?: readonly string[];
+  /** Label for a numeric x position in tooltips (for example "Step 3 · update 2 of 4"); ticks stay whole numbers. */
+  formatValue?: (value: number) => string;
+};
 
 function shortName(name: string, metricLabels: Record<string, string>): string {
   return metricLabels[name] ?? name.split('/').at(-1)?.replaceAll('_', ' ') ?? name;
@@ -136,6 +141,8 @@ export function formatTooltip(
   const logicalLabel = xAxis?.name ?? 'Step';
   const header = category != null
     ? (xAxis?.name ? `${xAxis.name} ${category}` : category)
+    : xDomain === 'logical-step' && xAxis?.formatValue && Number.isFinite(step)
+    ? xAxis.formatValue(step)
     : xDomain === 'elapsed-time'
     ? `${observedAt == null ? 'Time unavailable' : new Date(observedAt).toLocaleString(undefined, {
         month: 'short',
@@ -288,8 +295,6 @@ type EvidenceChartProps = {
   seriesType?: 'line' | 'bar';
   /** Name and categories for a logical x axis other than the training step. */
   xAxis?: ChartXAxis;
-  /** Series whose value holds until its next point (per-collection values across their updates). */
-  steppedSeries?: readonly string[];
 };
 
 export function EvidenceChart({
@@ -309,11 +314,8 @@ export function EvidenceChart({
   xRange,
   seriesType = 'line',
   xAxis,
-  steppedSeries = [],
 }: EvidenceChartProps) {
   const elementRef = useRef<HTMLDivElement>(null);
-  // Content key, so a new array with the same names does not rebuild the chart.
-  const steppedKey = steppedSeries.join('\u0000');
   const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null);
   const applyingSharedHoverRef = useRef(false);
   const pointerInsideRef = useRef(false);
@@ -376,7 +378,6 @@ export function EvidenceChart({
   useEffect(() => {
     if (!elementRef.current) return;
     const chart = echarts.init(elementRef.current, undefined, { renderer: 'canvas' });
-    const stepped = new Set(steppedKey ? steppedKey.split('\u0000') : []);
     chartRef.current = chart;
     const groupSeries = panelGroups.map((group) => plottedSeries.filter((item) => panelGroup(item.name, metricUnits) === group));
     const groupAxisGroups = groupSeries.map((items) => [...new Set(items.map((item) => scaleGroup(item.name, metricUnits)))]);
@@ -397,6 +398,8 @@ export function EvidenceChart({
     const categories = xDomain === 'logical-step' ? xAxis?.categories : undefined;
     const xAxisKind = categories
       ? { type: 'category' as const, data: [...categories] }
+      : xDomain === 'logical-step' && xAxis?.formatValue
+      ? { type: 'value' as const, minInterval: 1 }
       : { type: 'value' as const };
     const axes = useSmallMultiples
       ? panelGroups.flatMap((_, panelIndex) => groupAxisGroups[panelIndex].map((group, axisIndex) => ({
@@ -533,10 +536,9 @@ export function EvidenceChart({
           type: seriesType,
           xAxisIndex: useSmallMultiples ? panelGroupIndex : 0,
           yAxisIndex,
-          showSymbol: item.points.length < 12 && !stepped.has(item.name),
+          showSymbol: item.points.length < 12,
           symbolSize: 5,
           smooth: false,
-          step: stepped.has(item.name) ? ('end' as const) : undefined,
           lineStyle: seriesType === 'line' ? { width: 1.9, type: lineTypes[indexWithinGroup % lineTypes.length] } : undefined,
           barMaxWidth: seriesType === 'bar' ? 28 : undefined,
           emphasis: { focus: 'series' },
@@ -588,7 +590,7 @@ export function EvidenceChart({
       chart.dispose();
       if (chartRef.current === chart) chartRef.current = null;
     };
-  }, [compact, elapsedMaximum, metricLabels, metricUnits, onHoverStep, onPointSelect, panelGroups, plottedSeries, renderedHeight, scaleGroups, selectedStep, seriesType, showLegend, showZoom, steppedKey, useSmallMultiples, xAxis, xDomain, xMaximum, xMinimum, xOriginMs]);
+  }, [compact, elapsedMaximum, metricLabels, metricUnits, onHoverStep, onPointSelect, panelGroups, plottedSeries, renderedHeight, scaleGroups, selectedStep, seriesType, showLegend, showZoom, useSmallMultiples, xAxis, xDomain, xMaximum, xMinimum, xOriginMs]);
 
   useEffect(() => {
     const chart = chartRef.current;

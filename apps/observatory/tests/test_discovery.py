@@ -125,3 +125,26 @@ async def test_concurrent_manual_refreshes_are_serialized() -> None:
 
     assert catalog.calls == 2
     assert catalog.maximum_active == 1
+
+
+@pytest.mark.asyncio
+async def test_refresh_keeps_each_projects_reader_so_its_caches_survive() -> None:
+    registry = RunSourceRegistry({})
+    catalog = Catalog(("alpha",), ("alpha", "beta"), ("beta",), ("alpha",))
+    created: list[str] = []
+
+    def factory(project: str) -> FixtureRunDataSource:
+        created.append(project)
+        return FixtureRunDataSource()
+
+    discovery = TrackioSourceDiscovery(registry, catalog, factory, interval_seconds=300)  # type: ignore[arg-type]
+
+    await discovery.refresh()
+    alpha = registry._snapshot["alpha"]  # pyright: ignore[reportPrivateUsage]
+    await discovery.refresh()
+    assert registry._snapshot["alpha"] is alpha  # pyright: ignore[reportPrivateUsage]
+    assert created == ["alpha", "beta"]
+    # A project that disappears and returns gets a fresh reader.
+    await discovery.refresh()
+    await discovery.refresh()
+    assert created == ["alpha", "beta", "alpha"]
