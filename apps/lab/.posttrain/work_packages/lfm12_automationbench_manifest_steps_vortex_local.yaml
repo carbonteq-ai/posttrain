@@ -1,7 +1,7 @@
 project_id: posttrain-lab
 work_package_id: train/lfm2.5-1.2b/automationbench-manifest-steps-vortex-local
 stage: train
-description: VORTEX on the resolved SAMPO engine with LFM2.5-1.2B on the local 8 GB card. The yield-first adaptive curriculum chooses each active round's tasks by domain, surplus groups are kept by learning signal, and SAMPO credit, KL to the base, the truncation penalty and per-token sampler correction apply; 4 collections of 2 updates.
+description: VORTEX on the resolved SAMPO engine with LFM2.5-1.2B on the local 8 GB card, on the 20 Simple training tasks of task mix automationbench-manifest-luna-v2 (12k context). The yield-first adaptive curriculum chooses each active round's tasks from per-task yield, surplus groups are kept by learning signal, and SAMPO credit, KL to the base, the truncation penalty and per-token sampler correction apply; 4 collections of 2 updates.
 recipe:
   type: inline
   id: recipes/lfm2.5-1.2b-automationbench-manifest-steps-vortex-local@1
@@ -21,11 +21,11 @@ recipe:
   expected_artifacts: [trained adapter, native Verifiers trajectories, per-turn environment reward evidence, training summary]
 bindings:
   model: {type: ref, family: model, id: models/lfm2.5-1.2b-thinking@bf16}
-  environment: {type: ref, family: environment, id: automationbench-manifest-steps-mixv2-vortex-local-v1}
-  settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-manifest-steps-vortex-local-v1}
-  reward_projection: {type: ref, family: training, id: reward/automationbench-manifest-steps@1}
+  environment: {type: ref, family: environment, id: automationbench-manifest-steps-luna2-simple-vortex-local-v1}
+  settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-manifest-steps-luna2-simple-vortex-local-v1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-manifest-steps@2}
   training: {type: ref, family: training, id: training/lfm2.5-1.2b-trl-lora-manifest-vortex-local@1}
-  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-manifest-local@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-manifest-local-12k@1}
 enabled_optional_jobs: []
 metadata:
   question: Does the resolved SAMPO engine run VORTEX end to end (curriculum decisions per round with refill observations, learning-signal retention, finite non-zero gradients, curriculum state in the checkpoint)?

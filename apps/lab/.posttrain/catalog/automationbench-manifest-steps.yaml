@@ -172,19 +172,6 @@ environment:
     num_rollouts: 8
     max_concurrent: 8
 
-  # The 8 GB card's VORTEX check: the local g8 environment with the task domain exposed as a
-  # facet, so the adaptive curriculum can choose tasks by domain and record per-domain evidence.
-  automationbench-manifest-steps-mixv2-vortex-local-v1:
-    <<: *automationbench_manifest_steps
-    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 1.0}
-    num_rollouts: 4
-    max_concurrent: 8
-    observation:
-      primary_metric: partial_credit
-      pass_rate_metric: task_completed_correctly
-      facets:
-        - {field: domain, dimension: domain, label: Domain}
-
   # The 2.6B comparison environment: cont100's (the run after the H100 one) 16 turns with a
   # 4096-token reply budget and 12288 output tokens per episode, 8 attempts per task,
   # with manifest findings and manifest step credit selected.
@@ -329,6 +316,253 @@ environment:
       max_turns: 16
       max_output_tokens: 12288
 
+
+  # The 2.6B comparison environment on task mix automationbench-manifest-luna-v2: v1's 85
+  # training tasks plus Simple tasks up to 20 (docs/research/verifiers-assessment-qualification/reward-candidate/simple-manifest-select.py),
+  # at the environments revision whose manifest step credit counts record goals (scorer version 4).
+  automationbench-manifest-steps-luna2-4k16t-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 0408bc0aba2d3c358d0aa7d1f3befabc36de084e
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          # automationbench-manifest-luna-v2: installed manifests that bind and agree with
+          # Luna's recorded episodes (scripts/qualification/fixtures/automationbench_manifest_luna_v2.json).
+          task_names:
+            - finance.cash_flow_forecast
+            - finance.cost_center_allocation
+            - finance.dept_expense_rollup
+            - finance.employee_reimbursement
+            - finance.financial_close_checklist
+            - finance.petty_cash_reconciliation
+            - finance.profit_margin_analysis
+            - finance.vendor_statement_reconciliation
+            - finance.wave_expense_categorization
+            - finance.year_end_audit_prep
+            - hr.data_migration_validation
+            - hr.docusign_offer_letters
+            - hr.i9_verification_tracking
+            - hr.intern_cohort_onboarding
+            - hr.performance_feedback_logging
+            - hr.performance_review_cycle
+            - hr.quarterly_termination_queue
+            - hr.recruitment_dedup_alert
+            - hr.twilio_emergency_notification
+            - marketing.ad_platform_audit
+            - marketing.campaign_handoff
+            - marketing.campaign_roi_analysis
+            - marketing.competitor_product_launch
+            - marketing.content_expiration_alert
+            - marketing.content_performance
+            - marketing.email_blast_suppression
+            - marketing.email_campaign_analytics
+            - marketing.hashtag_performance
+            - marketing.keyword_cannibalization
+            - marketing.market_trend
+            - marketing.multi_touch_attribution
+            - marketing.news_digest_dedup
+            - marketing.partner_content_approval
+            - marketing.seo_audit
+            - marketing.social_roi
+            - marketing.trial_extension_processing
+            - operations.access_request_validation
+            - operations.asana_safety_walk_log
+            - operations.calendar_airtable_gmail_maintenance_notice
+            - operations.contract_renewal_pipeline
+            - operations.facebook_roas_monitoring
+            - operations.facility_incident_triage
+            - operations.fire_extinguisher_inspection_schedule
+            - operations.fleet_vehicle_maintenance
+            - operations.hazmat_shipping_compliance
+            - operations.housekeeping_schedule
+            - operations.mailroom_package_routing
+            - operations.office_supply_budget_monitoring
+            - operations.safety_certification_gap_analysis
+            - operations.sla_breach_early_warning
+            - operations.trello_vendor_hold_email
+            - operations.zoom_training_setup
+            - sales.apply_project_label
+            - sales.calendar_crm_meeting
+            - sales.chatgpt_email_sentiment_routing
+            - sales.chatgpt_proposal_customization
+            - sales.create_draft_reply
+            - sales.cross_modal_renewal_processing
+            - sales.five_level_conditional
+            - sales.recency_selection
+            - sales.slack_deal_notification
+            - sales.unreliable_label_account_review
+            - sales.zoom_calendar_conflict
+            - sales.zoom_customer_health
+            - simple.asana_dark_mode_from_email
+            - simple.email_calendar_meeting_reply
+            - simple.email_sf_contact_email_update
+            - simple.email_sf_log_task
+            - simple.gcal_partnership_call_from_email
+            - simple.gmail_reply_customer_inquiry
+            - simple.gmail_reply_pricing_inquiry
+            - simple.hs_update_deal_stage
+            - simple.jira_rotate_api_keys
+            - simple.jira_search_filter_story
+            - simple.new_customer_sf_onboard_email
+            - simple.sf_create_event
+            - simple.sf_create_lead_from_card
+            - simple.sf_opp_type_update
+            - simple.slack_dm_meeting_reminder
+            - simple.zendesk_feature_request
+            - simple.zoom_calendar_sync
+            - simple.zoom_client_call_from_email
+            - simple.zoom_engineering_sync
+            - simple.zoom_vendor_onboarding_with_slack
+            - support.gorgias_inventory_routing
+            - support.gorgias_refund_processing
+            - support.helpcrunch_engagement_scoring
+            - support.helpscout_customer_effort
+            - support.helpscout_daily_digest
+            - support.hiver_inbox_report
+            - support.hiver_quality_coaching
+            - support.hiver_response_sla
+            - support.hiver_slack_digest
+            - support.hiver_team_performance
+            - support.hiver_workload_forecast
+            - support.intercom_reactivation_campaign
+            - support.reamaze_cross_platform_dedup
+            - support.zendesk_customer_360
+            - support.zendesk_gdpr_purge
+            - support.zendesk_intercom_company_sync
+            - support.zendesk_sf_case_sync
+            - support.zoho_desk_customer_journey
+            - support.zoho_multitenant_isolation
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 16
+            capture_actions: true
+            # Tool servers fork from a warm preloaded interpreter. Stated explicitly:
+            # Verifiers fixes this default at import time, so the serialized task
+            # config otherwise depends on whether VF_FORK_SERVER was set first.
+            tools:
+              runtime:
+                type: subprocess
+                fork_server: true
+                preload: [anyio, httpx, mcp, mcp.client.streamable_http, openai, tenacity, pydantic, automationbench_v1.limited_tools]
+            manifest_assessments: true
+            turn_rewards:
+              tool_failure_penalty: 0.02
+              manifest_goal_share: 0.5
+              manifest_harm_penalty: 0.1
+              manifest_harm_cap: 0.3
+            mistake_penalty: {per_mistake: 0.02, cap: 0.1}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 16
+          max_output_tokens: 12288
+    sampling: {max_tokens: 4096, temperature: 0.8, top_p: 1.0}
+    num_tasks: 103
+    num_rollouts: 8
+    max_concurrent: 180
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: automationbench-manifest-luna-v2
+      task_mix_sha256: 4201d4a551041743abecf7ef11d43c148ccc8b86bcc4f5cd68f28ea88e89d9a2
+      sampling_seed: 20261005
+      toolset: limited_zapier
+      max_turns: 16
+      max_output_tokens: 12288
+
+  # The 8 GB card's VORTEX check on the 20 Simple training tasks of luna-v2: a 3072-token reply
+  # budget (LFM2.5-1.2B-Thinking reasons before its first tool call) and 8192 output tokens per
+  # episode within the 12k local context; the domain facet feeds the curriculum's evidence.
+  automationbench-manifest-steps-luna2-simple-vortex-local-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 0408bc0aba2d3c358d0aa7d1f3befabc36de084e
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple]
+          # automationbench-manifest-luna-v2: installed manifests that bind and agree with
+          # Luna's recorded episodes (scripts/qualification/fixtures/automationbench_manifest_luna_v2.json).
+          task_names:
+            - simple.asana_dark_mode_from_email
+            - simple.email_calendar_meeting_reply
+            - simple.email_sf_contact_email_update
+            - simple.email_sf_log_task
+            - simple.gcal_partnership_call_from_email
+            - simple.gmail_reply_customer_inquiry
+            - simple.gmail_reply_pricing_inquiry
+            - simple.hs_update_deal_stage
+            - simple.jira_rotate_api_keys
+            - simple.jira_search_filter_story
+            - simple.new_customer_sf_onboard_email
+            - simple.sf_create_event
+            - simple.sf_create_lead_from_card
+            - simple.sf_opp_type_update
+            - simple.slack_dm_meeting_reminder
+            - simple.zendesk_feature_request
+            - simple.zoom_calendar_sync
+            - simple.zoom_client_call_from_email
+            - simple.zoom_engineering_sync
+            - simple.zoom_vendor_onboarding_with_slack
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 16
+            capture_actions: true
+            # Tool servers fork from a warm preloaded interpreter. Stated explicitly:
+            # Verifiers fixes this default at import time, so the serialized task
+            # config otherwise depends on whether VF_FORK_SERVER was set first.
+            tools:
+              runtime:
+                type: subprocess
+                fork_server: true
+                preload: [anyio, httpx, mcp, mcp.client.streamable_http, openai, tenacity, pydantic, automationbench_v1.limited_tools]
+            manifest_assessments: true
+            turn_rewards:
+              tool_failure_penalty: 0.02
+              manifest_goal_share: 0.5
+              manifest_harm_penalty: 0.1
+              manifest_harm_cap: 0.3
+            mistake_penalty: {per_mistake: 0.02, cap: 0.1}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 16
+          max_output_tokens: 8192
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 1.0}
+    num_tasks: 20
+    num_rollouts: 4
+    max_concurrent: 8
+    parameters:
+      domains: [simple]
+      task_mix_id: automationbench-manifest-luna-v2-simple
+      task_mix_sha256: 4201d4a551041743abecf7ef11d43c148ccc8b86bcc4f5cd68f28ea88e89d9a2
+      sampling_seed: 20261005
+      toolset: limited_zapier
+      max_turns: 16
+      max_output_tokens: 8192
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
   # The 20 reserved evaluation tasks of automationbench-manifest-luna-v1 (2+ per domain,
   # balanced easy/medium/hard), with the 2.6B training environment's settings.
   automationbench-manifest-luna-eval-4k16t-v1:
@@ -420,6 +654,18 @@ training:
     turn_reward_key: turn_reward
     turn_reward_includes_terminal_outcome: true
     scorer_digest: c682477d7dde8ded09a85f833c4dd665804495f992a7899ddd306fdf869a4cd1
+
+  # The manifest-steps reward on luna-v2 environments: manifest step credit also counts record
+  # goals (AutomationBenchTurnRewardConfig scorer version 4; same weights as @1).
+  reward/automationbench-manifest-steps@2:
+    selection_type: reward-projection
+    revision: "1"
+    components:
+      - {name: partial_credit, source: scalar}
+    turns_info_key: posttrain_turn_rewards
+    turn_reward_key: turn_reward
+    turn_reward_includes_terminal_outcome: true
+    scorer_digest: f221a532f9e86ed03765a6e6bf2124aa317083359fd9873db40baec80f8a48dd
 
   # Two resolved SAMPO updates on LFM2.5-1.2B: correctness and gradient-norm checks.
   lfm2.5-1.2b/automationbench-manifest-steps-smoke-v1:
@@ -680,18 +926,14 @@ training:
       schedule: {unit: episode, budget: 4, epochs: 1, order: native, max_applied_updates: 4}
       execution: {records: 1, context_tokens: 8192, statistic_bytes: 67108864}
 
-  # VORTEX on the resolved SAMPO engine, on the 8 GB card: the yield-first adaptive
-  # curriculum chooses each active round's tasks by domain after observing the earlier
-  # rounds, one extra group per round is generated and the group with the most learning
-  # signal is kept, with SAMPO's credit, KL to the base, truncation penalty and per-token
-  # sampler correction. 1 prompt x 4 attempts per collection (the oversampled first round,
-  # 2 x 4, fits the engine's 8 sequences), 2 updates per collection, 4 collections.
-  lfm2.5-1.2b/automationbench-manifest-steps-vortex-local-v1:
+  # The VORTEX local check on luna-v2's Simple tasks: a 12k context for multi-turn thinking
+  # episodes and an 8-group candidate pool; one prompt x 4 attempts, 2 updates per collection.
+  lfm2.5-1.2b/automationbench-manifest-steps-luna2-simple-vortex-local-v1:
     selection_type: sampo-settings
     revision: "1"
     loop:
       max_steps: 8
-      max_length: 8192
+      max_length: 12288
       learning_rate: 0.00006
       lr_scheduler_type: constant
       logging_steps: 1
@@ -701,8 +943,8 @@ training:
       seed: 42
     num_prompts_per_step: 1
     num_generations: 4
-    max_prompt_length: 5120
-    max_completion_length: 1024
+    max_prompt_length: 9216
+    max_completion_length: 3072
     beta: 0.01
     kl_reference: base
     discount_gamma: 0.95
@@ -713,7 +955,7 @@ training:
     importance_sampling_mode: token_truncate
     importance_sampling_clip_min: null
     importance_sampling_clip_max: 2.0
-    active_sampling: {max_candidate_batches: 4, oversample: 1, oversample_refill: 1, retain: learning_signal}
+    active_sampling: {max_candidate_batches: 8, oversample: 1, oversample_refill: 1, retain: learning_signal}
     adaptive_curriculum:
       class_field: domain
       policy: yield_first
@@ -729,7 +971,7 @@ training:
     max_admission_attempts: 1
     policy_updates:
       schedule: {unit: episode, budget: 2, epochs: 1, order: native, max_applied_updates: 8}
-      execution: {records: 1, context_tokens: 8192, statistic_bytes: 67108864}
+      execution: {records: 1, context_tokens: 12288, statistic_bytes: 67108864}
 
   training/lfm2.5-1.2b-trl-lora-manifest-ws@1:
     selection_type: training-binding
@@ -895,6 +1137,35 @@ inference:
       enforce_eager: false
       dtype: bfloat16
     sampling: {max_tokens: 1024, temperature: 0.8, top_p: 1.0}
+    target: targets/pop-os-rtx-3070ti-8gb
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  # The local 12k rollout engine for luna-v2's Simple VORTEX check: 12288-token context, 1 GiB KV
+  # cache (LFM2.5's few attention layers keep it small), 3072-token replies.
+  inference/lfm2.5-1.2b-vllm-manifest-local-12k@1:
+    revision: "1"
+    model: models/lfm2.5-1.2b-thinking@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools@1
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.35
+      tensor_parallel_size: 1
+      max_model_len: 12288
+      max_num_seqs: 8
+      max_num_batched_tokens: 12288
+      enable_prefix_caching: true
+      enable_chunked_prefill: true
+      text_only: true
+      skip_mm_profiling: true
+      kv_cache_memory_bytes: 1073741824
+      weight_sync_mode: lora
+      enforce_eager: false
+      dtype: bfloat16
+    sampling: {max_tokens: 3072, temperature: 0.8, top_p: 1.0}
     target: targets/pop-os-rtx-3070ti-8gb
     purpose: [rollout]
     capabilities: [tool-calling]

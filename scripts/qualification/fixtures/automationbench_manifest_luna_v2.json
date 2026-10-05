@@ -1,0 +1,1293 @@
+{
+ "id": "automationbench-manifest-luna-v2",
+ "selection_method": "Installed AutomationBench manifests (Luna top-20 per non-simple category plus earlier installed manifests) replayed on their recorded GPT Luna development episodes. Accepted when Luna fully passed the task or scored at least 0.5, and the manifest binds the 16-turn training task, scores without assessment or credit errors, has decided required goals, and, on a Luna full pass, passes every required goal with no harm finding. Record-update manifests without goal findings are excluded because step credit reads goal and harm findings. Evaluation: two tasks per domain preferring different difficulty tiers, then a tier-balanced fill to 20 without further simple tasks (seed 20261005). Difficulty tier: earlier LFM2.5-2.6B SAMPO group mean reward when available (easy >= 0.6, medium >= 0.2, hard otherwise), else Luna outcome and goal count. v2 adds Simple training tasks up to 20: every Simple draft or installed manifest replayed on its Luna episode with the training step-credit reader (record goals count; drafts bound to the user message when the whole-prompt binding was the only mismatch), accepted by the same rule, ranked by Luna score with ties broken by sha256(\"20261006:\" + task name). Evaluation is v1's.",
+ "seed": 20261005,
+ "num_train": 103,
+ "num_eval": 20,
+ "train_domains": {
+  "finance": 10,
+  "hr": 9,
+  "marketing": 17,
+  "operations": 16,
+  "sales": 12,
+  "simple": 20,
+  "support": 19
+ },
+ "train_tiers": {
+  "easy": 59,
+  "hard": 30,
+  "medium": 14
+ },
+ "eval_domains": {
+  "finance": 5,
+  "hr": 3,
+  "marketing": 2,
+  "operations": 4,
+  "sales": 2,
+  "simple": 2,
+  "support": 2
+ },
+ "eval_tiers": {
+  "hard": 7,
+  "medium": 6,
+  "easy": 7
+ },
+ "task_names": [
+  "finance.cash_flow_forecast",
+  "finance.cost_center_allocation",
+  "finance.dept_expense_rollup",
+  "finance.employee_reimbursement",
+  "finance.financial_close_checklist",
+  "finance.petty_cash_reconciliation",
+  "finance.profit_margin_analysis",
+  "finance.vendor_statement_reconciliation",
+  "finance.wave_expense_categorization",
+  "finance.year_end_audit_prep",
+  "hr.data_migration_validation",
+  "hr.docusign_offer_letters",
+  "hr.i9_verification_tracking",
+  "hr.intern_cohort_onboarding",
+  "hr.performance_feedback_logging",
+  "hr.performance_review_cycle",
+  "hr.quarterly_termination_queue",
+  "hr.recruitment_dedup_alert",
+  "hr.twilio_emergency_notification",
+  "marketing.ad_platform_audit",
+  "marketing.campaign_handoff",
+  "marketing.campaign_roi_analysis",
+  "marketing.competitor_product_launch",
+  "marketing.content_expiration_alert",
+  "marketing.content_performance",
+  "marketing.email_blast_suppression",
+  "marketing.email_campaign_analytics",
+  "marketing.hashtag_performance",
+  "marketing.keyword_cannibalization",
+  "marketing.market_trend",
+  "marketing.multi_touch_attribution",
+  "marketing.news_digest_dedup",
+  "marketing.partner_content_approval",
+  "marketing.seo_audit",
+  "marketing.social_roi",
+  "marketing.trial_extension_processing",
+  "operations.access_request_validation",
+  "operations.asana_safety_walk_log",
+  "operations.calendar_airtable_gmail_maintenance_notice",
+  "operations.contract_renewal_pipeline",
+  "operations.facebook_roas_monitoring",
+  "operations.facility_incident_triage",
+  "operations.fire_extinguisher_inspection_schedule",
+  "operations.fleet_vehicle_maintenance",
+  "operations.hazmat_shipping_compliance",
+  "operations.housekeeping_schedule",
+  "operations.mailroom_package_routing",
+  "operations.office_supply_budget_monitoring",
+  "operations.safety_certification_gap_analysis",
+  "operations.sla_breach_early_warning",
+  "operations.trello_vendor_hold_email",
+  "operations.zoom_training_setup",
+  "sales.apply_project_label",
+  "sales.calendar_crm_meeting",
+  "sales.chatgpt_email_sentiment_routing",
+  "sales.chatgpt_proposal_customization",
+  "sales.create_draft_reply",
+  "sales.cross_modal_renewal_processing",
+  "sales.five_level_conditional",
+  "sales.recency_selection",
+  "sales.slack_deal_notification",
+  "sales.unreliable_label_account_review",
+  "sales.zoom_calendar_conflict",
+  "sales.zoom_customer_health",
+  "simple.asana_dark_mode_from_email",
+  "simple.email_calendar_meeting_reply",
+  "simple.email_sf_contact_email_update",
+  "simple.email_sf_log_task",
+  "simple.gcal_partnership_call_from_email",
+  "simple.gmail_reply_customer_inquiry",
+  "simple.gmail_reply_pricing_inquiry",
+  "simple.hs_update_deal_stage",
+  "simple.jira_rotate_api_keys",
+  "simple.jira_search_filter_story",
+  "simple.new_customer_sf_onboard_email",
+  "simple.sf_create_event",
+  "simple.sf_create_lead_from_card",
+  "simple.sf_opp_type_update",
+  "simple.slack_dm_meeting_reminder",
+  "simple.zendesk_feature_request",
+  "simple.zoom_calendar_sync",
+  "simple.zoom_client_call_from_email",
+  "simple.zoom_engineering_sync",
+  "simple.zoom_vendor_onboarding_with_slack",
+  "support.gorgias_inventory_routing",
+  "support.gorgias_refund_processing",
+  "support.helpcrunch_engagement_scoring",
+  "support.helpscout_customer_effort",
+  "support.helpscout_daily_digest",
+  "support.hiver_inbox_report",
+  "support.hiver_quality_coaching",
+  "support.hiver_response_sla",
+  "support.hiver_slack_digest",
+  "support.hiver_team_performance",
+  "support.hiver_workload_forecast",
+  "support.intercom_reactivation_campaign",
+  "support.reamaze_cross_platform_dedup",
+  "support.zendesk_customer_360",
+  "support.zendesk_gdpr_purge",
+  "support.zendesk_intercom_company_sync",
+  "support.zendesk_sf_case_sync",
+  "support.zoho_desk_customer_journey",
+  "support.zoho_multitenant_isolation"
+ ],
+ "reserved_evaluation_tasks": [
+  "finance.ap_turnover_analysis",
+  "finance.monday_project_billing",
+  "finance.overdue_invoice_followup",
+  "finance.qb_estimate_conversion",
+  "finance.travel_advance_settlement",
+  "hr.airtable_recruitment_analytics",
+  "hr.equipment_provisioning",
+  "hr.workforce_planning_forecast",
+  "marketing.content_scoring",
+  "marketing.social_content_calendar",
+  "operations.calendly_equipment_inspection",
+  "operations.equipment_lease_processing",
+  "operations.perishable_inventory_expiry",
+  "operations.procurement_card_reconciliation",
+  "sales.chatgpt_lead_classification_pipeline",
+  "sales.zoom_webinar_lead_scoring",
+  "simple.email_airtable_customer_welcome",
+  "simple.email_zendesk_ack_reply",
+  "support.gorgias_quality_audit",
+  "support.zendesk_hubspot_org_sync"
+ ],
+ "tiers": {
+  "finance.ap_turnover_analysis": {
+   "tier": "hard",
+   "basis": "luna=0.89,goals=7"
+  },
+  "finance.cash_flow_forecast": {
+   "tier": "medium",
+   "basis": "luna=1.00,goals=9"
+  },
+  "finance.cost_center_allocation": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=4"
+  },
+  "finance.dept_expense_rollup": {
+   "tier": "easy",
+   "basis": "2.6b_mean=0.61"
+  },
+  "finance.employee_reimbursement": {
+   "tier": "hard",
+   "basis": "luna=0.92,goals=14"
+  },
+  "finance.financial_close_checklist": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "finance.monday_project_billing": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "finance.overdue_invoice_followup": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=4"
+  },
+  "finance.petty_cash_reconciliation": {
+   "tier": "easy",
+   "basis": "2.6b_mean=0.84"
+  },
+  "finance.profit_margin_analysis": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "finance.qb_estimate_conversion": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.26"
+  },
+  "finance.travel_advance_settlement": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=3"
+  },
+  "finance.vendor_statement_reconciliation": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=3"
+  },
+  "finance.wave_expense_categorization": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=5"
+  },
+  "finance.year_end_audit_prep": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "hr.airtable_recruitment_analytics": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=6"
+  },
+  "hr.data_migration_validation": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "hr.docusign_offer_letters": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "hr.equipment_provisioning": {
+   "tier": "medium",
+   "basis": "luna=1.00,goals=32"
+  },
+  "hr.i9_verification_tracking": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=4"
+  },
+  "hr.intern_cohort_onboarding": {
+   "tier": "easy",
+   "basis": "2.6b_mean=0.75"
+  },
+  "hr.performance_feedback_logging": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=3"
+  },
+  "hr.performance_review_cycle": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=4"
+  },
+  "hr.quarterly_termination_queue": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "hr.recruitment_dedup_alert": {
+   "tier": "medium",
+   "basis": "luna=1.00,goals=8"
+  },
+  "hr.twilio_emergency_notification": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=3"
+  },
+  "hr.workforce_planning_forecast": {
+   "tier": "hard",
+   "basis": "luna=0.89,goals=1"
+  },
+  "marketing.ad_platform_audit": {
+   "tier": "medium",
+   "basis": "luna=1.00,goals=15"
+  },
+  "marketing.campaign_handoff": {
+   "tier": "medium",
+   "basis": "luna=1.00,goals=9"
+  },
+  "marketing.campaign_roi_analysis": {
+   "tier": "hard",
+   "basis": "luna=0.95,goals=1"
+  },
+  "marketing.competitor_product_launch": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.38"
+  },
+  "marketing.content_expiration_alert": {
+   "tier": "hard",
+   "basis": "luna=0.94,goals=1"
+  },
+  "marketing.content_performance": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "marketing.content_scoring": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.42"
+  },
+  "marketing.email_blast_suppression": {
+   "tier": "easy",
+   "basis": "2.6b_mean=0.63"
+  },
+  "marketing.email_campaign_analytics": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "marketing.hashtag_performance": {
+   "tier": "hard",
+   "basis": "luna=0.89,goals=2"
+  },
+  "marketing.keyword_cannibalization": {
+   "tier": "hard",
+   "basis": "luna=0.88,goals=2"
+  },
+  "marketing.market_trend": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "marketing.multi_touch_attribution": {
+   "tier": "hard",
+   "basis": "luna=0.87,goals=2"
+  },
+  "marketing.news_digest_dedup": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "marketing.partner_content_approval": {
+   "tier": "easy",
+   "basis": "2.6b_mean=0.82"
+  },
+  "marketing.seo_audit": {
+   "tier": "easy",
+   "basis": "2.6b_mean=0.76"
+  },
+  "marketing.social_content_calendar": {
+   "tier": "hard",
+   "basis": "luna=0.88,goals=13"
+  },
+  "marketing.social_roi": {
+   "tier": "hard",
+   "basis": "luna=0.89,goals=2"
+  },
+  "marketing.trial_extension_processing": {
+   "tier": "easy",
+   "basis": "2.6b_mean=0.79"
+  },
+  "operations.access_request_validation": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "operations.asana_safety_walk_log": {
+   "tier": "hard",
+   "basis": "2.6b_mean=0.10"
+  },
+  "operations.calendar_airtable_gmail_maintenance_notice": {
+   "tier": "easy",
+   "basis": "2.6b_mean=0.77"
+  },
+  "operations.calendly_equipment_inspection": {
+   "tier": "hard",
+   "basis": "luna=0.83,goals=8"
+  },
+  "operations.contract_renewal_pipeline": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=4"
+  },
+  "operations.equipment_lease_processing": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=3"
+  },
+  "operations.facebook_roas_monitoring": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "operations.facility_incident_triage": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=3"
+  },
+  "operations.fire_extinguisher_inspection_schedule": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.38"
+  },
+  "operations.fleet_vehicle_maintenance": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.32"
+  },
+  "operations.hazmat_shipping_compliance": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=3"
+  },
+  "operations.housekeeping_schedule": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "operations.mailroom_package_routing": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.39"
+  },
+  "operations.office_supply_budget_monitoring": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "operations.perishable_inventory_expiry": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=3"
+  },
+  "operations.procurement_card_reconciliation": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.57"
+  },
+  "operations.safety_certification_gap_analysis": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "operations.sla_breach_early_warning": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.21"
+  },
+  "operations.trello_vendor_hold_email": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.56"
+  },
+  "operations.zoom_training_setup": {
+   "tier": "hard",
+   "basis": "luna=0.50,goals=8"
+  },
+  "sales.apply_project_label": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=7"
+  },
+  "sales.calendar_crm_meeting": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "sales.chatgpt_email_sentiment_routing": {
+   "tier": "hard",
+   "basis": "2.6b_mean=0.03"
+  },
+  "sales.chatgpt_lead_classification_pipeline": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.23"
+  },
+  "sales.chatgpt_proposal_customization": {
+   "tier": "hard",
+   "basis": "luna=0.65,goals=4"
+  },
+  "sales.create_draft_reply": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "sales.cross_modal_renewal_processing": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "sales.five_level_conditional": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "sales.recency_selection": {
+   "tier": "hard",
+   "basis": "luna=0.75,goals=1"
+  },
+  "sales.slack_deal_notification": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.48"
+  },
+  "sales.unreliable_label_account_review": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.44"
+  },
+  "sales.zoom_calendar_conflict": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=6"
+  },
+  "sales.zoom_customer_health": {
+   "tier": "hard",
+   "basis": "luna=0.80,goals=2"
+  },
+  "sales.zoom_webinar_lead_scoring": {
+   "tier": "hard",
+   "basis": "luna=0.86,goals=3"
+  },
+  "simple.asana_dark_mode_from_email": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "simple.email_airtable_customer_welcome": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "simple.email_calendar_meeting_reply": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=3"
+  },
+  "simple.email_sf_contact_email_update": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "simple.email_sf_log_task": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "simple.email_zendesk_ack_reply": {
+   "tier": "hard",
+   "basis": "luna=0.50,goals=6"
+  },
+  "simple.gcal_partnership_call_from_email": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "simple.gmail_reply_customer_inquiry": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=6"
+  },
+  "simple.gmail_reply_pricing_inquiry": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=5"
+  },
+  "simple.hs_update_deal_stage": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "simple.jira_rotate_api_keys": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "simple.jira_search_filter_story": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "simple.new_customer_sf_onboard_email": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "simple.sf_create_event": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "simple.sf_create_lead_from_card": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "simple.sf_opp_type_update": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "simple.slack_dm_meeting_reminder": {
+   "tier": "easy",
+   "basis": "2.6b_mean=1.00"
+  },
+  "simple.zendesk_feature_request": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=1"
+  },
+  "simple.zoom_calendar_sync": {
+   "tier": "easy",
+   "basis": "2.6b_mean=1.00"
+  },
+  "simple.zoom_client_call_from_email": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=4"
+  },
+  "simple.zoom_engineering_sync": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "simple.zoom_vendor_onboarding_with_slack": {
+   "tier": "easy",
+   "basis": "luna=1.00,goals=2"
+  },
+  "support.gorgias_inventory_routing": {
+   "tier": "hard",
+   "basis": "luna=0.92,goals=89"
+  },
+  "support.gorgias_quality_audit": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.35"
+  },
+  "support.gorgias_refund_processing": {
+   "tier": "hard",
+   "basis": "2.6b_mean=0.07"
+  },
+  "support.helpcrunch_engagement_scoring": {
+   "tier": "hard",
+   "basis": "luna=0.82,goals=4"
+  },
+  "support.helpscout_customer_effort": {
+   "tier": "hard",
+   "basis": "luna=0.81,goals=1"
+  },
+  "support.helpscout_daily_digest": {
+   "tier": "hard",
+   "basis": "luna=0.85,goals=2"
+  },
+  "support.hiver_inbox_report": {
+   "tier": "hard",
+   "basis": "luna=0.95,goals=52"
+  },
+  "support.hiver_quality_coaching": {
+   "tier": "hard",
+   "basis": "luna=0.95,goals=2"
+  },
+  "support.hiver_response_sla": {
+   "tier": "hard",
+   "basis": "luna=0.91,goals=2"
+  },
+  "support.hiver_slack_digest": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.29"
+  },
+  "support.hiver_team_performance": {
+   "tier": "hard",
+   "basis": "luna=0.75,goals=1"
+  },
+  "support.hiver_workload_forecast": {
+   "tier": "hard",
+   "basis": "luna=0.93,goals=2"
+  },
+  "support.intercom_reactivation_campaign": {
+   "tier": "hard",
+   "basis": "luna=0.77,goals=2"
+  },
+  "support.reamaze_cross_platform_dedup": {
+   "tier": "hard",
+   "basis": "luna=0.79,goals=12"
+  },
+  "support.zendesk_customer_360": {
+   "tier": "hard",
+   "basis": "luna=0.83,goals=3"
+  },
+  "support.zendesk_gdpr_purge": {
+   "tier": "medium",
+   "basis": "2.6b_mean=0.26"
+  },
+  "support.zendesk_hubspot_org_sync": {
+   "tier": "hard",
+   "basis": "luna=0.95,goals=23"
+  },
+  "support.zendesk_intercom_company_sync": {
+   "tier": "hard",
+   "basis": "luna=0.90,goals=2"
+  },
+  "support.zendesk_sf_case_sync": {
+   "tier": "hard",
+   "basis": "luna=0.81,goals=2"
+  },
+  "support.zoho_desk_customer_journey": {
+   "tier": "hard",
+   "basis": "luna=0.91,goals=2"
+  },
+  "support.zoho_multitenant_isolation": {
+   "tier": "hard",
+   "basis": "luna=0.75,goals=1"
+  }
+ },
+ "rejected": [
+  {
+   "task": "finance.escrow_tracking",
+   "reasons": "binding,luna_not_solved"
+  },
+  {
+   "task": "finance.monthend_journal_entries",
+   "reasons": "binding"
+  },
+  {
+   "task": "finance.po_email_logging",
+   "reasons": "binding"
+  },
+  {
+   "task": "finance.prepaid_amortization",
+   "reasons": "disagrees_with_full_pass"
+  },
+  {
+   "task": "finance.qb_sales_receipt_batch",
+   "reasons": "binding"
+  },
+  {
+   "task": "finance.subscription_billing",
+   "reasons": "luna_not_solved"
+  },
+  {
+   "task": "finance.xero_expense_claim_review",
+   "reasons": "undecided_goals,disagrees_with_full_pass"
+  },
+  {
+   "task": "finance.xero_vendor_onboard",
+   "reasons": "luna_not_solved"
+  },
+  {
+   "task": "hr.airtable_learning_path_assignment",
+   "reasons": "binding"
+  },
+  {
+   "task": "hr.candidate_pipeline_report",
+   "reasons": "disagrees_with_full_pass"
+  },
+  {
+   "task": "hr.docusign_nda_collection",
+   "reasons": "binding,no_required_goals"
+  },
+  {
+   "task": "hr.exit_interview_scheduling",
+   "reasons": "binding"
+  },
+  {
+   "task": "hr.handbook_acknowledgment",
+   "reasons": "disagrees_with_full_pass"
+  },
+  {
+   "task": "hr.offboarding_automation",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "hr.safety_incident_reporting",
+   "reasons": "undecided_goals,disagrees_with_full_pass"
+  },
+  {
+   "task": "hr.team_restructure_notification",
+   "reasons": "disagrees_with_full_pass"
+  },
+  {
+   "task": "hr.tuition_reimbursement",
+   "reasons": "disagrees_with_full_pass"
+  },
+  {
+   "task": "hr.visa_expiry_tracking",
+   "reasons": "undecided_goals"
+  },
+  {
+   "task": "marketing.brand_mention_analysis",
+   "reasons": "undecided_goals,luna_not_solved"
+  },
+  {
+   "task": "marketing.content_repurpose",
+   "reasons": "binding,no_required_goals"
+  },
+  {
+   "task": "marketing.editorial_calendar",
+   "reasons": "luna_not_solved"
+  },
+  {
+   "task": "marketing.social_contest",
+   "reasons": "undecided_goals"
+  },
+  {
+   "task": "operations.energy_consumption_anomaly",
+   "reasons": "disagrees_with_full_pass"
+  },
+  {
+   "task": "operations.google_ads_budget_alert",
+   "reasons": "undecided_goals"
+  },
+  {
+   "task": "operations.hubspot_payment_failure",
+   "reasons": "undecided_goals,disagrees_with_full_pass"
+  },
+  {
+   "task": "operations.salesforce_escalated_customer",
+   "reasons": "luna_not_solved"
+  },
+  {
+   "task": "operations.training_compliance_check",
+   "reasons": "undecided_goals,disagrees_with_full_pass"
+  },
+  {
+   "task": "operations.twilio_facilities_emergency",
+   "reasons": "undecided_goals"
+  },
+  {
+   "task": "sales.create_contact_for_account",
+   "reasons": "luna_not_solved"
+  },
+  {
+   "task": "sales.create_important_draft",
+   "reasons": "disagrees_with_full_pass"
+  },
+  {
+   "task": "sales.dependency_chain",
+   "reasons": "disagrees_with_full_pass"
+  },
+  {
+   "task": "sales.docusign_void_resend",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "sales.meeting_action_items",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "sales.milestone_celebration",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "sales.multi_hop_lookup",
+   "reasons": "no_required_goals,luna_not_solved"
+  },
+  {
+   "task": "sales.soft_matching",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "simple.email_sf_contact_account_update",
+   "reasons": "no_required_goals,luna_not_solved"
+  },
+  {
+   "task": "simple.email_sf_contact_assistant_update",
+   "reasons": "binding"
+  },
+  {
+   "task": "simple.feature_launch_slack",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "simple.jira_accessibility_audit",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "simple.sf_opp_amount_update",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "simple.sf_opp_campaign_update",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "simple.sf_opp_close_date_update",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "simple.sf_opp_closed_won",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "simple.sf_opp_description_update",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "simple.sf_opp_next_step_update",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "simple.sf_opp_probability_update",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "simple.sf_opp_stage_proposal",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "simple.sf_opp_stage_value_prop",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "simple.sf_opp_type_update",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "simple.zendesk_resolve_email",
+   "reasons": "binding,no_required_goals"
+  },
+  {
+   "task": "support.reamaze_multilanguage",
+   "reasons": "no_required_goals"
+  },
+  {
+   "task": "support.zoho_account_health",
+   "reasons": "binding,no_required_goals"
+  }
+ ],
+ "selected_names_sha256": "3e0883453c9675e7399601496b88333e926da96efc6d0e037490540833d59060",
+ "luna_outcomes": {
+  "train": {
+   "official_full": 62,
+   "official_partial": 41
+  },
+  "eval": {
+   "official_partial": 10,
+   "official_full": 10
+  }
+ },
+ "simple_selection": {
+  "replay": "docs/research/verifiers-assessment-qualification/reward-candidate/simple-manifest-replay-20261006.json",
+  "replay_sha256": "ee282884c39e20fa1a05ac27b4cae758d386f6e2b49468f3249aaf0f68949ce9",
+  "seed": "20261006",
+  "accepted": 132,
+  "added": [
+   "simple.email_sf_contact_email_update",
+   "simple.sf_create_event",
+   "simple.zendesk_feature_request",
+   "simple.email_calendar_meeting_reply",
+   "simple.zoom_client_call_from_email",
+   "simple.email_sf_log_task",
+   "simple.hs_update_deal_stage",
+   "simple.zoom_engineering_sync",
+   "simple.gmail_reply_customer_inquiry",
+   "simple.new_customer_sf_onboard_email",
+   "simple.sf_create_lead_from_card",
+   "simple.gcal_partnership_call_from_email",
+   "simple.asana_dark_mode_from_email",
+   "simple.jira_search_filter_story",
+   "simple.jira_rotate_api_keys",
+   "simple.zoom_vendor_onboarding_with_slack",
+   "simple.gmail_reply_pricing_inquiry",
+   "simple.sf_opp_type_update"
+  ],
+  "ranked_unused": [
+   "simple.gcal_customer_success_checkin",
+   "simple.email_sf_contact_city_update",
+   "simple.sf_lead_revenue_update",
+   "simple.trello_q1_marketing_budget",
+   "simple.jira_dashboard_perf_bug",
+   "simple.close_deal_sf_slack",
+   "simple.email_asana_task_reply",
+   "simple.jira_login_bug_from_email",
+   "simple.slack_sales_closed_deal",
+   "simple.gcal_new_hire_orientation",
+   "simple.sf_opp_amount_update",
+   "simple.zoom_board_meeting_password",
+   "simple.email_sf_lead_rating_hot",
+   "simple.gcal_quarterly_business_review",
+   "simple.asana_checkout_bug_from_email",
+   "simple.email_hubspot_contact_reply",
+   "simple.gcal_client_discovery_call",
+   "simple.slack_dm_project_status",
+   "simple.slack_customer_escalation",
+   "simple.slack_ceo_announcement",
+   "simple.gmail_reply_complaint",
+   "simple.email_sf_contact_department_update",
+   "simple.slack_dm_task_assignment",
+   "simple.sf_opp_stage_proposal",
+   "simple.zoom_team_retro",
+   "simple.gcal_one_on_one",
+   "simple.sf_opp_close_date_update",
+   "simple.new_hire_asana_email",
+   "simple.launch_announcement_email",
+   "simple.zoom_client_demo",
+   "simple.zoom_sales_pipeline_review",
+   "simple.hs_create_contact",
+   "simple.airtable_new_vendor",
+   "simple.invoice_airtable_slack",
+   "simple.sf_opp_campaign_update",
+   "simple.slack_office_closure",
+   "simple.asana_monitoring_alerts",
+   "simple.gcal_product_review_from_email",
+   "simple.sf_opp_next_step_update",
+   "simple.sf_lead_description_update",
+   "simple.airtable_followup_task",
+   "simple.airtable_event_attendee",
+   "simple.email_hs_create_contact",
+   "simple.slack_marketing_campaign",
+   "simple.hs_update_contact_title",
+   "simple.airtable_update_deal",
+   "simple.zendesk_login_ticket",
+   "simple.airtable_create_contact",
+   "simple.gcal_team_offsite",
+   "simple.trello_competitor_pricing",
+   "simple.gmail_weekly_status",
+   "simple.new_lead_sf_jira",
+   "simple.sf_opp_description_update",
+   "simple.sf_lead_employees_update",
+   "simple.zendesk_wrong_order_ticket",
+   "simple.trello_urgent_support_card",
+   "simple.zoom_customer_training",
+   "simple.jira_legacy_data_migration",
+   "simple.sf_case_priority_high",
+   "simple.jira_cicd_pipeline",
+   "simple.gmail_reply_meeting_request",
+   "simple.sf_opp_probability_update",
+   "simple.zoom_daily_standup",
+   "simple.asana_rfp_response",
+   "simple.sf_opp_closed_won",
+   "simple.email_hs_create_contact_inbound",
+   "simple.escalation_zendesk_slack",
+   "simple.sf_lead_status_qualified",
+   "simple.sprint_retro_jira_slack",
+   "simple.asana_sprint_section_task",
+   "simple.zendesk_resolve_email",
+   "simple.trello_event_planning_checklist",
+   "simple.gmail_meeting_confirm",
+   "simple.sf_lead_company_update",
+   "simple.zoom_ai_webinar",
+   "simple.mailchimp_email_request",
+   "simple.sf_lead_status_working",
+   "simple.jira_data_sync_bug_from_email",
+   "simple.sf_create_case",
+   "simple.gcal_weekly_standup",
+   "simple.sf_create_contact_note",
+   "simple.sf_opp_stage_value_prop",
+   "simple.zendesk_billing_ticket",
+   "simple.gcal_company_holiday",
+   "simple.asana_performance_reviews",
+   "simple.gmail_onboarding_welcome",
+   "simple.slack_deployment_notice",
+   "simple.email_airtable_lead",
+   "simple.gmail_contract_renewal_reminder",
+   "simple.sf_create_followup_task",
+   "simple.sf_create_proposal_task",
+   "simple.hs_create_deal",
+   "simple.jira_auth_improvements",
+   "simple.partner_hubspot_asana",
+   "simple.sf_case_in_progress",
+   "simple.trello_employee_handbook",
+   "simple.email_hubspot_deal_slack",
+   "simple.partnership_hubspot_zoom",
+   "simple.sf_create_account_note",
+   "simple.email_jira_bug_slack",
+   "simple.sf_case_closed",
+   "simple.hs_update_contact_tag",
+   "simple.asana_team_offsite",
+   "simple.gmail_demo_followup",
+   "simple.event_asana_calendar",
+   "simple.sf_lead_source_web",
+   "simple.jira_mobile_redesign_epic",
+   "simple.hs_update_contact_phone",
+   "simple.demo_request_zoom_email",
+   "simple.email_jira_story_reply"
+  ],
+  "rejected": [
+   {
+    "task": "simple.airtable_find_update",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.airtable_update_slack_notify",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.api_key_jira_slack",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.asana_api_docs_task",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.asana_board_presentation",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.asana_vendor_contracts_urgent",
+    "reasons": "disagrees_with_full_pass"
+   },
+   {
+    "task": "simple.buffer_company_award",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.buffer_customer_success_story",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.buffer_facebook_blog_post",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.buffer_job_opening",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.buffer_linkedin_partnership",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.buffer_product_tip",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.buffer_trade_show",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.buffer_twitter_product_launch",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.buffer_twitter_quarterly_results",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.buffer_webinar_dual_post",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.campaign_launch_asana",
+    "reasons": "disagrees_with_full_pass"
+   },
+   {
+    "task": "simple.csat_sheets_slack_alert",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.customer_question_zendesk_reply",
+    "reasons": "disagrees_with_full_pass"
+   },
+   {
+    "task": "simple.email_airtable_project",
+    "reasons": "luna_not_solved"
+   },
+   {
+    "task": "simple.email_sf_contact_account_update",
+    "reasons": "undecided_goals,luna_not_solved"
+   },
+   {
+    "task": "simple.email_sf_contact_assistant_update",
+    "reasons": "undecided_goals"
+   },
+   {
+    "task": "simple.email_sf_contact_fax_update",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.email_sf_contact_mobile_update",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.email_sf_contact_onboard",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.email_sf_contact_phone_update",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.email_sf_contact_title_update",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.email_sf_create_contact_from_lead",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.email_sf_lead_description_update",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.email_sf_update_slack_notify",
+    "reasons": "luna_not_solved"
+   },
+   {
+    "task": "simple.email_sheets_log_reply",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.email_sheets_update_reply",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.feature_launch_slack",
+    "reasons": "no_required_goals"
+   },
+   {
+    "task": "simple.gmail_invoice_email",
+    "reasons": "luna_not_solved"
+   },
+   {
+    "task": "simple.hs_create_deal_with_contact",
+    "reasons": "no_required_goals"
+   },
+   {
+    "task": "simple.hs_update_deal_amount",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.jira_accessibility_audit",
+    "reasons": "no_required_goals"
+   },
+   {
+    "task": "simple.mailchimp_add_subscriber",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.mailchimp_conference_lead",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.mailchimp_dual_list",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.mailchimp_full_contact",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.milestone_sheets_slack",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_add_lead",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_add_vendor",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_budget_expense",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_closed_deal",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_content_calendar",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_log_email_inquiry",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_log_sales_call",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_log_support_email",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_project_tracker",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_read_then_email",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_read_then_slack_dm",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_update_from_email",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_update_status",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_update_status_report",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.sheets_webinar_registration",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.slack_weekly_metrics",
+    "reasons": "binding"
+   },
+   {
+    "task": "simple.subscriber_welcome_email",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.trello_case_study_draft",
+    "reasons": "luna_not_solved"
+   },
+   {
+    "task": "simple.trello_catering_contract",
+    "reasons": "disagrees_with_full_pass"
+   },
+   {
+    "task": "simple.trello_manager_feedback_from_email",
+    "reasons": "luna_not_solved"
+   },
+   {
+    "task": "simple.trello_move_card_to_inprog",
+    "reasons": "undecided_goals,luna_not_solved"
+   },
+   {
+    "task": "simple.trello_onboard_agency_from_email",
+    "reasons": "luna_not_solved"
+   },
+   {
+    "task": "simple.weekly_digest_sheets_email",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.weekly_report_sheets_email",
+    "reasons": "no_luna_episode"
+   },
+   {
+    "task": "simple.zendesk_urgent_reply",
+    "reasons": "disagrees_with_full_pass"
+   },
+   {
+    "task": "simple.zoom_meeting_email_invite",
+    "reasons": "disagrees_with_full_pass"
+   }
+  ]
+ }
+}
