@@ -1,0 +1,149 @@
+# Make the resolved policy-update engine scale to full AutomationBench populations
+
+This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds. It follows `docs/templates/PLAN.md`.
+
+## Purpose / Big Picture
+
+Posttrain trains LFM2.5 models with SAMPO (a multi-turn policy-gradient algorithm with episode-level and turn-level credit) through its own "resolved policy-update engine": the code that turns one collected batch of agent episodes into frozen evidence, credit (advantages), optimizer updates and a loss. The engine was qualified on populations of a few thousand sampled tokens. The planned 100-update LFM2.5-2.6B AutomationBench run collects 128 episodes per update round with about 516,000 sampled tokens across 784 assistant turns. At that size the engine spends tens of minutes per round in single-threaded Python while the GPU idles, so 100 rounds cannot finish inside the 24-hour job limit.
+
+After this change the same run spends seconds, not minutes, of CPU time between collecting episodes and applying updates, and the GPU scores each episode once per pass instead of once per turn. The observable result is a local simulation, run on the real episodes of the cancelled run, that reports each stage's time before and after; and then the 100-update run itself, whose per-round time is at or below the older SAMPO system's (about 7.8 minutes per update for 120 episodes in run `lfm26-sampo-cont100-g30x4-16t-lr6e5-kl1e2-20260930-r1`).
+
+Training semantics do not change: the same rewards, the same episode-level and turn-level (sequence-level) SAMPO credit, the same objective, the same evidence guarantees. Only the representation and the order of work change.
+
+## Progress
+
+- [x] (2026-10-05 18:00Z) Cancelled run `manifest-steps-26-sampo-100-g16x8-20261005-r6` after it spent more than 25 minutes on one CPU core after its first collection with zero updates.
+- [x] (2026-10-05 18:20Z) Built the simulation harness (`/home/hammad/projects/sim/postcollect/simulate.py`, see Concrete Steps) on r6's real 160 episodes and cached the 128 selected rollouts.
+- [x] (2026-10-05 18:40Z) Measured the current engine (with interim algorithmic patches) stage by stage; see Surprises & Discoveries.
+- [x] (2026-10-05 18:50Z) Milestone 1: harness checked in at `docs/research/policy-update-engine-scale/` with the recorded baseline; interim fixes kept: one-pass grouping in `update_objectives.py` and `policy_update_inputs.py`, `plan_packs` computing its update digest once, and the conditioning-only decode.
+- [ ] Milestone 2: column-based population, credit, objective, schedule and packs, with parity against the current engine.
+- [ ] Milestone 3: whole-tensor scores and loss, with loss and gradient parity.
+- [ ] Milestone 4: one forward pass per episode for exact-prefix episodes, with score parity on a real model.
+- [ ] Milestone 5: recovery, transport and telemetry on the new representation; remove the per-token path; full validation; 2-update smoke on the workstation; then the 100-update run.
+
+## Surprises & Discoveries
+
+- Observation: the r6 stall was not in decoding episodes but in pack planning. Each of the 784 execution packs recomputed `ResolvedUpdate.digest`, which serializes the whole population (every token record) to JSON and hashes it.
+  Evidence: a live `py-spy` sample of r6's main thread showed 100% of samples under `plan_packs -> emit -> ResolvedUpdate.digest -> record_digest -> dataclasses.asdict / json.dumps`.
+
+- Observation: several group lookups scan the whole population once per group, which is quadratic. `NativePopulationInputs.from_evidence` scanned 516k actions for each of 784 views; `objective_population`, `_reduction` and `resolve_objective_term` scanned all actions per episode or per turn.
+  Evidence: interim patches that group in one pass cut admission (unprofiled) from more than 25 minutes to 44 s.
+
+- Observation: even after those patches each optimizer update costs about two minutes of pure bookkeeping, before any model compute. The simulation replaces the transformer with a stand-in that returns one tensor per turn, so the time below is CPU and GPU-synchronization overhead only.
+  Evidence (local RTX 3070 Ti, stand-in model):
+
+      [stage] admit (resolve+plan)            44.04s
+      [stage] trl population view              6.86s
+      [stage] reference scores                21.81s
+      [stage] update 0 loss                  116.26s   (includes old-score freezing)
+      [stage] update 0 backward               21.56s
+      [stage] update 1 loss                   97.81s
+      [stage] update 1 backward               38.54s
+
+  Process memory grew from 6.1 GB to 12.0 GB over two updates.
+
+- Observation: every r6 episode is an exact prefix chain: each turn's conditioning context is the beginning of the next turn's. The engine nevertheless runs one full forward pass per turn over that turn's whole history, which is 4.67 times more tokens than one pass per episode.
+  Evidence: over the 128 selected rollouts, the per-turn contexts sum to 6,362,187 tokens per scoring pass; the final contexts of the episodes sum to 1,363,646.
+
+- Observation: two thirds of each saved episode's bytes are assessment archives that policy scoring never reads, yet the trainer validated the whole Verifiers `Episode` (including restoring those archives) to read the message graph.
+  Evidence: in one r6 trace, `assessment_sources` 819 KB, `assessment_views` 482 KB, `assessment_batches` 194 KB, `nodes` 254 KB.
+
+- Observation: without any interim patches, admission alone did not finish within the simulation's 25-minute cap (it was cut off after more than 23 minutes in admission).
+  Evidence: `simulate.py --baseline` (digest cache disabled, run on the pre-patch grouping code) timed out after `retain population` with no `admit` line.
+
+- Observation: the older SAMPO system (TRL's own trainer on flattened episode rows) took 467 s per update on average for 120 episodes: 198 s of rollouts and 219 s of actor update, about 13 hours for 100 updates.
+  Evidence: `posttrain query --sql "select run_id, avg(update_seconds), avg(rollout_seconds), avg(actor_seconds) from updates where run_id like 'lfm26-sampo-cont100%' group by run_id"` from `apps/lab`.
+
+## Decision Log
+
+- Decision: redesign the representation instead of keeping the interim patches.
+  Rationale: every hot spot comes from one choice: each sampled token is an individual immutable Python object carrying its own identity, and each layer re-derives and re-checks the previous layer's output. Caching digests or grouping loops reduces the constant but keeps millions of objects, per-token tensors and a per-token autograd graph. The user asked for an architectural fix rather than workarounds.
+  Date/Author: 2026-10-05, Claude with the user.
+
+- Decision: keep the interim conditioning-only decode (`decode_native_population(..., content="conditioning")`) as the permanent design; drop the weak-reference digest cache and the compositional-digest change once Milestone 2 removes their callers.
+  Rationale: decoding only the message graph is the right boundary (it is all scoring reads, and it uses Verifiers' own `Branch` schema). The digest cache only papered over repeated whole-population serialization.
+  Date/Author: 2026-10-05, Claude.
+
+- Decision: one forward pass per episode is allowed only when admission proves the episode's turn contexts form an exact prefix chain; otherwise the engine keeps per-turn scoring.
+  Rationale: per-turn scoring exists so that each action is scored under the exact context it was sampled with. When contexts are exact prefixes, causal attention makes the single pass score every action under the same context, so the guarantee is preserved by proof, not assumed. Episodes with branching or rewritten history (for example a renderer that drops earlier reasoning) still get exact per-turn contexts.
+  Date/Author: 2026-10-05, Claude.
+
+- Decision: one pass per episode (Milestone 4) is required for the 100-update run, not an optional optimization.
+  Rationale: at 4.67 times the scoring tokens, the actor phase would be roughly four to five times the older system's 219 s per update, so 100 rounds would take about 25 to 30 hours and exceed the 24-hour limit. With one pass per episode the GPU processes about 1.36M tokens per pass, close to what TRL's flattened trainer processed, and the expected round time is 7 to 9 minutes (12 to 15 hours for 100 rounds).
+  Date/Author: 2026-10-05, Claude.
+
+- Decision: internal digests and the recovery checkpoint format change version; checkpoints written by the old engine are not resumable by the new one.
+  Rationale: identities become hashes of compact columns instead of JSON of token objects. The project starts fresh runs rather than resuming (standing user instruction), and no in-flight run depends on old checkpoints.
+  Date/Author: 2026-10-05, Claude.
+
+## Outcomes & Retrospective
+
+Not started.
+
+## Context and Orientation
+
+All paths are relative to the rl repository root. The engine lives in `packages/train/src/posttrain/train/`. Its pieces, in the order a training round uses them:
+
+`backends/trl/policy_rollouts.py` (`collect_active_resolved_population`) collects episodes through the Verifiers bridge (`integrations/verifiers.py`), selects 16 prompt groups whose rewards differ, and asks the bridge to seal them (`retain_population`, writing a JSONL file of native episodes, the "retained evidence").
+
+`backends/policy_update_admission.py` (`AdmittedNativePopulation.from_retained_artifact`) re-reads those bytes, checks their SHA-256 digest, and builds the frozen population. `update_evidence.py` (`population_from_rollouts`) creates one `ActionRecord` (defined in `update_records.py`) per sampled token. An action is identified by `ActionRef(episode_id, branch_id, turn_id, token_index)`. A "conditioning view" (`ConditioningView`) is one assistant turn's exact input context: the token ids of the path from the root of the message graph to that turn's node.
+
+`update_credit.py` prepares credit. `SampoCreditEstimator` calls `compute_sampo_advantages` (in `sampo_advantages.py`), which already returns one advantage array per episode row; `NativeCreditRows.project` then explodes it into one `ActionCredit` per token.
+
+`update_objectives.py` builds the objective population (one contribution per turn), and per update the `ResolvedObjectiveTerm`: per-token policy and KL weights and the "ratio support" (which tokens share one importance ratio: one token, one turn, or, for `sampo@1`, the whole episode, called episode-geometric).
+
+`update_plan.py` schedules contributions into optimizer updates (`resolve_updates`; with budget 32 episodes, 4 updates per round) and splits each update into execution packs (`plan_packs`), groups of conditioning views sized to the GPU context budget.
+
+`backends/policy_update_inputs.py` (`NativePopulationInputs`) materializes model inputs for a view from the retained bytes. `backends/policy_update_scoring.py` runs the model per view and returns one scalar tensor per token (`score_actions`, `freeze_population_scores`). `backends/policy_update_execution.py` (`compute_resolved_loss`) and `backends/policy_update_math.py` (`evaluate`) build the loss token by token. `backends/trl/policy_updates.py` (`ResolvedTRLPopulation`) plugs this into TRL's trainer; `backends/trl/policy_job.py` drives rounds.
+
+Supporting modules that also carry per-token records: `update_sampler_correction.py` (vLLM sampler-mismatch correction weights), `update_telemetry.py` (metrics), `update_spans.py` and `update_process_credit.py` (optional span and process credit), `update_transport.py` and `update_recovery.py` plus `backends/policy_update_recovery.py` (checkpointing the population), `update_distribution.py` and `backends/policy_update_distributed*.py` (multi-GPU), and the veRL backend under `backends/verl/`.
+
+Tests live in `packages/train/tests/`, mainly `test_update_*.py`, `test_resolved_telemetry.py`, `test_sampo*.py`, `test_trl*.py`, `test_verifiers_population_artifact.py`.
+
+## Plan of Work
+
+The core change is a column-based ("columnar") population. Instead of a tuple of token objects, a population is a table with one row per conditioning view (turn) and flat arrays with one entry per sampled token, in a fixed canonical order (views in admission order, tokens in ascending native index). Every later structure refers to positions in those arrays.
+
+In a new module `packages/train/src/posttrain/train/update_population.py`, define `PopulationTable`. It holds the population identity fields that exist today (id, native evidence reference and digest, policy versions, selector digest), the view table (view ids, episode index, turn ordinal, context length, input digest, native coordinates), `token_offsets` (int64, one more than the number of views; view `v` owns tokens `token_offsets[v]` to `token_offsets[v + 1]`), `token_index` (int32 native index of each sampled token within its node), episode and branch identities per view, relations as arrays of view indices, and an `exact_prefix` flag per episode. Its `digest` is computed once in construction from the identity fields and the array bytes, and stored as a field. An `ActionRef` remains available as a derived, on-demand view of one position for error messages and the public telemetry vocabulary, never as storage.
+
+`PreparedCredit` becomes an advantage array aligned with the token order plus its existing metadata; `NativeCreditRows.project` is replaced by a direct concatenation of the estimator's per-row arrays restricted to sampled positions. Selections (`policy_selection`, `kl_selection`, semantic spans) resolve to boolean masks. The `ResolvedObjectiveTerm` becomes arrays: policy weight, KL weight, and a ratio segment id per token (with the segment count). Scheduling keeps its current rules but works on episode and turn rows; an update is a sorted array of view rows plus its contribution identities. Packs are lists of view rows; when Milestone 4 lands, an exact-prefix episode's views form one "episode pack" scored by one forward pass.
+
+Admission becomes the single place that checks evidence. It verifies the retained bytes' digest, decodes only the message graph (`content="conditioning"`), derives every view's conditioning record once, checks it against the rollout's frozen record, materializes the view's token ids once, proves or rejects exact-prefix chains, and builds the immutable table. Later layers receive the typed table and do not repeat those derivations; `ResolvedPolicyPopulation` and `ResolvedTRLPopulation` stop re-running objective resolution and pack planning as checks.
+
+Scores become one float32 tensor per pass aligned with the token order (`FrozenScores.values`), validated with one finiteness check. `score_actions` scatters each pack's gathered log-probabilities into the population-ordered tensor. The loss in `policy_update_math.evaluate` is rewritten as whole-tensor operations: log-ratio as current minus old; segment means with `index_add_` over ratio segment ids; exponentiate; PPO clip; multiply by advantages, policy weights and sampler-correction weights; sum. The sampled-k3 KL term is computed with `torch.where` over both branches using inputs clamped so the unused branch cannot produce non-finite values or gradients. Clipping indicators and per-token ratios stay available for telemetry as tensors.
+
+Recovery, transport and telemetry move to the table: checkpoints store the arrays (NumPy `.npy` inside the existing checkpoint component mechanism) with a bumped format version, and telemetry computes the same metric values from arrays.
+
+## Milestones
+
+Milestone 1 makes the measurement repeatable. The harness lives in `docs/research/policy-update-engine-scale/simulate.py` with a README that names the r6 data location, how to regenerate the cache, and the baseline table above. Acceptance: running the harness prints the stage table and writes `summary.json` with digests of updates and credit.
+
+Milestone 2 introduces `PopulationTable` and moves credit, selections, objective terms, scheduling and packs onto it, keeping the existing per-token code temporarily as a reference implementation in tests only. Acceptance: new parity tests build both representations from the same fixtures (`test_resolved_telemetry.py` fixtures, the SAMPO fixtures, and a synthetic multi-turn population of 128 episodes) and assert equal advantages per token, equal policy and KL weights and denominators, equal ratio supports, equal update membership and equal pack membership; and the harness admits r6's population in under 5 seconds.
+
+Milestone 3 moves scores and the loss to tensors. Acceptance: parity tests compare the vectorized loss, policy loss, KL loss, clipped-token set and gradient of a small real model's LoRA parameters against the token-by-token reference on fixtures, within 1e-6 relative for float32; and the harness with the stand-in model reports under 5 seconds of overhead per optimizer update and flat memory across updates.
+
+Milestone 4 adds episode packs. Acceptance: with `LiquidAI/LFM2.5-1.2B` on the local GPU, per-token log-probabilities from one pass per episode equal the per-turn passes within bf16 tolerance (documented), on a handful of r6 episodes truncated to fit; and the harness reports scoring token volume reduced from 6.36M to 1.36M per pass.
+
+Milestone 5 finishes the migration: recovery and transport on arrays, telemetry from arrays, veRL and distributed adapters updated, the per-token reference code deleted, the full validation ladder green, a 2-update 2.6B smoke run on the workstation, and then the 100-update run.
+
+## Concrete Steps
+
+Simulation: setup, data layout and the recorded baseline are in `docs/research/policy-update-engine-scale/README.md`. From the worktree root:
+
+    /home/hammad/projects/sim/postcollect/venv/bin/python docs/research/policy-update-engine-scale/simulate.py --data /home/hammad/projects/sim/data-r6 --project apps/lab --out /tmp/engine-scale            # admission stages
+    /home/hammad/projects/sim/postcollect/venv/bin/python docs/research/policy-update-engine-scale/simulate.py --data /home/hammad/projects/sim/data-r6 --project apps/lab --out /tmp/engine-scale --train    # plus reference scores and every optimizer update
+    ... --profile "admit (resolve+plan)"    # cProfile one stage
+
+Tests (from the worktree root): `nice .venv/bin/python -m pytest -q packages/train/tests/test_update_*.py packages/train/tests/test_resolved_telemetry.py packages/train/tests/test_sampo*.py packages/train/tests/test_verifiers_population_artifact.py packages/train/tests/test_trl*.py`, then the full ladder from `AGENTS.md`.
+
+## Validation and Acceptance
+
+The work is accepted when the harness on r6's population shows admission under 5 seconds, per-update engine overhead under 5 seconds, flat memory across updates, and scoring volume of 1.36M tokens per pass; when the parity tests pass; when the full ladder passes; and when a 2-update 2.6B smoke run on the workstation applies both updates with finite gradient norms, the SAMPO telemetry (episode and turn advantage magnitudes, turn credit share) in the same ranges as r6's rescoring analysis, and per-round wall time reported in Trackio. The 100-update run is then submitted with the 24-hour limit.
+
+## Idempotence and Recovery
+
+The harness writes only under its `--out` directory and the cache file; deleting `population.pkl` forces a rebuild. Engine changes are on the `wip/automationbench-reward-redesign-2026-10-04` branch in the `rl-perf` worktree and land in reviewed commits per milestone; any milestone can be reverted independently until Milestone 5 deletes the per-token path.
+
+## Interfaces and Dependencies
+
+No new third-party dependencies: NumPy and PyTorch are already present. `PopulationTable`, `TokenCredit` (the advantage array), `ObjectiveTerm` arrays and `FrozenScores` are internal to `posttrain.train`; the public request and settings types (`SAMPORequest`, `SAMPOSettings`) and metric names do not change. `decode_native_population(evidence, *, format, content="traces" | "conditioning")` in `integrations/verifiers_population_artifact.py` is the decode entry point.
