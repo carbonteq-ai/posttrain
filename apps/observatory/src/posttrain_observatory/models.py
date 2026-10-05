@@ -133,6 +133,9 @@ class ChartView(ObservatoryModel):
     title: str = Field(min_length=1)
     question: str | None = Field(default=None, min_length=1)
     series: tuple[MetricSeries, ...]
+    # "collection": one point per sampled population, at the step of its first update;
+    # "update": one point per optimizer update. A chart holds one grain.
+    grain: Literal["update", "collection"] = "update"
 
 
 class EvidenceRequirement(ObservatoryModel):

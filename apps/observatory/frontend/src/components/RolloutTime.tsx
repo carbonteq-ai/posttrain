@@ -59,7 +59,8 @@ export function RolloutTimeSummary({ view }: { view: RolloutTimeView | null }) {
   const rolloutMs = PHASES.reduce((acc, phase) => acc + totals[phase.key], 0);
   if (rolloutMs <= 0) return null;
   const rollouts = Math.max(view.steps.reduce((acc, step) => acc + step.timed_rollouts, 0), 1);
-  const optimizerSteps = view.steps.filter((step) => step.step != null).length;
+  // Rollouts are sampled per collection (one population, possibly feeding several updates).
+  const collections = view.steps.filter((step) => step.step != null).length;
   const elapsed = view.elapsed_ms != null && view.elapsed_ms > 0 ? view.elapsed_ms : null;
   // Summed rollout time over elapsed time: how many rollouts were running at once.
   const inFlight = elapsed ? rolloutMs / elapsed : null;
@@ -68,12 +69,12 @@ export function RolloutTimeSummary({ view }: { view: RolloutTimeView | null }) {
       <div>
         <h2 className="text-[13px] font-medium">Where rollout time goes</h2>
         <p className="mt-0.5 text-[11px] text-muted">
-          {rollouts.toLocaleString()} rollouts · {optimizerSteps} optimizer steps
+          {rollouts.toLocaleString()} rollouts · {collections} {collections === 1 ? 'collection' : 'collections'}
           {inFlight != null && <> · ~{inFlight.toFixed(inFlight < 10 ? 1 : 0)} rollouts in flight on average</>}
           {view.live ? ' · live' : ''}
         </p>
       </div>
-      {elapsed != null && <span className="text-right" title="First rollout start to last rollout end, per step; time between steps (training, weight sync) is excluded">
+      {elapsed != null && <span className="text-right" title="First rollout start to last rollout end, per collection; time between collections (training, weight sync) is excluded">
         <span className="font-mono text-lg tabular-nums text-ink">{formatDuration(elapsed)}</span>
         <span className="ml-1.5 text-[11px] text-muted">generating</span>
       </span>}

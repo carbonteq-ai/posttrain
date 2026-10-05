@@ -1470,7 +1470,7 @@ describe('Observatory React product shell', () => {
     await user.click(screen.getByRole('button', { name: 'Next page' }));
     expect(await screen.findByText('3 of 250 traces')).toBeVisible();
 
-    await user.click(screen.getByRole('button', { name: 'Step: Any' }));
+    await user.click(screen.getByRole('button', { name: 'Collection step: Any' }));
     await user.click(screen.getByRole('option', { name: '1' }));
     expect(await screen.findByText('1 traces')).toBeVisible();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/traces?') && String(input).includes('step=1'))).toBe(true);
@@ -1683,5 +1683,47 @@ describe('Observatory React product shell', () => {
     const algorithm = screen.getByRole('region', { name: 'Algorithm settings' });
     expect(algorithm).toHaveTextContent('Actor microbatch4');
     expect(algorithm).toHaveTextContent('Grad accumulation64');
+  });
+  it('reads population charts per collection when collections feed several updates', async () => {
+    const { jobRun, jobView } = metricJob(
+      'train.sampo',
+      'SAMPO collections',
+      [{ key: 'reward_mean', label: 'Mean reward', metric: 'train/rl/reward_mean', value: 0.5, unit: null }],
+      {},
+      true,
+    );
+    const collectionView = {
+      ...jobView,
+      view: {
+        ...jobView.view,
+        charts: [
+          {
+            key: 'optimization_collection',
+            title: 'Policy optimization per collection',
+            question: 'Is the population improving?',
+            grain: 'collection',
+            series: [{ name: 'train/rl/reward_mean', points: [{ value: 0.4, step: 1 }, { value: 0.5, step: 5 }] }],
+          },
+          {
+            key: 'optimization',
+            title: 'Policy optimization',
+            question: 'Is the policy moving?',
+            grain: 'update',
+            series: [{ name: 'train/rl/entropy', points: [1, 2, 3, 4, 5, 6, 7, 8].map((step) => ({ value: 0.2, step })) }],
+          },
+        ],
+      },
+    };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      const body = path === '/api/v1/runs?source_id=fixture&limit=1000' ? [jobRun] : collectionView;
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByText('Collection at step 5')).toBeVisible();
+    expect(screen.getByText(/vs previous collection \(step 1\)/)).toBeVisible();
   });
 });

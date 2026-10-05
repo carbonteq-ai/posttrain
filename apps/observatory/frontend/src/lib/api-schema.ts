@@ -758,6 +758,12 @@ export interface components {
         };
         /** ChartView */
         ChartView: {
+            /**
+             * Grain
+             * @default update
+             * @enum {string}
+             */
+            grain: "update" | "collection";
             /** Key */
             key: string;
             /** Question */

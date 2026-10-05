@@ -1210,12 +1210,12 @@ export default function App() {
   }, [sidebarPackages]);
 
   const response = selected != null && loadedView?.runKey === selected.run_key ? loadedView.response : null;
-  const activeChartKey = response?.view.charts?.[Math.min(activeChart, Math.max((response.view.charts?.length ?? 0) - 1, 0))]?.key;
+  const activeChartView = response?.view.charts?.[Math.min(activeChart, Math.max((response.view.charts?.length ?? 0) - 1, 0))];
   const rolloutBehaviorKey = section === 'Overview'
     && response?.view.grpo != null
     && response.view.trace_evaluation_enabled
     && (response.view.trace_count ?? 0) > 0
-    && activeChartKey === 'optimization'
+    && (activeChartView?.series.some((series) => series.name === 'train/rl/reward_mean') ?? false)
     && selected != null
     ? selected.run_key
     : null;
@@ -1800,7 +1800,9 @@ function GenericOverview({
   const baseChart = charts[Math.min(activeChart, Math.max(charts.length - 1, 0))];
   const isGroupPolicy = policyOptimizationJobKinds.has(selected.run.job_kind);
   const groupPolicyLabel = isGroupPolicy ? selected.run.job_kind.slice('train.'.length).toUpperCase() : null;
-  const rolloutSeries: MetricSeries[] = isGroupPolicy && baseChart?.key === 'optimization'
+  // Episode behavior belongs with the population's reward (per collection when collections span updates).
+  const holdsReward = (item: { series: MetricSeries[] } | undefined) => item?.series.some((series) => series.name === 'train/rl/reward_mean') ?? false;
+  const rolloutSeries: MetricSeries[] = isGroupPolicy && holdsReward(baseChart)
     ? [
       ['trace/rollout/avg_thinking_tokens', 'thinking_tokens'],
       ['trace/rollout/avg_output_tokens', 'output_tokens'],
@@ -1819,6 +1821,10 @@ function GenericOverview({
     .flatMap((item) => item.series)
     .find((series) => series.name === lead?.metric)?.points ?? [];
   const previousLeadPoint = leadPoints.at(-2);
+  const leadGrain = charts.find((item) => item.series.some((series) => series.name === lead?.metric))?.grain;
+  const leadComparison = leadGrain === 'collection'
+    ? `previous collection (step ${previousLeadPoint?.step ?? '—'})`
+    : `step ${previousLeadPoint?.step ?? leadPoints.length - 1}`;
   const latestLeadPoint = leadPoints.at(-1);
   const leadDelta = previousLeadPoint && latestLeadPoint
     ? latestLeadPoint.value - previousLeadPoint.value
@@ -1952,7 +1958,7 @@ function GenericOverview({
                     metric={grpoReward?.metric ?? null}
                     help={grpoReward?.metric ? helpByMetric.get(grpoReward.metric) : undefined}
                     state={grpoReward?.state ?? 'missing'}
-                    note={leadDelta == null ? undefined : `${leadDelta >= 0 ? '+' : ''}${formatValue(leadDelta, grpoReward?.unit)} vs step ${previousLeadPoint?.step ?? leadPoints.length - 1}`}
+                    note={leadDelta == null ? undefined : `${leadDelta >= 0 ? '+' : ''}${formatValue(leadDelta, grpoReward?.unit)} vs ${leadComparison}`}
                   />
                   <HeadlineMetric
                     label="Policy entropy"
@@ -2001,7 +2007,7 @@ function GenericOverview({
                 </div>
               ) : (
                 <div className="grid border-b border-divider lg:grid-cols-[260px_minmax(0,1fr)]">
-                  <div className="px-5 py-4"><MetricLabel label={lead.label} metric={lead.metric} help={lead.metric ? helpByMetric.get(lead.metric) : undefined} className="text-xs text-secondary" /><div className="mt-1 flex items-end gap-3"><strong className="font-serif text-[52px] font-normal leading-none">{formatValue(lead.value, lead.unit)}</strong>{lead.state !== 'available' && <span className="pb-1 text-[11px] text-amber-700">{lead.state}</span>}</div>{leadDelta != null && <p className="mt-2 text-[10px] text-muted">{leadDelta >= 0 ? '+' : ''}{formatValue(leadDelta, lead.unit)} vs step {previousLeadPoint?.step ?? leadPoints.length - 1}</p>}</div>
+                  <div className="px-5 py-4"><MetricLabel label={lead.label} metric={lead.metric} help={lead.metric ? helpByMetric.get(lead.metric) : undefined} className="text-xs text-secondary" /><div className="mt-1 flex items-end gap-3"><strong className="font-serif text-[52px] font-normal leading-none">{formatValue(lead.value, lead.unit)}</strong>{lead.state !== 'available' && <span className="pb-1 text-[11px] text-amber-700">{lead.state}</span>}</div>{leadDelta != null && <p className="mt-2 text-[10px] text-muted">{leadDelta >= 0 ? '+' : ''}{formatValue(leadDelta, lead.unit)} vs {leadComparison}</p>}</div>
                   <div className="grid grid-cols-2 border-divider sm:grid-cols-3 lg:border-l">{primarySummary.map((metric) => <div key={metric.key} className="border-b border-l border-divider px-4 py-3 first:border-l-0 lg:first:border-l"><MetricLabel label={metric.label} metric={metric.metric} help={metric.metric ? helpByMetric.get(metric.metric) : undefined} className="text-[11px] text-muted" /><strong className="mt-1 block font-serif text-xl font-normal">{formatValue(metric.value, metric.unit)}</strong>{metric.state !== 'available' && <small className="text-[10px] text-amber-700">{metric.state}</small>}</div>)}</div>
                 </div>
               )}
@@ -2010,18 +2016,18 @@ function GenericOverview({
                 <span className="max-w-xl text-right text-[11px] text-muted">{chart?.question ?? 'Select a point to inspect exact evidence'}</span>
               </div>
               <div className="flex min-h-10 flex-wrap items-center gap-x-5 gap-y-2 border-b border-divider bg-subtle/45 px-4 py-2 text-[11px]">
-                <span className="font-medium text-ink">Step {selectedStep ?? '—'}</span>
+                <span className="font-medium text-ink">{chart?.grain === 'collection' ? 'Collection at step' : 'Step'} {selectedStep ?? '—'}</span>
                 {selectedSeries.map((item) => <span key={item.name} className="inline-flex items-center text-secondary"><MetricLabel label={chartLabels[item.name] ?? helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} className="text-muted" /> <strong className="ml-1 font-medium text-ink">{formatValue(item.value, chartUnits[item.name] ?? metricUnits[item.name] ?? helpByMetric.get(item.name)?.unit)}</strong></span>)}
               </div>
-              {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
+              {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} xAxis={chart.grain === 'collection' ? { name: 'Collection at step' } : undefined} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
               {unrecordedSeries.length > 0 && (
                 <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
                   Not recorded by this run: {unrecordedSeries.map((series) => chartLabels[series.name] ?? helpByMetric.get(series.name)?.label ?? metricLabel(series.name)).join(', ')}.
                   {isSampo && chart?.key === 'hierarchical_credit' ? ' This run\'s trainer predates the credit metrics; SAMPO runs from newer trainers record them for each collection.' : ''}
                 </p>
               )}
-              {isGroupPolicy && chart?.key === 'optimization' && rolloutBehaviorLoading && <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">Reading retained rollout evidence…</p>}
-              {isGroupPolicy && chart?.key === 'optimization' && rolloutBehavior?.state === 'partial' && rolloutBehavior.points.length > 0 && (
+              {isGroupPolicy && holdsReward(baseChart) && rolloutBehaviorLoading && <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">Reading retained rollout evidence…</p>}
+              {isGroupPolicy && holdsReward(baseChart) && rolloutBehavior?.state === 'partial' && rolloutBehavior.points.length > 0 && (
                 <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
                   Rollout behavior is partial: {rolloutBehavior.included.toLocaleString()} of {(rolloutBehavior.expected ?? rolloutBehavior.scanned).toLocaleString()} retained training traces were read (steps {rolloutBehavior.points[0]?.step}–{rolloutBehavior.points.at(-1)?.step}).
                 </p>
@@ -2460,7 +2466,7 @@ function TraceView({
     )}
     <div className="obs-card mt-3 flex flex-wrap items-center gap-2 px-2.5 py-2 text-xs">
       <SlidersHorizontal size={15} className="mx-0.5 text-muted" />
-      {presentation.mode === 'optimization' && <FilterPopover label="Step" value={step} onChange={setStep} options={stepOptions} />}
+      {presentation.mode === 'optimization' && <FilterPopover label="Collection step" value={step} onChange={setStep} options={stepOptions} />}
       <FilterPopover label={evaluation?.facets.length ? 'Slice / facet' : 'Slice'} value={slice} onChange={setSlice} options={sliceOptions} />
       <FilterPopover label={presentation.outcomeHeading} value={outcome} onChange={setOutcome} options={outcomeOptions} />
       {activeFilters > 0 && <button type="button" onClick={() => { setStep('all'); setSlice('all'); setOutcome('all'); setQuery(''); }} className="inline-flex h-8 items-center gap-1 px-2 text-[11px] text-violet-700 hover:text-violet-900"><X size={12} /> Clear {activeFilters}</button>}
