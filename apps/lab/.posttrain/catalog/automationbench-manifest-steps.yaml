@@ -1,5 +1,5 @@
 # AutomationBench manifest step credit (docs/plan/automationbench-manifest-reward-release-and-sampo.md).
-# Environment ac10ccf: the official partial credit stays the episode reward; installed
+# Environment 427e802: the official partial credit stays the episode reward; installed
 # manifests add goal credit and harm debit to the turn (step) whose tool call produced
 # them (turn-reward scorer version 3). Settings use the 0.4.14 resolved policy-update engine.
 environment:
@@ -11,7 +11,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: ac10ccfb163b73b8c6438ff8240f192033cd0732
+      revision: 427e802b6b5f592d0d904bcfc8162c16593cb0ec
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -114,6 +114,14 @@ environment:
             # Linked tool execution (needed by manifest findings and step credit)
             # runs only when the task captures actions; without it every tool call fails.
             capture_actions: true
+            # Tool servers fork from a warm preloaded interpreter. Stated explicitly:
+            # Verifiers fixes this default at import time, so the serialized task
+            # config otherwise depends on whether VF_FORK_SERVER was set first.
+            tools:
+              runtime:
+                type: subprocess
+                fork_server: true
+                preload: [anyio, httpx, mcp, mcp.client.streamable_http, openai, tenacity, pydantic, automationbench_v1.limited_tools]
             manifest_assessments: true
             turn_rewards:
               tool_failure_penalty: 0.02
@@ -172,7 +180,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: ac10ccfb163b73b8c6438ff8240f192033cd0732
+      revision: 427e802b6b5f592d0d904bcfc8162c16593cb0ec
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -273,6 +281,14 @@ environment:
             search_top_k: 20
             turn_budget: 16
             capture_actions: true
+            # Tool servers fork from a warm preloaded interpreter. Stated explicitly:
+            # Verifiers fixes this default at import time, so the serialized task
+            # config otherwise depends on whether VF_FORK_SERVER was set first.
+            tools:
+              runtime:
+                type: subprocess
+                fork_server: true
+                preload: [anyio, httpx, mcp, mcp.client.streamable_http, openai, tenacity, pydantic, automationbench_v1.limited_tools]
             manifest_assessments: true
             turn_rewards:
               tool_failure_penalty: 0.02
@@ -307,7 +323,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: ac10ccfb163b73b8c6438ff8240f192033cd0732
+      revision: 427e802b6b5f592d0d904bcfc8162c16593cb0ec
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -343,6 +359,14 @@ environment:
             search_top_k: 20
             turn_budget: 16
             capture_actions: true
+            # Tool servers fork from a warm preloaded interpreter. Stated explicitly:
+            # Verifiers fixes this default at import time, so the serialized task
+            # config otherwise depends on whether VF_FORK_SERVER was set first.
+            tools:
+              runtime:
+                type: subprocess
+                fork_server: true
+                preload: [anyio, httpx, mcp, mcp.client.streamable_http, openai, tenacity, pydantic, automationbench_v1.limited_tools]
             manifest_assessments: true
             turn_rewards:
               tool_failure_penalty: 0.02
@@ -725,7 +749,7 @@ training:
     parallelism: {sequence_length_divisor: 2}
     runtime: {global_batch_size: 128, devices_per_node: 1, timeout_seconds: 86400}
     backend_options:
-      rollout_execution: {env_workers: 12, episodes_per_worker: 15, worker_native_threads: 1}
+      rollout_execution: {env_workers: 12, episodes_per_worker: 15, worker_native_threads: 1, memory_budget_gb: 64}
       use_liger_kernel: false
       logits_chunk_size: 128
       training_precision: fp16
