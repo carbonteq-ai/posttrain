@@ -361,8 +361,10 @@ def _observe_collection(
     values describe only the admitted groups that credit was prepared on.
     """
     values = collection_metrics(settings, population, credit_estimator_id=admitted.resolved.credit.estimator_id)
-    if values:
-        context.metrics(values, step=step, attributes={"measurement_scope": "resolved-collection"})
+    # The collection is identified by the step of its first update (this step);
+    # its applied updates carry the same collection step.
+    values["train/rl/collection_updates"] = len(admitted.resolved.updates)
+    context.metrics(values, step=step, attributes={"measurement_scope": "resolved-collection", "collection_step": step})
 
 
 def technique(request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest) -> PolicyTechnique:

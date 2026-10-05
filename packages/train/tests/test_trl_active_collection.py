@@ -107,7 +107,8 @@ def _collect(tmp_path, monkeypatch, rewards: dict[str, list[float]]):
         admitted.update(population=population, kwargs=kwargs)
         # A non-SAMPO estimator id: only population reward/shape evidence is reported.
         return SimpleNamespace(
-            population=population, resolved=SimpleNamespace(credit=SimpleNamespace(estimator_id="fixture@1"))
+            population=population,
+            resolved=SimpleNamespace(credit=SimpleNamespace(estimator_id="fixture@1"), updates=("u0", "u1")),
         )
 
     monkeypatch.setattr("posttrain.train.backends.trl.policy_rollouts.rollout_function", collector_factory)
@@ -175,6 +176,8 @@ def test_active_collection_discards_uniform_groups_and_accounts_for_every_candid
     # group a was generated but never trained on.
     assert collection["train/rl/reward_mean"] == 0.5
     assert collection["train/rl/group_zero_variance_fraction"] == 0.0
+    # The collection records how many updates it feeds.
+    assert collection["train/rl/collection_updates"] == 2
     assert "train/rl/turn_credit_share" not in collection
     assert published.index(next(item for item in published if getattr(item, "name", None) == "retained")) > max(
         index for index, item in enumerate(published) if getattr(item, "kind", None) == "training-collection"

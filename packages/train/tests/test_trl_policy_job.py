@@ -344,6 +344,9 @@ def test_applied_observation_separates_total_policy_and_weighted_kl(tmp_path, be
     assert len(metrics) == len(events) == 1
     values, metadata = metrics[0]
     assert metadata["step"] == 1
+    # The update names the collection it trained on (its first update's step) and its place in it.
+    assert metadata["attributes"]["collection_step"] == population.applied_update_offset + 1
+    assert metadata["attributes"]["collection_update"] == population.next_update == 1
     assert values["train/rl/loss"] == 3
     assert values["train/rl/policy_loss"] == 2
     assert values["train/rl/kl_loss"] == (1 if beta else 0)

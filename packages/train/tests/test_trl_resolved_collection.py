@@ -91,7 +91,7 @@ def test_collector_preserves_native_rollouts_and_publishes_after_admission(tmp_p
     # it. Two one-turn episodes with sparse rewards 0 and 1 share one anchor, so
     # SAMPO "mean" credit is -/+0.5 at both the episode and the turn level.
     values, metadata = seen[-1][1]
-    assert metadata == {"step": 4, "attributes": {"measurement_scope": "resolved-collection"}}
+    assert metadata == {"step": 4, "attributes": {"measurement_scope": "resolved-collection", "collection_step": 4}}
     assert values == pytest.approx(
         {
             "train/rl/reward_mean": 0.5,
@@ -110,6 +110,7 @@ def test_collector_preserves_native_rollouts_and_publishes_after_admission(tmp_p
             "train/rl/turn_advantage_informative_fraction": 1.0,
             "train/rl/singleton_anchor_fraction": 0.0,
             "train/rl/turn_credit_share": 0.5,
+            "train/rl/collection_updates": 2,
         }
     )
 

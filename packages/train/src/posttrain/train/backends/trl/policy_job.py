@@ -272,7 +272,16 @@ class ResolvedTRLJob:
                 sampled_scores=population.sampled_scores,
             )
         )
-        self.context.metrics(values, step=step, attributes={"measurement_scope": "resolved-applied-update"})
+        self.context.metrics(
+            values,
+            step=step,
+            attributes={
+                "measurement_scope": "resolved-applied-update",
+                # The population this update trained on, identified by its first update's step.
+                "collection_step": population.applied_update_offset + 1,
+                "collection_update": population.next_update,
+            },
+        )
         self.context.event(
             "resolved_policy_update_applied",
             {

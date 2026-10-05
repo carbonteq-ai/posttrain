@@ -133,6 +133,23 @@ describe (`source_step`); tracking readers return every point at this logical
 step, and such replayed points replace live points of the same name for that
 update.
 
+An online run trains on **collections**: a collection is one population of
+episodes sampled at one policy version and applied as one or more optimizer
+updates. Values that describe the population itself (episode rewards and their
+spread, completion length and truncation, rollout counts and seconds, admission
+and active-sampling counters, credit evidence, sampler state) are collection
+metrics: one value per collection, written at the step of the collection's
+first update. A collection is identified by that step, its `collection_step`,
+and records how many updates it feeds (`train/rl/collection_updates`). Each
+applied update's metrics carry the `collection_step` of the population it
+trained on and its 1-based position in it (`collection_update`). A run whose
+updates each train on their own population needs neither tag: its collection
+step is its update step. Traces of a collection carry its collection step as
+their rollout step. Tracking readers present collections as their own grain, one
+row per collection with its updates rolled up by each measure's declared
+aggregation; per-update views never repeat a collection value across its updates
+or divide it among them.
+
 ### Namespaces
 
 ```text
