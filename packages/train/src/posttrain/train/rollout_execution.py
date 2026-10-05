@@ -65,7 +65,7 @@ class RolloutExecutionConfig:
     env_workers: int
     episodes_per_worker: int
     worker_native_threads: int = 1
-    # Resident memory allowed across every environment worker's process tree
+    # Proportional memory (PSS) allowed across every environment worker's process tree
     # (env server, harness and tool-server subprocesses). Exceeding it fails the
     # collection with a diagnostic instead of letting the host's OOM killer end
     # the whole job. None leaves memory unguarded.

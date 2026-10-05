@@ -43,8 +43,27 @@ class _NativeEpisodeFailure(RuntimeError):
 logger = logging.getLogger(__name__)
 
 
+def _process_memory_bytes(pid: int, page: int) -> int:
+    """Proportional set size (shared pages split among their sharers).
+
+    Forked tool servers and harness programs share the zygote's preloaded
+    pages copy-on-write; summing RSS would count those once per process and
+    overstate real use several times. Falls back to RSS where smaps_rollup is
+    unavailable.
+    """
+    try:
+        with open(f"/proc/{pid}/smaps_rollup", encoding="ascii") as stream:
+            for line in stream:
+                if line.startswith("Pss:"):
+                    return int(line.split()[1]) * 1024
+    except (FileNotFoundError, ProcessLookupError, PermissionError):
+        pass
+    with open(f"/proc/{pid}/statm", encoding="ascii") as stream:
+        return int(stream.read().split()[1]) * page
+
+
 def process_tree_rss_bytes(pid: int) -> int:
-    """Resident memory of a process and all its descendants, read from /proc.
+    """Memory (PSS) of a process and all its descendants, read from /proc.
 
     Processes that exit while being read are skipped; an unreadable root counts 0.
     """
@@ -56,8 +75,7 @@ def process_tree_rss_bytes(pid: int) -> int:
             continue
         seen.add(current)
         try:
-            with open(f"/proc/{current}/statm", encoding="ascii") as stream:
-                total += int(stream.read().split()[1]) * page
+            total += _process_memory_bytes(current, page)
             for task in os.listdir(f"/proc/{current}/task"):
                 with open(f"/proc/{current}/task/{task}/children", encoding="ascii") as stream:
                     pending.extend(int(child) for child in stream.read().split())
@@ -476,7 +494,7 @@ class VerifiersWorkerPool:
             if now - last_report >= 60.0:
                 last_report = now
                 logger.info(
-                    "environment workers: %.1f GiB resident (peak %.1f GiB) across %d workers",
+                    "environment workers: %.1f GiB proportional memory (peak %.1f GiB) across %d workers",
                     total / 2**30,
                     self.peak_worker_rss_bytes / 2**30,
                     len(usage),

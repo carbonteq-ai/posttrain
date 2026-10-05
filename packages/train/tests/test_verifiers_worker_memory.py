@@ -94,3 +94,25 @@ def test_memory_budget_must_be_positive():
     for bad in (0, -1, True):
         with pytest.raises(ValueError):
             RolloutExecutionConfig(2, 3, memory_budget_gb=bad)
+
+
+def test_forked_children_sharing_pages_are_counted_once():
+    script = (
+        "import os, time\n"
+        "block = bytearray(200 * 1024 * 1024)\n"
+        "for i in range(0, len(block), 4096): block[i] = 1\n"
+        "for _ in range(3):\n"
+        "    if os.fork() == 0:\n"
+        "        time.sleep(30); os._exit(0)\n"
+        "print('ready', flush=True); time.sleep(30)\n"
+    )
+    parent = subprocess.Popen([sys.executable, "-c", script], stdout=subprocess.PIPE, text=True)
+    try:
+        assert parent.stdout is not None and parent.stdout.readline().strip() == "ready"
+        measured = process_tree_rss_bytes(parent.pid)
+        # Four processes map the same 200 MB copy-on-write; RSS would count it four times.
+        assert 150 * 2**20 < measured < 450 * 2**20
+    finally:
+        subprocess.run(["pkill", "-P", str(parent.pid)], check=False)
+        parent.kill()
+        parent.wait()
