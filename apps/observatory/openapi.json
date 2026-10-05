@@ -258,6 +258,15 @@
       "ChartView": {
         "additionalProperties": false,
         "properties": {
+          "grain": {
+            "default": "update",
+            "enum": [
+              "update",
+              "collection"
+            ],
+            "title": "Grain",
+            "type": "string"
+          },
           "key": {
             "minLength": 1,
             "title": "Key",

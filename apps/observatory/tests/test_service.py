@@ -1060,3 +1060,37 @@ async def test_trace_pages_take_token_and_turn_counts_from_stored_facts() -> Non
     assert (filled.thinking_tokens, filled.response_tokens, filled.model_calls) == (6659, 1257, 6)
     assert untouched == provider
     assert len(source.statements) == 1 and "'train-a'" in source.statements[0] and "eval-b" not in source.statements[0]
+
+
+def _series(name: str, steps: range | tuple[int, ...]) -> MetricSeries:
+    return MetricSeries(name=name, points=tuple(MetricPoint(step=step, value=float(step)) for step in steps))
+
+
+def test_charts_split_population_from_optimizer_series_when_collections_span_updates() -> None:
+    from posttrain_observatory.service import _chart_views
+    from posttrain_observatory.telemetry import ChartDefinition
+
+    charts = (
+        ChartDefinition(
+            key="optimization", title="Policy optimization", metrics=("train/rl/reward_mean", "train/rl/entropy")
+        ),
+        ChartDefinition(key="stability", title="Update stability", metrics=("train/grad_norm",)),
+    )
+    # Resolved engine: collections at updates 1 and 3, each feeding two updates.
+    resolved = {
+        "train/rl/reward_mean": _series("train/rl/reward_mean", (1, 3)),
+        "train/rl/entropy": _series("train/rl/entropy", range(1, 5)),
+        "train/grad_norm": _series("train/grad_norm", range(1, 5)),
+    }
+    views = _chart_views(charts, resolved, resolved)
+    assert [(view.key, view.grain, [series.name for series in view.series]) for view in views] == [
+        ("optimization", "update", ["train/rl/entropy"]),
+        ("optimization_collection", "collection", ["train/rl/reward_mean"]),
+        ("stability", "update", ["train/grad_norm"]),
+    ]
+    # One update per collection: population and optimizer points share every step, charts stay whole.
+    legacy = {name: _series(name, range(1, 5)) for name in resolved}
+    assert [(view.key, view.grain) for view in _chart_views(charts, legacy, legacy)] == [
+        ("optimization", "update"),
+        ("stability", "update"),
+    ]

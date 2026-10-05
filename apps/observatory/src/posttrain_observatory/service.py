@@ -10,7 +10,7 @@ import math
 import re
 import time
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from statistics import fmean
 from typing import Any, Literal, cast
@@ -39,6 +39,7 @@ from .discovery import TrackioSourceDiscovery
 from .evaluation_contracts import read_evaluation_contract
 from .evaluations import EvaluationIndex, EvaluationTaskScores, evaluation_index, evaluation_tasks
 from .execution_targets import execution_target_capacity, execution_target_contexts
+from .metric_catalog import CATALOG_BY_METRIC
 from .models import (
     BackendRuntimeSummary,
     ChartView,
@@ -118,6 +119,7 @@ from .sources import RunSourceRegistry
 from .telemetry import (
     DEFAULT_TELEMETRY_DEFINITIONS,
     GROUP_POLICY_JOB_KINDS,
+    ChartDefinition,
     EvidenceCondition,
     HealthRuleDefinition,
     JobTelemetryDefinition,
@@ -1054,6 +1056,68 @@ def _config_values(value: JsonValue, key: str) -> tuple[JsonValue, ...]:
     return tuple(values)
 
 
+def _metric_grain(metric: str) -> Literal["update", "collection"]:
+    entry = CATALOG_BY_METRIC.get(metric)
+    return "collection" if entry is not None and entry.entity == "collection" else "update"
+
+
+def _chart_views(
+    definitions: Sequence[ChartDefinition],
+    by_name: Mapping[str, MetricSeries],
+    presentation_by_name: Mapping[str, MetricSeries],
+) -> tuple[ChartView, ...]:
+    """Chart views with one grain each.
+
+    When a run trains on each sampled population with several updates, population
+    (collection) metrics have one point per collection while optimizer metrics have
+    one per update; a chart that mixes them is split so each axis means one thing.
+    Runs with one update per collection keep their charts whole.
+    """
+
+    def steps(names: Iterable[str]) -> set[int]:
+        return {
+            point.step
+            for name in names
+            for point in by_name.get(name, MetricSeries(name=name)).points
+            if point.step is not None
+        }
+
+    def present(names: Sequence[str]) -> bool:
+        return any(by_name.get(name, MetricSeries(name=name)).points for name in names)
+
+    every = [name for chart in definitions for name in chart.metrics]
+    collection_steps = steps(name for name in every if _metric_grain(name) == "collection")
+    update_steps = steps(name for name in every if _metric_grain(name) == "update")
+    multi_update = bool(collection_steps) and len(update_steps - collection_steps) > 0
+    views: list[ChartView] = []
+    for chart in definitions:
+        if not present(chart.metrics):
+            continue
+        population = [name for name in chart.metrics if _metric_grain(name) == "collection"]
+        optimizer = [name for name in chart.metrics if _metric_grain(name) == "update"]
+        parts: list[tuple[str, str, list[str], Literal["update", "collection"]]]
+        if not multi_update or not population or not optimizer:
+            grain: Literal["update", "collection"] = "collection" if multi_update and not optimizer else "update"
+            parts = [(chart.key, chart.title, list(chart.metrics), grain)]
+        else:
+            parts = [
+                (chart.key, chart.title, optimizer, "update"),
+                (f"{chart.key}_collection", f"{chart.title} per collection", population, "collection"),
+            ]
+        for key, title, names, grain in parts:
+            if present(names):
+                views.append(
+                    ChartView(
+                        key=key,
+                        title=title,
+                        question=chart.question,
+                        series=tuple(presentation_by_name.get(name, MetricSeries(name=name)) for name in names),
+                        grain=grain,
+                    )
+                )
+    return tuple(views)
+
+
 def _config_positive_int(resolved_inputs: Mapping[str, JsonValue], key: str) -> int | None:
     for value in _config_values(dict(resolved_inputs), key):
         if isinstance(value, int) and not isinstance(value, bool) and value > 0:
@@ -1501,16 +1565,7 @@ class ObservatoryService:
             )
             for field in definition.summary_fields
         )
-        charts = tuple(
-            ChartView(
-                key=chart.key,
-                title=chart.title,
-                question=chart.question,
-                series=tuple(presentation_by_name.get(name, MetricSeries(name=name)) for name in chart.metrics),
-            )
-            for chart in definition.charts
-            if any(by_name.get(name, MetricSeries(name=name)).points for name in chart.metrics)
-        )
+        charts = _chart_views(definition.charts, by_name, presentation_by_name)
         completeness = _evidence_completeness(
             definition,
             detail.resolved_inputs,

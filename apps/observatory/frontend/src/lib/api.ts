@@ -612,7 +612,7 @@ export type RunView = {
     view_kind: 'job.metrics' | 'job.evaluation' | 'job.serving' | 'generic';
     run: RunItem['run'];
     summary?: SummaryMetric[];
-    charts?: Array<{ key: string; title: string; question: string | null; series: MetricSeries[] }>;
+    charts?: Array<{ key: string; title: string; question: string | null; series: MetricSeries[]; grain?: 'update' | 'collection' }>;
     metric_help?: MetricHelp[];
     completeness?: {
       state: 'complete' | 'partial' | 'insufficient';
