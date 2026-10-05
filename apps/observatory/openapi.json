@@ -526,6 +526,7 @@
       "EntityName": {
         "enum": [
           "run",
+          "collection",
           "update",
           "rollout"
         ],

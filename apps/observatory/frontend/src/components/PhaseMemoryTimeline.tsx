@@ -236,7 +236,7 @@ function InferenceDetails({ system }: { system: SystemMetrics }) {
     runtime.environment_concurrency,
     runtime.inference_sequence_cap,
     runtime.rollouts_per_prompt,
-    runtime.rollouts_per_update,
+    runtime.rollouts_per_collection,
   ].some((value) => value != null);
   return <section aria-label="Inference details" className="border-b border-divider bg-[#fbfaf8] px-4 py-4">
     <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -290,7 +290,7 @@ function InferenceDetails({ system }: { system: SystemMetrics }) {
       <div><dt className="uppercase tracking-[.06em] text-muted">Environment concurrency</dt><dd className="mt-0.5 text-secondary">{runtime.environment_concurrency ?? '—'}</dd></div>
       <div><dt className="uppercase tracking-[.06em] text-muted">vLLM sequence cap</dt><dd className="mt-0.5 text-secondary">{runtime.inference_sequence_cap ?? '—'}</dd></div>
       <div><dt className="uppercase tracking-[.06em] text-muted">Rollouts / prompt</dt><dd className="mt-0.5 text-secondary">{runtime.rollouts_per_prompt ?? '—'}</dd></div>
-      <div><dt className="uppercase tracking-[.06em] text-muted">Rollouts / update</dt><dd className="mt-0.5 text-secondary">{runtime.rollouts_per_update ?? '—'}</dd></div>
+      <div><dt className="uppercase tracking-[.06em] text-muted">Rollouts / collection</dt><dd className="mt-0.5 text-secondary">{runtime.rollouts_per_collection ?? '—'}</dd></div>
     </dl>}
   </section>;
 }

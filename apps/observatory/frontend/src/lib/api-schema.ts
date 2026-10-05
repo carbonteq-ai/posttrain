@@ -853,7 +853,7 @@ export interface components {
             order_dimension?: string | null;
         };
         /** @enum {string} */
-        EntityName: "run" | "update" | "rollout";
+        EntityName: "run" | "collection" | "update" | "rollout";
         /** @enum {string} */
         EpisodeEnding: "completed" | "turn_limit" | "token_budget" | "time_limit" | "reply_token_limit" | "context_limit_reply_cut" | "context_rejected" | "error";
         /**

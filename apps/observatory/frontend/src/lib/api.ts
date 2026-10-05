@@ -793,7 +793,7 @@ export type SystemMetrics = {
     environment_concurrency: number | null;
     inference_sequence_cap: number | null;
     rollouts_per_prompt: number | null;
-    rollouts_per_update: number | null;
+    rollouts_per_collection: number | null;
   } | null;
 };
 

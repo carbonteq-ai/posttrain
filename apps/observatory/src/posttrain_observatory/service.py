@@ -1770,7 +1770,14 @@ class ObservatoryService:
         environment_concurrency = _config_positive_int(detail.resolved_inputs, "max_concurrent")
         inference_sequence_cap = _config_positive_int(detail.resolved_inputs, "max_num_seqs")
         rollouts_per_prompt = _config_positive_int(detail.resolved_inputs, "num_generations")
-        rollouts_per_update = _config_positive_int(detail.resolved_inputs, "global_batch_size")
+        # Rollouts in one collection (sampled population): prompt groups times attempts per prompt,
+        # else veRL's global batch. One collection may feed several optimizer updates.
+        prompts_per_collection = _config_positive_int(detail.resolved_inputs, "num_prompts_per_step")
+        rollouts_per_collection = (
+            prompts_per_collection * rollouts_per_prompt
+            if prompts_per_collection is not None and rollouts_per_prompt is not None
+            else _config_positive_int(detail.resolved_inputs, "global_batch_size")
+        )
         backend_runtime = (
             BackendRuntimeSummary(
                 kv_cache_capacity_tokens=kv_capacity,
@@ -1815,7 +1822,7 @@ class ObservatoryService:
                 environment_concurrency=environment_concurrency,
                 inference_sequence_cap=inference_sequence_cap,
                 rollouts_per_prompt=rollouts_per_prompt,
-                rollouts_per_update=rollouts_per_update,
+                rollouts_per_collection=rollouts_per_collection,
             )
             if any(
                 value is not None
@@ -1829,7 +1836,7 @@ class ObservatoryService:
                     environment_concurrency,
                     inference_sequence_cap,
                     rollouts_per_prompt,
-                    rollouts_per_update,
+                    rollouts_per_collection,
                 )
             )
             or mtp_selected

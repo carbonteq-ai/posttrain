@@ -1154,7 +1154,7 @@ class BackendRuntimeSummary(ObservatoryModel):
     environment_concurrency: int | None = Field(default=None, ge=1)
     inference_sequence_cap: int | None = Field(default=None, ge=1)
     rollouts_per_prompt: int | None = Field(default=None, ge=1)
-    rollouts_per_update: int | None = Field(default=None, ge=1)
+    rollouts_per_collection: int | None = Field(default=None, ge=1)
 
 
 class SystemMetricsView(ObservatoryModel):

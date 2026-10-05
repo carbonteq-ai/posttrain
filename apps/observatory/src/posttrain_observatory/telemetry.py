@@ -801,7 +801,7 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
         ChartDefinition(
             key="active_sampling",
             title="Active sampling",
-            question="How many generation rounds did each update need, what share of candidates had usable reward variation, and how did the candidate window divide?",
+            question="How many generation rounds did each collection need, what share of candidates had usable reward variation, and how did the candidate window divide?",
             metrics=(
                 "train/rl/active_sampling_generation_rounds",
                 "train/rl/active_sampling_retained_fraction",

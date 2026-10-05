@@ -1718,6 +1718,8 @@ async def test_nested_runtime_phases_do_not_double_count_host_samples(
     assert system.backend_runtime.rollout_tokens_per_second_mean == pytest.approx(157.1666666667)
     assert system.backend_runtime.rollout_seconds_latest == 14
     assert system.backend_runtime.rollouts_per_prompt == 4
+    # One collection: 6 prompt groups x 4 rollouts, however many optimizer updates it feeds.
+    assert system.backend_runtime.rollouts_per_collection == 24
     assert system.backend_runtime.mtp_selected is False
 
 

@@ -623,7 +623,7 @@ describe('Observatory React product shell', () => {
                 environment_concurrency: 64,
                 inference_sequence_cap: 64,
                 rollouts_per_prompt: 4,
-                rollouts_per_update: 128,
+                rollouts_per_collection: 128,
               },
             }
           : view;
@@ -702,7 +702,7 @@ describe('Observatory React product shell', () => {
     expect(inferenceDetails).toHaveTextContent('6 step samples');
     expect(inferenceDetails).toHaveTextContent('Environment concurrency64');
     expect(inferenceDetails).toHaveTextContent('vLLM sequence cap64');
-    expect(inferenceDetails).toHaveTextContent('Rollouts / update128');
+    expect(inferenceDetails).toHaveTextContent('Rollouts / collection128');
     await user.click(within(phaseProfile).getByRole('tab', { name: 'timeline' }));
     expect(screen.getByRole('img', { name: 'Runtime phase and GPU utilization timeline' })).toBeVisible();
     const computeChart = screen.getByRole('region', { name: 'Compute utilization system chart' });
@@ -1674,9 +1674,9 @@ describe('Observatory React product shell', () => {
     expect(optimizationChart).toBeVisible();
     expect(screen.queryByRole('region', { name: 'Rollout behavior' })).not.toBeInTheDocument();
     const rolloutSetup = screen.getByRole('region', { name: 'Rollout setup' });
-    expect(rolloutSetup).toHaveTextContent('Prompt groups / update32 · derived');
+    expect(rolloutSetup).toHaveTextContent('Prompt groups / collection32 · derived');
     expect(rolloutSetup).toHaveTextContent('Rollouts / prompt8');
-    expect(rolloutSetup).toHaveTextContent('Rollouts / update256');
+    expect(rolloutSetup).toHaveTextContent('Rollouts / collection256');
     expect(rolloutSetup).toHaveTextContent('Environment concurrency160');
     expect(rolloutSetup).toHaveTextContent('Inference sequence cap160');
     expect(rolloutSetup).toHaveTextContent('AccelerationMTP · 3 draft tokens');

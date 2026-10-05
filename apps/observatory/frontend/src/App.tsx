@@ -626,6 +626,16 @@ function grpoRolloutParameters(
     : null;
   const promptGroups = configuredPromptGroups ?? derivedPromptGroups;
   const promptGroupsValue = methodValue(promptGroups);
+  // One collection (sampled population) may feed several optimizer updates.
+  const rolloutsPerCollection = typeof promptGroups === 'number' && typeof generations === 'number'
+    ? promptGroups * generations
+    : globalBatch;
+  const scheduleUnit = nestedValue(settings, 'policy_updates', 'schedule', 'unit');
+  const scheduleBudget = nestedValue(settings, 'policy_updates', 'schedule', 'budget');
+  const scheduleEpochs = nestedValue(settings, 'policy_updates', 'schedule', 'epochs');
+  const updateSchedule = typeof scheduleUnit === 'string' && typeof scheduleBudget === 'number'
+    ? `${scheduleBudget} ${scheduleUnit}${scheduleBudget === 1 ? '' : 's'} per update${typeof scheduleEpochs === 'number' && scheduleEpochs > 1 ? ` · ${scheduleEpochs} passes` : ''}`
+    : null;
   const speculativeMethod = nestedValue(rolloutInference, 'engine', 'speculative_config', 'method');
   const speculativeTokens = nestedValue(rolloutInference, 'engine', 'speculative_config', 'num_speculative_tokens');
   const acceleration = typeof speculativeMethod === 'string'
@@ -636,9 +646,10 @@ function grpoRolloutParameters(
     methodValue(nestedValue(settings, 'max_completion_length'), 'tokens'),
   ].filter(Boolean).join(' / ') || null;
   return [
-    ['Prompt groups / update', promptGroupsValue && configuredPromptGroups == null ? `${promptGroupsValue} · derived` : promptGroupsValue],
+    ['Prompt groups / collection', promptGroupsValue && configuredPromptGroups == null ? `${promptGroupsValue} · derived` : promptGroupsValue],
     ['Rollouts / prompt', methodValue(generations)],
-    ['Rollouts / update', methodValue(globalBatch)],
+    ['Rollouts / collection', methodValue(rolloutsPerCollection)],
+    ['Update schedule', updateSchedule],
     ['Environment concurrency', methodValue(nestedValue(environment, 'max_concurrent'))],
     ['Inference sequence cap', methodValue(nestedValue(rolloutInference, 'engine', 'max_num_seqs'))],
     ['Temperature / top-p', [
@@ -2006,7 +2017,7 @@ function GenericOverview({
               {unrecordedSeries.length > 0 && (
                 <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
                   Not recorded by this run: {unrecordedSeries.map((series) => chartLabels[series.name] ?? helpByMetric.get(series.name)?.label ?? metricLabel(series.name)).join(', ')}.
-                  {isSampo && chart?.key === 'hierarchical_credit' ? ' This run\'s trainer predates the credit metrics; SAMPO runs from newer trainers record them each update.' : ''}
+                  {isSampo && chart?.key === 'hierarchical_credit' ? ' This run\'s trainer predates the credit metrics; SAMPO runs from newer trainers record them for each collection.' : ''}
                 </p>
               )}
               {isGroupPolicy && chart?.key === 'optimization' && rolloutBehaviorLoading && <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">Reading retained rollout evidence…</p>}
