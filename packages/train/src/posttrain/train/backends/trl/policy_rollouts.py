@@ -273,7 +273,78 @@ def _report_device_memory(context: RunContext, step: int) -> None:
         + ", ".join(f"{name.rsplit('/', 1)[-1]}={value:.2f}" for name, value in values.items()),
         flush=True,
     )
+    for line in _device_memory_layout():
+        print(f"device memory before sampler wake: {line}", flush=True)  # noqa: T201
     context.metrics(values, step=step, attributes={"measurement_scope": "sampler-wake"})
+
+
+def _device_memory_layout(top: int = 8) -> list[str]:
+    """Why reserved memory exceeds live memory: the allocator's mapped segments and the live tensors.
+
+    Live blocks are bucketed by size (a few small live blocks scattered through a
+    large mapped range keep that range from being released), and live tensors are
+    grouped by shape and dtype, one count per storage.
+    """
+    import gc
+    import warnings
+
+    import torch
+
+    mib = 1024**2
+    segments = torch.cuda.memory._snapshot()["segments"]
+    buckets = {"<1MiB": [0, 0], "1-20MiB": [0, 0], "20-200MiB": [0, 0], ">=200MiB": [0, 0]}
+    for segment in segments:
+        for block in segment["blocks"]:
+            if block["state"] != "active_allocated":
+                continue
+            size = block["size"]
+            key = (
+                "<1MiB"
+                if size < mib
+                else "1-20MiB"
+                if size < 20 * mib
+                else "20-200MiB"
+                if size < 200 * mib
+                else ">=200MiB"
+            )
+            buckets[key][0] += 1
+            buckets[key][1] += size
+    stats = torch.cuda.memory_stats()
+    lines = [
+        f"segments={len(segments)} mapped={sum(s['total_size'] for s in segments) / mib:.0f}MiB "
+        f"live={sum(s['allocated_size'] for s in segments) / mib:.0f}MiB "
+        f"inactive_split={stats.get('inactive_split_bytes.all.current', 0) / mib:.0f}MiB "
+        f"alloc_retries={stats.get('num_alloc_retries', 0)} "
+        + " ".join(f"live[{key}]={count}/{size / mib:.0f}MiB" for key, (count, size) in buckets.items())
+    ]
+    seen: set[int] = set()
+    groups: dict[tuple[str, str, str], list[int]] = {}
+    with warnings.catch_warnings():
+        # isinstance probes deprecated module attributes on some objects.
+        warnings.simplefilter("ignore")
+        tensors = [obj for obj in gc.get_objects() if isinstance(obj, torch.Tensor) and obj.is_cuda]
+    for obj in tensors:
+        try:
+            storage = obj.untyped_storage()
+        except Exception:  # noqa: BLE001 - lazily materialized or freed objects
+            continue
+        if storage.data_ptr() in seen:
+            continue
+        seen.add(storage.data_ptr())
+        kind = "parameter" if isinstance(obj, torch.nn.Parameter) else "tensor"
+        entry = groups.setdefault((kind, str(tuple(obj.shape)), str(obj.dtype)), [0, 0])
+        entry[0] += 1
+        entry[1] += storage.nbytes()
+    ranked = sorted(groups.items(), key=lambda item: -item[1][1])
+    lines.append(
+        f"live tensors: {sum(count for count, _ in groups.values())} storages "
+        f"{sum(size for _, size in groups.values()) / mib:.0f}MiB; largest groups: "
+        + "; ".join(
+            f"{kind} {shape} {dtype} x{count} {size / mib:.0f}MiB"
+            for (kind, shape, dtype), (count, size) in ranked[:top]
+        )
+    )
+    return lines
 
 
 def _observe_collection(
