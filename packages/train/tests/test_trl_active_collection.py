@@ -71,7 +71,13 @@ def _settings(**changes: Any) -> SAMPOSettings:
     return SAMPOSettings("settings/active@1", TrainingLoop(max_steps=2, per_device_batch_size=1), **(values | changes))
 
 
-def _collect(tmp_path, monkeypatch, rewards: dict[str, list[float]], settings: SAMPOSettings | None = None):
+def _collect(
+    tmp_path,
+    monkeypatch,
+    rewards: dict[str, list[float]],
+    settings: SAMPOSettings | None = None,
+    candidates: Any = None,
+):
     published: list[Any] = []
     admitted: dict[str, Any] = {}
     collected: list[tuple[str, ...]] = []
@@ -131,7 +137,7 @@ def _collect(tmp_path, monkeypatch, rewards: dict[str, list[float]], settings: S
         cast(SAMPORequest, request),
         object(),
         trainer,
-        reserved,
+        candidates if candidates is not None else reserved,
         capabilities(),
         evidence_directory=tmp_path / "evidence",
         population_id="population@1",
@@ -201,6 +207,47 @@ def test_surplus_groups_are_kept_in_candidate_order_or_by_learning_signal(tmp_pa
     assert metrics["train/rl/active_sampling_retained_signal_mean"] == pytest.approx(0.5 if kept == "b" else 0.1)
 
 
+def test_curriculum_chooses_each_round_after_observing_the_earlier_ones(tmp_path, monkeypatch):
+    from posttrain.train.backends.trl.policy_rollouts import CurriculumCandidates
+
+    calls: list[tuple[Any, ...]] = []
+
+    class Runtime:
+        offered = iter(("a", "b", "c"))
+
+        def select_task_groups(self, count, *, step, selection_kind, round_index):
+            calls.append(("select", count, step, selection_kind, round_index))
+            return [
+                {"example_id": task, "prompt": []}
+                for task in [next(self.offered) for _ in range(count)]
+                for _ in range(2)
+            ]
+
+        def observe_groups(self, groups, *, step):
+            calls.append(("observe", step, [(task, list(rewards)) for task, rewards in groups]))
+
+    settings = _settings(adaptive_curriculum=AdaptiveCurriculum("domain", policy="yield_first"))
+    # a is uniform (no spread) so a refill is needed; b's penalty below zero is clamped for the curriculum.
+    run, published, admitted, collected = _collect(
+        tmp_path,
+        monkeypatch,
+        {"a": [0.0, 0.0], "b": [-0.04, 1.0], "c": [1.0, 1.0]},
+        settings,
+        CurriculumCandidates(Runtime(), 2, 2),
+    )
+    run()
+    assert calls == [
+        ("select", 1, 2, "initial_batch", 1),
+        ("observe", 2, [("a", [0.0, 0.0])]),
+        ("select", 1, 2, "active_sampling_refill", 2),
+        ("observe", 2, [("b", [0.0, 1.0])]),
+    ]
+    assert [rollout.example_id for rollout in admitted["population"]] == ["b", "b"]
+    final = _snapshots(published)[-1]
+    assert final["candidate_source"] == "adaptive_curriculum"
+    assert final["reserved"] == [{"uid": "candidate-0", "task": "a"}, {"uid": "candidate-1", "task": "b"}]
+
+
 def test_learning_signal_retention_requires_the_resolved_engine():
     with pytest.raises(ValueError, match="requires explicit policy_updates"):
         SAMPOSettings(
@@ -224,7 +271,7 @@ def test_active_collection_records_failed_groups_and_exhaustion(tmp_path, monkey
     assert not admitted, "no population is admitted without a full informative selection"
 
 
-def test_resolved_job_admits_sampo_active_rounds_but_not_curriculum():
+def test_resolved_job_admits_sampo_active_rounds_with_or_without_a_curriculum():
     def request(**changes: Any) -> SAMPORequest:
         # Bypass request construction, which keeps the public resolved guard.
         value = object.__new__(SAMPORequest)
@@ -240,8 +287,8 @@ def test_resolved_job_admits_sampo_active_rounds_but_not_curriculum():
         return value
 
     validate_resolved_job(request())
-    with pytest.raises(InvalidPolicyUpdate, match="curriculum"):
-        validate_resolved_job(request(adaptive_curriculum=AdaptiveCurriculum("domain")))
+    # The curriculum chooses SAMPO's active-round candidates (VORTEX yield-first or quota).
+    validate_resolved_job(request(adaptive_curriculum=AdaptiveCurriculum("domain", policy="yield_first")))
 
 
 def test_resolved_arguments_drop_native_refill_and_precomputed_advantage_transport():

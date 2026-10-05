@@ -215,7 +215,9 @@ def _run_online_rl(
             resume_checkpoint=request.resume_from.path if request.resume_from is not None else None,
             warm_start_state_dir=curriculum_from.path if curriculum_from is not None else None,
         )
-        trainer_type = _adaptive_curriculum_trainer_type(trainer_type, curriculum)
+        if not resolved_selection:
+            # The resolved job asks the curriculum for each collection round instead.
+            trainer_type = _adaptive_curriculum_trainer_type(trainer_type, curriculum)
     # A host cancellation lands between optimizer updates, and the last completed
     # update is saved as a checkpoint before the run finalizes as cancelled.
     update_boundary = UpdateBoundary(controller_state=curriculum.capture_state if curriculum is not None else None)
@@ -239,6 +241,7 @@ def _run_online_rl(
             arguments["temperature"],
             rollout_totals,
             retries,
+            curriculum=curriculum,
         )
         dataset = imports["Dataset"].from_list(
             [{"resolved_update": index} for index in range(request.settings.loop.max_steps)]

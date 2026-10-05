@@ -1658,6 +1658,19 @@ owner = "posttrain-platform"
 replacement_condition = "Retire once the normalization for the 100-update 2.6B run is chosen and recorded in docs/plan/automationbench-manifest-reward-release-and-sampo.md."
 
 [[gates]]
+id = "lfm12-automationbench-manifest-steps-vortex-local"
+work_package = ".posttrain/work_packages/lfm12_automationbench_manifest_steps_vortex_local.yaml"
+job_id = "sampo"
+tier = "experimental"
+state = "candidate"
+job_kind = "train.sampo"
+acceptance = "verifiers-trajectories"
+experiment_family = "automationbench-manifest-steps-v1"
+hypothesis = "On the resolved SAMPO engine, the yield-first adaptive curriculum chooses each active round's tasks by domain after observing the earlier rounds, surplus groups are kept by learning signal, gradients are finite and non-zero, and the curriculum state is saved with the checkpoint."
+owner = "posttrain-platform"
+replacement_condition = "Retire once a 2.6B run uses the curriculum on the resolved engine."
+
+[[gates]]
 id = "lfm12-automationbench-manifest-steps-smoke-local-vllm"
 work_package = ".posttrain/work_packages/lfm12_automationbench_manifest_steps_smoke_local_vllm.yaml"
 job_id = "sampo"

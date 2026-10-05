@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field, fields, is_dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from posttrain.common import RunContext
@@ -25,7 +25,7 @@ from ...update_sampler_correction import recipe_sampler_correction_weights, samp
 from ...update_telemetry import update_metrics
 from ...update_transport import decode_population_payload
 from ..policy_update_admission import AdmittedNativePopulation
-from .policy_rollouts import collect_active_resolved_population, collect_resolved_population
+from .policy_rollouts import CurriculumCandidates, collect_active_resolved_population, collect_resolved_population
 from .policy_updates import ResolvedTRLPopulation, ResolvedTRLRun
 from .update_totals import RolloutUpdateTotals
 
@@ -85,7 +85,8 @@ def validate_resolved_job(request: GRPORequest | SAMPORequest | GDPORequest | CA
     if (
         (getattr(settings, "active_sampling", None) is not None and not isinstance(request, SAMPORequest))
         or getattr(settings, "dynamic_sampling", None) is not None
-        or getattr(settings, "adaptive_curriculum", None) is not None
+        # A curriculum chooses the active rounds' candidates, which only SAMPO's resolved collection runs.
+        or (getattr(settings, "adaptive_curriculum", None) is not None and not isinstance(request, SAMPORequest))
     ):
         raise InvalidPolicyUpdate(
             "resolved TRL job has not qualified production filtering/refill/curriculum composition"
@@ -215,6 +216,9 @@ class ResolvedTRLJob:
     score_temperature: float
     totals: RolloutUpdateTotals
     max_overflow_retries: int = 0
+    # The adaptive curriculum runtime (VORTEX yield-first or quota), when selected: it chooses
+    # each active round's tasks instead of the shuffled inventory.
+    curriculum: Any = None
     trainer: Any = field(default=None, init=False, repr=False)
     run: ResolvedTRLRun = field(init=False)
     capabilities: ExecutionCapabilities = field(init=False)
@@ -337,19 +341,32 @@ class ResolvedTRLJob:
     def collect(self, applied: int, attempts: int) -> ResolvedTRLPopulation:
         if self.trainer is None or self.trainer.state.global_step != applied:
             raise InvalidPolicyUpdate("resolved job collector is not bound at the native applied boundary")
-        ordered = list(self.rows)
-        if self.request.settings.shuffle_prompts:
-            random.Random(self.request.settings.loop.seed + applied).shuffle(ordered)
         active = isinstance(self.request, SAMPORequest) and self.request.settings.active_sampling is not None
-        start = (applied * self.reservation if active else applied) % len(ordered)
-        selected = [ordered[(start + index) % len(ordered)] for index in range(self.reservation)]
-        selection: dict[str, object] = {
-            "schema": "posttrain.resolved-task-selection@1",
-            "applied": applied,
-            "tasks": [row["example_id"] for row in selected],
-            "seed": self.request.settings.loop.seed,
-            "shuffle": self.request.settings.shuffle_prompts,
-        }
+        candidates: Any
+        if self.curriculum is not None:
+            # The curriculum decides each round after observing the earlier ones; its decisions and
+            # evidence are journaled by the runtime and the collection evidence records the tasks.
+            candidates = CurriculumCandidates(self.curriculum, applied + 1, self.request.settings.num_generations)
+            selection: dict[str, object] = {
+                "schema": "posttrain.resolved-task-selection@1",
+                "applied": applied,
+                "selector": "adaptive-curriculum",
+                "curriculum": asdict(cast(Any, self.request.settings).adaptive_curriculum),
+                "decision_index": self.curriculum.controller.decision_index,
+            }
+        else:
+            ordered = list(self.rows)
+            if self.request.settings.shuffle_prompts:
+                random.Random(self.request.settings.loop.seed + applied).shuffle(ordered)
+            start = (applied * self.reservation if active else applied) % len(ordered)
+            candidates = [ordered[(start + index) % len(ordered)] for index in range(self.reservation)]
+            selection = {
+                "schema": "posttrain.resolved-task-selection@1",
+                "applied": applied,
+                "tasks": [row["example_id"] for row in candidates],
+                "seed": self.request.settings.loop.seed,
+                "shuffle": self.request.settings.shuffle_prompts,
+            }
         if active:
             assert isinstance(self.request, SAMPORequest)
             selection["active_sampling"] = asdict(self.request.settings.active_sampling)
@@ -371,13 +388,13 @@ class ResolvedTRLJob:
                 self.request,
                 self.tokenizer,
                 self.trainer,
-                selected,
+                candidates,
                 self.capabilities,
                 evidence_directory=Path(self.trainer.args.output_dir).parent / "collection-evidence",
                 **common,
             )
         else:
-            rows = [row for row in selected for _ in range(self.request.settings.num_generations)]
+            rows = [row for row in candidates for _ in range(self.request.settings.num_generations)]
             admitted = collect_resolved_population(
                 self.context, self.request, self.tokenizer, self.trainer, rows, self.capabilities, **common
             )

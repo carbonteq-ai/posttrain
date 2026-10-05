@@ -6,7 +6,7 @@ import asyncio
 import math
 import time
 from collections.abc import Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from statistics import fmean
 from typing import Any, Literal, cast
@@ -99,12 +99,68 @@ def collect_resolved_population(
     return admitted
 
 
+class CandidateSource:
+    """Where an active collection's rounds take their candidate tasks (one row per prompt group)."""
+
+    kind = "abstract"
+
+    def take(self, count: int, *, round_index: int) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    def observe(self, groups: Sequence[tuple[str, Sequence[float]]]) -> None:
+        """Task rewards of each group of the round just generated."""
+
+
+@dataclass
+class ReservedCandidates(CandidateSource):
+    """A pool reserved before generation (the job's shuffled inventory slice), taken in order."""
+
+    rows: Sequence[dict[str, Any]]
+    cursor: int = 0
+    kind = "reserved"
+
+    def take(self, count: int, *, round_index: int) -> list[dict[str, Any]]:
+        taken = list(self.rows[self.cursor : self.cursor + count])
+        self.cursor += len(taken)
+        return taken
+
+
+@dataclass
+class CurriculumCandidates(CandidateSource):
+    """Each round asks the adaptive curriculum, which has observed every earlier round of the collection.
+
+    The curriculum models task success and whether a task yields reward spread on the
+    environment's task reward scale, so each episode's task reward is clamped to [0, 1]:
+    a penalty below zero counts as a failed attempt rather than invalidating the group.
+    """
+
+    runtime: Any
+    step: int
+    num_generations: int
+    kind = "adaptive_curriculum"
+
+    def take(self, count: int, *, round_index: int) -> list[dict[str, Any]]:
+        rows = self.runtime.select_task_groups(
+            count,
+            step=self.step,
+            selection_kind="initial_batch" if round_index == 1 else "active_sampling_refill",
+            round_index=round_index,
+        )
+        return [dict(row) for row in rows[:: self.num_generations]]
+
+    def observe(self, groups: Sequence[tuple[str, Sequence[float]]]) -> None:
+        self.runtime.observe_groups(
+            [(task, [min(max(float(value), 0.0), 1.0) for value in rewards]) for task, rewards in groups],
+            step=self.step,
+        )
+
+
 def collect_active_resolved_population(
     context: RunContext,
     request: SAMPORequest,
     tokenizer: Any,
     trainer: Any,
-    reserved: list[dict[str, Any]],
+    candidates: Sequence[dict[str, Any]] | CandidateSource,
     capabilities: ExecutionCapabilities,
     *,
     evidence_directory: Path,
@@ -117,7 +173,7 @@ def collect_active_resolved_population(
     totals: RolloutUpdateTotals | None = None,
     process_credit: Any = None,
 ) -> AdmittedNativePopulation:
-    """Run TRL post11 active rounds over one reserved task pool, then admit the selection.
+    """Run TRL post11 active rounds over reserved or curriculum-chosen candidates, then admit the selection.
 
     The resolved path collects explicit rows rather than TRL's dataloader, so the
     native refill cannot run here; ``ActiveRoundPlan`` applies TRL's exact round
@@ -137,8 +193,10 @@ def collect_active_resolved_population(
         getattr(bridge, "retain_population", None)
     ):
         raise InvalidPolicyUpdate("resolved collection requires native conditioning and retained artifact support")
-    if settings.policy_updates is None or active is None or settings.adaptive_curriculum is not None:
-        raise InvalidPolicyUpdate("resolved active collection requires explicit updates and no curriculum")
+    if settings.policy_updates is None or active is None:
+        raise InvalidPolicyUpdate("resolved active collection requires explicit updates and active sampling")
+    if (settings.adaptive_curriculum is not None) != isinstance(candidates, CurriculumCandidates):
+        raise InvalidPolicyUpdate("resolved active collection takes candidates from its selected curriculum only")
     if trainer.accelerator.num_processes != 1 or bool(getattr(trainer, "active_sampling", False)):
         raise InvalidPolicyUpdate("resolved active collection replaces, and cannot nest, native TRL refills")
     applied = trainer.state.global_step
@@ -148,16 +206,20 @@ def collect_active_resolved_population(
     plan = ActiveRoundPlan(
         settings.num_prompts_per_step, active.max_candidate_batches, active.oversample, active.oversample_refill
     )
-    tasks = [str(row["example_id"]) for row in reserved]
-    if len(tasks) != plan.pool or len(set(tasks)) != len(tasks):
-        raise InvalidPolicyUpdate("resolved active collection requires one distinct task per reserved candidate")
+    source = candidates if isinstance(candidates, CandidateSource) else ReservedCandidates(candidates)
+    if isinstance(source, ReservedCandidates):
+        tasks = [str(row["example_id"]) for row in source.rows]
+        if len(tasks) != plan.pool or len(set(tasks)) != len(tasks):
+            raise InvalidPolicyUpdate("resolved active collection requires one distinct task per reserved candidate")
     generations = settings.num_generations
     state: dict[str, Any] = {
         "schema": "posttrain.trl-active-collection@1",
         "sampler_step": applied,
         "metric": "shaped_reward",
         "reward_std_epsilon": 0.0,
-        "reserved": [{"uid": f"candidate-{index}", "task": task} for index, task in enumerate(tasks)],
+        "candidate_source": source.kind,
+        # Candidates as each round takes them (a curriculum chooses refills after observing earlier rounds).
+        "reserved": [],
         "rounds": [],
         "groups": [],
         "selected": None,
@@ -171,21 +233,30 @@ def collect_active_resolved_population(
         while (next_round := plan.next_round()) is not None:
             requested, size = next_round
             batch = list(range(plan.cursor, plan.cursor + size))
+            round_rows = source.take(size, round_index=plan.rounds + 1)
+            round_tasks = [str(row["example_id"]) for row in round_rows]
+            taken = {entry["task"] for entry in state["reserved"]}
+            if len(round_rows) != size or len(set(round_tasks)) != size or taken & set(round_tasks):
+                raise InvalidPolicyUpdate("resolved active round requires distinct tasks not taken earlier")
+            tasks_by_index = dict(zip(batch, round_tasks, strict=True))
+            state["reserved"].extend({"uid": f"candidate-{index}", "task": tasks_by_index[index]} for index in batch)
             state["rounds"].append({"index": plan.rounds + 1, "uids": [f"candidate-{index}" for index in batch]})
             state["status"] = "dispatching"
             publish_collection_snapshot(context, destination, state)
-            rows = [reserved[index] for index in batch for _ in range(generations)]
+            rows = [dict(row) for row in round_rows for _ in range(generations)]
             rollouts = collector([row["prompt"] for row in rows], trainer, inputs=rows)
             if not isinstance(rollouts, tuple):
                 raise InvalidPolicyUpdate("resolved collector returned flattened trainer rows")
             by_task: dict[str, list[EnvironmentRollout]] = {}
             for rollout in rollouts:
-                if rollout.example_id not in {tasks[index] for index in batch}:
+                if rollout.example_id not in tasks_by_index.values():
                     raise InvalidPolicyUpdate("resolved active round returned an unreserved task")
                 by_task.setdefault(rollout.example_id, []).append(rollout)
+            # The source sees every group's task rewards before the next round is chosen.
+            source.observe([(task, [rollout.reward for rollout in by_task.get(task, ())]) for task in round_tasks])
             kept = 0
             for index in batch:
-                group = tuple(by_task.get(tasks[index], ()))
+                group = tuple(by_task.get(tasks_by_index[index], ()))
                 complete = len(group) == generations
                 rewards = [
                     shape_online_reward(

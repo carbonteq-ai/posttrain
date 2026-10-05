@@ -172,6 +172,19 @@ environment:
     num_rollouts: 8
     max_concurrent: 8
 
+  # The 8 GB card's VORTEX check: the local g8 environment with the task domain exposed as a
+  # facet, so the adaptive curriculum can choose tasks by domain and record per-domain evidence.
+  automationbench-manifest-steps-mixv2-vortex-local-v1:
+    <<: *automationbench_manifest_steps
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 1.0}
+    num_rollouts: 4
+    max_concurrent: 8
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
   # The 2.6B comparison environment: cont100's (the run after the H100 one) 16 turns with a
   # 4096-token reply budget and 12288 output tokens per episode, 8 attempts per task,
   # with manifest findings and manifest step credit selected.
@@ -667,6 +680,57 @@ training:
       schedule: {unit: episode, budget: 4, epochs: 1, order: native, max_applied_updates: 4}
       execution: {records: 1, context_tokens: 8192, statistic_bytes: 67108864}
 
+  # VORTEX on the resolved SAMPO engine, on the 8 GB card: the yield-first adaptive
+  # curriculum chooses each active round's tasks by domain after observing the earlier
+  # rounds, one extra group per round is generated and the group with the most learning
+  # signal is kept, with SAMPO's credit, KL to the base, truncation penalty and per-token
+  # sampler correction. 1 prompt x 4 attempts per collection (the oversampled first round,
+  # 2 x 4, fits the engine's 8 sequences), 2 updates per collection, 4 collections.
+  lfm2.5-1.2b/automationbench-manifest-steps-vortex-local-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 8
+      max_length: 8192
+      learning_rate: 0.00006
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 8
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 42
+    num_prompts_per_step: 1
+    num_generations: 4
+    max_prompt_length: 5120
+    max_completion_length: 1024
+    beta: 0.01
+    kl_reference: base
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    clip_epsilon_low: 0.003
+    clip_epsilon_high: 0.004
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 4, oversample: 1, oversample_refill: 1, retain: learning_signal}
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
+    truncation_penalty: 0.1
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    policy_updates:
+      schedule: {unit: episode, budget: 2, epochs: 1, order: native, max_applied_updates: 8}
+      execution: {records: 1, context_tokens: 8192, statistic_bytes: 67108864}
+
   training/lfm2.5-1.2b-trl-lora-manifest-ws@1:
     selection_type: training-binding
     revision: "1"
@@ -713,6 +777,25 @@ training:
     target: targets/pop-os-rtx-3070ti-8gb
     parallelism: {sequence_length_divisor: 2}
     runtime: {global_batch_size: 8, devices_per_node: 1, timeout_seconds: 7200}
+    backend_options:
+      rollout_execution: {env_workers: 2, episodes_per_worker: 4, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      training_precision: bf16
+      dependency_lock: trl-fork@current
+      source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
+      dependency_lock_sha256: 79ca6e4c5f73dd354f331f3007deed379d1992d66caaf4e92ba38e45944ab35f
+
+  # The VORTEX local check's binding: one prompt x 4 attempts per collection.
+  training/lfm2.5-1.2b-trl-lora-manifest-vortex-local@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post14
+    renderer: {id: lfm2.5-tools@1, model_family: lfm2.5, implementation: default, reasoning_mode: native}
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/pop-os-rtx-3070ti-8gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 4, devices_per_node: 1, timeout_seconds: 7200}
     backend_options:
       rollout_execution: {env_workers: 2, episodes_per_worker: 4, worker_native_threads: 1}
       use_liger_kernel: false
