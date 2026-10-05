@@ -159,7 +159,7 @@ def encode_episode(
 
 
 def _parametrized(origin: Any, args: tuple[Any, ...]) -> Any:
-    return origin[args if len(args) > 1 else args[0]]
+    return origin[args]
 
 
 class _EpisodePickler(pickle.Pickler):

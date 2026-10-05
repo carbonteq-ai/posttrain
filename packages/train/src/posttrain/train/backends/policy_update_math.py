@@ -39,8 +39,8 @@ class ScoreBundle:
 class ObjectiveEvaluation:
     """The objective's value and its per-position evidence.
 
-    ``ratios`` holds each ratio-supported position's importance ratio (with the
-    objective's graph) and ``clipped`` marks the selected policy positions whose
+    ``ratios`` holds each ratio-supported position's importance ratio (detached,
+    on the host) and ``clipped`` marks the selected policy positions whose
     clipped surrogate was active; both have one entry per population position.
     """
 
@@ -104,10 +104,18 @@ def evaluate(term: ResolvedObjectiveTerm, credit: PreparedCredit, scores: ScoreB
     supported_ratio = log_ratio.exp()
     if not bool(torch.isfinite(supported_ratio).all()):
         raise InvalidPolicyUpdate("non-finite importance ratio; no implicit cap is qualified")
-    ratios = torch.zeros(size, dtype=supported_ratio.dtype, device=device).index_put((index,), supported_ratio)
+    support_positions = np.flatnonzero(support)
     policy_positions = np.flatnonzero(policy)
     policy_index = torch.as_tensor(policy_positions, dtype=torch.long, device=device)
-    ratio = ratios[policy_index]
+    # Every selected policy position has ratio support (ResolvedObjectiveTerm checks it).
+    ratio = supported_ratio[
+        torch.as_tensor(np.searchsorted(support_positions, policy_positions), dtype=torch.long, device=device)
+    ]
+    # Per-position ratios are evidence only: kept detached on the host, so no
+    # population-sized tensor outlives the update on the device.
+    ratios = torch.zeros(size, dtype=torch.float32).index_put(
+        (torch.as_tensor(support_positions, dtype=torch.long),), supported_ratio.detach().float().cpu()
+    )
     selected_current = current[policy_index]
     if definition.derivative == "token-local":
         ratio = (ratio.log().detach() + selected_current - selected_current.detach()).exp()

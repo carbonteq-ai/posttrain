@@ -308,7 +308,7 @@ def restore_population_recovery(
     if json.loads(json.dumps(canonical, allow_nan=False)) != expected:
         raise InvalidPolicyUpdate("recovery retained population/credit differs from selected resolved inputs")
     try:
-        payload = torch.load(checkpoint / SCORES_FILENAME, weights_only=True, map_location=device)
+        payload = torch.load(checkpoint / SCORES_FILENAME, weights_only=True, map_location="cpu")
     except (OSError, ValueError, RuntimeError) as error:
         raise InvalidPolicyUpdate("retained frozen policy scores cannot be loaded") from error
     expected_roles = {"old"} | ({"reference"} if population.spec.beta else set())

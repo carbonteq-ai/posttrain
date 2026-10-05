@@ -244,6 +244,35 @@ def collect_active_resolved_population(
     return admitted
 
 
+def _report_device_memory(context: RunContext, step: int) -> None:
+    """Device memory the trainer holds as colocated vLLM wakes, and its peak since the last wake.
+
+    The sampler reclaims a fixed share of the device on wake; these values show
+    what the trainer still holds when it does, so a wake-up out-of-memory can be
+    attributed (live tensors versus allocator reservation versus other users).
+    """
+    import torch
+
+    if not torch.cuda.is_available():
+        return
+    free, total = torch.cuda.mem_get_info()
+    gib = 1024**3
+    values = {
+        "train/rl/device_memory_allocated_gib": torch.cuda.memory_allocated() / gib,
+        "train/rl/device_memory_reserved_gib": torch.cuda.memory_reserved() / gib,
+        "train/rl/device_memory_free_gib": free / gib,
+        "train/rl/device_memory_total_gib": total / gib,
+        "train/rl/device_memory_peak_allocated_gib": torch.cuda.max_memory_allocated() / gib,
+    }
+    torch.cuda.reset_peak_memory_stats()
+    print(  # noqa: T201 - also in job logs, next to the sampler's own wake-up errors
+        "device memory before sampler wake: "
+        + ", ".join(f"{name.rsplit('/', 1)[-1]}={value:.2f}" for name, value in values.items()),
+        flush=True,
+    )
+    context.metrics(values, step=step + 1, attributes={"measurement_scope": "sampler-wake"})
+
+
 def _observe_collection(
     context: RunContext,
     settings: Any,
@@ -394,10 +423,15 @@ def rollout_function(
                     trainer.vllm_generation.sync_weights()
                     trainer._last_loaded_step = trainer.state.global_step  # noqa: SLF001
                 # Waking colocated vLLM needs the memory the trainer's allocator still
-                # caches; TRL's batch generation path releases it the same way.
+                # caches; TRL's batch generation path releases it the same way. Collect
+                # unreachable objects first so no dead tensor keeps a block reserved.
+                import gc
+
                 from trl.generation.vllm_generation import empty_cache
 
+                gc.collect()
                 empty_cache()
+                _report_device_memory(context, optimizer_step)
                 outcomes = runtime.collect(
                     selected,
                     collection_id=f"step-{optimizer_step:08d}/collection-{collection_ordinal:06d}",

@@ -442,7 +442,7 @@ class ResolvedVeRLPopulation:
                 snapshot.versions.old_score,
                 self.score_contract,
                 self.score_temperature,
-                dense_scores(snapshot.size, (old,), device=old.values.device).detach().clone(),
+                dense_scores(snapshot.size, (old,), device=old.values.device).detach().cpu(),
             )
         self.old.validate(
             snapshot,

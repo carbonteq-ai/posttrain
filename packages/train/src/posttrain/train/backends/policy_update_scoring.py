@@ -252,7 +252,7 @@ def dense_scores(size: int, parts: Sequence[PositionScores], *, device: torch.de
 class FrozenPopulationScores:
     """Detached scores bound to one admitted population and score contract.
 
-    ``values`` is a float32 tensor with one score per population position.
+    ``values`` is a float32 host tensor with one score per population position.
     """
 
     population_digest: str
@@ -311,7 +311,10 @@ def freeze_population_scores(
             device=device,
             score_temperature=score_temperature,
         )
-        values = dense_scores(snapshot.size, (scored,), device=device).detach().clone()
+        # Frozen scores live on the host (a few MB) and are copied to the device
+        # inside each evaluation, so nothing population-sized stays allocated in
+        # the middle of the training step's activation memory.
+        values = dense_scores(snapshot.size, (scored,), device=device).detach().cpu()
     frozen = FrozenPopulationScores(snapshot.digest, policy_version, score_contract, score_temperature, values)
     frozen.validate(
         snapshot, policy_version=policy_version, score_contract=score_contract, score_temperature=score_temperature

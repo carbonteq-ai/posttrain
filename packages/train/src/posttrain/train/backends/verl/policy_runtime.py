@@ -118,7 +118,7 @@ def base_reference_provider(manifest: VerlLaunchManifest, engine: Any):
             snapshot.versions.reference,
             population.score_contract,
             population.score_temperature,
-            dense_scores(snapshot.size, (values,), device=values.values.device).detach().clone(),
+            dense_scores(snapshot.size, (values,), device=values.values.device).detach().cpu(),
         )
 
     return score
