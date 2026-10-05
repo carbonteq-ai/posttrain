@@ -1550,6 +1550,24 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         aggregation="last",
         job_kinds=RESOLVED_UPDATE_KINDS,
     ),
+    _entry(
+        "train/rl/active_sampling_retained_signal_mean",
+        "retained_signal",
+        "Learning signal of trained groups",
+        "Mean learning signal of the prompt groups kept for training: how far each group's shaped rewards sit from their group mean (the episode advantage magnitude under mean normalization).",
+        interpretation="Higher means the trained groups separate better from worse attempts more sharply; with learning-signal retention it should sit at or above the eligible-group mean.",
+        entity="collection",
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/rl/active_sampling_eligible_signal_mean",
+        "eligible_signal",
+        "Learning signal of eligible groups",
+        "Mean learning signal of every generated prompt group with reward spread, kept or not; compare with the trained groups to see what selection added.",
+        interpretation="The gap to the trained groups is what choosing groups added; with candidate-order retention the two agree up to which groups happened to come first.",
+        entity="collection",
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
     # One rate per episode ending (`posttrain.common.EpisodeEnding`); the
     # per-rollout label is the `rollout.ending` dimension.
     *(

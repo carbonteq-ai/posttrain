@@ -1066,7 +1066,7 @@ def _series(name: str, steps: range | tuple[int, ...]) -> MetricSeries:
     return MetricSeries(name=name, points=tuple(MetricPoint(step=step, value=float(step)) for step in steps))
 
 
-def test_charts_split_population_from_optimizer_series_when_collections_span_updates() -> None:
+def test_charts_name_population_series_when_collections_span_updates() -> None:
     from posttrain_observatory.service import _chart_views
     from posttrain_observatory.telemetry import ChartDefinition
 
@@ -1083,14 +1083,20 @@ def test_charts_split_population_from_optimizer_series_when_collections_span_upd
         "train/grad_norm": _series("train/grad_norm", range(1, 5)),
     }
     views = _chart_views(charts, resolved, resolved)
-    assert [(view.key, view.grain, [series.name for series in view.series]) for view in views] == [
-        ("optimization", "update", ["train/rl/entropy"]),
-        ("optimization_collection", "collection", ["train/rl/reward_mean"]),
-        ("stability", "update", ["train/grad_norm"]),
+    # Charts stay whole; the population series is named so readers hold it across its updates.
+    assert [(view.key, [series.name for series in view.series], view.collection_series) for view in views] == [
+        ("optimization", ["train/rl/reward_mean", "train/rl/entropy"], ("train/rl/reward_mean",)),
+        ("stability", ["train/grad_norm"], ()),
     ]
-    # One update per collection: population and optimizer points share every step, charts stay whole.
+    # One update per collection: nothing to hold.
     legacy = {name: _series(name, range(1, 5)) for name in resolved}
-    assert [(view.key, view.grain) for view in _chart_views(charts, legacy, legacy)] == [
-        ("optimization", "update"),
-        ("stability", "update"),
-    ]
+    assert all(view.collection_series == () for view in _chart_views(charts, legacy, legacy))
+
+
+def test_windowed_summary_reduces_only_the_recent_points() -> None:
+    from posttrain_observatory.service import _reduce
+
+    reward = _series("train/rl/reward_mean", range(1, 11))  # values 1.0 .. 10.0
+    assert _reduce(reward, "mean", 8) == pytest.approx(sum(range(3, 11)) / 8)
+    assert _reduce(reward, "mean") == pytest.approx(5.5)
+    assert _reduce(_series("train/rl/reward_mean", (1, 2)), "mean", 8) == pytest.approx(1.5)

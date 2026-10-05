@@ -42,7 +42,11 @@ def _settings(**active_sampling: int) -> SAMPOSettings:
         num_generations=6,
         max_prompt_length=2,
         max_completion_length=6,
-        active_sampling=ActiveGroupSampling(**{"max_candidate_batches": 6, **active_sampling}),
+        active_sampling=ActiveGroupSampling(
+            max_candidate_batches=active_sampling.get("max_candidate_batches", 6),
+            oversample=active_sampling.get("oversample", 0),
+            oversample_refill=active_sampling.get("oversample_refill", 0),
+        ),
     )
 
 

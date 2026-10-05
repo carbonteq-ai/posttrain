@@ -652,7 +652,13 @@ boundary receives one curriculum decision before its generation batch. When an
 algorithm such as OLMo 3 requests another candidate group before updating model
 weights, each refill is a new curriculum decision informed by earlier groups
 from that same fixed-policy collection phase. Post-generation retained-group
-sampling remains separately attributable to the selected algorithm.
+sampling remains separately attributable to the selected algorithm. When more
+complete groups with reward variation finish than the update needs, the
+selection states which it keeps: `first` keeps candidate order, and
+`learning_signal` keeps the groups whose shaped rewards differ most from their
+group mean (mean absolute deviation, ties in candidate order); the collection
+evidence records each group's score and the rule, and an engine that cannot
+apply the selected rule refuses it.
 
 SAMPO is a separate selection for multi-turn tool-using agents. It combines one
 sequence-level importance ratio per trajectory with a token-aligned advantage

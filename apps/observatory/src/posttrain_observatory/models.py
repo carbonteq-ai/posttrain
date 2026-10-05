@@ -109,6 +109,8 @@ class SummaryValue(ObservatoryModel):
     state: EvidenceState
     value: JsonPayload = None
     unit: str | None = None
+    # The value reduces only the series' last ``window`` points, when set.
+    window: int | None = Field(default=None, ge=1)
 
 
 class MetricHelp(ObservatoryModel):
@@ -133,9 +135,10 @@ class ChartView(ObservatoryModel):
     title: str = Field(min_length=1)
     question: str | None = Field(default=None, min_length=1)
     series: tuple[MetricSeries, ...]
-    # "collection": one point per sampled population, at the step of its first update;
-    # "update": one point per optimizer update. A chart holds one grain.
-    grain: Literal["update", "collection"] = "update"
+    # Series with one point per sampled population (collection), at the step of its
+    # first update, when populations feed several updates; readers hold each value
+    # across the updates it fed. Empty when every update has its own population.
+    collection_series: StringTuple = ()
 
 
 class EvidenceRequirement(ObservatoryModel):

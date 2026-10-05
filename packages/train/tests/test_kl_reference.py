@@ -155,6 +155,17 @@ def test_reward_contract_digest_changes_with_the_kl_reference() -> None:
     base = digest(_settings())
     start = digest(_settings(kl_reference="start"))
     assert base != start
+    # Choosing surplus groups by learning signal changes what is trained on; candidate order does not.
+    from posttrain.train.profiles import ActiveGroupSampling
+    from posttrain.train.update_plan import PolicyExecutionBudget, PolicyUpdateSchedule, PolicyUpdateSettings
+
+    resolved = {
+        "loop": TrainingLoop(max_steps=1, max_length=8, per_device_batch_size=1),
+        "policy_updates": PolicyUpdateSettings(PolicyUpdateSchedule("episode", 1), PolicyExecutionBudget(1, 100, 1000)),
+    }
+    ordered = digest(_settings(**resolved, active_sampling=ActiveGroupSampling(3)))
+    assert ordered == digest(_settings(**resolved, active_sampling=ActiveGroupSampling(3, retain="first")))
+    assert ordered != digest(_settings(**resolved, active_sampling=ActiveGroupSampling(3, retain="learning_signal")))
     # "start" hashes like settings written before the field existed.
     import hashlib
     import json

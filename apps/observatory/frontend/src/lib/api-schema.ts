@@ -758,12 +758,8 @@ export interface components {
         };
         /** ChartView */
         ChartView: {
-            /**
-             * Grain
-             * @default update
-             * @enum {string}
-             */
-            grain: "update" | "collection";
+            /** @default [] */
+            collection_series: components["schemas"]["StringTuple"];
             /** Key */
             key: string;
             /** Question */
@@ -2824,6 +2820,8 @@ export interface components {
             /** Unit */
             unit?: string | null;
             value?: components["schemas"]["JsonPayload"];
+            /** Window */
+            window?: number | null;
         };
         /**
          * TaskFacet

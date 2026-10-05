@@ -136,8 +136,10 @@ from .traces import (
 from .traces import get_trace_detail as load_trace_detail
 
 
-def _reduce(series: MetricSeries, reducer: str) -> float | None:
+def _reduce(series: MetricSeries, reducer: str, window: int | None = None) -> float | None:
     values = [point.value for point in series.points]
+    if window is not None:
+        values = values[-window:]
     if not values:
         return None
     reducers = {
@@ -1066,12 +1068,12 @@ def _chart_views(
     by_name: Mapping[str, MetricSeries],
     presentation_by_name: Mapping[str, MetricSeries],
 ) -> tuple[ChartView, ...]:
-    """Chart views with one grain each.
+    """Chart views, naming the series that are per collection when collections span updates.
 
     When a run trains on each sampled population with several updates, population
     (collection) metrics have one point per collection while optimizer metrics have
-    one per update; a chart that mixes them is split so each axis means one thing.
-    Runs with one update per collection keep their charts whole.
+    one per update. Charts keep both; ``collection_series`` tells readers which values
+    hold across the updates of their collection.
     """
 
     def steps(names: Iterable[str]) -> set[int]:
@@ -1082,40 +1084,23 @@ def _chart_views(
             if point.step is not None
         }
 
-    def present(names: Sequence[str]) -> bool:
-        return any(by_name.get(name, MetricSeries(name=name)).points for name in names)
-
     every = [name for chart in definitions for name in chart.metrics]
     collection_steps = steps(name for name in every if _metric_grain(name) == "collection")
     update_steps = steps(name for name in every if _metric_grain(name) == "update")
     multi_update = bool(collection_steps) and len(update_steps - collection_steps) > 0
-    views: list[ChartView] = []
-    for chart in definitions:
-        if not present(chart.metrics):
-            continue
-        population = [name for name in chart.metrics if _metric_grain(name) == "collection"]
-        optimizer = [name for name in chart.metrics if _metric_grain(name) == "update"]
-        parts: list[tuple[str, str, list[str], Literal["update", "collection"]]]
-        if not multi_update or not population or not optimizer:
-            grain: Literal["update", "collection"] = "collection" if multi_update and not optimizer else "update"
-            parts = [(chart.key, chart.title, list(chart.metrics), grain)]
-        else:
-            parts = [
-                (chart.key, chart.title, optimizer, "update"),
-                (f"{chart.key}_collection", f"{chart.title} per collection", population, "collection"),
-            ]
-        for key, title, names, grain in parts:
-            if present(names):
-                views.append(
-                    ChartView(
-                        key=key,
-                        title=title,
-                        question=chart.question,
-                        series=tuple(presentation_by_name.get(name, MetricSeries(name=name)) for name in names),
-                        grain=grain,
-                    )
-                )
-    return tuple(views)
+    return tuple(
+        ChartView(
+            key=chart.key,
+            title=chart.title,
+            question=chart.question,
+            series=tuple(presentation_by_name.get(name, MetricSeries(name=name)) for name in chart.metrics),
+            collection_series=(
+                tuple(name for name in chart.metrics if _metric_grain(name) == "collection") if multi_update else ()
+            ),
+        )
+        for chart in definitions
+        if any(by_name.get(name, MetricSeries(name=name)).points for name in chart.metrics)
+    )
 
 
 def _config_positive_int(resolved_inputs: Mapping[str, JsonValue], key: str) -> int | None:
@@ -1556,12 +1541,17 @@ class ObservatoryService:
                 metric=field.metric,
                 state=(
                     "available"
-                    if (value := _reduce(by_name.get(field.metric, MetricSeries(name=field.metric)), field.reducer))
+                    if (
+                        value := _reduce(
+                            by_name.get(field.metric, MetricSeries(name=field.metric)), field.reducer, field.window
+                        )
+                    )
                     is not None
                     else "missing"
                 ),
                 value=value,
                 unit=field.unit,
+                window=field.window,
             )
             for field in definition.summary_fields
         )

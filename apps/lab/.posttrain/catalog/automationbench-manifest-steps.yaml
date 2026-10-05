@@ -511,12 +511,14 @@ training:
   # (128 episodes) and 100 collection steps from the base model. Each 128-episode population
   # is applied as 4 minibatch optimizer updates of 32 episodes in native order (4 whole prompt
   # groups each, so the sequence-level ratio and clip act after the first), 400 updates in
-  # all; checkpoints every 25 collections. The resolved TRL engine does not
+  # all; checkpoints every 25 collections. Revision 2: when more of the 20 generated groups
+  # have reward spread than the 16 needed, keep the 16 with the largest learning signal
+  # (retain: learning_signal) instead of the first 16 in task order. The resolved TRL engine does not
   # admit the adaptive curriculum, so prompts are shuffled. The update context leaves
   # headroom above vLLM's 24576-token engine limit.
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1:
     selection_type: sampo-settings
-    revision: "1"
+    revision: "2"
     loop:
       max_steps: 400
       max_length: 28672
@@ -541,7 +543,7 @@ training:
     importance_sampling_mode: token_truncate
     importance_sampling_clip_min: null
     importance_sampling_clip_max: 2.0
-    active_sampling: {max_candidate_batches: 5, oversample: 4, oversample_refill: 4}
+    active_sampling: {max_candidate_batches: 5, oversample: 4, oversample_refill: 4, retain: learning_signal}
     truncation_penalty: 0.1
     shuffle_prompts: true
     mask_truncated_completions: false

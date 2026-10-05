@@ -125,15 +125,25 @@ class ActiveGroupSampling:
     refill rounds without changing how the update is assembled. The first round,
     ``(num_prompts_per_step + oversample) * num_generations`` episodes, is the largest
     concurrent rollout load and must fit the rollout concurrency.
+
+    ``retain`` chooses which groups with reward spread are kept when more finish than
+    the update needs: ``first`` keeps candidate order (above); ``learning_signal``
+    keeps the groups whose shaped rewards differ most from their group mean (the mean
+    absolute deviation, which is the episode advantage magnitude under ``mean``
+    normalization), ties in candidate order. Only the resolved policy-update engine
+    implements ``learning_signal``.
     """
 
     max_candidate_batches: int = 10
     oversample: int = 0
     oversample_refill: int = 0
+    retain: Literal["first", "learning_signal"] = "first"
 
     def __post_init__(self) -> None:
         if self.max_candidate_batches < 1:
             raise ValueError("active sampling max candidate batches must be positive")
+        if self.retain not in {"first", "learning_signal"}:
+            raise ValueError("active sampling retain must be first or learning_signal")
         if self.oversample < 0 or self.oversample_refill < 0:
             raise ValueError("active sampling oversample and oversample_refill must be non-negative prompt groups")
 
@@ -313,6 +323,8 @@ class GRPOSettings:
             raise ValueError("OLMo 3 requires active group sampling")
         if self.active_sampling is not None:
             self.active_sampling.validate_reservation(self.num_prompts_per_step)
+            if self.active_sampling.retain != "first" and self.policy_updates is None:
+                raise ValueError("learning-signal group retention requires explicit policy_updates")
         if self.overlong_buffer_tokens is not None:
             if self.algorithm != "dapo":
                 raise ValueError("soft overlong punishment requires the DAPO algorithm")
@@ -428,6 +440,8 @@ class SAMPOSettings:
         if self.kl_reference not in {"base", "start"}:
             raise ValueError("KL reference must be 'base' or 'start'")
         self.active_sampling.validate_reservation(self.num_prompts_per_step)
+        if self.active_sampling.retain != "first" and self.policy_updates is None:
+            raise ValueError("learning-signal group retention requires explicit policy_updates")
         bounds = (self.importance_sampling_clip_min, self.importance_sampling_clip_max)
         if any(value is not None and (not math.isfinite(value) or value <= 0) for value in bounds):
             raise ValueError("SAMPO importance-sampling bounds must be finite and positive")

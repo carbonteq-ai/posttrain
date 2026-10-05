@@ -258,14 +258,9 @@
       "ChartView": {
         "additionalProperties": false,
         "properties": {
-          "grain": {
-            "default": "update",
-            "enum": [
-              "update",
-              "collection"
-            ],
-            "title": "Grain",
-            "type": "string"
+          "collection_series": {
+            "$ref": "#/components/schemas/StringTuple",
+            "default": []
           },
           "key": {
             "minLength": 1,
@@ -6314,6 +6309,18 @@
           },
           "value": {
             "$ref": "#/components/schemas/JsonPayload"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window"
           }
         },
         "required": [
