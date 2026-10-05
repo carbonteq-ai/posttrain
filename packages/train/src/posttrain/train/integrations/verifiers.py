@@ -510,15 +510,23 @@ def _task_facet_fields(environment: VerifiersEnvironmentSelection) -> tuple[str,
     return tuple(dict.fromkeys(fields))
 
 
+def _normalized_task_facet(value: object) -> JsonValue:
+    if isinstance(value, str | int | bool) or (isinstance(value, float) and math.isfinite(value)):
+        return value
+    if isinstance(value, list | tuple) and all(isinstance(item, str) and item.strip() for item in value):
+        return sorted(set(value))
+    raise ValueError("task observation facets must be finite scalars or lists of non-empty strings")
+
+
 def _task_facet_values(task: Any, fields: tuple[str, ...]) -> dict[str, JsonValue]:
     data = getattr(task, "data", None)
     values: dict[str, JsonValue] = {}
     for name in fields:
         value = data.get(name) if isinstance(data, Mapping) else getattr(data, name, None)
-        if isinstance(value, str | int | bool) or (isinstance(value, float) and math.isfinite(value)):
-            values[name] = value
-            continue
-        raise ValueError(f"task data does not expose scalar observation facet {name!r}")
+        try:
+            values[name] = _normalized_task_facet(value)
+        except ValueError as error:
+            raise ValueError(f"task data does not expose a valid observation facet {name!r}") from error
     return values
 
 
@@ -528,10 +536,11 @@ def _record_task_facets(info: Mapping[str, object]) -> dict[str, JsonValue]:
         return {}
     values: dict[str, JsonValue] = {}
     for name, value in raw.items():
-        if isinstance(name, str) and (
-            isinstance(value, str | int | bool) or (isinstance(value, float) and math.isfinite(value))
-        ):
-            values[name] = value
+        if isinstance(name, str):
+            try:
+                values[name] = _normalized_task_facet(value)
+            except ValueError:
+                continue
     return values
 
 
