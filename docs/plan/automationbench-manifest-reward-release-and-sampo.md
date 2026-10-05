@@ -58,6 +58,13 @@ This plan does not change the frozen product baseline. It uses the 0.4.14 `polic
 - Observation: manifest scoring is about 1.2 s per episode on average (p90 2 s, max 8.8 s) on one core in an offline replay of 39 Luna episodes, against 0.003 s without manifests. Verifiers scores on the event loop, so at high concurrency the rollout workers (vLLM path) spread this cost across processes.
   Evidence: `docs/research/verifiers-assessment-qualification/reward-candidate/manifest-scoring-benchmark.py` (run from the environment directory with `PYTHONPATH=src .venv/bin/python <script> manifest-scoring-benchmark-tasks.json`; output `manifest-scoring-benchmark-20261005.jsonl`) and cProfile of `support.gorgias_refund_processing`: Pydantic validation 7.5 s, canonical JSON 3.5 s (guard digest 842 calls), proof checks 2.5 s.
 
+- Observation: on the vLLM path no manifest finding reached training. Verifiers' environment server rebuilds every request's task from its data and config as the taskset's single task class, so the environment's per-row choice of `ManifestAssessmentTask` was lost in rollout workers.
+  Evidence: vLLM run r2 traces carry no assessment sources or batches on manifest tasks, while transformers run r6 (in-process) carries 44–496 batches per manifest trace. The environment now picks the task class from (task name, config) inside `AutomationBenchTask.__new__` (`task_type_for`), with a regression test that rebuilds a task the way the server does.
+- Observation: episodes forked into two branches after a nonconforming tool call because posttrain's in-process generator attached `provider_state` evidence that the harness cannot echo. Verifiers hashes unknown provider state into message identity, so the echo became a new node and the token anchor was lost.
+  Evidence: replaying r6, the sampled message without `provider_state` hashes equal to the echoed message. Fixed in `82be5249`: the message now matches Verifiers' train client, and evidence stays in the turn's generated-call record.
+- Observation: 30 manifests bound the whole prompt, including the system message that states the turn budget, so they abstained whenever the budget differed from authoring (Luna "~50", training 14 or 16). That included 10 installed manifests.
+  Evidence: `manifest_source_binding_mismatch` on `["task_evidence", "prompt"]`. All 30 were rebound to `prompt[1].content` after confirming the user text is identical in Luna's episode and in fresh 14- and 16-turn loads.
+
 ## Decision Log
 
 - Decision: qualify resolved TRL policy updates with colocated async vLLM rollouts for the 2.6B run, rather than native veRL, the legacy TRL path, or transformers generation.
@@ -89,6 +96,13 @@ This plan does not change the frozen product baseline. It uses the 0.4.14 `polic
 - Decision: the comparison is a single SAMPO run, compared with the older system.
   Rationale: one controlled comparison isolates the reward change. CISPO stays in the correctness runs, pending its admission gate.
   Date/Author: 2026-10-05, user.
+
+- Decision: train on `automationbench-manifest-luna-v1`: 85 training tasks plus 20 reserved evaluation tasks, chosen from 158 manifests replayed on Luna's recorded episodes (105 accepted; manifests that deliberately bind the system message as authority are excluded because they abstain under the 16-turn budget; installed engine-capability manifests replayed from their installed bytes).
+  Rationale: the user asked for tasks with manifests that Luna solved, about 80 for training and 20 for evaluation, few simple tasks, and evaluations balanced by difficulty with at least 2 per domain. Acceptance requires a Luna full pass or a partial score of at least 0.5 (see the fixture's luna_outcomes), binding the 16-turn task, no assessment or credit errors, decided required goals, and agreement with Luna full passes (all goals pass, no harm). Record-update manifests are excluded because step credit reads goal and harm findings. Evaluation has 7 hard, 6 medium and 7 easy tasks across all 7 domains (simple 2); training has simple 2 of 85. Fixture: `scripts/qualification/fixtures/automationbench_manifest_luna_v1.json`; evidence: `docs/research/verifiers-assessment-qualification/reward-candidate/manifest-luna-replay-20261005.json`.
+  Date/Author: 2026-10-05, user and Claude.
+- Decision: keep `advantage_normalization: mean`, clip 0.003/0.004, step weight 1.0, gamma 0.95, LR 6e-5, KL 0.01, sampler cap 2.0 and truncation penalty 0.1, then compare `mean` with `mean_std` in two short 2.6B runs before the 100-update run.
+  Rationale: a critic review against the authors' source (ARL-Arena `a25a2a2`) found that the authors use `mean_norm` for WebShop SAMPO and `mean_std_norm` for ALFWorld, with the same SAMPO clip range. With rewards in [0, 1], `mean_std` stretches near-constant groups (r6: penalty-only differences of 0.02 became advantages of ±1.5). The critic also recommends several optimizer steps per collection (budget 32), since with one step the sequence ratio is always 1 and the clip never acts; this is gated on the short runs.
+  Date/Author: 2026-10-05, critic agent and Claude (user asked for a critic while away).
 
 ## Outcomes & Retrospective
 

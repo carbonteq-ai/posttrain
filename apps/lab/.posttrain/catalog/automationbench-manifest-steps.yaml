@@ -1,5 +1,5 @@
 # AutomationBench manifest step credit (docs/plan/automationbench-manifest-reward-release-and-sampo.md).
-# Environment 3d7ebc4: the official partial credit stays the episode reward; installed
+# Environment 88086c5: the official partial credit stays the episode reward; installed
 # manifests add goal credit and harm debit to the turn (step) whose tool call produced
 # them (turn-reward scorer version 3). Settings use the 0.4.14 resolved policy-update engine.
 environment:
@@ -11,7 +11,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3d7ebc418d7e4c34390129847b517d55be5cdfda
+      revision: 88086c5514536497a7b66b4b0db35932946e5726
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -19,6 +19,94 @@ environment:
         taskset:
           id: automationbench-v1
           domains: [simple, sales, marketing, operations, support, finance, hr]
+          # automationbench-manifest-luna-v1: installed manifests that bind and agree with
+          # Luna's recorded episodes (scripts/qualification/fixtures/automationbench_manifest_luna_v1.json).
+          task_names:
+            - finance.cash_flow_forecast
+            - finance.cost_center_allocation
+            - finance.dept_expense_rollup
+            - finance.employee_reimbursement
+            - finance.financial_close_checklist
+            - finance.petty_cash_reconciliation
+            - finance.profit_margin_analysis
+            - finance.vendor_statement_reconciliation
+            - finance.wave_expense_categorization
+            - finance.year_end_audit_prep
+            - hr.data_migration_validation
+            - hr.docusign_offer_letters
+            - hr.i9_verification_tracking
+            - hr.intern_cohort_onboarding
+            - hr.performance_feedback_logging
+            - hr.performance_review_cycle
+            - hr.quarterly_termination_queue
+            - hr.recruitment_dedup_alert
+            - hr.twilio_emergency_notification
+            - marketing.ad_platform_audit
+            - marketing.campaign_handoff
+            - marketing.campaign_roi_analysis
+            - marketing.competitor_product_launch
+            - marketing.content_expiration_alert
+            - marketing.content_performance
+            - marketing.email_blast_suppression
+            - marketing.email_campaign_analytics
+            - marketing.hashtag_performance
+            - marketing.keyword_cannibalization
+            - marketing.market_trend
+            - marketing.multi_touch_attribution
+            - marketing.news_digest_dedup
+            - marketing.partner_content_approval
+            - marketing.seo_audit
+            - marketing.social_roi
+            - marketing.trial_extension_processing
+            - operations.access_request_validation
+            - operations.asana_safety_walk_log
+            - operations.calendar_airtable_gmail_maintenance_notice
+            - operations.contract_renewal_pipeline
+            - operations.facebook_roas_monitoring
+            - operations.facility_incident_triage
+            - operations.fire_extinguisher_inspection_schedule
+            - operations.fleet_vehicle_maintenance
+            - operations.hazmat_shipping_compliance
+            - operations.housekeeping_schedule
+            - operations.mailroom_package_routing
+            - operations.office_supply_budget_monitoring
+            - operations.safety_certification_gap_analysis
+            - operations.sla_breach_early_warning
+            - operations.trello_vendor_hold_email
+            - operations.zoom_training_setup
+            - sales.apply_project_label
+            - sales.calendar_crm_meeting
+            - sales.chatgpt_email_sentiment_routing
+            - sales.chatgpt_proposal_customization
+            - sales.create_draft_reply
+            - sales.cross_modal_renewal_processing
+            - sales.five_level_conditional
+            - sales.recency_selection
+            - sales.slack_deal_notification
+            - sales.unreliable_label_account_review
+            - sales.zoom_calendar_conflict
+            - sales.zoom_customer_health
+            - simple.slack_dm_meeting_reminder
+            - simple.zoom_calendar_sync
+            - support.gorgias_inventory_routing
+            - support.gorgias_refund_processing
+            - support.helpcrunch_engagement_scoring
+            - support.helpscout_customer_effort
+            - support.helpscout_daily_digest
+            - support.hiver_inbox_report
+            - support.hiver_quality_coaching
+            - support.hiver_response_sla
+            - support.hiver_slack_digest
+            - support.hiver_team_performance
+            - support.hiver_workload_forecast
+            - support.intercom_reactivation_campaign
+            - support.reamaze_cross_platform_dedup
+            - support.zendesk_customer_360
+            - support.zendesk_gdpr_purge
+            - support.zendesk_intercom_company_sync
+            - support.zendesk_sf_case_sync
+            - support.zoho_desk_customer_journey
+            - support.zoho_multitenant_isolation
           task:
             toolset: limited_zapier
             search_top_k: 20
@@ -41,14 +129,14 @@ environment:
           max_turns: 14
           max_output_tokens: 18432
     sampling: {max_tokens: 6144, temperature: 0.8, top_p: 1.0}
-    num_tasks: 160
+    num_tasks: 85
     num_rollouts: 6
     max_concurrent: 180
     parameters:
       domains: [simple, sales, marketing, operations, support, finance, hr]
-      task_mix_id: lfm26-automationbench-mix-v2
-      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
-      sampling_seed: 172846
+      task_mix_id: automationbench-manifest-luna-v1
+      task_mix_sha256: 297fbd927e136ba09b2ace34fb0ddd266321695c00dcfe7218357e234fafcc81
+      sampling_seed: 20261005
       toolset: limited_zapier
       max_turns: 14
       max_output_tokens: 18432
@@ -70,16 +158,21 @@ environment:
     sampling: {max_tokens: 1024, temperature: 0.8, top_p: 1.0}
     num_rollouts: 4
     max_concurrent: 8
+  automationbench-manifest-steps-mixv2-smoke-local-g8-v1:
+    <<: *automationbench_manifest_steps
+    sampling: {max_tokens: 1024, temperature: 0.8, top_p: 1.0}
+    num_rollouts: 8
+    max_concurrent: 8
 
   # The 2.6B comparison environment: cont100's (the run after the H100 one) 16 turns with a
-  # 4096-token reply budget and 12288 output tokens per episode, mix-v2, 8 attempts per task,
+  # 4096-token reply budget and 12288 output tokens per episode, 8 attempts per task,
   # with manifest findings and manifest step credit selected.
   automationbench-manifest-steps-mixv2-4k16t-v1:
     category: agentic-tool-use
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 3d7ebc418d7e4c34390129847b517d55be5cdfda
+      revision: 88086c5514536497a7b66b4b0db35932946e5726
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -87,6 +180,94 @@ environment:
         taskset:
           id: automationbench-v1
           domains: [simple, sales, marketing, operations, support, finance, hr]
+          # automationbench-manifest-luna-v1: installed manifests that bind and agree with
+          # Luna's recorded episodes (scripts/qualification/fixtures/automationbench_manifest_luna_v1.json).
+          task_names:
+            - finance.cash_flow_forecast
+            - finance.cost_center_allocation
+            - finance.dept_expense_rollup
+            - finance.employee_reimbursement
+            - finance.financial_close_checklist
+            - finance.petty_cash_reconciliation
+            - finance.profit_margin_analysis
+            - finance.vendor_statement_reconciliation
+            - finance.wave_expense_categorization
+            - finance.year_end_audit_prep
+            - hr.data_migration_validation
+            - hr.docusign_offer_letters
+            - hr.i9_verification_tracking
+            - hr.intern_cohort_onboarding
+            - hr.performance_feedback_logging
+            - hr.performance_review_cycle
+            - hr.quarterly_termination_queue
+            - hr.recruitment_dedup_alert
+            - hr.twilio_emergency_notification
+            - marketing.ad_platform_audit
+            - marketing.campaign_handoff
+            - marketing.campaign_roi_analysis
+            - marketing.competitor_product_launch
+            - marketing.content_expiration_alert
+            - marketing.content_performance
+            - marketing.email_blast_suppression
+            - marketing.email_campaign_analytics
+            - marketing.hashtag_performance
+            - marketing.keyword_cannibalization
+            - marketing.market_trend
+            - marketing.multi_touch_attribution
+            - marketing.news_digest_dedup
+            - marketing.partner_content_approval
+            - marketing.seo_audit
+            - marketing.social_roi
+            - marketing.trial_extension_processing
+            - operations.access_request_validation
+            - operations.asana_safety_walk_log
+            - operations.calendar_airtable_gmail_maintenance_notice
+            - operations.contract_renewal_pipeline
+            - operations.facebook_roas_monitoring
+            - operations.facility_incident_triage
+            - operations.fire_extinguisher_inspection_schedule
+            - operations.fleet_vehicle_maintenance
+            - operations.hazmat_shipping_compliance
+            - operations.housekeeping_schedule
+            - operations.mailroom_package_routing
+            - operations.office_supply_budget_monitoring
+            - operations.safety_certification_gap_analysis
+            - operations.sla_breach_early_warning
+            - operations.trello_vendor_hold_email
+            - operations.zoom_training_setup
+            - sales.apply_project_label
+            - sales.calendar_crm_meeting
+            - sales.chatgpt_email_sentiment_routing
+            - sales.chatgpt_proposal_customization
+            - sales.create_draft_reply
+            - sales.cross_modal_renewal_processing
+            - sales.five_level_conditional
+            - sales.recency_selection
+            - sales.slack_deal_notification
+            - sales.unreliable_label_account_review
+            - sales.zoom_calendar_conflict
+            - sales.zoom_customer_health
+            - simple.slack_dm_meeting_reminder
+            - simple.zoom_calendar_sync
+            - support.gorgias_inventory_routing
+            - support.gorgias_refund_processing
+            - support.helpcrunch_engagement_scoring
+            - support.helpscout_customer_effort
+            - support.helpscout_daily_digest
+            - support.hiver_inbox_report
+            - support.hiver_quality_coaching
+            - support.hiver_response_sla
+            - support.hiver_slack_digest
+            - support.hiver_team_performance
+            - support.hiver_workload_forecast
+            - support.intercom_reactivation_campaign
+            - support.reamaze_cross_platform_dedup
+            - support.zendesk_customer_360
+            - support.zendesk_gdpr_purge
+            - support.zendesk_intercom_company_sync
+            - support.zendesk_sf_case_sync
+            - support.zoho_desk_customer_journey
+            - support.zoho_multitenant_isolation
           task:
             toolset: limited_zapier
             search_top_k: 20
@@ -107,14 +288,84 @@ environment:
           max_turns: 16
           max_output_tokens: 12288
     sampling: {max_tokens: 4096, temperature: 0.8, top_p: 1.0}
-    num_tasks: 160
+    num_tasks: 85
     num_rollouts: 8
     max_concurrent: 180
     parameters:
       domains: [simple, sales, marketing, operations, support, finance, hr]
-      task_mix_id: lfm26-automationbench-mix-v2
-      task_mix_sha256: 74c3fe101a92d11b4f86ce36111d8b035afc2619508ea467e2a77778430d9511
-      sampling_seed: 172846
+      task_mix_id: automationbench-manifest-luna-v1
+      task_mix_sha256: 297fbd927e136ba09b2ace34fb0ddd266321695c00dcfe7218357e234fafcc81
+      sampling_seed: 20261005
+      toolset: limited_zapier
+      max_turns: 16
+      max_output_tokens: 12288
+
+  # The 20 reserved evaluation tasks of automationbench-manifest-luna-v1 (2+ per domain,
+  # balanced easy/medium/hard), with the 2.6B training environment's settings.
+  automationbench-manifest-luna-eval-4k16t-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 88086c5514536497a7b66b4b0db35932946e5726
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          # automationbench-manifest-luna-v1: installed manifests that bind and agree with
+          # Luna's recorded episodes (scripts/qualification/fixtures/automationbench_manifest_luna_v1.json).
+          task_names:
+            - finance.ap_turnover_analysis
+            - finance.monday_project_billing
+            - finance.overdue_invoice_followup
+            - finance.qb_estimate_conversion
+            - finance.travel_advance_settlement
+            - hr.airtable_recruitment_analytics
+            - hr.equipment_provisioning
+            - hr.workforce_planning_forecast
+            - marketing.content_scoring
+            - marketing.social_content_calendar
+            - operations.calendly_equipment_inspection
+            - operations.equipment_lease_processing
+            - operations.perishable_inventory_expiry
+            - operations.procurement_card_reconciliation
+            - sales.chatgpt_lead_classification_pipeline
+            - sales.zoom_webinar_lead_scoring
+            - simple.email_airtable_customer_welcome
+            - simple.email_zendesk_ack_reply
+            - support.gorgias_quality_audit
+            - support.zendesk_hubspot_org_sync
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 16
+            capture_actions: true
+            manifest_assessments: true
+            turn_rewards:
+              tool_failure_penalty: 0.02
+              manifest_goal_share: 0.5
+              manifest_harm_penalty: 0.1
+              manifest_harm_cap: 0.3
+            mistake_penalty: {per_mistake: 0.02, cap: 0.1}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 16
+          max_output_tokens: 12288
+    sampling: {max_tokens: 4096, temperature: 0.8, top_p: 1.0}
+    num_tasks: 20
+    num_rollouts: 4
+    max_concurrent: 180
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: automationbench-manifest-luna-v1-eval
+      task_mix_sha256: 297fbd927e136ba09b2ace34fb0ddd266321695c00dcfe7218357e234fafcc81
+      sampling_seed: 20261005
       toolset: limited_zapier
       max_turns: 16
       max_output_tokens: 12288
@@ -233,20 +484,22 @@ training:
   # cont100's settings (LR 6e-5 constant, KL 0.01 to the base, gamma 0.95, token-truncated
   # sampler correction capped at 2, truncation penalty 0.1, at most 5 candidate rounds) with
   # 4 extra prompt groups per round and refill (oversample 4), 16 prompt groups x 8 attempts
-  # (128 episodes) and 100 updates from the base model. One optimizer step per 128-episode
-  # population, as with cont100's single accumulated step. The resolved TRL engine does not
+  # (128 episodes) and 100 collection steps from the base model. Each 128-episode population
+  # is applied as 4 minibatch optimizer updates of 32 episodes in native order (4 whole prompt
+  # groups each, so the sequence-level ratio and clip act after the first), 400 updates in
+  # all; checkpoints every 25 collections. The resolved TRL engine does not
   # admit the adaptive curriculum, so prompts are shuffled. The update context leaves
   # headroom above vLLM's 24576-token engine limit.
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1:
     selection_type: sampo-settings
     revision: "1"
     loop:
-      max_steps: 100
+      max_steps: 400
       max_length: 28672
       learning_rate: 0.00006
       lr_scheduler_type: constant
       logging_steps: 1
-      checkpoint_steps: 25
+      checkpoint_steps: 100
       checkpoint_limit: 4
       gradient_checkpointing: true
       seed: 42
@@ -259,6 +512,8 @@ training:
     discount_gamma: 0.95
     step_advantage_weight: 1.0
     advantage_normalization: mean
+    clip_epsilon_low: 0.003
+    clip_epsilon_high: 0.004
     importance_sampling_mode: token_truncate
     importance_sampling_clip_min: null
     importance_sampling_clip_max: 2.0
@@ -268,22 +523,23 @@ training:
     mask_truncated_completions: false
     max_admission_attempts: 1
     policy_updates:
-      schedule: {unit: episode, budget: 128, epochs: 1, max_applied_updates: 100}
+      schedule: {unit: episode, budget: 32, epochs: 1, order: native, max_applied_updates: 400}
       execution: {records: 1, context_tokens: 28672, statistic_bytes: 268435456}
 
-  # Two-update twins of the 100-update settings that differ only in advantage normalization:
+  # Two-collection (8-update) twins of the 100-step settings that differ only in advantage
+  # normalization:
   # `mean` centers episode and step returns within their groups (the authors' WebShop SAMPO
   # script), `mean_std` also divides by the group standard deviation (their ALFWorld scripts).
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-2-g16x8-mean-v1:
     selection_type: sampo-settings
     revision: "1"
     loop:
-      max_steps: 2
+      max_steps: 8
       max_length: 28672
       learning_rate: 0.00006
       lr_scheduler_type: constant
       logging_steps: 1
-      checkpoint_steps: 2
+      checkpoint_steps: 8
       checkpoint_limit: 1
       gradient_checkpointing: true
       seed: 42
@@ -301,23 +557,25 @@ training:
     importance_sampling_clip_max: 2.0
     active_sampling: {max_candidate_batches: 5, oversample: 4, oversample_refill: 4}
     truncation_penalty: 0.1
+    clip_epsilon_low: 0.003
+    clip_epsilon_high: 0.004
     shuffle_prompts: true
     mask_truncated_completions: false
     max_admission_attempts: 1
     policy_updates:
-      schedule: {unit: episode, budget: 128, epochs: 1, max_applied_updates: 2}
+      schedule: {unit: episode, budget: 32, epochs: 1, order: native, max_applied_updates: 8}
       execution: {records: 1, context_tokens: 28672, statistic_bytes: 268435456}
 
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-2-g16x8-mean-std-v1:
     selection_type: sampo-settings
     revision: "1"
     loop:
-      max_steps: 2
+      max_steps: 8
       max_length: 28672
       learning_rate: 0.00006
       lr_scheduler_type: constant
       logging_steps: 1
-      checkpoint_steps: 2
+      checkpoint_steps: 8
       checkpoint_limit: 1
       gradient_checkpointing: true
       seed: 42
@@ -335,12 +593,53 @@ training:
     importance_sampling_clip_max: 2.0
     active_sampling: {max_candidate_batches: 5, oversample: 4, oversample_refill: 4}
     truncation_penalty: 0.1
+    clip_epsilon_low: 0.003
+    clip_epsilon_high: 0.004
     shuffle_prompts: true
     mask_truncated_completions: false
     max_admission_attempts: 1
     policy_updates:
-      schedule: {unit: episode, budget: 128, epochs: 1, max_applied_updates: 2}
+      schedule: {unit: episode, budget: 32, epochs: 1, order: native, max_applied_updates: 8}
       execution: {records: 1, context_tokens: 28672, statistic_bytes: 268435456}
+
+  # The 8 GB card's vLLM manifest-credit check: 1 prompt x 8 attempts (the 2.6B run's group
+  # size, in the engine's 8 sequences), two collections of two minibatch updates each, so the sequence-level clip
+  # acts on the second update; update context above vLLM's 6144-token limit.
+  lfm2.5-1.2b/automationbench-manifest-steps-smoke-local-vllm-v1:
+    selection_type: sampo-settings
+    revision: "1"
+    loop:
+      max_steps: 4
+      max_length: 8192
+      learning_rate: 0.00006
+      lr_scheduler_type: constant
+      logging_steps: 1
+      checkpoint_steps: 4
+      checkpoint_limit: 1
+      gradient_checkpointing: true
+      seed: 42
+    num_prompts_per_step: 1
+    num_generations: 8
+    max_prompt_length: 5120
+    max_completion_length: 1024
+    beta: 0.01
+    kl_reference: base
+    discount_gamma: 0.95
+    step_advantage_weight: 1.0
+    advantage_normalization: mean
+    clip_epsilon_low: 0.003
+    clip_epsilon_high: 0.004
+    importance_sampling_mode: token_truncate
+    importance_sampling_clip_min: null
+    importance_sampling_clip_max: 2.0
+    active_sampling: {max_candidate_batches: 4, oversample: 0, oversample_refill: 0}
+    truncation_penalty: 0.1
+    shuffle_prompts: true
+    mask_truncated_completions: false
+    max_admission_attempts: 1
+    policy_updates:
+      schedule: {unit: episode, budget: 4, epochs: 1, order: native, max_applied_updates: 4}
+      execution: {records: 1, context_tokens: 8192, statistic_bytes: 67108864}
 
   training/lfm2.5-1.2b-trl-lora-manifest-ws@1:
     selection_type: training-binding
@@ -372,6 +671,24 @@ training:
     runtime: {global_batch_size: 16, devices_per_node: 1, timeout_seconds: 7200}
     backend_options:
       rollout_execution: {env_workers: 5, episodes_per_worker: 4, worker_native_threads: 1}
+      use_liger_kernel: false
+      logits_chunk_size: 64
+      training_precision: bf16
+      dependency_lock: trl-fork@current
+      source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
+      dependency_lock_sha256: 46d1a725a08bd6bc042ad8d1cf5433e025cac13e0ba1a59c8b304a7e47e120df
+
+  training/lfm2.5-1.2b-trl-lora-manifest-local-vllm@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post14
+    renderer: {id: lfm2.5-tools@1, model_family: lfm2.5, implementation: default, reasoning_mode: native}
+    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
+    target: targets/local-cuda-8gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime: {global_batch_size: 8, devices_per_node: 1, timeout_seconds: 7200}
+    backend_options:
+      rollout_execution: {env_workers: 2, episodes_per_worker: 4, worker_native_threads: 1}
       use_liger_kernel: false
       logits_chunk_size: 64
       training_precision: bf16
