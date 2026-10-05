@@ -1,0 +1,44 @@
+{
+  "snapshot": "2026-10-05 heartbeat 02:41 UTC",
+  "meaning": "Presence of installed contract or nonempty draft checks; not independent review, qualification or eligibility",
+  "domains": {
+    "sales": {
+      "total": 100,
+      "manifest_present": 61,
+      "missing": 39
+    },
+    "marketing": {
+      "total": 100,
+      "manifest_present": 62,
+      "missing": 38
+    },
+    "operations": {
+      "total": 100,
+      "manifest_present": 57,
+      "missing": 43
+    },
+    "support": {
+      "total": 100,
+      "manifest_present": 78,
+      "missing": 22
+    },
+    "finance": {
+      "total": 100,
+      "manifest_present": 71,
+      "missing": 29
+    },
+    "hr": {
+      "total": 100,
+      "manifest_present": 82,
+      "missing": 18
+    },
+    "simple": {
+      "total": 200,
+      "manifest_present": 25,
+      "missing": 175
+    }
+  },
+  "total": 800,
+  "present": 436,
+  "missing": 364
+}

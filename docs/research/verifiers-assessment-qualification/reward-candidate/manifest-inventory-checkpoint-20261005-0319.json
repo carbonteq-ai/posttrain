@@ -1,0 +1,42 @@
+{
+  "count_semantics": "Installed or draft presence only, not reviewed coverage, qualification, credit or eligibility",
+  "domains": {
+    "finance": {
+      "inventory": 100,
+      "manifest_present": 83,
+      "missing": 17
+    },
+    "hr": {
+      "inventory": 100,
+      "manifest_present": 92,
+      "missing": 8
+    },
+    "marketing": {
+      "inventory": 100,
+      "manifest_present": 74,
+      "missing": 26
+    },
+    "operations": {
+      "inventory": 100,
+      "manifest_present": 63,
+      "missing": 37
+    },
+    "sales": {
+      "inventory": 100,
+      "manifest_present": 73,
+      "missing": 27
+    },
+    "support": {
+      "inventory": 100,
+      "manifest_present": 88,
+      "missing": 12
+    },
+    "simple": {
+      "inventory": 200,
+      "manifest_present": 25,
+      "missing": 175
+    }
+  },
+  "total_present": 498,
+  "total_missing": 302
+}

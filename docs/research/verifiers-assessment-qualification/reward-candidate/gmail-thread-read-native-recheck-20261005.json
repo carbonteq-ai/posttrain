@@ -1,0 +1,38 @@
+{
+  "task_name": "simple.asana_dark_mode_from_email",
+  "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/6ebbbe4f5e420745b1c29b9f59113ce30408822520973d35cb55d00d35092ec7/episode.json",
+  "source_episode_sha256": "af271b1e524e66a89b870db03f431d649806b48bad621f3d553bc3aa0f147f8b",
+  "draft_sha256": "c4ff57788348bcf338ab983ff572a58070de4ea1904025ae3feda559c5fd4ca6",
+  "adapter_sha256": "8a592a27b53c623b28728c8cf0c28e214b708618887f4c3684fbc9dc0dce2dfe",
+  "scored_native_episode_path": "/tmp/root-gmail-thread-native-scored-20261005.json",
+  "scored_native_episode_sha256": "1a81071e8a3a2d7234b68e3113d8b639431e7fea951073d5a8eb111d05eecce3",
+  "findings": {
+    "simple.asana_dark_mode_from_email.read_source_email": [
+      "valid",
+      1.0,
+      "obligation_occurrence_count_verified"
+    ],
+    "simple.asana_dark_mode_from_email.read_source_email.coverage": [
+      "valid",
+      1.0,
+      "obligation_scope_closed"
+    ],
+    "simple.asana_dark_mode_from_email.requested_task": [
+      "valid",
+      1.0,
+      "obligation_occurrence_count_verified"
+    ],
+    "simple.asana_dark_mode_from_email.requested_task.coverage": [
+      "valid",
+      1.0,
+      "obligation_scope_closed"
+    ]
+  },
+  "same_trace_parity": true,
+  "reload_parity": true,
+  "rewards_unchanged": true,
+  "source_bytes_unchanged": true,
+  "assessment_errors": [],
+  "credit_errors": [],
+  "qualification": "not_granted"
+}

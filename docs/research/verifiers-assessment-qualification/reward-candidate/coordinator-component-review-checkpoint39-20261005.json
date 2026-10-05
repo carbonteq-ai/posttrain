@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "heartbeat_utc": "2026-10-05T04:49:48.150Z",
+  "reviewed_tasks": 3,
+  "reviewed_controls": 13,
+  "reviewed_batch": "HR10 public-only",
+  "qualification_granted": false,
+  "action_credit_granted": false,
+  "hidden_baseline": "unavailable",
+  "refill": "Simple11 ten retained development tasks owned by manifest_hr_luna",
+  "artifacts": [
+    {
+      "path": "/tmp/root-hr10-gate.py",
+      "sha256": "7f1ea64a945b8052b49b67d17ebbfccc7aab2a2ff765f98ef00903a3234de33f"
+    },
+    {
+      "path": "/tmp/automationbench-luna-hr-batch10-20261005/source-before-final.json",
+      "sha256": "4ed24229a8ab06b7981f5e3e8829f571271af5518abec3ff062ff63f5093c956"
+    },
+    {
+      "path": "/tmp/automationbench-luna-hr-batch10-20261005/source-after-final.json",
+      "sha256": "4ed24229a8ab06b7981f5e3e8829f571271af5518abec3ff062ff63f5093c956"
+    },
+    {
+      "path": "/tmp/automationbench-luna-hr-batch10-20261005/control-summary-final.jsonl",
+      "sha256": "65cda9a5672d97bdc9cbf40715f3b542b4cd3c1d029bea9cf9ddb509de0df467"
+    },
+    {
+      "path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/luna-manifest-authoring-batch11-simple-assignments-20261005.json",
+      "sha256": "14272af16afcc6d52f3d7a3f884b0339aa96ec7fd2c8d402b34fba2dd4c450ec"
+    }
+  ]
+}

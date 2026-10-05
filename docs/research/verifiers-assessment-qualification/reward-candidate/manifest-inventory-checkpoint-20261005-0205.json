@@ -1,0 +1,43 @@
+{
+  "boundary": "Installed contract or nonempty draft checks only; not review, behavioral validation or qualification",
+  "categories": {
+    "finance": {
+      "inventory": 100,
+      "present": 71,
+      "missing": 29
+    },
+    "hr": {
+      "inventory": 100,
+      "present": 72,
+      "missing": 28
+    },
+    "marketing": {
+      "inventory": 100,
+      "present": 62,
+      "missing": 38
+    },
+    "operations": {
+      "inventory": 100,
+      "present": 53,
+      "missing": 47
+    },
+    "sales": {
+      "inventory": 100,
+      "present": 52,
+      "missing": 48
+    },
+    "support": {
+      "inventory": 100,
+      "present": 60,
+      "missing": 40
+    },
+    "simple": {
+      "inventory": 200,
+      "present": 25,
+      "missing": 175
+    }
+  },
+  "total_inventory": 800,
+  "total_present": 395,
+  "total_missing": 405
+}

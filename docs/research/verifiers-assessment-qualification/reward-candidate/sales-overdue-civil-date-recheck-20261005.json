@@ -1,0 +1,119 @@
+{
+  "scope": "source-backed date calculations only; completion-note and extension exclusions not assessed here; no task qualification",
+  "pack_sha256": "e97e3c4f775732fd059857ed59d4527a26ef3c87b78554a16e95516dd87185f8",
+  "public_input_sha256": "881f4cde328a11d217ccc419d1dff48f70cd89ebf7824e909906fbb2200589e4",
+  "results": [
+    {
+      "task_id": "00Txx000001FLW1",
+      "raw_due_date": "2026-02-18T00:00:00",
+      "elapsed_business_days": 6,
+      "raw_values": [
+        [
+          [
+            "salesforce",
+            "tasks",
+            0,
+            "due_date"
+          ],
+          "2026-02-18T00:00:00"
+        ]
+      ]
+    },
+    {
+      "task_id": "00Txx000001FLW2",
+      "raw_due_date": "2026-02-17T00:00:00",
+      "elapsed_business_days": 7,
+      "raw_values": [
+        [
+          [
+            "salesforce",
+            "tasks",
+            1,
+            "due_date"
+          ],
+          "2026-02-17T00:00:00"
+        ]
+      ]
+    },
+    {
+      "task_id": "00Txx000001FLW3",
+      "raw_due_date": "2026-02-12T00:00:00",
+      "elapsed_business_days": 10,
+      "raw_values": [
+        [
+          [
+            "salesforce",
+            "tasks",
+            2,
+            "due_date"
+          ],
+          "2026-02-12T00:00:00"
+        ]
+      ]
+    },
+    {
+      "task_id": "00Txx000001FLW4",
+      "raw_due_date": "2026-02-24T00:00:00",
+      "elapsed_business_days": 2,
+      "raw_values": [
+        [
+          [
+            "salesforce",
+            "tasks",
+            3,
+            "due_date"
+          ],
+          "2026-02-24T00:00:00"
+        ]
+      ]
+    },
+    {
+      "task_id": "00Txx000001FLW5",
+      "raw_due_date": "2026-02-19T00:00:00",
+      "elapsed_business_days": 5,
+      "raw_values": [
+        [
+          [
+            "salesforce",
+            "tasks",
+            4,
+            "due_date"
+          ],
+          "2026-02-19T00:00:00"
+        ]
+      ]
+    },
+    {
+      "task_id": "00Txx000001FLW6",
+      "raw_due_date": "2026-02-16T00:00:00",
+      "elapsed_business_days": 8,
+      "raw_values": [
+        [
+          [
+            "salesforce",
+            "tasks",
+            5,
+            "due_date"
+          ],
+          "2026-02-16T00:00:00"
+        ]
+      ]
+    },
+    {
+      "task_id": "00Txx000001FLW7",
+      "raw_due_date": "2026-03-10T00:00:00",
+      "elapsed_business_days": -8,
+      "raw_values": [
+        [
+          [
+            "salesforce",
+            "tasks",
+            6,
+            "due_date"
+          ],
+          "2026-03-10T00:00:00"
+        ]
+      ]
+    }
+  ]
+}

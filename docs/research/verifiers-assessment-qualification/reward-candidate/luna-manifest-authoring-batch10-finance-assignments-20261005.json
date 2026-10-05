@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "purpose": "Public-only missing canonical tasks after independent prior batch component review; preserve reserved isolation",
+  "source_split_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/sdk-probes/luna-reference-campaign-01/remaining700-family-splits-reviewed.json",
+  "source_split_sha256": "096051820598d4ac3d646a60e3b862ddd2dcc0428caf8a647155681796faa1cd",
+  "worker_model": "gpt-6-luna",
+  "reasoning_effort": "high",
+  "category_assignments": {
+    "finance": [
+      {
+        "task_name": "finance.qb_customer_onboard",
+        "domain": "finance",
+        "family": "finance.record-and-catalog-management",
+        "split": "reserved",
+        "frozen_split": "evaluation",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch10-20261005/finance.json",
+        "public_pack_index": 0,
+        "public_pack_sha256": "c9e4a328557ffe161a68a357e7cfb229f9137706227328b33d4758ee6d510f48",
+        "public_input_sha256": "e8678831f292e4e0bb3d4c24f75eb4ff3ed0423ba487728582690682842cf8ec",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/finance.qb_customer_onboard",
+        "authoring_action": "author_missing_draft",
+        "reference_class": "no_reference_public_only",
+        "replay_status": "unavailable_no_recorded_reference",
+        "training_eligibility": "not_granted"
+      },
+      {
+        "task_name": "finance.wave_product_catalog",
+        "domain": "finance",
+        "family": "finance.record-and-catalog-management",
+        "split": "reserved",
+        "frozen_split": "evaluation",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch10-20261005/finance.json",
+        "public_pack_index": 1,
+        "public_pack_sha256": "c9e4a328557ffe161a68a357e7cfb229f9137706227328b33d4758ee6d510f48",
+        "public_input_sha256": "2d2dbf48d493456d382e7bd216a62efbee4db218b9203ad6a1d7b121863deb69",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/finance.wave_product_catalog",
+        "authoring_action": "author_missing_draft",
+        "reference_class": "no_reference_public_only",
+        "replay_status": "unavailable_no_recorded_reference",
+        "training_eligibility": "not_granted"
+      }
+    ]
+  }
+}

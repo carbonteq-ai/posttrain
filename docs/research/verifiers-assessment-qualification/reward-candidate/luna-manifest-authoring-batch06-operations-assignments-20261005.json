@@ -1,0 +1,532 @@
+{
+  "schema_version": 1,
+  "purpose": "Rolling ten-case operations refill after reviewed batch05 component authoring; no qualification",
+  "source_index_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/luna-development-review-coverage.json",
+  "source_index_sha256": "f262e989ae1cf008e7f57de2364c8a7668f6a966222ef9f176cae0eaeb83e919",
+  "selection_algorithm": "Highest-scoring retained development references; exclude installed/drafts and exact prior ownership",
+  "worker_model": "gpt-6-luna",
+  "reasoning_effort": "high",
+  "fast_mode": "No separate fast-mode parameter exposed; priority tier available",
+  "category_assignments": {
+    "operations": [
+      {
+        "attempt_id": "c62a035a49fe0e91b3930e64eefe495cd59469833a2793e802a296928fa51dbb",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.incident-security-and-access",
+        "observed_tool_server_occurrences": 13,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 13
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.2857142857142857,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/c62a035a49fe0e91b3930e64eefe495cd59469833a2793e802a296928fa51dbb/episode.json",
+        "source_episode_sha256": "ac140baf5984d0e79b237afafc60f5bc9874a02e18d5e844a5c6c4806f861403",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.zoom_dr_drill",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "01c91329181d468eaeeb7c0014828f2c"
+        ],
+        "domain": "operations",
+        "selection_score": 0.2857142857142857,
+        "rank_within_missing_category": 1,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.zoom_dr_drill",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch06-20261005/operations.json",
+        "public_pack_index": 0,
+        "public_pack_sha256": "dcdea249cf370b4adaf0542d81eadfc47d637bde1dd40e5db9776b30b426d967"
+      },
+      {
+        "attempt_id": "66698630a116f7bc1c097ad15e4498619c03ae29d80d57fb7cac6964732d4fb1",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.incident-security-and-access",
+        "observed_tool_server_occurrences": 13,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 13
+        },
+        "official_outcome_class": "official_partial",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.25,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/66698630a116f7bc1c097ad15e4498619c03ae29d80d57fb7cac6964732d4fb1/episode.json",
+        "source_episode_sha256": "48a3813b4cfa1d0c8a6ae1fa30d5d1b841ae9b4d444bc078e025ff00ed2edb3d",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.monday_calendar_emergency_drill",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "afa84d61a3cb40c0b37cbfbb8b668ff7"
+        ],
+        "domain": "operations",
+        "selection_score": 0.25,
+        "rank_within_missing_category": 2,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.monday_calendar_emergency_drill",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch06-20261005/operations.json",
+        "public_pack_index": 1,
+        "public_pack_sha256": "dcdea249cf370b4adaf0542d81eadfc47d637bde1dd40e5db9776b30b426d967"
+      },
+      {
+        "attempt_id": "4a09e551e80089a925f5c69b2ff83a94e0ab03bb33cb209fca6dcb17fef6d0bc",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.facilities-inventory-and-scheduling",
+        "observed_tool_server_occurrences": 10,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 10
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/4a09e551e80089a925f5c69b2ff83a94e0ab03bb33cb209fca6dcb17fef6d0bc/episode.json",
+        "source_episode_sha256": "cf167f0b28dcc6b7ee5b391c2242737a0e75b1f4fac5740a966fc1e45771c896",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.calendar_airtable_maintenance",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "3113023bb62743bb8f093da7745d91b7"
+        ],
+        "domain": "operations",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 3,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.calendar_airtable_maintenance",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch06-20261005/operations.json",
+        "public_pack_index": 2,
+        "public_pack_sha256": "dcdea249cf370b4adaf0542d81eadfc47d637bde1dd40e5db9776b30b426d967"
+      },
+      {
+        "attempt_id": "1c5be1d37aa7843f8eb19c020c49bced04663610c9023820cd5b1629ff289c7c",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.safety-training-and-compliance",
+        "observed_tool_server_occurrences": 8,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 8
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/1c5be1d37aa7843f8eb19c020c49bced04663610c9023820cd5b1629ff289c7c/episode.json",
+        "source_episode_sha256": "99b02ad938b2cdc69939d5cd304f8953698eea92e208031c1e7b856c2f8c37ef",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.calendar_slack_training",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "c3ea597db0b04175be796fd9a082ff0a"
+        ],
+        "domain": "operations",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 4,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.calendar_slack_training",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch06-20261005/operations.json",
+        "public_pack_index": 3,
+        "public_pack_sha256": "dcdea249cf370b4adaf0542d81eadfc47d637bde1dd40e5db9776b30b426d967"
+      },
+      {
+        "attempt_id": "032c30b1b684f60901ec15f825b95cf7603ada40c5a9b48351284788fdd935b1",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "case_review": {
+          "note": "Calendar discovery returned no calendars although the source contains timed room events. Public booking policy excludes VOIDED/CANCELLED descriptions; exact bracketed room matching, all-day exclusion, interval intersection and higher numeric event ID routing are deterministic. One empty discovery call does not close calendar coverage.",
+          "occurrence_ids": [
+            "06fe0c27db494f55acac1eb64f54e459"
+          ],
+          "scope": "selected_policy_and_occurrence_review",
+          "task_name": "operations.conference_room_booking_conflicts"
+        },
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.facilities-inventory-and-scheduling",
+        "observed_tool_server_occurrences": 3,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 3
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "selected_policy_and_occurrence_review",
+        "review_status": "selected_policy_and_occurrence_review",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/032c30b1b684f60901ec15f825b95cf7603ada40c5a9b48351284788fdd935b1/episode.json",
+        "source_episode_sha256": "60067cf55be2c2592b15113225ebe594b85ea192d8fed09529cefb84df9cd871",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.conference_room_booking_conflicts",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "206a32497f4a4554aeb1216b3aeb0820"
+        ],
+        "domain": "operations",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 5,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.conference_room_booking_conflicts",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch06-20261005/operations.json",
+        "public_pack_index": 4,
+        "public_pack_sha256": "dcdea249cf370b4adaf0542d81eadfc47d637bde1dd40e5db9776b30b426d967"
+      },
+      {
+        "attempt_id": "436a989a0d5a84a901ce838e31b6f5f007f7d37a0dc730bf30cec25b642e000f",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.procurement-vendors-and-contracts",
+        "observed_tool_server_occurrences": 18,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 18
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/436a989a0d5a84a901ce838e31b6f5f007f7d37a0dc730bf30cec25b642e000f/episode.json",
+        "source_episode_sha256": "75a913323d092feb062aeded1479948cc2d44d5ba8355dc6eff43baa33f8775c",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.drive_notion_lease_archive",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "48d5e7920dea496faf909cf4f056794b"
+        ],
+        "domain": "operations",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 6,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.drive_notion_lease_archive",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch06-20261005/operations.json",
+        "public_pack_index": 5,
+        "public_pack_sha256": "dcdea249cf370b4adaf0542d81eadfc47d637bde1dd40e5db9776b30b426d967"
+      },
+      {
+        "attempt_id": "9e46b98b33e15f3d0a06e55fa8ffdd8e9274db5e6bbcf578fd65936ff70dcff0",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.safety-training-and-compliance",
+        "observed_tool_server_occurrences": 4,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 4
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/9e46b98b33e15f3d0a06e55fa8ffdd8e9274db5e6bbcf578fd65936ff70dcff0/episode.json",
+        "source_episode_sha256": "7c55656c4ee17389af798a354487f0c1203282d797e0497b686071c2587fab76",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.generator_load_testing_schedule",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "32634df80e074d7dbb3de7f4c6017e72"
+        ],
+        "domain": "operations",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 7,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.generator_load_testing_schedule",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch06-20261005/operations.json",
+        "public_pack_index": 6,
+        "public_pack_sha256": "dcdea249cf370b4adaf0542d81eadfc47d637bde1dd40e5db9776b30b426d967"
+      },
+      {
+        "attempt_id": "8be99732f92d19fd3257ca3da100556acc02a0abaf7760b51a02ba9853932881",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.facilities-inventory-and-scheduling",
+        "observed_tool_server_occurrences": 13,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 13
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/8be99732f92d19fd3257ca3da100556acc02a0abaf7760b51a02ba9853932881/episode.json",
+        "source_episode_sha256": "9e0609638f2d68fd810222ced81a2c5f5dd79d2ea32b9bc3139eaebff52d7b7a",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.hubspot_mailchimp_sync",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "9e3fd48c7a9f4d67b1f19332cd70e2b9"
+        ],
+        "domain": "operations",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 8,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.hubspot_mailchimp_sync",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch06-20261005/operations.json",
+        "public_pack_index": 7,
+        "public_pack_sha256": "dcdea249cf370b4adaf0542d81eadfc47d637bde1dd40e5db9776b30b426d967"
+      },
+      {
+        "attempt_id": "5ad21c3707e47b3f30d82952473fd4e83e6244baf7bfc543ece00224f74b8003",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.customer-and-marketing-workflows",
+        "observed_tool_server_occurrences": 14,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 14
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/5ad21c3707e47b3f30d82952473fd4e83e6244baf7bfc543ece00224f74b8003/episode.json",
+        "source_episode_sha256": "6f10f2167bed2163559d3c25ddcd363f39054ec6437fbacd6eb7721457af6528",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.hubspot_ticket_escalation",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "3f76db0bee834a6998705194dd56f0c8"
+        ],
+        "domain": "operations",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 9,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.hubspot_ticket_escalation",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch06-20261005/operations.json",
+        "public_pack_index": 8,
+        "public_pack_sha256": "dcdea249cf370b4adaf0542d81eadfc47d637bde1dd40e5db9776b30b426d967"
+      },
+      {
+        "attempt_id": "cd9942412cff2ee3a0055ff5e424282ad3de86e4970e90171fb35846a73e2250",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "operations.facilities-inventory-and-scheduling",
+        "observed_tool_server_occurrences": 4,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 4
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/cd9942412cff2ee3a0055ff5e424282ad3de86e4970e90171fb35846a73e2250/episode.json",
+        "source_episode_sha256": "e3d3e53581553669c787a87a8e4f8a7652026ffd8e974aa1159e1decd0d891aa",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "operations.inventory_enrichment",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "40552d4f394943da81138772e9ebc9c0"
+        ],
+        "domain": "operations",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 10,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.inventory_enrichment",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch06-20261005/operations.json",
+        "public_pack_index": 9,
+        "public_pack_sha256": "dcdea249cf370b4adaf0542d81eadfc47d637bde1dd40e5db9776b30b426d967"
+      }
+    ]
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "heartbeat_utc": "2026-10-05T04:00:18.111Z",
+  "scope": "Available source-bound component evidence review, not task qualification or eligibility",
+  "reviewed": [
+    {
+      "domain": "hr",
+      "batch": "09",
+      "tasks": 5,
+      "controls": 18
+    },
+    {
+      "domain": "finance",
+      "batch": "08",
+      "tasks": 10,
+      "controls": 30,
+      "remaining_limitation": "early-pay disputed-vendor semantic false positive"
+    },
+    {
+      "domain": "marketing",
+      "batch": "07",
+      "tasks": 10,
+      "controls": 40,
+      "remaining_limitation": "lifecycle onboarding one witnessed case and nine unavailable; other reviewed gaps remain"
+    }
+  ],
+  "shared_increment": {
+    "kind": "conditional_number",
+    "tests_passed": 407,
+    "new_tests": 12,
+    "scope": "exact arithmetic and typed predicates; category mappings must be public"
+  },
+  "artifacts": [
+    {
+      "path": "/tmp/root-finance08-gate.py",
+      "sha256": "7646874c01aad6586b541f971d8208f039ca457452e9145ba57787813bb74ed0"
+    },
+    {
+      "path": "/tmp/root-marketing07-gate.py",
+      "sha256": "f468dd63683eb4c8e6562ca348d2b9c0db976685c9fcd90ed53372d15eb53f47"
+    },
+    {
+      "path": "/tmp/automationbench-luna-finance-20261005-batch08/deposit-provenance/controls-full-evidence.json",
+      "sha256": "c71d4fe34c4af4b81ce77e9722725ab905cc1bc900d8d24a99a3ce9ede7d013d"
+    },
+    {
+      "path": "/tmp/automationbench-luna-finance-20261005-batch08/audit-nine/audit-nine-evidence.json",
+      "sha256": "316da2486f057b8318571c1d21b3ccf2dd51ac8d364d48866121a557c2c78ad1"
+    },
+    {
+      "path": "/tmp/automationbench-luna-finance-20261005-batch08/audit-nine/missing-write-ack-five.json",
+      "sha256": "694ce5608749a34a9495f6aca28f71d28e40f3869af933ddb03a52e11e20fe61"
+    },
+    {
+      "path": "/tmp/automationbench-luna-hr-batch09-20261005/native-replay.json",
+      "sha256": "de7ab12e0f925d45e978b4d12607761e6fd10db6ab4f3a8a6593b7ad01617420"
+    },
+    {
+      "path": "/tmp/automationbench-luna-hr-batch09-20261005/simulator-controls.json",
+      "sha256": "3f72650c6958622f0d9d88d54ab8eebaed33c53720cf6444fec5c116b44c61ed"
+    },
+    {
+      "path": "/tmp/automationbench-luna-marketing-batch07-20261005/source_fingerprint_latest_before.json",
+      "sha256": "843a269e57cb624766a44ad32eb7e85964dd0b18abd90c6c67524aff7ff543c6"
+    },
+    {
+      "path": "/tmp/automationbench-luna-marketing-batch07-20261005/source_fingerprint_latest_after.json",
+      "sha256": "843a269e57cb624766a44ad32eb7e85964dd0b18abd90c6c67524aff7ff543c6"
+    },
+    {
+      "path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/luna-manifest-authoring-batch10-hr-assignments-20261005.json",
+      "sha256": "a3482ec7b362ea160ecdb1af2f29c1749b7a433451cda1a20799f8589da04567"
+    },
+    {
+      "path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/luna-manifest-authoring-batch09-finance-assignments-20261005.json",
+      "sha256": "800a07c653adf06d5fac20b5bd5f8ac4f2d5be32db8875dd4d8dc57d78edea4c"
+    },
+    {
+      "path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/luna-manifest-authoring-batch08-marketing-assignments-20261005.json",
+      "sha256": "4706d6d50de21bb3ba4dfe592564c95cd0ebd7942fea30f308affaa2777a6150"
+    },
+    {
+      "path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/manifest-inventory-checkpoint-20261005-0400.json",
+      "sha256": "5b4a823fa62838be961ed259ced74885fea809f84193a357ca09f72baed06a58"
+    }
+  ],
+  "inventory_presence": 552,
+  "inventory_missing": 248,
+  "inventory_total": 800,
+  "new_rollouts": 0,
+  "qualification_granted": false,
+  "eligibility_granted": false,
+  "commits_created": 0
+}

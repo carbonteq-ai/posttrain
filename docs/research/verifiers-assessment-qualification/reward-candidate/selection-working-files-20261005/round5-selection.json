@@ -1,0 +1,5 @@
+{"sales": ["sales.deal_escalation", "sales.docusign_void_resend", "sales.multi_hop_lookup", "sales.create_contact_for_account"],
+ "support": ["support.gorgias_refund_processing", "support.helpscout_jira_bugs", "support.zendesk_gdpr_purge", "support.zoho_account_health"],
+ "simple_a": ["simple.mailchimp_email_request", "simple.email_hs_create_contact", "simple.email_sf_contact_account_update", "simple.email_sf_contact_assistant_update"],
+ "mixed": ["simple.slack_dm_meeting_reminder", "simple.trello_urgent_support_card", "sales.zoom_calendar_conflict", "support.helpscout_hubspot_deal_alerts"],
+ "marketing": ["marketing.newsletter_sponsor_invoicing", "marketing.brand_mention_analysis", "marketing.email_blast_suppression", "marketing.lead_enrichment"]}

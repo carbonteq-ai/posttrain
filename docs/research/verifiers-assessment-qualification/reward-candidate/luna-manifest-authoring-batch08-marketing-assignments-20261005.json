@@ -1,0 +1,371 @@
+{
+  "schema_version": 1,
+  "purpose": "Rolling ten-case marketing refill after reviewed batch07 component authoring; no qualification",
+  "source_index_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/luna-development-review-coverage.json",
+  "source_index_sha256": "f262e989ae1cf008e7f57de2364c8a7668f6a966222ef9f176cae0eaeb83e919",
+  "selection_algorithm": "Highest-scoring retained development references; exclude installed/drafts and exact prior ownership",
+  "worker_model": "gpt-6-luna",
+  "reasoning_effort": "high",
+  "fast_mode": "No separate fast-mode parameter exposed; priority tier available",
+  "category_assignments": {
+    "marketing": [
+      {
+        "attempt_id": "4faa521996f08559b6bec57d3011a04801a73613e530d40205358bc114c4a7a8",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.social-and-community",
+        "observed_tool_server_occurrences": 12,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 12
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/4faa521996f08559b6bec57d3011a04801a73613e530d40205358bc114c4a7a8/episode.json",
+        "source_episode_sha256": "fd5fe7fa6d464b67d7de1059c9bc4ace097ae86755cb48ce39258fcb73824fa4",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.social_benchmark",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "dbadfbd2d98040838babf5093aea87d5"
+        ],
+        "domain": "marketing",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 1,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/marketing.social_benchmark",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/marketing.json",
+        "public_pack_index": 0,
+        "public_pack_sha256": "8f1c1c3e6351f82e06e6a1decce760b57cf57e14e18e903793fc6472b47a3451"
+      },
+      {
+        "attempt_id": "b9e83fbf00243e78713a7bacc7a97c9a1725619bd0688e65c238f2ed1d17e24b",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.social-and-community",
+        "observed_tool_server_occurrences": 10,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 10
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b9e83fbf00243e78713a7bacc7a97c9a1725619bd0688e65c238f2ed1d17e24b/episode.json",
+        "source_episode_sha256": "22521b1f9d880478115e41a25eba5fe2902def999056a63bc74b7792cfd18684",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.social_engagement_response",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "0925d5eb92b445d0a0ded8e192fefd13"
+        ],
+        "domain": "marketing",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 2,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/marketing.social_engagement_response",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/marketing.json",
+        "public_pack_index": 1,
+        "public_pack_sha256": "8f1c1c3e6351f82e06e6a1decce760b57cf57e14e18e903793fc6472b47a3451"
+      },
+      {
+        "attempt_id": "ba131b0439c0960198b9561c78d0fa204b073e1a8078795fd309283e47302958",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.social-and-community",
+        "observed_tool_server_occurrences": 4,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 4
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/ba131b0439c0960198b9561c78d0fa204b073e1a8078795fd309283e47302958/episode.json",
+        "source_episode_sha256": "39a0d4bc1d8b1391fa7983e2992f82b26cb770d5fd624d0dd4494f989386098c",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.social_mention_response",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "0cdcde8c541d4e8c8a8370df5af69afe"
+        ],
+        "domain": "marketing",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 3,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/marketing.social_mention_response",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/marketing.json",
+        "public_pack_index": 2,
+        "public_pack_sha256": "8f1c1c3e6351f82e06e6a1decce760b57cf57e14e18e903793fc6472b47a3451"
+      },
+      {
+        "attempt_id": "fa9d7f751a21d453dabb9c42a6950c720435a8da95d4c51d31b580b11ec69e5d",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.research-and-monitoring",
+        "observed_tool_server_occurrences": 6,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 6
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/fa9d7f751a21d453dabb9c42a6950c720435a8da95d4c51d31b580b11ec69e5d/episode.json",
+        "source_episode_sha256": "f2f80e1d75703ab7736682b36a6191af3fa33599502407d7f2b991b1997c6abc",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.tam_analysis",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "da5957f37e404dff8e91b263c782230d"
+        ],
+        "domain": "marketing",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 4,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/marketing.tam_analysis",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/marketing.json",
+        "public_pack_index": 3,
+        "public_pack_sha256": "8f1c1c3e6351f82e06e6a1decce760b57cf57e14e18e903793fc6472b47a3451"
+      },
+      {
+        "attempt_id": "83d9a2ae0740b4bb2353c973a95dbdf51010cd514f92440fe691618990b9ab0e",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.research-and-monitoring",
+        "observed_tool_server_occurrences": 4,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 4
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/83d9a2ae0740b4bb2353c973a95dbdf51010cd514f92440fe691618990b9ab0e/episode.json",
+        "source_episode_sha256": "7e760c172ad82a8564a75e43cc6e71470a136fb3875ca9d9c771cb9084daea66",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.trending_topic",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "aaff76dc6132483fb6672170d4084055"
+        ],
+        "domain": "marketing",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 5,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/marketing.trending_topic",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/marketing.json",
+        "public_pack_index": 4,
+        "public_pack_sha256": "8f1c1c3e6351f82e06e6a1decce760b57cf57e14e18e903793fc6472b47a3451"
+      },
+      {
+        "attempt_id": "1edd0bc9de109bcd55da1b53bce27484e49c0a37ac0cadd80324ce31ece151b3",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.social-and-community",
+        "observed_tool_server_occurrences": 6,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 6
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/1edd0bc9de109bcd55da1b53bce27484e49c0a37ac0cadd80324ce31ece151b3/episode.json",
+        "source_episode_sha256": "b6bb6eff8866d28cc8152e2351edda3e6ed95221c19be1ea3029fa202ecbe0cf",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.ugc_moderation",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "780339599681413b9b9bdf272c2d945c"
+        ],
+        "domain": "marketing",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 6,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/marketing.ugc_moderation",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/marketing.json",
+        "public_pack_index": 5,
+        "public_pack_sha256": "8f1c1c3e6351f82e06e6a1decce760b57cf57e14e18e903793fc6472b47a3451"
+      },
+      {
+        "attempt_id": "9e1a07c6321ffb8eec6a8718fbb0abd70543a5b6737582149f29bdd55f2ae7f1",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "marketing.research-and-monitoring",
+        "observed_tool_server_occurrences": 13,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 13
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/9e1a07c6321ffb8eec6a8718fbb0abd70543a5b6737582149f29bdd55f2ae7f1/episode.json",
+        "source_episode_sha256": "a0c58e54fe9a1d9ad8f423c7676fe42354192cc205327b157ae69b24d87cd2dd",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "marketing.win_loss_analysis",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "69183a2355b24dad9046150207e7e7d8"
+        ],
+        "domain": "marketing",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 7,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/marketing.win_loss_analysis",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch08-20261005/marketing.json",
+        "public_pack_index": 6,
+        "public_pack_sha256": "8f1c1c3e6351f82e06e6a1decce760b57cf57e14e18e903793fc6472b47a3451"
+      }
+    ]
+  }
+}

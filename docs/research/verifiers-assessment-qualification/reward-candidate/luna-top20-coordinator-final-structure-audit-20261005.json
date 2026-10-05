@@ -1,0 +1,2541 @@
+{
+  "schema_version": 1,
+  "scope": "Exact120 assigned task structure and source-byte audit; not task or credit qualification; refreshed after final Sales retained-outcome gap correction",
+  "categories": {
+    "finance": 20,
+    "hr": 20,
+    "marketing": 20,
+    "operations": 20,
+    "sales": 20,
+    "support": 20
+  },
+  "task_count": 120,
+  "checks": 517,
+  "status_counts": {
+    "not_qualified": 113,
+    "qualified_candidate": 7
+  },
+  "issues": [],
+  "tasks": [
+    {
+      "task": "finance.cash_flow_forecast",
+      "domain": "finance",
+      "draft_sha256": "f3b2827deacc1841ab89a5ccf088130137434472dbcbad2f0afc692e86e8f171",
+      "review_sha256": "ca6faf2993b49a031359b8bc65d202f8fe3d4a838edea86a09d0241566f508c0",
+      "review_md_sha256": "f9fc5acd4b71e6a5dfb1d5405d3ae34af304e1574c64063a8de35dc24cdfa19b",
+      "checks": 6,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 14,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.cost_center_allocation",
+      "domain": "finance",
+      "draft_sha256": "2b644a9ce59d465c7b2be45eb8f95e4b052bcb77a0155dae5f81b216dab9972e",
+      "review_sha256": "d0a07b4be40f319a6fb95225efc65700e54e1e67608a01cce64f0b72551af701",
+      "review_md_sha256": "e5fa889976e38c44f314125e6980148af822c46fb4bbcece58fa67527c2ea86b",
+      "checks": 4,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 9,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.dept_expense_rollup",
+      "domain": "finance",
+      "draft_sha256": "f044313b2131a3df128e54eddc3a175e349b6ca6836a1b715cab422e85824149",
+      "review_sha256": "dbf38ba88241124578f874ac3f294be35ceca69186b1e2f8a650f18c72d8fc03",
+      "review_md_sha256": "524d9378aee05ae331ef6320eae3454efca36504da7016bf9baa4e13b831441f",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 9,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.financial_close_checklist",
+      "domain": "finance",
+      "draft_sha256": "97a474121b8d99c01ec672dec2444cab6ec1531148889e2e8f89928cb8378d2f",
+      "review_sha256": "cf4d15ab9a77a87d33e72665c88f07baa5579aa56e5ed409de40eee62372a8aa",
+      "review_md_sha256": "3906328893b581281e3f6ee911104c663e8d7dd6b31bd40e790285ec0e9e9a69",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 9,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.monday_project_billing",
+      "domain": "finance",
+      "draft_sha256": "ec7666df55ea42b8029447eb754478c3c47c20f2d1048b5f14598b9fe9f90a8d",
+      "review_sha256": "30718c52ec3e13f82d6c234d879a1aa20c074909b67bdf069437b914c61758ed",
+      "review_md_sha256": "90a6722a0afea2ee3576bc8025f8dcc2ae7a8cabccd2dd6a46107f9df738202e",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 9,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.overdue_invoice_followup",
+      "domain": "finance",
+      "draft_sha256": "94e7493667ef12372ea6d3c3fde415ed5b9c563b4e9196dd21da83cb07fdcf76",
+      "review_sha256": "610418bf3484f3defb8f806bddea588882f2860d274290c118522a503661d24d",
+      "review_md_sha256": "eda7cb792ed842edf234db5a24f42e4e383e3c1eabe1525f739fc5676f5bf729",
+      "checks": 6,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 11,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.petty_cash_reconciliation",
+      "domain": "finance",
+      "draft_sha256": "7f09dc6f6dbb5bd849aaf71f4612c89b13dd6d3b9f24bd15eaf5596416b44b39",
+      "review_sha256": "1577b5883e52e7943775917f2ab060f5c6c57bda44f961d4f59aa235f8fea93f",
+      "review_md_sha256": "2d472ffb168dbbbb217a1fa5e225b4aa56bf033a63c914ff7d0034d2e6ae3324",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 9,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.profit_margin_analysis",
+      "domain": "finance",
+      "draft_sha256": "1549cfbd8fa73a11f6035f86cc642e1c026e64d5e736f628b3032437948343b3",
+      "review_sha256": "107447e2d9b0b4c6507a8f597a151c0c1f4e2ac20bf543e96555282f650dab24",
+      "review_md_sha256": "75ae833e4b3579fcb7df3971983c30d5cb96aff7a789b82f4ecbf481b762c8bc",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 9,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.qb_estimate_conversion",
+      "domain": "finance",
+      "draft_sha256": "964529646bae95f804620f3bc71ae4b4622740d359846dcd85050615b76d5594",
+      "review_sha256": "210035bf62bfe6764310671c1da945aa5ada6d061c22eb50ee53e1a16129df97",
+      "review_md_sha256": "7372383826325f1381910baa149af12b440997ac0c5d6937ea0e95f0a0450e76",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 9,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.travel_advance_settlement",
+      "domain": "finance",
+      "draft_sha256": "effaeaf24a6cd6e30287089dc35df40bfcecb2ab09969d4fe3b827522df97c62",
+      "review_sha256": "2fc888894c4a1a84f5d1da0aad7e75b8104668ab35e75de75990c99c4c356060",
+      "review_md_sha256": "ba0c9cccf48f8c0f66ce79e3be19e3a18439e35ddab8d55811b6a49226aacb97",
+      "checks": 4,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 11,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.airtable_recruitment_analytics",
+      "domain": "hr",
+      "draft_sha256": "1b02ea22b8971a14e4dc635fdf8727a369c338c5707f9728b4517b1069f27033",
+      "review_sha256": "5fa09ef9f863d5c2fbd44caf74e9dc041d934a51bae7d271469b661cce9c3c27",
+      "review_md_sha256": "07029614df30a39f69dda1477ea97dc8c7ef7fc8499e195709d9ea64725c9b27",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 27,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.candidate_pipeline_report",
+      "domain": "hr",
+      "draft_sha256": "673fa567389a410aad0308c99307e29d29c317b2594b6e54e4892c6d61873497",
+      "review_sha256": "f49aec35a967b05a8533fa1838e81a1543821761e6c09bc3ee166274d52a59ef",
+      "review_md_sha256": "43daaa9bdb44a6318a0e8517ff51e30a2435ae6a1cf22bcbd11e17f948feb7e6",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 27,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.data_migration_validation",
+      "domain": "hr",
+      "draft_sha256": "f3872652fb1646d2b581af47a65bd90df3795bb49b8ac154a200685db6ce8b20",
+      "review_sha256": "e83200e32a0e595d93c391c0af183c887ef70b40149b1b3b412967258120740f",
+      "review_md_sha256": "c786433c1c82d95e81f15d80d7344b202dbed8f8fbe4f21f01dd56d5959452b3",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 25,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.docusign_offer_letters",
+      "domain": "hr",
+      "draft_sha256": "a13855336d7dcab8a53383a4454dba45d0084b4deb0e65ffa85f2e76f648b161",
+      "review_sha256": "e611041d5381462341b5dcb9b22054eb01d401e36766881c541e77ba4e9e1851",
+      "review_md_sha256": "7e9a47fa4fae2ab19379d1f14494a6ee3d3b2848fa5e90963a65e2c87d117d5e",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 25,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.handbook_acknowledgment",
+      "domain": "hr",
+      "draft_sha256": "6e7e6d228b3100e6b7196ac0e43219b5655584b886c6dddfebf8707c536c2423",
+      "review_sha256": "a3474b1a739d1a6bd25a400de7f260f91085dd4debe38fedc73fc982ba6b7af6",
+      "review_md_sha256": "996a7c52fef62cc7f18e93f5e1b35ae312920a55ae2c566f9041c2c88ade6cc5",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 25,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.i9_verification_tracking",
+      "domain": "hr",
+      "draft_sha256": "fe32af11b3d741de91105a5fe720d4cf17836762b99b6c8098439e933c59ce86",
+      "review_sha256": "08233ac11f0eae69c0db6237757c6ae6f5f492521f6056612bf38ab414ca4783",
+      "review_md_sha256": "7f44b5466cea82841a36605d8f604cff2df56c708eb4dde41102005a652b39e8",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 23,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.offboarding_automation",
+      "domain": "hr",
+      "draft_sha256": "e7a924ed6c472a464b50ca3e31d2d42527dc203a19b75ac665c5bfc5e21deff8",
+      "review_sha256": "4533e501a0752edefb8f26b618f06fdf6d31940917b01b07d799407e0bbdfd49",
+      "review_md_sha256": "53a64e20a3efc94155242e6d59994419faf62b8794d56364e5969f1a1840509d",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 24,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.performance_feedback_logging",
+      "domain": "hr",
+      "draft_sha256": "628931058ea0265f8e310a3abea23edf564b0a4a4c76f5f22788c83c2c4a6760",
+      "review_sha256": "fb43b1aa6b0933468760ce6791d10f1ca036364ca750663773339092c388f136",
+      "review_md_sha256": "0910f672429a5fd76e3368792ca8de21fbfbb27868f09c6974edcbfe3cfef128",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 27,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.performance_review_cycle",
+      "domain": "hr",
+      "draft_sha256": "0523aa9da37b0ff86f98ac544275ca8b51b68bc1a90231b04e9f68a1868194fb",
+      "review_sha256": "b8d4b9473933b7c826df2018d79bcbcd4272f719e87798d61ee05cd33e28ec75",
+      "review_md_sha256": "6aff3ca6a2ebcc1c51ec7cd347eb51a1c8668599e4ade7fff26d5fa9e1eb7807",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 26,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.quarterly_termination_queue",
+      "domain": "hr",
+      "draft_sha256": "cc2f6dd45018a4b2fded087ebd353163688726e6e44254d3843b76a220a81771",
+      "review_sha256": "01392efc14adfd27e208a7ae2bd7e2c3f5b7d68ed136e2e419eb49dcc393b832",
+      "review_md_sha256": "df00125cba0c53043f6f56d2b17aa7af57ddb0d852c014e41516ef08ad8415f3",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 24,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.campaign_handoff",
+      "domain": "marketing",
+      "draft_sha256": "d3e8cb85b5cc88591765573d5789f650fa1478ed9de861b8fc8ec886ca445c9b",
+      "review_sha256": "0e0c4a21a5da913ba1ca2406bcb325ce8ffa8fe6ea694c615d57d7a55a737e28",
+      "review_md_sha256": "d7da983058afe4e0f45f108a182486c49ba118fa1f2924d547682c5f533d3078",
+      "checks": 6,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 11,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.competitor_product_launch",
+      "domain": "marketing",
+      "draft_sha256": "b04d947d0dd7cb6e6b83276e66897cb9b882a856ac8402d9d7362b9f21ce7e00",
+      "review_sha256": "2665dce7282e962e75fed7dd91d4248e7cdb05993febabfc91902e957c662471",
+      "review_md_sha256": "41a9b6a3757f129ed556bf7a9f6d62bb302393a96ba8897802eea7293ec2d7ff",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 11,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.content_performance",
+      "domain": "marketing",
+      "draft_sha256": "1216400be19dfd09881e5ce2069eafe6cac14d9550ea4aec1190be4ab639f5c6",
+      "review_sha256": "1e85adf7595803d13677dc342fe28219e4ea8739b62c2d5716ab815c552cfb00",
+      "review_md_sha256": "00eb5df51ea3946971fb9926ecb69c6c1800287c8587fa33233bfe8069251c5a",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 11,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.email_campaign_analytics",
+      "domain": "marketing",
+      "draft_sha256": "a8bfb71fb77cc09a9cdd319d4218336cc27e651e16eef699d7e1d33d5bc9e64a",
+      "review_sha256": "9a5be125c71ae2141dadc55c740579bba119704f47f5e8a6a65624668db0ce48",
+      "review_md_sha256": "fa37fdceee80ce2a380a918ce730fcd3c0cf2ec1ba19d632df00146c309a7c8e",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 11,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.market_trend",
+      "domain": "marketing",
+      "draft_sha256": "898c43e1007e5f061bdce3c95f61e2312ef1e441eea3d5d448737a068d754cf0",
+      "review_sha256": "4006dac00ada24a18821fe1457c46e39df30ef2ba6c763b8ca051e17d1ca682e",
+      "review_md_sha256": "de26df6950e3ff8fb44cf03d05cc599d3fb36d69525aaa85dedfc40172c4b38e",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 11,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.news_digest_dedup",
+      "domain": "marketing",
+      "draft_sha256": "a58072d7177c9b80b845aa2794fe016a441f90c16cc397d24ad0a5e6f4d6a3c4",
+      "review_sha256": "12760aaef5085e6d2e89fe8f903e89f6f1a2a5f6170699ffdec72943aff35062",
+      "review_md_sha256": "4f364bcfefd859abd16f9eb313c965501961c3020448e85c6beeda5afb680534",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 11,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.trial_extension_processing",
+      "domain": "marketing",
+      "draft_sha256": "eac31fefa2446522425611de70c1402d832ac3cece2a6104ad0a8b97d9c85512",
+      "review_sha256": "98edad84eb3cfbb94a984998d9d21bde12504ba721529b0787d4181cae20e368",
+      "review_md_sha256": "2b0c3da0d7681ba7ec2fb31d1e6f30e62502e39688e63e03b58f80708d0a34f9",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 11,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.campaign_roi_analysis",
+      "domain": "marketing",
+      "draft_sha256": "59cd2b7d3b9f848177b01d5649b7cfbb4409bb0f1e180e9f9cfb44d35d579508",
+      "review_sha256": "2993b4864afc44e02a9f5079cf042c26a4e439b8c2263282e78268ec4f0b1ddf",
+      "review_md_sha256": "c556d6f517387dcc34c8009164eb1e9c2f580c466c5510d4e5a5e0e4f6a40f8a",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 11,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9523809523809523,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.content_expiration_alert",
+      "domain": "marketing",
+      "draft_sha256": "429a0b7b2febdc2e274c2bf8f009b0073c8e2c1176c5c5a0c4f0303cea019adf",
+      "review_sha256": "c5c43411d9e87d1e87acf44ca78f2d0fcf22687014ba26a15aa550d63e628a06",
+      "review_md_sha256": "c6017affc29bf0958cc13a12afdc2fb3a1ae00530b44b89f5aa6ab2145a4a666",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 11,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9375,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.seo_audit",
+      "domain": "marketing",
+      "draft_sha256": "9dc8934b8260f11a1f8490377e1855678b1fed136b47114fa4bfeeafbf8b420c",
+      "review_sha256": "c5d909f91333584a38a903b1e9e37c46d050693e879eda0ae6564a36e830efa1",
+      "review_md_sha256": "9dd7607b18a07a9d808516e0721753ebdedf2d85dc6cef38d96764a7002a4c14",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 11,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9090909090909091,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.access_request_validation",
+      "domain": "operations",
+      "draft_sha256": "5d6e5c13faf5e47a03e580d29a971ebe6bc264fe169e351074403297a788e667",
+      "review_sha256": "9f82927b6908aab93b6544a37e766094690e1a1be681253e1bef15f19b143941",
+      "review_md_sha256": "0d7ab63d8f16a3dbf283b7fff0276b679da042f37ae8bc965757f7d36f0faebd",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 18,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.contract_renewal_pipeline",
+      "domain": "operations",
+      "draft_sha256": "6884b1f04bdf7f27a8f9f0495950af7667bf74179637c42e637a835fa4214abb",
+      "review_sha256": "45a0afd7e7ea8bb99a76919cc4ad323c2541ebddd781aea8b280bfdee889bec2",
+      "review_md_sha256": "d08adc865b23d7aefd2cbcee7717df7011a3fb5a6774fec6581e1236b129335d",
+      "checks": 4,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.energy_consumption_anomaly",
+      "domain": "operations",
+      "draft_sha256": "6e08d83e4249fb8e2579db932b447ad9e9be1bcb418aef2ee3347942289e4900",
+      "review_sha256": "233107e6e099d36f5fa44c4bb585ea484f5a8a8499239b9a2a01bcdf0eab216a",
+      "review_md_sha256": "c4c28ea38e3d279c7647c09a46bca1db652e472413d7801a8ddeb19200458834",
+      "checks": 4,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 23,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.equipment_lease_processing",
+      "domain": "operations",
+      "draft_sha256": "5d54b4b60cd0a509f6e7931a9d7c243fa55b23459f48541f8b55b7781b420814",
+      "review_sha256": "3c9148a0db2b7949c1b555627d82ad01dcad6cce860058bafc726a34973a93ea",
+      "review_md_sha256": "00605ac301618879b21cb2f89a703c0cbc643c7d6cbbb6c96d40429d0e5d5332",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.facebook_roas_monitoring",
+      "domain": "operations",
+      "draft_sha256": "cc33111c794fa897b8d9ea685e94b2af98c359b1bc2b6994e419b83be7e1c63a",
+      "review_sha256": "dd0320f214668037d2c4a92cc0b2a3f9965e24866e9cbd01e62d8ab03e2606e6",
+      "review_md_sha256": "ce6235b05da9665bafba1b5378616175849bbaa422762255802689b0e8ee34a4",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.fire_extinguisher_inspection_schedule",
+      "domain": "operations",
+      "draft_sha256": "ed4489743bdb64285c4aa40a034d92363689c6fb46e5923fab69cacbdaa93524",
+      "review_sha256": "c82dd10366bd3c012de972c01db28534f60784fdaaf10a34c6fbbc599801149a",
+      "review_md_sha256": "e32340aa292605ad989c59ce056ef0a0b02e307d93aef8ae013f0817c31601d7",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.hazmat_shipping_compliance",
+      "domain": "operations",
+      "draft_sha256": "72d5e3861f85c789c7e61c8263db80e1792aec192f4f26cecbc3ca986908f03f",
+      "review_sha256": "3492249cab16d523fc19259ad37eb1bb8cd3e5d27c48f36af8b48e0ff3c91081",
+      "review_md_sha256": "db7ac41a6edabb1be5d50e608014c31e5c5026129523c227329902d99e5df87c",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.housekeeping_schedule",
+      "domain": "operations",
+      "draft_sha256": "aacb199c1fd88ca248d169e08fefdf3b29b0ba536742dc84b4d28e4ffcb4510b",
+      "review_sha256": "b7f4f319e230cc52ec1d4c4573f14670d82831ad9883e1ed7d76f2b19a8ad200",
+      "review_md_sha256": "c00b483386f8698f240001efb5b326e391edb046efebc22a9e88594015536c49",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.hubspot_payment_failure",
+      "domain": "operations",
+      "draft_sha256": "feb3809edd8c0fc59c2614fd9f0ba0bdf7b55f398c67f4da71cc1926f922d56c",
+      "review_sha256": "841fc924d045c86f427ea0412b7e7414f0a58ec713a9f46a7730c585a5a87a2d",
+      "review_md_sha256": "876ab413bdf2599de70b58dad8f99b381a50c2466324ca16370ead88ecf20001",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 23,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.mailroom_package_routing",
+      "domain": "operations",
+      "draft_sha256": "8b2dcd23eef64389449ba4314321630f73ac4c0e27b423ef0b41e3571ac39a24",
+      "review_sha256": "5f5eae0bd2d7610203ef69dbf80ad20e0ec0fb759a4b32d3a6fd1276d3dfad8d",
+      "review_md_sha256": "8d868ef78e3ce4508072a0ed0ac754bff0607c34bf9d67eb97fb81848b23d9e9",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.calendar_crm_meeting",
+      "domain": "sales",
+      "draft_sha256": "52c9be7fe68e278e65f3c0043fdbba670226038c95f482f596debd0cb898cb89",
+      "review_sha256": "7cea06f7634b359d4d804f4c73a0b948f82ca335d85d0a39925dbfac941a8ea6",
+      "review_md_sha256": "9f2ea7b16dcde180e74827d7757441976707aa0b85980a3dfd4ef009131d19cd",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.create_draft_reply",
+      "domain": "sales",
+      "draft_sha256": "2b20c9c6c181093345afb8633f25e8bb47f9c5649ce23728f536918e59dac4cb",
+      "review_sha256": "a2e7f31e5a1cd5f443c65310a8e7fa800bff098b58ffdfdf127c760c1dfaa3fe",
+      "review_md_sha256": "3d04a59ff9d8b84afe4ef94fedd72c420af897ab3950b5a182504e41a4aeb1fa",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 21,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.create_important_draft",
+      "domain": "sales",
+      "draft_sha256": "b735e4c85b860492d3894672b5a3afdeaa0ba857533438ddc4dc919dcfdf1362",
+      "review_sha256": "14fbd4dedb8964a0eeadfa71bc2fabf56dfaa2a75fda84070cfcb6d3baeea313",
+      "review_md_sha256": "3e3cf9e36cad0afa4c2da136e4eab0166a84b51cf7c593477f7ba43e7e693a7b",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 20,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.cross_modal_renewal_processing",
+      "domain": "sales",
+      "draft_sha256": "56057b62b04cccaf0f2ef5266a0f07cd43ffe03e45604344fab8b7eb5a5c8848",
+      "review_sha256": "b1fbd517c37dbda309d3f6dfd1c4d50015a16c6cc357b7d220e227fe1220a5aa",
+      "review_md_sha256": "8ecd67ca896c36666b02022264937194e6ab7a8001f6a10e2e72f0d09450a0d1",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.dependency_chain",
+      "domain": "sales",
+      "draft_sha256": "b097eb88ed49ecd2ff80afdd3dec108f9536fa10799e17ac3e52ce40b03648f7",
+      "review_sha256": "e0ae1c97ddd8ec4a4552ce37a36512b1656d62b99f4ea79625b60688ebf58cb7",
+      "review_md_sha256": "bd299eac46cbbbf5dca30e5aa6d99cafdd81297c4f610231006fa45a46581a89",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.five_level_conditional",
+      "domain": "sales",
+      "draft_sha256": "1dbb2be66c4ca116cdba3681964965e5bfde9e782f6baed152900ec4da0bba91",
+      "review_sha256": "43e0d64148c2bb10ab53e948b1c3d046248e955f6dd9df91f1b281f0c99289ce",
+      "review_md_sha256": "480229e6b6ef42c84d71460b19fc770f9608f770c236f129f8d0859c94c9645a",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.soft_matching",
+      "domain": "sales",
+      "draft_sha256": "56df79e59a4e3313b000b74e9e9e370748cf9557905ee041492b1c64493c96d0",
+      "review_sha256": "0b7d91d86382f70275dd006cdec5730ca079e7fa5a11882c2b220fe3f26b8fb1",
+      "review_md_sha256": "c6bd171125cc0230704dd6ae8cb292ba50bfc0c985c7426ec3cdd2af26cf05d3",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.meeting_action_items",
+      "domain": "sales",
+      "draft_sha256": "ed869acc7fd08a46a5bf9d35c2ff0374869c381a3f6d8cc7d34af46240af0010",
+      "review_sha256": "8ec7236ab69ce22abd6f509dbe6d12e3990497625166aab551fe371cdc9a1f9d",
+      "review_md_sha256": "c7b062417b3c3a12def0f4e19ba0cbb3ff0b5f7dfc4e410868254e0f6b702a8a",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9333333333333333,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.unreliable_label_account_review",
+      "domain": "sales",
+      "draft_sha256": "abbe12c047a04ea2da23d85fdd55f8c8c7d8575f995873cf93115e600bc73c5f",
+      "review_sha256": "65e502f981118c7f694d685a9f6d9ac22970c0f4deb73b8138e1fc684f263335",
+      "review_md_sha256": "2b659f011c95d77ba5d419b2bd006ce0679eaae55090ddb881185afbc293c22c",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8571428571428571,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.zoom_webinar_lead_scoring",
+      "domain": "sales",
+      "draft_sha256": "42fe7357686d76d0efadbbf2be96aabe8d82d82732a755c11a527996e16234db",
+      "review_sha256": "4a4c3cf1caf08a9f88c72febfc57061d876a3faa03316e3f45a0cd05f54e6016",
+      "review_md_sha256": "2c12a1d540e1b95bc3f0690b51b7d50ab80cde2b4d4d2aca7b096c5f8b774fd2",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8571428571428571,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.reamaze_multilanguage",
+      "domain": "support",
+      "draft_sha256": "883930e2bcee82cedebc0ef31f7f00815acef19a11f0f800a02522df1eee1826",
+      "review_sha256": "3d665bc49e296886fafddcfb18b190928dc944d30b7afc9f345f5f2c0482d7fc",
+      "review_md_sha256": "92bf6401831fab879c35b9dae6c4146213ffad7eb3eb858cdb0eacfcc2166160",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 22,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9523809523809523,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.hiver_quality_coaching",
+      "domain": "support",
+      "draft_sha256": "3f7f888dae6f9e5670f2d13bdffebb2429190935f971720e7fb9ea1fdc0a8243",
+      "review_sha256": "e135b1d28644a33caa565b7c4ed25d33a3de3aa1abca7b8ea8b4c1b1df569404",
+      "review_md_sha256": "fd13556cb61e66d506e887fa2b3b64b45ce9ac6759676719d8c7aaa1421ba562",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.95,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.hiver_workload_forecast",
+      "domain": "support",
+      "draft_sha256": "66bfe6ca90dd61687b5bc6ae45a99872af74776c3b638bdb129192d95b4a9adc",
+      "review_sha256": "53e7b63152cc9a93a84ab66371aac4be76b9aa8c0bf5e206657f687350a9942f",
+      "review_md_sha256": "d2252a4e9ee7adf2fb7191d24827419ae0851f811e4908e389c89947fdd308d7",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9333333333333333,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.hiver_response_sla",
+      "domain": "support",
+      "draft_sha256": "2fef240d6bdc3d8f0d4692423e766b99dfb1bff65fd327029ce6fd54e70649e0",
+      "review_sha256": "0e42431e96d80ba2dd1135c1b787990e037281f86b4c386c8b590b4661ec69ec",
+      "review_md_sha256": "e28c84606cceffadcaa5fc7842a9f179aca414261e452bbaab47b3528a81d2e0",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9130434782608695,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.zoho_desk_customer_journey",
+      "domain": "support",
+      "draft_sha256": "2151a55b4e14eea1eefe2e37c7c5ce4c73bb886dff7a52f9526c2d7c355be093",
+      "review_sha256": "7c2b209e2d3d27754f87a8943244f8ff50601d68381bc48ee0bf25efed43fc9c",
+      "review_md_sha256": "abdf8eb5c208b2841f1f37807c3554bfd5e5c7d42c919a28879d2a3b5e1673cc",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9090909090909091,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.zendesk_intercom_company_sync",
+      "domain": "support",
+      "draft_sha256": "5b45a2097f72e4b3376a52451d14c48a720aa060ff69ad95d088f5f86dcef9e3",
+      "review_sha256": "ab5ded5db50b230b8dd11d0830a34d59b2c2f8e9429866cabfe477717f1c8d13",
+      "review_md_sha256": "7549bf866b63068290032fbda558806fd38b4eff6783b0d1413432f068cc0952",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.gorgias_quality_audit",
+      "domain": "support",
+      "draft_sha256": "d5e084fd261e52c02b328cb6e774a53dbcccb70f38a3a7e578475466381fad3f",
+      "review_sha256": "605aa29ab976b529faa645007c0452d8e384ffef5aa447f3817401f1714ab0c9",
+      "review_md_sha256": "1eac6e1d31957f78872ba0841dc35e2716756caf23779201d955bbdd7a1b6922",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8888888888888888,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.helpscout_daily_digest",
+      "domain": "support",
+      "draft_sha256": "e0df75c6740921c9991e23f1d8b66305d9ab343e11bee2ba53e300e5e92714c2",
+      "review_sha256": "fcdcae033caec316c819631e467b0a521d26b79379386c6db53f9ab76f71d3b3",
+      "review_md_sha256": "d3033bb8a5ad1edbb28ee30ec1071b549b8f5600aa87e0b41ce3d3028769b8e9",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8461538461538461,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.zendesk_customer_360",
+      "domain": "support",
+      "draft_sha256": "c4559f68a974300c6b4f31d45277d04aa495a28eb3103512c2c19b996a62fb0d",
+      "review_sha256": "5befa0ff4d39aa72bccd30c112db2dd0aec4b2dd7fe0cc30f5522f24b92d0c6f",
+      "review_md_sha256": "311f9c04bd795a5e869b5152b3fcc0cdb717f77f28055f1c079e44d133e4ac94",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8333333333333334,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.zendesk_sf_case_sync",
+      "domain": "support",
+      "draft_sha256": "07dc4d74611651d4d59b89469c1a6a0c36e45a6795ca360d8b9955bf3758418a",
+      "review_sha256": "d0977f855643225f89f4ce962e2199fd5a12093429f243739dbfef14fb8f30b4",
+      "review_md_sha256": "0cce01a6ae60c5fb1aa83a078809f40c6271030d1c4f6c761e150349bc497b0d",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 19,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8125,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.monthend_journal_entries",
+      "domain": "finance",
+      "draft_sha256": "999de453d32e2dad7244dd63b9dcc7bd9af83274bee0376709d5f7c1244c1e70",
+      "review_sha256": "518e056a7462235c36efda48ef210837f9ba6620e403b807cbed2a1019be6037",
+      "review_md_sha256": "2327c9f13269f38094d9dc203c21cecc3ff00ea1321d2e0c00ec90d6d7b3fbe7",
+      "checks": 11,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 38,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.po_email_logging",
+      "domain": "finance",
+      "draft_sha256": "4cf3cbe02506774b83ae052ce016b1b1aa0e0116b04cf7eb2b20ae70ca6a9e22",
+      "review_sha256": "b16cb32870da705b2659d502c280e0f5fe265f23032ee5aeda00b56132ff2c4b",
+      "review_md_sha256": "66c4539838695b01a301d61b5514b52128f011601ef5313b83e9a05966d3fda6",
+      "checks": 6,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 22,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.prepaid_amortization",
+      "domain": "finance",
+      "draft_sha256": "78e66d5df41c6346245011d41d145aecfef34db288549fde79ac6b7598a0bdd2",
+      "review_sha256": "e83e43fefedbdcd623a9bb7bf96ca3dab85935afc43a50b9c55f37719cb11eef",
+      "review_md_sha256": "c6ef84b784c5c867d6aec50576f94ba0d952d140bec47e5daf6310edb40ffa9e",
+      "checks": 8,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 24,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.vendor_statement_reconciliation",
+      "domain": "finance",
+      "draft_sha256": "d691b36a9c8a779c6e9ab30bfe84fe2bc2768287ab807bc2c28417b271c40fe6",
+      "review_sha256": "37643b8047c365b3df7c552ae14f5f3e58da4e123bec10f74b7e948d0ec147a6",
+      "review_md_sha256": "80f0dbcc1571010e1c2a7f02c327f317361656b1446a2435ffb4ec33d0fb4ee4",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 16,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.wave_expense_categorization",
+      "domain": "finance",
+      "draft_sha256": "c1686c08d00362683705b4be746d2fdb5a6a2ec88c22873e32e87b3f144e11f9",
+      "review_sha256": "8b09cf982c1c104e7373b64f87780b2747a606811d35a776f585bed64907e163",
+      "review_md_sha256": "7203fc23c3e85179eb18891f3ebea0e1647d6c6d1dc089bbc1fbe5997db03085",
+      "checks": 9,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 16,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.xero_expense_claim_review",
+      "domain": "finance",
+      "draft_sha256": "0b140b07f222ae04a4ce8f12204e2bc5e191f6a382c4dde73075f84b5bdc0fb6",
+      "review_sha256": "6323079059f8ce7530f104dd5dfb4c1527e34b9c54e44af61df3c3bdb19d9604",
+      "review_md_sha256": "d503c0b1f5ffb6ef7134c93c0ca88be6f1046aff0c9cbd6736bc17d872af4d21",
+      "checks": 6,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.year_end_audit_prep",
+      "domain": "finance",
+      "draft_sha256": "7dee6e047b071777cc3a374b50ed703a2d7966d0cb7b6bf5eb2f7d2e7a0e4e66",
+      "review_sha256": "9c75218c6a03f2bf1fefa9100e82c646b65c195ea069f51a987afa800909cc1a",
+      "review_md_sha256": "1abcac353fd1431721f336a14c8b771cebe9c1167e0011c60af88f594bdede4b",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 15,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.employee_reimbursement",
+      "domain": "finance",
+      "draft_sha256": "a02004f48ac2abbda9baf59e22bde19ebfd6b8e36fdb9787a037e9d6c832b270",
+      "review_sha256": "7b5cbef9089687d2d50a5a840a231fc73e56e6bfcb7bbc4db07fd6558577004c",
+      "review_md_sha256": "9634082b16140180e4b1bc19052783fa01571836d2d08f38b748191ef9d0d190",
+      "checks": 4,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9166666666666666,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.ap_turnover_analysis",
+      "domain": "finance",
+      "draft_sha256": "82819606508529099f13c8cb4e0df8a51634f44589232f795e4cb753cfcbd294",
+      "review_sha256": "0e0cf1814c63ad6df07b2dd450ab90b991995b2b636e3cc84b725f7571a2ab4a",
+      "review_md_sha256": "fc46c23bcbacb405e7a08165bf102b5c688a4a90109349c3e43ef9635d28480c",
+      "checks": 4,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 20,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8888888888888888,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "finance.qb_sales_receipt_batch",
+      "domain": "finance",
+      "draft_sha256": "0b3bd5905cade79bcc1be3dc05079a448c0ee033b24996012434a5c8942ca762",
+      "review_sha256": "9c87affd549382c8c0d8eeb46f849aadb5bb37508e3f8397ea27f15e5a12150b",
+      "review_md_sha256": "76042515640c0d6e1288247c1e266fe4a91d5adac7482a612f9a6c40d97cc9d7",
+      "checks": 8,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 23,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8888888888888888,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.docusign_nda_collection",
+      "domain": "hr",
+      "draft_sha256": "11903fa12a21de430894658c6f3d3f678a13bb2da97468bdfed0aa056df4d71b",
+      "review_sha256": "15755545386a3844232fc2443cbfe07e61ee429772c005dd9cdd0c6f03548014",
+      "review_md_sha256": "12eec655dd41f4da9b9ec10378915803af0fa425c325c2bba036b8b662b941ff",
+      "checks": 7,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 18,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.equipment_provisioning",
+      "domain": "hr",
+      "draft_sha256": "09b964f01e39b6e415a5f19aeb98578bfd3502619d65afacd7a41181e5bf1671",
+      "review_sha256": "4da64bbed5a0c506b0fb22e9830fd47bf747ca63bbecf3a0d43b5be8b57b273f",
+      "review_md_sha256": "1178467ca38199778928af94673f395b5d673a28c17df88af6dd6568cd7c57bf",
+      "checks": 10,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 18,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.recruitment_dedup_alert",
+      "domain": "hr",
+      "draft_sha256": "5e87c7ab20932d607729dd1f2b8e72f493b2410c7651f15a574b933b0e0ab651",
+      "review_sha256": "f093195ca416a5c5c05dd4dd84d0f8a56192db29131ff821d4dfd232f913f4c5",
+      "review_md_sha256": "ef0d25e5f8fb07c05889b9110e01ecc47cb257ba86ae67ecaeaecf8b687cad77",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 20,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.safety_incident_reporting",
+      "domain": "hr",
+      "draft_sha256": "7de472612cdca25e5e3c7713d42c97cc86f1a2f06d4bf28c8a5042621ea8778b",
+      "review_sha256": "7028c58077253ccec373d16cb079bd11cc151561efad8cadfb0ae96ad1f231e4",
+      "review_md_sha256": "781bf3d1a113ea64d90285ddcc8cbf12b4f76fad15bf68eaed4b2fdd41773c80",
+      "checks": 8,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 21,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.team_restructure_notification",
+      "domain": "hr",
+      "draft_sha256": "e68dab03af36f47dcbbfb2c76f5575360daa7e6d315c2cd959406192ce83469c",
+      "review_sha256": "cf18f35f72d468d58c07a04e21fbb7ddc9d35c586ff56149d5c2c9cc2afee015",
+      "review_md_sha256": "811271c1294c94ab7a60e28c2dc1dceb44308ff34960f6ca3c7ce1ec70ccf8bb",
+      "checks": 4,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 20,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.tuition_reimbursement",
+      "domain": "hr",
+      "draft_sha256": "1573991f56c5dc66e14a290176f62d7e8c9c953579621097aaeb968a2aeeaf99",
+      "review_sha256": "27f2af157edc47d190af74ef083c87fbac430f4f0c16157082f7552252dd01aa",
+      "review_md_sha256": "9df1cf02ffe38a68a8b0f7c758c3591a4bed88b4f371fff20002afbe2b1fd810",
+      "checks": 28,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 21,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.twilio_emergency_notification",
+      "domain": "hr",
+      "draft_sha256": "0b2b55a0f01a16c529406d3dc8f77e4f2f5a9a49cfd07dad4ad32146b53d4b3f",
+      "review_sha256": "b59ecf79ceb7a7d4079fa58099969f77774c1c63a02fa0e17e9d77164a056780",
+      "review_md_sha256": "4d109789243413cd030f4bbb9ade2c046c09c2de70948ee32d6accc5af83708a",
+      "checks": 4,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 20,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.exit_interview_scheduling",
+      "domain": "hr",
+      "draft_sha256": "75223a8debc7b4fb7ccaf22112890814c19984eb90879edac3064579b83c54da",
+      "review_sha256": "2ccb90a0d3bc8c6f3a12d1f2a78ff70344645039255b493ddd782c411aa662ac",
+      "review_md_sha256": "d37e443bbb9c4822ee42813929d549a4c6f144b82f502f08a1ce6cf1c5e9df10",
+      "checks": 10,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 18,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8888888888888888,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.workforce_planning_forecast",
+      "domain": "hr",
+      "draft_sha256": "3efba839a4115e0d1fea682fbc695e11c20dd9cf2fce8e6e972fa4a147a3358b",
+      "review_sha256": "2bd1616c29da11a373f0c480b16238fd5f190a1fd55e0c42f95d7b2e3b323540",
+      "review_md_sha256": "f3ada3d46f9c181e3da9685af5b776a879308407e5beee6f6a9a583c04af79c4",
+      "checks": 11,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 21,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8888888888888888,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "hr.visa_expiry_tracking",
+      "domain": "hr",
+      "draft_sha256": "84a7415b6a40952b694ae1b0fce66ba0f9a4bb59b7d6439e7ac97d3e76ab3186",
+      "review_sha256": "01961bf3cde163ce92534e016faef87222795306907c07c6361d2bf8d2b44c4a",
+      "review_md_sha256": "589cc9045e2777b31664a1d767cec862a4913bd56904453a84b54a5807044fb4",
+      "checks": 5,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 22,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.875,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.ad_platform_audit",
+      "domain": "marketing",
+      "draft_sha256": "a62f0a9c7e2b902f3467be96968a0f5868df4ed419830e0bccdd7cf1b54ebb40",
+      "review_sha256": "b475dd004b3f428bee9bd9aad2a7277eba0c6e6953cb0355f011d357ba846d46",
+      "review_md_sha256": "5f9078f858ad89d5ea9ea4807f8a63931078cf5fc1c40a8231fb035f8c33f709",
+      "checks": 18,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 29,
+      "whole_task_status": "qualified_candidate",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.email_blast_suppression",
+      "domain": "marketing",
+      "draft_sha256": "84c0dd78729494e13bab34683b8b2533cc3e6128b6afe7507bccc826292526c1",
+      "review_sha256": "b106c8353f151c03b6d25ced116a7cb98698be0f523f9c973ade2d2aca0bb7d2",
+      "review_md_sha256": "c37604162ed2c59942b881644f2aeb984869ea86c5380253b039cc6aae110bd6",
+      "checks": 13,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 24,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.partner_content_approval",
+      "domain": "marketing",
+      "draft_sha256": "d2e8ba9bf38332de61b92954e2d2f4168b83045e8cc0718548027270ed3f228d",
+      "review_sha256": "2f20c433579c3a40ba45667d2dfede87918a98ee88450eb5cec8b0238ac146a2",
+      "review_md_sha256": "5efb77d431b6b7693742be0b99490d43f04549624f703002d3d63ba0ecc931d5",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 8,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9047619047619048,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.content_scoring",
+      "domain": "marketing",
+      "draft_sha256": "870e3375519a98ee61f3dd6fcfdd817bc58c613da960d8af818eb67cc14451fb",
+      "review_sha256": "4f01f6fbd2011da9a5b6a43bced37efe00f81b36f558914aff57fd0468bf8dbc",
+      "review_md_sha256": "18f0c57fd4916c17d66660a440eb573e001283a9f708428316d56f80e5fd7f57",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 8,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.hashtag_performance",
+      "domain": "marketing",
+      "draft_sha256": "c470f2e4cf234ef88528ca5e1ad1d06971da70069e50f33d77e4350f76a15047",
+      "review_sha256": "3ad9972ae2096a5ddcfa686e839a156137ab790a19966e9b7762ff17dd618f69",
+      "review_md_sha256": "1a9cda294505ae59d9e804f36ba4afdb92d6b0bd0ab12647e25c349523fba925",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 8,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8888888888888888,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.social_roi",
+      "domain": "marketing",
+      "draft_sha256": "f906df2da560a3d5ad5e502ffcb2c2cf0fc8855aab1d89c04bb462ad5b105666",
+      "review_sha256": "4c9fce731f35cb064a33a88e9d291e8923d00055313b71428728c7078173a221",
+      "review_md_sha256": "db5aee33ff0d94c16de7d14d0dc9d8cfa2e98437740e19fbea7b4afc4bc5b2d2",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 8,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8888888888888888,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.keyword_cannibalization",
+      "domain": "marketing",
+      "draft_sha256": "163b44faae7b524b8294adac706e66e153430c83e84d639f349f8daf9cf3eeae",
+      "review_sha256": "d953c7db518468a9e9e1c2cec413692e1edf94768129500b85747d3b4ec63c0f",
+      "review_md_sha256": "8aefe83d68da45b8bd26d2e1ca2b5a51f3d9a8881cd5fda0c2aeea767e188361",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 8,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.875,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.social_content_calendar",
+      "domain": "marketing",
+      "draft_sha256": "be6b633c71d5fdc5d533058b11b2feade5a0c5e1d60994c52b46195eb9fc7cc1",
+      "review_sha256": "da161264fb2933697ac9c74afb748ba18e698aa39a9b5be04fcff94b6a999592",
+      "review_md_sha256": "caf4e0510645966a1cd7b6cf5745ad7f2bf1223a72221b27fad1bffd92b18ab1",
+      "checks": 15,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 28,
+      "whole_task_status": "qualified_candidate",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.875,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.social_contest",
+      "domain": "marketing",
+      "draft_sha256": "cb5598a711d971b68a75677462174eb675031a9130c3e6eac95489e01d599e27",
+      "review_sha256": "ec97c39a8790c081f77a4139c4a5bd8639e9707e21a4232b76ab8ca91c68ba91",
+      "review_md_sha256": "cba09d932f1ce1954430e3396922086fb31185fa99f8ddcabd4123e1c7847506",
+      "checks": 9,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 8,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.875,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "marketing.multi_touch_attribution",
+      "domain": "marketing",
+      "draft_sha256": "b91181032b7d4d0f2c9b30d7769dad0d4c45a965929b99775a9bbb2c82538608",
+      "review_sha256": "2e9651eea79bd9c59ce96b61d37e0b21e518fa6dcc8d3508166181c7b544a760",
+      "review_md_sha256": "ebc1f6badb8a2186601035c6a9be541f11f79bd0305e466da6cf5bbb75ac0532",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 8,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8666666666666667,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.facility_incident_triage",
+      "domain": "operations",
+      "draft_sha256": "ea80d7e14fbb5cc7623a53f6dce90719c3e486154729fd25f3f352e0f95d8e2b",
+      "review_sha256": "7fb543358ba3174a32565c497cff05abcbe48de7378ab8a8bc7b5f1670fd5f65",
+      "review_md_sha256": "88a349de7949bbb07247a90e6e14c0bd8fa4a14de00867afc7891ab6d41ad310",
+      "checks": 7,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 32,
+      "whole_task_status": "qualified_candidate",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.office_supply_budget_monitoring",
+      "domain": "operations",
+      "draft_sha256": "1fd9cafdaaf5e11781bd16efcf3901e96a3427fc669d022488247e789ef7e8cf",
+      "review_sha256": "58c73d88c4c96d8095a750ed13c81ac23c1e215743633374a64f8b5159299c42",
+      "review_md_sha256": "a2ca80aa92d58d87f81922b59eda9dd92b72c5122ec2b826cf3365c616efa8f2",
+      "checks": 4,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 18,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.perishable_inventory_expiry",
+      "domain": "operations",
+      "draft_sha256": "bbff92f25241bbf60f1c1c50ddb77296f4f729eee1c9ce66dd0618868bde918d",
+      "review_sha256": "db03b4964d45d6e4816f46d5448858f2290339987323cb835fa44e9425753ff5",
+      "review_md_sha256": "cebdb11346e4013057c2e48938ef7d19e6c0265fec464e0a57b7175b71b7035e",
+      "checks": 5,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 18,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.procurement_card_reconciliation",
+      "domain": "operations",
+      "draft_sha256": "d68513d2e6087883fac876d0693cd4db5f3d18299742144d7e3fd111d92fc174",
+      "review_sha256": "1495aa18cf791b31860d7f7ef6b3e9e7cc2d2fabcc518c7043de2f6de38b8739",
+      "review_md_sha256": "e6ff6b84d4751c9ee588df5411b27586b0ecc4240bf4ec8f131281da367f764e",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 18,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.safety_certification_gap_analysis",
+      "domain": "operations",
+      "draft_sha256": "5828620a527ce068cbd9d70e0eec5164c7766351b76ae00319a50c29daf3285b",
+      "review_sha256": "295f39902754758d03893d4935baa9bee9214f1b822ecc5bf643d3f5ffd88bd1",
+      "review_md_sha256": "2f0cd8de5543c44a4a39dd953395bda411f1d82e634a93151a385adf387f2ca6",
+      "checks": 4,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 20,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.training_compliance_check",
+      "domain": "operations",
+      "draft_sha256": "55138176d16160587851bd2154e8f22e1668d5275945930fdd20c5607a9a1daf",
+      "review_sha256": "b94dcfcdac58995480fe3fe673e049e6a2289907075a3b8ad8e43cc9adb0ab88",
+      "review_md_sha256": "df17ee16633bbb7bde18e6a36594331f69c08183de485f89e8a47a2d43147872",
+      "checks": 4,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 20,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.twilio_facilities_emergency",
+      "domain": "operations",
+      "draft_sha256": "300b8eb677637db79917f751af271d077a09695859ef3180047cfd85ff4e87cd",
+      "review_sha256": "6616b5fb50a8675c298144294f89abb9d596458779b8b9710a9e47a3b2436f07",
+      "review_md_sha256": "845f7690a256ea82c8f5d385ffb63abbff34a60ce41b8c325003d772a60d30a0",
+      "checks": 8,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 18,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.fleet_vehicle_maintenance",
+      "domain": "operations",
+      "draft_sha256": "8936f7372c42439cdeae8c1b86e8efdfb1309068aa4cc9817d33f7e0d3159896",
+      "review_sha256": "24a07bec809d1589d8def9a4337243154b658b94c7d55e686aaad6bfe2281b46",
+      "review_md_sha256": "02281014601467527507f698c2bc242945102b7202a7ae24cf3b34666bceab28",
+      "checks": 7,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 36,
+      "whole_task_status": "qualified_candidate",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8888888888888888,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.google_ads_budget_alert",
+      "domain": "operations",
+      "draft_sha256": "7478da0da84bfd759d519e283fff3ac5e4775e5167ef3a0dae4a581c2778671c",
+      "review_sha256": "d3522ea9e74ecb71972815e0b83e0cb4a3d169c9b2aa59fd4510ff7142f0ecc5",
+      "review_md_sha256": "46679f5e3522dd3c32126b076b5fc5d444eb746099b39d7870280ee4195757a6",
+      "checks": 3,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 16,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.875,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "operations.sla_breach_early_warning",
+      "domain": "operations",
+      "draft_sha256": "fe955b0c08a218e5828204d520f8ce773874577d36b9a2e7239e6741b109be11",
+      "review_sha256": "374751e695b8f3192f2ec080ccb870c2ddee70a03ce1dd8a2c862ff25722a1a9",
+      "review_md_sha256": "b7088cfed182bb2932d86e2b99f78f2c7e4b69c200e21ca6f1e77b1df05c06e4",
+      "checks": 6,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 18,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.875,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.apply_project_label",
+      "domain": "sales",
+      "draft_sha256": "00f244773dddedb66fd32c91c0da98fc6d5032245d2145c4f89e7f6d8b7635df",
+      "review_sha256": "0f88e8993e23c62788c8f3330b880a9cd13d9970bb7c114468724d965183dad6",
+      "review_md_sha256": "3861af08b02e556c7be5c24818df93fa5857a1fe1104f542c6f773da0d06aa5a",
+      "checks": 6,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.docusign_void_resend",
+      "domain": "sales",
+      "draft_sha256": "3c00f37696e72b96c03400c890790886312716257f0da9f2cef3918310086f18",
+      "review_sha256": "1232d9b97b43e63ba575314166d6bf51e1217fc57dab54d6dc73613e0ac8158c",
+      "review_md_sha256": "3d01a0f26cf08a049560b9ea98151eb7a89d157eb8d33edef7e1d7cf85e9cbb8",
+      "checks": 8,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.zoom_calendar_conflict",
+      "domain": "sales",
+      "draft_sha256": "72d05d68466fd3846317a3e55d40b721fd5fa6753ffe37e177c75070b3c90db7",
+      "review_sha256": "5ed807ded9de9d2936ff72bfde4bdfe27c2f268868bc6a155081c8c2e500dd80",
+      "review_md_sha256": "29dd3900f7441eab59f10196c3d7d6b4805492e8bde87cab65b86fe004cca4c6",
+      "checks": 8,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.milestone_celebration",
+      "domain": "sales",
+      "draft_sha256": "08346afc6d5654a86c09e6cd14a67d241e41c218cac6da957b8c736212302670",
+      "review_sha256": "9c0fb657d7de949d5bcde7d8a0dac6cd756387a406efd5062a0adf9325d00144",
+      "review_md_sha256": "65fbb2c2884722a63fe6c8fb6b5d61fe425afca6c9386a9b59dd314799ee839a",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8333333333333334,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.zoom_customer_health",
+      "domain": "sales",
+      "draft_sha256": "b2a2e17a1426c157e0e5f103422df0fdd4f26a2ac33d81951670ad1e7b515a39",
+      "review_sha256": "7bcb7628e25d51672e6d3f9625a3bc256e5270ba4f92b246798fdca5531da61e",
+      "review_md_sha256": "209e0174c2a882c9f84858634737ff12cb86a00c74296d032c33d85133801d61",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.chatgpt_lead_classification_pipeline",
+      "domain": "sales",
+      "draft_sha256": "6bc1135627dce7f40d8c093e3841be3e6c2fc81cc782f60aa3008d1c57e64be9",
+      "review_sha256": "9b8ddde618bac365f897991b4aa7361b3e4a76768da04af6cf99a9173202dabd",
+      "review_md_sha256": "6d340e6caf00e3ba2b61d2e730c2dd3da97ef92771ab3d17c96e400b4dbab50b",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.7692307692307693,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.recency_selection",
+      "domain": "sales",
+      "draft_sha256": "b4488fbe173abde45382b166c8649f7232cc76c2ad02453fd592203e35b2f2cd",
+      "review_sha256": "2799ce23cdbe8a988aa0e1feb3308c83f021596cbb356fb8de4af23c8a04b73b",
+      "review_md_sha256": "c4b3f9dcf90b402715fb9b0d8ff2ac5e20c5baac7c05a26392c26cad6910dcd4",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.75,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.chatgpt_email_sentiment_routing",
+      "domain": "sales",
+      "draft_sha256": "128836e37d944df6274b5e9a11d4522d55233874fdff8a8aa3b5be99b6578af6",
+      "review_sha256": "dc2ad98da0e3b3e4afaae72a458f55cfd346e4b66825d90caff1fd3ce38e856d",
+      "review_md_sha256": "af3babcefe981ddb9fb850028e22165d58f17c3d175c6a92003b1e8235bc9885",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.7272727272727273,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.slack_deal_notification",
+      "domain": "sales",
+      "draft_sha256": "5aaecc98910836d5182ad2995eff4b16e55b0969660b1019bd7cd6f35363b91d",
+      "review_sha256": "11bc2aa24e4a9e669ed5072e80524947a35d6f3847fd319eb17e8970ad7ea8a8",
+      "review_md_sha256": "3c375a24136ba859154508add97639ce465951042a05e53d06195e67888ef688",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.6666666666666666,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "sales.chatgpt_proposal_customization",
+      "domain": "sales",
+      "draft_sha256": "24c11cb5624a82d62d5eb47eb3ac09b7365370b92b6ee02d9f783b7148ca251e",
+      "review_sha256": "0697a8cd97c0efb4618e82a509440d6ed98f7808574142bd5f4a3e239afaae86",
+      "review_md_sha256": "bdcddda0eb2b7285ab25cec1a5753196181d1c6b04a2e5a9ccb753f1872713ee",
+      "checks": 6,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 17,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.65,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.zendesk_hubspot_org_sync",
+      "domain": "support",
+      "draft_sha256": "c3984d451998bdf0591228bf9ff0bc19cd18da3ca343ddc26d95d79473a6abed",
+      "review_sha256": "dd3970620a8617572a5fc8828c168d0ac5698215cfd3394f6caefe56b5e68240",
+      "review_md_sha256": "a629e54b436503b7b90919085873da1ff4c067e4791130cfecbae1bfbf96f60b",
+      "checks": 15,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 16,
+      "whole_task_status": "qualified_candidate",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9545454545454546,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.hiver_inbox_report",
+      "domain": "support",
+      "draft_sha256": "34892e3d9daabfb5cd1f5504237a207290d4be8f8e37eb38450380cf63c05ed6",
+      "review_sha256": "5ee650cbd0c86abdcc384f2dfd196ead4eeb2ff6e5d4bb2522a9dcc6beac1809",
+      "review_md_sha256": "ffe65b3484c172a39535f6c8936dd8453522831383b14c053057b0dce1ad5fa0",
+      "checks": 11,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 24,
+      "whole_task_status": "qualified_candidate",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.9523809523809523,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.gorgias_inventory_routing",
+      "domain": "support",
+      "draft_sha256": "d66998d151f2f017ac8acce61c4ebda47be13c9361e9c0446a4916ca9d9c6425",
+      "review_sha256": "93274700fd2f619b777e2726158ef871b46d84eafbaf9c250687395fdaedaa85",
+      "review_md_sha256": "f3e1859cce880e055b7a336071b07440b1fc186c64114d2b7097bd2f62937c87",
+      "checks": 22,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 40,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.92,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.helpcrunch_engagement_scoring",
+      "domain": "support",
+      "draft_sha256": "c4f0b4af015f9c52c5bde7d1b3d9ffcaf3bee7c6ef94538ca7ae2dcebe98cd63",
+      "review_sha256": "9d7db39ba8044c55cc7f55d3dd3027e5ddd2b198b33a3b1a80ed795a545f64b3",
+      "review_md_sha256": "18dbf4c1c2977d8d7b60881b7a34bd167f0ab63d709c128608ccecc03d33613c",
+      "checks": 6,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 39,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8235294117647058,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.helpscout_customer_effort",
+      "domain": "support",
+      "draft_sha256": "5247d496db06d6b8edbb37e51176642734bdc40384433b9ade8e07a25ee48add",
+      "review_sha256": "105d309cafa83da07d098fe0cb2f7693b2b7f1c8e3494dd0d38419df55d5eff4",
+      "review_md_sha256": "b9f6b0ad858eedda5c0888810ca7d62bd74a185832515c5f57c0f81c883c9d95",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 8,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.8095238095238095,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.reamaze_cross_platform_dedup",
+      "domain": "support",
+      "draft_sha256": "e9d721b35f34ef9f9392d8f67c3fa8f82d622ac1291d20db4fc986bd90c5aac3",
+      "review_sha256": "c7a0ea266f227f4392c5781adbdf36dafa3f1876279924a7701ad19ccb64ddb6",
+      "review_md_sha256": "da0c3db11a8d4613dcc1d76ea4a0abb6c484e18a923caebc3ebafb0376648232",
+      "checks": 10,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 30,
+      "whole_task_status": "qualified_candidate",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.7894736842105263,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.intercom_reactivation_campaign",
+      "domain": "support",
+      "draft_sha256": "efe6e1a14fa2ea55581ce8751f41c42140bcc6e5c2fc2695fa41eed57dea5a1b",
+      "review_sha256": "db5397fd309171cb5ec9905ba71bb33943f15fd9f168844dbe5cb528fe6e0ea3",
+      "review_md_sha256": "c0f75f45e332528913a81dac5b7464b32637390c8b438f277b469c1fb8ceec95",
+      "checks": 2,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 8,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.7727272727272727,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.hiver_slack_digest",
+      "domain": "support",
+      "draft_sha256": "82831fc433bdfa84197ba38bf3721954d928141ade64a9a3a61e26b54d701d49",
+      "review_sha256": "c46043abb583cd4944713b129267cb1178a48934bfca10367e159772397e4aff",
+      "review_md_sha256": "1e522cf3952742c287ca2e075e7a80e761b686563c636cafa064b119652c5229",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 8,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.7619047619047619,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.hiver_team_performance",
+      "domain": "support",
+      "draft_sha256": "801bbe17a7057f2d0e3ee7a04e19d14bf7bc8220a1b3b916ea276c0b301fc94e",
+      "review_sha256": "3b3a99c807e7e7669286a2b6c0422153b450f13daf4ddb4d41e23feffdb5f839",
+      "review_md_sha256": "c6710b180ed12b34e38904ee42e3b55d408c43376684506d5ea2aa5f6431d820",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 8,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.75,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    },
+    {
+      "task": "support.zoho_multitenant_isolation",
+      "domain": "support",
+      "draft_sha256": "f2da42db153735755c2d7015b8e4a6adfb0d829561c1dc84115591df23c4ae95",
+      "review_sha256": "ec4eaa06dddf6ff823772f12e4ab213504e7fbf9826db124bc87c7b1ca2022e5",
+      "review_md_sha256": "62ae5e61282178366a160bfb297c94c6768068f4b2cbf6ad7c39b311acd8b002",
+      "checks": 1,
+      "current_draft_hash_retained": true,
+      "assigned_episode_hash_retained": true,
+      "actual_episode_hash_matches_assignment": true,
+      "review_md_lines": 8,
+      "whole_task_status": "not_qualified",
+      "original_official_score": [
+        {
+          "name": "partial_credit",
+          "score": 0.75,
+          "weight": 1.0
+        }
+      ],
+      "scope": "structure/current-byte identity only; behavioral and credit qualification separate"
+    }
+  ]
+}

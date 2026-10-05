@@ -1,0 +1,312 @@
+{
+  "purpose": "Read-only exact-file review linkage audit before campaign closure; preserve prior authored manifests and task ownership; no restamping evidence",
+  "source_census": "/tmp/root-manifest-review-census-checkpoint51-resolved.json",
+  "assignments": {
+    "manifest_finance_luna": [
+      {
+        "task_name": "finance.xero_vendor_onboard",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/finance.xero_vendor_onboard/review.json",
+        "finding": "review_hash_stale"
+      },
+      {
+        "task_name": "finance.subscription_billing",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/finance.subscription_billing/review.json",
+        "finding": "review_hash_stale"
+      },
+      {
+        "task_name": "finance.escrow_tracking",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/finance.escrow_tracking/review.json",
+        "finding": "review_hash_stale"
+      },
+      {
+        "task_name": "finance.expense_split_allocation",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/finance.expense_split_allocation/review.json",
+        "finding": "review_hash_stale"
+      },
+      {
+        "task_name": "finance.deferred_revenue_tracking",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/finance.deferred_revenue_tracking/review.json",
+        "finding": "review_hash_stale"
+      }
+    ],
+    "manifest_hr_luna": [
+      {
+        "task_name": "hr.job_posting_distribution",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.job_posting_distribution/review.json",
+        "finding": "review_hash_stale"
+      },
+      {
+        "task_name": "hr.bamboohr_promotion_update",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.bamboohr_promotion_update/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "hr.zoom_orientation_sessions",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.zoom_orientation_sessions/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "hr.intern_program_coordination",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.intern_program_coordination/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "hr.airtable_learning_path_assignment",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.airtable_learning_path_assignment/review.json",
+        "finding": "review_hash_stale"
+      },
+      {
+        "task_name": "hr.break_schedule_processing",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.break_schedule_processing/review.json",
+        "finding": "review_hash_stale"
+      },
+      {
+        "task_name": "hr.intern_cohort_onboarding",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/hr.intern_cohort_onboarding/review.json",
+        "finding": "review_hash_not_top_level"
+      }
+    ],
+    "manifest_operations_luna": [
+      {
+        "task_name": "operations.asana_safety_walk_log",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.asana_safety_walk_log/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "operations.trello_vendor_hold_email",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.trello_vendor_hold_email/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "operations.calendar_airtable_gmail_maintenance_notice",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.calendar_airtable_gmail_maintenance_notice/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "operations.salesforce_escalated_customer",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.salesforce_escalated_customer/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "operations.calendly_equipment_inspection",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.calendly_equipment_inspection/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "operations.docusign_contractor_offboard",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.docusign_contractor_offboard/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "operations.zoom_training_setup",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.zoom_training_setup/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "operations.chatgpt_feedback_analysis",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.chatgpt_feedback_analysis/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "operations.hubspot_lead_qualification",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.hubspot_lead_qualification/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "operations.canva_asset_management",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/operations.canva_asset_management/review.json",
+        "finding": "review_hash_not_top_level"
+      }
+    ],
+    "manifest_sales_luna": [
+      {
+        "task_name": "sales.multi_hop_lookup",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.multi_hop_lookup/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "sales.create_contact_for_account",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.create_contact_for_account/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "sales.calendly_no_show_followup",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.calendly_no_show_followup/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "sales.docusign_deal_workspace",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.docusign_deal_workspace/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "sales.slack_channel_for_new_account",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.slack_channel_for_new_account/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "sales.deal_escalation",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.deal_escalation/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "sales.call_transcription",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.call_transcription/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "sales.linkedin_event_promotion",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.linkedin_event_promotion/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "sales.sheets_multi_channel_campaign_router",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.sheets_multi_channel_campaign_router/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "sales.full_sales_cycle_orchestrator",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.full_sales_cycle_orchestrator/review.json",
+        "finding": "review_hash_not_top_level"
+      }
+    ],
+    "manifest_marketing_luna": [
+      {
+        "task_name": "marketing.lead_enrichment",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/marketing.lead_enrichment/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "marketing.editorial_calendar",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/marketing.editorial_calendar/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "marketing.email_blast_suppression",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/marketing.email_blast_suppression/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "marketing.newsletter_sponsor_invoicing",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/marketing.newsletter_sponsor_invoicing/review.json",
+        "finding": "review_hash_not_top_level"
+      }
+    ],
+    "manifest_support_luna": [
+      {
+        "task_name": "support.helpscout_hubspot_deal_alerts",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/support.helpscout_hubspot_deal_alerts/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "support.helpscout_reamaze_migration",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/support.helpscout_reamaze_migration/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "support.helpcrunch_zoho_desk_bridge",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/support.helpcrunch_zoho_desk_bridge/review.json",
+        "finding": "review_hash_not_top_level"
+      },
+      {
+        "task_name": "support.intercom_auto_response_drafts",
+        "review_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/support.intercom_auto_response_drafts/review.json",
+        "finding": "review_hash_not_top_level"
+      }
+    ]
+  },
+  "remaining_legacy_validation": {
+    "manifest_operations_luna": {
+      "tasks": ["operations.hubspot_churn_prediction", "operations.mailchimp_ecommerce_sync", "operations.linkedin_abm_outreach"],
+      "action": "fresh exact-draft permitted-development replay/reload/rescore/scalar with candidate-native runtime assertions and unique saved wires; preserved-history review-only addenda"
+    },
+    "trello_ordering_adoption": {
+      "owner": "manifest_hr_luna",
+      "tasks": ["simple.trello_urgent_support_card"],
+      "action": "exact public-supported existing list-read join adoption after root card_label inventory fix; preserve original draft/review hashes/history; native positive, skip-listing, late-read and no-ACK controls/reload/scalar; no qualification"
+    },
+    "manifest_hr_luna": {
+      "tasks": ["simple.mailchimp_email_request", "simple.trello_urgent_support_card"],
+      "action": "fresh hash-bound permitted-development native replay/reload/rescore/scalar with unique saved wires; preserve reviewed procedural/unreachable-handler gaps; review-only addenda"
+    },
+    "manifest_sales_luna": {
+      "tasks": ["sales.event_to_opportunity_pipeline"],
+      "action": "fresh public-only genuine-handler clean/adverse/missing-ACK controls, hash-bound saved raw/wires/reload/scalar; preserve source ambiguity and unsupported obligations; review-only addenda"
+    }
+  },
+  "remaining_legacy_audits": {
+    "manifest_hr_luna": {
+      "tasks": ["simple.slack_dm_meeting_reminder", "simple.mailchimp_email_request", "simple.trello_urgent_support_card"],
+      "action": "read-only public/current-check/evidence audit; no historical hash alone implies absent review; identify actual missing validation, do not edit drafts or reviews"
+    },
+    "manifest_sales_luna": {
+      "tasks": ["sales.event_to_opportunity_pipeline"],
+      "action": "read-only public/current-check/evidence audit; distinguish exact current proof, legacy omission and actual missing per-check results; no edits or rollouts"
+    },
+    "manifest_operations_luna": {
+      "tasks": ["operations.hubspot_churn_prediction", "operations.mailchimp_ecommerce_sync", "operations.linkedin_abm_outreach"],
+      "action": "read-only public/current-check/evidence audit after completed omitted-check gate; no edits or rollouts; exact public split isolation preserved"
+    }
+  },
+  "validation_repairs": {
+    "manifest_finance_luna": {
+      "tasks": [
+        "finance.xero_vendor_onboard",
+        "finance.subscription_billing",
+        "finance.escrow_tracking",
+        "finance.expense_split_allocation",
+        "finance.deferred_revenue_tracking"
+      ],
+      "audit": "/tmp/manifest-review-linkage-audit-finance-luna-20261005.json",
+      "action": "execute available current-byte validation, public binding/source verification, unique artifacts; preserve old reviews and scores; no weakening or new rollouts"
+    },
+    "manifest_hr_luna": {
+      "tasks": [
+        "hr.job_posting_distribution",
+        "hr.bamboohr_promotion_update",
+        "hr.zoom_orientation_sessions",
+        "hr.intern_program_coordination",
+        "hr.airtable_learning_path_assignment",
+        "hr.break_schedule_processing",
+        "hr.intern_cohort_onboarding"
+      ],
+      "audit": "/tmp/automationbench-luna-hr-linkage-closure-20261005/manifest-review-linkage-audit.json",
+      "action": "execute available current-byte validation, public binding/source verification, unique artifacts; preserve old reviews and scores; no weakening or new rollouts"
+    },
+    "manifest_marketing_luna": {
+      "tasks": [
+        "marketing.lead_enrichment",
+        "marketing.editorial_calendar",
+        "marketing.email_blast_suppression",
+        "marketing.newsletter_sponsor_invoicing"
+      ],
+      "action": "current-byte public binding and available permitted replay/control validation; unique artifacts; preserve history/no rollouts"
+    },
+    "manifest_sales_luna": {
+      "tasks": [
+        "sales.full_sales_cycle_orchestrator"
+      ],
+      "audit": "/tmp/manifest-review-linkage-sales-luna-20261005/audit.json",
+      "action": "current-byte available validation for opportunity-stage-proposal/opportunity-coverage; preserve buyer QA misses, playbook abstention and prior outcome; no rollouts"
+    },
+    "manifest_support_luna": {
+      "tasks": [
+        "support.helpscout_hubspot_deal_alerts",
+        "support.helpscout_reamaze_migration",
+        "support.helpcrunch_zoho_desk_bridge",
+        "support.intercom_auto_response_drafts"
+      ],
+      "audit": "/tmp/manifest_review_linkage_support_luna_20261005.json",
+      "action": "verify available permitted current-byte native replay/reload or verified public controls; preserve historical unqualified/tokenless limits"
+    },
+    "manifest_operations_luna": {
+      "tasks": [
+        "operations.calendar_airtable_gmail_maintenance_notice",
+        "operations.canva_asset_management",
+        "operations.zoom_training_setup"
+      ],
+      "audit": "/tmp/automationbench-operations-review-linkage-audit-20261005.json",
+      "action": "preserved-history current review addenda for omitted check IDs; execute missing available validation only, reuse current exact test proof; no rollouts"
+    }
+  }
+}

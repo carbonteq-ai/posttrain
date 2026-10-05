@@ -1,0 +1,541 @@
+{
+  "schema_version": 1,
+  "purpose": "Rolling ten-case sales refill after reviewed batch06 component authoring; no qualification",
+  "source_index_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/luna-development-review-coverage.json",
+  "source_index_sha256": "f262e989ae1cf008e7f57de2364c8a7668f6a966222ef9f176cae0eaeb83e919",
+  "selection_algorithm": "Highest-scoring retained development references; exclude installed/drafts and exact prior ownership",
+  "worker_model": "gpt-6-luna",
+  "reasoning_effort": "high",
+  "fast_mode": "No separate fast-mode parameter exposed; priority tier available",
+  "category_assignments": {
+    "sales": [
+      {
+        "attempt_id": "2b383f495b5e190aa73717dbf22e6e49facd7855b9ec25956de885d047191840",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.pipeline-analytics",
+        "observed_tool_server_occurrences": 6,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 6
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/2b383f495b5e190aa73717dbf22e6e49facd7855b9ec25956de885d047191840/episode.json",
+        "source_episode_sha256": "8a87fd75e93a8e98ef5871cb264d745d29e335810b4f0e6989044ec694e28128",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.historical_win_loss_recap",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "2f69b37d8700462a929715043809c28f"
+        ],
+        "domain": "sales",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 1,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.historical_win_loss_recap",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch07-20261005/sales.json",
+        "public_pack_index": 0,
+        "public_pack_sha256": "3beb2a25b1eabc57293b97b59a2674bd44fdf753f486646fdaf5107734c91029"
+      },
+      {
+        "attempt_id": "b87450e14b9d27c2a3d04e920dc5cbd5f85554f69ef401b544e8289c9be7f18d",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.conditional-crm-selection",
+        "observed_tool_server_occurrences": 6,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 6
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b87450e14b9d27c2a3d04e920dc5cbd5f85554f69ef401b544e8289c9be7f18d/episode.json",
+        "source_episode_sha256": "0d1523a55af6c5bf20ccd85d271ac7c7218a85c3359fdb19a41cbe271d18058d",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.implicit_rules",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "f83b443b3be24966a0fc8f761a88a98c"
+        ],
+        "domain": "sales",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 2,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.implicit_rules",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch07-20261005/sales.json",
+        "public_pack_index": 1,
+        "public_pack_sha256": "3beb2a25b1eabc57293b97b59a2674bd44fdf753f486646fdaf5107734c91029"
+      },
+      {
+        "attempt_id": "b9f70badf833655d1b07fe557b5a0785a0a46e62f2c34de6e8d9654b6d227b2c",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.email-and-customer-followup",
+        "observed_tool_server_occurrences": 19,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 19
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/b9f70badf833655d1b07fe557b5a0785a0a46e62f2c34de6e8d9654b6d227b2c/episode.json",
+        "source_episode_sha256": "dce56bae1f9fb3183c5dc3f40213f4e8b60915730db9b95b43d4d9ce8a51990d",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.mark_vip_emails_read",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "5c857349cb774f2091af8ae54baaff77"
+        ],
+        "domain": "sales",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 3,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.mark_vip_emails_read",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch07-20261005/sales.json",
+        "public_pack_index": 2,
+        "public_pack_sha256": "3beb2a25b1eabc57293b97b59a2674bd44fdf753f486646fdaf5107734c91029"
+      },
+      {
+        "attempt_id": "91d4d0dc0f720048c8c96c0dfa488bec3fe0cb59ac05f81930c25634e7386f22",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.document-contract-workflows",
+        "observed_tool_server_occurrences": 13,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 13
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/91d4d0dc0f720048c8c96c0dfa488bec3fe0cb59ac05f81930c25634e7386f22/episode.json",
+        "source_episode_sha256": "c577c3e88653d6921ff41f9e95076eee8b0588ad85e6ad7f25ea52d4e55b66d3",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.partnership_contract",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "fdec922c5f294e24ad92896333210312"
+        ],
+        "domain": "sales",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 4,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.partnership_contract",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch07-20261005/sales.json",
+        "public_pack_index": 3,
+        "public_pack_sha256": "3beb2a25b1eabc57293b97b59a2674bd44fdf753f486646fdaf5107734c91029"
+      },
+      {
+        "attempt_id": "ca2cadaba95219b33cab953ead60e60c0df9f3cf2e6c53807d85d87ca70f9c0a",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.conditional-crm-selection",
+        "observed_tool_server_occurrences": 14,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 14
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/ca2cadaba95219b33cab953ead60e60c0df9f3cf2e6c53807d85d87ca70f9c0a/episode.json",
+        "source_episode_sha256": "7967240d6c0c4fc145115003579c720e66ad6ae4871639b4e5e791738bed3343",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.priority_selection",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "7cce537728334dde8f6642bfbb23b4de"
+        ],
+        "domain": "sales",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 5,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.priority_selection",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch07-20261005/sales.json",
+        "public_pack_index": 4,
+        "public_pack_sha256": "3beb2a25b1eabc57293b97b59a2674bd44fdf753f486646fdaf5107734c91029"
+      },
+      {
+        "attempt_id": "7772d9de48910e7ae868c7aecee015e28cc767825553d6051c3a185880b6372e",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.crm-record-mutations",
+        "observed_tool_server_occurrences": 11,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 11
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/7772d9de48910e7ae868c7aecee015e28cc767825553d6051c3a185880b6372e/episode.json",
+        "source_episode_sha256": "5204dba781089a0bb396a604207ec407ad39727894d1cb35ef7f63905c19064d",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.qualify_lead",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "78d755c199b44875a7ab637084e66d07"
+        ],
+        "domain": "sales",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 6,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.qualify_lead",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch07-20261005/sales.json",
+        "public_pack_index": 5,
+        "public_pack_sha256": "3beb2a25b1eabc57293b97b59a2674bd44fdf753f486646fdaf5107734c91029"
+      },
+      {
+        "attempt_id": "154601b361593e5179022efbb953014092a232c7a62903d9f0b6a2aa08cfb127",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "case_review": {
+          "note": "Only pricing searches; zero delivery. Assignment scope explicitly excludes unrelated FYI work; do not reward unsolicited side tasks.",
+          "occurrence_ids": [
+            "1c008753666f41f68e3121204d802da7",
+            "fdd225c31154421a97d75bac1a30ab67"
+          ],
+          "scope": "selected_policy_and_occurrence_review",
+          "task_name": "sales.send_customer_email"
+        },
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.email-and-customer-followup",
+        "observed_tool_server_occurrences": 5,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 5
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "selected_policy_and_occurrence_review",
+        "review_status": "selected_policy_and_occurrence_review",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/154601b361593e5179022efbb953014092a232c7a62903d9f0b6a2aa08cfb127/episode.json",
+        "source_episode_sha256": "1022be1d119cd469e4e70385627835d4517e4672bb81ad68f1023db6f3d0e8fa",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.send_customer_email",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "a127c1f9a76a4fffafb40621fb54ddf7"
+        ],
+        "domain": "sales",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 7,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.send_customer_email",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch07-20261005/sales.json",
+        "public_pack_index": 6,
+        "public_pack_sha256": "3beb2a25b1eabc57293b97b59a2674bd44fdf753f486646fdaf5107734c91029"
+      },
+      {
+        "attempt_id": "0390068341e861aa50522cdc79425d78149e9c5fe756e4e2e5fbb208758ae7bd",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.crm-record-mutations",
+        "observed_tool_server_occurrences": 6,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 6
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/0390068341e861aa50522cdc79425d78149e9c5fe756e4e2e5fbb208758ae7bd/episode.json",
+        "source_episode_sha256": "d8a771aa750a167f355dc169e2d7b8092e6b78ff82bdb40d0e739f074e449e15",
+        "source_generation": "remaining700/untimed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.update_contact_phone",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "c4f32878f594414a81b8d2f656971327"
+        ],
+        "domain": "sales",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 8,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.update_contact_phone",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch07-20261005/sales.json",
+        "public_pack_index": 7,
+        "public_pack_sha256": "3beb2a25b1eabc57293b97b59a2674bd44fdf753f486646fdaf5107734c91029"
+      },
+      {
+        "attempt_id": "c70e8c36843d224bc07bb0d95864eef58439051f3d19e39fd7d7bb1a2eeb8ffc",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.pipeline-analytics",
+        "observed_tool_server_occurrences": 12,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 12
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "not_substantively_reviewed",
+        "review_status": "identity_outcome_and_receipt_structure_screened_only",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/c70e8c36843d224bc07bb0d95864eef58439051f3d19e39fd7d7bb1a2eeb8ffc/episode.json",
+        "source_episode_sha256": "5c84b00736646a2f88853410156d19153e04d1213fed65b61ba9c6ddbd556473",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.vendor_review_prep",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "b72f203a18fc404c8a416acbd663dcba"
+        ],
+        "domain": "sales",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 9,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.vendor_review_prep",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch07-20261005/sales.json",
+        "public_pack_index": 8,
+        "public_pack_sha256": "3beb2a25b1eabc57293b97b59a2674bd44fdf753f486646fdaf5107734c91029"
+      },
+      {
+        "attempt_id": "1c865d71c1a690e1258c65aa718c9f092ea97d27dc7ab6dc36936bf79e30c4e3",
+        "behavioral_evidence_status": "retained_not_automatically_complete",
+        "case_review": {
+          "note": "Empty Intercom search followed by Drive searches; no policy retrieval or outreach. Selection rule needs exhaustive eligible population/tie-break; no best-lead claim from partial discovery.",
+          "occurrence_ids": [
+            "44a06a1cde964f81beb68aa1cedb99a0"
+          ],
+          "scope": "selected_policy_and_occurrence_review",
+          "task_name": "sales.weighted_priority"
+        },
+        "collection_status": "retained",
+        "collection_unavailable": [],
+        "collection_verification_scope": "Independent terminal current-source native artifact and outcome verification; Qwen eligibility pending",
+        "execution_error_types": [],
+        "execution_ok": true,
+        "family": "sales.conditional-crm-selection",
+        "observed_tool_server_occurrences": 7,
+        "occurrence_phase_sets": {
+          "dispatch+returned": 7
+        },
+        "official_outcome_class": "official_zero",
+        "official_rewards": [
+          {
+            "name": "partial_credit",
+            "score": 0.0,
+            "weight": 1.0
+          }
+        ],
+        "policy_action_review": "selected_policy_and_occurrence_review",
+        "review_status": "selected_policy_and_occurrence_review",
+        "reward_qualification": "not_granted_by_review",
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/1c865d71c1a690e1258c65aa718c9f092ea97d27dc7ab6dc36936bf79e30c4e3/episode.json",
+        "source_episode_sha256": "a7f0eca746d0d265cc025f6999c98a21e14a5a702435eb23a2079aede2ee7639",
+        "source_generation": "remaining700/timed",
+        "source_verification": {
+          "current_outcome_verified": false,
+          "native_hashes_verified": true,
+          "reason": "assertions_not_fully_satisfied",
+          "verification_error": null
+        },
+        "source_verification_interpretation": "Verification errors concern replay evidence; current_outcome_verified=False with assertions_not_fully_satisfied is an unsolved official outcome, not a source corruption claim.",
+        "split": "development",
+        "task_name": "sales.weighted_priority",
+        "token_projection": "unsupported",
+        "trace_ids": [
+          "305db706479a44e7a70cb4d62ae33d7e"
+        ],
+        "domain": "sales",
+        "selection_score": 0.0,
+        "rank_within_missing_category": 10,
+        "reference_class": "recorded_partial_score",
+        "authoring_action": "author_missing_draft",
+        "qwen_eligibility": "not_granted_by_this_selection",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/sales.weighted_priority",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch07-20261005/sales.json",
+        "public_pack_index": 9,
+        "public_pack_sha256": "3beb2a25b1eabc57293b97b59a2674bd44fdf753f486646fdaf5107734c91029"
+      }
+    ]
+  }
+}

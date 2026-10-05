@@ -1,5 +1,146 @@
 # Verifiers (library)
 
+Local Trello label inventory repair (2026-10-05): candidate read capture accepts
+audited acknowledged label mutations without manufacturing read facts.39related
+regressions pass including missing-ACK abstention; exact public task adoption
+and behavioral qualification remain separate. No pin or publication change.
+
+Local amount punctuation repair (2026-10-05, unpublished environment candidate):
+numeric mentions accept a colon followed by whitespace/end; attached clocks and
+codes remain excluded. Root independently reproduced the native Support Slack
+false negative. Five boundary regressions and 411 related tests pass; fresh
+public-handler controls preserve adverse guards and missing-ACK abstention.
+No baseline, dependency pin, publication or whole-task qualification change.
+
+Local Slack lookup candidate (2026-10-05): `slack.user_reads@1` adds native
+user-lookup evidence independent of message reads. Exact captured state/returns,
+ACKs and lookup-before-DM ordering are tested; 396 combined regressions pass.
+Finance is adopting the capability in its owned Simple27 task. This unpublished
+candidate changes no pin, whole-task qualification or training eligibility.
+
+Local source-order/Buffer-read candidate (2026-10-05): explicit physical
+selection ordering and authenticated channel reads expand public obligations
+without inferring row IDs or absent organization identity.368combined tests
+pass including native archive/scalar parity. Worker adoption remains separate
+from whole-task qualification; no dependency pin or publication change.
+
+Local Buffer scheduling repair (2026-10-05, unpublished candidate): supplied
+datetimes persist as due_at for schedule/schedule_draft. Explicit offsets and
+state reload are tested; missing public clock/timezone remains an authoring gap.
+Trello read capture also admits separately authenticated card_update actions.
+Final combined328test gate and scoped Ruff/diff pass; no dependency pin or
+task qualification change.
+
+Local unpublished Mailchimp-read increment (2026-10-05): native audience
+subscriber listings now use shared authenticated read transport through
+`mailchimp.subscriber_reads@1`. Exact returns and queried list scope reconcile
+with captured before-state and native ACKs. Nine new and 315 related tests pass,
+including native ordered/late joins and reload/scalar parity. Task adoption
+and qualification are separate; no dependency pin or publication change.
+
+Local unpublished Trello-read increment (2026-10-05): the external environment
+candidate exposes `trello.list_reads@1` for authenticated native list lookup
+evidence. Its find-or-create handler qualifies as read evidence only on the
+unchanged find branch. Fifteen Trello and 300 related tests pass, including
+native reload/scalar parity, late reads, forged returns and missing ACKs.
+Shared receipt reconciliation preserves existing Airtable behavior. Worker
+adoption is pending; no dependency pin or whole-task qualification changes.
+
+Local unpublished Airtable-read candidate (2026-10-05): the external environment
+candidate now exposes `airtable.record_reads@1` for native findRecord/findManyRecords
+obligation evidence and joins. Exact responses reconcile with captured public
+state and native receipt/ACK chains; seed fallback remains distinct from stored
+table rows and requested storage scope. Thirteen new plus 287 related tests pass,
+including native archive reload/scalar parity. No dependency pin, rollout,
+publication, task qualification, action-credit or training eligibility change.
+
+Local conditional-number increment (2026-10-05): AutomationBench's value API now
+supports bounded public category/range-to-number branches using existing typed
+predicates. Exactly one branch must match and all predicates must be known;
+there is no implicit default. Exact numeric evidence feeds existing arithmetic
+and selectors. The 407-test combined gate includes a public weighted-score
+counterexample and genuine native assessment/reload; scoped Ruff passes.
+This is unpublished candidate code, not a dependency pin or task qualification.
+Authors must still justify category mappings and tie-breaks from public policy.
+
+Local public-only manifest pack increment (2026-10-05): the AutomationBench
+calibration package can prepare proposals without reference traces through
+`build_public_authoring_batches`. Explicit public prompt/state/tool fields and
+resolved split are retained; hidden/reference/scorer fields are rejected.
+Reserved authoring does not grant eligibility. The 24-test authoring gate,
+canonical public-input smoke and scoped Ruff/diff pass. This is unpublished;
+the coordinator must still preserve inventory ownership and split isolation.
+
+Local percentage-point input increment (2026-10-05): AutomationBench's value
+API accepts `percent_points_string`, explicitly mapping `-28%` to -28 percentage
+points. The marker is required; invalid/missing/localized input stays unknown.
+The 331-test values/predicates/contracts/obligations gate and scoped Ruff/diff
+pass. Marketing's source-bound threshold adoption is in progress. This is
+unpublished candidate functionality, without scalar reward or credit changes.
+
+Local final-Sheets count increment (2026-10-05): AutomationBench's bounded
+`collections.counts_when@1` outcome check can count authenticated final worksheet
+rows for each initial roster candidate. A Sheet retention selector supplies the
+final worksheet; `member_fields` declares exact cell headers for count predicates.
+The 213-test combined regression gate passes, including genuine updates,
+duplicate assignments, unknown evidence, missing ACKs, tamper rejection and
+native reload/rescore. No causal credit or allocation solver is inferred.
+This is unpublished candidate capability; task adoption remains separate.
+
+Local parent-message regression follow-up (2026-10-05): the existing
+AutomationBench record-write adapter covers appended Re:amaze/Gorgias messages.
+Six real-handler tests reject old-text and nonexistent-parent claims; the
+77-test combined record/R7 gate and scoped Ruff pass. No new API is introduced;
+source-bound Support task adoption remains in progress, unpublished.
+
+Local Airtable field-write increment (2026-10-05): AutomationBench's existing
+authenticated record-write adapter now admits the fixed bases/tables/records
+layout with composite identities and actual before/after fields. Real-handler
+tests reject nonexistent-row claims, wrong values and missing ACKs; native
+rescore/reload preserves findings and scalar rewards. The 202-test combined
+gate passed; the final gate with repeat-write/terminal-tamper controls passes
+204 tests. Source-bound worker adoption is in progress; unpublished.
+
+Local native proof-key storage follow-up (2026-10-05): the candidate's exact
+large-string keys now use lossless UTF-8 within the unchanged bounded cache.
+Recorded DocuSign scored-archive loading improves from 84.01 to 3.89 seconds,
+with identical output bytes. Full native v1 tests pass with 83 external/opt-in
+skips; scoped Ruff passes. This is local code, not a published dependency or
+training-speed claim.
+
+Local text-measurement increment (2026-10-05): the AutomationBench candidate
+supports bounded `text_length` operands with explicit Unicode-codepoint units.
+The 228-test predicate/contract/obligation gate passes. Missing/wrong-type and
+over-budget values remain unknown; this does not verify report semantics.
+Worker manifest adoption/replay and release qualification remain pending.
+
+Local terminal-count coverage increment (2026-10-05): AutomationBench retained
+record checks support bounded candidate-relative counts over finalized closed
+terminal collections. Real-handler tests accept alternative policy-valid
+survivors without inventing a ranking. Unknown scope stays unknown and counts
+do not inherit single-record action credit. The combined 280-test regression
+gate passes; worker adoption and whole-task qualification remain separate.
+
+Local environment coverage increment (2026-10-05): AutomationBench's candidate
+manifest selector supports explicit bounded text ordering for source-defined
+tie-breaks. The Sales signer reproducer now selects the public-policy surname
+winner; 262 combined environment regression tests pass. Worker adoption/replay
+remains separate from component validation. No published pin changes follow.
+Execution is tracked in
+[the shared coverage plan](../../plan/automationbench-manifest-coverage-engine-fixes.md).
+
+Local native archive-loading optimization (2026-10-05): the candidate checkout
+`/home/hammad/projects/verifiers-credit-candidate-20261003` now spans complete
+Episode/Trace validation with its existing bounded intrinsic-proof scope.
+Ordinary recorded-episode loading falls from 258.08 seconds to 2.08 seconds
+and from 7.26 seconds to 0.26 seconds with unchanged output hashes. The native
+suite passes 348 tests with 83 external/opt-in skips; all 118 selected
+AutomationBench environment regressions pass. This local change has
+not been published or adopted through a new immutable dependency pin. It does
+not establish a training speedup. Details and raw evidence are in the
+[investigation](../../research/verifiers-assessment-qualification/reward-candidate/assessment-reload-performance.md)
+and [execution plan](../../plan/verifiers-archive-loading-optimization.md).
+
 Current unpublished SDK isolation checkpoint (2026-10-04): the worker disables
 fourteen audited built-in features at startup/thread creation and validates
 loaded-thread readback before dispatch. Native fixtures pass 24 cases; seven
@@ -38,6 +179,35 @@ Notes **about** the Verifiers dependency. Product contracts live in
 and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-ingest-notes).
 
 ## Install / pin
+
+The AutomationBench manifest-steps catalog
+(`apps/lab/.posttrain/catalog/automationbench-manifest-steps.yaml`) and the
+workspace packages select
+`carbonteq-ai/verifiers@58df1306afff9b6bef5ce74701efeb19cf1e9042`
+(`0.3.2.dev101`, branch `codex/native-assessment-runtime-cost`) through
+environment `verifiers-environments@da8bb3248d405ffc3db47431322b70e8256f93a3`
+(branch `wip/automationbench-manifest-coverage-release-2026-10-05`: f587146 plus
+the manifest coverage campaign). Over 24c12379 it reuses intrinsic proofs while
+loading assessment archives, elides repeated sources/views during archive
+serialization, and packs env-server replies in the pooled archive form; the fork
+ledger has the per-change detail. Evidence, against 24c12379: `to_record`
+output is byte-identical on all 160 retained r6 episodes and the record decoded
+from the pooled reply equals the direct record; rescoring 161 recorded 2.6B
+episodes gives identical findings, rewards, metrics and turn rewards. On the ten
+heaviest r6 episodes the env-server reply falls from 2,322 MB to 58.5 MB on
+average, `EnvClient` decode from 5.12 to 0.91 s and decode peak RSS from 7.6 to
+1.0 GB; `Episode.to_record` falls from 899 to 416 ms. Environment da8bb32 keeps
+the installed contracts of all 135 manifest tasks byte-identical (contract
+digests), changes no task prompt or data, and gives identical findings and
+rewards to f587146 on one Luna reference episode for each of the 105
+`automationbench-manifest-luna-v1` tasks (5,374 valid findings) and on the 159
+recorded 2.6B episodes. Its only tool change (Buffer scheduled-post `due_at`)
+touches 14 benchmark tasks, none of them in that population. Plan and
+measurements: `docs/plan/verifiers-assessment-runtime-release.md`. Open release
+gates: runtime-image locks/profiles, published kind images and catalog lock
+digests are regenerated on the merged release branch (until then
+`test_peft_bindings_settings_and_quantization_load_from_filesystem_catalog`
+reports the stale lock digest).
 
 Posttrain 0.4.12 selects
 `carbonteq-ai/verifiers@e6a3d9bbfe6959b97878f451fc721793a232cd5f`
@@ -481,3 +651,67 @@ The local candidate also projects linked execution recipients through retained
 exact generated-call spans, preserving retry contributions and execution IDs.
 Real-session coordinate fixtures qualify transport, not all production model
 parsers. See `docs/research/verifiers-assessment-qualification/reward-candidate/execution-token-alignment-checkpoint.md`.
+
+The unpublished AutomationBench candidate now admits `collections.counts_when@1`
+for separate initial roster and final record populations through native
+assessments. The combined retained-record/credit/contract/native gate passes 277
+tests, including archive rescore, source tamper rejection, admission/budget limits
+and rejection of causal credit for terminal counts. Public worker adoption remains open in
+`docs/plan/automationbench-manifest-coverage-engine-fixes.md`.
+
+The same unpublished candidate adds explicit naive civil-date extraction and
+elapsed business-day counting without changing UTC or calendar-day semantics.
+The value/predicate/selection/contract/obligation gate passes 333 tests; seven
+public Sales dates reproduce source-derived signed weekday counts. Completion
+notes, approved extensions and whole-task qualification remain separate gates.
+
+The unpublished AutomationBench evidence checker now follows the native Gmail
+`emails` → `messages` alias normalization. It rejects conflicting simultaneous
+inventories, malformed aliases and observed content changes. This repairs a
+reproduced Zoho vendor public-state reconciliation gap without replacing public
+inputs. The 53-test hydration/notification gate and scoped Ruff/diff checks pass;
+worker adoption and whole-task qualification remain separate.
+
+The same unpublished environment candidate now reuses exact-input retained/count
+outcome preparation without skipping configuration, identity or native-source
+checks. The 150-test outcome/credit gate and expanded 25 count tests pass. One
+recorded parking replay preserves all findings/rewards/source bytes and improves
+combined score/rescore/reload time by 2.175x against the identical checker with
+only caching disabled. Full timings, fingerprints and the single-sample limits
+are recorded in
+`docs/research/verifiers-assessment-qualification/reward-candidate/retained-outcome-reuse-parking-benchmark-20261005.json`.
+
+The environment candidate now supports public initial Sheet mappings as lookups
+for retained native-record outcomes and existing Zendesk completion-credit
+recapture. The 272-test combined gate includes genuine updates, unknown duplicate
+or missing mappings, raw-tamper rejection, absent-ACK credit exclusion and native
+reload with once-only credit. Public task adoption and behavioral qualification
+remain separate. No dependency pin or published release changed.
+
+Local bounded-occurrence candidate (2026-10-05): new-occurrence obligations may
+declare inclusive positive `occurrence_bounds` over their matching native effect
+identities. Bounds are candidate-relative, require closed unambiguous evidence
+for success, and can fail on observed excess despite incomplete capture. They
+are outcome-only; credit rules are rejected. Legacy omission retains at-least-one
+behavior and declaration digests. The 254-test obligation/native/schema gate
+passes, and independent genuine Facebook handlers distinguish one from two
+identical eligible creates. This unpublished increment is not whole-task
+qualification or training adoption.
+
+Local public-parameter context candidate (2026-10-05): obligations and guards
+can explicitly name authenticated `public.request@1` singleton parameters with
+bounded `request_aliases`. Candidate rows remain separate; missing authority
+abstains. The 468-test native/request/goal/guard/retained gate passes. Worker
+adoption remains component evidence, not task qualification or eligibility.
+No immutable pins changed.
+
+Local Gmail thread-read candidate (2026-10-05): singular thread full-message
+and bulk thread metadata responses now use the existing authenticated Gmail
+read source. Counts, enclosing/member identity and original fields reconcile;
+bulk does not invent absent bodies and missing ACKs abstain. The 173-test
+Gmail/native obligation/contract gate passes. Independent recorded dark-mode
+replay witnesses the read and joined create with same-trace/reload parity,
+unchanged rewards/source bytes and empty errors. Evidence is in
+`docs/research/verifiers-assessment-qualification/reward-candidate/gmail-thread-read-native-recheck-20261005.json`.
+This unpublished environment increment does not change simulator source,
+framework pins, task qualification or eligibility.

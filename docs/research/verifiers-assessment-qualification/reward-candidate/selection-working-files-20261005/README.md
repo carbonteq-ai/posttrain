@@ -1,0 +1,10 @@
+# Task-selection working files (2026-10-05)
+
+These files were machine-local when the 2026-10-05 release consolidation found them, so they are kept here to be reproducible. They record how training and evaluation tasks were picked for the AutomationBench manifest-steps runs. The selection that runs actually use is committed separately: `docs/research/verifiers-assessment-qualification/reward-candidate/manifest-luna-select.py`, `manifest-luna-replay-20261005.json`, and the catalog fixture `automationbench_manifest_luna_v1.json` (85 training + 20 evaluation tasks, commit 0f32632f).
+
+- `select_tasks.py` and `task-selection.json`: accept replayed manifests, tier difficulty, and draw a deterministic (seed 20261005) 20-task evaluation split with at least two tasks per domain and balanced easy/medium/hard tiers; the rest are training tasks. Keys: `selection`, `accepted`, `rejected`, `train`, `eval`, `eval_tiers`, `eval_domains`, `train_domains`.
+- `qualify_drafts.py`, `qualify_installed.py`, `qualify-drafts-120.json`, `qualify-all.json`, `qualify-eight.json`: manifest replay qualification inputs and outputs for draft and installed manifests that fed the selection. The final replay result is committed as `manifest-luna-replay-20261005.json`.
+- `round5-selection.json`: the round-5 manifest authoring task grouping (sales, support, simple and mixed groups).
+- `luna-selected120-metadata.json`: the versioned task-metadata export for the 120 Luna-selected development tasks (embedded export digest `8e883896996e4fefcd03c93029ddb30f5049c864a62e09bcb68c438df99d9b6c`), previously at `.posttrain/state/verifiers-assessment-qualification/task-metadata/`. Its validation record is `../task-metadata-export-validation.json` and its plan is `docs/plan/automationbench-task-metadata.md`. Outcomes are original Luna scores only; semantic classification dimensions are not reviewed.
+
+Paths inside the scripts point at the original scratch locations. They are evidence of what was run, not maintained tools.

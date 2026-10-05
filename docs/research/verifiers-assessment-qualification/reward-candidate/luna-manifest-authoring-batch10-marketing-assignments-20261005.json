@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "purpose": "Public-only missing canonical tasks after independent prior batch component review; preserve reserved isolation",
+  "source_split_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/sdk-probes/luna-reference-campaign-01/remaining700-family-splits-reviewed.json",
+  "source_split_sha256": "096051820598d4ac3d646a60e3b862ddd2dcc0428caf8a647155681796faa1cd",
+  "worker_model": "gpt-6-luna",
+  "reasoning_effort": "high",
+  "category_assignments": {
+    "marketing": [
+      {
+        "task_name": "marketing.webinar_cancellation_workflow",
+        "domain": "marketing",
+        "family": "marketing.events-partners-and-influencers",
+        "split": "reserved",
+        "frozen_split": "reward_test",
+        "public_pack": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-batch10-20261005/marketing.json",
+        "public_pack_index": 0,
+        "public_pack_sha256": "df11b16932ffb08d28db76101ac5972b00abe57a726495333ab0a34226ffc053",
+        "public_input_sha256": "cda5a1e93ab644357d751b5709cc7c5651bb35cd3df81c03636bab3a08d73457",
+        "draft_directory": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/manifest-drafts/tasks/marketing.webinar_cancellation_workflow",
+        "authoring_action": "author_missing_draft",
+        "reference_class": "no_reference_public_only",
+        "replay_status": "unavailable_no_recorded_reference",
+        "training_eligibility": "not_granted"
+      }
+    ]
+  }
+}

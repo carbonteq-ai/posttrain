@@ -1,0 +1,43 @@
+{
+  "basis": "canonical task inventory; installed contracts or nonempty draft checks; presence only, not qualification",
+  "categories": {
+    "finance": {
+      "inventory": 100,
+      "present": 61,
+      "missing": 39
+    },
+    "hr": {
+      "inventory": 100,
+      "present": 62,
+      "missing": 38
+    },
+    "marketing": {
+      "inventory": 100,
+      "present": 52,
+      "missing": 48
+    },
+    "operations": {
+      "inventory": 100,
+      "present": 43,
+      "missing": 57
+    },
+    "sales": {
+      "inventory": 100,
+      "present": 51,
+      "missing": 49
+    },
+    "support": {
+      "inventory": 100,
+      "present": 60,
+      "missing": 40
+    },
+    "simple": {
+      "inventory": 200,
+      "present": 25,
+      "missing": 175
+    }
+  },
+  "total_inventory": 800,
+  "present": 354,
+  "missing": 446
+}
