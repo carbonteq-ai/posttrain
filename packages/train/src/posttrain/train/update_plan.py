@@ -322,6 +322,7 @@ def plan_packs(
     capabilities: ExecutionCapabilities,
 ) -> tuple[ExecutionPack, ...]:
     validate_update(update, capabilities)
+    update_digest = update.digest
     if len(update.dependencies) * update.objective.statistic_bytes_per_action > execution_budget.statistic_bytes:
         raise InvalidPolicyUpdate("retained objective statistics exceed execution capacity")
     records = {record.action: record for record in update.population.actions}
@@ -340,7 +341,7 @@ def plan_packs(
     def emit() -> None:
         packs.append(
             ExecutionPack(
-                update.digest,
+                update_digest,
                 len(packs),
                 tuple(pending),
                 tuple(sorted({records[action].conditioning_id for action in pending})),

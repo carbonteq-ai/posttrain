@@ -188,7 +188,7 @@ def _decode_native(evidence: bytes) -> Mapping[str, Any]:
     if not isinstance(first, dict):
         raise InvalidPolicyUpdate("resolved job recovery requires native record objects")
     format = "verifiers-native-episodes" if "traces" in first else "verifiers-native-traces"
-    return decode_native_population(evidence, format=format)
+    return decode_native_population(evidence, format=format, content="conditioning")
 
 
 def _observed_sampled_scores(admitted: AdmittedNativePopulation) -> Mapping[ActionRef, float] | None:

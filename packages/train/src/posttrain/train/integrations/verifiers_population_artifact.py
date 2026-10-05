@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
 import tempfile
 from collections.abc import Iterable, Iterator, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, BinaryIO, Literal
 
@@ -15,21 +17,49 @@ from posttrain.common import LocalArtifactRef, ProducedArtifact
 from ..update_records import InvalidPolicyUpdate
 
 
+@dataclass(frozen=True, slots=True)
+class ConditioningTrace:
+    """The message graph of one native trace: what policy scoring reads.
+
+    Nodes and calls are the native Verifiers models; assessments, tool events and
+    other trace content are not restored.
+    """
+
+    id: str
+    nodes: tuple[Any, ...]
+    calls: tuple[Any, ...]
+
+
 def decode_native_population(
     evidence: bytes,
     *,
     format: Literal["verifiers-native-episodes", "verifiers-native-traces"],
+    content: Literal["traces", "conditioning"] = "traces",
 ) -> Mapping[str, Any]:
     """Use native schema models to restore original graphs, never chat rows.
 
     Reject missing identities before native models can supply random defaults.
     Duplicate identities also reject, including unselected episode siblings.
     This decoder consumes the uncompressed JSONL produced by retain_population.
+
+    ``content="conditioning"`` restores only each trace's message graph (nodes
+    and model calls) through the native ``Branch`` schema. Policy scoring reads
+    nothing else, and the assessment archives that dominate an episode's bytes
+    are not validated again.
     """
     if format not in {"verifiers-native-episodes", "verifiers-native-traces"}:
         raise InvalidPolicyUpdate("unsupported native population artifact format")
+    if content not in {"traces", "conditioning"}:
+        raise InvalidPolicyUpdate("unsupported native population decode content")
     from verifiers.v1.episode import Episode  # pyright: ignore[reportMissingImports]
     from verifiers.v1.trace import Trace  # pyright: ignore[reportMissingImports]
+
+    try:
+        from verifiers.v1._validation_scope import (  # pyright: ignore[reportMissingImports]
+            validation_scope,
+        )
+    except ImportError:  # older pinned runtimes: validate without proof reuse
+        validation_scope = contextlib.nullcontext
 
     if not evidence or not evidence.endswith(b"\n"):
         raise InvalidPolicyUpdate("native population artifact requires complete JSONL records")
@@ -48,11 +78,23 @@ def decode_native_population(
                 raise InvalidPolicyUpdate("native population has duplicate trace identities")
             # Reserve all IDs before validation, including duplicates in one envelope.
             traces[raw["id"]] = None
-        restored = (
-            Episode.model_validate(record).traces
-            if format == "verifiers-native-episodes"
-            else [Trace.model_validate(record)]
-        )
+        if content == "conditioning":
+            from verifiers.v1.trace import Branch  # pyright: ignore[reportMissingImports]
+
+            for raw in raw_traces:
+                branch = Branch.model_validate({"index": 0, "nodes": raw.get("nodes"), "calls": raw.get("calls", [])})
+                traces[raw["id"]] = ConditioningTrace(raw["id"], tuple(branch.nodes), tuple(branch.calls))
+            continue
+        # Episodes repeat the same assessment sources across hundreds of batches.
+        # A per-record validation scope validates each source once and reuses its
+        # exact-match proof for the repeats (as the Verifiers env server and
+        # client do); the proofs end with the record, so memory stays bounded.
+        with validation_scope():
+            restored = (
+                Episode.model_validate(record).traces
+                if format == "verifiers-native-episodes"
+                else [Trace.model_validate(record)]
+            )
         for trace in restored:
             traces[trace.id] = trace
     return traces

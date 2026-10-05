@@ -92,7 +92,7 @@ class AdmittedNativePopulation:
             population_id=population_id,
             native_evidence_ref=artifact.name,
             read_evidence=lambda _: evidence,
-            decode=lambda raw: decode_native_population(raw, format=format),
+            decode=lambda raw: decode_native_population(raw, format=format, content="conditioning"),
             template_revision=template_revision,
             versions=versions,
             sampler_step=sampler_step,

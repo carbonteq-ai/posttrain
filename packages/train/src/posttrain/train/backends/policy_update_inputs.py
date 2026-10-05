@@ -53,6 +53,9 @@ class NativePopulationInputs:
         if any(action.native_ref != snapshot.native_evidence_ref for action in snapshot.actions):
             raise InvalidPolicyUpdate("native action references different population evidence")
         traces = dict(decode(evidence))
+        sampled_by_view: dict[str, list[int]] = {}
+        for action in snapshot.actions:
+            sampled_by_view.setdefault(action.conditioning_id, []).append(action.action.token_index)
         views, records, sampled_scores = {}, {}, {}
         for view in snapshot.conditioning:
             if view.native_ref != snapshot.native_evidence_ref:
@@ -81,9 +84,7 @@ class NativePopulationInputs:
                 sampled_node_indices=(node_index,),
                 context_contract="causal-text@1",
             )[0]
-            sampled = tuple(
-                sorted(action.action.token_index for action in snapshot.actions if action.conditioning_id == view.id)
-            )
+            sampled = tuple(sorted(sampled_by_view.get(view.id, ())))
             if (
                 record.prefix_node_indices != tuple(prefix)
                 or record.input_digest != view.digest

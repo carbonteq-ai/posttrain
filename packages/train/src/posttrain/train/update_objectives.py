@@ -146,9 +146,10 @@ def objective_population(
     selected = policy | kl
     if not selected and spec.empty_policy != "zero":
         raise InvalidPolicyUpdate("objective selects no contributions")
-    episodes: dict[str, tuple[ActionRef, ...]] = {}
-    for episode in dict.fromkeys(record.action.episode_id for record in snapshot.actions):
-        episodes[episode] = tuple(record.action for record in snapshot.actions if record.action.episode_id == episode)
+    by_episode: dict[str, list[ActionRef]] = {}
+    for record in snapshot.actions:
+        by_episode.setdefault(record.action.episode_id, []).append(record.action)
+    episodes = {episode: tuple(actions) for episode, actions in by_episode.items()}
     turns: dict[tuple[str, str, str], list[ActionRef]] = {}
     for record in snapshot.actions:
         action = record.action
@@ -186,28 +187,35 @@ def _reduction(
 ) -> tuple[tuple[ReductionWeight, ...], tuple[tuple[str, int], ...], tuple[str, ...]]:
     definition = objective_definition(spec.definition_id)
 
+    turn_units: dict[tuple[str, str, str], str] = {}
+
     def unit(action: ActionRef) -> str:
-        return (
-            f"turn/{record_digest(ActionRef(action.episode_id, action.branch_id, action.turn_id, 0))}"
-            if definition.reduction == "equal-turn"
-            else action.episode_id
-        )
+        if definition.reduction != "equal-turn":
+            return action.episode_id
+        key = (action.episode_id, action.branch_id, action.turn_id)
+        value = turn_units.get(key)
+        if value is None:
+            value = turn_units[key] = f"turn/{record_digest(ActionRef(*key, 0))}"
+        return value
 
     episodes = tuple(sorted({unit(action) for action in domain}))
-    support = {episode: tuple(sorted(action for action in selected if unit(action) == episode)) for episode in episodes}
+    grouped: dict[str, list[ActionRef]] = {}
+    for action in selected:
+        grouped.setdefault(unit(action), []).append(action)
+    support = {episode: tuple(sorted(grouped.get(episode, ()))) for episode in episodes}
     empty = tuple(episode for episode in episodes if not support[episode])
     if empty and spec.empty_policy == "reject":
         raise InvalidPolicyUpdate(f"empty objective selection for episodes {empty}")
     retained = tuple(episode for episode in episodes if support[episode] or spec.empty_policy == "zero")
     if not retained:
         raise InvalidPolicyUpdate("empty objective reduction after omission")
+    sizes: dict[str, int] = {}
+    if spec.denominator != "selected":
+        for action in original:
+            key = unit(action)
+            sizes[key] = sizes.get(key, 0) + 1
     denominators = tuple(
-        (
-            episode,
-            len(support[episode])
-            if spec.denominator == "selected"
-            else sum(unit(action) == episode for action in original),
-        )
+        (episode, len(support[episode]) if spec.denominator == "selected" else sizes.get(episode, 0))
         for episode in retained
     )
     if definition.reduction == "selected-token":
@@ -254,18 +262,18 @@ def resolve_objective_term(
     if definition.ratio == "token":
         ratio_support = tuple((action,) for action in sorted(policy))
     elif definition.ratio == "episode-geometric":
+        by_episode: dict[str, list[ActionRef]] = {}
+        for action in original:
+            by_episode.setdefault(action.episode_id, []).append(action)
         ratio_support = tuple(
-            tuple(sorted(action for action in original if action.episode_id == episode))
-            for episode in sorted({action.episode_id for action in policy})
+            tuple(sorted(by_episode[episode])) for episode in sorted({action.episode_id for action in policy})
         )
     else:
+        by_turn: dict[tuple[str, str, str], list[ActionRef]] = {}
+        for action in original:
+            by_turn.setdefault((action.episode_id, action.branch_id, action.turn_id), []).append(action)
         turns = sorted({(action.episode_id, action.branch_id, action.turn_id) for action in policy})
-        ratio_support = tuple(
-            tuple(
-                sorted(action for action in original if (action.episode_id, action.branch_id, action.turn_id) == turn)
-            )
-            for turn in turns
-        )
+        ratio_support = tuple(tuple(sorted(by_turn[turn])) for turn in turns)
     if not {action for support in ratio_support for action in support} <= set(update.dependencies):
         raise InvalidPolicyUpdate("resolved update lost ratio dependencies")
     return ResolvedObjectiveTerm(

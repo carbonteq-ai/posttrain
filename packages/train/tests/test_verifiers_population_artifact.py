@@ -134,6 +134,40 @@ def test_decoder_rejects_invalid_identity_before_native_defaults(monkeypatch, pa
         decode_native_population(payload, format="verifiers-native-episodes")
 
 
+def test_conditioning_decode_restores_only_message_graphs_through_the_native_branch(monkeypatch):
+    validated = []
+
+    class Branch:
+        @staticmethod
+        def model_validate(record):
+            validated.append(record)
+            return SimpleNamespace(nodes=list(record["nodes"]), calls=list(record["calls"]))
+
+    class Episode:
+        @staticmethod
+        def model_validate(record):
+            pytest.fail("conditioning decode must not restore whole episodes")
+
+    monkeypatch.setitem(sys.modules, "verifiers.v1.episode", SimpleNamespace(Episode=Episode))
+    monkeypatch.setitem(sys.modules, "verifiers.v1.trace", SimpleNamespace(Trace=Episode, Branch=Branch))
+    record = {
+        "id": "episode",
+        "traces": [
+            {"id": "a", "nodes": ["n0", "n1"], "calls": ["c1"], "assessment_sources": ["large"]},
+            {"id": "b", "nodes": ["m0"]},
+        ],
+    }
+    traces = decode_native_population(
+        (json.dumps(record) + "\n").encode(), format="verifiers-native-episodes", content="conditioning"
+    )
+
+    assert {key: (trace.id, trace.nodes, trace.calls) for key, trace in traces.items()} == {
+        "a": ("a", ("n0", "n1"), ("c1",)),
+        "b": ("b", ("m0",), ()),
+    }
+    assert [set(item) for item in validated] == [{"index", "nodes", "calls"}] * 2
+
+
 def _episode_line(index):
     return (json.dumps({"traces": [{"id": f"t{index}", "payload": "x" * (index + 3)}]}, sort_keys=True) + "\n").encode()
 
