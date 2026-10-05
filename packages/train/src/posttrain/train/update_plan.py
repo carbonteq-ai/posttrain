@@ -359,6 +359,7 @@ def prefix_covers(population: PopulationSnapshot, views: tuple[int, ...]) -> tup
     order = {view: rank for rank, view in enumerate(views)}
     paths = {view: view_path(population.conditioning[view]) for view in views}
     covers: dict[int, list[int]] = {}
+
     def longest_first(view: int) -> tuple[int, int]:
         path = paths[view]
         return (-len(path[1]) if path is not None else 0, order[view])
