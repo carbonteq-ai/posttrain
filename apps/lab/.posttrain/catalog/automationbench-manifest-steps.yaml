@@ -723,7 +723,7 @@ training:
     update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
     target: targets/carbonteq-rtx-pro-6000-96gb
     parallelism: {sequence_length_divisor: 2}
-    runtime: {global_batch_size: 128, devices_per_node: 1, timeout_seconds: 172800}
+    runtime: {global_batch_size: 128, devices_per_node: 1, timeout_seconds: 86400}
     backend_options:
       rollout_execution: {env_workers: 12, episodes_per_worker: 15, worker_native_threads: 1}
       use_liger_kernel: false
