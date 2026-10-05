@@ -1,5 +1,5 @@
 # AutomationBench manifest step credit (docs/plan/automationbench-manifest-reward-release-and-sampo.md).
-# Environment f587146: the official partial credit stays the episode reward; installed
+# Environment da8bb32 (f587146 + manifest coverage campaign, Verifiers 58df1306): the official partial credit stays the episode reward; installed
 # manifests add goal credit and harm debit to the turn (step) whose tool call produced
 # them (turn-reward scorer version 3). Settings use the 0.4.14 resolved policy-update engine.
 environment:
@@ -11,7 +11,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: f587146b2b2148f0536acaf9e3e58409e03b4531
+      revision: da8bb3248d405ffc3db47431322b70e8256f93a3
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -180,7 +180,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: f587146b2b2148f0536acaf9e3e58409e03b4531
+      revision: da8bb3248d405ffc3db47431322b70e8256f93a3
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -323,7 +323,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: f587146b2b2148f0536acaf9e3e58409e03b4531
+      revision: da8bb3248d405ffc3db47431322b70e8256f93a3
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
