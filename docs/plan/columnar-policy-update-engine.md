@@ -176,6 +176,20 @@ Simulation: setup, data layout and the recorded baseline are in `docs/research/p
     /home/hammad/projects/sim/postcollect/venv/bin/python docs/research/policy-update-engine-scale/simulate.py --data /home/hammad/projects/sim/data-r6 --project apps/lab --out /tmp/engine-scale --train    # plus reference scores and every optimizer update
     ... --profile "admit (resolve+plan)"    # cProfile one stage
 
+Release chain for the 2.6B run (from the rl-perf worktree root, after merging the Verifiers/environment pin branch). Verifiers 58df1306 and the environment release replace 24c12379/f587146; posttrain-train now also declares numpy, so uv.lock and its digest change:
+
+    UV_HTTP_TIMEOUT=300 uv lock          # then restore by hand: `revision = 3` and vllm `version = "0.29.1.dev4"` (no `+precompiled`)
+    UV_HTTP_TIMEOUT=300 uv lock --check
+    .venv/bin/posttrain-release lock-dependencies
+    .venv/bin/posttrain-release lock-runtime-dependencies     # job-kind locks and profiles for online-rl-trl-py312 and eval
+    nice -n 5 .venv/bin/posttrain-release images publish --registry registry.lan/carbonteq \
+        --receipt-root /home/hammad/projects/rl/.posttrain/state/release-receipts \
+        --trust-bundle /usr/local/share/ca-certificates/carbonteq-local-ai-caddy.crt \
+        --framework-version 0.4.15.dev1 --variant online-rl-trl-py312 --variant eval
+    # then replace the old trl-fork lock digest with sha256(uv.lock) in apps/lab/.posttrain/catalog/*.yaml
+
+Expected: `apps/lab/tests/test_catalog.py::test_peft_bindings_settings_and_quantization_load_from_filesystem_catalog` passes again. Four tests remain red from before this plan (release constraints, veRL release profile and CLI template still name Verifiers e6a3d9bb); they do not affect the online-rl-trl-py312 job kind.
+
 Tests (from the worktree root): `nice .venv/bin/python -m pytest -q packages/train/tests/test_update_*.py packages/train/tests/test_resolved_telemetry.py packages/train/tests/test_sampo*.py packages/train/tests/test_verifiers_population_artifact.py packages/train/tests/test_trl*.py`, then the full ladder from `AGENTS.md`.
 
 ## Validation and Acceptance
