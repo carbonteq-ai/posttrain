@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import importlib.util
 import json
 import math
 import re
@@ -576,6 +577,7 @@ def test_verl_policy_generator_takes_lfm25_python_calls_from_the_renderer_like_t
     )
     assert bridged.prompt_message_spans == (None, None, (4, 6))
     if native_transport:
+        import verifiers.v1 as vf  # bound above too; native transport always loads it
         from posttrain.train.integrations.verifiers import _PolicyClient
         from posttrain.train.integrations.verifiers_generation import decode_parser_evidence
         from verifiers.v1.assessment_source import capture_trace_source

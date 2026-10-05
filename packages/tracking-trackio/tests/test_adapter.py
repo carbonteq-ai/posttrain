@@ -1222,7 +1222,9 @@ async def test_training_assessment_results_survive_trackio_storage(trackio_dir: 
     assert sdk_raw not in json.dumps(dict(stored.payload))
     assert stored.payload["assessment_results"] == training_verifiers_results(native)["assessment_results"]
     if subject_kind == "execution":
-        subject = stored.payload["assessment_results"][0]["assessments"][0]["subject"]
+        results = stored.payload["assessment_results"]
+        assert isinstance(results, list)
+        subject = cast(dict[str, Any], results[0])["assessments"][0]["subject"]
         assert subject["execution"]["invocation_id"] == "send-1"
         assert subject["execution"]["phase"] == "dispatch"
     assert "assessment_batches" in native

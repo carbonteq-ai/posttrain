@@ -1,4 +1,5 @@
 from dataclasses import replace
+from typing import Literal
 
 import numpy as np
 import pytest
@@ -232,7 +233,14 @@ def _assignment_selection(channel: str) -> CreditSelection:
     )
 
 
-def _assigned_row(rollout, specifications, *, status="complete", missing_count=0, overlap_policy="reject"):
+def _assigned_row(
+    rollout,
+    specifications,
+    *,
+    status="complete",
+    missing_count=0,
+    overlap_policy: Literal["reject", "sum"] = "reject",
+):
     """Retained bridge shape; negative cases explicitly corrupt fields for admission checks."""
     values = []
     grouped = {}
@@ -429,7 +437,7 @@ def test_local_assignment_channels_cross_explicit_estimator_seam_with_original_a
         id = "assignment-local-transport-fixture@1"
         required_relations = ("prompt",)
 
-        def prepare(self, population: PopulationSnapshot) -> PreparedCredit:
+        def prepare(self, snapshot: PopulationSnapshot) -> PreparedCredit:
             centered = tuple(
                 tuple(
                     value - sum(column) / len(column)
@@ -448,7 +456,7 @@ def test_local_assignment_channels_cross_explicit_estimator_seam_with_original_a
                 if not eligible
             )
             return PreparedCredit(
-                population.digest,
+                snapshot.digest,
                 self.id,
                 native.project(advantages),
                 self.required_relations,
@@ -623,21 +631,25 @@ async def test_native_retry_execution_credit_overlap_preserves_domain_provenance
     )
     session = RolloutSession(ModelContext("model", EvalClientConfig()), trace)
     message = vf.ToolMessage(tool_call_id=call.id, name=call.name, content="")
+    decisions = []
     for index, phase in enumerate(("before", "dispatch")):
-        decision = await session.handle_tool(
-            phase,
-            message,
-            request=ToolHookRequest(
-                phase=phase,
-                message=message,
-                execution_id="parent",
-                call=call,
-                event_index=index,
-                mcp_dispatch=MCPDispatch(server_name="counter", tool_name="bump", arguments_json="{}")
-                if phase == "dispatch"
-                else None,
-            ),
+        decisions.append(
+            await session.handle_tool(
+                phase,
+                message,
+                request=ToolHookRequest(
+                    phase=phase,
+                    message=message,
+                    execution_id="parent",
+                    call=call,
+                    event_index=index,
+                    mcp_dispatch=MCPDispatch(server_name="counter", tool_name="bump", arguments_json="{}")
+                    if phase == "dispatch"
+                    else None,
+                ),
+            )
         )
+    dispatched = decisions[-1]  # the dispatch phase issued the ticket
     for attempt in range(2):
         receipt = vf.ToolServerReceipt(
             invocation_id=f"physical-{attempt}",
@@ -646,7 +658,7 @@ async def test_native_retry_execution_credit_overlap_preserves_domain_provenance
             tool_name="bump",
             arguments_json='{"args":[],"kwargs":{}}',
             parent_execution_id="parent",
-            dispatch_ticket=decision["mcp_dispatch_ticket"],
+            dispatch_ticket=dispatched["mcp_dispatch_ticket"],
             transport_attempt_index=attempt,
             server_name="counter",
         )

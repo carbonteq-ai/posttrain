@@ -24,6 +24,7 @@ def test_tree_rss_includes_children_and_skips_exited_processes():
             "import subprocess,sys,time; subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); time.sleep(30)",
         ]
     )
+    alone = process_tree_rss_bytes(parent.pid)
     try:
         for _ in range(50):
             alone = process_tree_rss_bytes(parent.pid)
@@ -59,7 +60,7 @@ def test_budget_breach_fails_and_tears_down_the_pool():
     finally:
         worker.kill()
         worker.wait()
-    assert pool._pool_task.cancelled()
+    assert pool._pool_task is not None and pool._pool_task.cancelled()
     assert "memory_budget_gb" in str(pool._fatal_error)
     assert pool.peak_worker_rss_bytes > 0
 

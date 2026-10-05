@@ -31,10 +31,11 @@ def test_values_entropies_and_gradients_match_full_log_softmax(softcap, temperat
     ]
     targets = torch.randint(0, vocabulary, (rows,))
     upstream = torch.randn(rows, dtype=torch.float32)
+    hidden, weight, bias = leaves
     values, entropies = selected_token_logprobs(
-        *leaves, targets, temperature=temperature, softcap=softcap, chunk_rows=chunk_rows
+        hidden, weight, bias, targets, temperature=temperature, softcap=softcap, chunk_rows=chunk_rows
     )
-    expected_values, expected_entropies = reference(*leaves, targets, temperature, softcap)
+    expected_values, expected_entropies = reference(hidden, weight, bias, targets, temperature, softcap)
     torch.testing.assert_close(values, expected_values.float(), rtol=1e-6, atol=1e-6)
     torch.testing.assert_close(entropies, expected_entropies.float(), rtol=1e-6, atol=1e-6)
     assert not entropies.requires_grad

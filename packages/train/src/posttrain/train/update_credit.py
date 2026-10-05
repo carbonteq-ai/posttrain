@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import statistics
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from typing import Literal, Protocol
 
@@ -166,7 +167,7 @@ class NativeCreditRows:
             rows[positions[positions >= 0]] = row
         return rows
 
-    def project(self, values: tuple[tuple[float, ...], ...] | list[list[float]]) -> np.ndarray:
+    def project(self, values: Sequence[Sequence[float] | np.ndarray]) -> np.ndarray:
         """Gather estimator rows (whole completions) into the population's position order."""
         if len(values) != len(self.positions):
             raise InvalidPolicyUpdate("estimator output lost native row alignment")

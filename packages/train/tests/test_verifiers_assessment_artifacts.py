@@ -88,7 +88,7 @@ def test_collector_publishes_native_json_and_retained_bytes_together(tmp_path):
     bridge = object.__new__(VerifiersEnvironmentRolloutBridge)
     bridge.trace_path = tmp_path / "traces.jsonl"
     bridge._write_lock = threading.Lock()
-    bridge._dataset = SimpleNamespace(id="data", revision="v1")
+    object.__setattr__(bridge, "_dataset", SimpleNamespace(id="data", revision="v1"))
     bridge.technique = "sampo"
     bridge.environment_id = "test-env"
     episode = _episode({"source": b"evidence"})

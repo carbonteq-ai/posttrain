@@ -71,8 +71,7 @@ def _assessment(value: Any) -> dict[str, Any]:
         result["preference"] = {
             **_fields(preference, ("relation", "preferred_subject_id")),
             "alternative_subject_ids": [
-                _subject(alternative)["subject_digest"]
-                for alternative in _rows(preference["alternatives"])
+                _subject(alternative)["subject_digest"] for alternative in _rows(preference["alternatives"])
             ],
         }
     if assessment.get("derivation") is not None:
@@ -132,10 +131,7 @@ def _batches(value: Any) -> list[dict[str, Any]]:
                     ),
                 ),
                 "configuration_digest": hashlib.sha256(str(run.get("configuration_json", "{}")).encode()).hexdigest(),
-                "views": [
-                    _view(view)
-                    for view in _rows(batch.get("views", []))
-                ],
+                "views": [_view(view) for view in _rows(batch.get("views", []))],
                 "coverage": {"requested": len(expected), "returned": len(assessments)},
                 "expected": [{**_target(target), **_fields(_object(target), ("required",))} for target in expected],
                 "assessments": [_assessment(assessment) for assessment in assessments],
@@ -162,24 +158,41 @@ def _assignments(value: Any) -> list[dict[str, Any]]:
             parent_ids = _rows(contribution["parent_assessment_ids"])
             if not all(isinstance(parent, str) for parent in parent_ids):
                 raise ContractError("assignment parents must be identities")
-            contributions.append({
-                **_fields(contribution, ("contribution_id", "branch_id", "channel", "status", "value", "weight", "allocation", "attribution")),
-                "recipient": _subject(contribution["recipient"]),
-                "signal": _fields(_object(contribution["signal"]), ("signal_id", "revision", "semantics", "units", "direction")),
-                "parent_assessment_ids": parent_ids,
-                "gates": [
-                    _fields(_object(gate), ("gate_id", "outcome"))
-                    for gate in _rows(contribution.get("gates", []))
-                ],
-            })
-        results.append({
-            **_fields(assignment, ("schema_version", "status")),
-            **_fields(request, ("invocation_id", "attempt_id", "allocation", "overlap_policy")),
-            "source": _fields(_object(request["source"]), ("snapshot_id", "episode_id", "source_digest")),
-            "rule": _fields(rule, ("rule_id", "revision")),
-            "configuration_digest": hashlib.sha256(str(rule.get("configuration_json", "{}")).encode()).hexdigest(),
-            "contributions": contributions,
-        })
+            contributions.append(
+                {
+                    **_fields(
+                        contribution,
+                        (
+                            "contribution_id",
+                            "branch_id",
+                            "channel",
+                            "status",
+                            "value",
+                            "weight",
+                            "allocation",
+                            "attribution",
+                        ),
+                    ),
+                    "recipient": _subject(contribution["recipient"]),
+                    "signal": _fields(
+                        _object(contribution["signal"]), ("signal_id", "revision", "semantics", "units", "direction")
+                    ),
+                    "parent_assessment_ids": parent_ids,
+                    "gates": [
+                        _fields(_object(gate), ("gate_id", "outcome")) for gate in _rows(contribution.get("gates", []))
+                    ],
+                }
+            )
+        results.append(
+            {
+                **_fields(assignment, ("schema_version", "status")),
+                **_fields(request, ("invocation_id", "attempt_id", "allocation", "overlap_policy")),
+                "source": _fields(_object(request["source"]), ("snapshot_id", "episode_id", "source_digest")),
+                "rule": _fields(rule, ("rule_id", "revision")),
+                "configuration_digest": hashlib.sha256(str(rule.get("configuration_json", "{}")).encode()).hexdigest(),
+                "contributions": contributions,
+            }
+        )
     return results
 
 

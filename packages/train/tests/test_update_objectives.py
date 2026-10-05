@@ -5,6 +5,7 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
+from posttrain.train.reward_evidence import ObservationScope
 from posttrain.train.update_credit import PreparedCredit
 from posttrain.train.update_objectives import (
     ActionSelection,
@@ -19,7 +20,15 @@ from posttrain.train.update_records import ActionInterval, InvalidPolicyUpdate, 
 from .test_update_plan import capabilities, five_turns
 
 
-def credit_for(snapshot, values, *, estimator="fixture@1", weights=(), normalization="none@1", scope="prefix"):
+def credit_for(
+    snapshot,
+    values,
+    *,
+    estimator="fixture@1",
+    weights=(),
+    normalization="none@1",
+    scope: ObservationScope = "prefix",
+):
     return PreparedCredit(
         snapshot.digest,
         estimator,
