@@ -115,7 +115,7 @@ def main() -> None:
         from posttrain.train.update_telemetry import collection_metrics
         from posttrain.train.verifiers_requests import validate_verifiers_policy_sampling
         from verifiers.v1._validation_scope import validation_scope
-        from verifiers.v1.episode import Episode
+        from verifiers.v1.episode import WireEpisode  # the class EnvClient decodes episodes into
 
         layout = discover_project(args.project)
         catalog = open_catalog(
@@ -152,7 +152,7 @@ def main() -> None:
             episodes = []
             for line in lines:
                 with validation_scope():
-                    episodes.append(Episode.model_validate_json(line))
+                    episodes.append(WireEpisode.model_validate_json(line))
         print(f"episodes {len(episodes)} ({sum(map(len, lines)) / 1e9:.2f} GB)")
 
         collection = CollectionKey(RUN_ID, "collection-0", "actor-0", 0)

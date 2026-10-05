@@ -260,3 +260,31 @@ def test_bridge_records_episode_spans_as_it_appends(tmp_path, monkeypatch):
     indexed = retain_native_population(source, tmp_path / "index", wanted, episodes=True, spans=bridge._episode_spans)
     scanned = retain_native_population(source, tmp_path / "scan", wanted, episodes=True)
     assert indexed.reference.path.read_bytes() == scanned.reference.path.read_bytes()
+
+
+def test_record_handoff_pickles_parametrized_pydantic_generics():
+    """Verifiers' client decodes episodes into parametrized generics, which the default pickler rejects."""
+    import pickle
+    from typing import Generic, TypeVar
+
+    from posttrain.train.integrations.native_records import pickle_episode
+    from pydantic import BaseModel
+
+    data = TypeVar("data")
+
+    class Wire(BaseModel):
+        value: int
+
+    class Holder(BaseModel, Generic[data]):
+        payload: data
+
+    globals()["Wire"], globals()["Holder"] = Wire, Holder
+    Wire.__qualname__, Holder.__qualname__ = "Wire", "Holder"
+    try:
+        episode = Holder[Wire](payload=Wire(value=3))
+        with pytest.raises(pickle.PicklingError):
+            pickle.dumps(episode)
+        restored = pickle.loads(pickle_episode(episode))
+        assert type(restored) is Holder[Wire] and restored == episode
+    finally:
+        del globals()["Wire"], globals()["Holder"]

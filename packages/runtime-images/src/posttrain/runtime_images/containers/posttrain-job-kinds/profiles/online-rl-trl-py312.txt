@@ -1,4 +1,4 @@
 # Python 3.13 TRL/Verifiers online-RL dependency profile.
 -r supervised.txt
 -r vllm-common.txt
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@24c12379ddb97c4859d223e86118668bc3de602e
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@58df1306afff9b6bef5ce74701efeb19cf1e9042

@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import inspect
+import io
 import json
 import multiprocessing
 import os
@@ -157,6 +158,31 @@ def encode_episode(
     )
 
 
+def _parametrized(origin: Any, args: tuple[Any, ...]) -> Any:
+    return origin[args if len(args) > 1 else args[0]]
+
+
+class _EpisodePickler(pickle.Pickler):
+    """Pickles parametrized pydantic generics (e.g. ``Trace[WireTaskData, ...]``) by origin and arguments.
+
+    Verifiers' client decodes episodes into such classes; their names cannot be
+    looked up as module attributes, so the default pickler rejects them.
+    """
+
+    def reducer_override(self, obj: Any) -> Any:
+        if isinstance(obj, type):
+            metadata = getattr(obj, "__pydantic_generic_metadata__", None)
+            if metadata and metadata.get("origin") is not None and metadata.get("args"):
+                return _parametrized, (metadata["origin"], tuple(metadata["args"]))
+        return NotImplemented
+
+
+def pickle_episode(episode: Any) -> bytes:
+    stream = io.BytesIO()
+    _EpisodePickler(stream, protocol=pickle.HIGHEST_PROTOCOL).dump(episode)
+    return stream.getvalue()
+
+
 def _encode_pickled(blob: bytes, trace_id: str | None, task_facets: Mapping[str, Any] | None) -> EncodedEpisode:
     return encode_episode(pickle.loads(blob), trace_id=trace_id, task_facets=task_facets)
 
@@ -168,7 +194,7 @@ async def encode_episode_on_workers(
     task_facets: Mapping[str, Any] | None = None,
 ) -> EncodedEpisode:
     """``encode_episode`` on the shared pool; the caller's event loop stays free."""
-    blob = pickle.dumps(episode, protocol=pickle.HIGHEST_PROTOCOL)
+    blob = pickle_episode(episode)
     future = record_workers().submit(_encode_pickled, blob, trace_id, dict(task_facets or {}))
     return await asyncio.wrap_future(future)
 
