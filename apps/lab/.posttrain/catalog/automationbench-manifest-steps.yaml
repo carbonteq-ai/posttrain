@@ -1,5 +1,5 @@
 # AutomationBench manifest step credit (docs/plan/automationbench-manifest-reward-release-and-sampo.md).
-# Environment 427e802: the official partial credit stays the episode reward; installed
+# Environment f587146: the official partial credit stays the episode reward; installed
 # manifests add goal credit and harm debit to the turn (step) whose tool call produced
 # them (turn-reward scorer version 3). Settings use the 0.4.14 resolved policy-update engine.
 environment:
@@ -11,7 +11,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 427e802b6b5f592d0d904bcfc8162c16593cb0ec
+      revision: f587146b2b2148f0536acaf9e3e58409e03b4531
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -180,7 +180,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 427e802b6b5f592d0d904bcfc8162c16593cb0ec
+      revision: f587146b2b2148f0536acaf9e3e58409e03b4531
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -323,7 +323,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 427e802b6b5f592d0d904bcfc8162c16593cb0ec
+      revision: f587146b2b2148f0536acaf9e3e58409e03b4531
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -680,7 +680,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: 46d1a725a08bd6bc042ad8d1cf5433e025cac13e0ba1a59c8b304a7e47e120df
+      dependency_lock_sha256: 2d3ddc3409e025cc3b727f78f16312988f0ddeb3cba3edbfe082b611eeea81df
 
   # The workstation binding with colocated async vLLM rollouts and native rollout
   # workers: qualifies resolved TRL policy updates with vLLM sampler correction.
@@ -700,7 +700,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: 46d1a725a08bd6bc042ad8d1cf5433e025cac13e0ba1a59c8b304a7e47e120df
+      dependency_lock_sha256: 2d3ddc3409e025cc3b727f78f16312988f0ddeb3cba3edbfe082b611eeea81df
 
   training/lfm2.5-1.2b-trl-lora-manifest-local-vllm@1:
     selection_type: training-binding
@@ -718,7 +718,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: 46d1a725a08bd6bc042ad8d1cf5433e025cac13e0ba1a59c8b304a7e47e120df
+      dependency_lock_sha256: 2d3ddc3409e025cc3b727f78f16312988f0ddeb3cba3edbfe082b611eeea81df
 
   training/lfm2.5-1.2b-trl-lora-manifest-local@1:
     selection_type: training-binding
@@ -735,7 +735,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: 46d1a725a08bd6bc042ad8d1cf5433e025cac13e0ba1a59c8b304a7e47e120df
+      dependency_lock_sha256: 2d3ddc3409e025cc3b727f78f16312988f0ddeb3cba3edbfe082b611eeea81df
 
   # cont100's fp16 rank-4 workstation binding for 128-episode updates with 12 rollout
   # workers x 15 episodes (180 slots for the largest (16 + 4) x 8 = 160-episode round).
@@ -749,7 +749,7 @@ training:
     parallelism: {sequence_length_divisor: 2}
     runtime: {global_batch_size: 128, devices_per_node: 1, timeout_seconds: 86400}
     backend_options:
-      rollout_execution: {env_workers: 12, episodes_per_worker: 15, worker_native_threads: 1, memory_budget_gb: 64}
+      rollout_execution: {env_workers: 12, episodes_per_worker: 15, worker_native_threads: 1, memory_budget_gb: 40}
       use_liger_kernel: false
       logits_chunk_size: 128
       training_precision: fp16
@@ -757,7 +757,7 @@ training:
       logits_float32: true
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: 46d1a725a08bd6bc042ad8d1cf5433e025cac13e0ba1a59c8b304a7e47e120df
+      dependency_lock_sha256: 2d3ddc3409e025cc3b727f78f16312988f0ddeb3cba3edbfe082b611eeea81df
 
 inference:
   inference/lfm2.5-1.2b-vllm-manifest-ws@1:
