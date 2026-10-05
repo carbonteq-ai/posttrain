@@ -33,7 +33,9 @@ Run `manifest-steps-26-sampo-100-g16x8-20261005-r6` (LFM2.5-2.6B, 16 turns, 4,09
     update 0 loss / backward            -              116.3 s / 21.6 s
     update 1 loss / backward            -               97.8 s / 38.5 s
     update 2 loss / backward            -              100.0 s / 49.4 s
+    update 3 loss / backward            -              122.5 s / 72.1 s
+    total engine overhead per round     -              about 690 s (11.5 min)
 
-Process memory grew from 6.1 GB to 13.9 GB over three updates. Every selected episode's turn contexts form an exact prefix chain; scoring per turn forwards 6,362,187 tokens per pass where one pass per episode would forward 1,363,646.
+Process memory grew from 6.1 GB to 17.2 GB over four updates; backward time grows with each update. Every selected episode's turn contexts form an exact prefix chain; scoring per turn forwards 6,362,187 tokens per pass where one pass per episode would forward 1,363,646.
 
 For comparison, the older TRL SAMPO system (run `lfm26-sampo-cont100-g30x4-16t-lr6e5-kl1e2-20260930-r1`, 120 episodes per update) averaged 467 s per update: 198 s of rollouts and 219 s of actor update.

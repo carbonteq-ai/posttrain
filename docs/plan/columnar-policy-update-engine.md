@@ -40,8 +40,12 @@ Training semantics do not change: the same rewards, the same episode-level and t
       [stage] update 0 backward               21.56s
       [stage] update 1 loss                   97.81s
       [stage] update 1 backward               38.54s
+      [stage] update 2 loss                   99.97s
+      [stage] update 2 backward               49.39s
+      [stage] update 3 loss                  122.46s
+      [stage] update 3 backward               72.06s
 
-  Process memory grew from 6.1 GB to 12.0 GB over two updates.
+  Total engine overhead per round is about 690 s (11.5 minutes). Process memory grew from 6.1 GB to 17.2 GB over four updates, and backward time grows with each update.
 
 - Observation: every r6 episode is an exact prefix chain: each turn's conditioning context is the beginning of the next turn's. The engine nevertheless runs one full forward pass per turn over that turn's whole history, which is 4.67 times more tokens than one pass per episode.
   Evidence: over the 128 selected rollouts, the per-turn contexts sum to 6,362,187 tokens per scoring pass; the final contexts of the episodes sum to 1,363,646.
