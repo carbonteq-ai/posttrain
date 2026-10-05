@@ -22,7 +22,8 @@ Training semantics do not change: the same rewards, the same episode-level and t
 - [x] (2026-10-05 22:30Z) Train tests ported (five parallel agents, disjoint files) and two restore/empty-update bugs they exposed fixed; real-data parity against the previous engine on r6 matches advantages, sampler scores, weights, ratio groups, updates and packs exactly. Committed 12be9000.
 - [x] (2026-10-06 00:20Z) Milestone 4: prefix covers (`update_plan.prefix_covers`, `ExecutionPack.covers`, `ExecutionCapabilities.prefix_sharing`, TRL on), cover scoring from final hidden states with a chunked FP32 head (`backends/policy_update_logprobs.py`). Done: unit parity (scores, entropies, gradients), real-model fp16 run on r6 (5.6x faster, chunked head equals model logits to 1.9e-6). fp32 parity on the real model (LFM2.5-2.6B on CPU, two-turn cover versus per-turn: max |diff| 5.7e-6, mean 1.5e-7). Harness on r6 with a real-vocabulary stand-in head: 32 packs per update (one per episode, was 155 to 238), reference scores 9.2 s and four updates about 32 s on the RTX 3070 Ti, GPU peak 0.72 GB, process memory flat at 5.2 GB.
 - [ ] Milestone 4: one forward pass per episode for exact-prefix episodes and language-model head only at sampled positions (fp32 chunks), with score parity on a real model.
-- [ ] Milestone 4b: real-model GPU benchmark on the workstation (2.6B + LoRA, real kernels), before and after Milestones 2 to 4.
+- [x] (2026-10-05 21:07Z) Milestone 4b, as a 2.6B smoke run on the workstation with Verifiers 58df1306 and environment da8bb32 (`manifest-steps-26-smoke-columnar-20261005-r2`, 8 updates, f2200d28): every update applied; gradient norms 0.0082 to 0.0132; KL 0 to 5.3e-4; first update 617 s after job start (start-up, collection, two scoring passes); later updates 32 to 57 s; round 2 took 401 s to its first update, so a full round is about 9 minutes (100 rounds about 15 hours). SAMPO telemetry shows both credit levels (episode advantage magnitude 0.15/0.13, turn 0.060/0.070, turn credit share 27%/32%, zero-spread groups 0%), trainer-sampler gap 0.001, importance weights at most 1.21. Rescoring round 1's 160 live episodes on da8bb32: 0 assessment or credit errors, manifest credit on the witnessing turn in 32/32 episodes. The first smoke run (r1) failed because EnvClient's parametrized generics could not be pickled for record workers; fixed in f2200d28.
+- [x] (2026-10-05 21:10Z) Submitted the 100-update run `manifest-steps-26-sampo-100-g16x8-20261005-r7` (f2200d28, 24-hour limit).
 - [ ] Milestone 5: recovery, transport and telemetry on the new representation; remove the per-token path; full validation; 2-update smoke on the workstation; then the 100-update run.
 
 ## Surprises & Discoveries
@@ -116,7 +117,9 @@ Training semantics do not change: the same rewards, the same episode-level and t
 
 ## Outcomes & Retrospective
 
-Not started.
+The resolved engine went from unable to finish one round at r6's size (over 25 minutes on one core before any update) to about 9-minute rounds on the workstation with four optimizer updates each. The changes that mattered: a population as a table of turns with per-token arrays (no per-token objects, identities computed once), evidence verified once at admission, whole-tensor scores and loss, one forward per episode for exact-prefix chains, sampled-position log-probabilities from hidden states in chunks, and stateless CPU work on a fork-server process pool. A real-data parity check against the previous engine matched every credit, weight, ratio group, update and pack on r6.
+
+Lesson: the simulation decoded episodes differently from the production client (plain classes instead of parametrized generics) and so missed a pickling failure that the first workstation smoke run hit immediately. Simulations must construct inputs through the same code paths as production; the harness now decodes episodes as `WireEpisode`.
 
 ## Context and Orientation
 
