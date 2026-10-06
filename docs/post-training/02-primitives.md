@@ -681,6 +681,17 @@ final sampled turn and zero to earlier turns before discounted returns are
 computed. A backend without both sequence-level clipping and hierarchical
 agentic advantages rejects `train.sampo`; GSPO alone is not SAMPO.
 
+Amendment (2026-10-07): SAMPO may add goal-relative turn credit with
+`goal_credit: group-relative`. The reward projection then selects per-turn
+verified outcomes (`turn_goal_prefix`, `turn_harm_key`): each turn names the
+environment goals it first achieved, with a weight, and its harm debit. A turn
+earns each goal's weight times one minus the share of its prompt group's attempts
+that achieved that goal, and loses its harm debit, whether or not the turn has an
+anchor sibling. Goals compare attempts by named outcome rather than by identical
+observation, so a turn with a singleton anchor still receives the credit its own
+verified outcomes earned. The episode advantage is unchanged, and goal and harm
+credit do not enter the anchor returns.
+
 ```text
 train.distill seats
   student: models/qwen-0.8b@bf16

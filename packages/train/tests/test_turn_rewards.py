@@ -179,3 +179,78 @@ def test_capo_does_not_accept_missing_duplicate_or_unknown_turn_errors(errors):
             turn_ids=tuple(turn.id for turn in turns),
             native_turns=turns,
         )
+
+
+def outcome_selection(**changes):
+    values = {
+        "id": "turns",
+        "revision": "1",
+        "components": (RewardComponentProjection("outcome", "scalar"),),
+        "scorer_digest": "a" * 64,
+        "turns_info_key": "ratings",
+        "turn_reward_key": "turn_reward",
+        "turn_reward_includes_terminal_outcome": True,
+        "turn_goal_prefix": "manifest_goal/",
+        "turn_harm_key": "manifest_harm_debit",
+    }
+    values.update(changes)
+    return RewardProjection(**values)
+
+
+def outcome_observation(first, second):
+    def assessment(turn_id, extra):
+        values = (RewardValue("turn_reward", "valid", 0.0), *extra)
+        return asdict(TurnAssessment(turn_id, values, "native/ratings"))
+
+    envelope = {
+        "trace_id": "trace",
+        "branch_id": "0",
+        "projection_id": TURN_PROJECTION,
+        "scorer_digest": "a" * 64,
+        "assessments": [assessment("assistant-0", first), assessment("assistant-1", second)],
+    }
+    return TraceObservation(
+        trace_type="verifiers",
+        external_id="trace",
+        payload={"info": {"posttrain_scorer_digest": "a" * 64, "ratings": envelope}},
+    )
+
+
+def test_turn_outcomes_select_keyed_goals_and_the_harm_debit():
+    observation_ = outcome_observation(
+        (RewardValue("manifest_harm_debit", "valid", 0.0),),
+        (
+            RewardValue("manifest_goal/record:written", "valid", 0.25),
+            RewardValue("manifest_goal/obligation:read:x", "valid", 0.25),
+            RewardValue("manifest_harm_debit", "valid", 0.1),
+            RewardValue("manifest_goals", "valid", 2.0),
+        ),
+    )
+    outcomes = outcome_selection().project_turn_outcomes(observation_, ("assistant-0", "assistant-1"))
+    assert outcomes == (
+        ((), 0.0),
+        ((("obligation:read:x", 0.25), ("record:written", 0.25)), 0.1),
+    )
+    assert (
+        outcome_selection(turn_goal_prefix=None, turn_harm_key=None).project_turn_outcomes(
+            observation_, ("assistant-0", "assistant-1")
+        )
+        is None
+    )
+
+
+def test_turn_goals_need_positive_weights_and_a_harm_debit():
+    bad = outcome_observation(
+        (RewardValue("manifest_harm_debit", "valid", 0.0), RewardValue("manifest_goal/g", "valid", 0.0)),
+        (RewardValue("manifest_harm_debit", "valid", 0.0),),
+    )
+    with pytest.raises(InvalidRewardEvidence, match="positive weight"):
+        outcome_selection().project_turn_outcomes(bad, ("assistant-0", "assistant-1"))
+    missing = outcome_observation((), ())
+    with pytest.raises(InvalidRewardEvidence, match="manifest_harm_debit"):
+        outcome_selection().project_turn_outcomes(missing, ("assistant-0", "assistant-1"))
+
+
+def test_turn_goals_and_harms_are_selected_together():
+    with pytest.raises(InvalidRewardEvidence, match="together"):
+        outcome_selection(turn_harm_key=None)

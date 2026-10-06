@@ -1,0 +1,104 @@
+"""Goal-relative turn credit: verified goals and harms reach the turn that produced them."""
+
+from __future__ import annotations
+
+import pytest
+from posttrain.common import TraceObservation
+from posttrain.train import AgenticTurn, EnvironmentRollout, SAMPOSettings, TrainingLoop, compute_sampo_advantages
+
+
+def _settings(**changes) -> SAMPOSettings:
+    values = {
+        "id": "sampo-goal-test",
+        "loop": TrainingLoop(max_steps=1, max_length=8, per_device_batch_size=4),
+        "num_generations": 4,
+        "max_prompt_length": 2,
+        "max_completion_length": 6,
+        "goal_credit": "group-relative",
+    }
+    values.update(changes)
+    return SAMPOSettings(**values)
+
+
+def _rollout(suffix: str, *, reward=0.5, first=(), second=(), harm=0.0, steps=(0.0, 0.0)) -> EnvironmentRollout:
+    """Two turns; each attempt sees its own observations, so every turn is a singleton anchor."""
+    return EnvironmentRollout(
+        example_id="task-1",
+        prompt_ids=(1, 2),
+        completion_ids=(3, 4, 5, 6, 7, 8),
+        sampling_logprobs=(-0.1,) * 6,
+        env_mask=(True, True, False, False, True, True),
+        reward=reward,
+        is_truncated=False,
+        trace=TraceObservation("test", f"trace-{suffix}", {}),
+        turns=(
+            AgenticTurn(0, 2, f"first-{suffix}", steps[0], goal_credits=first),
+            AgenticTurn(4, 6, f"second-{suffix}", steps[1], goal_credits=second, harm_debit=harm),
+        ),
+    )
+
+
+def _group(*rollouts):
+    return compute_sampo_advantages(_settings(), ("task-1",) * len(rollouts), rollouts)
+
+
+def test_a_rare_goal_credits_its_singleton_turn_by_how_few_attempts_reached_it():
+    result = _group(
+        _rollout("a", second=(("record:task-written", 0.25),)),
+        _rollout("b"),
+        _rollout("c"),
+        _rollout("d"),
+    )
+    # Every turn is a singleton anchor, so the observation-anchored turn credit is zero ...
+    assert all(value == 0 for values in result.turn_advantages for value in values)
+    # ... but the goal still reaches the turn that achieved it: 0.25 * (1 - 1/4).
+    assert result.goal_advantages[0] == pytest.approx((0.0, 0.1875))
+    assert result.goal_advantages[1:] == ((0.0, 0.0),) * 3
+    assert result.token_advantages[0] == pytest.approx((0.0, 0.0, 0.0, 0.0, 0.1875, 0.1875))
+
+
+def test_a_goal_every_attempt_reached_earns_nothing():
+    goal = (("obligation:read:instance", 0.25),)
+    result = _group(*(_rollout(name, first=goal) for name in "abcd"))
+    assert result.goal_advantages == ((0.0, 0.0),) * 4
+
+
+def test_a_goal_counts_once_per_attempt_wherever_it_was_achieved():
+    goal = "obligation:read:instance"
+    result = _group(
+        _rollout("a", first=((goal, 0.25),)),
+        _rollout("b", second=((goal, 0.25),)),
+        _rollout("c"),
+        _rollout("d"),
+    )
+    assert result.goal_advantages[0] == pytest.approx((0.125, 0.0))
+    assert result.goal_advantages[1] == pytest.approx((0.0, 0.125))
+
+
+def test_a_harm_debits_its_turn_even_when_every_attempt_caused_it():
+    result = _group(*(_rollout(name, harm=0.1) for name in "abcd"))
+    assert result.goal_advantages == ((0.0, -0.1),) * 4
+    evidence = result.hierarchy_evidence(1.0)
+    assert evidence["train/rl/harm_debited_turn_fraction"][0] == pytest.approx(0.5)
+
+
+def test_goal_credit_is_reported_beside_the_hierarchy():
+    result = _group(_rollout("a", second=(("record:task-written", 0.25),)), _rollout("b"), _rollout("c"), _rollout("d"))
+    evidence = result.hierarchy_evidence(1.0)
+    assert evidence["train/rl/goal_credited_turn_fraction"][0] == pytest.approx(1 / 8)
+    assert evidence["train/rl/goal_turn_credit_abs_mean"][0] == pytest.approx(0.1875 / 8)
+
+
+def test_turn_outcomes_without_the_setting_are_refused():
+    rollouts = (_rollout("a", harm=0.1), _rollout("b"), _rollout("c"), _rollout("d"))
+    with pytest.raises(ValueError, match="goal_credit is off"):
+        compute_sampo_advantages(_settings(goal_credit="none"), ("task-1",) * 4, rollouts)
+
+
+def test_turn_goal_credits_are_validated():
+    with pytest.raises(ValueError, match="unique keys"):
+        AgenticTurn(0, 2, "key", goal_credits=(("g", 0.1), ("g", 0.2)))
+    with pytest.raises(ValueError, match="positive"):
+        AgenticTurn(0, 2, "key", goal_credits=(("g", 0.0),))
+    with pytest.raises(ValueError, match="harm debit"):
+        AgenticTurn(0, 2, "key", harm_debit=-0.1)

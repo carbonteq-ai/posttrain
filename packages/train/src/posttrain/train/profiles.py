@@ -378,6 +378,11 @@ class SAMPOSettings:
     beta: float = 0.0
     discount_gamma: float = 0.95
     step_advantage_weight: float = 1.0
+    # group-relative: a turn that first achieved an environment-verified goal earns the
+    # goal's weight times (1 - the share of its group's attempts that achieved the goal),
+    # and a turn that caused a harm loses its harm debit, whether or not the turn has an
+    # anchor sibling. Requires a reward projection with turn_goal_prefix and turn_harm_key.
+    goal_credit: Literal["none", "group-relative"] = "none"
     advantage_normalization: Literal["mean", "mean_std"] = "mean"
     clip_epsilon_low: float = 0.003
     clip_epsilon_high: float = 0.004

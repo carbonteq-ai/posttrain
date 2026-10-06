@@ -43,10 +43,17 @@ def reward_contract_digest(request: GDPORequest | CAPORequest | SAMPORequest) ->
         # existed; choosing them by learning signal changes what is trained on.
         if active_sampling.get("retain") == "first":
             active_sampling.pop("retain")
+    # Goal-relative turn credit changes credit; its absence is what runs did before it existed.
+    if settings.get("goal_credit") == "none":
+        settings.pop("goal_credit")
+    projection_identity = asdict(projection)
+    for key in ("turn_goal_prefix", "turn_harm_key"):
+        if projection_identity.get(key) is None:
+            projection_identity.pop(key, None)
     payload = {
         "schema": "posttrain.reward-contract.v1",
         "settings": settings,
-        "projection": asdict(projection),
+        "projection": projection_identity,
         "environment": request.environment,
     }
     return hashlib.sha256(

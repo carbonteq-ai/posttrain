@@ -1295,6 +1295,12 @@ class VerifiersEnvironmentRolloutBridge:
                 turns = tuple(
                     replace(turn, step_reward=reward) for turn, reward in zip(turns, local_rewards, strict=True)
                 )
+            outcomes = self.reward_projection.project_turn_outcomes(observation, turn_ids)
+            if outcomes is not None:
+                turns = tuple(
+                    replace(turn, goal_credits=goals, harm_debit=harm)
+                    for turn, (goals, harm) in zip(turns, outcomes, strict=True)
+                )
         attributes = dict(observation.attributes)
         attributes.update(
             completion_token_count=len(completion_ids),
