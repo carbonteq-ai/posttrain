@@ -812,6 +812,86 @@ environment:
       max_turns: 16
       max_output_tokens: 12288
 
+  # luna-v2's held-out evaluation: the same 20 reserved tasks under the 2.6B run's budgets
+  # (16 turns, 6144-token replies, 18432 output tokens per episode) and the matched suites'
+  # sampling (temperature 0.5, Liquid's top-k 50 and repetition penalty 1.1, 5 attempts), with
+  # manifest findings recorded beside the score.
+  automationbench-manifest-luna2-eval-6k16t-t05-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 24e1fc9211b64eecf958264b93d56dae00df8f4d
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          # automationbench-manifest-luna-v2: installed manifests that bind and agree with
+          # Luna's recorded episodes (scripts/qualification/fixtures/automationbench_manifest_luna_v2.json).
+          task_names:
+            - finance.ap_turnover_analysis
+            - finance.monday_project_billing
+            - finance.overdue_invoice_followup
+            - finance.qb_estimate_conversion
+            - finance.travel_advance_settlement
+            - hr.airtable_recruitment_analytics
+            - hr.equipment_provisioning
+            - hr.workforce_planning_forecast
+            - marketing.content_scoring
+            - marketing.social_content_calendar
+            - operations.calendly_equipment_inspection
+            - operations.equipment_lease_processing
+            - operations.perishable_inventory_expiry
+            - operations.procurement_card_reconciliation
+            - sales.chatgpt_lead_classification_pipeline
+            - sales.zoom_webinar_lead_scoring
+            - simple.email_airtable_customer_welcome
+            - simple.email_zendesk_ack_reply
+            - support.gorgias_quality_audit
+            - support.zendesk_hubspot_org_sync
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 16
+            capture_actions: true
+            # Tool servers fork from a warm preloaded interpreter. Stated explicitly:
+            # Verifiers fixes this default at import time, so the serialized task
+            # config otherwise depends on whether VF_FORK_SERVER was set first.
+            tools:
+              runtime:
+                type: subprocess
+                fork_server: true
+                preload: [anyio, httpx, mcp, mcp.client.streamable_http, openai, tenacity, pydantic, automationbench_v1.limited_tools]
+            manifest_assessments: true
+            turn_rewards:
+              tool_failure_penalty: 0.02
+              manifest_goal_share: 0.5
+              manifest_harm_penalty: 0.1
+              manifest_harm_cap: 0.3
+            mistake_penalty: {per_mistake: 0.02, cap: 0.1}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 16
+          max_output_tokens: 18432
+    sampling: {max_tokens: 6144, temperature: 0.5, top_p: 1.0, top_k: 50, repetition_penalty: 1.1}
+    num_tasks: 20
+    num_rollouts: 5
+    max_concurrent: 180
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: automationbench-manifest-luna-v2-eval
+      task_mix_sha256: 4201d4a551041743abecf7ef11d43c148ccc8b86bcc4f5cd68f28ea88e89d9a2
+      sampling_seed: 20261005
+      toolset: limited_zapier
+      max_turns: 16
+      max_output_tokens: 18432
+
 training:
   # SAMPO step rewards: the live per-turn partial-credit progress (version-2 rule,
   # 0.02 per tool mistake) plus manifest step credit (goal share 0.5, harm 0.1 capped at
@@ -1488,3 +1568,23 @@ inference:
     target: targets/pop-os-rtx-3070ti-8gb
     purpose: [rollout]
     capabilities: [tool-calling]
+
+evaluation:
+  # luna-v2's 20 held-out tasks under the 2.6B run's budgets at temperature 0.5 (5 attempts).
+  automationbench-manifest-luna2-heldout-6k16t-t05:
+    revision: "1"
+    kind: general
+    environments: [automationbench-manifest-luna2-eval-6k16t-t05-v1]
+    success:
+      automationbench-manifest-luna2-eval-6k16t-t05-v1:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-manifest-luna2-eval-6k16t-t05-v1:
+        kind: full
+    measurement:
+      automationbench-manifest-luna2-eval-6k16t-t05-v1:
+        estimator: task_mean
+        missing: strict

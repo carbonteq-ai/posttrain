@@ -14,6 +14,7 @@ The 2.6B run `manifest-steps-26-sampo-100-g16x8-20261006-r10` trained 100 update
 - [x] (2026-10-06 08:30Z) Settings revision 4 adds VORTEX's yield-first adaptive curriculum by domain (as validated locally in r5/r7) and the 103-task environment gains the domain facet. Pre-flight on the resolved catalog: objective `turn-rows`, 32-episode updates (400 in all), curriculum `yield_first`/`domain`, active sampling 5 rounds, oversample 4, refill 4, `retain: learning_signal`, token-truncated sampler correction at 2, truncation penalty 0.1, KL 0.01 to the base; environments `089b67d`, 103 tasks, manifest assessments on; reward projection digest equals the environment's turn-reward digest (`f221a532...`).
 - [x] (2026-10-06 08:35Z) Submitted as `manifest-steps-26-sampo-100-luna2-20261006-r1` (user goal: submit and monitor two collections); queued behind r10's `v4` held-out evaluation on the workstation. The `v4_t05` evaluation is deferred until after this run.
 - [x] (2026-10-06 11:50Z) Two-collection checks on r5 (see Outcomes).
+- [x] (2026-10-06) Evaluations prepared for r5's checkpoints (not submitted while r5 holds the workstation): new suite `lfm26_automationbench_luna2_heldout_eval_6k16t_t05.yaml` (gate `lfm26-luna2-heldout-6k16t-t05`; luna-v2's 20 held-out tasks, environments `24e1fc9`, r5's budgets of 16 turns, 6144-token replies and 18432 per episode, temperature 0.5, 5 attempts, manifest findings recorded) and the older matched suites `..._64k_v4.yaml` / `..._64k_v4_t05.yaml` re-pinned to `24e1fc9` with action capture. All three resolve with `job plan`; `--strict` stops only on `BATCH_INVARIANCE_OFF_FOR_EVALUATION`, left off because every earlier evaluation of these suites ran without it.
 - [ ] Task-specific manifest coverage for email_sf_log_task, asana_dark_mode_from_email and quarterly_termination_queue.
 
 ## Surprises & Discoveries
@@ -29,7 +30,7 @@ The 2.6B run `manifest-steps-26-sampo-100-g16x8-20261006-r10` trained 100 update
 - Observation: r10's checkpoint-100 held-out evaluation could not run on the suites' pinned environments revision `0bad6187`, which requires Verifiers `e6a3d9bb` while the current evaluation job pins `58df1306`. With the user's choice, both matched suites were re-pinned to `089b67d` on branch `wip/r10-heldout-eval-089b67d` (`ef3fd158`); 15 benchmark-core files changed in between, so scores are not strictly comparable with earlier systems.
 - Observation: the first re-pinned evaluation (`heldout-matched-64k-v4-r10-c100-089b67d-20261006-b`) scored 0 on all 60 rollouts because every tool call returned `linked tool execution requires capture enabled`: since `427e802` AutomationBench executes tools only for tasks with `capture_actions: true`, which the held-out task config lacked. Fixed in `081e1288` (both re-pinned suites capture actions). The two evaluations rerun after this training run frees the workstation.
 
-None yet for this run; the defects that motivate it are recorded in `docs/plan/automationbench-simple-manifests.md` and `docs/plan/vortex-resolved-engine.md`.
+The defects that motivated this run are recorded in `docs/plan/automationbench-simple-manifests.md` and `docs/plan/vortex-resolved-engine.md`.
 
 ## Decision Log
 
@@ -53,6 +54,14 @@ Workstation: `carbonteq-ai-workstation.lan` (RTX PRO 6000, dstack), one job at a
 From `/home/hammad/projects/worktrees/rl-perf/apps/lab` on a clean tree:
 
     UV_HTTP_TIMEOUT=300 ../../.venv/bin/posttrain job run .posttrain/work_packages/lfm26_automationbench_manifest_steps_sampo_100_g16x8_ws.yaml --run-id manifest-steps-26-sampo-100-luna2-20261006-r1
+
+Evaluating r5 after it finishes (one job at a time on the workstation, from a clean worktree; replace STEP with 100, 200, 300 or 400). Run the base model the same way without `--model-from-run` for the baseline:
+
+    ../../.venv/bin/posttrain job run .posttrain/work_packages/lfm26_automationbench_luna2_heldout_eval_6k16t_t05.yaml --job evaluate --provider dstack --model-from-run manifest-steps-26-sampo-100-luna2-20261006-r5 --model-checkpoint-step STEP --run-id luna2-heldout-6k16t-t05-r5-cSTEP-20261007
+    ../../.venv/bin/posttrain job run .posttrain/work_packages/lfm26_automationbench_heldout_matched_eval_64k_v4.yaml --job evaluate --provider dstack --model-from-run manifest-steps-26-sampo-100-luna2-20261006-r5 --model-checkpoint-step STEP --run-id heldout-matched-64k-v4-r5-cSTEP-20261007
+    ../../.venv/bin/posttrain job run .posttrain/work_packages/lfm26_automationbench_heldout_matched_eval_64k_v4_t05.yaml --job evaluate --provider dstack --model-from-run manifest-steps-26-sampo-100-luna2-20261006-r5 --model-checkpoint-step STEP --run-id heldout-matched-64k-v4-t05-r5-cSTEP-20261007
+
+r10's checkpoint 100 and the base model rerun on the re-pinned v4 suites so all three systems compare on environments `24e1fc9`.
 
 ## Validation and Acceptance
 

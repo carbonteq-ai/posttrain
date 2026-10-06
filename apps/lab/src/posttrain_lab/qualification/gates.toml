@@ -1242,6 +1242,19 @@ owner = "posttrain-evaluation"
 replacement_condition = "Replaces the v3-t05 suite for runs on automationbench-v1 0.5.0 or later."
 
 [[gates]]
+id = "lfm26-luna2-heldout-6k16t-t05"
+work_package = ".posttrain/work_packages/lfm26_automationbench_luna2_heldout_eval_6k16t_t05.yaml"
+job_id = "evaluate"
+tier = "experimental"
+state = "candidate"
+job_kind = "eval.general"
+acceptance = "luna-v2-20-heldout-task-five-repetition-evaluation-training-budgets-temperature-0.5"
+experiment_family = "lfm26-luna2-heldout-6k16t-t05"
+hypothesis = "luna-v2's held-out tasks under the 2.6B manifest-steps run's own budgets (16 turns, 6144-token replies, 18432 per episode) at temperature 0.5 measure its checkpoints where they were trained, with manifest goal and harm findings beside task success."
+owner = "posttrain-evaluation"
+replacement_condition = "Held-out reference for runs on task mix automationbench-manifest-luna-v2; replaced when that mix or its budgets change."
+
+[[gates]]
 id = "lfm26-sampo-turns-continue40-fixed-tools"
 work_package = ".posttrain/work_packages/lfm26_automationbench_sampo_turns_continue40_fixed_tools_local_v1.yaml"
 job_id = "sampo"
