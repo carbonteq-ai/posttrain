@@ -245,8 +245,75 @@ def test_trace_fact_writer_uses_exact_run_and_does_not_open_or_finish_it(
         "provenance": {},
         "state": "complete",
         "replace_reward_components": True,
+        "environment_metrics": {},
         "calculated_at": update["calculated_at"],
     }
+
+
+def test_trace_fact_writer_sends_environment_metrics_with_a_matching_projection_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: list[dict[str, Any]] = []
+
+    class Client:
+        def predict(self, *, api_name: str, **kwargs: Any) -> dict[str, Any]:
+            sent.append(kwargs["update"])
+            return {"trace_id": "trace-1", "projection_id": kwargs["update"]["projection_id"], "applied": True}
+
+    monkeypatch.setenv("TRACKIO_WRITE_TOKEN", "test-token")
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.RemoteClient", lambda *args, **kwargs: Client())
+    facts = TraceFactSet(
+        namespace="verifiers.trace",
+        calculator_version="test.v1",
+        measures={"model_output_tokens": 12},
+        environment_metrics={"tool_unknown_id": 1, "tool_mistakes": 3.0},
+    )
+
+    TrackioTraceFactWriter("https://trackio.invalid").upsert(
+        project="project-a",
+        run_name="run-a",
+        provider_run_id="provider-run-a",
+        trace_type="verifiers",
+        external_id="trace-1",
+        facts=facts,
+    )
+
+    (update,) = sent
+    assert update["environment_metrics"] == {"tool_mistakes": 3.0, "tool_unknown_id": 1.0}
+    # Trackio recomputes the projection identity from the payload it receives and must agree with ours.
+    from trackio.trace_facts import TraceFactUpdate
+
+    assert TraceFactUpdate.from_payload(update).projection_id == facts.projection_id == update["projection_id"]
+
+
+def test_environment_metrics_need_a_trackio_that_can_store_them(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dataclasses import dataclass
+
+    from posttrain_tracking_trackio.adapter import _trackio_trace_facts
+
+    @dataclass
+    class OldUpdate:
+        trace_type: str
+        external_id: str
+        namespace: str
+        calculator_version: str
+        projection_id: str
+        dimensions: dict[str, Any]
+        measures: dict[str, Any]
+        reward_components: tuple[Any, ...]
+        provenance: dict[str, str]
+        state: str
+        replace_reward_components: bool
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.TraceFactUpdate", OldUpdate)
+    plain = TraceFactSet(namespace="verifiers.trace", calculator_version="test.v1")
+    assert _trackio_trace_facts("verifiers", "t", plain).external_id == "t"
+    with pytest.raises(ContractError, match="cannot store environment metrics"):
+        _trackio_trace_facts(
+            "verifiers",
+            "t",
+            TraceFactSet(namespace="verifiers.trace", calculator_version="test.v1", environment_metrics={"m": 1}),
+        )
 
 
 def test_trace_fact_writer_chunks_a_logical_page_at_the_safe_storage_boundary(

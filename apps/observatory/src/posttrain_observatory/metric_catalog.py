@@ -53,6 +53,13 @@ class MetricEntry(ObservatoryModel):
         )
 
 
+COLLECTION_TIME_METRIC = "train/rl/collection_time_seconds"
+"""Derived by Observatory, not recorded: the summed step time of the updates that trained on one collection."""
+
+DERIVED_COLLECTION_METRICS = frozenset({COLLECTION_TIME_METRIC})
+"""Per-collection series Observatory derives from recorded metrics; never read from a tracking provider."""
+
+
 def _entry(metric: str, name: str, label: str, description: str, **fields: object) -> MetricEntry:
     return MetricEntry.model_validate(
         {"metric": metric, "name": name, "label": label, "description": description, **fields}
@@ -141,6 +148,16 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         unit="s",
         entity="update",
         job_kinds=("train.capo", "train.distill", "train.dpo", "train.gdpo", "train.grpo", "train.sampo", "train.sft"),
+    ),
+    _entry(
+        COLLECTION_TIME_METRIC,
+        "collection_time",
+        "Collection time",
+        "Wall-clock time of one collection: rollout, scoring and every optimizer update that trained on it. Observatory sums the step times of the collection's updates; when each collection feeds one update it equals step time.",
+        interpretation="Compare runs on this rather than step time: it covers the same work (one sampled population, end to end) whether a run applies one or several updates per collection.",
+        caveat="Derived, not recorded. A collection still being trained is left out until all its planned updates are recorded.",
+        unit="s",
+        job_kinds=RESOLVED_UPDATE_KINDS,
     ),
     _entry(
         "train/num_tokens",
@@ -1593,6 +1610,8 @@ def metric_help(*metrics: str) -> tuple[MetricHelp, ...]:
 __all__ = [
     "ACTIVE_SAMPLING_CATALOG_ROUNDS",
     "CATALOG_BY_METRIC",
+    "COLLECTION_TIME_METRIC",
+    "DERIVED_COLLECTION_METRICS",
     "METRIC_CATALOG",
     "RESOLVED_UPDATE_KINDS",
     "MetricEntry",

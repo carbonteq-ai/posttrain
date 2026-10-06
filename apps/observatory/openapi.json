@@ -901,6 +901,41 @@
         "title": "EvaluationDistribution",
         "type": "object"
       },
+      "EvaluationEnvironmentMetric": {
+        "additionalProperties": false,
+        "description": "One environment-defined per-episode number, summarised over a run's episodes.",
+        "properties": {
+          "episodes": {
+            "default": 0,
+            "title": "Episodes",
+            "type": "integer"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "positive_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Positive Rate"
+          }
+        },
+        "title": "EvaluationEnvironmentMetric",
+        "type": "object"
+      },
       "EvaluationEstimatorResult": {
         "additionalProperties": false,
         "properties": {
@@ -1133,6 +1168,11 @@
       "EvaluationIndex": {
         "additionalProperties": false,
         "properties": {
+          "behaviour_definition": {
+            "default": "Per-episode means over attempts that did not fail: turns are model calls; turns (completed) counts only episodes that ended on their own; tool calls, output and thinking tokens come from the recorded trace facts. A missing value means no attempt recorded it. Environment metrics are the environment's own per-episode numbers (for example its tool mistakes); the share is the fraction of episodes where one was positive.",
+            "title": "Behaviour Definition",
+            "type": "string"
+          },
           "records": {
             "default": [],
             "items": {
@@ -1558,6 +1598,13 @@
             "title": "Attempts",
             "type": "integer"
           },
+          "endings": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Endings",
+            "type": "object"
+          },
           "environment": {
             "anyOf": [
               {
@@ -1568,6 +1615,13 @@
               }
             ],
             "title": "Environment"
+          },
+          "environment_metrics": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EvaluationEnvironmentMetric"
+            },
+            "title": "Environment Metrics",
+            "type": "object"
           },
           "failed": {
             "default": 0,
@@ -1589,6 +1643,17 @@
               }
             ],
             "title": "Model"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
           },
           "parent_run": {
             "anyOf": [
@@ -1677,10 +1742,54 @@
             ],
             "title": "Suite"
           },
+          "thinking_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking Tokens"
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Calls"
+          },
           "truncated": {
             "default": 0,
             "title": "Truncated",
             "type": "integer"
+          },
+          "turns": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turns"
+          },
+          "turns_completed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turns Completed"
           }
         },
         "required": [
@@ -2098,6 +2207,17 @@
             "title": "Failed",
             "type": "integer"
           },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
           "run_key": {
             "minLength": 1,
             "title": "Run Key",
@@ -2118,10 +2238,54 @@
             "title": "Task",
             "type": "string"
           },
+          "thinking_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking Tokens"
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Calls"
+          },
           "truncated": {
             "default": 0,
             "title": "Truncated",
             "type": "integer"
+          },
+          "turns": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turns"
+          },
+          "turns_completed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turns Completed"
           }
         },
         "required": [
@@ -4371,6 +4535,14 @@
             "title": "Charts",
             "type": "array"
           },
+          "collection_steps": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Collection Steps",
+            "type": "array"
+          },
           "completeness": {
             "$ref": "#/components/schemas/EvidenceCompleteness"
           },
@@ -5674,7 +5846,7 @@
       },
       "Source": {
         "additionalProperties": false,
-        "description": "Where values come from: a field, a settings path, a metric name, a trace fact.\n\nA ``trace_attribute`` is a key the producer recorded in the trace's metadata\n(its attributes); it serves labels Trackio has no fact column for yet. A\n``trace_fact`` may name a ``fallback_attribute``: the metadata key read when\nthe fact column is empty, for traces whose facts were projected before the\nfact existed.",
+        "description": "Where values come from: a field, a settings path, a metric name, a trace fact.\n\nA ``trace_attribute`` is a key the producer recorded in the trace's metadata\n(its attributes); it serves labels Trackio has no fact column for yet. A\n``trace_fact`` may name a ``fallback_attribute``: the metadata key read when\nthe fact column is empty, for traces whose facts were projected before the\nfact existed. A ``trace_column`` is an identity column of the trace itself\n(its ``external_id``), which other evidence tables join on.",
         "properties": {
           "fallback_attribute": {
             "anyOf": [
@@ -5721,6 +5893,7 @@
           "metric_series",
           "trace_fact",
           "trace_attribute",
+          "trace_column",
           "derived"
         ],
         "type": "string"

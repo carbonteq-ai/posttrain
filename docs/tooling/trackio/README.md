@@ -1,5 +1,25 @@
 # Trackio fork and maintenance
 
+`0.31.5.post14.dev35` (fork commit `83663d4a9d7638a830df1290d093351349c5be10`
+on `codex/next-release`, built on the dev34 tag `29815340`; tag
+`carbonteq-v0.31.5.post14.dev35`, GitHub prerelease; wheel
+`55342622ccd256f6d5a64bb500d568ddbb5b4c14ba060e4457c255237d1e426e`, sdist
+`fc24885e7331b1b637b47e2fea77c0f08394630ed30ce4def5f0b237a7c14ce9`, built from
+a fresh clone; published unchanged to `carbonteq/dev` by Posttrain workflow
+`37394807327` on 2026-10-06) shortens two Observatory reads without a schema
+change: a run's artifact links carry each version's description, metadata and
+manifest digest, so `Run.artifacts()` makes one request instead of one per
+artifact (r10: 145 requests in 13.7 s → 1 in 0.07 s, identical output), and
+Doris counts trace steps in SQL. The shared server runs dev35 since 2026-10-06
+00:39 UTC (ai-infra `deploy/trackio-dev35`, commit `91e706d`, fast-forwarded
+to `main`; `scripts/deploy-trackio` changed only the wheel and service
+environment; `scripts/qualify-trackio` passed; the running r10 logged through
+the restart). No Doris migration; schema stays at version 6. The Observatory
+branch `observatory/collection-steps-read-path` pins dev35 (pin and lock
+entries only); job images keep their client until the next routine pin update,
+since only the server and the Observatory's client use the change.
+Measurements are in `docs/plan/collection-grain-telemetry.md`.
+
 The framework pin on branch `codex/trackio-next` is `0.31.5.post14.dev32`, fork
 commit `d71cf2a5cbcc561bd72e3932d8032200a791d79c` on fork branch
 `codex/next-release` (dev31 plus f3be77d7 and the episode-ending change), tag

@@ -1414,6 +1414,48 @@ async def trace_summary_population(
     return tuple(summaries), live
 
 
+async def newer_trace_summaries(
+    source: RunDataSource,
+    run_id: str,
+    *,
+    trace_type: str,
+    metadata: EvaluationMetadata | None,
+    known: frozenset[str],
+    page_size: int = 64,
+) -> tuple[tuple[TraceSummary, ...], bool]:
+    """Read only the summaries newer than ``known``, newest first.
+
+    A live run's population changes only at its newest end, so a refresh reads
+    newest-first pages until one holds nothing new instead of re-reading every
+    trace. A late import can land a little behind the newest traces, which is
+    why the stop is a whole page of known traces rather than the first one.
+    """
+
+    summaries: list[TraceSummary] = []
+    seen: set[str] = set()
+    cursor: str | None = None
+    live = False
+    while True:
+        page = await source.traces(
+            run_id,
+            TraceQuery(trace_type=trace_type, cursor=cursor, limit=page_size, order="newest_first"),
+        )
+        live = live or page.live
+        fresh = 0
+        for record in page.items:
+            if record.external_id in known or record.external_id in seen:
+                continue
+            seen.add(record.external_id)
+            fresh += 1
+            summaries.append(_apply_evaluation_semantics(_summary(record, metadata), metadata))
+        if fresh == 0 or page.next_cursor is None:
+            break
+        if page.next_cursor == cursor:
+            raise ValueError("trace provider did not advance its cursor")
+        cursor = page.next_cursor
+    return tuple(summaries), live
+
+
 def prompt_group_reward_view(
     result: TraceAggregateResult, *, expected_size: int | None, recorded_traces: int, live: bool
 ) -> PromptGroupRewardView:
@@ -1626,5 +1668,6 @@ __all__ = [
     "trace_evaluation_view",
     "trace_filter_options",
     "trace_summary_page",
+    "newer_trace_summaries",
     "trace_summary_population",
 ]

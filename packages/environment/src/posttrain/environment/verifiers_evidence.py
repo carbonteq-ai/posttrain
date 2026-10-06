@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
+from typing import cast
 
 from posttrain.common import (
     EPISODE_ENDING_ATTRIBUTE,
@@ -22,7 +23,18 @@ from posttrain.common import (
 # rejected for exceeding the context is truncated, not an error, and keeps the
 # reward the environment scored. v9: the episode ending label is a fact
 # dimension (`episode_ending`), which needs Trackio 0.31.5.post14.dev32.
-VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v9"
+# v10: a call whose reasoning count the renderer recovered from the stored reply
+# text (traces without sampled token ids, such as chat-completion evaluations)
+# marks its usage `reasoning_tokens_source: renderer_retokenized_text`, and the
+# thinking fact records that provenance instead of provider usage. v11: the
+# environment's own numeric per-episode metrics (the native record's `metrics`)
+# become `environment_metrics`, recorded once per trace; the environment names
+# them and the framework never interprets them.
+VERIFIERS_FACT_CALCULATOR_VERSION = "verifiers-trace-facts.v11"
+MAX_ENVIRONMENT_METRICS = 128
+"""Most environment metrics kept per trace; the rest are dropped and the provenance says so."""
+RENDERER_RETOKENIZED_TEXT = "renderer_retokenized_text"
+"""Usage source of a reasoning count the renderer recovered from reply text, not sampled token ids."""
 
 # Verifiers stop conditions that are limits, and the ending each one records.
 # `context_length` and `harness_timeout` come from pre-v1 Verifiers records.
@@ -201,9 +213,13 @@ def project_verifiers_trace_facts(
     }
 
     if reasoning_tokens is not None:
-        provenance["thinking_tokens"] = (
-            "provider_reasoning_usage" if reasoning_complete else "provider_reasoning_usage_partial"
+        retokenized = any(
+            isinstance(call.get("usage"), Mapping)
+            and cast(Mapping[str, object], call["usage"]).get("reasoning_tokens_source") == RENDERER_RETOKENIZED_TEXT
+            for call in calls or ()
         )
+        source = RENDERER_RETOKENIZED_TEXT if retokenized else "provider_reasoning_usage"
+        provenance["thinking_tokens"] = source if reasoning_complete else f"{source}_partial"
     else:
         provenance["thinking_tokens"] = "unsupported"
 
@@ -244,6 +260,11 @@ def project_verifiers_trace_facts(
     )
     usage_complete = input_complete and output_complete and reasoning_complete
     state = "complete" if required_known and usage_complete else "partial"
+    environment_metrics, metrics_complete = _environment_metrics(record)
+    if environment_metrics:
+        provenance["environment_metrics"] = (
+            "verifiers_native_metrics" if metrics_complete else "verifiers_native_metrics_truncated"
+        )
     return TraceFactSet(
         namespace="verifiers.trace",
         calculator_version=VERIFIERS_FACT_CALCULATOR_VERSION,
@@ -252,7 +273,34 @@ def project_verifiers_trace_facts(
         reward_components=reward_components,
         provenance=provenance,
         state=state,
+        environment_metrics=environment_metrics,
     )
+
+
+def _environment_metrics(record: Mapping[str, object]) -> tuple[dict[str, float], bool]:
+    """The native record's numeric per-episode metrics, bounded; the second value is False when some were dropped.
+
+    Verifiers environments report their own diagnostics here (AutomationBench's
+    `tool_mistakes`, `tool_unknown_id`, ...). Names are the environment's, kept as given;
+    non-numeric, non-finite and over-long entries are skipped, and no meaning is attached.
+    """
+
+    metrics = record.get("metrics")
+    if not isinstance(metrics, Mapping):
+        return {}, True
+    kept: dict[str, float] = {}
+    complete = True
+    for name in sorted(str(key) for key in metrics):
+        value = metrics.get(name)
+        if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+            continue
+        if not name.strip() or len(name) > 256 or any(ord(char) < 32 for char in name):
+            continue
+        if len(kept) >= MAX_ENVIRONMENT_METRICS:
+            complete = False
+            break
+        kept[name] = float(value)
+    return kept, complete
 
 
 def _calls(record: Mapping[str, object]) -> list[Mapping[str, object]] | None:
@@ -484,6 +532,7 @@ def _string(value: object) -> str | None:
 
 
 __all__ = [
+    "RENDERER_RETOKENIZED_TEXT",
     "VERIFIERS_FACT_CALCULATOR_VERSION",
     "final_call_overflowed_context",
     "is_context_overflow_error",

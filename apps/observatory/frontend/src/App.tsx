@@ -29,6 +29,7 @@ import {
 } from '@phosphor-icons/react';
 
 import { FilterPopover } from './components/FilterPopover';
+import { collectionAxis } from './lib/collections';
 import { evaluationsByParent, formatScore, shortSuiteLabels, stepLabel } from './lib/evaluations';
 import { RolloutTimeline, RolloutTimeSummary } from './components/RolloutTime';
 import { PhaseMemoryTimeline } from './components/PhaseMemoryTimeline';
@@ -972,7 +973,14 @@ export default function App() {
     try {
       if (!sourceKey) return;
       const sourceComparison = await api.comparisonKey(sourceKey);
-      const candidates = runs.filter((run) => run.locator.source_id === selected?.locator.source_id && run.run.project_id === selected?.run.project_id && run.run.job_kind === sourceComparison.job_kind);
+      const jobKind = sourceComparison.job_kind ?? selected?.run.job_kind;
+      const candidates = runs.filter((run) => run.locator.source_id === selected?.locator.source_id && run.run.project_id === selected?.run.project_id && run.run.job_kind === jobKind);
+      // Training runs have no shared evaluation population; any run of the job kind is a candidate and
+      // the comparison lists the training inputs that differ.
+      if (sourceComparison.comparison_key == null) {
+        setCompareCandidates(candidates);
+        return;
+      }
       const candidateKeys = await Promise.all(candidates.map((run) => api.comparisonKey(run.run_key).catch(() => null)));
       setCompareCandidates(candidates.filter((_, index) => candidateKeys[index]?.comparison_key === sourceComparison.comparison_key));
     } catch (cause) {
@@ -1761,28 +1769,6 @@ function EvaluationOverview({ selected, response, evaluation, onTraces, onCompar
   </>;
 }
 
-/** Carry each held (per-collection) series across the update steps the chart's other series record. */
-function holdCollectionValues(series: MetricSeries[], held: ReadonlySet<string>): MetricSeries[] {
-  if (!held.size) return series;
-  const updateSteps = [...new Set(series
-    .filter((item) => !held.has(item.name))
-    .flatMap((item) => item.points.flatMap((point) => point.step == null ? [] : [point.step])))]
-    .sort((left, right) => left - right);
-  if (!updateSteps.length) return series;
-  return series.map((item) => {
-    if (!held.has(item.name) || !item.points.length) return item;
-    const own = [...item.points].filter((point) => point.step != null).sort((left, right) => (left.step ?? 0) - (right.step ?? 0));
-    const steps = [...new Set([...updateSteps, ...own.map((point) => point.step as number)])].sort((left, right) => left - right);
-    const points: MetricSeries['points'] = [];
-    let index = -1;
-    for (const step of steps) {
-      while (index + 1 < own.length && (own[index + 1].step as number) <= step) index += 1;
-      if (index >= 0) points.push({ ...own[index], step });
-    }
-    return { ...item, points };
-  });
-}
-
 function GenericOverview({
   selected,
   response,
@@ -1820,6 +1806,7 @@ function GenericOverview({
     [view.metric_help],
   );
   const baseChart = charts[Math.min(activeChart, Math.max(charts.length - 1, 0))];
+  const axis = useMemo(() => collectionAxis(view.collection_steps), [view.collection_steps]);
   const isGroupPolicy = policyOptimizationJobKinds.has(selected.run.job_kind);
   const groupPolicyLabel = isGroupPolicy ? selected.run.job_kind.slice('train.'.length).toUpperCase() : null;
   // Episode behavior belongs with the population's reward (per collection when collections span updates).
@@ -1837,23 +1824,22 @@ function GenericOverview({
       return points.length ? [{ name, points }] : [];
     })
     : [];
-  // Population (collection) values hold across the updates their collection fed, so the chart, its
-  // tooltip and the step readout all show the collection an update trained on.
-  const heldNames = new Set(
-    baseChart?.collection_series?.length
-      ? [...baseChart.collection_series, ...rolloutSeries.map((series) => series.name)]
-      : [],
-  );
+  // Steps are collections. When a run trains on each collection with several updates, population values
+  // sit at their collection's number and updates at fractions leading up to it, so runs with different
+  // update schedules share one axis (see lib/collections).
+  const collectionNames = new Set([...(baseChart?.collection_series ?? []), ...rolloutSeries.map((series) => series.name)]);
   const chart = baseChart == null ? undefined : {
     ...baseChart,
-    series: holdCollectionValues([...baseChart.series, ...rolloutSeries], heldNames),
+    series: [...baseChart.series, ...rolloutSeries].map((series) => (axis.remapped
+      ? {
+        ...series,
+        points: series.points.map((point) => (point.step == null
+          ? point
+          : { ...point, step: axis.position(point.step, collectionNames.has(series.name) ? 'collection' : 'update') })),
+      }
+      : series)),
   };
-  const chartSeriesLabels = heldNames.size
-    ? {
-      ...chartLabels,
-      ...Object.fromEntries([...heldNames].map((name) => [name, `${chartLabels[name] ?? metricLabel(name)} (per collection)`])),
-    }
-    : chartLabels;
+  const chartXAxis = useMemo(() => ({ name: 'Step', formatValue: axis.label }), [axis]);
   const lead = summary[0];
   const leadPoints = charts
     .flatMap((item) => item.series)
@@ -1872,16 +1858,22 @@ function GenericOverview({
       : null;
   const leadComparison = leadWindow != null
     ? `previous ${leadWindow} collections`
-    : `step ${previousLeadPoint?.step ?? leadPoints.length - 1}`;
+    : `step ${previousLeadPoint?.step != null ? axis.collection(previousLeadPoint.step) : leadPoints.length - 1}`;
   const leadScope = leadWindow != null ? `last ${leadWindow} collections` : null;
   const recordedSteps = chart?.series.flatMap((series) => series.points.flatMap((point) => point.step == null ? [] : [point.step])) ?? [];
   const latestStep = recordedSteps.length ? Math.max(...recordedSteps) : null;
   const unrecordedSeries = chart?.series.filter((series) => series.points.length === 0) ?? [];
   const [selectedStep, setSelectedStep] = useState<number | null>(latestStep);
   useEffect(() => setSelectedStep(latestStep), [activeChart, latestStep, selected.run.run_id]);
+  // The readout shows the selected step's values: each series' latest point within that collection.
+  const selectedCollection = selectedStep == null ? null : Math.ceil(selectedStep - 1e-9);
   const selectedSeries = chart?.series.map((series) => ({
     name: series.name,
-    value: series.points.find((point) => point.step === selectedStep)?.value ?? null,
+    value: selectedStep == null || selectedCollection == null
+      ? null
+      : [...series.points].reverse().find((point) => point.step != null
+        && point.step <= selectedStep + 1e-9
+        && point.step > selectedCollection - 1 + 1e-9)?.value ?? null,
   })) ?? [];
   const model = selectionValue(view.resolved_inputs, 'model');
   const student = selectionValue(view.resolved_inputs, 'student')
@@ -2061,10 +2053,10 @@ function GenericOverview({
                 <span className="max-w-xl text-right text-[11px] text-muted">{chart?.question ?? 'Select a point to inspect exact evidence'}</span>
               </div>
               <div className="flex min-h-10 flex-wrap items-center gap-x-5 gap-y-2 border-b border-divider bg-subtle/45 px-4 py-2 text-[11px]">
-                <span className="font-medium text-ink">Step {selectedStep ?? '—'}</span>
-                {selectedSeries.map((item) => <span key={item.name} className="inline-flex items-center text-secondary"><MetricLabel label={chartSeriesLabels[item.name] ?? helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} className="text-muted" /> <strong className="ml-1 font-medium text-ink">{formatValue(item.value, chartUnits[item.name] ?? metricUnits[item.name] ?? helpByMetric.get(item.name)?.unit)}</strong></span>)}
+                <span className="font-medium text-ink">{selectedStep == null ? 'Step —' : axis.label(selectedStep)}</span>
+                {selectedSeries.map((item) => <span key={item.name} className="inline-flex items-center text-secondary"><MetricLabel label={chartLabels[item.name] ?? helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} className="text-muted" /> <strong className="ml-1 font-medium text-ink">{formatValue(item.value, chartUnits[item.name] ?? metricUnits[item.name] ?? helpByMetric.get(item.name)?.unit)}</strong></span>)}
               </div>
-              {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartSeriesLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} steppedSeries={[...heldNames]} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
+              {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} xAxis={chartXAxis} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
               {unrecordedSeries.length > 0 && (
                 <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
                   Not recorded by this run: {unrecordedSeries.map((series) => chartLabels[series.name] ?? helpByMetric.get(series.name)?.label ?? metricLabel(series.name)).join(', ')}.
@@ -2168,10 +2160,11 @@ function CompareView({ runs, jobKind, selectedKeys, comparison, loading, candida
   onCompare: () => void;
 }) {
   const runLabel = new Map(runs.map((run) => [run.run.run_id, run.run.display_name]));
+  const training = !jobKind.startsWith('eval.');
   return <>
-    <PageHeading eyebrow="CROSS-RUN EVALUATION" title="Compare runs" subtitle={`Candidates are filtered to ${jobKind}. Compare models only against the same evaluation population; dataset, task selection, and metric schema must still match.`} />
+    <PageHeading eyebrow={training ? 'CROSS-RUN TRAINING' : 'CROSS-RUN EVALUATION'} title="Compare runs" subtitle={training ? `Candidates are ${jobKind} runs in this project. Steps are collections in every run; inputs that change what reward, step time or gradient scale mean are listed beside the result.` : `Candidates are filtered to ${jobKind}. Compare models only against the same evaluation population; dataset, task selection, and metric schema must still match.`} />
     <section className="obs-card mt-5 overflow-hidden" aria-label="Comparison run selection">
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-divider px-4 py-3"><div><p className="type-eyebrow">SELECT RUNS</p><h2 className="mt-1 font-serif text-xl font-normal">Evaluation candidates</h2></div><button type="button" disabled={selectedKeys.length < 2 || loading} onClick={onCompare} className="rounded-[4px] bg-violet-700 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-violet-200">{loading ? 'Comparing…' : `Compare ${selectedKeys.length || ''}`}</button></div>
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-divider px-4 py-3"><div><p className="type-eyebrow">SELECT RUNS</p><h2 className="mt-1 font-serif text-xl font-normal">{training ? 'Training candidates' : 'Evaluation candidates'}</h2></div><button type="button" disabled={selectedKeys.length < 2 || loading} onClick={onCompare} className="rounded-[4px] bg-violet-700 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-violet-200">{loading ? 'Comparing…' : `Compare ${selectedKeys.length || ''}`}</button></div>
       <div className="divide-y divide-divider">
         {candidateLoading && <p className="px-4 py-6 text-xs text-muted">Resolving runs with the same evaluation population…</p>}
         {runs.map((run) => <label key={run.run_key} className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-subtle"><input type="checkbox" checked={selectedKeys.includes(run.run_key)} onChange={() => onToggle(run.run_key)} className="accent-violet-700" /><span className="min-w-0 flex-1"><strong className="block truncate text-xs font-medium">{run.run.display_name}</strong><span className="mt-1 block text-[10px] text-muted">{run.run.job_kind} · {run.run.work_package_id}</span></span><Status value={run.run.status} /></label>)}
@@ -2179,7 +2172,11 @@ function CompareView({ runs, jobKind, selectedKeys, comparison, loading, candida
       </div>
     </section>
     {comparison && comparison.state === 'incomparable' && <section className="mt-4 border border-amber-200 bg-[#fffaf1] px-4 py-4" aria-label="Runs are not comparable"><div className="flex items-start gap-2"><Warning size={16} weight="fill" className="mt-0.5 shrink-0 text-amber-600" /><div><h2 className="text-xs font-medium text-amber-950">These runs cannot be compared</h2><p className="mt-1 text-xs leading-5 text-amber-900">{comparison.reason}</p>{comparison.basis.length > 0 && <p className="mt-2 text-[10px] text-amber-800">Required match: {comparison.basis.join(' · ')}.</p>}</div></div></section>}
-    {comparison && comparison.state === 'comparable' && <section className="obs-card mt-4 overflow-hidden" aria-label="Run comparison matrix"><div className="border-b border-divider px-4 py-3"><p className="type-eyebrow">SAME POPULATION</p><h2 className="mt-1 font-serif text-xl font-normal">Model comparison matrix</h2><p className="mt-1 text-xs text-muted">{comparison.basis.join(' · ')}</p></div><div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-xs"><thead className="bg-subtle text-[10px] uppercase tracking-[.1em] text-muted"><tr><th className="px-4 py-3">Run / model</th>{comparison.columns.map((column) => <th key={column} className="px-4 py-3 text-right">{humanizeKey(column)}</th>)}<th className="px-4 py-3">Inference</th></tr></thead><tbody className="divide-y divide-divider">{comparison.rows.map((row) => <tr key={row.run_id}><th className="max-w-[260px] px-4 py-3 font-medium"><span className="block truncate">{runLabel.get(row.run_id) ?? row.run_id}</span><code className="mt-1 block truncate text-[10px] font-normal text-muted">{String(row.context.model ?? 'model not recorded')}</code></th>{comparison.columns.map((column) => <td key={column} className="px-4 py-3 text-right font-medium">{row.values[column] == null ? '—' : typeof row.values[column] === 'number' ? Number(row.values[column]).toFixed(3) : String(row.values[column])}</td>)}<td className="max-w-[220px] px-4 py-3 text-[10px] text-muted">{String(row.context.inference ?? 'not recorded')}</td></tr>)}</tbody></table></div></section>}
+    {comparison && comparison.state === 'comparable' && <section className="obs-card mt-4 overflow-hidden" aria-label="Run comparison matrix"><div className="border-b border-divider px-4 py-3"><p className="type-eyebrow">{comparison.differences?.length ? 'DIFFERENT TRAINING INPUTS' : 'SAME POPULATION'}</p><h2 className="mt-1 font-serif text-xl font-normal">Model comparison matrix</h2><p className="mt-1 text-xs text-muted">{comparison.basis.join(' · ')}</p></div><div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-xs"><thead className="bg-subtle text-[10px] uppercase tracking-[.1em] text-muted"><tr><th className="px-4 py-3">Run / model</th>{comparison.columns.map((column) => <th key={column} className="px-4 py-3 text-right">{humanizeKey(column)}</th>)}<th className="px-4 py-3">Inference</th></tr></thead><tbody className="divide-y divide-divider">{comparison.rows.map((row) => <tr key={row.run_id}><th className="max-w-[260px] px-4 py-3 font-medium"><span className="block truncate">{runLabel.get(row.run_id) ?? row.run_id}</span><code className="mt-1 block truncate text-[10px] font-normal text-muted">{String(row.context.model ?? 'model not recorded')}</code></th>{comparison.columns.map((column) => <td key={column} className="px-4 py-3 text-right font-medium">{row.values[column] == null ? '—' : typeof row.values[column] === 'number' ? Number(row.values[column]).toFixed(3) : String(row.values[column])}</td>)}<td className="max-w-[220px] px-4 py-3 text-[10px] text-muted">{String(row.context.inference ?? 'not recorded')}</td></tr>)}</tbody></table></div></section>}
+    {comparison && comparison.state === 'comparable' && (comparison.differences?.length ?? 0) > 0 && <section className="mt-4 border border-amber-200 bg-[#fffaf1]" aria-label="Training inputs that differ">
+      <div className="flex items-start gap-2 px-4 py-3"><Warning size={16} weight="fill" className="mt-0.5 shrink-0 text-amber-600" /><div><h2 className="text-xs font-medium text-amber-950">These runs differ in what their numbers measure</h2><p className="mt-1 text-xs leading-5 text-amber-900">Steps are collections in both runs, but the inputs below change what reward, step time and gradient scale mean. Read the matrix as context, not a like-for-like result.</p></div></div>
+      <div className="overflow-x-auto border-t border-amber-200"><table className="w-full min-w-[720px] text-left text-xs"><thead className="text-[10px] uppercase tracking-[.1em] text-amber-800"><tr><th className="px-4 py-2">Input</th>{comparison.rows.map((row) => <th key={row.run_id} className="max-w-[260px] truncate px-4 py-2">{runLabel.get(row.run_id) ?? row.run_id}</th>)}</tr></thead><tbody className="divide-y divide-amber-100">{(comparison.differences ?? []).map((difference) => <tr key={difference.key}><th className="px-4 py-2 font-medium text-amber-950">{difference.label}</th>{difference.values.map((value, index) => <td key={comparison.rows[index]?.run_id ?? index} className="break-all px-4 py-2 text-amber-950">{value == null ? '—' : String(value)}</td>)}</tr>)}{comparison.rows.some((row) => row.context.collections != null) && <tr><th className="px-4 py-2 font-medium text-amber-950">Collections recorded</th>{comparison.rows.map((row) => <td key={row.run_id} className="px-4 py-2 text-amber-950">{row.context.collections == null ? '—' : String(row.context.collections)}</td>)}</tr>}</tbody></table></div>
+    </section>}
     {!comparison && <div className="mt-4 border border-dashed border-divider bg-subtle/50 px-4 py-5 text-xs text-muted">Select at least two runs from this filtered population, then compare. Runs from a different dataset, task selection, revision, split/seed, environment source, or native metric schema are excluded before comparison.</div>}
   </>;
 }
@@ -2462,8 +2459,9 @@ function TraceView({
   if (!total && !page.items.length) return <EmptyState title="No traces were captured" body="This job has run-level evidence only. Trace-derived evaluation and example-level investigation are unavailable." />;
   // A step is a collection (one sampled population). When collections feed several updates, a
   // rollout's recorded step is its collection's first update, so number collections 1, 2, 3, ...
-  const collectionByStart = new Map((filterOptions?.collection_steps ?? []).map((start, index) => [start, index + 1]));
-  const stepLabel = (value: number | null) => (value == null ? null : collectionByStart.get(value) ?? value);
+  // Steps are collections; the run view already carries them, so labels never wait on the filter scan.
+  const stepAxis = collectionAxis(response.view.collection_steps?.length ? response.view.collection_steps : filterOptions?.collection_steps);
+  const stepLabel = (value: number | null) => (value == null ? null : stepAxis.collection(value));
   const stepOptions = [
     { value: 'all', label: 'Any' },
     ...(filterOptions?.steps ?? []).map((value) => ({ value: String(value), label: String(stepLabel(value)) })),

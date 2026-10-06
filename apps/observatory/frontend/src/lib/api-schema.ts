@@ -1004,6 +1004,21 @@ export interface components {
             /** Samples */
             samples: number;
         };
+        /**
+         * EvaluationEnvironmentMetric
+         * @description One environment-defined per-episode number, summarised over a run's episodes.
+         */
+        EvaluationEnvironmentMetric: {
+            /**
+             * Episodes
+             * @default 0
+             */
+            episodes: number;
+            /** Mean */
+            mean?: number | null;
+            /** Positive Rate */
+            positive_rate?: number | null;
+        };
         /** EvaluationEstimatorResult */
         EvaluationEstimatorResult: {
             /** Available Case Value */
@@ -1084,6 +1099,11 @@ export interface components {
         };
         /** EvaluationIndex */
         EvaluationIndex: {
+            /**
+             * Behaviour Definition
+             * @default Per-episode means over attempts that did not fail: turns are model calls; turns (completed) counts only episodes that ended on their own; tool calls, output and thinking tokens come from the recorded trace facts. A missing value means no attempt recorded it. Environment metrics are the environment's own per-episode numbers (for example its tool mistakes); the share is the fraction of episodes where one was positive.
+             */
+            behaviour_definition: string;
             /**
              * Records
              * @default []
@@ -1237,8 +1257,16 @@ export interface components {
              * @default 0
              */
             attempts: number;
+            /** Endings */
+            endings?: {
+                [key: string]: number;
+            };
             /** Environment */
             environment?: string | null;
+            /** Environment Metrics */
+            environment_metrics?: {
+                [key: string]: components["schemas"]["EvaluationEnvironmentMetric"];
+            };
             /**
              * Failed
              * @default 0
@@ -1248,6 +1276,8 @@ export interface components {
             job_kind: string;
             /** Model */
             model?: string | null;
+            /** Output Tokens */
+            output_tokens?: number | null;
             /** Parent Run */
             parent_run?: string | null;
             /** Parent Run Key */
@@ -1266,11 +1296,19 @@ export interface components {
             status?: string | null;
             /** Suite */
             suite?: string | null;
+            /** Thinking Tokens */
+            thinking_tokens?: number | null;
+            /** Tool Calls */
+            tool_calls?: number | null;
             /**
              * Truncated
              * @default 0
              */
             truncated: number;
+            /** Turns */
+            turns?: number | null;
+            /** Turns Completed */
+            turns_completed?: number | null;
         };
         /** EvaluationRunView */
         EvaluationRunView: {
@@ -1421,17 +1459,27 @@ export interface components {
              * @default 0
              */
             failed: number;
+            /** Output Tokens */
+            output_tokens?: number | null;
             /** Run Key */
             run_key: string;
             /** Score */
             score?: number | null;
             /** Task */
             task: string;
+            /** Thinking Tokens */
+            thinking_tokens?: number | null;
+            /** Tool Calls */
+            tool_calls?: number | null;
             /**
              * Truncated
              * @default 0
              */
             truncated: number;
+            /** Turns */
+            turns?: number | null;
+            /** Turns Completed */
+            turns_completed?: number | null;
         };
         /** EvaluationTaskScores */
         EvaluationTaskScores: {
@@ -2206,6 +2254,11 @@ export interface components {
             capabilities: components["schemas"]["TrackingCapabilities"];
             /** Charts */
             charts: components["schemas"]["ChartView"][];
+            /**
+             * Collection Steps
+             * @default []
+             */
+            collection_steps: number[];
             completeness: components["schemas"]["EvidenceCompleteness"];
             configuration?: components["schemas"]["ConfigurationReview"] | null;
             /**
@@ -2617,7 +2670,8 @@ export interface components {
          *     (its attributes); it serves labels Trackio has no fact column for yet. A
          *     ``trace_fact`` may name a ``fallback_attribute``: the metadata key read when
          *     the fact column is empty, for traces whose facts were projected before the
-         *     fact existed.
+         *     fact existed. A ``trace_column`` is an identity column of the trace itself
+         *     (its ``external_id``), which other evidence tables join on.
          */
         Source: {
             /** Fallback Attribute */
@@ -2633,7 +2687,7 @@ export interface components {
             transform: "identity" | "one_minus";
         };
         /** @enum {string} */
-        SourceKind: "run_field" | "setting" | "event" | "metric_series" | "trace_fact" | "trace_attribute" | "derived";
+        SourceKind: "run_field" | "setting" | "event" | "metric_series" | "trace_fact" | "trace_attribute" | "trace_column" | "derived";
         /** SourceRefreshStatus */
         SourceRefreshStatus: {
             /** @default [] */

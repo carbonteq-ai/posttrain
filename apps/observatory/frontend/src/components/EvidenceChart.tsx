@@ -35,7 +35,12 @@ export type ChartXDomain = 'logical-step' | 'elapsed-time';
  * name for the axis and tooltip, and category labels when the x values are
  * not numbers (each point's ``step`` is then the category's index).
  */
-export type ChartXAxis = { name?: string; categories?: readonly string[] };
+export type ChartXAxis = {
+  name?: string;
+  categories?: readonly string[];
+  /** Label for a numeric x position in tooltips (for example "Step 3 · update 2 of 4"); ticks stay whole numbers. */
+  formatValue?: (value: number) => string;
+};
 
 function shortName(name: string, metricLabels: Record<string, string>): string {
   return metricLabels[name] ?? name.split('/').at(-1)?.replaceAll('_', ' ') ?? name;
@@ -136,6 +141,8 @@ export function formatTooltip(
   const logicalLabel = xAxis?.name ?? 'Step';
   const header = category != null
     ? (xAxis?.name ? `${xAxis.name} ${category}` : category)
+    : xDomain === 'logical-step' && xAxis?.formatValue && Number.isFinite(step)
+    ? xAxis.formatValue(step)
     : xDomain === 'elapsed-time'
     ? `${observedAt == null ? 'Time unavailable' : new Date(observedAt).toLocaleString(undefined, {
         month: 'short',
@@ -397,6 +404,8 @@ export function EvidenceChart({
     const categories = xDomain === 'logical-step' ? xAxis?.categories : undefined;
     const xAxisKind = categories
       ? { type: 'category' as const, data: [...categories] }
+      : xDomain === 'logical-step' && xAxis?.formatValue
+      ? { type: 'value' as const, minInterval: 1 }
       : { type: 'value' as const };
     const axes = useSmallMultiples
       ? panelGroups.flatMap((_, panelIndex) => groupAxisGroups[panelIndex].map((group, axisIndex) => ({

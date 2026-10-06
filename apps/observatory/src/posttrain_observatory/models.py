@@ -371,6 +371,10 @@ class RunView(ObservatoryModel):
     run: RunSummary
     summary: tuple[SummaryValue, ...]
     charts: tuple[ChartView, ...]
+    # First-update step of each collection, in order, when collections span several updates;
+    # collection n (1-based) is ``collection_steps[n - 1]``. Empty when each update has its own
+    # collection, so a step is already a collection number.
+    collection_steps: tuple[int, ...] = ()
     metric_help: tuple[MetricHelp, ...]
     completeness: EvidenceCompleteness
     grpo: GRPOProjection | None = None
@@ -1250,6 +1254,14 @@ class ComparisonRow(ObservatoryModel):
     context: dict[str, JsonPayload] = Field(default_factory=dict)
 
 
+class ComparisonDifference(ObservatoryModel):
+    """One training input that differs between compared runs, with each run's value in row order."""
+
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    values: tuple[JsonPayload, ...]
+
+
 class RunComparison(ObservatoryModel):
     job_kind: str | None = None
     state: Literal["comparable", "incomparable"]
@@ -1257,6 +1269,9 @@ class RunComparison(ObservatoryModel):
     rows: tuple[ComparisonRow, ...]
     reason: str | None = None
     basis: StringTuple = ()
+    # Training inputs that change what the compared numbers mean (reward function, tasks, batch
+    # shape, updates per collection). The runs stay comparable by job kind, but a reader must see these.
+    differences: tuple[ComparisonDifference, ...] = ()
 
 
 class WorkPackageRun(ObservatoryModel):
@@ -1361,6 +1376,7 @@ __all__ = [
     "BackendRuntimeSummary",
     "BenchmarkPopulationView",
     "ChartView",
+    "ComparisonDifference",
     "ComparisonRow",
     "EvaluationBreakdown",
     "EvaluationBreakdownGroup",

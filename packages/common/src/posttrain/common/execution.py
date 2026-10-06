@@ -121,6 +121,10 @@ class TraceFactSet:
     reward_components: tuple[TraceRewardComponent, ...] = ()
     provenance: Mapping[str, str] = field(default_factory=dict)
     state: FactState = "complete"
+    # The environment's own numeric per-episode diagnostics (an agent benchmark's tool mistakes,
+    # for example). The environment chooses the names and their meaning; the framework records
+    # them once per trace and leaves interpretation to the environment and the views over it.
+    environment_metrics: Mapping[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         _validate_fact_name(self.namespace, "trace fact namespace")
@@ -144,6 +148,14 @@ class TraceFactSet:
             _validate_fact_name(name, "trace fact provenance field")
             if not value.strip():
                 raise ContractError(f"trace fact provenance {name!r} cannot be empty")
+        metrics: dict[str, float] = {}
+        for name, value in self.environment_metrics.items():
+            _bounded_text(name, "trace environment metric name")
+            if value is None:
+                raise ContractError(f"trace environment metric {name!r} must be numeric")
+            _validate_finite_measure(value, f"trace environment metric {name!r}")
+            metrics[name] = float(value)
+        object.__setattr__(self, "environment_metrics", MappingProxyType(dict(sorted(metrics.items()))))
         object.__setattr__(self, "dimensions", MappingProxyType(dict(self.dimensions)))
         object.__setattr__(self, "measures", MappingProxyType(dict(self.measures)))
         object.__setattr__(self, "reward_components", tuple(sorted(self.reward_components, key=lambda item: item.name)))
@@ -171,6 +183,10 @@ class TraceFactSet:
             "provenance": dict(sorted(self.provenance.items())),
             "state": self.state,
         }
+        if self.environment_metrics:
+            # Present only when supplied, so projections without environment metrics keep the
+            # identity they had before the field existed (and Trackio recomputes the same one).
+            payload["environment_metrics"] = dict(self.environment_metrics)
         encoded = json.dumps(
             payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
         ).encode()

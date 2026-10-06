@@ -1684,7 +1684,7 @@ describe('Observatory React product shell', () => {
     expect(algorithm).toHaveTextContent('Actor microbatch4');
     expect(algorithm).toHaveTextContent('Grad accumulation64');
   });
-  it('holds population values across the updates of their collection', async () => {
+  it('numbers steps by collection when collections span several updates', async () => {
     const { jobRun, jobView } = metricJob(
       'train.sampo',
       'SAMPO collections',
@@ -1697,6 +1697,7 @@ describe('Observatory React product shell', () => {
       view: {
         ...jobView.view,
         summary: jobView.view.summary.map((item: Record<string, unknown>) => (item.key === 'reward_mean' ? { ...item, window: 2 } : item)),
+        collection_steps: [1, 3, 5, 7],
         charts: [
           {
             key: 'optimization',
@@ -1720,9 +1721,10 @@ describe('Observatory React product shell', () => {
 
     render(<App />);
 
-    // The last update (8) trained on the collection sampled at update 7, whose reward it shows.
-    expect(await screen.findByText('Step 8')).toBeVisible();
-    expect(screen.getByText(/\(per collection\)/)).toBeVisible();
+    // Two updates per collection: update 8 is the last of collection 4, so the readout is step 4 and
+    // shows that collection's reward beside the update's entropy.
+    expect(await screen.findByText('Step 4')).toBeVisible();
+    expect(screen.queryByText('Step 8')).toBeNull();
     // The windowed headline compares the last two collections with the two before them.
     expect(screen.getByText(/last 2 collections · \+.* vs previous 2 collections/)).toBeVisible();
   });

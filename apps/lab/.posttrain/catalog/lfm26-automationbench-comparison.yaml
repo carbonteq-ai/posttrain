@@ -4634,6 +4634,43 @@ inference:
     purpose: [eval]
     capabilities: [tool-calling]
 
+
+  # Revision 5 of inference/lfm2.5-2.6b-vllm-automationbench-eval-local@4: identical, plus vLLM's qwen3 reasoning parser, so each call reports
+  # completion_tokens_details.reasoning_tokens and thinking tokens are recorded. LFM2.5's chat template opens
+  # <think> in the generation prompt, so a reply is "thinking</think>answer"; the qwen3 parser counts the
+  # thinking without an opening tag (deepseek_r1 counts 0 on such replies). The template already strips past
+  # thinking from the history, so prompts, and therefore scores, stay comparable with revision 4
+  # (docs/plan/eval-behaviour-metrics.md).
+  inference/lfm2.5-2.6b-vllm-automationbench-eval-local@5:
+    revision: "5"
+    startup_timeout_seconds: 900
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      gpu_memory_utilization: 0.90
+      tensor_parallel_size: 1
+      reasoning_parser: qwen3
+      max_model_len: 65536
+      max_num_seqs: 20
+      max_num_batched_tokens: 65536
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 8192
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+
   inference/lfm2.5-2.6b-vllm-automationbench-eval-t05-local@1:
     revision: "1"
     startup_timeout_seconds: 900
@@ -4693,6 +4730,44 @@ inference:
     purpose: [eval]
     capabilities: [tool-calling]
   # Evaluation serving with the training context (24,576 tokens).
+
+  # Revision 2 of inference/lfm2.5-2.6b-vllm-automationbench-eval-t05-liquid-local@1: identical, plus vLLM's qwen3 reasoning parser, so each call reports
+  # completion_tokens_details.reasoning_tokens and thinking tokens are recorded. LFM2.5's chat template opens
+  # <think> in the generation prompt, so a reply is "thinking</think>answer"; the qwen3 parser counts the
+  # thinking without an opening tag (deepseek_r1 counts 0 on such replies). The template already strips past
+  # thinking from the history, so prompts, and therefore scores, stay comparable with revision 1
+  # (docs/plan/eval-behaviour-metrics.md).
+  inference/lfm2.5-2.6b-vllm-automationbench-eval-t05-liquid-local@2:
+    revision: "2"
+    startup_timeout_seconds: 900
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      gpu_memory_utilization: 0.90
+      tensor_parallel_size: 1
+      reasoning_parser: qwen3
+      max_model_len: 65536
+      max_num_seqs: 20
+      max_num_batched_tokens: 65536
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 8192
+      temperature: 0.5
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+  # Evaluation serving with the training context (24,576 tokens).
+
   inference/lfm2.5-2.6b-vllm-automationbench-eval-24k-local@1:
     revision: "1"
     startup_timeout_seconds: 900

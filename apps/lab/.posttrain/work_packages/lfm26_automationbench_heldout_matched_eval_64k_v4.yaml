@@ -20,7 +20,7 @@ recipe:
   expected_artifacts: [native evaluation result]
 bindings:
   model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
-  evaluation_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-eval-local@4}
+  evaluation_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-eval-local@5}
   target: {type: ref, family: target, id: targets/carbonteq-rtx-pro-6000-96gb}
   evaluation_plan: {type: ref, family: evaluation, id: lfm26-automationbench-heldout-v4}
   environment: {type: ref, family: environment, id: automationbench-lfm26-heldout-mix-v4}

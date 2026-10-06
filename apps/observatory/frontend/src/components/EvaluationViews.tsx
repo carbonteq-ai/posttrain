@@ -3,10 +3,18 @@ import { ArrowSquareOut } from '@phosphor-icons/react';
 
 import { api, type EvaluationIndex, type EvaluationRecord, type EvaluationTaskScore, type MetricSeries } from '../lib/api';
 import {
+  BEHAVIOUR_COLUMNS,
+  NOT_RECORDED,
+  behaviourMean,
   defaultCheckpoint,
   deltaClass,
+  endingSummary,
+  environmentMetric,
+  environmentMetricMean,
+  toolMistakeBreakdown,
   evaluatedTrainingRuns,
   formatDelta,
+  formatMean,
   formatScore,
   meanScore,
   runSuites,
@@ -129,6 +137,45 @@ export function TaskComparisonTable({ rows, columns, deltas, loading, error, tit
   </section>;
 }
 
+/** How episodes went for a few evaluation columns: one row per behaviour value. */
+function BehaviourTable({ columns }: { columns: Array<{ label: string; records: EvaluationRecord[] }> }) {
+  return <div className="mt-3 overflow-hidden rounded-[4px] border border-divider">
+    <table className="min-w-full text-left text-[11px]" aria-label="How episodes went">
+      <thead className="bg-subtle text-[10px] text-muted"><tr>
+        <th scope="col" className="whitespace-nowrap px-2.5 py-1.5 font-medium">Per episode</th>
+        {columns.map((column) => <th key={column.label} scope="col" className="whitespace-nowrap px-2.5 py-1.5 text-right font-medium">{column.label}</th>)}
+      </tr></thead>
+      <tbody className="divide-y divide-divider">
+        {BEHAVIOUR_COLUMNS.map((row) => <tr key={row.key}>
+          <th scope="row" title={row.title} className="whitespace-nowrap px-2.5 py-1.5 font-medium text-ink">{row.label}</th>
+          {columns.map((column) => {
+            const value = behaviourMean(column.records, row.key);
+            return <td key={column.label} title={value == null ? NOT_RECORDED : undefined} className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums">{formatMean(value, row.digits)}</td>;
+          })}
+        </tr>)}
+        <tr>
+          <th scope="row" title="Mean tool mistakes per episode, as the environment counts them" className="whitespace-nowrap px-2.5 py-1.5 font-medium text-ink">Tool mistakes</th>
+          {columns.map((column) => {
+            const value = environmentMetricMean(column.records, 'tool_mistakes').mean;
+            return <td key={column.label} title={value == null ? NOT_RECORDED : undefined} className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums">{formatMean(value, 2)}</td>;
+          })}
+        </tr>
+        <tr>
+          <th scope="row" title="Share of episodes with at least one tool mistake" className="whitespace-nowrap px-2.5 py-1.5 font-medium text-ink">With a mistake</th>
+          {columns.map((column) => {
+            const value = environmentMetricMean(column.records, 'tool_mistakes').positiveRate;
+            return <td key={column.label} title={value == null ? NOT_RECORDED : undefined} className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums">{value == null ? '—' : `${(value * 100).toFixed(0)}%`}</td>;
+          })}
+        </tr>
+        <tr>
+          <th scope="row" title="How the episodes ended" className="whitespace-nowrap px-2.5 py-1.5 font-medium text-ink">Endings</th>
+          {columns.map((column) => <td key={column.label} className="px-2.5 py-1.5 text-right text-[10px]">{column.records.length === 1 ? endingSummary(column.records[0]?.endings) || '—' : column.records.length ? `${column.records.length} runs` : '—'}</td>)}
+        </tr>
+      </tbody>
+    </table>
+  </div>;
+}
+
 function SuiteSection({ group, onOpenRun }: { group: SuiteEvaluations; onOpenRun: OpenRun }) {
   const usableCheckpoints = group.checkpoints.filter(usable);
   const usableBase = group.base.filter(usable);
@@ -164,7 +211,13 @@ function SuiteSection({ group, onOpenRun }: { group: SuiteEvaluations; onOpenRun
       <div className="overflow-x-auto">
         <table className="min-w-full text-left text-[11px]" aria-label={`Base and checkpoints on ${suiteLabel(group.suite)}`}>
           <thead className="bg-subtle text-[10px] text-muted"><tr>
-            {['Model', 'Evaluation run', 'Score', 'Δ vs base', 'Attempts', 'Truncated', 'Failed', 'Status'].map((label, index) => <th key={label} scope="col" className={`whitespace-nowrap px-2.5 py-1.5 font-medium ${index >= 2 && index <= 6 ? 'text-right' : ''}`}>{label}</th>)}
+            {[
+              { label: 'Model' }, { label: 'Evaluation run' }, { label: 'Score', numeric: true }, { label: 'Δ vs base', numeric: true },
+              ...BEHAVIOUR_COLUMNS.map((column) => ({ label: column.label, title: column.title, numeric: true })),
+              { label: 'Tool mistakes', title: 'Mean tool mistakes per episode as the environment counts them (hover a value for the breakdown)', numeric: true },
+              { label: 'With a mistake', title: 'Share of episodes with at least one tool mistake', numeric: true },
+              { label: 'Attempts', numeric: true }, { label: 'Truncated', numeric: true }, { label: 'Failed', numeric: true }, { label: 'Status' },
+            ].map(({ label, title, numeric }: { label: string; title?: string; numeric?: boolean }) => <th key={label} scope="col" title={title} className={`whitespace-nowrap px-2.5 py-1.5 font-medium ${numeric ? 'text-right' : ''}`}>{label}</th>)}
           </tr></thead>
           <tbody className="divide-y divide-divider">
             {tableRows.map(({ record, base }) => {
@@ -174,8 +227,19 @@ function SuiteSection({ group, onOpenRun }: { group: SuiteEvaluations; onOpenRun
                 <td className="max-w-[28rem] px-2.5 py-1.5"><RunLink record={record} onOpenRun={onOpenRun} /></td>
                 <td className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums">{formatScore(record.score)}</td>
                 <td className={`whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums ${deltaClass(delta)}`}>{base ? '' : formatDelta(delta)}</td>
+                {BEHAVIOUR_COLUMNS.map((column) => {
+                  const value = record[column.key];
+                  return <td key={column.key} title={value == null ? NOT_RECORDED : undefined} className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums">{formatMean(value, column.digits)}</td>;
+                })}
+                {(() => {
+                  const mistakes = environmentMetric(record, 'tool_mistakes');
+                  return <>
+                    <td title={mistakes == null ? NOT_RECORDED : toolMistakeBreakdown(record) || undefined} className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums">{formatMean(mistakes?.mean, 2)}</td>
+                    <td title={mistakes == null ? NOT_RECORDED : undefined} className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums">{mistakes?.positiveRate == null ? '—' : `${(mistakes.positiveRate * 100).toFixed(0)}%`}</td>
+                  </>;
+                })()}
                 <td className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">{record.attempts}</td>
-                <td className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">{record.truncated}</td>
+                <td title={endingSummary(record.endings) || undefined} className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">{record.truncated}</td>
                 <td className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">{record.failed}</td>
                 <td className="whitespace-nowrap px-2.5 py-1.5">{record.status ?? '—'}{!usable(record) && <span className="ml-1 text-[10px]">(not compared)</span>}</td>
               </tr>;
@@ -302,6 +366,11 @@ export function EvalComparePage({ index, loading, error, displayName, onOpenRun,
           <small className="block text-[10px] text-muted">score difference</small>
         </div>
       </div>
+      <BehaviourTable columns={[
+        { label: 'Base', records: base },
+        { label: `A · ${stepLabel(checkpointA?.parent_step)}`, records: checkpointA ? [checkpointA] : [] },
+        { label: `B · ${stepLabel(checkpointB?.parent_step)}`, records: checkpointB ? [checkpointB] : [] },
+      ]} />
       <div className="mt-3">
         <EvidenceChart series={series} height={220} compact ariaLabel="Score by checkpoint step for runs A and B" metricLabels={{ 'Run A': `A · ${a ? displayName(a.runId) : ''}`, 'Run B': `B · ${b ? displayName(b.runId) : ''}`, 'Base model': 'Base model' }} metricUnits={{ 'Run A': SCORE_UNIT, 'Run B': SCORE_UNIT, 'Base model': SCORE_UNIT }} xAxis={{ name: 'Checkpoint step (0 = base model)' }} />
       </div>

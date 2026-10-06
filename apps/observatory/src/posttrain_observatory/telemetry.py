@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from .metric_catalog import metric_help
+from .metric_catalog import COLLECTION_TIME_METRIC, metric_help
 from .models import AlertSeverity, MetricHelp, ObservatoryModel
 
 type Reducer = Literal["last", "min", "max", "mean", "sum"]
@@ -765,9 +765,10 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
         ChartDefinition(
             key="efficiency",
             title="Runtime efficiency",
-            question="Where does step time go, and what effective rollout throughput results?",
+            question="Where does each collection's time go, and what effective rollout throughput results?",
             metrics=(
                 "train/rl/rollout_tokens_per_second",
+                COLLECTION_TIME_METRIC,
                 "train/step_time_seconds",
                 "train/rl/time/rollout_seconds",
                 "train/rl/time/reward_seconds",
@@ -828,6 +829,7 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
         ),
     ),
     metric_help=_help_for(
+        COLLECTION_TIME_METRIC,
         "train/rl/active_sampling_retained_signal_mean",
         "train/rl/active_sampling_eligible_signal_mean",
         "train/rl/reward_mean",

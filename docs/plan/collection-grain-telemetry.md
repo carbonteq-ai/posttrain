@@ -19,6 +19,11 @@ After this change a population is a first-class record called a **collection**. 
 - [x] (2026-10-06 04:50Z) Validation: pyright 0 errors repository-wide (was 112, all in tests plus one annotation), ruff clean, import contracts kept; the veRL suites run against the CarbonTeq veRL fork pass (16 and 18). Three release tests still fail by design until the veRL job-kind image moves to Verifiers 58df1306 (`test_release_constraints`, `test_narrow_runtime_locks...`, `test_verl_control_and_backend_select_the_framework_verifiers`); that release needs registry space on ai-control.
 
 - [x] (2026-10-06 06:00Z) Run-view charts hold one grain (84595e00; deployed as 72652dfd, image `posttrain-observatory@sha256:93b64deb...`, qualification passed). The first deploy still mixed population series (points at collection steps) and optimizer series (every update) in one chart, which the user saw as broken step information. `ChartView.grain` comes from the metric catalog; mixed charts split into an update chart and a "per collection" chart only when collections span several updates; collection charts label the axis and readout "Collection at step", the reward delta compares with the previous collection, episode behavior joins the reward chart, and the rollout-time summary and trace filter speak of collections. Live r10 view: six update charts (48 points) and six collection charts (12 points).
+- [x] (2026-10-06 04:50Z) Steps are collections on every Observatory surface (Milestone 3b, from a side-by-side review of r10 against `lfm26-sampo-tokratio-notrunc-6k14t-20-20261002-r1`, where r10's charts ran over updates 1–87 and the older run over 1–20). `RunView.collection_steps` carries each collection's first-update step; the frontend (`apps/observatory/frontend/src/lib/collections.ts`) numbers collections 1..n, places collection values at their number and an update at a fraction leading up to it (4 updates of collection 3 at 2.25, 2.5, 2.75, 3), labels readouts "Step 3 · update 2 of 4", and drops the held staircase. A derived `train/rl/collection_time_seconds` (summed step time of a collection's updates; equal to step time with one update per collection; a collection still training is left out) sits in Runtime efficiency. Rollout-table step labels come from the run view instead of `/trace-filters`. Compare accepts training runs and lists the inputs that change what their numbers mean (`RunComparison.differences`: reward function, environment, task mix, tasks, turns, reply budget, prompts and rollouts per collection, updates per collection). 206 Python and 124 frontend tests pass; `npm run build` succeeds.
+- [x] (2026-10-06 05:10Z) Read path (Milestone 3c). Run lookup uses Trackio's bulk `run_configs` instead of one summary request per run, and Trackio discovery keeps each project's reader across refreshes so its caches survive (r10 run detail 21.6 s → 2.0 s). The rollout population used by run-wide filters refreshes from its newest end (`traces.newer_trace_summaries`) instead of re-reading the run every 15 s, and a finished run's population is kept for an hour. Trackio fork branch `codex/observatory-read-path` (commit `83663d4a`, `0.31.5.post14.dev35`, pushed, not released) returns manifest fields with a run's artifact links and counts trace steps in SQL.
+- [x] (2026-10-06 00:45Z) Trackio dev35 released (tag `carbonteq-v0.31.5.post14.dev35`, `carbonteq/dev` workflow `37394807327`) and deployed to the shared server (00:39Z, ai-infra `91e706d`; qualification passed). This branch pins dev35 (pin, release metadata and `uv.lock` entries only; job-kind locks wait for the routine pin update). 279 Observatory and adapter tests pass on the locked dev35 client.
+- [x] (2026-10-06 01:05Z) Observatory deployed from this branch (source `b249056f`, image `posttrain-observatory@sha256:c325a6f7…`, ai-infra `91e706d`, `scripts/deploy-observatory`); deployment and retained-run qualification passed. Live: run list 0.7 s, r10 view 5.7 s first and 1.3 s warm (31 collections, collection time per collection), Oct 2 view 2.5 s, Compare 1.4 s with the nine differing inputs listed.
+- [ ] Merge this branch into the working branch and run the full validation ladder there (the import-boundary check needs every workspace package installed).
 
 ## Surprises & Discoveries
 
@@ -49,7 +54,30 @@ After this change a population is a first-class record called a **collection**. 
 
 ## Outcomes & Retrospective
 
-None yet.
+Milestone 3b/3c, measured against the production Trackio database from a local Observatory (r10 running, 24–25 collections):
+
+| Request | Before | Observatory changes, dev34 server | dev35 server |
+|---|---|---|---|
+| Run list | 11.5 s | 0.5 s | 0.15 s |
+| r10 run view | 12–17 s (21 s run lookup on a cold reader) | 13–17 s (artifact manifests) | 2.2 s cold, 0.4 s warm |
+| Oct 2 run view | 2.8 s | 3.3 s | 1.0 s |
+| Compare r10 vs Oct 2 | 12–17 s | 17 s | 0.8 s |
+| Rollout filter menus, first read | 77–159 s | 90 s | 90 s |
+| Rollout filter menus, later | same as first | 0.8 s cached, 2.2 s incremental | same |
+
+The first read of a large run's rollout population stays at about 90 s: Trackio reads each Verifiers trace's whole payload (about 650 KB, mostly the execution graph) to build a summary row. A stored per-trace summary column (Doris schema 7) would remove that; it was deferred as a database migration larger than this change needs (stash `schema v7 read_summary candidate` in the fork worktree).
+
+- Decision: number Observatory steps by collection (1..n) and place an update at a fraction inside its collection, instead of plotting against raw update steps.
+  Rationale: the user defines a step as a collection, and runs with one update per collection (every run before the resolved engine) already plot one point per collection. Holding a collection value across its updates (the earlier staircase) repeated it, which the baseline forbids, and still left r10 on an axis four times longer than older runs. The collection identity stays `collection_step`; the ordinal is presentation only, so no baseline amendment is needed.
+  Date/Author: 2026-10-06, Claude.
+
+- Decision: compare collection time, not step time, across update schedules.
+  Rationale: r10's first update of a collection includes the rollout (about 450 s) and the others take about 50 s, so per-update step time is a sawtooth that no one-update run shows; the summed collection time (about 600–770 s for r10) covers the same work as an older run's step (about 600 s). It matches the semantic layer's `collection_seconds`.
+  Date/Author: 2026-10-06, Claude.
+
+- Decision: keep exact rollout summaries for filter menus and refresh them incrementally, rather than building the menus from indexed fact columns.
+  Rationale: facts carry steps, task names, truncation and errors, but not the task facets (domain) that the menus offer; a facts-only menu would drop the domain filter. Incremental refresh removes the repeated cost without changing results.
+  Date/Author: 2026-10-06, Claude.
 
 ## Context and Orientation
 

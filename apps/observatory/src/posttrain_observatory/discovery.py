@@ -52,12 +52,18 @@ class TrackioSourceDiscovery:
         self._refresh_lock = asyncio.Lock()
         self._task: asyncio.Task[None] | None = None
         self._status = SourceRefreshStatus(enabled=True, state="pending")
+        # One reader per project for the process lifetime: a reader caches run identities and run
+        # detail, and replacing it on every refresh re-resolved each run against the whole project.
+        self._sources: dict[str, RunDataSource] = {}
 
     def status(self) -> SourceRefreshStatus:
         return self._status
 
     def _load_sources(self) -> dict[str, RunDataSource]:
-        return {project: self._source_factory(project) for project in self._catalog.list_projects()}
+        projects = self._catalog.list_projects()
+        sources = {project: self._sources.get(project) or self._source_factory(project) for project in projects}
+        self._sources = sources
+        return dict(sources)
 
     async def refresh(self) -> SourceRefreshStatus:
         async with self._refresh_lock:
