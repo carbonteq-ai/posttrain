@@ -1997,7 +1997,11 @@ environment:
     activation:
       kind: verifiers-config
       config:
-        taskset: *lfm26_heldout_taskset
+        # 089b67d executes tools only for tasks that capture actions (since 427e802);
+        # without it every tool call returns "linked tool execution requires capture enabled".
+        taskset:
+          <<: *lfm26_heldout_taskset
+          task: {toolset: limited_zapier, search_top_k: 20, capture_actions: true}
         retries: {max_retries: 2}
         agent:
           harness: {id: "null"}
@@ -2046,7 +2050,11 @@ environment:
     activation:
       kind: verifiers-config
       config:
-        taskset: *lfm26_heldout_taskset
+        # 089b67d executes tools only for tasks that capture actions (since 427e802);
+        # without it every tool call returns "linked tool execution requires capture enabled".
+        taskset:
+          <<: *lfm26_heldout_taskset
+          task: {toolset: limited_zapier, search_top_k: 20, capture_actions: true}
         retries: {max_retries: 2}
         agent:
           harness: {id: "null"}
